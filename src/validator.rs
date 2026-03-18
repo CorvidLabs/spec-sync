@@ -328,15 +328,33 @@ pub fn compute_coverage(
             .filter_map(|f| {
                 let rel = f.strip_prefix(root).ok()?;
                 let rel_str = rel.to_string_lossy().replace('\\', "/");
-                // Check exclude patterns (simple matching)
+                // Check exclude patterns (simple glob matching)
                 for pattern in &config.exclude_patterns {
-                    if pattern.contains("__tests__") && rel_str.contains("__tests__") {
-                        return None;
-                    }
-                    if let Some(suffix) = pattern.strip_prefix("**/*") {
-                        if rel_str.ends_with(suffix) {
+                    // **/dir/** — matches path containing dir
+                    if pattern.starts_with("**/") && pattern.ends_with("/**") {
+                        let dir_part = &pattern[3..pattern.len() - 3];
+                        if rel_str.contains(dir_part) {
                             return None;
                         }
+                    }
+                    // **/*.ext or **/filename — matches suffix/filename
+                    else if let Some(suffix) = pattern.strip_prefix("**/") {
+                        if suffix.starts_with('*') {
+                            // **/*.test.ts -> .test.ts
+                            let ext = &suffix[1..];
+                            if rel_str.ends_with(ext) {
+                                return None;
+                            }
+                        } else {
+                            // **/index.ts -> matches any path ending in /index.ts or equal to index.ts
+                            if rel_str.ends_with(&format!("/{suffix}")) || rel_str == *suffix {
+                                return None;
+                            }
+                        }
+                    }
+                    // Literal contains match as fallback
+                    else if rel_str.contains(pattern.as_str()) {
+                        return None;
                     }
                 }
                 Some(rel_str)

@@ -44,6 +44,7 @@ pub struct CoverageReport {
 
 /// User-provided configuration (from specsync.json).
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SpecSyncConfig {
     #[serde(default = "default_specs_dir")]
     pub specs_dir: String,

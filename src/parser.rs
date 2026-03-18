@@ -142,12 +142,14 @@ pub fn get_spec_symbols(body: &str) -> Vec<String> {
     };
 
     for sub in sub_sections {
-        // Check header
-        if let Some(first_line) = sub.lines().next() {
-            let header = first_line.trim();
-            if header.ends_with("Methods") || header.ends_with("Constructor") {
-                continue;
-            }
+        // Check header — skip leading blank lines from the split
+        let header = sub
+            .lines()
+            .map(|l| l.trim())
+            .find(|l| !l.is_empty())
+            .unwrap_or("");
+        if header.ends_with("Methods") || header.ends_with("Constructor") || header.ends_with("Properties") {
+            continue;
         }
 
         let mut in_method_subsection = false;

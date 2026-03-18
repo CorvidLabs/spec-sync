@@ -1,11 +1,9 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-static COMMENT_SINGLE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"//.*$").unwrap());
+static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"//.*$").unwrap());
 
-static COMMENT_MULTI: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
+static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
 
 /// Kotlin top-level declarations (everything not marked private/internal/protected is public by default).
 /// We match: fun, class, object, interface, typealias, val, var, enum class, data class, sealed class, annotation class
@@ -18,9 +16,8 @@ static KT_DECL: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// Detect visibility — private/internal/protected lines should be excluded
-static PRIVATE_LINE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^[^\S\n]*(?:private|internal|protected)\s+").unwrap()
-});
+static PRIVATE_LINE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*(?:private|internal|protected)\s+").unwrap());
 
 /// Extract exported symbols from Kotlin source code.
 /// In Kotlin, everything is public by default unless marked private/internal/protected.
@@ -37,15 +34,14 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             continue;
         }
 
-        if let Some(caps) = KT_DECL.captures(line) {
-            if let Some(name) = caps.get(1) {
+        if let Some(caps) = KT_DECL.captures(line)
+            && let Some(name) = caps.get(1) {
                 // Skip companion objects (they're not standalone exports)
                 if trimmed.starts_with("companion") {
                     continue;
                 }
                 symbols.push(name.as_str().to_string());
             }
-        }
     }
 
     symbols

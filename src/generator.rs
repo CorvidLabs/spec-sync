@@ -75,20 +75,16 @@ fn find_module_source_files(dir: &Path, config: &SpecSyncConfig) -> Vec<String> 
 
     for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
-        if path.is_file()
-            && has_extension(path, &config.source_extensions)
-            && !is_test_file(path)
-        {
+        if path.is_file() && has_extension(path, &config.source_extensions) && !is_test_file(path) {
             results.push(path.to_string_lossy().to_string());
         }
     }
 
     results
         .into_iter()
-        .filter_map(|p| {
+        .map(|p| {
             // Get path relative to root (two levels up from module dir)
-            let rel = p.replace('\\', "/");
-            Some(rel)
+            p.replace('\\', "/")
         })
         .collect()
 }
@@ -136,7 +132,9 @@ fn generate_spec(
 
     // Replace module name
     let module_re = regex::Regex::new(r"(?m)^module:\s*.+$").unwrap();
-    spec = module_re.replace(&spec, format!("module: {module_name}")).to_string();
+    spec = module_re
+        .replace(&spec, format!("module: {module_name}"))
+        .to_string();
 
     // Replace status
     let status_re = regex::Regex::new(r"(?m)^status:\s*.+$").unwrap();
@@ -202,10 +200,7 @@ pub fn generate_specs_for_unspecced_modules(
 
         match fs::write(&spec_file, &spec_content) {
             Ok(_) => {
-                let rel = spec_file
-                    .strip_prefix(root)
-                    .unwrap_or(&spec_file)
-                    .display();
+                let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
                 println!("  \u{2713} Generated {rel} ({} files)", module_files.len());
                 generated += 1;
             }

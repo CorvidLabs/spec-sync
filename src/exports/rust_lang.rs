@@ -1,11 +1,9 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-static COMMENT_SINGLE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"//.*$").unwrap());
+static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"//.*$").unwrap());
 
-static COMMENT_MULTI: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
+static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
 
 /// pub fn, pub struct, pub enum, pub trait, pub type, pub const, pub static, pub mod
 static PUB_DECL: LazyLock<Regex> = LazyLock::new(|| {

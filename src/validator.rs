@@ -63,13 +63,11 @@ pub fn find_spec_files(dir: &Path) -> Vec<PathBuf> {
 
     for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
-        if path.is_file() {
-            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if name.ends_with(".spec.md") {
+        if path.is_file()
+            && let Some(name) = path.file_name().and_then(|n| n.to_str())
+                && name.ends_with(".spec.md") {
                     results.push(path.to_path_buf());
                 }
-            }
-        }
     }
 
     results.sort();
@@ -100,10 +98,7 @@ fn find_source_files(
         .filter_map(|e| e.ok())
     {
         let path = entry.path();
-        if path.is_file()
-            && has_extension(path, &config.source_extensions)
-            && !is_test_file(path)
-        {
+        if path.is_file() && has_extension(path, &config.source_extensions) && !is_test_file(path) {
             results.push(path.to_path_buf());
         }
     }
@@ -139,9 +134,9 @@ pub fn validate_spec(
     let parsed = match parse_frontmatter(&content) {
         Some(p) => p,
         None => {
-            result
-                .errors
-                .push("Missing or malformed YAML frontmatter (expected --- delimiters)".to_string());
+            result.errors.push(
+                "Missing or malformed YAML frontmatter (expected --- delimiters)".to_string(),
+            );
             return result;
         }
     };
@@ -152,18 +147,24 @@ pub fn validate_spec(
     // ─── Level 1: Structural ──────────────────────────────────────────
 
     if fm.module.is_none() {
-        result.errors.push("Frontmatter missing required field: module".to_string());
-    }
-    if fm.version.is_none() {
-        result.errors.push("Frontmatter missing required field: version".to_string());
-    }
-    if fm.status.is_none() {
-        result.errors.push("Frontmatter missing required field: status".to_string());
-    }
-    if fm.files.is_empty() {
         result
             .errors
-            .push("Frontmatter missing required field: files (must be a non-empty list)".to_string());
+            .push("Frontmatter missing required field: module".to_string());
+    }
+    if fm.version.is_none() {
+        result
+            .errors
+            .push("Frontmatter missing required field: version".to_string());
+    }
+    if fm.status.is_none() {
+        result
+            .errors
+            .push("Frontmatter missing required field: status".to_string());
+    }
+    if fm.files.is_empty() {
+        result.errors.push(
+            "Frontmatter missing required field: files (must be a non-empty list)".to_string(),
+        );
     }
 
     // Check files exist
@@ -177,14 +178,18 @@ pub fn validate_spec(
     // Check db_tables exist in schema
     for table in &fm.db_tables {
         if !schema_tables.is_empty() && !schema_tables.contains(table) {
-            result.errors.push(format!("DB table not found in schema: {table}"));
+            result
+                .errors
+                .push(format!("DB table not found in schema: {table}"));
         }
     }
 
     // Required markdown sections
     let missing = get_missing_sections(body, &config.required_sections);
     for section in &missing {
-        result.errors.push(format!("Missing required section: ## {section}"));
+        result
+            .errors
+            .push(format!("Missing required section: ## {section}"));
     }
 
     // ─── Level 2: API Surface ─────────────────────────────────────────
@@ -208,9 +213,9 @@ pub fn validate_spec(
         // Spec documents something that doesn't exist = ERROR
         for sym in &spec_symbols {
             if !export_set.contains(sym.as_str()) {
-                result
-                    .errors
-                    .push(format!("Spec documents '{sym}' but no matching export found in source"));
+                result.errors.push(format!(
+                    "Spec documents '{sym}' but no matching export found in source"
+                ));
             }
         }
 
@@ -244,14 +249,15 @@ pub fn validate_spec(
         for dep in &fm.depends_on {
             let full_path = root.join(dep);
             if !full_path.exists() {
-                result.errors.push(format!("Dependency spec not found: {dep}"));
+                result
+                    .errors
+                    .push(format!("Dependency spec not found: {dep}"));
             }
         }
     }
 
     // Check Consumed By section references
-    let consumed_re =
-        Regex::new(r"(?s)### Consumed By\s*\n(.*?)(?:\n## |\n### |$)").unwrap();
+    let consumed_re = Regex::new(r"(?s)### Consumed By\s*\n(.*?)(?:\n## |\n### |$)").unwrap();
     if let Some(caps) = consumed_re.captures(body) {
         let section = caps.get(1).unwrap().as_str();
         let file_ref_re = Regex::new(r"\|\s*`([^`]+\.\w+)`\s*\|").unwrap();
@@ -296,14 +302,13 @@ fn get_module_dirs(dir: &Path, exclude_dirs: &HashSet<String>) -> Vec<String> {
 
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
-            if let Ok(ft) = entry.file_type() {
-                if ft.is_dir() {
+            if let Ok(ft) = entry.file_type()
+                && ft.is_dir() {
                     let name = entry.file_name().to_string_lossy().to_string();
                     if !exclude_dirs.contains(&name) {
                         modules.push(name);
                     }
                 }
-            }
         }
     }
 
@@ -339,9 +344,8 @@ pub fn compute_coverage(
                     }
                     // **/*.ext or **/filename — matches suffix/filename
                     else if let Some(suffix) = pattern.strip_prefix("**/") {
-                        if suffix.starts_with('*') {
+                        if let Some(ext) = suffix.strip_prefix('*') {
                             // **/*.test.ts -> .test.ts
-                            let ext = &suffix[1..];
                             if rel_str.ends_with(ext) {
                                 return None;
                             }

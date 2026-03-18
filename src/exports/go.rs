@@ -1,11 +1,9 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-static COMMENT_SINGLE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"//.*$").unwrap());
+static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"//.*$").unwrap());
 
-static COMMENT_MULTI: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
+static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
 
 /// Go exports: func Name, type Name, var Name, const Name
 /// In Go, anything starting with uppercase is exported.
@@ -14,9 +12,8 @@ static GO_DECL: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// Go method: func (receiver) Name(...)
-static GO_METHOD: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^func\s+\([^)]+\)\s+([A-Z]\w*)").unwrap()
-});
+static GO_METHOD: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^func\s+\([^)]+\)\s+([A-Z]\w*)").unwrap());
 
 /// Extract exported symbols from Go source code.
 /// In Go, any top-level identifier starting with an uppercase letter is exported.

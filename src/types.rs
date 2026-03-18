@@ -1,6 +1,5 @@
 use serde::Deserialize;
 
-
 /// YAML frontmatter parsed from a spec file.
 #[derive(Debug, Default, Clone)]
 pub struct Frontmatter {
@@ -101,6 +100,7 @@ impl Language {
     }
 
     /// Default source file extensions for this language.
+    #[allow(dead_code)]
     pub fn extensions(&self) -> &[&str] {
         match self {
             Language::TypeScript => &["ts", "tsx", "js", "jsx", "mts", "cts"],

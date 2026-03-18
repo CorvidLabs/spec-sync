@@ -1,19 +1,14 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-static COMMENT_SINGLE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"//.*$").unwrap());
+static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"//.*$").unwrap());
 
-static COMMENT_MULTI: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
+static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
 
 /// Dart top-level declarations: class, mixin, enum, extension, typedef
 /// In Dart, anything NOT prefixed with _ is public.
 static DART_TYPE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"(?m)^(?:abstract\s+)?(?:class|mixin|enum|extension|typedef)\s+([A-Z]\w*)",
-    )
-    .unwrap()
+    Regex::new(r"(?m)^(?:abstract\s+)?(?:class|mixin|enum|extension|typedef)\s+([A-Z]\w*)").unwrap()
 });
 
 /// Dart top-level functions and variables (public = no underscore prefix)

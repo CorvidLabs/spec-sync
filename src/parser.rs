@@ -25,12 +25,11 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
 
     for line in yaml_block.lines() {
         // List item: "  - value"
-        if let Some(stripped) = line.trim_start().strip_prefix("- ") {
-            if current_key.is_some() {
+        if let Some(stripped) = line.trim_start().strip_prefix("- ")
+            && current_key.is_some() {
                 current_list.push(stripped.trim().to_string());
                 continue;
             }
-        }
 
         // Key-value: "key: value" or "key:"
         if let Some(colon_pos) = line.find(':') {
@@ -58,12 +57,11 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
 
         // Blank or comment line: flush
         let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            if let Some(prev_key) = current_key.take() {
+        if (trimmed.is_empty() || trimmed.starts_with('#'))
+            && let Some(prev_key) = current_key.take() {
                 set_field(&mut fm, &prev_key, &current_list);
                 current_list.clear();
             }
-        }
     }
 
     // Flush trailing list
@@ -71,7 +69,10 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
         set_field(&mut fm, &prev_key, &current_list);
     }
 
-    Some(ParsedSpec { frontmatter: fm, body })
+    Some(ParsedSpec {
+        frontmatter: fm,
+        body,
+    })
 }
 
 fn set_scalar(fm: &mut Frontmatter, key: &str, value: &str) {
@@ -92,8 +93,7 @@ fn set_field(fm: &mut Frontmatter, key: &str, values: &[String]) {
     }
 }
 
-static TABLE_ROW_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^\|\s*`(\w+)`").unwrap());
+static TABLE_ROW_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\|\s*`(\w+)`").unwrap());
 
 static METHOD_HEADER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^####\s+.*(?:Methods|Constructor|Properties)").unwrap());
@@ -148,7 +148,10 @@ pub fn get_spec_symbols(body: &str) -> Vec<String> {
             .map(|l| l.trim())
             .find(|l| !l.is_empty())
             .unwrap_or("");
-        if header.ends_with("Methods") || header.ends_with("Constructor") || header.ends_with("Properties") {
+        if header.ends_with("Methods")
+            || header.ends_with("Constructor")
+            || header.ends_with("Properties")
+        {
             continue;
         }
 
@@ -166,11 +169,10 @@ pub fn get_spec_symbols(body: &str) -> Vec<String> {
                 continue;
             }
 
-            if let Some(caps) = TABLE_ROW_RE.captures(line) {
-                if let Some(sym) = caps.get(1) {
+            if let Some(caps) = TABLE_ROW_RE.captures(line)
+                && let Some(sym) = caps.get(1) {
                     symbols.push(sym.as_str().to_string());
                 }
-            }
         }
     }
 

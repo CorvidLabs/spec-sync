@@ -1,11 +1,9 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-static COMMENT_SINGLE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)//.*$").unwrap());
+static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)//.*$").unwrap());
 
-static COMMENT_MULTI: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
+static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
 
 /// export function/class/interface/type/const/enum name
 static EXPORT_DECL: LazyLock<Regex> = LazyLock::new(|| {
@@ -18,8 +16,7 @@ static RE_EXPORT_TYPE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"export\s+type\s*\{([^}]+)\}").unwrap());
 
 /// export { Name, Name2 }
-static RE_EXPORT: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"export\s*\{([^}]+)\}").unwrap());
+static RE_EXPORT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"export\s*\{([^}]+)\}").unwrap());
 
 /// Extract exported symbols from TypeScript/JavaScript source.
 pub fn extract_exports(content: &str) -> Vec<String> {
@@ -89,7 +86,14 @@ export enum AuthStatus { Active, Expired }
         let symbols = extract_exports(src);
         assert_eq!(
             symbols,
-            vec!["createAuth", "AuthService", "AuthConfig", "TokenType", "DEFAULT_TTL", "AuthStatus"]
+            vec![
+                "createAuth",
+                "AuthService",
+                "AuthConfig",
+                "TokenType",
+                "DEFAULT_TTL",
+                "AuthStatus"
+            ]
         );
     }
 

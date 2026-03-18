@@ -32,13 +32,39 @@ Language is auto-detected from file extensions. The same spec format works for a
 
 ## Install
 
-```bash
-# From source
-cargo install --path .
+### Pre-built binaries (recommended)
 
-# Or build release binary
-cargo build --release
-# Binary at: target/release/specsync
+Download the latest binary from [GitHub Releases](https://github.com/CorvidLabs/spec-sync/releases):
+
+```bash
+# macOS (Apple Silicon)
+curl -sL https://github.com/CorvidLabs/spec-sync/releases/latest/download/specsync-macos-aarch64.tar.gz | tar xz
+sudo mv specsync-macos-aarch64 /usr/local/bin/specsync
+
+# macOS (Intel)
+curl -sL https://github.com/CorvidLabs/spec-sync/releases/latest/download/specsync-macos-x86_64.tar.gz | tar xz
+sudo mv specsync-macos-x86_64 /usr/local/bin/specsync
+
+# Linux (x86_64)
+curl -sL https://github.com/CorvidLabs/spec-sync/releases/latest/download/specsync-linux-x86_64.tar.gz | tar xz
+sudo mv specsync-linux-x86_64 /usr/local/bin/specsync
+
+# Linux (aarch64)
+curl -sL https://github.com/CorvidLabs/spec-sync/releases/latest/download/specsync-linux-aarch64.tar.gz | tar xz
+sudo mv specsync-linux-aarch64 /usr/local/bin/specsync
+```
+
+Windows: download `specsync-windows-x86_64.exe.zip` from the releases page.
+
+### From source
+
+```bash
+cargo install --git https://github.com/CorvidLabs/spec-sync
+
+# Or clone and build
+git clone https://github.com/CorvidLabs/spec-sync.git
+cd spec-sync
+cargo install --path .
 ```
 
 ## Quick start
@@ -187,7 +213,21 @@ Flags:
 ## CI integration
 
 ```yaml
-# GitHub Actions
+# GitHub Actions — install from release binary
+- name: Install specsync
+  run: |
+    curl -sL https://github.com/CorvidLabs/spec-sync/releases/latest/download/specsync-linux-x86_64.tar.gz | tar xz
+    sudo mv specsync-linux-x86_64 /usr/local/bin/specsync
+
+- name: Spec check
+  run: specsync check --strict --require-coverage 100
+```
+
+```yaml
+# Or install from source (slower but always up to date)
+- name: Install specsync
+  run: cargo install --git https://github.com/CorvidLabs/spec-sync
+
 - name: Spec check
   run: specsync check --strict --require-coverage 100
 ```

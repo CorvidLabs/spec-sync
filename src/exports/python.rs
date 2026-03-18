@@ -6,21 +6,19 @@ static ALL_DECL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"__all__\s*=\s*\[([^\]]*)\]"#).unwrap());
 
 /// Top-level def name( or class Name
-static TOP_LEVEL_DECL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^(?:def|class|async def)\s+(\w+)").unwrap()
-});
+static TOP_LEVEL_DECL: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^(?:def|class|async def)\s+(\w+)").unwrap());
 
 /// Quoted string in __all__
-static QUOTED: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"["'](\w+)["']"#).unwrap());
+static QUOTED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"["'](\w+)["']"#).unwrap());
 
 /// Extract exported symbols from Python source code.
 /// If `__all__` is defined, use that. Otherwise, all top-level
 /// functions and classes that don't start with `_` are considered public.
 pub fn extract_exports(content: &str) -> Vec<String> {
     // Check for __all__ first
-    if let Some(caps) = ALL_DECL.captures(content) {
-        if let Some(list) = caps.get(1) {
+    if let Some(caps) = ALL_DECL.captures(content)
+        && let Some(list) = caps.get(1) {
             let mut symbols = Vec::new();
             for name_cap in QUOTED.captures_iter(list.as_str()) {
                 if let Some(name) = name_cap.get(1) {
@@ -29,7 +27,6 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             }
             return symbols;
         }
-    }
 
     // Fallback: top-level def/class that don't start with _
     let mut symbols = Vec::new();

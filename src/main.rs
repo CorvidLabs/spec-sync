@@ -104,7 +104,13 @@ fn cmd_check(root: &Path, strict: bool, require_coverage: Option<usize>) {
 
     print_summary(total, passed, total_warnings, total_errors);
     print_coverage_line(&coverage);
-    exit_with_status(total_errors, total_warnings, strict, &coverage, require_coverage);
+    exit_with_status(
+        total_errors,
+        total_warnings,
+        strict,
+        &coverage,
+        require_coverage,
+    );
 }
 
 fn cmd_coverage(root: &Path, strict: bool, require_coverage: Option<usize>) {
@@ -117,7 +123,13 @@ fn cmd_coverage(root: &Path, strict: bool, require_coverage: Option<usize>) {
     print_coverage_report(&coverage);
     print_summary(total, passed, total_warnings, total_errors);
     print_coverage_line(&coverage);
-    exit_with_status(total_errors, total_warnings, strict, &coverage, require_coverage);
+    exit_with_status(
+        total_errors,
+        total_warnings,
+        strict,
+        &coverage,
+        require_coverage,
+    );
 }
 
 fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>) {
@@ -148,7 +160,13 @@ fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>) {
 
     print_summary(total, passed, total_warnings, total_errors);
     print_coverage_line(&coverage);
-    exit_with_status(total_errors, total_warnings, strict, &coverage, require_coverage);
+    exit_with_status(
+        total_errors,
+        total_warnings,
+        strict,
+        &coverage,
+        require_coverage,
+    );
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -190,9 +208,10 @@ fn run_validation(
         println!("\n{}", result.spec_path.bold());
 
         // Frontmatter check
-        let has_fm_errors = result.errors.iter().any(|e| {
-            e.starts_with("Frontmatter") || e.starts_with("Missing or malformed")
-        });
+        let has_fm_errors = result
+            .errors
+            .iter()
+            .any(|e| e.starts_with("Frontmatter") || e.starts_with("Missing or malformed"));
         if has_fm_errors {
             println!("  {} Frontmatter valid", "✗".red());
         } else {
@@ -206,10 +225,7 @@ fn run_validation(
             .filter(|e| e.starts_with("Source file"))
             .map(|s| s.as_str())
             .collect();
-        let has_files_field = !result
-            .errors
-            .iter()
-            .any(|e| e.contains("files (must be"));
+        let has_files_field = !result.errors.iter().any(|e| e.contains("files (must be"));
 
         if file_errors.is_empty() && has_files_field {
             println!("  {} All source files exist", "✓".green());
@@ -252,7 +268,10 @@ fn run_validation(
         // API surface
         let api_line = result.warnings.iter().find(|w| {
             w.contains("exports documented")
-                && w.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false)
+                && w.chars()
+                    .next()
+                    .map(|c| c.is_ascii_digit())
+                    .unwrap_or(false)
         });
         if let Some(line) = api_line {
             println!("  {} {line}", "✓".green());
@@ -398,8 +417,8 @@ fn exit_with_status(
         process::exit(1);
     }
 
-    if let Some(req) = require_coverage {
-        if coverage.coverage_percent < req {
+    if let Some(req) = require_coverage
+        && coverage.coverage_percent < req {
             println!(
                 "\n{} {req}%: actual coverage is {}% ({} file(s) missing specs)",
                 "--require-coverage".red(),
@@ -411,5 +430,4 @@ fn exit_with_status(
             }
             process::exit(1);
         }
-    }
 }

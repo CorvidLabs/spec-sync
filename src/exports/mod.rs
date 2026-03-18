@@ -1,22 +1,19 @@
-mod typescript;
-mod rust_lang;
-mod go;
-mod python;
-mod swift;
-mod kotlin;
-mod java;
 mod csharp;
 mod dart;
+mod go;
+mod java;
+mod kotlin;
+mod python;
+mod rust_lang;
+mod swift;
+mod typescript;
 
 use crate::types::Language;
 use std::path::Path;
 
 /// Extract exported symbol names from a source file, auto-detecting language.
 pub fn get_exported_symbols(file_path: &Path) -> Vec<String> {
-    let ext = file_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
+    let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
     let lang = match Language::from_extension(ext) {
         Some(l) => l,
@@ -42,25 +39,22 @@ pub fn get_exported_symbols(file_path: &Path) -> Vec<String> {
 
     // Deduplicate preserving order
     let mut seen = std::collections::HashSet::new();
-    symbols.into_iter().filter(|s| seen.insert(s.clone())).collect()
+    symbols
+        .into_iter()
+        .filter(|s| seen.insert(s.clone()))
+        .collect()
 }
 
 /// Check if a file is a test file based on language conventions.
 pub fn is_test_file(file_path: &Path) -> bool {
-    let ext = file_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
+    let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
     let lang = match Language::from_extension(ext) {
         Some(l) => l,
         None => return false,
     };
 
-    let name = file_path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
+    let name = file_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
     for pattern in lang.test_patterns() {
         if name.ends_with(pattern) || name.starts_with(pattern) {
@@ -73,10 +67,7 @@ pub fn is_test_file(file_path: &Path) -> bool {
 
 /// Check if a file extension is a supported source file.
 pub fn is_source_file(file_path: &Path) -> bool {
-    let ext = file_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
+    let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
     Language::from_extension(ext).is_some()
 }
@@ -86,9 +77,6 @@ pub fn has_extension(file_path: &Path, extensions: &[String]) -> bool {
     if extensions.is_empty() {
         return is_source_file(file_path);
     }
-    let ext = file_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
+    let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
     extensions.iter().any(|e| e == ext)
 }

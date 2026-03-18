@@ -4,7 +4,7 @@ version = "1.0.0"
 edition = "2024"
 description = "Bidirectional spec-to-code validation — language-agnostic, blazing fast"
 license = "MIT"
-repository = "https://github.com/corvid-agent/specsync"
+repository = "https://github.com/CorvidLabs/spec-sync"
 keywords = ["spec", "documentation", "validation", "coverage"]
 categories = ["development-tools", "command-line-utilities"]
 

@@ -1,4 +1,4 @@
-name: 'SpecSync'
+name: 'spec-sync'
 description: 'Validate module specs against source code with SpecSync'
 branding:
   icon: 'check-circle'

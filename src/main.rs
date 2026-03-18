@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 use config::load_config;
-use generator::generate_specs_for_unspecced_modules;
+use generator::{generate_specs_for_unspecced_modules, generate_specs_for_unspecced_modules_paths};
 use validator::{compute_coverage, find_spec_files, get_schema_table_names, validate_spec};
 
 #[derive(Parser)]
@@ -37,6 +37,10 @@ struct Cli {
     /// Project root directory (default: cwd)
     #[arg(long, global = true)]
     root: Option<PathBuf>,
+
+    /// Output results as JSON instead of colored text
+    #[arg(long, global = true)]
+    json: bool,
 }
 
 #[derive(Subcommand)]
@@ -64,9 +68,9 @@ fn main() {
 
     match command {
         Command::Init => cmd_init(&root),
-        Command::Check => cmd_check(&root, cli.strict, cli.require_coverage),
-        Command::Coverage => cmd_coverage(&root, cli.strict, cli.require_coverage),
-        Command::Generate => cmd_generate(&root, cli.strict, cli.require_coverage),
+        Command::Check => cmd_check(&root, cli.strict, cli.require_coverage, cli.json),
+        Command::Coverage => cmd_coverage(&root, cli.strict, cli.require_coverage, cli.json),
+        Command::Generate => cmd_generate(&root, cli.strict, cli.require_coverage, cli.json),
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
     }
 }
@@ -99,12 +103,30 @@ fn cmd_init(root: &Path) {
     println!("{} Created specsync.json", "✓".green());
 }
 
-fn cmd_check(root: &Path, strict: bool, require_coverage: Option<usize>) {
+fn cmd_check(root: &Path, strict: bool, require_coverage: Option<usize>, json: bool) {
     let (config, spec_files) = load_and_discover(root);
     let schema_tables = get_schema_table_names(root, &config);
-    let (total_errors, total_warnings, passed, total) =
-        run_validation(root, &spec_files, &schema_tables, &config);
+    let (total_errors, total_warnings, passed, total, all_errors, all_warnings) =
+        run_validation(root, &spec_files, &schema_tables, &config, json);
     let coverage = compute_coverage(root, &spec_files, &config);
+
+    if json {
+        let exit_code = compute_exit_code(
+            total_errors,
+            total_warnings,
+            strict,
+            &coverage,
+            require_coverage,
+        );
+        let output = serde_json::json!({
+            "passed": exit_code == 0,
+            "errors": all_errors,
+            "warnings": all_warnings,
+            "specs_checked": total,
+        });
+        println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        process::exit(exit_code);
+    }
 
     print_summary(total, passed, total_warnings, total_errors);
     print_coverage_line(&coverage);
@@ -117,12 +139,35 @@ fn cmd_check(root: &Path, strict: bool, require_coverage: Option<usize>) {
     );
 }
 
-fn cmd_coverage(root: &Path, strict: bool, require_coverage: Option<usize>) {
+fn cmd_coverage(root: &Path, strict: bool, require_coverage: Option<usize>, json: bool) {
     let (config, spec_files) = load_and_discover(root);
     let schema_tables = get_schema_table_names(root, &config);
-    let (total_errors, total_warnings, passed, total) =
-        run_validation(root, &spec_files, &schema_tables, &config);
+    let (total_errors, total_warnings, passed, total, _all_errors, _all_warnings) =
+        run_validation(root, &spec_files, &schema_tables, &config, json);
     let coverage = compute_coverage(root, &spec_files, &config);
+
+    if json {
+        let file_coverage = if coverage.total_source_files == 0 {
+            100.0
+        } else {
+            (coverage.specced_file_count as f64 / coverage.total_source_files as f64) * 100.0
+        };
+
+        let modules: Vec<serde_json::Value> = coverage
+            .unspecced_modules
+            .iter()
+            .map(|m| serde_json::json!({ "name": m, "has_spec": false }))
+            .collect();
+
+        let output = serde_json::json!({
+            "file_coverage": (file_coverage * 100.0).round() / 100.0,
+            "files_covered": coverage.specced_file_count,
+            "files_total": coverage.total_source_files,
+            "modules": modules,
+        });
+        println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        process::exit(0);
+    }
 
     print_coverage_report(&coverage);
     print_summary(total, passed, total_warnings, total_errors);
@@ -136,12 +181,21 @@ fn cmd_coverage(root: &Path, strict: bool, require_coverage: Option<usize>) {
     );
 }
 
-fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>) {
+fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>, json: bool) {
     let (config, spec_files) = load_and_discover(root);
     let schema_tables = get_schema_table_names(root, &config);
-    let (total_errors, total_warnings, passed, total) =
-        run_validation(root, &spec_files, &schema_tables, &config);
+    let (total_errors, total_warnings, passed, total, _all_errors, _all_warnings) =
+        run_validation(root, &spec_files, &schema_tables, &config, json);
     let coverage = compute_coverage(root, &spec_files, &config);
+
+    if json {
+        let generated_paths = generate_specs_for_unspecced_modules_paths(root, &coverage, &config);
+        let output = serde_json::json!({
+            "generated": generated_paths,
+        });
+        println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        process::exit(0);
+    }
 
     print_coverage_report(&coverage);
 
@@ -196,18 +250,33 @@ fn load_and_discover(root: &Path) -> (types::SpecSyncConfig, Vec<PathBuf>) {
     (config, spec_files)
 }
 
+/// Run validation, returning counts and collected error/warning strings.
 fn run_validation(
     root: &Path,
     spec_files: &[PathBuf],
     schema_tables: &std::collections::HashSet<String>,
     config: &types::SpecSyncConfig,
-) -> (usize, usize, usize, usize) {
+    json: bool,
+) -> (usize, usize, usize, usize, Vec<String>, Vec<String>) {
     let mut total_errors = 0;
     let mut total_warnings = 0;
     let mut passed = 0;
+    let mut all_errors: Vec<String> = Vec::new();
+    let mut all_warnings: Vec<String> = Vec::new();
 
     for spec_file in spec_files {
         let result = validate_spec(spec_file, root, schema_tables, config);
+
+        if json {
+            all_errors.extend(result.errors.iter().cloned());
+            all_warnings.extend(result.warnings.iter().cloned());
+            total_errors += result.errors.len();
+            total_warnings += result.warnings.len();
+            if result.errors.is_empty() {
+                passed += 1;
+            }
+            continue;
+        }
 
         println!("\n{}", result.spec_path.bold());
 
@@ -334,7 +403,36 @@ fn run_validation(
         }
     }
 
-    (total_errors, total_warnings, passed, spec_files.len())
+    (
+        total_errors,
+        total_warnings,
+        passed,
+        spec_files.len(),
+        all_errors,
+        all_warnings,
+    )
+}
+
+/// Compute exit code without printing or exiting.
+fn compute_exit_code(
+    total_errors: usize,
+    total_warnings: usize,
+    strict: bool,
+    coverage: &types::CoverageReport,
+    require_coverage: Option<usize>,
+) -> i32 {
+    if total_errors > 0 {
+        return 1;
+    }
+    if strict && total_warnings > 0 {
+        return 1;
+    }
+    if let Some(req) = require_coverage
+        && coverage.coverage_percent < req
+    {
+        return 1;
+    }
+    0
 }
 
 fn print_summary(total: usize, passed: usize, warnings: usize, _errors: usize) {

@@ -19,6 +19,8 @@ serde_json = "1"
 regex = "1"
 walkdir = "2"
 colored = "3"
+notify = "7"
+notify-debouncer-full = "0.4"
 
 [dev-dependencies]
 tempfile = "3"

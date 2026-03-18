@@ -4,6 +4,7 @@ mod generator;
 mod parser;
 mod types;
 mod validator;
+mod watch;
 
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -48,6 +49,8 @@ enum Command {
     Generate,
     /// Create a specsync.json config file
     Init,
+    /// Watch spec and source files, re-running check on changes
+    Watch,
 }
 
 fn main() {
@@ -64,6 +67,7 @@ fn main() {
         Command::Check => cmd_check(&root, cli.strict, cli.require_coverage),
         Command::Coverage => cmd_coverage(&root, cli.strict, cli.require_coverage),
         Command::Generate => cmd_generate(&root, cli.strict, cli.require_coverage),
+        Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
     }
 }
 
@@ -418,16 +422,17 @@ fn exit_with_status(
     }
 
     if let Some(req) = require_coverage
-        && coverage.coverage_percent < req {
-            println!(
-                "\n{} {req}%: actual coverage is {}% ({} file(s) missing specs)",
-                "--require-coverage".red(),
-                coverage.coverage_percent,
-                coverage.unspecced_files.len()
-            );
-            for f in &coverage.unspecced_files {
-                println!("  {} {f}", "✗".red());
-            }
-            process::exit(1);
+        && coverage.coverage_percent < req
+    {
+        println!(
+            "\n{} {req}%: actual coverage is {}% ({} file(s) missing specs)",
+            "--require-coverage".red(),
+            coverage.coverage_percent,
+            coverage.unspecced_files.len()
+        );
+        for f in &coverage.unspecced_files {
+            println!("  {} {f}", "✗".red());
         }
+        process::exit(1);
+    }
 }

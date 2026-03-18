@@ -1,8 +1,12 @@
 # SpecSync
 
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-SpecSync%20Check-blue?logo=github)](https://github.com/marketplace/actions/specsync-check)
+
 Bidirectional spec-to-code validation. Keep your module specs and source code in sync with CI-enforced contract checking.
 
 **Written in Rust. Language-agnostic. Blazing fast.**
+
+> **Now available on the [GitHub Marketplace](https://github.com/marketplace/actions/specsync-check)** — add spec validation to any repo in one step.
 
 ## What it does
 
@@ -32,7 +36,20 @@ Language is auto-detected from file extensions. The same spec format works for a
 
 ## Install
 
-### Pre-built binaries (recommended)
+### GitHub Action (recommended)
+
+Available on the [GitHub Marketplace](https://github.com/marketplace/actions/specsync-check). Add to any workflow:
+
+```yaml
+- uses: CorvidLabs/spec-sync@v1
+  with:
+    strict: 'true'
+    require-coverage: '100'
+```
+
+No binary download or Rust toolchain needed — the action handles everything.
+
+### Pre-built binaries
 
 Download the latest binary from [GitHub Releases](https://github.com/CorvidLabs/spec-sync/releases):
 
@@ -202,17 +219,19 @@ Commands:
   coverage    Show file and module coverage report
   generate    Scaffold specs for unspecced modules
   init        Create specsync.json config file
+  watch       Watch for file changes and re-validate
   help        Show help
 
 Flags:
   --strict              Treat warnings as errors
   --require-coverage N  Fail if file coverage < N%
   --root <path>         Project root (default: cwd)
+  --json                Output results as JSON
 ```
 
 ## GitHub Action
 
-Use SpecSync as a reusable GitHub Action -- no manual binary download needed.
+Available on the [GitHub Marketplace](https://github.com/marketplace/actions/specsync-check). Use SpecSync as a reusable GitHub Action — no manual binary download needed.
 
 ### Basic usage
 

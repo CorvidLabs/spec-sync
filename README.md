@@ -1,12 +1,12 @@
 # SpecSync
 
-[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-SpecSync-blue?logo=github)](https://github.com/marketplace/actions/specsync)
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-SpecSync-blue?logo=github)](https://github.com/marketplace/actions/spec-sync)
 
 Bidirectional spec-to-code validation. Keep your module specs and source code in sync with CI-enforced contract checking.
 
 **Written in Rust. Language-agnostic. Blazing fast.**
 
-> **Now available on the [GitHub Marketplace](https://github.com/marketplace/actions/specsync)** — add spec validation to any repo in one step.
+> **Now available on the [GitHub Marketplace](https://github.com/marketplace/actions/spec-sync)** — add spec validation to any repo in one step.
 
 ## What it does
 
@@ -38,7 +38,7 @@ Language is auto-detected from file extensions. The same spec format works for a
 
 ### GitHub Action (recommended)
 
-Available on the [GitHub Marketplace](https://github.com/marketplace/actions/specsync). Add to any workflow:
+Available on the [GitHub Marketplace](https://github.com/marketplace/actions/spec-sync). Add to any workflow:
 
 ```yaml
 - uses: CorvidLabs/spec-sync@v1
@@ -231,7 +231,7 @@ Flags:
 
 ## GitHub Action
 
-Available on the [GitHub Marketplace](https://github.com/marketplace/actions/specsync). Use SpecSync as a reusable GitHub Action — no manual binary download needed.
+Available on the [GitHub Marketplace](https://github.com/marketplace/actions/spec-sync). Use SpecSync as a reusable GitHub Action — no manual binary download needed.
 
 ### Basic usage
 

@@ -418,16 +418,17 @@ fn exit_with_status(
     }
 
     if let Some(req) = require_coverage
-        && coverage.coverage_percent < req {
-            println!(
-                "\n{} {req}%: actual coverage is {}% ({} file(s) missing specs)",
-                "--require-coverage".red(),
-                coverage.coverage_percent,
-                coverage.unspecced_files.len()
-            );
-            for f in &coverage.unspecced_files {
-                println!("  {} {f}", "✗".red());
-            }
-            process::exit(1);
+        && coverage.coverage_percent < req
+    {
+        println!(
+            "\n{} {req}%: actual coverage is {}% ({} file(s) missing specs)",
+            "--require-coverage".red(),
+            coverage.coverage_percent,
+            coverage.unspecced_files.len()
+        );
+        for f in &coverage.unspecced_files {
+            println!("  {} {f}", "✗".red());
         }
+        process::exit(1);
+    }
 }

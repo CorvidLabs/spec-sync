@@ -18,15 +18,16 @@ static QUOTED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"["'](\w+)["']"#)
 pub fn extract_exports(content: &str) -> Vec<String> {
     // Check for __all__ first
     if let Some(caps) = ALL_DECL.captures(content)
-        && let Some(list) = caps.get(1) {
-            let mut symbols = Vec::new();
-            for name_cap in QUOTED.captures_iter(list.as_str()) {
-                if let Some(name) = name_cap.get(1) {
-                    symbols.push(name.as_str().to_string());
-                }
+        && let Some(list) = caps.get(1)
+    {
+        let mut symbols = Vec::new();
+        for name_cap in QUOTED.captures_iter(list.as_str()) {
+            if let Some(name) = name_cap.get(1) {
+                symbols.push(name.as_str().to_string());
             }
-            return symbols;
         }
+        return symbols;
+    }
 
     // Fallback: top-level def/class that don't start with _
     let mut symbols = Vec::new();

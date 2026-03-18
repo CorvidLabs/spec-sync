@@ -212,3 +212,50 @@ pub fn generate_specs_for_unspecced_modules(
 
     generated
 }
+
+/// Generate spec files for all unspecced modules, returning the paths of generated files.
+pub fn generate_specs_for_unspecced_modules_paths(
+    root: &Path,
+    report: &CoverageReport,
+    config: &SpecSyncConfig,
+) -> Vec<String> {
+    let specs_dir = root.join(&config.specs_dir);
+    let mut generated_paths = Vec::new();
+
+    for module_name in &report.unspecced_modules {
+        let spec_dir = specs_dir.join(module_name);
+        let spec_file = spec_dir.join(format!("{module_name}.spec.md"));
+
+        if spec_file.exists() {
+            continue;
+        }
+
+        let mut module_files = Vec::new();
+        for src_dir in &config.source_dirs {
+            let module_dir = root.join(src_dir).join(module_name);
+            let files = find_module_source_files(&module_dir, config);
+            module_files.extend(files);
+        }
+
+        if module_files.is_empty() {
+            continue;
+        }
+
+        if fs::create_dir_all(&spec_dir).is_err() {
+            continue;
+        }
+
+        let spec_content = generate_spec(module_name, &module_files, root, &specs_dir);
+
+        if fs::write(&spec_file, &spec_content).is_ok() {
+            let rel = spec_file
+                .strip_prefix(root)
+                .unwrap_or(&spec_file)
+                .to_string_lossy()
+                .to_string();
+            generated_paths.push(rel);
+        }
+    }
+
+    generated_paths
+}

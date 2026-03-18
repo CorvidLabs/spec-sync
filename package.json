@@ -1,0 +1,41 @@
+{
+  "name": "specsync",
+  "version": "0.1.0",
+  "description": "Bidirectional spec-to-code validation. Keep your module specs and source code in sync.",
+  "type": "module",
+  "bin": {
+    "specsync": "./bin/specsync.js"
+  },
+  "scripts": {
+    "build": "bun build src/index.ts --outdir bin --target node --format esm",
+    "test": "bun test",
+    "check": "bun src/index.ts check"
+  },
+  "keywords": [
+    "spec",
+    "specification",
+    "validation",
+    "contract",
+    "sync",
+    "typescript",
+    "documentation"
+  ],
+  "license": "MIT",
+  "author": "CorvidLabs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/corvid-agent/specsync.git"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "template.spec.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}

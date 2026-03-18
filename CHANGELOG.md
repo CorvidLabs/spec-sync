@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-03-18
+
+### Added
+
+- **Reusable GitHub Action** (`CorvidLabs/spec-sync@v1`) — auto-downloads the
+  correct platform binary and runs specsync check in CI. Supports `strict`,
+  `require-coverage`, `root`, and `version` inputs.
+- **`watch` subcommand** — live spec validation that re-runs on file changes.
+- **Comprehensive integration test suite** — end-to-end tests using assert_cmd.
+
+### Changed
+
+- Updated crates.io metadata (readme, homepage fields).
+
 ## [1.0.0] - 2026-03-18
 
 ### Added

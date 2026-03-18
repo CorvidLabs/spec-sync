@@ -35,13 +35,14 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         }
 
         if let Some(caps) = KT_DECL.captures(line)
-            && let Some(name) = caps.get(1) {
-                // Skip companion objects (they're not standalone exports)
-                if trimmed.starts_with("companion") {
-                    continue;
-                }
-                symbols.push(name.as_str().to_string());
+            && let Some(name) = caps.get(1)
+        {
+            // Skip companion objects (they're not standalone exports)
+            if trimmed.starts_with("companion") {
+                continue;
             }
+            symbols.push(name.as_str().to_string());
+        }
     }
 
     symbols

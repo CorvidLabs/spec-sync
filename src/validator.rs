@@ -65,9 +65,10 @@ pub fn find_spec_files(dir: &Path) -> Vec<PathBuf> {
         let path = entry.path();
         if path.is_file()
             && let Some(name) = path.file_name().and_then(|n| n.to_str())
-                && name.ends_with(".spec.md") {
-                    results.push(path.to_path_buf());
-                }
+            && name.ends_with(".spec.md")
+        {
+            results.push(path.to_path_buf());
+        }
     }
 
     results.sort();
@@ -303,12 +304,13 @@ fn get_module_dirs(dir: &Path, exclude_dirs: &HashSet<String>) -> Vec<String> {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             if let Ok(ft) = entry.file_type()
-                && ft.is_dir() {
-                    let name = entry.file_name().to_string_lossy().to_string();
-                    if !exclude_dirs.contains(&name) {
-                        modules.push(name);
-                    }
+                && ft.is_dir()
+            {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if !exclude_dirs.contains(&name) {
+                    modules.push(name);
                 }
+            }
         }
     }
 

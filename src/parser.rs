@@ -170,9 +170,10 @@ pub fn get_spec_symbols(body: &str) -> Vec<String> {
             }
 
             if let Some(caps) = TABLE_ROW_RE.captures(line)
-                && let Some(sym) = caps.get(1) {
-                    symbols.push(sym.as_str().to_string());
-                }
+                && let Some(sym) = caps.get(1)
+            {
+                symbols.push(sym.as_str().to_string());
+            }
         }
     }
 

@@ -255,7 +255,9 @@ Utility functions.
         .arg(&root)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Export 'undocumented' not in spec"));
+        .stdout(predicate::str::contains(
+            "Export 'undocumented' not in spec",
+        ));
 }
 
 #[test]
@@ -446,9 +448,7 @@ fn generate_no_op_when_fully_covered() {
         .arg(&root)
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "No specs to generate",
-        ));
+        .stdout(predicate::str::contains("No specs to generate"));
 }
 
 // ─── 4. specsync init ───────────────────────────────────────────────────
@@ -643,7 +643,7 @@ fn root_flag_overrides_cwd() {
         .arg("check")
         .arg("--root")
         .arg(&root)
-        .current_dir("/tmp")
+        .current_dir(std::env::temp_dir())
         .assert()
         .success()
         .stdout(predicate::str::contains("specs checked"));
@@ -1022,11 +1022,7 @@ fn require_coverage_on_coverage_subcommand() {
     let root = setup_minimal_project(&tmp);
 
     // Add uncovered file
-    fs::write(
-        root.join("src/auth/extra.ts"),
-        "export function y() {}\n",
-    )
-    .unwrap();
+    fs::write(root.join("src/auth/extra.ts"), "export function y() {}\n").unwrap();
 
     specsync()
         .arg("coverage")
@@ -1064,11 +1060,7 @@ fn generate_with_multiple_languages() {
     // Need at least one spec to avoid the "no spec files" early exit.
     // Create a dummy specced module.
     fs::create_dir_all(root.join("src/base")).unwrap();
-    fs::write(
-        root.join("src/base/base.ts"),
-        "export function base() {}\n",
-    )
-    .unwrap();
+    fs::write(root.join("src/base/base.ts"), "export function base() {}\n").unwrap();
     fs::create_dir_all(root.join("specs/base")).unwrap();
     let spec = valid_spec("base", &["src/base/base.ts"]);
     fs::write(root.join("specs/base/base.spec.md"), spec).unwrap();

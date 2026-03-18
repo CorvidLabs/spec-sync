@@ -26,10 +26,11 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
     for line in yaml_block.lines() {
         // List item: "  - value"
         if let Some(stripped) = line.trim_start().strip_prefix("- ")
-            && current_key.is_some() {
-                current_list.push(stripped.trim().to_string());
-                continue;
-            }
+            && current_key.is_some()
+        {
+            current_list.push(stripped.trim().to_string());
+            continue;
+        }
 
         // Key-value: "key: value" or "key:"
         if let Some(colon_pos) = line.find(':') {
@@ -58,10 +59,11 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
         // Blank or comment line: flush
         let trimmed = line.trim();
         if (trimmed.is_empty() || trimmed.starts_with('#'))
-            && let Some(prev_key) = current_key.take() {
-                set_field(&mut fm, &prev_key, &current_list);
-                current_list.clear();
-            }
+            && let Some(prev_key) = current_key.take()
+        {
+            set_field(&mut fm, &prev_key, &current_list);
+            current_list.clear();
+        }
     }
 
     // Flush trailing list

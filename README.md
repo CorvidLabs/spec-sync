@@ -210,7 +210,67 @@ Flags:
   --root <path>         Project root (default: cwd)
 ```
 
-## CI integration
+## GitHub Action
+
+Use SpecSync as a reusable GitHub Action -- no manual binary download needed.
+
+### Basic usage
+
+```yaml
+- uses: CorvidLabs/spec-sync@v1
+  with:
+    strict: 'true'
+    require-coverage: '100'
+```
+
+### All options
+
+```yaml
+- uses: CorvidLabs/spec-sync@v1
+  with:
+    version: 'latest'        # SpecSync version (default: latest)
+    strict: 'true'           # Treat warnings as errors (default: false)
+    require-coverage: '100'  # Minimum file coverage % (default: 0)
+    root: '.'                # Project root directory (default: .)
+    args: ''                 # Additional CLI arguments (default: '')
+```
+
+### Full workflow example
+
+```yaml
+name: Spec Check
+on: [push, pull_request]
+
+jobs:
+  specsync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: CorvidLabs/spec-sync@v1
+        with:
+          strict: 'true'
+          require-coverage: '100'
+```
+
+### Multi-platform matrix
+
+```yaml
+jobs:
+  specsync:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: CorvidLabs/spec-sync@v1
+        with:
+          strict: 'true'
+```
+
+The action automatically detects the runner OS and architecture (x86_64 and aarch64 on Linux/macOS, x86_64 on Windows) and downloads the correct pre-built binary.
+
+## CI integration (manual)
 
 ```yaml
 # GitHub Actions — install from release binary

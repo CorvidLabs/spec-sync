@@ -1,0 +1,117 @@
+name: 'SpecSync Check'
+description: 'Validate module specs against source code with SpecSync'
+branding:
+  icon: 'check-circle'
+  color: 'green'
+
+inputs:
+  version:
+    description: 'SpecSync version to use (e.g. "1.0.0" or "latest")'
+    required: false
+    default: 'latest'
+  strict:
+    description: 'Treat warnings as errors'
+    required: false
+    default: 'false'
+  require-coverage:
+    description: 'Minimum file coverage percentage (0-100)'
+    required: false
+    default: '0'
+  root:
+    description: 'Project root directory'
+    required: false
+    default: '.'
+  args:
+    description: 'Additional arguments to pass to specsync check'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Download SpecSync
+      shell: bash
+      env:
+        SPECSYNC_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+
+        # Detect OS
+        case "$RUNNER_OS" in
+          Linux)   OS="linux" ;;
+          macOS)   OS="macos" ;;
+          Windows) OS="windows" ;;
+          *)
+            echo "::error::Unsupported runner OS: $RUNNER_OS"
+            exit 1
+            ;;
+        esac
+
+        # Detect architecture
+        ARCH="$(uname -m)"
+        case "$ARCH" in
+          x86_64|amd64)  ARCH="x86_64" ;;
+          aarch64|arm64) ARCH="aarch64" ;;
+          *)
+            echo "::error::Unsupported architecture: $ARCH"
+            exit 1
+            ;;
+        esac
+
+        REPO="CorvidLabs/spec-sync"
+
+        # Determine download URL
+        if [ "$SPECSYNC_VERSION" = "latest" ]; then
+          BASE_URL="https://github.com/${REPO}/releases/latest/download"
+        else
+          BASE_URL="https://github.com/${REPO}/releases/download/v${SPECSYNC_VERSION}"
+        fi
+
+        # Download and install
+        INSTALL_DIR="${RUNNER_TEMP}/specsync"
+        mkdir -p "$INSTALL_DIR"
+
+        if [ "$OS" = "windows" ]; then
+          ARCHIVE="specsync-${OS}-${ARCH}.exe.zip"
+          curl -fsSL "${BASE_URL}/${ARCHIVE}" -o "${INSTALL_DIR}/specsync.zip"
+          unzip -o "${INSTALL_DIR}/specsync.zip" -d "$INSTALL_DIR"
+          mv "${INSTALL_DIR}/specsync-${OS}-${ARCH}.exe" "${INSTALL_DIR}/specsync.exe"
+        else
+          ARCHIVE="specsync-${OS}-${ARCH}.tar.gz"
+          curl -fsSL "${BASE_URL}/${ARCHIVE}" | tar xz -C "$INSTALL_DIR"
+          mv "${INSTALL_DIR}/specsync-${OS}-${ARCH}" "${INSTALL_DIR}/specsync"
+          chmod +x "${INSTALL_DIR}/specsync"
+        fi
+
+        # Add to PATH
+        echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+        echo "::notice::SpecSync installed (${OS}/${ARCH}) from ${BASE_URL}/${ARCHIVE}"
+
+    - name: Run SpecSync
+      shell: bash
+      working-directory: ${{ inputs.root }}
+      env:
+        INPUT_STRICT: ${{ inputs.strict }}
+        INPUT_REQUIRE_COVERAGE: ${{ inputs.require-coverage }}
+        INPUT_ARGS: ${{ inputs.args }}
+      run: |
+        set -euo pipefail
+
+        CMD="specsync check"
+
+        if [ "$INPUT_STRICT" = "true" ]; then
+          CMD="$CMD --strict"
+        fi
+
+        if [ "$INPUT_REQUIRE_COVERAGE" != "0" ]; then
+          CMD="$CMD --require-coverage $INPUT_REQUIRE_COVERAGE"
+        fi
+
+        if [ -n "$INPUT_ARGS" ]; then
+          CMD="$CMD $INPUT_ARGS"
+        fi
+
+        echo "::group::SpecSync Check"
+        echo "Running: $CMD"
+        eval "$CMD"
+        echo "::endgroup::"

@@ -24,6 +24,7 @@ How SpecSync is built. Useful for contributors and anyone adding language suppor
 ```
 src/
 ├── main.rs              CLI entry point (clap) + output formatting
+├── ai.rs                AI-powered spec generation (prompt builder + command runner)
 ├── types.rs             Core data types + config schema
 ├── config.rs            specsync.json loading
 ├── parser.rs            Frontmatter + spec body parsing

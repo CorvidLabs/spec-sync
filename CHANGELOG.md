@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.2.0] - 2026-03-19
 
+### Added
+
+- **`specsync generate --ai`** — AI-powered spec generation. Reads source code, sends it to an LLM, and generates specs with real content (Purpose, Public API tables, Invariants, Error Cases) instead of template stubs. Configurable via `aiCommand` and `aiTimeout` in `specsync.json`, or `SPECSYNC_AI_COMMAND` env var. Defaults to Claude CLI, works with any LLM that reads stdin and writes stdout.
+- **LOC coverage tracking** — `specsync coverage` now reports lines-of-code coverage alongside file coverage. JSON output includes `loc_coverage`, `loc_covered`, `loc_total`, and `uncovered_files` with per-file LOC counts sorted by size.
+- **Flat file module detection** — `generate` and `coverage` now detect single-file modules (e.g., `src/config.rs`) in addition to subdirectory-based modules.
+- `aiCommand` and `aiTimeout` config options in `specsync.json`.
+
 ### Changed
 
 - Rewrote README for density — every line carries new information, no filler.
+- Documented `generate --ai` workflow, AI command configuration, and LOC coverage in README and docs site.
 - Streamlined docs site pages to complement rather than duplicate the README.
 - Updated CHANGELOG with previously missing 1.1.1 and 1.1.2 entries.
 

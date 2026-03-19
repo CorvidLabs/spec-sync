@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-03-19
+
+### Changed
+
+- Rewrote README for density — every line carries new information, no filler.
+- Streamlined docs site pages to complement rather than duplicate the README.
+- Updated CHANGELOG with previously missing 1.1.1 and 1.1.2 entries.
+
+## [1.1.2] - 2026-03-19
+
+### Fixed
+
+- Resolved merge conflict markers in README.md.
+- Removed overly broad permissions from CI workflow (code scanning alert fix).
+
+### Changed
+
+- Bumped `Cargo.toml` version to match the release tag.
+
+## [1.1.1] - 2026-03-18
+
+### Fixed
+
+- Corrected GitHub Marketplace link after action rename.
+- Renamed action from "SpecSync Check" to "SpecSync" for Marketplace consistency.
+- Updated all marketplace URLs to reflect the new action name.
+
+### Added
+
+- GitHub Marketplace badge and link in README.
+
 ## [1.1.0] - 2026-03-18
 
 ### Added
@@ -51,4 +82,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
+[1.2.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v1.2.0
+[1.1.2]: https://github.com/CorvidLabs/spec-sync/releases/tag/v1.1.2
+[1.1.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v1.1.1
+[1.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v1.1.0
 [1.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v1.0.0

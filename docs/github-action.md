@@ -7,7 +7,7 @@ nav_order: 5
 # GitHub Action
 {: .no_toc }
 
-Run SpecSync in CI with zero setup. The action auto-detects your runner's OS and architecture, downloads the correct binary, and runs validation.
+Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, runs validation.
 {: .fs-6 .fw-300 }
 
 <details open markdown="block">
@@ -34,11 +34,11 @@ Run SpecSync in CI with zero setup. The action auto-detects your runner's OS and
 
 | Input | Default | Description |
 |:------|:--------|:------------|
-| `version` | `latest` | SpecSync release version to download |
+| `version` | `latest` | Release version to download |
 | `strict` | `false` | Treat warnings as errors |
-| `require-coverage` | `0` | Minimum file coverage percentage (0-100) |
+| `require-coverage` | `0` | Minimum file coverage % (0–100) |
 | `root` | `.` | Project root directory |
-| `args` | `''` | Additional CLI arguments passed to `specsync check` |
+| `args` | `''` | Extra CLI arguments passed to `specsync check` |
 
 ---
 
@@ -63,8 +63,6 @@ jobs:
 
 ## Multi-Platform Matrix
 
-Test across operating systems:
-
 ```yaml
 jobs:
   specsync:
@@ -81,9 +79,7 @@ jobs:
 
 ---
 
-## Monorepo Usage
-
-Run against a specific package:
+## Monorepo
 
 ```yaml
 - uses: CorvidLabs/spec-sync@v1
@@ -94,9 +90,7 @@ Run against a specific package:
 
 ---
 
-## Manual CI Setup
-
-If you prefer not to use the action, install the binary directly:
+## Manual CI (without the action)
 
 ```yaml
 - name: Install specsync
@@ -110,9 +104,7 @@ If you prefer not to use the action, install the binary directly:
 
 ---
 
-## Platform Binaries
-
-The action and release workflow provide binaries for:
+## Available Binaries
 
 | Platform | Binary |
 |:---------|:-------|

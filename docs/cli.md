@@ -22,7 +22,7 @@ nav_order: 3
 specsync [command] [flags]
 ```
 
-If no command is given, `check` runs by default.
+Default command is `check`.
 
 ---
 
@@ -30,23 +30,23 @@ If no command is given, `check` runs by default.
 
 ### `check`
 
-Validate all specs against source code. This is the default command.
+Validate all specs against source code.
 
 ```bash
-specsync check
-specsync check --strict
+specsync check                          # basic validation
+specsync check --strict                 # warnings become errors
 specsync check --strict --require-coverage 100
-specsync check --json
+specsync check --json                   # machine-readable output
 ```
 
-Runs three levels of validation:
-1. **Structural** — required frontmatter fields, file existence, required markdown sections
-2. **API surface** — cross-references spec symbols against actual code exports
-3. **Dependencies** — validates `depends_on` paths and `db_tables` against schema
+Three validation stages:
+1. **Structural** — required frontmatter fields, file existence, required sections
+2. **API surface** — spec symbols vs. actual code exports
+3. **Dependencies** — `depends_on` paths, `db_tables` against schema
 
 ### `coverage`
 
-Show a file and module coverage report — which modules have specs and which don't.
+File and module coverage report.
 
 ```bash
 specsync coverage
@@ -55,7 +55,7 @@ specsync coverage --json
 
 ### `generate`
 
-Scaffold spec files for modules that don't have one yet. Uses `specs/_template.spec.md` if it exists, otherwise a built-in template.
+Scaffold spec files for modules that don't have one. Uses `specs/_template.spec.md` if present.
 
 ```bash
 specsync generate
@@ -63,7 +63,7 @@ specsync generate
 
 ### `init`
 
-Create a default `specsync.json` configuration file in the current directory.
+Create a default `specsync.json` in the current directory.
 
 ```bash
 specsync init
@@ -71,13 +71,11 @@ specsync init
 
 ### `watch`
 
-Live validation mode. Watches your specs and source directories for changes and re-runs validation automatically with a 500ms debounce.
+Live validation — re-runs on file changes with 500ms debounce. `Ctrl+C` to exit.
 
 ```bash
 specsync watch
 ```
-
-Press `Ctrl+C` to exit.
 
 ---
 
@@ -85,10 +83,10 @@ Press `Ctrl+C` to exit.
 
 | Flag | Description |
 |:-----|:------------|
-| `--strict` | Treat warnings as errors. Recommended for CI. |
-| `--require-coverage N` | Fail if file coverage is below N percent. |
-| `--root <path>` | Set project root directory (default: current directory). |
-| `--json` | Output structured JSON instead of colored terminal text. |
+| `--strict` | Warnings become errors. Recommended for CI. |
+| `--require-coverage N` | Fail if file coverage < N%. |
+| `--root <path>` | Project root directory (default: cwd). |
+| `--json` | Structured JSON output, no color codes. |
 
 ---
 
@@ -97,71 +95,30 @@ Press `Ctrl+C` to exit.
 | Code | Meaning |
 |:-----|:--------|
 | `0` | All checks passed |
-| `1` | Errors found, warnings found with `--strict`, or coverage below `--require-coverage` threshold |
+| `1` | Errors found, warnings with `--strict`, or coverage below threshold |
 
 ---
 
 ## JSON Output
 
-Use `--json` for machine-readable output. Useful for CI pipelines, editor integrations, and AI agents.
-
-### Check output
+### Check
 
 ```json
 {
   "passed": false,
-  "errors": [
-    "auth.spec.md: Spec documents 'oldFunction' but no matching export found in source"
-  ],
-  "warnings": [
-    "auth.spec.md: Export 'newHelper' not in spec (undocumented)"
-  ],
+  "errors": ["auth.spec.md: phantom export `oldFunction` not found in source"],
+  "warnings": ["auth.spec.md: undocumented export `newHelper`"],
   "specs_checked": 12
 }
 ```
 
-### Coverage output
+### Coverage
 
 ```json
 {
   "file_coverage": 85.33,
   "files_covered": 23,
   "files_total": 27,
-  "modules": [
-    {
-      "name": "helpers",
-      "has_spec": false
-    }
-  ]
+  "modules": [{ "name": "helpers", "has_spec": false }]
 }
-```
-
----
-
-## Examples
-
-```bash
-# Basic validation
-specsync check
-
-# Strict mode — warnings fail the build
-specsync check --strict
-
-# Enforce full spec coverage
-specsync check --strict --require-coverage 100
-
-# JSON output for tooling
-specsync check --json
-
-# Override project root
-specsync check --root ./packages/backend
-
-# Watch mode during development
-specsync watch
-
-# See what needs specs
-specsync coverage
-
-# Bootstrap specs for existing code
-specsync generate
 ```

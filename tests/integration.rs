@@ -1586,7 +1586,9 @@ fn init_auto_detects_multiple_dirs() {
         .arg(root)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Detected source directories: lib, src"));
+        .stdout(predicate::str::contains(
+            "Detected source directories: lib, src",
+        ));
 
     let config: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(root.join("specsync.json")).unwrap()).unwrap();
@@ -1605,7 +1607,11 @@ fn init_ignores_node_modules_and_hidden_dirs() {
     fs::create_dir_all(root.join("app")).unwrap();
     fs::write(root.join("app/index.ts"), "export default function() {}").unwrap();
     fs::create_dir_all(root.join("node_modules/some-pkg")).unwrap();
-    fs::write(root.join("node_modules/some-pkg/index.js"), "module.exports = {}").unwrap();
+    fs::write(
+        root.join("node_modules/some-pkg/index.js"),
+        "module.exports = {}",
+    )
+    .unwrap();
     fs::create_dir_all(root.join(".cache")).unwrap();
     fs::write(root.join(".cache/data.js"), "const x = 1;").unwrap();
 

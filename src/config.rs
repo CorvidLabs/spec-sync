@@ -123,9 +123,10 @@ pub fn load_config(root: &Path) -> SpecSyncConfig {
     let config_path = root.join("specsync.json");
 
     if !config_path.exists() {
-        let mut config = SpecSyncConfig::default();
-        config.source_dirs = detect_source_dirs(root);
-        return config;
+        return SpecSyncConfig {
+            source_dirs: detect_source_dirs(root),
+            ..Default::default()
+        };
     }
 
     let content = match fs::read_to_string(&config_path) {

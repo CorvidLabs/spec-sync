@@ -1,3 +1,4 @@
+mod ai;
 mod config;
 mod exports;
 mod generator;
@@ -50,7 +51,11 @@ enum Command {
     /// Show file and module coverage report
     Coverage,
     /// Scaffold spec files for unspecced modules
-    Generate,
+    Generate {
+        /// Use Claude AI to generate meaningful spec content instead of templates
+        #[arg(long)]
+        ai: bool,
+    },
     /// Create a specsync.json config file
     Init,
     /// Watch spec and source files, re-running check on changes
@@ -70,7 +75,7 @@ fn main() {
         Command::Init => cmd_init(&root),
         Command::Check => cmd_check(&root, cli.strict, cli.require_coverage, cli.json),
         Command::Coverage => cmd_coverage(&root, cli.strict, cli.require_coverage, cli.json),
-        Command::Generate => cmd_generate(&root, cli.strict, cli.require_coverage, cli.json),
+        Command::Generate { ai } => cmd_generate(&root, cli.strict, cli.require_coverage, cli.json, ai),
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
     }
 }
@@ -104,7 +109,7 @@ fn cmd_init(root: &Path) {
 }
 
 fn cmd_check(root: &Path, strict: bool, require_coverage: Option<usize>, json: bool) {
-    let (config, spec_files) = load_and_discover(root);
+    let (config, spec_files) = load_and_discover(root, false);
     let schema_tables = get_schema_table_names(root, &config);
     let (total_errors, total_warnings, passed, total, all_errors, all_warnings) =
         run_validation(root, &spec_files, &schema_tables, &config, json);
@@ -140,7 +145,7 @@ fn cmd_check(root: &Path, strict: bool, require_coverage: Option<usize>, json: b
 }
 
 fn cmd_coverage(root: &Path, strict: bool, require_coverage: Option<usize>, json: bool) {
-    let (config, spec_files) = load_and_discover(root);
+    let (config, spec_files) = load_and_discover(root, false);
     let schema_tables = get_schema_table_names(root, &config);
     let (total_errors, total_warnings, passed, total, _all_errors, _all_warnings) =
         run_validation(root, &spec_files, &schema_tables, &config, json);
@@ -153,17 +158,33 @@ fn cmd_coverage(root: &Path, strict: bool, require_coverage: Option<usize>, json
             (coverage.specced_file_count as f64 / coverage.total_source_files as f64) * 100.0
         };
 
+        let loc_coverage = if coverage.total_loc == 0 {
+            100.0
+        } else {
+            (coverage.specced_loc as f64 / coverage.total_loc as f64) * 100.0
+        };
+
         let modules: Vec<serde_json::Value> = coverage
             .unspecced_modules
             .iter()
             .map(|m| serde_json::json!({ "name": m, "has_spec": false }))
             .collect();
 
+        let uncovered_files: Vec<serde_json::Value> = coverage
+            .unspecced_file_loc
+            .iter()
+            .map(|(f, loc)| serde_json::json!({ "file": f, "loc": loc }))
+            .collect();
+
         let output = serde_json::json!({
             "file_coverage": (file_coverage * 100.0).round() / 100.0,
             "files_covered": coverage.specced_file_count,
             "files_total": coverage.total_source_files,
+            "loc_coverage": (loc_coverage * 100.0).round() / 100.0,
+            "loc_covered": coverage.specced_loc,
+            "loc_total": coverage.total_loc,
             "modules": modules,
+            "uncovered_files": uncovered_files,
         });
         println!("{}", serde_json::to_string_pretty(&output).unwrap());
         process::exit(0);
@@ -181,15 +202,36 @@ fn cmd_coverage(root: &Path, strict: bool, require_coverage: Option<usize>, json
     );
 }
 
-fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>, json: bool) {
-    let (config, spec_files) = load_and_discover(root);
+fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>, json: bool, ai: bool) {
+    let (config, spec_files) = load_and_discover(root, true);
     let schema_tables = get_schema_table_names(root, &config);
-    let (total_errors, total_warnings, passed, total, _all_errors, _all_warnings) =
-        run_validation(root, &spec_files, &schema_tables, &config, json);
-    let coverage = compute_coverage(root, &spec_files, &config);
+
+    let (mut total_errors, mut total_warnings, mut passed, mut total) = if spec_files.is_empty() {
+        println!("No existing specs found. Scanning for source modules...");
+        (0, 0, 0, 0)
+    } else {
+        let (te, tw, p, t, _, _) =
+            run_validation(root, &spec_files, &schema_tables, &config, json);
+        (te, tw, p, t)
+    };
+
+    let mut coverage = compute_coverage(root, &spec_files, &config);
+
+    let ai_command = if ai {
+        match ai::resolve_ai_command(&config) {
+            Ok(cmd) => Some(cmd),
+            Err(e) => {
+                eprintln!("{e}");
+                process::exit(1);
+            }
+        }
+    } else {
+        None
+    };
 
     if json {
-        let generated_paths = generate_specs_for_unspecced_modules_paths(root, &coverage, &config);
+        let generated_paths =
+            generate_specs_for_unspecced_modules_paths(root, &coverage, &config, ai_command.as_deref());
         let output = serde_json::json!({
             "generated": generated_paths,
         });
@@ -201,9 +243,10 @@ fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>, json
 
     println!(
         "\n--- {} -----------------------------------------------",
-        "Generating Specs".bold()
+        if ai { "Generating Specs (AI)" } else { "Generating Specs" }.bold()
     );
-    let generated = generate_specs_for_unspecced_modules(root, &coverage, &config);
+    let generated =
+        generate_specs_for_unspecced_modules(root, &coverage, &config, ai_command.as_deref());
     if generated == 0 && coverage.unspecced_modules.is_empty() {
         println!(
             "  {} No specs to generate — full module coverage",
@@ -214,6 +257,19 @@ fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>, json
             "\n  Generated {} spec file(s) — edit them to fill in details",
             generated
         );
+
+        // Recompute coverage and validation now that new specs exist
+        let (config, spec_files) = load_and_discover(root, true);
+        let schema_tables = get_schema_table_names(root, &config);
+        coverage = compute_coverage(root, &spec_files, &config);
+        if !spec_files.is_empty() {
+            let (te, tw, p, t, _, _) =
+                run_validation(root, &spec_files, &schema_tables, &config, json);
+            total_errors = te;
+            total_warnings = tw;
+            passed = p;
+            total = t;
+        }
     }
 
     print_summary(total, passed, total_warnings, total_errors);
@@ -229,7 +285,7 @@ fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>, json
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
-fn load_and_discover(root: &Path) -> (types::SpecSyncConfig, Vec<PathBuf>) {
+fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConfig, Vec<PathBuf>) {
     let config = load_config(root);
     let specs_dir = root.join(&config.specs_dir);
     let spec_files: Vec<PathBuf> = find_spec_files(&specs_dir)
@@ -242,8 +298,11 @@ fn load_and_discover(root: &Path) -> (types::SpecSyncConfig, Vec<PathBuf>) {
         })
         .collect();
 
-    if spec_files.is_empty() {
-        println!("No spec files found in {}/", config.specs_dir);
+    if spec_files.is_empty() && !allow_empty {
+        println!(
+            "No spec files found in {}/. Run `specsync generate` to scaffold specs.",
+            config.specs_dir
+        );
         process::exit(0);
     }
 
@@ -460,9 +519,23 @@ fn print_coverage_line(coverage: &types::CoverageReport) {
         pct_str.red().to_string()
     };
 
+    let loc_pct = coverage.loc_coverage_percent;
+    let loc_pct_str = format!("{loc_pct}%");
+    let colored_loc_pct = if loc_pct == 100 {
+        loc_pct_str.green().to_string()
+    } else if loc_pct >= 80 {
+        loc_pct_str.yellow().to_string()
+    } else {
+        loc_pct_str.red().to_string()
+    };
+
     println!(
         "File coverage: {}/{} ({colored_pct})",
         coverage.specced_file_count, coverage.total_source_files
+    );
+    println!(
+        "LOC coverage:  {}/{} ({colored_loc_pct})",
+        coverage.specced_loc, coverage.total_loc
     );
 }
 
@@ -490,12 +563,14 @@ fn print_coverage_report(coverage: &types::CoverageReport) {
     if coverage.unspecced_files.is_empty() {
         println!("  {} All source files referenced by specs", "✓".green());
     } else {
+        let uncovered_loc: usize = coverage.unspecced_file_loc.iter().map(|(_, l)| l).sum();
         println!(
-            "\n  Files not in any spec ({}):",
-            coverage.unspecced_files.len()
+            "\n  Files not in any spec ({}, {} LOC uncovered):",
+            coverage.unspecced_files.len(),
+            uncovered_loc
         );
-        for file in &coverage.unspecced_files {
-            println!("    {} {file}", "⚠".yellow());
+        for (file, loc) in &coverage.unspecced_file_loc {
+            println!("    {} {file} ({loc} LOC)", "⚠".yellow());
         }
     }
 }

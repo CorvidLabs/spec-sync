@@ -1,0 +1,25 @@
+{
+  "excludeDirs": [
+    "__tests__"
+  ],
+  "excludePatterns": [
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ],
+  "requiredSections": [
+    "Purpose",
+    "Public API",
+    "Invariants",
+    "Behavioral Examples",
+    "Error Cases",
+    "Dependencies",
+    "Change Log"
+  ],
+  "sourceDirs": [
+    "src"
+  ],
+  "specsDir": "specs",
+  "aiCommand": "claude -p --output-format text",
+  "aiTimeout": 300
+}

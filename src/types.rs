@@ -39,6 +39,11 @@ pub struct CoverageReport {
     pub unspecced_files: Vec<String>,
     pub unspecced_modules: Vec<String>,
     pub coverage_percent: usize,
+    pub total_loc: usize,
+    pub specced_loc: usize,
+    pub loc_coverage_percent: usize,
+    /// (file_path, line_count) sorted by LOC descending.
+    pub unspecced_file_loc: Vec<(String, usize)>,
 }
 
 /// User-provided configuration (from specsync.json).
@@ -66,6 +71,16 @@ pub struct SpecSyncConfig {
     /// Source file extensions to scan (default: all supported languages).
     #[serde(default)]
     pub source_extensions: Vec<String>,
+
+    /// Command to run for AI-powered spec generation.
+    /// The prompt is piped to stdin; spec markdown is expected on stdout.
+    /// Examples: "claude -p --output-format text", "ollama run llama3"
+    #[serde(default)]
+    pub ai_command: Option<String>,
+
+    /// Timeout in seconds for each AI command invocation (default: 120).
+    #[serde(default)]
+    pub ai_timeout: Option<u64>,
 }
 
 /// Detected language for export extraction.
@@ -176,6 +191,8 @@ impl Default for SpecSyncConfig {
             exclude_dirs: default_exclude_dirs(),
             exclude_patterns: default_exclude_patterns(),
             source_extensions: Vec::new(),
+            ai_command: None,
+            ai_timeout: None,
         }
     }
 }

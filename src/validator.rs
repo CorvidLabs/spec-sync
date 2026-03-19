@@ -318,6 +318,44 @@ fn get_module_dirs(dir: &Path, exclude_dirs: &HashSet<String>) -> Vec<String> {
     modules
 }
 
+/// Get spec module directories that actually contain a .spec.md file.
+/// Empty directories (e.g. from a failed prior generation) are ignored.
+fn get_spec_module_dirs(dir: &Path) -> Vec<String> {
+    let mut modules = Vec::new();
+    if !dir.exists() {
+        return modules;
+    }
+
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            if let Ok(ft) = entry.file_type()
+                && ft.is_dir()
+            {
+                let subdir = entry.path();
+                let has_spec = fs::read_dir(&subdir)
+                    .ok()
+                    .map(|entries| {
+                        entries.flatten().any(|e| {
+                            e.path().is_file()
+                                && e.file_name()
+                                    .to_str()
+                                    .map(|n| n.ends_with(".spec.md"))
+                                    .unwrap_or(false)
+                        })
+                    })
+                    .unwrap_or(false);
+                if has_spec {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    modules.push(name);
+                }
+            }
+        }
+    }
+
+    modules.sort();
+    modules
+}
+
 /// Compute file and module coverage.
 pub fn compute_coverage(
     root: &Path,
@@ -369,24 +407,79 @@ pub fn compute_coverage(
         all_source_files.extend(files);
     }
 
+    // Count lines of code per file
+    let file_loc: std::collections::HashMap<&str, usize> = all_source_files
+        .iter()
+        .map(|f| {
+            let loc = fs::read_to_string(root.join(f))
+                .map(|c| c.lines().count())
+                .unwrap_or(0);
+            (f.as_str(), loc)
+        })
+        .collect();
+
+    let total_loc: usize = file_loc.values().sum();
+    let specced_loc: usize = all_source_files
+        .iter()
+        .filter(|f| specced_files.contains(*f))
+        .map(|f| file_loc.get(f.as_str()).copied().unwrap_or(0))
+        .sum();
+
     let unspecced_files: Vec<String> = all_source_files
         .iter()
         .filter(|f| !specced_files.contains(*f))
         .cloned()
         .collect();
 
+    let mut unspecced_file_loc: Vec<(String, usize)> = unspecced_files
+        .iter()
+        .map(|f| (f.clone(), file_loc.get(f.as_str()).copied().unwrap_or(0)))
+        .collect();
+    unspecced_file_loc.sort_by(|a, b| b.1.cmp(&a.1));
+
     // Module coverage
     let specs_dir = root.join(&config.specs_dir);
-    let spec_modules: HashSet<String> = get_module_dirs(&specs_dir, &HashSet::new())
+    let spec_modules: HashSet<String> = get_spec_module_dirs(&specs_dir)
         .into_iter()
         .collect();
 
     let mut unspecced_modules = Vec::new();
+    let mut seen_modules: HashSet<String> = HashSet::new();
+
+    // Detect subdirectory-based modules
     for src_dir in &config.source_dirs {
         let full_dir = root.join(src_dir);
         for module in get_module_dirs(&full_dir, &exclude_dirs) {
-            if !spec_modules.contains(&module) {
+            if !spec_modules.contains(&module) && seen_modules.insert(module.clone()) {
                 unspecced_modules.push(module);
+            }
+        }
+    }
+
+    // Detect flat source files as modules (e.g. src/config.rs → module "config")
+    let skip_stems: HashSet<&str> =
+        ["main", "lib", "mod", "index", "__init__", "app"].into_iter().collect();
+    for src_dir in &config.source_dirs {
+        let full_dir = root.join(src_dir);
+        if let Ok(entries) = fs::read_dir(&full_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if !path.is_file()
+                    || !has_extension(&path, &config.source_extensions)
+                    || is_test_file(&path)
+                {
+                    continue;
+                }
+                let stem = match path.file_stem().and_then(|s| s.to_str()) {
+                    Some(s) => s.to_string(),
+                    None => continue,
+                };
+                if skip_stems.contains(stem.as_str()) {
+                    continue;
+                }
+                if !spec_modules.contains(&stem) && seen_modules.insert(stem.clone()) {
+                    unspecced_modules.push(stem);
+                }
             }
         }
     }
@@ -398,11 +491,21 @@ pub fn compute_coverage(
         (specced_count * 100) / all_source_files.len()
     };
 
+    let loc_coverage_percent = if total_loc == 0 {
+        100
+    } else {
+        (specced_loc * 100) / total_loc
+    };
+
     CoverageReport {
         total_source_files: all_source_files.len(),
         specced_file_count: specced_count,
         unspecced_files,
         unspecced_modules,
         coverage_percent,
+        total_loc,
+        specced_loc,
+        loc_coverage_percent,
+        unspecced_file_loc,
     }
 }

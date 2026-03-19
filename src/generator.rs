@@ -1,6 +1,9 @@
+use crate::ai;
 use crate::exports::{has_extension, is_test_file};
 use crate::types::{CoverageReport, SpecSyncConfig};
+use colored::Colorize;
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 use walkdir::WalkDir;
 
@@ -89,6 +92,47 @@ fn find_module_source_files(dir: &Path, config: &SpecSyncConfig) -> Vec<String> 
         .collect()
 }
 
+/// Find source files for a module, checking subdirectories first, then flat files.
+fn find_files_for_module(
+    root: &Path,
+    module_name: &str,
+    config: &SpecSyncConfig,
+) -> Vec<String> {
+    let mut module_files = Vec::new();
+
+    // First: look for subdirectory-based modules (src/module_name/)
+    for src_dir in &config.source_dirs {
+        let module_dir = root.join(src_dir).join(module_name);
+        let files = find_module_source_files(&module_dir, config);
+        module_files.extend(files);
+    }
+
+    // Fallback: look for flat files matching the module name (src/module_name.rs, etc.)
+    if module_files.is_empty() {
+        for src_dir in &config.source_dirs {
+            let src_path = root.join(src_dir);
+            if let Ok(entries) = std::fs::read_dir(&src_path) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if !path.is_file()
+                        || !has_extension(&path, &config.source_extensions)
+                        || is_test_file(&path)
+                    {
+                        continue;
+                    }
+                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                        if stem == module_name {
+                            module_files.push(path.to_string_lossy().replace('\\', "/"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    module_files
+}
+
 /// Generate a spec from a template.
 fn generate_spec(
     module_name: &str,
@@ -144,8 +188,8 @@ fn generate_spec(
     let version_re = regex::Regex::new(r"(?m)^version:\s*.+$").unwrap();
     spec = version_re.replace(&spec, "version: 1").to_string();
 
-    // Replace files list
-    let files_re = regex::Regex::new(r"(?m)^files:\n(?:\s+-\s+.+\n?)*").unwrap();
+    // Replace files list (handles both `files: []` and multi-line YAML list)
+    let files_re = regex::Regex::new(r"(?m)^files:\s*\[\]|^files:\n(?:\s+-\s+.+\n?)*").unwrap();
     spec = files_re
         .replace(&spec, format!("files:\n{files_yaml}\n"))
         .to_string();
@@ -161,12 +205,48 @@ fn generate_spec(
     spec
 }
 
+/// Generate spec content for a module, using AI if an API key is provided.
+fn generate_module_spec(
+    module_name: &str,
+    module_files: &[String],
+    root: &Path,
+    specs_dir: &Path,
+    config: &SpecSyncConfig,
+    ai_command: Option<&str>,
+) -> String {
+    if let Some(cmd) = ai_command {
+        // Make paths relative to root for the AI prompt
+        let rel_files: Vec<String> = module_files
+            .iter()
+            .map(|f| {
+                Path::new(f)
+                    .strip_prefix(root.to_string_lossy().as_ref())
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|_| f.clone())
+            })
+            .collect();
+
+        match ai::generate_spec_with_ai(module_name, &rel_files, root, config, cmd) {
+            Ok(spec) => return spec,
+            Err(e) => {
+                eprintln!(
+                    "  {} AI generation failed for {module_name}: {e} — falling back to template",
+                    "⚠".yellow()
+                );
+            }
+        }
+    }
+
+    generate_spec(module_name, module_files, root, specs_dir)
+}
+
 /// Generate spec files for all unspecced modules.
 /// Returns the number of specs generated.
 pub fn generate_specs_for_unspecced_modules(
     root: &Path,
     report: &CoverageReport,
     config: &SpecSyncConfig,
+    ai_command: Option<&str>,
 ) -> usize {
     let specs_dir = root.join(&config.specs_dir);
     let mut generated = 0;
@@ -179,13 +259,7 @@ pub fn generate_specs_for_unspecced_modules(
             continue;
         }
 
-        // Find source files for this module across all source dirs
-        let mut module_files = Vec::new();
-        for src_dir in &config.source_dirs {
-            let module_dir = root.join(src_dir).join(module_name);
-            let files = find_module_source_files(&module_dir, config);
-            module_files.extend(files);
-        }
+        let module_files = find_files_for_module(root, module_name, config);
 
         if module_files.is_empty() {
             continue;
@@ -196,12 +270,22 @@ pub fn generate_specs_for_unspecced_modules(
             continue;
         }
 
-        let spec_content = generate_spec(module_name, &module_files, root, &specs_dir);
+        if ai_command.is_some() {
+            let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
+            eprintln!("  Generating {rel} with AI...");
+        }
+
+        let spec_content =
+            generate_module_spec(module_name, &module_files, root, &specs_dir, config, ai_command);
 
         match fs::write(&spec_file, &spec_content) {
             Ok(_) => {
                 let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
-                println!("  \u{2713} Generated {rel} ({} files)", module_files.len());
+                if ai_command.is_some() {
+                    // AI generation complete
+                }
+                println!("  {} Generated {rel} ({} files)", "✓".green(), module_files.len());
+                let _ = std::io::stdout().flush();
                 generated += 1;
             }
             Err(e) => {
@@ -218,6 +302,7 @@ pub fn generate_specs_for_unspecced_modules_paths(
     root: &Path,
     report: &CoverageReport,
     config: &SpecSyncConfig,
+    ai_command: Option<&str>,
 ) -> Vec<String> {
     let specs_dir = root.join(&config.specs_dir);
     let mut generated_paths = Vec::new();
@@ -230,12 +315,7 @@ pub fn generate_specs_for_unspecced_modules_paths(
             continue;
         }
 
-        let mut module_files = Vec::new();
-        for src_dir in &config.source_dirs {
-            let module_dir = root.join(src_dir).join(module_name);
-            let files = find_module_source_files(&module_dir, config);
-            module_files.extend(files);
-        }
+        let module_files = find_files_for_module(root, module_name, config);
 
         if module_files.is_empty() {
             continue;
@@ -245,7 +325,8 @@ pub fn generate_specs_for_unspecced_modules_paths(
             continue;
         }
 
-        let spec_content = generate_spec(module_name, &module_files, root, &specs_dir);
+        let spec_content =
+            generate_module_spec(module_name, &module_files, root, &specs_dir, config, ai_command);
 
         if fs::write(&spec_file, &spec_content).is_ok() {
             let rel = spec_file

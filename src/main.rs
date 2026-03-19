@@ -212,7 +212,8 @@ fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>, json
         println!("No existing specs found. Scanning for source modules...");
         (0, 0, 0, 0)
     } else {
-        let (te, tw, p, t, _, _) = run_validation(root, &spec_files, &schema_tables, &config, json);
+        let (te, tw, p, t, _, _) =
+            run_validation(root, &spec_files, &schema_tables, &config, json);
         (te, tw, p, t)
     };
 

@@ -271,14 +271,8 @@ pub fn generate_specs_for_unspecced_modules(
             eprintln!("  Generating {rel} with AI...");
         }
 
-        let spec_content = generate_module_spec(
-            module_name,
-            &module_files,
-            root,
-            &specs_dir,
-            config,
-            ai_command,
-        );
+        let spec_content =
+            generate_module_spec(module_name, &module_files, root, &specs_dir, config, ai_command);
 
         match fs::write(&spec_file, &spec_content) {
             Ok(_) => {
@@ -286,11 +280,7 @@ pub fn generate_specs_for_unspecced_modules(
                 if ai_command.is_some() {
                     // AI generation complete
                 }
-                println!(
-                    "  {} Generated {rel} ({} files)",
-                    "✓".green(),
-                    module_files.len()
-                );
+                println!("  {} Generated {rel} ({} files)", "✓".green(), module_files.len());
                 let _ = std::io::stdout().flush();
                 generated += 1;
             }
@@ -331,14 +321,8 @@ pub fn generate_specs_for_unspecced_modules_paths(
             continue;
         }
 
-        let spec_content = generate_module_spec(
-            module_name,
-            &module_files,
-            root,
-            &specs_dir,
-            config,
-            ai_command,
-        );
+        let spec_content =
+            generate_module_spec(module_name, &module_files, root, &specs_dir, config, ai_command);
 
         if fs::write(&spec_file, &spec_content).is_ok() {
             let rel = spec_file

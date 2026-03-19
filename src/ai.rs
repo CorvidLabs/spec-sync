@@ -10,6 +10,43 @@ const MAX_FILE_CHARS: usize = 30_000;
 const MAX_PROMPT_CHARS: usize = 150_000;
 const DEFAULT_AI_TIMEOUT_SECS: u64 = 120;
 
+/// A resolved provider ready to execute — either a CLI command or a direct API call.
+#[derive(Debug, Clone)]
+pub enum ResolvedProvider {
+    /// Shell out to a CLI tool (e.g. `claude -p --output-format text`).
+    Cli(String),
+    /// Call the Anthropic Messages API directly.
+    AnthropicApi {
+        api_key: String,
+        model: String,
+        base_url: Option<String>,
+    },
+    /// Call an OpenAI-compatible Chat Completions API directly.
+    OpenAiApi {
+        api_key: String,
+        model: String,
+        base_url: Option<String>,
+    },
+}
+
+impl std::fmt::Display for ResolvedProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ResolvedProvider::Cli(cmd) => write!(f, "CLI: {cmd}"),
+            ResolvedProvider::AnthropicApi { model, .. } => {
+                write!(f, "Anthropic API ({model})")
+            }
+            ResolvedProvider::OpenAiApi { model, base_url, .. } => {
+                if let Some(url) = base_url {
+                    write!(f, "OpenAI API ({model} @ {url})")
+                } else {
+                    write!(f, "OpenAI API ({model})")
+                }
+            }
+        }
+    }
+}
+
 /// Check whether a binary is available on PATH.
 fn is_binary_available(name: &str) -> bool {
     if name.is_empty() {
@@ -36,10 +73,14 @@ fn command_for_provider(provider: &AiProvider, model: Option<&str>) -> Result<St
         AiProvider::Cursor => Err(
             "Cursor does not have a CLI pipe mode (stdin→stdout) for spec generation.\n\
              Workarounds:\n  \
-             1. Use \"aiProvider\": \"claude\" with the Claude CLI installed\n  \
-             2. Use \"aiProvider\": \"ollama\" for a local model\n  \
-             3. Set \"aiCommand\" to any CLI tool that reads stdin and writes stdout"
+             1. Use \"aiProvider\": \"anthropic\" with an ANTHROPIC_API_KEY\n  \
+             2. Use \"aiProvider\": \"openai\" with an OPENAI_API_KEY\n  \
+             3. Use \"aiProvider\": \"ollama\" for a local model\n  \
+             4. Set \"aiCommand\" to any CLI tool that reads stdin and writes stdout"
                 .to_string(),
+        ),
+        AiProvider::Anthropic | AiProvider::OpenAi => Err(
+            "API providers should use resolve_api_provider(), not command_for_provider()".to_string(),
         ),
         AiProvider::Custom => Err(
             "Custom provider requires \"aiCommand\" to be set in specsync.json".to_string(),
@@ -47,41 +88,88 @@ fn command_for_provider(provider: &AiProvider, model: Option<&str>) -> Result<St
     }
 }
 
-/// Resolve the AI command to use.
+/// Resolve an API provider to a ResolvedProvider.
+fn resolve_api_provider(
+    provider: &AiProvider,
+    config: &SpecSyncConfig,
+) -> Result<ResolvedProvider, String> {
+    let env_var = provider.api_key_env_var().unwrap();
+    let api_key = config
+        .ai_api_key
+        .clone()
+        .or_else(|| std::env::var(env_var).ok())
+        .ok_or_else(|| {
+            format!(
+                "Provider \"{provider}\" requires an API key. Set {env_var} or \
+                 add \"aiApiKey\" to specsync.json"
+            )
+        })?;
+
+    let model = config
+        .ai_model
+        .clone()
+        .unwrap_or_else(|| provider.default_model().unwrap().to_string());
+
+    match provider {
+        AiProvider::Anthropic => Ok(ResolvedProvider::AnthropicApi {
+            api_key,
+            model,
+            base_url: config.ai_base_url.clone(),
+        }),
+        AiProvider::OpenAi => Ok(ResolvedProvider::OpenAiApi {
+            api_key,
+            model,
+            base_url: config.ai_base_url.clone(),
+        }),
+        _ => unreachable!(),
+    }
+}
+
+/// Resolve the AI provider to use.
 ///
 /// Resolution order:
 /// 1. `--provider` CLI flag (passed as `cli_provider`)
 /// 2. `aiCommand` in config (explicit override always wins)
-/// 3. `aiProvider` in config (resolved to CLI command)
+/// 3. `aiProvider` in config (resolved to CLI command or API)
 /// 4. `SPECSYNC_AI_COMMAND` env var
-/// 5. Auto-detect installed CLIs
-pub fn resolve_ai_command(
+/// 5. Auto-detect installed CLIs, then check for API keys
+pub fn resolve_ai_provider(
     config: &SpecSyncConfig,
     cli_provider: Option<&str>,
-) -> Result<String, String> {
+) -> Result<ResolvedProvider, String> {
     // 1. CLI --provider flag
     if let Some(name) = cli_provider {
         let provider = AiProvider::from_str_loose(name).ok_or_else(|| {
             format!(
-                "Unknown provider \"{name}\". Available: claude, cursor, copilot, ollama"
+                "Unknown provider \"{name}\". Available: claude, anthropic, openai, ollama, copilot"
             )
         })?;
+
+        if provider.is_api_provider() {
+            return resolve_api_provider(&provider, config);
+        }
+
         if !is_binary_available(provider.binary_name()) {
             return Err(format!(
                 "Provider \"{name}\" selected but `{}` is not installed or not on PATH",
                 provider.binary_name()
             ));
         }
-        return command_for_provider(&provider, config.ai_model.as_deref());
+        return command_for_provider(&provider, config.ai_model.as_deref())
+            .map(ResolvedProvider::Cli);
     }
 
     // 2. aiCommand in config (explicit override)
     if let Some(cmd) = &config.ai_command {
-        return Ok(cmd.clone());
+        return Ok(ResolvedProvider::Cli(cmd.clone()));
     }
 
     // 3. aiProvider in config
     if let Some(provider) = &config.ai_provider {
+        if provider.is_api_provider() {
+            return resolve_api_provider(provider, config);
+        }
+
         if !is_binary_available(provider.binary_name()) {
             return Err(format!(
                 "Provider \"{}\" configured but `{}` is not installed or not on PATH",
@@ -89,37 +177,68 @@ pub fn resolve_ai_command(
                 provider.binary_name()
             ));
         }
-        return command_for_provider(provider, config.ai_model.as_deref());
+        return command_for_provider(provider, config.ai_model.as_deref())
+            .map(ResolvedProvider::Cli);
     }
 
     // 4. Environment variable
     if let Ok(cmd) = std::env::var("SPECSYNC_AI_COMMAND") {
-        return Ok(cmd);
+        return Ok(ResolvedProvider::Cli(cmd));
     }
 
-    // 5. Auto-detect: check installed CLIs in preference order
+    // 5. Auto-detect: check installed CLIs first, then API keys
     for provider in AiProvider::detection_order() {
-        if is_binary_available(provider.binary_name()) {
+        if provider.is_api_provider() {
+            // Check for API key in env
+            if let Some(env_var) = provider.api_key_env_var() {
+                if std::env::var(env_var).is_ok() {
+                    eprintln!(
+                        "  Auto-detected AI provider: {} ({env_var} found)",
+                        provider
+                    );
+                    return resolve_api_provider(provider, config);
+                }
+            }
+        } else if is_binary_available(provider.binary_name()) {
             if let Ok(cmd) = command_for_provider(provider, config.ai_model.as_deref()) {
                 eprintln!(
                     "  Auto-detected AI provider: {} ({})",
                     provider,
                     provider.binary_name()
                 );
-                return Ok(cmd);
+                return Ok(ResolvedProvider::Cli(cmd));
             }
         }
     }
 
     Err(
-        "No AI provider found. Install one of: claude, ollama, gh (copilot)\n\n\
-         Or configure manually in specsync.json:\n  \
-         \"aiProvider\": \"claude\"                              (Claude Code CLI)\n  \
-         \"aiProvider\": \"ollama\"                              (local model)\n  \
-         \"aiCommand\":  \"any-cli-tool\"                        (custom command)\n\n\
+        "No AI provider found. Options:\n\n\
+         CLI providers (install a tool):\n  \
+         claude     — Claude Code CLI (npm i -g @anthropic-ai/claude-code)\n  \
+         ollama     — Local models (ollama.com)\n  \
+         copilot    — GitHub Copilot (gh extension install github/gh-copilot)\n\n\
+         API providers (just set a key — no CLI needed):\n  \
+         anthropic  — set ANTHROPIC_API_KEY env var\n  \
+         openai     — set OPENAI_API_KEY env var\n\n\
+         Or configure in specsync.json:\n  \
+         \"aiProvider\": \"anthropic\"    + ANTHROPIC_API_KEY\n  \
+         \"aiProvider\": \"openai\"       + OPENAI_API_KEY\n  \
+         \"aiCommand\":  \"any-cli\"      (custom command)\n\n\
          Use --provider <name> to select a specific provider."
             .to_string(),
     )
+}
+
+// Keep the old name as an alias for compatibility with tests
+#[allow(dead_code)]
+pub fn resolve_ai_command(
+    config: &SpecSyncConfig,
+    cli_provider: Option<&str>,
+) -> Result<String, String> {
+    match resolve_ai_provider(config, cli_provider)? {
+        ResolvedProvider::Cli(cmd) => Ok(cmd),
+        other => Ok(format!("[api:{other}]")),
+    }
 }
 
 /// Build the prompt for spec generation.
@@ -207,10 +326,9 @@ Other guidelines:
     )
 }
 
-/// Run the AI command with the given prompt, returning stdout.
+/// Run a CLI command with the given prompt, returning stdout.
 /// Shows a spinner while waiting, then streams stdout lines to stderr in real time.
-/// Times out after `timeout_secs` seconds (default 120).
-fn run_ai_command(ai_command: &str, prompt: &str, timeout_secs: u64) -> Result<String, String> {
+fn run_cli_command(ai_command: &str, prompt: &str, timeout_secs: u64) -> Result<String, String> {
     let mut child = Command::new("sh")
         .args(["-c", ai_command])
         .stdin(Stdio::piped())
@@ -344,29 +462,184 @@ fn run_ai_command(ai_command: &str, prompt: &str, timeout_secs: u64) -> Result<S
     Ok(stdout)
 }
 
-/// Generate a spec file using AI for a given module.
-pub fn generate_spec_with_ai(
-    module_name: &str,
-    source_files: &[String],
-    root: &Path,
-    config: &SpecSyncConfig,
-    ai_command: &str,
+/// Call the Anthropic Messages API directly.
+fn call_anthropic_api(
+    api_key: &str,
+    model: &str,
+    base_url: Option<&str>,
+    prompt: &str,
+    timeout_secs: u64,
 ) -> Result<String, String> {
-    let mut source_contents = Vec::new();
-    for file in source_files {
-        let full_path = root.join(file);
-        let rel_path = full_path
-            .strip_prefix(root)
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|_| file.clone());
-        let content =
-            fs::read_to_string(&full_path).map_err(|e| format!("Cannot read {file}: {e}"))?;
-        source_contents.push((rel_path, content));
+    let url = format!(
+        "{}/v1/messages",
+        base_url.unwrap_or("https://api.anthropic.com")
+    );
+
+    eprintln!("    Calling Anthropic API ({model})...");
+    let _ = std::io::stderr().flush();
+
+    let body = serde_json::json!({
+        "model": model,
+        "max_tokens": 8192,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+    });
+
+    let agent = ureq::Agent::new_with_config(
+        ureq::config::Config::builder()
+            .timeout_global(Some(Duration::from_secs(timeout_secs)))
+            .build(),
+    );
+
+    let mut response = agent
+        .post(&url)
+        .header("x-api-key", api_key)
+        .header("anthropic-version", "2023-06-01")
+        .header("content-type", "application/json")
+        .send_json(&body)
+        .map_err(|e| format!("Anthropic API request failed: {e}"))?;
+
+    let status = response.status();
+    let response_body: serde_json::Value = response
+        .body_mut()
+        .read_json()
+        .map_err(|e| format!("Failed to parse Anthropic API response: {e}"))?;
+
+    if status != 200 {
+        let error_msg = response_body["error"]["message"]
+            .as_str()
+            .unwrap_or("unknown error");
+        return Err(format!("Anthropic API error (HTTP {status}): {error_msg}"));
     }
 
-    let prompt = build_prompt(module_name, &source_contents, &config.required_sections);
-    let timeout = config.ai_timeout.unwrap_or(DEFAULT_AI_TIMEOUT_SECS);
-    let mut spec = run_ai_command(ai_command, &prompt, timeout)?;
+    // Extract text from the response content blocks
+    let content = response_body["content"]
+        .as_array()
+        .ok_or("Anthropic API response missing 'content' array")?;
+
+    let mut text = String::new();
+    for block in content {
+        if block["type"].as_str() == Some("text") {
+            if let Some(t) = block["text"].as_str() {
+                text.push_str(t);
+            }
+        }
+    }
+
+    if text.trim().is_empty() {
+        return Err("Anthropic API returned empty response".to_string());
+    }
+
+    let usage = &response_body["usage"];
+    let input_tokens = usage["input_tokens"].as_u64().unwrap_or(0);
+    let output_tokens = usage["output_tokens"].as_u64().unwrap_or(0);
+    eprintln!(
+        "    ✓ Anthropic API: {input_tokens} input + {output_tokens} output tokens"
+    );
+
+    Ok(text)
+}
+
+/// Call an OpenAI-compatible Chat Completions API directly.
+fn call_openai_api(
+    api_key: &str,
+    model: &str,
+    base_url: Option<&str>,
+    prompt: &str,
+    timeout_secs: u64,
+) -> Result<String, String> {
+    let url = format!(
+        "{}/v1/chat/completions",
+        base_url.unwrap_or("https://api.openai.com")
+    );
+
+    eprintln!("    Calling OpenAI API ({model})...");
+    let _ = std::io::stderr().flush();
+
+    let body = serde_json::json!({
+        "model": model,
+        "max_tokens": 8192,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+    });
+
+    let agent = ureq::Agent::new_with_config(
+        ureq::config::Config::builder()
+            .timeout_global(Some(Duration::from_secs(timeout_secs)))
+            .build(),
+    );
+
+    let mut response = agent
+        .post(&url)
+        .header("Authorization", &format!("Bearer {api_key}"))
+        .header("content-type", "application/json")
+        .send_json(&body)
+        .map_err(|e| format!("OpenAI API request failed: {e}"))?;
+
+    let status = response.status();
+    let response_body: serde_json::Value = response
+        .body_mut()
+        .read_json()
+        .map_err(|e| format!("Failed to parse OpenAI API response: {e}"))?;
+
+    if status != 200 {
+        let error_msg = response_body["error"]["message"]
+            .as_str()
+            .unwrap_or("unknown error");
+        return Err(format!("OpenAI API error (HTTP {status}): {error_msg}"));
+    }
+
+    let text = response_body["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or("OpenAI API response missing choices[0].message.content")?
+        .to_string();
+
+    if text.trim().is_empty() {
+        return Err("OpenAI API returned empty response".to_string());
+    }
+
+    let usage = &response_body["usage"];
+    let prompt_tokens = usage["prompt_tokens"].as_u64().unwrap_or(0);
+    let completion_tokens = usage["completion_tokens"].as_u64().unwrap_or(0);
+    eprintln!(
+        "    ✓ OpenAI API: {prompt_tokens} input + {completion_tokens} output tokens"
+    );
+
+    Ok(text)
+}
+
+/// Run the resolved provider with the given prompt.
+fn run_provider(
+    provider: &ResolvedProvider,
+    prompt: &str,
+    timeout_secs: u64,
+) -> Result<String, String> {
+    match provider {
+        ResolvedProvider::Cli(cmd) => run_cli_command(cmd, prompt, timeout_secs),
+        ResolvedProvider::AnthropicApi {
+            api_key,
+            model,
+            base_url,
+        } => call_anthropic_api(api_key, model, base_url.as_deref(), prompt, timeout_secs),
+        ResolvedProvider::OpenAiApi {
+            api_key,
+            model,
+            base_url,
+        } => call_openai_api(api_key, model, base_url.as_deref(), prompt, timeout_secs),
+    }
+}
+
+/// Strip code fences and validate frontmatter.
+fn postprocess_spec(raw: &str) -> Result<String, String> {
+    let mut spec = raw.to_string();
 
     // Strip code fences if the model wrapped the output
     if spec.trim_start().starts_with("```") {
@@ -391,4 +664,31 @@ pub fn generate_spec_with_ai(
     }
 
     Ok(spec)
+}
+
+/// Generate a spec file using AI for a given module.
+pub fn generate_spec_with_ai(
+    module_name: &str,
+    source_files: &[String],
+    root: &Path,
+    config: &SpecSyncConfig,
+    provider: &ResolvedProvider,
+) -> Result<String, String> {
+    let mut source_contents = Vec::new();
+    for file in source_files {
+        let full_path = root.join(file);
+        let rel_path = full_path
+            .strip_prefix(root)
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| file.clone());
+        let content =
+            fs::read_to_string(&full_path).map_err(|e| format!("Cannot read {file}: {e}"))?;
+        source_contents.push((rel_path, content));
+    }
+
+    let prompt = build_prompt(module_name, &source_contents, &config.required_sections);
+    let timeout = config.ai_timeout.unwrap_or(DEFAULT_AI_TIMEOUT_SECS);
+    let raw = run_provider(provider, &prompt, timeout)?;
+
+    postprocess_spec(&raw)
 }

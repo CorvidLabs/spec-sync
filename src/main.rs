@@ -56,7 +56,7 @@ enum Command {
         #[arg(long)]
         ai: bool,
 
-        /// AI provider to use: claude, cursor, copilot, ollama
+        /// AI provider: claude, anthropic, openai, ollama, copilot
         #[arg(long, value_name = "NAME")]
         provider: Option<String>,
     },
@@ -232,9 +232,9 @@ fn cmd_generate(
     // --provider implies --ai
     let ai = ai || provider.is_some();
 
-    let ai_command = if ai {
-        match ai::resolve_ai_command(&config, provider.as_deref()) {
-            Ok(cmd) => Some(cmd),
+    let resolved_provider = if ai {
+        match ai::resolve_ai_provider(&config, provider.as_deref()) {
+            Ok(p) => Some(p),
             Err(e) => {
                 eprintln!("{e}");
                 process::exit(1);
@@ -249,7 +249,7 @@ fn cmd_generate(
             root,
             &coverage,
             &config,
-            ai_command.as_deref(),
+            resolved_provider.as_ref(),
         );
         let output = serde_json::json!({
             "generated": generated_paths,
@@ -270,7 +270,7 @@ fn cmd_generate(
         .bold()
     );
     let generated =
-        generate_specs_for_unspecced_modules(root, &coverage, &config, ai_command.as_deref());
+        generate_specs_for_unspecced_modules(root, &coverage, &config, resolved_provider.as_ref());
     if generated == 0 && coverage.unspecced_modules.is_empty() {
         println!(
             "  {} No specs to generate — full module coverage",

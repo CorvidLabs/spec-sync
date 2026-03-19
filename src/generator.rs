@@ -1,4 +1,4 @@
-use crate::ai;
+use crate::ai::{self, ResolvedProvider};
 use crate::exports::{has_extension, is_test_file};
 use crate::types::{CoverageReport, SpecSyncConfig};
 use colored::Colorize;
@@ -201,16 +201,16 @@ fn generate_spec(
     spec
 }
 
-/// Generate spec content for a module, using AI if an API key is provided.
+/// Generate spec content for a module, using AI if a provider is configured.
 fn generate_module_spec(
     module_name: &str,
     module_files: &[String],
     root: &Path,
     specs_dir: &Path,
     config: &SpecSyncConfig,
-    ai_command: Option<&str>,
+    provider: Option<&ResolvedProvider>,
 ) -> String {
-    if let Some(cmd) = ai_command {
+    if let Some(provider) = provider {
         // Make paths relative to root for the AI prompt
         let rel_files: Vec<String> = module_files
             .iter()
@@ -222,7 +222,7 @@ fn generate_module_spec(
             })
             .collect();
 
-        match ai::generate_spec_with_ai(module_name, &rel_files, root, config, cmd) {
+        match ai::generate_spec_with_ai(module_name, &rel_files, root, config, provider) {
             Ok(spec) => return spec,
             Err(e) => {
                 eprintln!(
@@ -242,7 +242,7 @@ pub fn generate_specs_for_unspecced_modules(
     root: &Path,
     report: &CoverageReport,
     config: &SpecSyncConfig,
-    ai_command: Option<&str>,
+    provider: Option<&ResolvedProvider>,
 ) -> usize {
     let specs_dir = root.join(&config.specs_dir);
     let mut generated = 0;
@@ -266,7 +266,7 @@ pub fn generate_specs_for_unspecced_modules(
             continue;
         }
 
-        if ai_command.is_some() {
+        if provider.is_some() {
             let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
             eprintln!("  Generating {rel} with AI...");
         }
@@ -277,15 +277,12 @@ pub fn generate_specs_for_unspecced_modules(
             root,
             &specs_dir,
             config,
-            ai_command,
+            provider,
         );
 
         match fs::write(&spec_file, &spec_content) {
             Ok(_) => {
                 let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
-                if ai_command.is_some() {
-                    // AI generation complete
-                }
                 println!(
                     "  {} Generated {rel} ({} files)",
                     "✓".green(),
@@ -308,7 +305,7 @@ pub fn generate_specs_for_unspecced_modules_paths(
     root: &Path,
     report: &CoverageReport,
     config: &SpecSyncConfig,
-    ai_command: Option<&str>,
+    provider: Option<&ResolvedProvider>,
 ) -> Vec<String> {
     let specs_dir = root.join(&config.specs_dir);
     let mut generated_paths = Vec::new();
@@ -337,7 +334,7 @@ pub fn generate_specs_for_unspecced_modules_paths(
             root,
             &specs_dir,
             config,
-            ai_command,
+            provider,
         );
 
         if fs::write(&spec_file, &spec_content).is_ok() {

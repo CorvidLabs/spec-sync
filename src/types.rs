@@ -9,6 +9,11 @@ pub enum AiProvider {
     Cursor,
     Copilot,
     Ollama,
+    /// Direct Anthropic API (no CLI needed — uses ANTHROPIC_API_KEY).
+    Anthropic,
+    /// Direct OpenAI-compatible API (no CLI needed — uses OPENAI_API_KEY).
+    #[serde(alias = "openai")]
+    OpenAi,
     Custom,
 }
 
@@ -20,18 +25,41 @@ impl AiProvider {
             AiProvider::Claude => Some("claude -p --output-format text"),
             AiProvider::Ollama => Some("ollama run llama3"),
             AiProvider::Copilot => Some("gh copilot suggest -t shell"),
-            AiProvider::Cursor | AiProvider::Custom => None,
+            AiProvider::Cursor | AiProvider::Custom | AiProvider::Anthropic | AiProvider::OpenAi => None,
         }
     }
 
-    /// The binary name to check for availability.
+    /// The binary name to check for availability (empty for API-only providers).
     pub fn binary_name(&self) -> &'static str {
         match self {
             AiProvider::Claude => "claude",
             AiProvider::Cursor => "cursor",
             AiProvider::Copilot => "gh",
             AiProvider::Ollama => "ollama",
-            AiProvider::Custom => "",
+            AiProvider::Anthropic | AiProvider::OpenAi | AiProvider::Custom => "",
+        }
+    }
+
+    /// Whether this provider uses a direct API call (no CLI binary needed).
+    pub fn is_api_provider(&self) -> bool {
+        matches!(self, AiProvider::Anthropic | AiProvider::OpenAi)
+    }
+
+    /// The environment variable name for the API key.
+    pub fn api_key_env_var(&self) -> Option<&'static str> {
+        match self {
+            AiProvider::Anthropic => Some("ANTHROPIC_API_KEY"),
+            AiProvider::OpenAi => Some("OPENAI_API_KEY"),
+            _ => None,
+        }
+    }
+
+    /// Default model for API providers.
+    pub fn default_model(&self) -> Option<&'static str> {
+        match self {
+            AiProvider::Anthropic => Some("claude-sonnet-4-20250514"),
+            AiProvider::OpenAi => Some("gpt-4o"),
+            _ => None,
         }
     }
 
@@ -42,16 +70,21 @@ impl AiProvider {
             "cursor" => Some(AiProvider::Cursor),
             "copilot" | "gh-copilot" => Some(AiProvider::Copilot),
             "ollama" => Some(AiProvider::Ollama),
+            "anthropic" | "anthropic-api" => Some(AiProvider::Anthropic),
+            "openai" | "openai-api" => Some(AiProvider::OpenAi),
             _ => None,
         }
     }
 
     /// All providers that can be auto-detected, in preference order.
+    /// CLI providers first, then API providers (checked via env vars).
     pub fn detection_order() -> &'static [AiProvider] {
         &[
             AiProvider::Claude,
             AiProvider::Ollama,
             AiProvider::Copilot,
+            AiProvider::Anthropic,
+            AiProvider::OpenAi,
         ]
     }
 }
@@ -63,6 +96,8 @@ impl fmt::Display for AiProvider {
             AiProvider::Cursor => write!(f, "cursor"),
             AiProvider::Copilot => write!(f, "copilot"),
             AiProvider::Ollama => write!(f, "ollama"),
+            AiProvider::Anthropic => write!(f, "anthropic"),
+            AiProvider::OpenAi => write!(f, "openai"),
             AiProvider::Custom => write!(f, "custom"),
         }
     }
@@ -154,6 +189,15 @@ pub struct SpecSyncConfig {
     /// Examples: "claude -p --output-format text", "ollama run llama3"
     #[serde(default)]
     pub ai_command: Option<String>,
+
+    /// API key for direct API providers (anthropic, openai).
+    /// Can also be set via ANTHROPIC_API_KEY or OPENAI_API_KEY env vars.
+    #[serde(default)]
+    pub ai_api_key: Option<String>,
+
+    /// Base URL override for OpenAI-compatible APIs (e.g. local proxies).
+    #[serde(default)]
+    pub ai_base_url: Option<String>,
 
     /// Timeout in seconds for each AI command invocation (default: 120).
     #[serde(default)]
@@ -271,6 +315,8 @@ impl Default for SpecSyncConfig {
             ai_provider: None,
             ai_model: None,
             ai_command: None,
+            ai_api_key: None,
+            ai_base_url: None,
             ai_timeout: None,
         }
     }

@@ -1313,3 +1313,184 @@ fn ai_model_config_used_with_ollama_provider() {
         .failure()
         .stderr(predicate::str::contains("ollama"));
 }
+
+// ─── 8. Direct API provider tests ───────────────────────────────────────
+
+#[test]
+fn anthropic_provider_requires_api_key() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    // aiProvider=anthropic without ANTHROPIC_API_KEY should error
+    let config = serde_json::json!({
+        "specsDir": "specs",
+        "sourceDirs": ["src"],
+        "aiProvider": "anthropic",
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "excludeDirs": ["__tests__"],
+        "excludePatterns": ["**/__tests__/**"]
+    });
+    fs::write(root.join("specsync.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
+
+    specsync()
+        .arg("generate")
+        .arg("--ai")
+        .arg("--root")
+        .arg(&root)
+        .env_remove("ANTHROPIC_API_KEY")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("ANTHROPIC_API_KEY"));
+}
+
+#[test]
+fn openai_provider_requires_api_key() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    // aiProvider=openai without OPENAI_API_KEY should error
+    let config = serde_json::json!({
+        "specsDir": "specs",
+        "sourceDirs": ["src"],
+        "aiProvider": "openai",
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "excludeDirs": ["__tests__"],
+        "excludePatterns": ["**/__tests__/**"]
+    });
+    fs::write(root.join("specsync.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
+
+    specsync()
+        .arg("generate")
+        .arg("--ai")
+        .arg("--root")
+        .arg(&root)
+        .env_remove("OPENAI_API_KEY")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("OPENAI_API_KEY"));
+}
+
+#[test]
+fn provider_flag_anthropic_requires_api_key() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    specsync()
+        .arg("generate")
+        .arg("--provider")
+        .arg("anthropic")
+        .arg("--root")
+        .arg(&root)
+        .env_remove("ANTHROPIC_API_KEY")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("ANTHROPIC_API_KEY"));
+}
+
+#[test]
+fn provider_flag_openai_requires_api_key() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    specsync()
+        .arg("generate")
+        .arg("--provider")
+        .arg("openai")
+        .arg("--root")
+        .arg(&root)
+        .env_remove("OPENAI_API_KEY")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("OPENAI_API_KEY"));
+}
+
+#[test]
+fn anthropic_api_alias_works() {
+    // "anthropic-api" should be accepted as an alias for "anthropic"
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    specsync()
+        .arg("generate")
+        .arg("--provider")
+        .arg("anthropic-api")
+        .arg("--root")
+        .arg(&root)
+        .env_remove("ANTHROPIC_API_KEY")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("ANTHROPIC_API_KEY"));
+}
+
+#[test]
+fn openai_api_alias_works() {
+    // "openai-api" should be accepted as an alias for "openai"
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    specsync()
+        .arg("generate")
+        .arg("--provider")
+        .arg("openai-api")
+        .arg("--root")
+        .arg(&root)
+        .env_remove("OPENAI_API_KEY")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("OPENAI_API_KEY"));
+}
+
+#[test]
+fn ai_api_key_config_field_used_for_anthropic() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    // Create unspecced module so generation is triggered
+    fs::create_dir_all(root.join("src/newmod")).unwrap();
+    fs::write(root.join("src/newmod/lib.rs"), "pub fn hello() {}").unwrap();
+
+    // Set aiProvider=anthropic with aiApiKey in config (fake key)
+    // This should attempt the API call (and fail with auth error), proving
+    // the key was picked up from config rather than erroring about missing key
+    let config = serde_json::json!({
+        "specsDir": "specs",
+        "sourceDirs": ["src"],
+        "aiProvider": "anthropic",
+        "aiApiKey": "sk-ant-test-fake-key",
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "excludeDirs": ["__tests__"],
+        "excludePatterns": ["**/__tests__/**"]
+    });
+    fs::write(root.join("specsync.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
+
+    // Should succeed (API call fails, falls back to template)
+    specsync()
+        .arg("generate")
+        .arg("--ai")
+        .arg("--root")
+        .arg(&root)
+        .env_remove("ANTHROPIC_API_KEY")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("AI generation failed"));
+}
+
+#[test]
+fn unknown_provider_lists_api_options() {
+    // Error message for unknown provider should mention anthropic and openai
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    specsync()
+        .arg("generate")
+        .arg("--provider")
+        .arg("bogus")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure()
+        .stderr(
+            predicate::str::contains("anthropic")
+                .and(predicate::str::contains("openai")),
+        );
+}

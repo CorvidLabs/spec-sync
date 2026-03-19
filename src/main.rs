@@ -52,9 +52,13 @@ enum Command {
     Coverage,
     /// Scaffold spec files for unspecced modules
     Generate {
-        /// Use Claude AI to generate meaningful spec content instead of templates
+        /// Use AI to generate meaningful spec content instead of templates
         #[arg(long)]
         ai: bool,
+
+        /// AI provider to use: claude, cursor, copilot, ollama
+        #[arg(long, value_name = "NAME")]
+        provider: Option<String>,
     },
     /// Create a specsync.json config file
     Init,
@@ -75,8 +79,8 @@ fn main() {
         Command::Init => cmd_init(&root),
         Command::Check => cmd_check(&root, cli.strict, cli.require_coverage, cli.json),
         Command::Coverage => cmd_coverage(&root, cli.strict, cli.require_coverage, cli.json),
-        Command::Generate { ai } => {
-            cmd_generate(&root, cli.strict, cli.require_coverage, cli.json, ai)
+        Command::Generate { ai, provider } => {
+            cmd_generate(&root, cli.strict, cli.require_coverage, cli.json, ai, provider)
         }
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
     }
@@ -204,7 +208,14 @@ fn cmd_coverage(root: &Path, strict: bool, require_coverage: Option<usize>, json
     );
 }
 
-fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>, json: bool, ai: bool) {
+fn cmd_generate(
+    root: &Path,
+    strict: bool,
+    require_coverage: Option<usize>,
+    json: bool,
+    ai: bool,
+    provider: Option<String>,
+) {
     let (config, spec_files) = load_and_discover(root, true);
     let schema_tables = get_schema_table_names(root, &config);
 
@@ -218,8 +229,11 @@ fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>, json
 
     let mut coverage = compute_coverage(root, &spec_files, &config);
 
+    // --provider implies --ai
+    let ai = ai || provider.is_some();
+
     let ai_command = if ai {
-        match ai::resolve_ai_command(&config) {
+        match ai::resolve_ai_command(&config, provider.as_deref()) {
             Ok(cmd) => Some(cmd),
             Err(e) => {
                 eprintln!("{e}");

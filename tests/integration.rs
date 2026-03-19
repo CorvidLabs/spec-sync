@@ -1164,3 +1164,152 @@ Something.
         .failure()
         .stdout(predicate::str::contains("--strict mode"));
 }
+
+// ─── Provider / Multi-Agent Tests ────────────────────────────────────────
+
+#[test]
+fn provider_flag_unknown_provider_errors() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    specsync()
+        .arg("generate")
+        .arg("--ai")
+        .arg("--provider")
+        .arg("nonexistent")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Unknown provider"));
+}
+
+#[test]
+fn provider_flag_implies_ai() {
+    // --provider without --ai should still enable AI mode (and fail if binary not found)
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    specsync()
+        .arg("generate")
+        .arg("--provider")
+        .arg("cursor")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("cursor"));
+}
+
+#[test]
+fn ai_provider_config_field_is_respected() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    // Overwrite config with aiProvider set to cursor (not installed)
+    let config = serde_json::json!({
+        "specsDir": "specs",
+        "sourceDirs": ["src"],
+        "aiProvider": "cursor",
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "excludeDirs": ["__tests__"],
+        "excludePatterns": ["**/__tests__/**"]
+    });
+    fs::write(root.join("specsync.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
+
+    specsync()
+        .arg("generate")
+        .arg("--ai")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("cursor"));
+}
+
+#[test]
+fn ai_command_overrides_ai_provider() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    // Config has both aiProvider and aiCommand — aiCommand ("false") wins over aiProvider
+    // The "false" command exits 1, AI falls back to template, but stderr shows it tried
+    let config = serde_json::json!({
+        "specsDir": "specs",
+        "sourceDirs": ["src"],
+        "aiProvider": "claude",
+        "aiCommand": "false",
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "excludeDirs": ["__tests__"],
+        "excludePatterns": ["**/__tests__/**"]
+    });
+    fs::write(root.join("specsync.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
+
+    // Create unspecced module so generation is triggered
+    fs::create_dir_all(root.join("src/newmod")).unwrap();
+    fs::write(root.join("src/newmod/lib.rs"), "pub fn hello() {}").unwrap();
+
+    // The command succeeds (falls back to template) but stderr shows AI was attempted & failed
+    specsync()
+        .arg("generate")
+        .arg("--ai")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("AI generation failed"));
+}
+
+#[test]
+fn cli_provider_overrides_config_provider() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    // Config says claude, CLI says cursor — cursor should win
+    let config = serde_json::json!({
+        "specsDir": "specs",
+        "sourceDirs": ["src"],
+        "aiProvider": "claude",
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "excludeDirs": ["__tests__"],
+        "excludePatterns": ["**/__tests__/**"]
+    });
+    fs::write(root.join("specsync.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
+
+    specsync()
+        .arg("generate")
+        .arg("--provider")
+        .arg("cursor")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("cursor"));
+}
+
+#[test]
+fn ai_model_config_used_with_ollama_provider() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    // aiProvider=ollama with custom model — should mention ollama in error
+    let config = serde_json::json!({
+        "specsDir": "specs",
+        "sourceDirs": ["src"],
+        "aiProvider": "ollama",
+        "aiModel": "codellama",
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "excludeDirs": ["__tests__"],
+        "excludePatterns": ["**/__tests__/**"]
+    });
+    fs::write(root.join("specsync.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
+
+    specsync()
+        .arg("generate")
+        .arg("--ai")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("ollama"));
+}

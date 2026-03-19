@@ -75,7 +75,9 @@ fn main() {
         Command::Init => cmd_init(&root),
         Command::Check => cmd_check(&root, cli.strict, cli.require_coverage, cli.json),
         Command::Coverage => cmd_coverage(&root, cli.strict, cli.require_coverage, cli.json),
-        Command::Generate { ai } => cmd_generate(&root, cli.strict, cli.require_coverage, cli.json, ai),
+        Command::Generate { ai } => {
+            cmd_generate(&root, cli.strict, cli.require_coverage, cli.json, ai)
+        }
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
     }
 }
@@ -210,8 +212,7 @@ fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>, json
         println!("No existing specs found. Scanning for source modules...");
         (0, 0, 0, 0)
     } else {
-        let (te, tw, p, t, _, _) =
-            run_validation(root, &spec_files, &schema_tables, &config, json);
+        let (te, tw, p, t, _, _) = run_validation(root, &spec_files, &schema_tables, &config, json);
         (te, tw, p, t)
     };
 
@@ -230,8 +231,12 @@ fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>, json
     };
 
     if json {
-        let generated_paths =
-            generate_specs_for_unspecced_modules_paths(root, &coverage, &config, ai_command.as_deref());
+        let generated_paths = generate_specs_for_unspecced_modules_paths(
+            root,
+            &coverage,
+            &config,
+            ai_command.as_deref(),
+        );
         let output = serde_json::json!({
             "generated": generated_paths,
         });
@@ -243,7 +248,12 @@ fn cmd_generate(root: &Path, strict: bool, require_coverage: Option<usize>, json
 
     println!(
         "\n--- {} -----------------------------------------------",
-        if ai { "Generating Specs (AI)" } else { "Generating Specs" }.bold()
+        if ai {
+            "Generating Specs (AI)"
+        } else {
+            "Generating Specs"
+        }
+        .bold()
     );
     let generated =
         generate_specs_for_unspecced_modules(root, &coverage, &config, ai_command.as_deref());

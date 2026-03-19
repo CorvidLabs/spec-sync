@@ -93,11 +93,7 @@ fn find_module_source_files(dir: &Path, config: &SpecSyncConfig) -> Vec<String> 
 }
 
 /// Find source files for a module, checking subdirectories first, then flat files.
-fn find_files_for_module(
-    root: &Path,
-    module_name: &str,
-    config: &SpecSyncConfig,
-) -> Vec<String> {
+fn find_files_for_module(root: &Path, module_name: &str, config: &SpecSyncConfig) -> Vec<String> {
     let mut module_files = Vec::new();
 
     // First: look for subdirectory-based modules (src/module_name/)
@@ -120,10 +116,10 @@ fn find_files_for_module(
                     {
                         continue;
                     }
-                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                        if stem == module_name {
-                            module_files.push(path.to_string_lossy().replace('\\', "/"));
-                        }
+                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str())
+                        && stem == module_name
+                    {
+                        module_files.push(path.to_string_lossy().replace('\\', "/"));
                     }
                 }
             }
@@ -275,8 +271,14 @@ pub fn generate_specs_for_unspecced_modules(
             eprintln!("  Generating {rel} with AI...");
         }
 
-        let spec_content =
-            generate_module_spec(module_name, &module_files, root, &specs_dir, config, ai_command);
+        let spec_content = generate_module_spec(
+            module_name,
+            &module_files,
+            root,
+            &specs_dir,
+            config,
+            ai_command,
+        );
 
         match fs::write(&spec_file, &spec_content) {
             Ok(_) => {
@@ -284,7 +286,11 @@ pub fn generate_specs_for_unspecced_modules(
                 if ai_command.is_some() {
                     // AI generation complete
                 }
-                println!("  {} Generated {rel} ({} files)", "✓".green(), module_files.len());
+                println!(
+                    "  {} Generated {rel} ({} files)",
+                    "✓".green(),
+                    module_files.len()
+                );
                 let _ = std::io::stdout().flush();
                 generated += 1;
             }
@@ -325,8 +331,14 @@ pub fn generate_specs_for_unspecced_modules_paths(
             continue;
         }
 
-        let spec_content =
-            generate_module_spec(module_name, &module_files, root, &specs_dir, config, ai_command);
+        let spec_content = generate_module_spec(
+            module_name,
+            &module_files,
+            root,
+            &specs_dir,
+            config,
+            ai_command,
+        );
 
         if fs::write(&spec_file, &spec_content).is_ok() {
             let rel = spec_file

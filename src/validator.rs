@@ -439,9 +439,7 @@ pub fn compute_coverage(
 
     // Module coverage
     let specs_dir = root.join(&config.specs_dir);
-    let spec_modules: HashSet<String> = get_spec_module_dirs(&specs_dir)
-        .into_iter()
-        .collect();
+    let spec_modules: HashSet<String> = get_spec_module_dirs(&specs_dir).into_iter().collect();
 
     let mut unspecced_modules = Vec::new();
     let mut seen_modules: HashSet<String> = HashSet::new();
@@ -457,8 +455,9 @@ pub fn compute_coverage(
     }
 
     // Detect flat source files as modules (e.g. src/config.rs → module "config")
-    let skip_stems: HashSet<&str> =
-        ["main", "lib", "mod", "index", "__init__", "app"].into_iter().collect();
+    let skip_stems: HashSet<&str> = ["main", "lib", "mod", "index", "__init__", "app"]
+        .into_iter()
+        .collect();
     for src_dir in &config.source_dirs {
         let full_dir = root.join(src_dir);
         if let Ok(entries) = fs::read_dir(&full_dir) {

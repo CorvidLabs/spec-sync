@@ -294,7 +294,11 @@ pub fn generate_spec_with_ai(
     if spec.trim_start().starts_with("```") {
         let trimmed = spec.trim();
         // Remove opening fence (```markdown or ```)
-        if let Some(rest) = trimmed.strip_prefix("```markdown\n").or_else(|| trimmed.strip_prefix("```md\n")).or_else(|| trimmed.strip_prefix("```\n")) {
+        if let Some(rest) = trimmed
+            .strip_prefix("```markdown\n")
+            .or_else(|| trimmed.strip_prefix("```md\n"))
+            .or_else(|| trimmed.strip_prefix("```\n"))
+        {
             spec = rest.to_string();
         }
         // Remove closing fence

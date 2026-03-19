@@ -330,15 +330,45 @@ Create `specsync.json` in your project root (or run `specsync init`):
 
 ---
 
-## For AI Agents
+## Spec Generation
 
-- **`--json`** outputs structured results, no color codes to strip
-- **Exit code 1** = needs fixing; **0** = all clear
-- **`specsync generate`** bootstraps specs for existing codebases
-- **Spec files are plain markdown** — any LLM can read and write them
-- **Public API tables** use backtick-quoted names, unambiguous to parse
+`specsync generate` scans your source directories, finds modules without spec files, and scaffolds `*.spec.md` files for each one — frontmatter populated, source files listed, all required sections stubbed.
 
-### JSON shapes
+```bash
+specsync generate                         # Scaffold specs for all unspecced modules
+specsync coverage                         # See what's still missing
+```
+
+### How it works
+
+1. Runs coverage analysis to find modules with no corresponding spec
+2. For each unspecced module, discovers all source files (excluding tests)
+3. Generates a spec using your custom template (`specs/_template.spec.md`) or the built-in default
+4. Writes `specs/<module>/<module>.spec.md` with `module`, `files`, `version: 1`, `status: draft` pre-filled
+
+### Custom templates
+
+Drop a `_template.spec.md` in your specs directory. The generator replaces `module`, `version`, `status`, `files`, and the `# Title` heading — everything else stays as-is. Use this to enforce your team's spec structure.
+
+### Designed for AI agents
+
+The generate command is the entry point for LLM-powered spec workflows. A coding agent can:
+
+```bash
+specsync generate                                  # scaffold specs for new modules
+# LLM fills in Purpose, Public API, Invariants...  # agent writes the content
+specsync check --json                              # validate, get structured feedback
+# LLM fixes errors from JSON output                # iterate until clean
+specsync check --strict --require-coverage 100     # enforce full coverage in CI
+```
+
+Every output format is designed for machine consumption:
+- **`--json`** on any command → structured JSON, no ANSI codes
+- **Exit code 0/1** → pass/fail, no parsing needed
+- **Spec files are plain markdown** → any LLM can read and write them
+- **Public API tables** use backtick-quoted names → unambiguous to extract
+
+### JSON output shapes
 
 ```json
 // specsync check --json

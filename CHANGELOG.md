@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.2.0] - 2026-03-19
 
+### Added
+
+- **Spec generation documentation** — `specsync generate` now has a dedicated README section and expanded AI agents guide covering the full LLM workflow: generate → fill → validate → fix → enforce.
+- Custom template documentation (`specs/_template.spec.md`) explaining how teams control generated spec structure.
+- JSON output shape reference for `check` and `coverage` commands.
+- Integration patterns table (pre-commit hooks, PR bots, CI coverage gates).
+
 ### Changed
 
 - Rewrote README for density — every line carries new information, no filler.
+- Elevated "For AI Agents" from a bullet list to a full "Spec Generation" section with usage examples and workflow guidance.
 - Streamlined docs site pages to complement rather than duplicate the README.
 - Updated CHANGELOG with previously missing 1.1.1 and 1.1.2 entries.
 

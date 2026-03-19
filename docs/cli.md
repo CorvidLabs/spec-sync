@@ -58,8 +58,11 @@ specsync coverage --json
 Scaffold spec files for modules that don't have one. Uses `specs/_template.spec.md` if present.
 
 ```bash
-specsync generate
+specsync generate                       # template mode — stubs with TODOs
+specsync generate --ai                  # AI mode — reads code, writes real content
 ```
+
+With `--ai`, source code is piped to an LLM which generates filled-in specs (Purpose, Public API tables, Invariants, etc.). The AI command is resolved from: `aiCommand` in config → `SPECSYNC_AI_COMMAND` env var → `claude -p --output-format text`. See [Configuration](configuration) for `aiCommand` and `aiTimeout`.
 
 ### `init`
 
@@ -86,6 +89,7 @@ specsync watch
 | `--strict` | Warnings become errors. Recommended for CI. |
 | `--require-coverage N` | Fail if file coverage < N%. |
 | `--root <path>` | Project root directory (default: cwd). |
+| `--ai` | Use AI to generate filled-in specs instead of templates (with `generate`). |
 | `--json` | Structured JSON output, no color codes. |
 
 ---
@@ -119,6 +123,10 @@ specsync watch
   "file_coverage": 85.33,
   "files_covered": 23,
   "files_total": 27,
-  "modules": [{ "name": "helpers", "has_spec": false }]
+  "loc_coverage": 79.12,
+  "loc_covered": 4200,
+  "loc_total": 5308,
+  "modules": [{ "name": "helpers", "has_spec": false }],
+  "uncovered_files": [{ "file": "src/helpers/utils.ts", "loc": 340 }]
 }
 ```

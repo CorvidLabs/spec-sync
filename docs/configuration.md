@@ -40,7 +40,9 @@ Creates `specsync.json` with defaults. SpecSync also works without a config file
   "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
   "excludeDirs": ["__tests__"],
   "excludePatterns": ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"],
-  "sourceExtensions": []
+  "sourceExtensions": [],
+  "aiCommand": "claude -p --output-format text",
+  "aiTimeout": 120
 }
 ```
 
@@ -58,6 +60,8 @@ Creates `specsync.json` with defaults. SpecSync also works without a config file
 | `excludeDirs` | `string[]` | `["__tests__"]` | Directory names skipped during coverage scanning |
 | `excludePatterns` | `string[]` | Common test globs | File patterns excluded from coverage (additive with language-specific test exclusions) |
 | `sourceExtensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |
+| `aiCommand` | `string?` | `claude -p ...` | Command for `generate --ai` (reads stdin prompt, writes stdout markdown) |
+| `aiTimeout` | `number?` | `120` | Seconds before AI command times out per module |
 
 ---
 

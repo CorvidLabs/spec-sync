@@ -5,7 +5,7 @@ baseurl: "/spec-sync"
 
 remote_theme: just-the-docs/just-the-docs@v0.10.0
 
-color_scheme: dark
+color_scheme: rust
 
 aux_links:
   "GitHub":

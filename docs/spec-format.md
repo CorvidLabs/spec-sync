@@ -122,7 +122,7 @@ Track reverse dependencies under `## Dependencies`. SpecSync validates that refe
 
 ## Full Example
 
-<details>
+<details markdown="block">
 <summary>Complete spec file</summary>
 
 ```markdown

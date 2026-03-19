@@ -192,14 +192,14 @@ pub fn resolve_ai_provider(
     // 5. Auto-detect: check installed CLIs first, then API keys
     for provider in AiProvider::detection_order() {
         if provider.is_api_provider() {
-            // Check for API key in env
-            if let Some(env_var) = provider.api_key_env_var()
-                && std::env::var(env_var).is_ok()
-            {
-                eprintln!(
-                    "  Auto-detected AI provider: {} ({env_var} found)",
-                    provider
-                );
+            // Check for API key in env — use a separate variable for the
+            // env-var name so CodeQL doesn't confuse the *name* with the
+            // *value* returned by std::env::var.
+            let has_key = provider
+                .api_key_env_var()
+                .is_some_and(|v| std::env::var(v).is_ok());
+            if has_key {
+                eprintln!("  Auto-detected AI provider: {provider} (API key found)");
                 return resolve_api_provider(provider, config);
             }
         } else if is_binary_available(provider.binary_name())

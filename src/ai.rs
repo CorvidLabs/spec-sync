@@ -1,4 +1,4 @@
-use crate::types::SpecSyncConfig;
+use crate::types::{AiProvider, SpecSyncConfig};
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
@@ -8,40 +8,118 @@ use std::time::{Duration, Instant};
 
 const MAX_FILE_CHARS: usize = 30_000;
 const MAX_PROMPT_CHARS: usize = 150_000;
-const DEFAULT_AI_COMMAND: &str = "claude -p --output-format text";
 const DEFAULT_AI_TIMEOUT_SECS: u64 = 120;
 
-/// Resolve the AI command to use. Checks config, then env, then default.
-pub fn resolve_ai_command(config: &SpecSyncConfig) -> Result<String, String> {
-    // 1. Config file
+/// Check whether a binary is available on PATH.
+fn is_binary_available(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    Command::new("sh")
+        .args(["-c", &format!("command -v {name}")])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// Build the CLI command string for a provider, optionally using a custom model.
+fn command_for_provider(provider: &AiProvider, model: Option<&str>) -> Result<String, String> {
+    match provider {
+        AiProvider::Claude => Ok("claude -p --output-format text".to_string()),
+        AiProvider::Ollama => {
+            let model = model.unwrap_or("llama3");
+            Ok(format!("ollama run {model}"))
+        }
+        AiProvider::Copilot => Ok("gh copilot suggest -t shell".to_string()),
+        AiProvider::Cursor => Err(
+            "Cursor does not have a CLI pipe mode (stdin→stdout) for spec generation.\n\
+             Workarounds:\n  \
+             1. Use \"aiProvider\": \"claude\" with the Claude CLI installed\n  \
+             2. Use \"aiProvider\": \"ollama\" for a local model\n  \
+             3. Set \"aiCommand\" to any CLI tool that reads stdin and writes stdout"
+                .to_string(),
+        ),
+        AiProvider::Custom => Err(
+            "Custom provider requires \"aiCommand\" to be set in specsync.json".to_string(),
+        ),
+    }
+}
+
+/// Resolve the AI command to use.
+///
+/// Resolution order:
+/// 1. `--provider` CLI flag (passed as `cli_provider`)
+/// 2. `aiCommand` in config (explicit override always wins)
+/// 3. `aiProvider` in config (resolved to CLI command)
+/// 4. `SPECSYNC_AI_COMMAND` env var
+/// 5. Auto-detect installed CLIs
+pub fn resolve_ai_command(
+    config: &SpecSyncConfig,
+    cli_provider: Option<&str>,
+) -> Result<String, String> {
+    // 1. CLI --provider flag
+    if let Some(name) = cli_provider {
+        let provider = AiProvider::from_str_loose(name).ok_or_else(|| {
+            format!(
+                "Unknown provider \"{name}\". Available: claude, cursor, copilot, ollama"
+            )
+        })?;
+        if !is_binary_available(provider.binary_name()) {
+            return Err(format!(
+                "Provider \"{name}\" selected but `{}` is not installed or not on PATH",
+                provider.binary_name()
+            ));
+        }
+        return command_for_provider(&provider, config.ai_model.as_deref());
+    }
+
+    // 2. aiCommand in config (explicit override)
     if let Some(cmd) = &config.ai_command {
         return Ok(cmd.clone());
     }
 
-    // 2. Environment variable
+    // 3. aiProvider in config
+    if let Some(provider) = &config.ai_provider {
+        if !is_binary_available(provider.binary_name()) {
+            return Err(format!(
+                "Provider \"{}\" configured but `{}` is not installed or not on PATH",
+                provider,
+                provider.binary_name()
+            ));
+        }
+        return command_for_provider(provider, config.ai_model.as_deref());
+    }
+
+    // 4. Environment variable
     if let Ok(cmd) = std::env::var("SPECSYNC_AI_COMMAND") {
         return Ok(cmd);
     }
 
-    // 3. Default: check if claude CLI is available
-    let check = Command::new("sh")
-        .args(["-c", "command -v claude"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-
-    match check {
-        Ok(status) if status.success() => Ok(DEFAULT_AI_COMMAND.to_string()),
-        _ => Err(
-            "No AI command found. Install the Claude CLI, or set \"aiCommand\" in specsync.json, \
-             or set SPECSYNC_AI_COMMAND env var.\n\n\
-             Examples:\n  \
-             \"aiCommand\": \"claude -p --output-format text\"   (Claude Code CLI)\n  \
-             \"aiCommand\": \"ollama run llama3\"                 (local model)\n  \
-             \"aiCommand\": \"cat > /dev/null && echo 'test'\"    (any command that reads stdin, writes stdout)"
-                .to_string(),
-        ),
+    // 5. Auto-detect: check installed CLIs in preference order
+    for provider in AiProvider::detection_order() {
+        if is_binary_available(provider.binary_name()) {
+            if let Ok(cmd) = command_for_provider(provider, config.ai_model.as_deref()) {
+                eprintln!(
+                    "  Auto-detected AI provider: {} ({})",
+                    provider,
+                    provider.binary_name()
+                );
+                return Ok(cmd);
+            }
+        }
     }
+
+    Err(
+        "No AI provider found. Install one of: claude, ollama, gh (copilot)\n\n\
+         Or configure manually in specsync.json:\n  \
+         \"aiProvider\": \"claude\"                              (Claude Code CLI)\n  \
+         \"aiProvider\": \"ollama\"                              (local model)\n  \
+         \"aiCommand\":  \"any-cli-tool\"                        (custom command)\n\n\
+         Use --provider <name> to select a specific provider."
+            .to_string(),
+    )
 }
 
 /// Build the prompt for spec generation.

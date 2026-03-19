@@ -1,4 +1,72 @@
 use serde::Deserialize;
+use std::fmt;
+
+/// Supported AI provider presets.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum AiProvider {
+    Claude,
+    Cursor,
+    Copilot,
+    Ollama,
+    Custom,
+}
+
+impl AiProvider {
+    /// The CLI command for this provider (if it has one).
+    #[allow(dead_code)]
+    pub fn default_command(&self) -> Option<&'static str> {
+        match self {
+            AiProvider::Claude => Some("claude -p --output-format text"),
+            AiProvider::Ollama => Some("ollama run llama3"),
+            AiProvider::Copilot => Some("gh copilot suggest -t shell"),
+            AiProvider::Cursor | AiProvider::Custom => None,
+        }
+    }
+
+    /// The binary name to check for availability.
+    pub fn binary_name(&self) -> &'static str {
+        match self {
+            AiProvider::Claude => "claude",
+            AiProvider::Cursor => "cursor",
+            AiProvider::Copilot => "gh",
+            AiProvider::Ollama => "ollama",
+            AiProvider::Custom => "",
+        }
+    }
+
+    /// Parse a provider name from a string (for CLI flag).
+    pub fn from_str_loose(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "claude" => Some(AiProvider::Claude),
+            "cursor" => Some(AiProvider::Cursor),
+            "copilot" | "gh-copilot" => Some(AiProvider::Copilot),
+            "ollama" => Some(AiProvider::Ollama),
+            _ => None,
+        }
+    }
+
+    /// All providers that can be auto-detected, in preference order.
+    pub fn detection_order() -> &'static [AiProvider] {
+        &[
+            AiProvider::Claude,
+            AiProvider::Ollama,
+            AiProvider::Copilot,
+        ]
+    }
+}
+
+impl fmt::Display for AiProvider {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AiProvider::Claude => write!(f, "claude"),
+            AiProvider::Cursor => write!(f, "cursor"),
+            AiProvider::Copilot => write!(f, "copilot"),
+            AiProvider::Ollama => write!(f, "ollama"),
+            AiProvider::Custom => write!(f, "custom"),
+        }
+    }
+}
 
 /// YAML frontmatter parsed from a spec file.
 #[derive(Debug, Default, Clone)]
@@ -72,7 +140,16 @@ pub struct SpecSyncConfig {
     #[serde(default)]
     pub source_extensions: Vec<String>,
 
-    /// Command to run for AI-powered spec generation.
+    /// AI provider preset: "claude", "cursor", "copilot", "ollama".
+    /// Resolves to the correct CLI command automatically.
+    #[serde(default)]
+    pub ai_provider: Option<AiProvider>,
+
+    /// Model name for the AI provider (e.g. "llama3" for ollama).
+    #[serde(default)]
+    pub ai_model: Option<String>,
+
+    /// Command to run for AI-powered spec generation (overrides aiProvider).
     /// The prompt is piped to stdin; spec markdown is expected on stdout.
     /// Examples: "claude -p --output-format text", "ollama run llama3"
     #[serde(default)]
@@ -191,6 +268,8 @@ impl Default for SpecSyncConfig {
             exclude_dirs: default_exclude_dirs(),
             exclude_patterns: default_exclude_patterns(),
             source_extensions: Vec::new(),
+            ai_provider: None,
+            ai_model: None,
             ai_command: None,
             ai_timeout: None,
         }

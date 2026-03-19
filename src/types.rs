@@ -25,7 +25,10 @@ impl AiProvider {
             AiProvider::Claude => Some("claude -p --output-format text"),
             AiProvider::Ollama => Some("ollama run llama3"),
             AiProvider::Copilot => Some("gh copilot suggest -t shell"),
-            AiProvider::Cursor | AiProvider::Custom | AiProvider::Anthropic | AiProvider::OpenAi => None,
+            AiProvider::Cursor
+            | AiProvider::Custom
+            | AiProvider::Anthropic
+            | AiProvider::OpenAi => None,
         }
     }
 

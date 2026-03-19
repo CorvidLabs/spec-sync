@@ -36,7 +36,9 @@ impl std::fmt::Display for ResolvedProvider {
             ResolvedProvider::AnthropicApi { model, .. } => {
                 write!(f, "Anthropic API ({model})")
             }
-            ResolvedProvider::OpenAiApi { model, base_url, .. } => {
+            ResolvedProvider::OpenAiApi {
+                model, base_url, ..
+            } => {
                 if let Some(url) = base_url {
                     write!(f, "OpenAI API ({model} @ {url})")
                 } else {
@@ -80,11 +82,12 @@ fn command_for_provider(provider: &AiProvider, model: Option<&str>) -> Result<St
                 .to_string(),
         ),
         AiProvider::Anthropic | AiProvider::OpenAi => Err(
-            "API providers should use resolve_api_provider(), not command_for_provider()".to_string(),
+            "API providers should use resolve_api_provider(), not command_for_provider()"
+                .to_string(),
         ),
-        AiProvider::Custom => Err(
-            "Custom provider requires \"aiCommand\" to be set in specsync.json".to_string(),
-        ),
+        AiProvider::Custom => {
+            Err("Custom provider requires \"aiCommand\" to be set in specsync.json".to_string())
+        }
     }
 }
 
@@ -190,29 +193,28 @@ pub fn resolve_ai_provider(
     for provider in AiProvider::detection_order() {
         if provider.is_api_provider() {
             // Check for API key in env
-            if let Some(env_var) = provider.api_key_env_var() {
-                if std::env::var(env_var).is_ok() {
-                    eprintln!(
-                        "  Auto-detected AI provider: {} ({env_var} found)",
-                        provider
-                    );
-                    return resolve_api_provider(provider, config);
-                }
-            }
-        } else if is_binary_available(provider.binary_name()) {
-            if let Ok(cmd) = command_for_provider(provider, config.ai_model.as_deref()) {
+            if let Some(env_var) = provider.api_key_env_var()
+                && std::env::var(env_var).is_ok()
+            {
                 eprintln!(
-                    "  Auto-detected AI provider: {} ({})",
-                    provider,
-                    provider.binary_name()
+                    "  Auto-detected AI provider: {} ({env_var} found)",
+                    provider
                 );
-                return Ok(ResolvedProvider::Cli(cmd));
+                return resolve_api_provider(provider, config);
             }
+        } else if is_binary_available(provider.binary_name())
+            && let Ok(cmd) = command_for_provider(provider, config.ai_model.as_deref())
+        {
+            eprintln!(
+                "  Auto-detected AI provider: {} ({})",
+                provider,
+                provider.binary_name()
+            );
+            return Ok(ResolvedProvider::Cli(cmd));
         }
     }
 
-    Err(
-        "No AI provider found. Options:\n\n\
+    Err("No AI provider found. Options:\n\n\
          CLI providers (install a tool):\n  \
          claude     — Claude Code CLI (npm i -g @anthropic-ai/claude-code)\n  \
          ollama     — Local models (ollama.com)\n  \
@@ -225,8 +227,7 @@ pub fn resolve_ai_provider(
          \"aiProvider\": \"openai\"       + OPENAI_API_KEY\n  \
          \"aiCommand\":  \"any-cli\"      (custom command)\n\n\
          Use --provider <name> to select a specific provider."
-            .to_string(),
-    )
+        .to_string())
 }
 
 // Keep the old name as an alias for compatibility with tests
@@ -523,10 +524,10 @@ fn call_anthropic_api(
 
     let mut text = String::new();
     for block in content {
-        if block["type"].as_str() == Some("text") {
-            if let Some(t) = block["text"].as_str() {
-                text.push_str(t);
-            }
+        if block["type"].as_str() == Some("text")
+            && let Some(t) = block["text"].as_str()
+        {
+            text.push_str(t);
         }
     }
 
@@ -537,9 +538,7 @@ fn call_anthropic_api(
     let usage = &response_body["usage"];
     let input_tokens = usage["input_tokens"].as_u64().unwrap_or(0);
     let output_tokens = usage["output_tokens"].as_u64().unwrap_or(0);
-    eprintln!(
-        "    ✓ Anthropic API: {input_tokens} input + {output_tokens} output tokens"
-    );
+    eprintln!("    ✓ Anthropic API: {input_tokens} input + {output_tokens} output tokens");
 
     Ok(text)
 }
@@ -609,9 +608,7 @@ fn call_openai_api(
     let usage = &response_body["usage"];
     let prompt_tokens = usage["prompt_tokens"].as_u64().unwrap_or(0);
     let completion_tokens = usage["completion_tokens"].as_u64().unwrap_or(0);
-    eprintln!(
-        "    ✓ OpenAI API: {prompt_tokens} input + {completion_tokens} output tokens"
-    );
+    eprintln!("    ✓ OpenAI API: {prompt_tokens} input + {completion_tokens} output tokens");
 
     Ok(text)
 }

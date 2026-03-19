@@ -1215,7 +1215,11 @@ fn ai_provider_config_field_is_respected() {
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
-    fs::write(root.join("specsync.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .unwrap();
 
     specsync()
         .arg("generate")
@@ -1243,7 +1247,11 @@ fn ai_command_overrides_ai_provider() {
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
-    fs::write(root.join("specsync.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .unwrap();
 
     // Create unspecced module so generation is triggered
     fs::create_dir_all(root.join("src/newmod")).unwrap();
@@ -1274,7 +1282,11 @@ fn cli_provider_overrides_config_provider() {
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
-    fs::write(root.join("specsync.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .unwrap();
 
     specsync()
         .arg("generate")
@@ -1302,7 +1314,11 @@ fn ai_model_config_used_with_ollama_provider() {
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
-    fs::write(root.join("specsync.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .unwrap();
 
     specsync()
         .arg("generate")
@@ -1330,7 +1346,11 @@ fn anthropic_provider_requires_api_key() {
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
-    fs::write(root.join("specsync.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .unwrap();
 
     specsync()
         .arg("generate")
@@ -1357,7 +1377,11 @@ fn openai_provider_requires_api_key() {
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
-    fs::write(root.join("specsync.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .unwrap();
 
     specsync()
         .arg("generate")
@@ -1461,7 +1485,11 @@ fn ai_api_key_config_field_used_for_anthropic() {
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
-    fs::write(root.join("specsync.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .unwrap();
 
     // Should succeed (API call fails, falls back to template)
     specsync()
@@ -1489,8 +1517,5 @@ fn unknown_provider_lists_api_options() {
         .arg(&root)
         .assert()
         .failure()
-        .stderr(
-            predicate::str::contains("anthropic")
-                .and(predicate::str::contains("openai")),
-        );
+        .stderr(predicate::str::contains("anthropic").and(predicate::str::contains("openai")));
 }

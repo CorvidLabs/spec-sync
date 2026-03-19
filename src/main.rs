@@ -79,9 +79,14 @@ fn main() {
         Command::Init => cmd_init(&root),
         Command::Check => cmd_check(&root, cli.strict, cli.require_coverage, cli.json),
         Command::Coverage => cmd_coverage(&root, cli.strict, cli.require_coverage, cli.json),
-        Command::Generate { ai, provider } => {
-            cmd_generate(&root, cli.strict, cli.require_coverage, cli.json, ai, provider)
-        }
+        Command::Generate { ai, provider } => cmd_generate(
+            &root,
+            cli.strict,
+            cli.require_coverage,
+            cli.json,
+            ai,
+            provider,
+        ),
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
     }
 }

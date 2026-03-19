@@ -1519,3 +1519,155 @@ fn unknown_provider_lists_api_options() {
         .failure()
         .stderr(predicate::str::contains("anthropic").and(predicate::str::contains("openai")));
 }
+// ─── Auto-detect source directories ─────────────────────────────────────
+
+#[test]
+fn init_auto_detects_src_dir() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    // Create a project with src/ containing source files
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/main.rs"), "fn main() {}").unwrap();
+
+    specsync()
+        .arg("init")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Detected source directories: src"));
+
+    let config: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(root.join("specsync.json")).unwrap()).unwrap();
+    let dirs = config["sourceDirs"].as_array().unwrap();
+    assert_eq!(dirs.len(), 1);
+    assert_eq!(dirs[0], "src");
+}
+
+#[test]
+fn init_auto_detects_lib_dir() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    // Create a project with lib/ containing source files
+    fs::create_dir_all(root.join("lib")).unwrap();
+    fs::write(root.join("lib/utils.py"), "def hello(): pass\n").unwrap();
+
+    specsync()
+        .arg("init")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Detected source directories: lib"));
+
+    let config: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(root.join("specsync.json")).unwrap()).unwrap();
+    let dirs = config["sourceDirs"].as_array().unwrap();
+    assert_eq!(dirs.len(), 1);
+    assert_eq!(dirs[0], "lib");
+}
+
+#[test]
+fn init_auto_detects_multiple_dirs() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    // Create a project with both src/ and lib/
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/main.ts"), "export function main() {}").unwrap();
+    fs::create_dir_all(root.join("lib")).unwrap();
+    fs::write(root.join("lib/helpers.ts"), "export function help() {}").unwrap();
+
+    specsync()
+        .arg("init")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Detected source directories: lib, src"));
+
+    let config: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(root.join("specsync.json")).unwrap()).unwrap();
+    let dirs = config["sourceDirs"].as_array().unwrap();
+    assert_eq!(dirs.len(), 2);
+    assert_eq!(dirs[0], "lib");
+    assert_eq!(dirs[1], "src");
+}
+
+#[test]
+fn init_ignores_node_modules_and_hidden_dirs() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    // Create source in app/ and noise in node_modules/ and .cache/
+    fs::create_dir_all(root.join("app")).unwrap();
+    fs::write(root.join("app/index.ts"), "export default function() {}").unwrap();
+    fs::create_dir_all(root.join("node_modules/some-pkg")).unwrap();
+    fs::write(root.join("node_modules/some-pkg/index.js"), "module.exports = {}").unwrap();
+    fs::create_dir_all(root.join(".cache")).unwrap();
+    fs::write(root.join(".cache/data.js"), "const x = 1;").unwrap();
+
+    specsync()
+        .arg("init")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Detected source directories: app"));
+
+    let config: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(root.join("specsync.json")).unwrap()).unwrap();
+    let dirs = config["sourceDirs"].as_array().unwrap();
+    assert_eq!(dirs.len(), 1);
+    assert_eq!(dirs[0], "app");
+}
+
+#[test]
+fn check_works_without_config_file() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    // Create a project with lib/ source and specs, but no specsync.json
+    fs::create_dir_all(root.join("lib/auth")).unwrap();
+    fs::write(
+        root.join("lib/auth/service.ts"),
+        "export function login() {}\nexport function logout() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = valid_spec("auth", &["lib/auth/service.ts"]);
+    fs::write(root.join("specs/auth/auth.spec.md"), spec).unwrap();
+
+    // Should auto-detect lib/ and work without any config
+    specsync()
+        .arg("check")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success();
+}
+
+#[test]
+fn init_falls_back_to_src_when_no_source_files() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    // Empty project with only a README
+    fs::write(root.join("README.md"), "# My Project").unwrap();
+
+    specsync()
+        .arg("init")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Detected source directories: src"));
+
+    let config: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(root.join("specsync.json")).unwrap()).unwrap();
+    let dirs = config["sourceDirs"].as_array().unwrap();
+    assert_eq!(dirs.len(), 1);
+    assert_eq!(dirs[0], "src");
+}

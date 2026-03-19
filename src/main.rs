@@ -13,7 +13,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
 
-use config::load_config;
+use config::{detect_source_dirs, load_config};
 use generator::{generate_specs_for_unspecced_modules, generate_specs_for_unspecced_modules_paths};
 use validator::{compute_coverage, find_spec_files, get_schema_table_names, validate_spec};
 
@@ -98,9 +98,12 @@ fn cmd_init(root: &Path) {
         return;
     }
 
+    let detected_dirs = detect_source_dirs(root);
+    let dirs_display = detected_dirs.join(", ");
+
     let default = serde_json::json!({
         "specsDir": "specs",
-        "sourceDirs": ["src"],
+        "sourceDirs": detected_dirs,
         "requiredSections": [
             "Purpose",
             "Public API",
@@ -117,6 +120,7 @@ fn cmd_init(root: &Path) {
     let content = serde_json::to_string_pretty(&default).unwrap() + "\n";
     fs::write(&config_path, content).expect("Failed to write specsync.json");
     println!("{} Created specsync.json", "✓".green());
+    println!("  Detected source directories: {dirs_display}");
 }
 
 fn cmd_check(root: &Path, strict: bool, require_coverage: Option<usize>, json: bool) {

@@ -19,56 +19,62 @@ SpecSync is built for LLM-powered coding tools — structured output, machine-re
 
 ---
 
-## Generate Specs Automatically
+## AI-Powered Generation (`--ai`)
 
-`specsync generate` is the starting point for AI-driven spec workflows. It finds every module without a spec file and scaffolds one — frontmatter populated, source files listed, required sections stubbed with TODOs.
+`specsync generate --ai` reads your source code, sends it to an LLM, and generates specs with real content — not just templates with TODOs. Purpose, Public API tables, Invariants, Error Cases — all filled in from the code.
 
 ```bash
-specsync generate
+specsync generate --ai
+#   Generating specs/auth/auth.spec.md with AI...
+#     │ ---
+#     │ module: auth
+#     │ ...
 #   ✓ Generated specs/auth/auth.spec.md (3 files)
-#   ✓ Generated specs/payments/payments.spec.md (2 files)
 ```
 
-### What gets generated
+### Configuring the AI command
 
-For each unspecced module, you get a ready-to-fill spec:
+The AI command is resolved in order:
+1. `"aiCommand"` in `specsync.json`
+2. `SPECSYNC_AI_COMMAND` environment variable
+3. `claude -p --output-format text` (default, requires Claude CLI)
 
-```yaml
----
-module: auth
-version: 1
-status: draft
-files:
-  - src/auth/service.ts
-  - src/auth/middleware.ts
-db_tables: []
-depends_on: []
----
+Any command that reads a prompt from stdin and writes markdown to stdout works:
+
+```json
+{
+  "aiCommand": "claude -p --output-format text",
+  "aiTimeout": 300
+}
 ```
 
-Plus all required sections (Purpose, Public API, Invariants, Behavioral Examples, Error Cases, Dependencies, Change Log) with TODO placeholders.
+```json
+{
+  "aiCommand": "ollama run llama3",
+  "aiTimeout": 60
+}
+```
 
-### Custom templates
+If AI generation fails for a module, it falls back to template generation automatically.
 
-Place `_template.spec.md` in your specs directory to control the generated structure. The generator replaces `module`, `version`, `status`, `files`, and the `# Title` heading — your template controls everything else.
+### Template mode (no `--ai`)
+
+Without `--ai`, `specsync generate` scaffolds template specs — frontmatter populated, required sections stubbed with TODOs. Place `_template.spec.md` in your specs directory to control the generated structure.
 
 ---
 
-## End-to-End AI Workflow
+## End-to-End Workflow
 
 ```bash
-# 1. Bootstrap: scaffold specs for all unspecced modules
-specsync generate
+# One command: AI reads code, writes specs
+specsync generate --ai
 
-# 2. Fill: LLM reads source code, fills in each spec's content
-#    (Purpose, Public API tables, Invariants, etc.)
-
-# 3. Validate: check specs against code, get structured errors
+# Validate the generated specs against code
 specsync check --json
 
-# 4. Fix: LLM reads JSON errors, corrects specs or flags code issues
+# LLM fixes errors from JSON output, iterates until clean
 
-# 5. Enforce: CI gate with full coverage
+# CI gate with full coverage
 specsync check --strict --require-coverage 100
 ```
 
@@ -113,11 +119,15 @@ Each step produces machine-readable output. No human in the loop required (thoug
   "file_coverage": 85.33,
   "files_covered": 23,
   "files_total": 27,
-  "modules": [{ "name": "helpers", "has_spec": false }]
+  "loc_coverage": 79.12,
+  "loc_covered": 4200,
+  "loc_total": 5308,
+  "modules": [{ "name": "helpers", "has_spec": false }],
+  "uncovered_files": [{ "file": "src/helpers/utils.ts", "loc": 340 }]
 }
 ```
 
-Use `modules` with `has_spec: false` to identify what `generate` would scaffold.
+Use `modules` with `has_spec: false` to identify what `generate` would scaffold. `uncovered_files` shows LOC per uncovered file, sorted by size — prioritize the largest gaps.
 
 ---
 
@@ -178,6 +188,7 @@ None
 |---------|---------|-----|
 | **Pre-commit hook** | `specsync check --strict` | Block commits with spec errors |
 | **PR review bot** | `specsync check --json` | Parse output, post as PR comment |
-| **Bootstrap coverage** | `specsync generate` | Scaffold after adding new modules |
+| **Bootstrap coverage** | `specsync generate --ai` | AI writes specs from source code |
+| **Template scaffold** | `specsync generate` | Scaffold templates after adding new modules |
 | **AI code review** | `specsync check --json` | Feed errors to LLM for spec updates |
 | **Coverage gate** | `specsync check --strict --require-coverage 100` | CI enforces full coverage |

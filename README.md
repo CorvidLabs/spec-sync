@@ -101,6 +101,7 @@ specsync init                              # Create specsync.json config
 specsync check                             # Validate specs against code
 specsync coverage                          # Show file/module coverage
 specsync generate                          # Scaffold specs for unspecced modules
+specsync generate --ai                     # AI-powered specs (reads code, writes content)
 specsync watch                             # Re-validate on every file change
 ```
 
@@ -246,7 +247,7 @@ specsync [command] [flags]
 |---------|-------------|
 | `check` | Validate all specs against source code **(default)** |
 | `coverage` | File and module coverage report |
-| `generate` | Scaffold specs for modules missing one |
+| `generate` | Scaffold specs for modules missing one (`--ai` for AI-powered content) |
 | `init` | Create default `specsync.json` |
 | `watch` | Live validation on file changes (500ms debounce) |
 
@@ -313,7 +314,9 @@ Create `specsync.json` in your project root (or run `specsync init`):
   "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
   "excludeDirs": ["__tests__"],
   "excludePatterns": ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"],
-  "sourceExtensions": []
+  "sourceExtensions": [],
+  "aiCommand": "claude -p --output-format text",
+  "aiTimeout": 120
 }
 ```
 
@@ -327,36 +330,49 @@ Create `specsync.json` in your project root (or run `specsync init`):
 | `excludeDirs` | `string[]` | `["__tests__"]` | Directories excluded from coverage |
 | `excludePatterns` | `string[]` | Common test globs | File patterns excluded from coverage |
 | `sourceExtensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |
+| `aiCommand` | `string?` | `claude -p ...` | Command for `generate --ai` (reads stdin prompt, writes stdout markdown) |
+| `aiTimeout` | `number?` | `120` | Seconds before AI command times out per module |
 
 ---
 
 ## Spec Generation
 
-`specsync generate` scans your source directories, finds modules without spec files, and scaffolds `*.spec.md` files for each one — frontmatter populated, source files listed, all required sections stubbed.
+`specsync generate` scans your source directories, finds modules without spec files, and scaffolds `*.spec.md` files for each one.
 
 ```bash
-specsync generate                         # Scaffold specs for all unspecced modules
+specsync generate                         # Scaffold template specs for all unspecced modules
+specsync generate --ai                    # Use AI to generate filled-in specs from source code
 specsync coverage                         # See what's still missing
 ```
 
-### How it works
+### Template mode (default)
 
-1. Runs coverage analysis to find modules with no corresponding spec
-2. For each unspecced module, discovers all source files (excluding tests)
-3. Generates a spec using your custom template (`specs/_template.spec.md`) or the built-in default
-4. Writes `specs/<module>/<module>.spec.md` with `module`, `files`, `version: 1`, `status: draft` pre-filled
+Uses your custom template (`specs/_template.spec.md`) or the built-in default. Generates frontmatter + stubbed sections with TODOs.
 
-### Custom templates
+### AI mode (`--ai`)
 
-Drop a `_template.spec.md` in your specs directory. The generator replaces `module`, `version`, `status`, `files`, and the `# Title` heading — everything else stays as-is. Use this to enforce your team's spec structure.
+Reads your source code, sends it to an LLM, and generates specs with real content — Purpose, Public API tables, Invariants, Error Cases, all filled in from the code. No manual filling required.
+
+The AI command is resolved in order:
+1. `"aiCommand"` in `specsync.json`
+2. `SPECSYNC_AI_COMMAND` environment variable
+3. `claude -p --output-format text` (default, requires [Claude CLI](https://docs.anthropic.com/en/docs/claude-code))
+
+Any command that reads a prompt from stdin and writes markdown to stdout works:
+
+```json
+{ "aiCommand": "claude -p --output-format text" }
+{ "aiCommand": "ollama run llama3" }
+```
+
+Set `"aiTimeout"` in `specsync.json` to control per-module timeout (default: 120 seconds).
 
 ### Designed for AI agents
 
-The generate command is the entry point for LLM-powered spec workflows. A coding agent can:
+The generate command is the entry point for LLM-powered spec workflows:
 
 ```bash
-specsync generate                                  # scaffold specs for new modules
-# LLM fills in Purpose, Public API, Invariants...  # agent writes the content
+specsync generate --ai                             # AI writes specs from source code
 specsync check --json                              # validate, get structured feedback
 # LLM fixes errors from JSON output                # iterate until clean
 specsync check --strict --require-coverage 100     # enforce full coverage in CI
@@ -375,7 +391,7 @@ Every output format is designed for machine consumption:
 { "passed": false, "errors": ["..."], "warnings": ["..."], "specs_checked": 12 }
 
 // specsync coverage --json
-{ "file_coverage": 85.33, "files_covered": 23, "files_total": 27, "modules": [{"name": "helpers", "has_spec": false}] }
+{ "file_coverage": 85.33, "files_covered": 23, "files_total": 27, "loc_coverage": 79.12, "loc_covered": 4200, "loc_total": 5308, "modules": [...] }
 ```
 
 ---
@@ -385,6 +401,7 @@ Every output format is designed for machine consumption:
 ```
 src/
 ├── main.rs            CLI entry + output formatting
+├── ai.rs              AI-powered spec generation (prompt builder + command runner)
 ├── types.rs           Data types + config schema
 ├── config.rs          specsync.json loading
 ├── parser.rs          Frontmatter + spec body parsing

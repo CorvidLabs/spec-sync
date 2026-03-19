@@ -285,23 +285,6 @@ manages session lifecycle, and provides middleware for route protection.
 
 ```
 specsync [command] [flags]
-<<<<<<< HEAD
-
-Commands:
-  check       Validate all specs against source (default)
-  coverage    Show file and module coverage report
-  generate    Scaffold specs for unspecced modules
-  init        Create specsync.json config file
-  watch       Watch for file changes and re-validate
-  help        Show help
-
-Flags:
-  --strict              Treat warnings as errors
-  --require-coverage N  Fail if file coverage < N%
-  --root <path>         Project root (default: cwd)
-  --json                Output results as JSON
-=======
->>>>>>> fed5ec7 (docs: add GitHub Pages documentation site)
 ```
 
 ### Commands
@@ -356,11 +339,7 @@ specsync watch
 
 ## GitHub Action
 
-<<<<<<< HEAD
-Available on the [GitHub Marketplace](https://github.com/marketplace/actions/spec-sync). Use SpecSync as a reusable GitHub Action — no manual binary download needed.
-=======
-The easiest way to run SpecSync in CI. No manual binary download needed — the action auto-detects your runner's OS and architecture.
->>>>>>> fed5ec7 (docs: add GitHub Pages documentation site)
+Available on the [GitHub Marketplace](https://github.com/marketplace/actions/spec-sync). The easiest way to run SpecSync in CI — no manual binary download needed.
 
 ### Basic usage
 

@@ -1,6 +1,6 @@
 [package]
 name = "specsync"
-version = "1.1.0"
+version = "1.1.2"
 edition = "2024"
 description = "Bidirectional spec-to-code validation — language-agnostic, blazing fast"
 license = "MIT"

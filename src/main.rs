@@ -2,6 +2,7 @@ mod ai;
 mod config;
 mod exports;
 mod generator;
+mod mcp;
 mod parser;
 mod types;
 mod validator;
@@ -64,6 +65,8 @@ enum Command {
     Init,
     /// Watch spec and source files, re-running check on changes
     Watch,
+    /// Run as an MCP (Model Context Protocol) server over stdio
+    Mcp,
 }
 
 fn main() {
@@ -88,6 +91,7 @@ fn main() {
             provider,
         ),
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
+        Command::Mcp => mcp::run_mcp_server(&root),
     }
 }
 

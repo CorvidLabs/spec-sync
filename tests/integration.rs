@@ -1677,3 +1677,222 @@ fn init_falls_back_to_src_when_no_source_files() {
     assert_eq!(dirs.len(), 1);
     assert_eq!(dirs[0], "src");
 }
+
+// ─── MCP Server Tests ──────────────────────────────────────────────────────
+
+/// Send JSON-RPC requests to the MCP server via stdin and capture stdout.
+fn mcp_request(root: &std::path::Path, requests: &[serde_json::Value]) -> Vec<serde_json::Value> {
+    let input: String = requests
+        .iter()
+        .map(|r| serde_json::to_string(r).unwrap())
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+
+    let output = specsync()
+        .arg("mcp")
+        .arg("--root")
+        .arg(root)
+        .write_stdin(input)
+        .output()
+        .expect("failed to run mcp");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    stdout
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str(l).expect("invalid JSON-RPC response"))
+        .collect()
+}
+
+#[test]
+fn mcp_initialize_returns_capabilities() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    let responses = mcp_request(
+        root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {}
+        })],
+    );
+
+    assert_eq!(responses.len(), 1);
+    let result = &responses[0]["result"];
+    assert_eq!(result["serverInfo"]["name"], "specsync");
+    assert!(result["capabilities"]["tools"].is_object());
+}
+
+#[test]
+fn mcp_tools_list_returns_all_tools() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    let responses = mcp_request(
+        root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+            "params": {}
+        })],
+    );
+
+    let tools = responses[0]["result"]["tools"].as_array().unwrap();
+    let tool_names: Vec<&str> = tools
+        .iter()
+        .map(|t| t["name"].as_str().unwrap())
+        .collect();
+    assert!(tool_names.contains(&"specsync_check"));
+    assert!(tool_names.contains(&"specsync_coverage"));
+    assert!(tool_names.contains(&"specsync_generate"));
+    assert!(tool_names.contains(&"specsync_list_specs"));
+    assert!(tool_names.contains(&"specsync_init"));
+}
+
+#[test]
+fn mcp_tool_check_validates_specs() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    let responses = mcp_request(
+        &root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "specsync_check",
+                "arguments": {}
+            }
+        })],
+    );
+
+    let content = &responses[0]["result"]["content"][0]["text"];
+    let result: serde_json::Value =
+        serde_json::from_str(content.as_str().unwrap()).unwrap();
+    assert!(result["passed"].as_bool().unwrap());
+    assert_eq!(result["specs_checked"].as_u64().unwrap(), 1);
+}
+
+#[test]
+fn mcp_tool_coverage_returns_metrics() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    let responses = mcp_request(
+        &root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "specsync_coverage",
+                "arguments": {}
+            }
+        })],
+    );
+
+    let content = &responses[0]["result"]["content"][0]["text"];
+    let result: serde_json::Value =
+        serde_json::from_str(content.as_str().unwrap()).unwrap();
+    assert!(result["files_total"].as_u64().unwrap() > 0);
+    assert!(result["file_coverage"].is_number());
+}
+
+#[test]
+fn mcp_tool_init_creates_config() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/main.rs"), "fn main() {}").unwrap();
+
+    let responses = mcp_request(
+        root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "specsync_init",
+                "arguments": {}
+            }
+        })],
+    );
+
+    let content = &responses[0]["result"]["content"][0]["text"];
+    let result: serde_json::Value =
+        serde_json::from_str(content.as_str().unwrap()).unwrap();
+    assert!(result["created"].as_bool().unwrap());
+    assert!(root.join("specsync.json").exists());
+}
+
+#[test]
+fn mcp_tool_list_specs_returns_spec_info() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    let responses = mcp_request(
+        &root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "specsync_list_specs",
+                "arguments": {}
+            }
+        })],
+    );
+
+    let content = &responses[0]["result"]["content"][0]["text"];
+    let result: serde_json::Value =
+        serde_json::from_str(content.as_str().unwrap()).unwrap();
+    assert!(result["count"].as_u64().unwrap() >= 1);
+    let specs = result["specs"].as_array().unwrap();
+    assert!(specs[0]["module"].is_string());
+    assert!(specs[0]["path"].is_string());
+}
+
+#[test]
+fn mcp_unknown_tool_returns_error() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    let responses = mcp_request(
+        root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "nonexistent_tool",
+                "arguments": {}
+            }
+        })],
+    );
+
+    let result = &responses[0]["result"];
+    assert!(result["isError"].as_bool().unwrap());
+}
+
+#[test]
+fn mcp_ping_returns_empty_result() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    let responses = mcp_request(
+        root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "ping"
+        })],
+    );
+
+    assert_eq!(responses.len(), 1);
+    assert!(responses[0]["result"].is_object());
+}

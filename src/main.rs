@@ -55,12 +55,12 @@ enum Command {
     Coverage,
     /// Scaffold spec files for unspecced modules
     Generate {
-        /// Use AI to generate meaningful spec content instead of templates
-        #[arg(long)]
-        ai: bool,
-
-        /// AI provider: claude, anthropic, openai, ollama, copilot
-        #[arg(long, value_name = "NAME")]
+        /// AI provider to use for spec generation. Without this flag, specs are
+        /// generated from templates only.
+        ///
+        /// Use "auto" to auto-detect an installed provider, or specify one:
+        /// claude, anthropic, openai, ollama, copilot.
+        #[arg(long, value_name = "PROVIDER")]
         provider: Option<String>,
     },
     /// Create a specsync.json config file
@@ -83,7 +83,13 @@ enum Command {
         name: Option<String>,
     },
     /// Resolve cross-project spec references in depends_on
-    Resolve,
+    Resolve {
+        /// Fetch remote specsync-registry.toml files from GitHub to verify
+        /// cross-project references actually exist. Off by default — no
+        /// network calls without this flag.
+        #[arg(long)]
+        remote: bool,
+    },
 }
 
 fn main() {
@@ -99,20 +105,15 @@ fn main() {
         Command::Init => cmd_init(&root),
         Command::Check => cmd_check(&root, cli.strict, cli.require_coverage, cli.json),
         Command::Coverage => cmd_coverage(&root, cli.strict, cli.require_coverage, cli.json),
-        Command::Generate { ai, provider } => cmd_generate(
-            &root,
-            cli.strict,
-            cli.require_coverage,
-            cli.json,
-            ai,
-            provider,
-        ),
+        Command::Generate { provider } => {
+            cmd_generate(&root, cli.strict, cli.require_coverage, cli.json, provider)
+        }
         Command::Score => cmd_score(&root, cli.json),
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
         Command::Mcp => mcp::run_mcp_server(&root),
         Command::AddSpec { name } => cmd_add_spec(&root, &name),
         Command::InitRegistry { name } => cmd_init_registry(&root, name),
-        Command::Resolve => cmd_resolve(&root),
+        Command::Resolve { remote } => cmd_resolve(&root, remote),
     }
 }
 
@@ -252,7 +253,6 @@ fn cmd_generate(
     strict: bool,
     require_coverage: Option<usize>,
     json: bool,
-    ai: bool,
     provider: Option<String>,
 ) {
     let (config, spec_files) = load_and_discover(root, true);
@@ -268,11 +268,16 @@ fn cmd_generate(
 
     let mut coverage = compute_coverage(root, &spec_files, &config);
 
-    // --provider implies --ai
-    let ai = ai || provider.is_some();
+    // --provider enables AI mode. "auto" means auto-detect.
+    let ai = provider.is_some();
 
-    let resolved_provider = if ai {
-        match ai::resolve_ai_provider(&config, provider.as_deref()) {
+    let resolved_provider = if let Some(ref prov) = provider {
+        let cli_provider = if prov == "auto" {
+            None
+        } else {
+            Some(prov.as_str())
+        };
+        match ai::resolve_ai_provider(&config, cli_provider) {
             Ok(p) => Some(p),
             Err(e) => {
                 eprintln!("{e}");
@@ -633,10 +638,10 @@ fn cmd_init_registry(root: &Path, name: Option<String>) {
     }
 }
 
-fn cmd_resolve(root: &Path) {
-    let (config, spec_files) = load_and_discover(root, false);
-    let mut cross_refs = Vec::new();
-    let mut local_refs = Vec::new();
+fn cmd_resolve(root: &Path, remote: bool) {
+    let (_config, spec_files) = load_and_discover(root, false);
+    let mut cross_refs: Vec<(String, String, String)> = Vec::new();
+    let mut local_refs: Vec<(String, String, bool)> = Vec::new();
 
     for spec_file in &spec_files {
         let content = match fs::read_to_string(spec_file) {
@@ -689,19 +694,74 @@ fn cmd_resolve(root: &Path) {
 
     if !cross_refs.is_empty() {
         println!("\n  {} Cross-project references:", "Remote".bold());
-        for (spec, repo, module) in &cross_refs {
-            println!("    {} {spec} -> {repo}@{module}", "→".cyan());
-        }
-        println!(
-            "\n  {} Cross-project resolution requires network access.",
-            "Note:".yellow()
-        );
-        println!("  Run with a registry or use `specsync-registry.toml` in target repos.");
-    }
 
-    // Check for registry
-    let _local_registry = registry::load_registry(root);
-    let _ = config;
+        if remote {
+            // Fetch remote registries to verify cross-project refs
+            let mut remote_errors = 0;
+            // Group refs by repo to avoid duplicate fetches
+            let mut repos: std::collections::HashMap<String, Option<registry::RemoteRegistry>> =
+                std::collections::HashMap::new();
+
+            for (_spec, repo, _module) in &cross_refs {
+                repos
+                    .entry(repo.clone())
+                    .or_insert_with(|| match registry::fetch_remote_registry(repo) {
+                        Ok(reg) => Some(reg),
+                        Err(e) => {
+                            eprintln!(
+                                "    {} Failed to fetch registry for {repo}: {e}",
+                                "!".yellow()
+                            );
+                            None
+                        }
+                    });
+            }
+
+            for (spec, repo, module) in &cross_refs {
+                match repos.get(repo) {
+                    Some(Some(reg)) => {
+                        if reg.has_spec(module) {
+                            println!("    {} {spec} -> {repo}@{module}", "✓".green());
+                        } else {
+                            println!(
+                                "    {} {spec} -> {repo}@{module} (module not in registry)",
+                                "✗".red()
+                            );
+                            remote_errors += 1;
+                        }
+                    }
+                    Some(None) => {
+                        println!(
+                            "    {} {spec} -> {repo}@{module} (registry fetch failed)",
+                            "?".yellow()
+                        );
+                    }
+                    None => {
+                        println!(
+                            "    {} {spec} -> {repo}@{module} (no registry)",
+                            "?".yellow()
+                        );
+                    }
+                }
+            }
+
+            if remote_errors > 0 {
+                println!(
+                    "\n  {} {remote_errors} cross-project ref(s) could not be verified",
+                    "Warning:".yellow()
+                );
+            }
+        } else {
+            for (spec, repo, module) in &cross_refs {
+                println!("    {} {spec} -> {repo}@{module}", "→".cyan());
+            }
+            println!(
+                "\n  {} Cross-project refs are not verified by default.",
+                "Tip:".cyan()
+            );
+            println!("  Use --remote to fetch registries and verify they exist.");
+        }
+    }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────

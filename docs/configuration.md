@@ -77,7 +77,7 @@ Config resolution order: `specsync.json` → `specsync.toml` → defaults.
 | `excludeDirs` | `string[]` | `["__tests__"]` | Directory names skipped during coverage scanning |
 | `excludePatterns` | `string[]` | Common test globs | File patterns excluded from coverage (additive with language-specific test exclusions) |
 | `sourceExtensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |
-| `aiCommand` | `string?` | `claude -p ...` | Command for `generate --ai` (reads stdin prompt, writes stdout markdown) |
+| `aiCommand` | `string?` | `claude -p ...` | Command for `generate --provider command` (reads stdin prompt, writes stdout markdown) |
 | `aiTimeout` | `number?` | `120` | Seconds before AI command times out per module |
 
 ---

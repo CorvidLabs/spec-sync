@@ -226,7 +226,7 @@ pub fn resolve_ai_provider(
          \"aiProvider\": \"anthropic\"    + ANTHROPIC_API_KEY\n  \
          \"aiProvider\": \"openai\"       + OPENAI_API_KEY\n  \
          \"aiCommand\":  \"any-cli\"      (custom command)\n\n\
-         Use --provider <name> to select a specific provider."
+         Use --provider <name> to select one, or --provider auto to auto-detect."
         .to_string())
 }
 

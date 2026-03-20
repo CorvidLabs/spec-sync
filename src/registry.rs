@@ -1,11 +1,67 @@
 use crate::types::RegistryEntry;
 use std::fs;
 use std::path::Path;
+use std::time::Duration;
 use walkdir::WalkDir;
 
 const REGISTRY_FILENAME: &str = "specsync-registry.toml";
 
+/// A parsed remote registry (fetched over HTTPS).
+#[derive(Debug, Clone)]
+pub struct RemoteRegistry {
+    #[allow(dead_code)]
+    pub name: String,
+    pub specs: Vec<(String, String)>,
+}
+
+impl RemoteRegistry {
+    /// Check whether a module name exists in this registry.
+    pub fn has_spec(&self, module: &str) -> bool {
+        self.specs.iter().any(|(m, _)| m == module)
+    }
+}
+
+/// Fetch `specsync-registry.toml` from a GitHub repo's default branch.
+///
+/// `repo` is in `owner/repo` format (e.g. `corvid-labs/algochat`).
+/// Tries the GitHub raw content URL for the file at repo root.
+pub fn fetch_remote_registry(repo: &str) -> Result<RemoteRegistry, String> {
+    let url = format!("https://raw.githubusercontent.com/{repo}/HEAD/{REGISTRY_FILENAME}");
+
+    let agent = ureq::Agent::new_with_config(
+        ureq::config::Config::builder()
+            .timeout_global(Some(Duration::from_secs(10)))
+            .build(),
+    );
+
+    let mut response = agent
+        .get(&url)
+        .call()
+        .map_err(|e| format!("HTTP request failed: {e}"))?;
+
+    if response.status() != 200 {
+        return Err(format!(
+            "HTTP {} — {repo} may not have a {REGISTRY_FILENAME}",
+            response.status()
+        ));
+    }
+
+    let body = response
+        .body_mut()
+        .read_to_string()
+        .map_err(|e| format!("Failed to read response body: {e}"))?;
+
+    let entry =
+        parse_registry(&body).ok_or_else(|| format!("Failed to parse registry from {repo}"))?;
+
+    Ok(RemoteRegistry {
+        name: entry.name,
+        specs: entry.specs,
+    })
+}
+
 /// Load a registry from a `specsync-registry.toml` file.
+#[allow(dead_code)]
 pub fn load_registry(root: &Path) -> Option<RegistryEntry> {
     let path = root.join(REGISTRY_FILENAME);
     let content = fs::read_to_string(&path).ok()?;
@@ -153,5 +209,22 @@ messaging = "specs/messaging/messaging.spec.md"
     fn test_extract_module_name() {
         let content = "---\nmodule: auth\nversion: 1\n---\n# Auth\n";
         assert_eq!(extract_module_name(content), Some("auth".to_string()));
+    }
+
+    #[test]
+    fn test_remote_registry_has_spec() {
+        let reg = RemoteRegistry {
+            name: "test".to_string(),
+            specs: vec![
+                ("auth".to_string(), "specs/auth/auth.spec.md".to_string()),
+                (
+                    "messaging".to_string(),
+                    "specs/messaging/messaging.spec.md".to_string(),
+                ),
+            ],
+        };
+        assert!(reg.has_spec("auth"));
+        assert!(reg.has_spec("messaging"));
+        assert!(!reg.has_spec("nonexistent"));
     }
 }

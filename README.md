@@ -101,8 +101,8 @@ specsync init                              # Create specsync.json config
 specsync check                             # Validate specs against code
 specsync coverage                          # Show file/module coverage
 specsync generate                          # Scaffold specs for unspecced modules
-specsync generate --ai                     # AI-powered specs (reads code, writes content)
-specsync generate --ai --provider anthropic # Use Anthropic API directly (no CLI needed)
+specsync generate --provider auto           # AI-powered specs (auto-detect provider)
+specsync generate --provider anthropic      # Use Anthropic API directly (no CLI needed)
 specsync score                             # Quality-score your spec files (0–100)
 specsync mcp                               # Start MCP server for AI agent integration
 specsync watch                             # Re-validate on every file change
@@ -250,7 +250,7 @@ specsync [command] [flags]
 |---------|-------------|
 | `check` | Validate all specs against source code **(default)** |
 | `coverage` | File and module coverage report |
-| `generate` | Scaffold specs for modules missing one (`--ai` for AI-powered content) |
+| `generate` | Scaffold specs for modules missing one (`--provider` for AI-powered content) |
 | `score` | Quality-score spec files (0–100) with improvement suggestions |
 | `mcp` | Start MCP server for AI agent integration (Claude Code, Cursor, etc.) |
 | `init` | Create default `specsync.json` |
@@ -263,7 +263,7 @@ specsync [command] [flags]
 | `--strict` | Warnings become errors (recommended for CI) |
 | `--require-coverage N` | Fail if file coverage < N% |
 | `--root <path>` | Project root (default: cwd) |
-| `--provider <name>` | AI provider: `anthropic`, `openai`, or `command` (default) |
+| `--provider <name>` | AI provider: `auto`, `anthropic`, `openai`, or `command`. `auto` detects installed provider. Without `--provider`, generate uses templates only. |
 | `--json` | Structured JSON output |
 
 ### Exit Codes
@@ -336,7 +336,7 @@ Create `specsync.json` in your project root (or run `specsync init`):
 | `excludeDirs` | `string[]` | `["__tests__"]` | Directories excluded from coverage |
 | `excludePatterns` | `string[]` | Common test globs | File patterns excluded from coverage |
 | `sourceExtensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |
-| `aiCommand` | `string?` | `claude -p ...` | Command for `generate --ai` (reads stdin prompt, writes stdout markdown) |
+| `aiCommand` | `string?` | `claude -p ...` | Command for `generate --provider command` (reads stdin prompt, writes stdout markdown) |
 | `aiTimeout` | `number?` | `120` | Seconds before AI command times out per module |
 
 ---
@@ -347,7 +347,7 @@ Create `specsync.json` in your project root (or run `specsync init`):
 
 ```bash
 specsync generate                         # Scaffold template specs for all unspecced modules
-specsync generate --ai                    # Use AI to generate filled-in specs from source code
+specsync generate --provider auto         # Use AI to generate filled-in specs from source code
 specsync coverage                         # See what's still missing
 ```
 
@@ -355,7 +355,7 @@ specsync coverage                         # See what's still missing
 
 Uses your custom template (`specs/_template.spec.md`) or the built-in default. Generates frontmatter + stubbed sections with TODOs.
 
-### AI mode (`--ai`)
+### AI mode (`--provider`)
 
 Reads your source code, sends it to an LLM, and generates specs with real content — Purpose, Public API tables, Invariants, Error Cases, all filled in from the code. No manual filling required.
 
@@ -378,7 +378,7 @@ Set `"aiTimeout"` in `specsync.json` to control per-module timeout (default: 120
 The generate command is the entry point for LLM-powered spec workflows:
 
 ```bash
-specsync generate --ai                             # AI writes specs from source code
+specsync generate --provider auto                   # AI writes specs from source code
 specsync check --json                              # validate, get structured feedback
 # LLM fixes errors from JSON output                # iterate until clean
 specsync check --strict --require-coverage 100     # enforce full coverage in CI

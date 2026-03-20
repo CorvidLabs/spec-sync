@@ -27,8 +27,8 @@ exclude_dirs = ["__tests__", "fixtures"]
 # Glob patterns to exclude
 exclude_patterns = ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"]
 
-# AI provider for `specsync generate --ai`
-# Options: claude, anthropic, openai, ollama, copilot
+# AI provider for `specsync generate --provider <name>`
+# Options: auto, anthropic, openai, command
 # ai_provider = "claude"
 
 # AI model override (optional)

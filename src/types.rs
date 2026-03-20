@@ -124,6 +124,8 @@ pub struct ValidationResult {
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
     pub export_summary: Option<String>,
+    /// Actionable fix suggestions mapped to errors.
+    pub fixes: Vec<String>,
 }
 
 impl ValidationResult {
@@ -133,6 +135,7 @@ impl ValidationResult {
             errors: Vec::new(),
             warnings: Vec::new(),
             export_summary: None,
+            fixes: Vec::new(),
         }
     }
 }

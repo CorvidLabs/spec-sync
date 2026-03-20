@@ -1,0 +1,87 @@
+{
+  "name": "specsync",
+  "displayName": "SpecSync",
+  "description": "Bidirectional spec-to-code validation — inline status, quick fixes, and coverage indicators",
+  "version": "0.1.0",
+  "publisher": "corvidlabs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CorvidLabs/spec-sync"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:specsync.json",
+    "workspaceContains:.specsync.toml",
+    "workspaceContains:specs/"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "specsync.check",
+        "title": "SpecSync: Validate Specs"
+      },
+      {
+        "command": "specsync.coverage",
+        "title": "SpecSync: Show Coverage"
+      },
+      {
+        "command": "specsync.score",
+        "title": "SpecSync: Score Spec Quality"
+      },
+      {
+        "command": "specsync.generate",
+        "title": "SpecSync: Generate Missing Specs"
+      },
+      {
+        "command": "specsync.init",
+        "title": "SpecSync: Initialize Config"
+      }
+    ],
+    "configuration": {
+      "title": "SpecSync",
+      "properties": {
+        "specsync.binaryPath": {
+          "type": "string",
+          "default": "specsync",
+          "description": "Path to the specsync binary"
+        },
+        "specsync.validateOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run validation when spec or source files are saved"
+        },
+        "specsync.showInlineScores": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show quality scores inline on spec files"
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "specmd",
+        "extensions": [".spec.md"],
+        "aliases": ["SpecSync Spec"]
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.22.0"
+  }
+}

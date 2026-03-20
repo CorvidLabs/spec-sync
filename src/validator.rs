@@ -8,6 +8,27 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
+/// Check if a dependency reference is a cross-project reference.
+/// Cross-project refs use the format `owner/repo@module` (e.g. `corvid-labs/algochat@auth`).
+pub fn is_cross_project_ref(dep: &str) -> bool {
+    dep.contains('/') && dep.contains('@')
+}
+
+/// Parse a cross-project reference into (owner/repo, module).
+/// Returns None if not a valid cross-project ref.
+pub fn parse_cross_project_ref(dep: &str) -> Option<(&str, &str)> {
+    if !is_cross_project_ref(dep) {
+        return None;
+    }
+    let at_pos = dep.find('@')?;
+    let repo = &dep[..at_pos];
+    let module = &dep[at_pos + 1..];
+    if repo.is_empty() || module.is_empty() {
+        return None;
+    }
+    Some((repo, module))
+}
+
 // ─── Schema Table Discovery ──────────────────────────────────────────────
 
 /// Extract table names from SQL schema files.
@@ -276,6 +297,11 @@ pub fn validate_spec(
 
     if !fm.depends_on.is_empty() {
         for dep in &fm.depends_on {
+            if is_cross_project_ref(dep) {
+                // Cross-project refs (e.g. "owner/repo@module") are validated
+                // by `specsync resolve`, not during local checks.
+                continue;
+            }
             let full_path = root.join(dep);
             if !full_path.exists() {
                 result

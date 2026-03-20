@@ -210,6 +210,15 @@ pub struct SpecSyncConfig {
     pub ai_timeout: Option<u64>,
 }
 
+/// Registry entry mapping module names to spec file paths.
+/// Used in `specsync-registry.toml` for cross-project resolution.
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct RegistryEntry {
+    pub name: String,
+    pub specs: Vec<(String, String)>, // (module_name, spec_path)
+}
+
 /// Detected language for export extraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Language {

@@ -7,6 +7,47 @@ use std::io::Write;
 use std::path::Path;
 use walkdir::WalkDir;
 
+const TASKS_TEMPLATE: &str = r#"---
+spec: {module}.spec.md
+---
+
+## Tasks
+
+- [ ] <!-- Add tasks for this spec -->
+
+## Gaps
+
+<!-- Uncovered areas, missing edge cases, or incomplete coverage -->
+
+## Review Sign-offs
+
+- **Product**: pending
+- **QA**: pending
+- **Design**: n/a
+- **Dev**: pending
+"#;
+
+const CONTEXT_TEMPLATE: &str = r#"---
+spec: {module}.spec.md
+---
+
+## Key Decisions
+
+<!-- Record architectural or design decisions relevant to this spec -->
+
+## Files to Read First
+
+<!-- List the most important files an agent or new developer should read -->
+
+## Current Status
+
+<!-- What's done, what's in progress, what's blocked -->
+
+## Notes
+
+<!-- Free-form notes, links, or context -->
+"#;
+
 const DEFAULT_TEMPLATE: &str = r#"---
 module: module-name
 version: 1
@@ -236,6 +277,32 @@ fn generate_module_spec(
     generate_spec(module_name, module_files, root, specs_dir)
 }
 
+/// Generate companion files (tasks.md, context.md) alongside a spec file.
+fn generate_companion_files(spec_dir: &Path, module_name: &str) {
+    let tasks_path = spec_dir.join("tasks.md");
+    let context_path = spec_dir.join("context.md");
+
+    if !tasks_path.exists() {
+        let content = TASKS_TEMPLATE.replace("{module}", module_name);
+        if fs::write(&tasks_path, &content).is_ok() {
+            println!("    {} Generated tasks.md", "✓".green());
+        }
+    }
+
+    if !context_path.exists() {
+        let content = CONTEXT_TEMPLATE.replace("{module}", module_name);
+        if fs::write(&context_path, &content).is_ok() {
+            println!("    {} Generated context.md", "✓".green());
+        }
+    }
+}
+
+/// Generate companion files for a given spec, creating the directory if needed.
+/// Used by the `add-spec` command.
+pub fn generate_companion_files_for_spec(spec_dir: &Path, module_name: &str) {
+    generate_companion_files(spec_dir, module_name);
+}
+
 /// Generate spec files for all unspecced modules.
 /// Returns the number of specs generated.
 pub fn generate_specs_for_unspecced_modules(
@@ -288,6 +355,7 @@ pub fn generate_specs_for_unspecced_modules(
                     "✓".green(),
                     module_files.len()
                 );
+                generate_companion_files(&spec_dir, module_name);
                 let _ = std::io::stdout().flush();
                 generated += 1;
             }

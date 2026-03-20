@@ -7,9 +7,9 @@
 [![Crates.io](https://img.shields.io/crates/v/specsync.svg)](https://crates.io/crates/specsync)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Bidirectional spec-to-code validation.** Written in Rust. Single binary. 9 languages.
+**Bidirectional spec-to-code validation with cross-project references.** Written in Rust. Single binary. 9 languages.
 
-[Quick Start](#quick-start) &bull; [Spec Format](#spec-format) &bull; [CLI](#cli-reference) &bull; [GitHub Action](#github-action) &bull; [Config](#configuration) &bull; [Docs Site](https://corvidlabs.github.io/spec-sync)
+[Quick Start](#quick-start) &bull; [Spec Format](#spec-format) &bull; [CLI](#cli-reference) &bull; [Cross-Project Refs](#cross-project-references) &bull; [GitHub Action](#github-action) &bull; [Config](#configuration) &bull; [Docs Site](https://corvidlabs.github.io/spec-sync)
 
 </div>
 
@@ -50,7 +50,7 @@ Auto-detected from file extensions. Same spec format for all.
 ### GitHub Action (recommended)
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v1
+- uses: CorvidLabs/spec-sync@v2
   with:
     strict: 'true'
     require-coverage: '100'
@@ -102,7 +102,10 @@ specsync check                             # Validate specs against code
 specsync coverage                          # Show file/module coverage
 specsync generate                          # Scaffold specs for unspecced modules
 specsync generate --provider auto           # AI-powered specs (auto-detect provider)
-specsync generate --provider anthropic      # Use Anthropic API directly (no CLI needed)
+specsync add-spec auth                     # Add a single spec + companion files
+specsync init-registry                     # Generate specsync-registry.toml
+specsync resolve                           # Verify spec cross-references
+specsync resolve --remote                  # Verify cross-project refs via GitHub
 specsync score                             # Quality-score your spec files (0–100)
 specsync mcp                               # Start MCP server for AI agent integration
 specsync watch                             # Re-validate on every file change
@@ -129,6 +132,7 @@ db_tables:                                  # Validated against schema dir (opti
   - sessions
 depends_on:                                 # Other spec paths, validated for existence (optional)
   - specs/database/database.spec.md
+  - corvid-labs/algochat@messaging           # Cross-project ref (owner/repo@module)
 ---
 ```
 
@@ -251,6 +255,9 @@ specsync [command] [flags]
 | `check` | Validate all specs against source code **(default)** |
 | `coverage` | File and module coverage report |
 | `generate` | Scaffold specs for modules missing one (`--provider` for AI-powered content) |
+| `add-spec <name>` | Scaffold a single spec + companion files (`tasks.md`, `context.md`) |
+| `resolve` | Verify `depends_on` references exist. `--remote` fetches registries from GitHub |
+| `init-registry` | Generate `specsync-registry.toml` from existing specs |
 | `score` | Quality-score spec files (0–100) with improvement suggestions |
 | `mcp` | Start MCP server for AI agent integration (Claude Code, Cursor, etc.) |
 | `init` | Create default `specsync.json` |
@@ -272,6 +279,98 @@ specsync [command] [flags]
 |------|---------|
 | `0` | All checks passed |
 | `1` | Errors, strict warnings, or coverage below threshold |
+
+---
+
+## Cross-Project References
+
+Specs can declare dependencies on modules in other repositories using `owner/repo@module` syntax in `depends_on`:
+
+```yaml
+depends_on:
+  - specs/database/database.spec.md       # Local reference
+  - corvid-labs/algochat@messaging         # Cross-project reference
+```
+
+### Registry
+
+Each project publishes a `specsync-registry.toml` at its root to declare available spec modules:
+
+```toml
+[registry]
+name = "myapp"
+
+[specs]
+auth = "specs/auth/auth.spec.md"
+messaging = "specs/messaging/messaging.spec.md"
+database = "specs/db/database.spec.md"
+```
+
+Generate one automatically from existing specs:
+
+```bash
+specsync init-registry                    # Uses project folder name
+specsync init-registry --name myapp       # Custom registry name
+```
+
+### Resolving References
+
+```bash
+specsync resolve                          # Verify local refs exist
+specsync resolve --remote                 # Also verify cross-project refs via GitHub
+```
+
+Remote resolution fetches `specsync-registry.toml` from each referenced repo and validates that the module exists. Requests are grouped by repo to minimize HTTP calls.
+
+**Zero CI cost by default** — `specsync check` validates local refs only (no network). Use `--remote` explicitly when you want cross-project verification.
+
+---
+
+## Companion Files
+
+When you run `specsync generate` or `specsync add-spec`, two companion files are created alongside each spec:
+
+**`tasks.md`** — Multi-role checkpoint tracking:
+
+```markdown
+---
+spec: auth.spec.md
+---
+
+## Tasks
+- [ ] <!-- Implementation checklist -->
+
+## Gaps
+<!-- Uncovered areas, missing edge cases -->
+
+## Review Sign-offs
+- **Product**: pending
+- **QA**: pending
+- **Design**: n/a
+- **Dev**: pending
+```
+
+**`context.md`** — Agent briefing document:
+
+```markdown
+---
+spec: auth.spec.md
+---
+
+## Key Decisions
+<!-- Architectural or design decisions -->
+
+## Files to Read First
+<!-- Most important files for understanding this module -->
+
+## Current Status
+<!-- What's done, in progress, blocked -->
+
+## Notes
+<!-- Free-form notes, links, context -->
+```
+
+These files are designed for team coordination and AI agent context — they give any contributor (human or AI) the full picture of where a module stands.
 
 ---
 
@@ -300,7 +399,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v1
+      - uses: CorvidLabs/spec-sync@v2
         with:
           strict: 'true'
           require-coverage: '100'
@@ -310,7 +409,7 @@ jobs:
 
 ## Configuration
 
-Create `specsync.json` in your project root (or run `specsync init`):
+Create `specsync.json` or `.specsync.toml` in your project root (or run `specsync init`):
 
 ```json
 {
@@ -337,7 +436,21 @@ Create `specsync.json` in your project root (or run `specsync init`):
 | `excludePatterns` | `string[]` | Common test globs | File patterns excluded from coverage |
 | `sourceExtensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |
 | `aiCommand` | `string?` | `claude -p ...` | Command for `generate --provider command` (reads stdin prompt, writes stdout markdown) |
+| `aiProvider` | `string?` | — | Default AI provider (`auto`, `claude`, `anthropic`, `openai`, `ollama`) |
 | `aiTimeout` | `number?` | `120` | Seconds before AI command times out per module |
+
+### TOML alternative
+
+```toml
+# .specsync.toml
+specs_dir = "specs"
+source_dirs = ["src", "lib"]
+required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
+ai_provider = "claude"
+ai_timeout = 120
+```
+
+Config resolution order: `specsync.json` → `.specsync.toml` → defaults with auto-detected source dirs.
 
 ---
 
@@ -409,12 +522,13 @@ src/
 ├── main.rs            CLI entry + output formatting
 ├── ai.rs              AI-powered spec generation (prompt builder + command runner)
 ├── mcp.rs             MCP server for AI agent integration (JSON-RPC stdio)
+├── registry.rs        Registry loading, generation, and remote fetching
 ├── scoring.rs         Spec quality scoring (0–100, weighted rubric)
 ├── types.rs           Data types + config schema
-├── config.rs          specsync.json / specsync.toml loading
+├── config.rs          specsync.json / .specsync.toml loading
 ├── parser.rs          Frontmatter + spec body parsing
-├── validator.rs       Validation + coverage computation
-├── generator.rs       Spec scaffolding
+├── validator.rs       Validation + coverage + cross-project ref detection
+├── generator.rs       Spec + companion file scaffolding
 ├── watch.rs           File watcher (notify, 500ms debounce)
 └── exports/
     ├── mod.rs          Language dispatch

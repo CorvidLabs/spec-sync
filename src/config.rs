@@ -209,8 +209,7 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                 "source_extensions" => config.source_extensions = parse_toml_string_array(value),
                 "ai_provider" => {
                     let s = parse_toml_string(value);
-                    config.ai_provider =
-                        crate::types::AiProvider::from_str_loose(&s);
+                    config.ai_provider = crate::types::AiProvider::from_str_loose(&s);
                 }
                 "ai_model" => config.ai_model = Some(parse_toml_string(value)),
                 "ai_command" => config.ai_command = Some(parse_toml_string(value)),

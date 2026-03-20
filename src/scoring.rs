@@ -278,9 +278,7 @@ pub struct ProjectScore {
     pub grade_distribution: [usize; 5], // A, B, C, D, F
 }
 
-pub fn compute_project_score(
-    spec_scores: Vec<SpecScore>,
-) -> ProjectScore {
+pub fn compute_project_score(spec_scores: Vec<SpecScore>) -> ProjectScore {
     let total_specs = spec_scores.len();
     let average_score = if total_specs == 0 {
         0.0

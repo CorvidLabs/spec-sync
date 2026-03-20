@@ -394,11 +394,7 @@ fn cmd_score(root: &Path, json: bool) {
         );
         println!(
             "    Frontmatter: {}/20  Sections: {}/20  API: {}/20  Depth: {}/20  Fresh: {}/20",
-            s.frontmatter_score,
-            s.sections_score,
-            s.api_score,
-            s.depth_score,
-            s.freshness_score
+            s.frontmatter_score, s.sections_score, s.api_score, s.depth_score, s.freshness_score
         );
         if !s.suggestions.is_empty() {
             for suggestion in &s.suggestions {

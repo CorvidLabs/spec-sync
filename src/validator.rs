@@ -175,9 +175,9 @@ pub fn validate_spec(
         result.errors.push(
             "Frontmatter missing required field: files (must be a non-empty list)".to_string(),
         );
-        result
-            .fixes
-            .push("Add a `files:` list with relative paths to source files this spec covers".to_string());
+        result.fixes.push(
+            "Add a `files:` list with relative paths to source files this spec covers".to_string(),
+        );
     }
 
     // Check files exist
@@ -187,13 +187,13 @@ pub fn validate_spec(
             result.errors.push(format!("Source file not found: {file}"));
             // Suggest similar files
             if let Some(suggestion) = suggest_similar_file(root, file) {
-                result
-                    .fixes
-                    .push(format!("Did you mean `{suggestion}`? Update the path in frontmatter"));
+                result.fixes.push(format!(
+                    "Did you mean `{suggestion}`? Update the path in frontmatter"
+                ));
             } else {
-                result
-                    .fixes
-                    .push(format!("Remove `{file}` from files list or create the source file"));
+                result.fixes.push(format!(
+                    "Remove `{file}` from files list or create the source file"
+                ));
             }
         }
     }
@@ -204,9 +204,9 @@ pub fn validate_spec(
             result
                 .errors
                 .push(format!("DB table not found in schema: {table}"));
-            result
-                .fixes
-                .push(format!("Remove `{table}` from db_tables or add a CREATE TABLE migration"));
+            result.fixes.push(format!(
+                "Remove `{table}` from db_tables or add a CREATE TABLE migration"
+            ));
         }
     }
 
@@ -308,9 +308,7 @@ pub fn validate_spec(
 
 /// Suggest a similar file path when a referenced file doesn't exist.
 fn suggest_similar_file(root: &Path, missing_file: &str) -> Option<String> {
-    let missing_name = Path::new(missing_file)
-        .file_name()?
-        .to_str()?;
+    let missing_name = Path::new(missing_file).file_name()?.to_str()?;
 
     let parent = Path::new(missing_file).parent()?;
     let search_dir = root.join(parent);
@@ -327,11 +325,9 @@ fn suggest_similar_file(root: &Path, missing_file: &str) -> Option<String> {
             continue;
         }
         let dist = levenshtein(missing_name, &name);
-        if dist <= 3 {
-            if best.is_none() || dist < best.as_ref().unwrap().1 {
-                let suggestion = parent.join(&name).to_string_lossy().replace('\\', "/");
-                best = Some((suggestion, dist));
-            }
+        if dist <= 3 && (best.is_none() || dist < best.as_ref().unwrap().1) {
+            let suggestion = parent.join(&name).to_string_lossy().replace('\\', "/");
+            best = Some((suggestion, dist));
         }
     }
 
@@ -344,11 +340,11 @@ fn levenshtein(a: &str, b: &str) -> usize {
     let b: Vec<char> = b.chars().collect();
     let mut dp = vec![vec![0usize; b.len() + 1]; a.len() + 1];
 
-    for i in 0..=a.len() {
-        dp[i][0] = i;
+    for (i, row) in dp.iter_mut().enumerate().take(a.len() + 1) {
+        row[0] = i;
     }
-    for j in 0..=b.len() {
-        dp[0][j] = j;
+    for (j, val) in dp[0].iter_mut().enumerate().take(b.len() + 1) {
+        *val = j;
     }
     for i in 1..=a.len() {
         for j in 1..=b.len() {

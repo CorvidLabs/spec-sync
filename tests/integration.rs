@@ -1742,10 +1742,7 @@ fn mcp_tools_list_returns_all_tools() {
     );
 
     let tools = responses[0]["result"]["tools"].as_array().unwrap();
-    let tool_names: Vec<&str> = tools
-        .iter()
-        .map(|t| t["name"].as_str().unwrap())
-        .collect();
+    let tool_names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert!(tool_names.contains(&"specsync_check"));
     assert!(tool_names.contains(&"specsync_coverage"));
     assert!(tool_names.contains(&"specsync_generate"));
@@ -1772,8 +1769,7 @@ fn mcp_tool_check_validates_specs() {
     );
 
     let content = &responses[0]["result"]["content"][0]["text"];
-    let result: serde_json::Value =
-        serde_json::from_str(content.as_str().unwrap()).unwrap();
+    let result: serde_json::Value = serde_json::from_str(content.as_str().unwrap()).unwrap();
     assert!(result["passed"].as_bool().unwrap());
     assert_eq!(result["specs_checked"].as_u64().unwrap(), 1);
 }
@@ -1797,8 +1793,7 @@ fn mcp_tool_coverage_returns_metrics() {
     );
 
     let content = &responses[0]["result"]["content"][0]["text"];
-    let result: serde_json::Value =
-        serde_json::from_str(content.as_str().unwrap()).unwrap();
+    let result: serde_json::Value = serde_json::from_str(content.as_str().unwrap()).unwrap();
     assert!(result["files_total"].as_u64().unwrap() > 0);
     assert!(result["file_coverage"].is_number());
 }
@@ -1824,8 +1819,7 @@ fn mcp_tool_init_creates_config() {
     );
 
     let content = &responses[0]["result"]["content"][0]["text"];
-    let result: serde_json::Value =
-        serde_json::from_str(content.as_str().unwrap()).unwrap();
+    let result: serde_json::Value = serde_json::from_str(content.as_str().unwrap()).unwrap();
     assert!(result["created"].as_bool().unwrap());
     assert!(root.join("specsync.json").exists());
 }
@@ -1849,8 +1843,7 @@ fn mcp_tool_list_specs_returns_spec_info() {
     );
 
     let content = &responses[0]["result"]["content"][0]["text"];
-    let result: serde_json::Value =
-        serde_json::from_str(content.as_str().unwrap()).unwrap();
+    let result: serde_json::Value = serde_json::from_str(content.as_str().unwrap()).unwrap();
     assert!(result["count"].as_u64().unwrap() >= 1);
     let specs = result["specs"].as_array().unwrap();
     assert!(specs[0]["module"].is_string());

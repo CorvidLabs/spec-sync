@@ -3,7 +3,7 @@ use crate::config::{detect_source_dirs, load_config};
 use crate::generator::generate_specs_for_unspecced_modules_paths;
 use crate::types::SpecSyncConfig;
 use crate::validator::{compute_coverage, find_spec_files, get_schema_table_names, validate_spec};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 
@@ -43,10 +43,7 @@ pub fn run_mcp_server(root: &Path) {
         };
 
         let id = request.get("id").cloned();
-        let method = request
-            .get("method")
-            .and_then(|m| m.as_str())
-            .unwrap_or("");
+        let method = request.get("method").and_then(|m| m.as_str()).unwrap_or("");
 
         let response = match method {
             "initialize" => Some(handle_initialize(id)),
@@ -184,10 +181,7 @@ fn handle_tools_list(id: Option<Value>) -> Value {
 }
 
 fn handle_tools_call(id: Option<Value>, params: &Value, default_root: &Path) -> Value {
-    let tool_name = params
-        .get("name")
-        .and_then(|n| n.as_str())
-        .unwrap_or("");
+    let tool_name = params.get("name").and_then(|n| n.as_str()).unwrap_or("");
     let arguments = params.get("arguments").cloned().unwrap_or(json!({}));
 
     let root = arguments
@@ -233,7 +227,10 @@ fn handle_tools_call(id: Option<Value>, params: &Value, default_root: &Path) -> 
 
 // ─── Tool Implementations ────────────────────────────────────────────────
 
-fn load_and_discover(root: &Path, allow_empty: bool) -> Result<(SpecSyncConfig, Vec<PathBuf>), String> {
+fn load_and_discover(
+    root: &Path,
+    allow_empty: bool,
+) -> Result<(SpecSyncConfig, Vec<PathBuf>), String> {
     let config = load_config(root);
     let specs_dir = root.join(&config.specs_dir);
     let spec_files: Vec<PathBuf> = find_spec_files(&specs_dir)
@@ -376,8 +373,12 @@ fn tool_generate(root: &Path, arguments: &Value) -> Result<Value, String> {
         None
     };
 
-    let generated_paths =
-        generate_specs_for_unspecced_modules_paths(root, &coverage, &config, resolved_provider.as_ref());
+    let generated_paths = generate_specs_for_unspecced_modules_paths(
+        root,
+        &coverage,
+        &config,
+        resolved_provider.as_ref(),
+    );
 
     Ok(json!({
         "generated": generated_paths,
@@ -386,7 +387,7 @@ fn tool_generate(root: &Path, arguments: &Value) -> Result<Value, String> {
 }
 
 fn tool_list_specs(root: &Path) -> Result<Value, String> {
-    let (config, spec_files) = load_and_discover(root, true)?;
+    let (_config, spec_files) = load_and_discover(root, true)?;
 
     let specs: Vec<Value> = spec_files
         .iter()
@@ -454,7 +455,8 @@ fn tool_init(root: &Path) -> Result<Value, String> {
     });
 
     let content = serde_json::to_string_pretty(&default).unwrap() + "\n";
-    std::fs::write(&config_path, content).map_err(|e| format!("Failed to write specsync.json: {e}"))?;
+    std::fs::write(&config_path, content)
+        .map_err(|e| format!("Failed to write specsync.json: {e}"))?;
 
     Ok(json!({
         "created": true,

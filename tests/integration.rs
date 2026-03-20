@@ -1889,3 +1889,162 @@ fn mcp_ping_returns_empty_result() {
     assert_eq!(responses.len(), 1);
     assert!(responses[0]["result"].is_object());
 }
+
+// ─── Score Command Tests ─────────────────────────────────────────────────
+
+#[test]
+fn score_command_outputs_quality_grades() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.ts"), "export function login() {}").unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth.ts"]),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["score", "--root", root.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("/100"));
+}
+
+#[test]
+fn score_json_output_has_grades() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.ts"), "export function login() {}").unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth.ts"]),
+    )
+    .unwrap();
+
+    let output = specsync()
+        .args(["score", "--root", root.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(json["average_score"].is_number());
+    assert!(json["grade"].is_string());
+    assert!(json["specs"].is_array());
+    let specs = json["specs"].as_array().unwrap();
+    assert_eq!(specs.len(), 1);
+    assert!(specs[0]["total"].as_u64().unwrap() > 0);
+}
+
+// ─── TOML Config Tests ──────────────────────────────────────────────────
+
+#[test]
+fn toml_config_is_loaded() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    fs::create_dir_all(root.join("lib")).unwrap();
+    fs::write(root.join("lib/utils.ts"), "export function helper() {}").unwrap();
+
+    // Write .specsync.toml instead of specsync.json
+    fs::write(
+        root.join(".specsync.toml"),
+        r#"
+specs_dir = "specs"
+source_dirs = ["lib"]
+required_sections = ["Purpose", "Public API"]
+"#,
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/utils")).unwrap();
+    fs::write(
+        root.join("specs/utils/utils.spec.md"),
+        "---\nmodule: utils\nversion: 1\nstatus: active\nfiles:\n  - lib/utils.ts\ndb_tables: []\ndepends_on: []\n---\n\n# Utils\n\n## Purpose\n\nHelper utilities.\n\n## Public API\n\n| Function | Description |\n|----------|-------------|\n| `helper` | Helps |\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("1 specs checked"));
+}
+
+// ─── Actionable Error Messages Tests ─────────────────────────────────────
+
+#[test]
+fn check_shows_fix_suggestions() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.ts"), "export function login() {}").unwrap();
+
+    // Create a spec with a missing source file reference
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: active\nfiles:\n  - src/auht.ts\ndb_tables: []\ndepends_on: []\n---\n\n# Auth\n\n## Purpose\nAuth module\n\n## Public API\nNone\n\n## Invariants\n1. Valid\n\n## Behavioral Examples\n### Scenario: Basic\n- **Given** x\n- **When** y\n- **Then** z\n\n## Error Cases\n| Condition | Behavior |\n|-----------|----------|\n\n## Dependencies\nNone\n\n## Change Log\n| Date | Author | Change |\n|------|--------|--------|\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Suggested fixes:"))
+        .stdout(predicate::str::contains("Did you mean"));
+}
+
+// ─── MCP Score Tool Tests ────────────────────────────────────────────────
+
+#[test]
+fn mcp_score_tool_returns_grades() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.ts"), "export function login() {}").unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth.ts"]),
+    )
+    .unwrap();
+
+    let responses = mcp_request(
+        root,
+        &[
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": { "capabilities": {} }
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "specsync_score",
+                    "arguments": {}
+                }
+            }),
+        ],
+    );
+
+    let score_result = &responses[1]["result"]["content"][0]["text"];
+    let score_json: serde_json::Value =
+        serde_json::from_str(score_result.as_str().unwrap()).unwrap();
+    assert!(score_json["average_score"].is_number());
+    assert!(score_json["grade"].is_string());
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "specsync": {
+      "command": "specsync",
+      "args": ["mcp", "--root", "${workspaceFolder}"]
+    }
+  }
+}

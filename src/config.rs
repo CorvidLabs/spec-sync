@@ -117,28 +117,38 @@ fn dir_contains_source_files(dir: &Path, ignored: &HashSet<&str>, max_depth: usi
     false
 }
 
-/// Load specsync.json from the project root, falling back to defaults.
+/// Load config from specsync.json or .specsync.toml, falling back to defaults.
 /// When no config file exists, auto-detects source directories.
+///
+/// Config file search order:
+/// 1. `specsync.json` (JSON format)
+/// 2. `.specsync.toml` (TOML format)
 pub fn load_config(root: &Path) -> SpecSyncConfig {
-    let config_path = root.join("specsync.json");
+    let json_path = root.join("specsync.json");
+    let toml_path = root.join(".specsync.toml");
 
-    if !config_path.exists() {
-        return SpecSyncConfig {
-            source_dirs: detect_source_dirs(root),
-            ..Default::default()
-        };
+    if json_path.exists() {
+        return load_json_config(&json_path, root);
     }
 
-    let content = match fs::read_to_string(&config_path) {
+    if toml_path.exists() {
+        return load_toml_config(&toml_path, root);
+    }
+
+    SpecSyncConfig {
+        source_dirs: detect_source_dirs(root),
+        ..Default::default()
+    }
+}
+
+fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
+    let content = match fs::read_to_string(config_path) {
         Ok(c) => c,
         Err(_) => return SpecSyncConfig::default(),
     };
 
     match serde_json::from_str::<SpecSyncConfig>(&content) {
         Ok(config) => {
-            // If sourceDirs was not explicitly set in the config file (still default ["src"]),
-            // check if we should auto-detect. We do this by checking if the raw JSON
-            // contains a "sourceDirs" key.
             if !content.contains("\"sourceDirs\"") {
                 let mut config = config;
                 config.source_dirs = detect_source_dirs(root);
@@ -151,6 +161,103 @@ pub fn load_config(root: &Path) -> SpecSyncConfig {
             SpecSyncConfig::default()
         }
     }
+}
+
+/// Parse a TOML config file using zero-dependency parsing.
+/// Supports the same fields as specsync.json but with TOML syntax:
+///
+/// ```toml
+/// specs_dir = "specs"
+/// source_dirs = ["src", "lib"]
+/// schema_dir = "db/migrations"
+/// exclude_dirs = ["__tests__"]
+/// exclude_patterns = ["**/*.test.ts"]
+/// ai_provider = "claude"
+/// ai_model = "claude-sonnet-4-20250514"
+/// ai_timeout = 120
+/// required_sections = ["Purpose", "Public API"]
+/// ```
+fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
+    let content = match fs::read_to_string(config_path) {
+        Ok(c) => c,
+        Err(_) => return SpecSyncConfig::default(),
+    };
+
+    let mut config = SpecSyncConfig::default();
+    let mut has_source_dirs = false;
+
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') || line.starts_with('[') {
+            continue;
+        }
+
+        if let Some(eq_pos) = line.find('=') {
+            let key = line[..eq_pos].trim();
+            let value = line[eq_pos + 1..].trim();
+
+            match key {
+                "specs_dir" => config.specs_dir = parse_toml_string(value),
+                "source_dirs" => {
+                    config.source_dirs = parse_toml_string_array(value);
+                    has_source_dirs = true;
+                }
+                "schema_dir" => config.schema_dir = Some(parse_toml_string(value)),
+                "schema_pattern" => config.schema_pattern = Some(parse_toml_string(value)),
+                "exclude_dirs" => config.exclude_dirs = parse_toml_string_array(value),
+                "exclude_patterns" => config.exclude_patterns = parse_toml_string_array(value),
+                "source_extensions" => config.source_extensions = parse_toml_string_array(value),
+                "ai_provider" => {
+                    let s = parse_toml_string(value);
+                    config.ai_provider =
+                        crate::types::AiProvider::from_str_loose(&s);
+                }
+                "ai_model" => config.ai_model = Some(parse_toml_string(value)),
+                "ai_command" => config.ai_command = Some(parse_toml_string(value)),
+                "ai_api_key" => config.ai_api_key = Some(parse_toml_string(value)),
+                "ai_base_url" => config.ai_base_url = Some(parse_toml_string(value)),
+                "ai_timeout" => {
+                    if let Ok(n) = value.trim().parse::<u64>() {
+                        config.ai_timeout = Some(n);
+                    }
+                }
+                "required_sections" => {
+                    config.required_sections = parse_toml_string_array(value);
+                }
+                _ => {} // Ignore unknown keys
+            }
+        }
+    }
+
+    if !has_source_dirs {
+        config.source_dirs = detect_source_dirs(root);
+    }
+
+    config
+}
+
+/// Parse a TOML string value: `"value"` -> `value`
+fn parse_toml_string(s: &str) -> String {
+    let s = s.trim();
+    if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+        s[1..s.len() - 1].to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+/// Parse a TOML array of strings: `["a", "b"]` -> vec!["a", "b"]
+fn parse_toml_string_array(s: &str) -> Vec<String> {
+    let s = s.trim();
+    if !s.starts_with('[') || !s.ends_with(']') {
+        return vec![parse_toml_string(s)];
+    }
+    let inner = &s[1..s.len() - 1];
+    inner
+        .split(',')
+        .map(|item| parse_toml_string(item.trim()))
+        .filter(|item| !item.is_empty())
+        .collect()
 }
 
 /// Default schema pattern for SQL table extraction.

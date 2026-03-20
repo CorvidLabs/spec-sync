@@ -1,6 +1,7 @@
 use crate::ai;
 use crate::config::{detect_source_dirs, load_config};
 use crate::generator::generate_specs_for_unspecced_modules_paths;
+use crate::scoring;
 use crate::types::SpecSyncConfig;
 use crate::validator::{compute_coverage, find_spec_files, get_schema_table_names, validate_spec};
 use serde_json::{Value, json};
@@ -174,6 +175,19 @@ fn handle_tools_list(id: Option<Value>) -> Value {
                             }
                         }
                     }
+                },
+                {
+                    "name": "specsync_score",
+                    "description": "Score spec quality (0-100) with letter grades, breakdown by category, and improvement suggestions.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "root": {
+                                "type": "string",
+                                "description": "Project root directory (default: server root)"
+                            }
+                        }
+                    }
                 }
             ]
         }
@@ -197,6 +211,7 @@ fn handle_tools_call(id: Option<Value>, params: &Value, default_root: &Path) -> 
         "specsync_generate" => tool_generate(&root, &arguments),
         "specsync_list_specs" => tool_list_specs(&root),
         "specsync_init" => tool_init(&root),
+        "specsync_score" => tool_score(&root),
         _ => Err(format!("Unknown tool: {tool_name}")),
     };
 
@@ -462,5 +477,47 @@ fn tool_init(root: &Path) -> Result<Value, String> {
         "created": true,
         "source_dirs": detected_dirs,
         "message": "Created specsync.json"
+    }))
+}
+
+fn tool_score(root: &Path) -> Result<Value, String> {
+    let (config, spec_files) = load_and_discover(root, false)?;
+
+    let scores: Vec<scoring::SpecScore> = spec_files
+        .iter()
+        .map(|f| scoring::score_spec(f, root, &config))
+        .collect();
+    let project = scoring::compute_project_score(scores);
+
+    let specs_json: Vec<Value> = project
+        .spec_scores
+        .iter()
+        .map(|s| {
+            json!({
+                "spec": s.spec_path,
+                "total": s.total,
+                "grade": s.grade,
+                "frontmatter": s.frontmatter_score,
+                "sections": s.sections_score,
+                "api": s.api_score,
+                "depth": s.depth_score,
+                "freshness": s.freshness_score,
+                "suggestions": s.suggestions,
+            })
+        })
+        .collect();
+
+    Ok(json!({
+        "average_score": (project.average_score * 10.0).round() / 10.0,
+        "grade": project.grade,
+        "total_specs": project.total_specs,
+        "distribution": {
+            "A": project.grade_distribution[0],
+            "B": project.grade_distribution[1],
+            "C": project.grade_distribution[2],
+            "D": project.grade_distribution[3],
+            "F": project.grade_distribution[4],
+        },
+        "specs": specs_json,
     }))
 }

@@ -1,0 +1,38 @@
+# .specsync.toml — Alternative to specsync.json
+# Place this file in your project root as `.specsync.toml`
+
+# Directory containing spec files (default: "specs")
+specs_dir = "specs"
+
+# Source directories to scan (auto-detected if omitted)
+source_dirs = ["src", "lib"]
+
+# SQL schema directory for db_tables validation (optional)
+# schema_dir = "db/migrations"
+
+# Required markdown sections in each spec
+required_sections = [
+    "Purpose",
+    "Public API",
+    "Invariants",
+    "Behavioral Examples",
+    "Error Cases",
+    "Dependencies",
+    "Change Log",
+]
+
+# Directories to exclude from source scanning
+exclude_dirs = ["__tests__", "fixtures"]
+
+# Glob patterns to exclude
+exclude_patterns = ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"]
+
+# AI provider for `specsync generate --ai`
+# Options: claude, anthropic, openai, ollama, copilot
+# ai_provider = "claude"
+
+# AI model override (optional)
+# ai_model = "claude-sonnet-4-20250514"
+
+# Timeout in seconds for AI generation (default: 120)
+# ai_timeout = 120

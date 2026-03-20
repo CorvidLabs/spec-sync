@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "specsync": {
+      "command": "specsync",
+      "args": ["mcp"],
+      "env": {}
+    }
+  }
+}

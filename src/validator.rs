@@ -151,21 +151,33 @@ pub fn validate_spec(
         result
             .errors
             .push("Frontmatter missing required field: module".to_string());
+        result
+            .fixes
+            .push("Add `module: your-module-name` to the YAML frontmatter block".to_string());
     }
     if fm.version.is_none() {
         result
             .errors
             .push("Frontmatter missing required field: version".to_string());
+        result
+            .fixes
+            .push("Add `version: 1` to the YAML frontmatter block".to_string());
     }
     if fm.status.is_none() {
         result
             .errors
             .push("Frontmatter missing required field: status".to_string());
+        result
+            .fixes
+            .push("Add `status: active` (or draft/deprecated) to the frontmatter".to_string());
     }
     if fm.files.is_empty() {
         result.errors.push(
             "Frontmatter missing required field: files (must be a non-empty list)".to_string(),
         );
+        result
+            .fixes
+            .push("Add a `files:` list with relative paths to source files this spec covers".to_string());
     }
 
     // Check files exist
@@ -173,6 +185,16 @@ pub fn validate_spec(
         let full_path = root.join(file);
         if !full_path.exists() {
             result.errors.push(format!("Source file not found: {file}"));
+            // Suggest similar files
+            if let Some(suggestion) = suggest_similar_file(root, file) {
+                result
+                    .fixes
+                    .push(format!("Did you mean `{suggestion}`? Update the path in frontmatter"));
+            } else {
+                result
+                    .fixes
+                    .push(format!("Remove `{file}` from files list or create the source file"));
+            }
         }
     }
 
@@ -182,6 +204,9 @@ pub fn validate_spec(
             result
                 .errors
                 .push(format!("DB table not found in schema: {table}"));
+            result
+                .fixes
+                .push(format!("Remove `{table}` from db_tables or add a CREATE TABLE migration"));
         }
     }
 
@@ -191,6 +216,9 @@ pub fn validate_spec(
         result
             .errors
             .push(format!("Missing required section: ## {section}"));
+        result
+            .fixes
+            .push(format!("Add `## {section}` heading to the spec body"));
     }
 
     // ─── Level 2: API Surface ─────────────────────────────────────────
@@ -276,6 +304,61 @@ pub fn validate_spec(
     }
 
     result
+}
+
+/// Suggest a similar file path when a referenced file doesn't exist.
+fn suggest_similar_file(root: &Path, missing_file: &str) -> Option<String> {
+    let missing_name = Path::new(missing_file)
+        .file_name()?
+        .to_str()?;
+
+    let parent = Path::new(missing_file).parent()?;
+    let search_dir = root.join(parent);
+    if !search_dir.exists() {
+        return None;
+    }
+
+    let entries = std::fs::read_dir(&search_dir).ok()?;
+    let mut best: Option<(String, usize)> = None;
+
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !entry.path().is_file() {
+            continue;
+        }
+        let dist = levenshtein(missing_name, &name);
+        if dist <= 3 {
+            if best.is_none() || dist < best.as_ref().unwrap().1 {
+                let suggestion = parent.join(&name).to_string_lossy().replace('\\', "/");
+                best = Some((suggestion, dist));
+            }
+        }
+    }
+
+    best.map(|(s, _)| s)
+}
+
+/// Simple Levenshtein distance for file name suggestions.
+fn levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let mut dp = vec![vec![0usize; b.len() + 1]; a.len() + 1];
+
+    for i in 0..=a.len() {
+        dp[i][0] = i;
+    }
+    for j in 0..=b.len() {
+        dp[0][j] = j;
+    }
+    for i in 1..=a.len() {
+        for j in 1..=b.len() {
+            let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
+            dp[i][j] = (dp[i - 1][j] + 1)
+                .min(dp[i][j - 1] + 1)
+                .min(dp[i - 1][j - 1] + cost);
+        }
+    }
+    dp[a.len()][b.len()]
 }
 
 // ─── Coverage ────────────────────────────────────────────────────────────

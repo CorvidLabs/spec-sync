@@ -19,6 +19,58 @@ SpecSync is built for LLM-powered coding tools — structured output, machine-re
 
 ---
 
+## MCP Server Mode
+
+SpecSync can run as an [MCP](https://modelcontextprotocol.io/) server, letting AI agents (Claude Code, Cursor, Windsurf, etc.) call SpecSync tools natively over stdio:
+
+```bash
+specsync mcp
+```
+
+This exposes tools: `specsync_check`, `specsync_generate`, `specsync_coverage`, `specsync_score`. Agents discover and invoke them via JSON-RPC — no CLI parsing needed.
+
+Add to your agent's MCP config (e.g., `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "specsync": {
+      "command": "specsync",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+---
+
+## Direct API Providers (`--provider`)
+
+Instead of shelling out to a CLI for AI generation, SpecSync can call Anthropic or OpenAI APIs directly:
+
+```bash
+specsync generate --ai --provider anthropic   # uses ANTHROPIC_API_KEY
+specsync generate --ai --provider openai      # uses OPENAI_API_KEY
+specsync generate --ai --provider command     # default: shells out to aiCommand
+```
+
+This removes the dependency on having Claude CLI or other tools installed — just set the API key.
+
+---
+
+## Spec Quality Scoring
+
+Score your specs on a 0–100 scale with actionable improvement suggestions:
+
+```bash
+specsync score                    # human-readable output
+specsync score --json             # machine-readable scores
+```
+
+Scores are based on completeness, detail, API coverage, behavioral examples, and more. Use this in CI to enforce minimum spec quality.
+
+---
+
 ## AI-Powered Generation (`--ai`)
 
 `specsync generate --ai` reads your source code, sends it to an LLM, and generates specs with real content — not just templates with TODOs. Purpose, Public API tables, Invariants, Error Cases — all filled in from the code.
@@ -192,3 +244,5 @@ None
 | **Template scaffold** | `specsync generate` | Scaffold templates after adding new modules |
 | **AI code review** | `specsync check --json` | Feed errors to LLM for spec updates |
 | **Coverage gate** | `specsync check --strict --require-coverage 100` | CI enforces full coverage |
+| **Quality gate** | `specsync score --json` | Enforce minimum spec quality scores |
+| **MCP integration** | `specsync mcp` | Native tool access for AI agents |

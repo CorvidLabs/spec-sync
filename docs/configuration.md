@@ -27,6 +27,23 @@ specsync init
 
 Creates `specsync.json` with defaults. SpecSync also works without a config file.
 
+### TOML Config
+
+SpecSync also supports `specsync.toml` as an alternative to JSON:
+
+```toml
+specs_dir = "specs"
+source_dirs = ["src"]
+schema_dir = "db/migrations"
+ai_command = "claude -p --output-format text"
+ai_timeout = 120
+required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
+exclude_dirs = ["__tests__"]
+exclude_patterns = ["**/__tests__/**", "**/*.test.ts"]
+```
+
+Config resolution order: `specsync.json` → `specsync.toml` → defaults.
+
 ---
 
 ## Full Config

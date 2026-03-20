@@ -102,6 +102,9 @@ specsync check                             # Validate specs against code
 specsync coverage                          # Show file/module coverage
 specsync generate                          # Scaffold specs for unspecced modules
 specsync generate --ai                     # AI-powered specs (reads code, writes content)
+specsync generate --ai --provider anthropic # Use Anthropic API directly (no CLI needed)
+specsync score                             # Quality-score your spec files (0–100)
+specsync mcp                               # Start MCP server for AI agent integration
 specsync watch                             # Re-validate on every file change
 ```
 
@@ -248,6 +251,8 @@ specsync [command] [flags]
 | `check` | Validate all specs against source code **(default)** |
 | `coverage` | File and module coverage report |
 | `generate` | Scaffold specs for modules missing one (`--ai` for AI-powered content) |
+| `score` | Quality-score spec files (0–100) with improvement suggestions |
+| `mcp` | Start MCP server for AI agent integration (Claude Code, Cursor, etc.) |
 | `init` | Create default `specsync.json` |
 | `watch` | Live validation on file changes (500ms debounce) |
 
@@ -258,6 +263,7 @@ specsync [command] [flags]
 | `--strict` | Warnings become errors (recommended for CI) |
 | `--require-coverage N` | Fail if file coverage < N% |
 | `--root <path>` | Project root (default: cwd) |
+| `--provider <name>` | AI provider: `anthropic`, `openai`, or `command` (default) |
 | `--json` | Structured JSON output |
 
 ### Exit Codes
@@ -402,8 +408,10 @@ Every output format is designed for machine consumption:
 src/
 ├── main.rs            CLI entry + output formatting
 ├── ai.rs              AI-powered spec generation (prompt builder + command runner)
+├── mcp.rs             MCP server for AI agent integration (JSON-RPC stdio)
+├── scoring.rs         Spec quality scoring (0–100, weighted rubric)
 ├── types.rs           Data types + config schema
-├── config.rs          specsync.json loading
+├── config.rs          specsync.json / specsync.toml loading
 ├── parser.rs          Frontmatter + spec body parsing
 ├── validator.rs       Validation + coverage computation
 ├── generator.rs       Spec scaffolding

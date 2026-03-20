@@ -64,6 +64,27 @@ specsync generate --ai                  # AI mode — reads code, writes real co
 
 With `--ai`, source code is piped to an LLM which generates filled-in specs (Purpose, Public API tables, Invariants, etc.). The AI command is resolved from: `aiCommand` in config → `SPECSYNC_AI_COMMAND` env var → `claude -p --output-format text`. See [Configuration](configuration) for `aiCommand` and `aiTimeout`.
 
+### `score`
+
+Quality-score your spec files on a 0–100 scale with per-spec improvement suggestions.
+
+```bash
+specsync score                          # score all specs
+specsync score --json                   # machine-readable scores
+```
+
+Scores are based on a weighted rubric: completeness, detail level, API table coverage, behavioral examples, and more.
+
+### `mcp`
+
+Start SpecSync as an MCP (Model Context Protocol) server over stdio. Enables AI agents like Claude Code, Cursor, and Windsurf to use SpecSync tools natively.
+
+```bash
+specsync mcp                            # start MCP server (stdio JSON-RPC)
+```
+
+Exposes tools: `specsync_check`, `specsync_generate`, `specsync_coverage`, `specsync_score`.
+
 ### `init`
 
 Create a default `specsync.json` in the current directory.
@@ -90,6 +111,7 @@ specsync watch
 | `--require-coverage N` | Fail if file coverage < N%. |
 | `--root <path>` | Project root directory (default: cwd). |
 | `--ai` | Use AI to generate filled-in specs instead of templates (with `generate`). |
+| `--provider <name>` | AI provider: `anthropic`, `openai`, or `command` (default). Uses API directly instead of shelling out. |
 | `--json` | Structured JSON output, no color codes. |
 
 ---

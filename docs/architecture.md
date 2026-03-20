@@ -25,8 +25,10 @@ How SpecSync is built. Useful for contributors and anyone adding language suppor
 src/
 ├── main.rs              CLI entry point (clap) + output formatting
 ├── ai.rs                AI-powered spec generation (prompt builder + command runner)
+├── mcp.rs               MCP server (JSON-RPC over stdio, tools for check/generate/score)
+├── scoring.rs           Spec quality scoring (0–100, weighted rubric)
 ├── types.rs             Core data types + config schema
-├── config.rs            specsync.json loading
+├── config.rs            specsync.json / specsync.toml loading
 ├── parser.rs            Frontmatter + spec body parsing
 ├── validator.rs         Validation + coverage computation
 ├── generator.rs         Spec scaffolding
@@ -105,6 +107,8 @@ Each extractor: strip comments, apply regex, return symbol names. No compiler ne
 | `walkdir` | Recursive directory traversal |
 | `colored` | Terminal colors |
 | `notify` + `notify-debouncer-full` | File watching for `watch` command |
+| `toml` | TOML config file parsing |
+| `tokio` | Async runtime for MCP server |
 
 ### Dev
 

@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-03-19
+
+### Added
+
+- **MCP server mode** — run `specsync mcp` to expose spec-sync as a Model Context Protocol server, enabling any AI agent (Claude Code, Cursor, Windsurf, etc.) to validate specs, check coverage, and generate specs via tool calls.
+- **Direct API support** for Anthropic and OpenAI — `specsync generate --ai` can now call Claude or GPT APIs directly via `--provider anthropic|openai`, no CLI wrapper needed. Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
+- **Auto-detect source directories** — spec-sync now automatically discovers `src/`, `lib/`, `app/`, and other common source directories, so it works out-of-the-box on any project without manual config.
+- **Spec quality scoring** — `specsync score` rates spec files on completeness, API coverage, section depth, and staleness, outputting a 0–100 quality score with actionable improvement suggestions.
+- **TOML configuration** — `specsync.toml` is now supported alongside `specsync.json`. See `examples/specsync.toml`.
+- **VS Code extension scaffold** — `vscode-extension/` directory with diagnostics, commands, and CodeLens integration (ready for Marketplace packaging).
+- **Actionable error messages** — all errors and warnings now include fix suggestions.
+- Expanded integration test suite (+884 lines).
+
+### Fixed
+
+- Resolved clippy and fmt CI failures on main (#29).
+
 ## [1.2.0] - 2026-03-19
 
 ### Added
@@ -90,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
+[1.3.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v1.3.0
 [1.2.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v1.2.0
 [1.1.2]: https://github.com/CorvidLabs/spec-sync/releases/tag/v1.1.2
 [1.1.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v1.1.1

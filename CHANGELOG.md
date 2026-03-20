@@ -5,12 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-03-20
+
+### Breaking Changes
+
+- **`--ai` flag removed** — replaced by `--provider auto|claude|openai|ollama`. Use `specsync generate --provider auto` for auto-detection, or `--provider claude` for a specific provider. Plain `specsync generate` remains template-only.
+
+### Added
+
+- **Cross-project spec references** — specs can now reference modules in other repos via `cross_project_refs` in config. Validated locally with `specsync check`, verified remotely with `specsync resolve --remote`.
+- **Companion files** — associate non-code files (migrations, configs, protos) with spec modules via `companion_files` config.
+- **Spec registry** — `specsync registry` reads `specsync-registry.toml` to list and discover specs across a project.
+- **`specsync resolve`** — new command to resolve cross-project references. `--remote` flag opt-in fetches registry files from GitHub repos.
+- **Project scope definition** — `SCOPE.md` explicitly defines what spec-sync does and doesn't do.
+
+### Changed
+
+- Unified AI provider selection under `--provider` flag with auto-detection support.
+- Remote ref verification groups HTTP requests by repo to minimize fetches.
+- Updated all docs, examples, and tests for the new CLI surface.
+
 ## [1.3.0] - 2026-03-19
 
 ### Added
 
 - **MCP server mode** — run `specsync mcp` to expose spec-sync as a Model Context Protocol server, enabling any AI agent (Claude Code, Cursor, Windsurf, etc.) to validate specs, check coverage, and generate specs via tool calls.
-- **Direct API support** for Anthropic and OpenAI — `specsync generate --ai` can now call Claude or GPT APIs directly via `--provider anthropic|openai`, no CLI wrapper needed. Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
+- **Direct API support** for Anthropic and OpenAI — `specsync generate --provider anthropic|openai` can call Claude or GPT APIs directly, no CLI wrapper needed. Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
 - **Auto-detect source directories** — spec-sync now automatically discovers `src/`, `lib/`, `app/`, and other common source directories, so it works out-of-the-box on any project without manual config.
 - **Spec quality scoring** — `specsync score` rates spec files on completeness, API coverage, section depth, and staleness, outputting a 0–100 quality score with actionable improvement suggestions.
 - **TOML configuration** — `specsync.toml` is now supported alongside `specsync.json`. See `examples/specsync.toml`.

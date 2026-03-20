@@ -59,10 +59,11 @@ Scaffold spec files for modules that don't have one. Uses `specs/_template.spec.
 
 ```bash
 specsync generate                       # template mode — stubs with TODOs
-specsync generate --ai                  # AI mode — reads code, writes real content
+specsync generate --provider auto       # AI mode — auto-detect provider, writes real content
+specsync generate --provider anthropic  # AI mode — use Anthropic API directly
 ```
 
-With `--ai`, source code is piped to an LLM which generates filled-in specs (Purpose, Public API tables, Invariants, etc.). The AI command is resolved from: `aiCommand` in config → `SPECSYNC_AI_COMMAND` env var → `claude -p --output-format text`. See [Configuration](configuration) for `aiCommand` and `aiTimeout`.
+With `--provider`, source code is piped to an LLM which generates filled-in specs (Purpose, Public API tables, Invariants, etc.). Use `--provider auto` to auto-detect an installed provider, or specify one by name (`anthropic`, `openai`, `command`). The `command` provider resolves from: `aiCommand` in config → `SPECSYNC_AI_COMMAND` env var → `claude -p --output-format text`. See [Configuration](configuration) for `aiCommand` and `aiTimeout`.
 
 ### `score`
 
@@ -110,8 +111,7 @@ specsync watch
 | `--strict` | Warnings become errors. Recommended for CI. |
 | `--require-coverage N` | Fail if file coverage < N%. |
 | `--root <path>` | Project root directory (default: cwd). |
-| `--ai` | Use AI to generate filled-in specs instead of templates (with `generate`). |
-| `--provider <name>` | AI provider: `anthropic`, `openai`, or `command` (default). Uses API directly instead of shelling out. |
+| `--provider <name>` | Enable AI-powered generation and select provider: `auto` (auto-detect), `anthropic`, `openai`, or `command`. Without this flag, `generate` uses templates only. |
 | `--json` | Structured JSON output, no color codes. |
 
 ---

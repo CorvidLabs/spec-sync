@@ -44,17 +44,18 @@ Add to your agent's MCP config (e.g., `claude_desktop_config.json`):
 
 ---
 
-## Direct API Providers (`--provider`)
+## AI Providers (`--provider`)
 
-Instead of shelling out to a CLI for AI generation, SpecSync can call Anthropic or OpenAI APIs directly:
+The `--provider` flag enables AI-powered spec generation and selects which provider to use:
 
 ```bash
-specsync generate --ai --provider anthropic   # uses ANTHROPIC_API_KEY
-specsync generate --ai --provider openai      # uses OPENAI_API_KEY
-specsync generate --ai --provider command     # default: shells out to aiCommand
+specsync generate --provider auto             # auto-detect an installed provider
+specsync generate --provider anthropic        # uses ANTHROPIC_API_KEY
+specsync generate --provider openai           # uses OPENAI_API_KEY
+specsync generate --provider command          # shells out to aiCommand config
 ```
 
-This removes the dependency on having Claude CLI or other tools installed — just set the API key.
+Without `--provider`, `generate` uses templates only (no AI). Using `--provider auto` auto-detects an available provider. Specifying a provider name uses that provider directly — just set the API key.
 
 ---
 
@@ -71,12 +72,12 @@ Scores are based on completeness, detail, API coverage, behavioral examples, and
 
 ---
 
-## AI-Powered Generation (`--ai`)
+## AI-Powered Generation (`--provider`)
 
-`specsync generate --ai` reads your source code, sends it to an LLM, and generates specs with real content — not just templates with TODOs. Purpose, Public API tables, Invariants, Error Cases — all filled in from the code.
+`specsync generate --provider auto` reads your source code, sends it to an LLM, and generates specs with real content — not just templates with TODOs. Purpose, Public API tables, Invariants, Error Cases — all filled in from the code.
 
 ```bash
-specsync generate --ai
+specsync generate --provider auto
 #   Generating specs/auth/auth.spec.md with AI...
 #     │ ---
 #     │ module: auth
@@ -109,9 +110,9 @@ Any command that reads a prompt from stdin and writes markdown to stdout works:
 
 If AI generation fails for a module, it falls back to template generation automatically.
 
-### Template mode (no `--ai`)
+### Template mode (no `--provider`)
 
-Without `--ai`, `specsync generate` scaffolds template specs — frontmatter populated, required sections stubbed with TODOs. Place `_template.spec.md` in your specs directory to control the generated structure.
+Without `--provider`, `specsync generate` scaffolds template specs — frontmatter populated, required sections stubbed with TODOs. Place `_template.spec.md` in your specs directory to control the generated structure.
 
 ---
 
@@ -119,7 +120,7 @@ Without `--ai`, `specsync generate` scaffolds template specs — frontmatter pop
 
 ```bash
 # One command: AI reads code, writes specs
-specsync generate --ai
+specsync generate --provider auto
 
 # Validate the generated specs against code
 specsync check --json
@@ -240,7 +241,7 @@ None
 |---------|---------|-----|
 | **Pre-commit hook** | `specsync check --strict` | Block commits with spec errors |
 | **PR review bot** | `specsync check --json` | Parse output, post as PR comment |
-| **Bootstrap coverage** | `specsync generate --ai` | AI writes specs from source code |
+| **Bootstrap coverage** | `specsync generate --provider auto` | AI writes specs from source code |
 | **Template scaffold** | `specsync generate` | Scaffold templates after adding new modules |
 | **AI code review** | `specsync check --json` | Feed errors to LLM for spec updates |
 | **Coverage gate** | `specsync check --strict --require-coverage 100` | CI enforces full coverage |

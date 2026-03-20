@@ -37,8 +37,8 @@ specsync init                   # create specsync.json
 specsync check                  # validate specs against code
 specsync coverage               # see what's covered
 specsync generate               # scaffold specs for unspecced modules
-specsync generate --ai          # AI-powered specs (reads code, writes content)
-specsync generate --ai --provider anthropic  # use Anthropic API directly
+specsync generate --provider auto           # AI-powered specs (auto-detect provider)
+specsync generate --provider anthropic      # use Anthropic API directly
 specsync score                  # quality-score your specs (0–100)
 specsync mcp                    # start MCP server for AI agents
 specsync watch                  # re-validate on file changes

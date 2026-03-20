@@ -1174,7 +1174,6 @@ fn provider_flag_unknown_provider_errors() {
 
     specsync()
         .arg("generate")
-        .arg("--ai")
         .arg("--provider")
         .arg("nonexistent")
         .arg("--root")
@@ -1185,8 +1184,8 @@ fn provider_flag_unknown_provider_errors() {
 }
 
 #[test]
-fn provider_flag_implies_ai() {
-    // --provider without --ai should still enable AI mode (and fail if binary not found)
+fn provider_flag_enables_ai() {
+    // --provider enables AI mode (and fails if binary not found)
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);
 
@@ -1223,7 +1222,8 @@ fn ai_provider_config_field_is_respected() {
 
     specsync()
         .arg("generate")
-        .arg("--ai")
+        .arg("--provider")
+        .arg("auto")
         .arg("--root")
         .arg(&root)
         .assert()
@@ -1260,7 +1260,8 @@ fn ai_command_overrides_ai_provider() {
     // The command succeeds (falls back to template) but stderr shows AI was attempted & failed
     specsync()
         .arg("generate")
-        .arg("--ai")
+        .arg("--provider")
+        .arg("auto")
         .arg("--root")
         .arg(&root)
         .assert()
@@ -1322,7 +1323,8 @@ fn ai_model_config_used_with_ollama_provider() {
 
     specsync()
         .arg("generate")
-        .arg("--ai")
+        .arg("--provider")
+        .arg("auto")
         .arg("--root")
         .arg(&root)
         .assert()
@@ -1354,7 +1356,8 @@ fn anthropic_provider_requires_api_key() {
 
     specsync()
         .arg("generate")
-        .arg("--ai")
+        .arg("--provider")
+        .arg("auto")
         .arg("--root")
         .arg(&root)
         .env_remove("ANTHROPIC_API_KEY")
@@ -1385,7 +1388,8 @@ fn openai_provider_requires_api_key() {
 
     specsync()
         .arg("generate")
-        .arg("--ai")
+        .arg("--provider")
+        .arg("auto")
         .arg("--root")
         .arg(&root)
         .env_remove("OPENAI_API_KEY")
@@ -1494,7 +1498,8 @@ fn ai_api_key_config_field_used_for_anthropic() {
     // Should succeed (API call fails, falls back to template)
     specsync()
         .arg("generate")
-        .arg("--ai")
+        .arg("--provider")
+        .arg("auto")
         .arg("--root")
         .arg(&root)
         .env_remove("ANTHROPIC_API_KEY")

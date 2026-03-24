@@ -162,7 +162,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
 
     // ─── Content Depth (0-20) ────────────────────────────────────────
     let mut depth_points = 0u32;
-    let todo_count = body.matches("TODO").count() + body.matches("todo").count();
+    let todo_count = count_placeholder_todos(body);
     let placeholder_count = body.matches("<!-- ").count();
 
     // Check each required section has meaningful content
@@ -233,6 +233,30 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     };
 
     score
+}
+
+/// Count TODO/todo occurrences that are actual placeholders, ignoring:
+/// - Occurrences inside fenced code blocks (``` ... ```)
+/// - Compound terms like "TODO-marker", "TODO_detection", "TODOs"
+/// - Descriptive prose where TODO is used as a concept (e.g., "TODO comments", "detect TODO")
+fn count_placeholder_todos(body: &str) -> usize {
+    use regex::Regex;
+
+    // Strip fenced code blocks
+    let code_block_re = Regex::new(r"(?s)```[^\n]*\n.*?```").unwrap();
+    let stripped = code_block_re.replace_all(body, "");
+
+    // Placeholder pattern: line is just "TODO"/"todo", or starts with "TODO:"
+    let todo_line_re = Regex::new(r"(?i)^TODO\s*(:.*)?$").unwrap();
+
+    let mut count = 0;
+    for line in stripped.lines() {
+        let trimmed = line.trim().trim_start_matches("- ").trim_start_matches("* ");
+        if todo_line_re.is_match(trimmed) {
+            count += 1;
+        }
+    }
+    count
 }
 
 /// Count how many required sections have meaningful content (more than just a heading).

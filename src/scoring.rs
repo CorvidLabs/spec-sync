@@ -251,7 +251,10 @@ fn count_placeholder_todos(body: &str) -> usize {
 
     let mut count = 0;
     for line in stripped.lines() {
-        let trimmed = line.trim().trim_start_matches("- ").trim_start_matches("* ");
+        let trimmed = line
+            .trim()
+            .trim_start_matches("- ")
+            .trim_start_matches("* ");
         if todo_line_re.is_match(trimmed) {
             count += 1;
         }

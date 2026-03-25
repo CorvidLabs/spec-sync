@@ -70,7 +70,19 @@ pub fn extract_exports_with_resolver(
         if let Some(name) = caps.get(1).or_else(|| caps.get(2)) {
             let n = name.as_str();
             // Skip keyword-like default exports (e.g. `export default new ...`)
-            if !["new", "function", "class", "abstract", "async", "true", "false", "null", "undefined"].contains(&n) {
+            if ![
+                "new",
+                "function",
+                "class",
+                "abstract",
+                "async",
+                "true",
+                "false",
+                "null",
+                "undefined",
+            ]
+            .contains(&n)
+            {
                 symbols.push(n.to_string());
             }
         }

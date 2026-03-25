@@ -1,6 +1,6 @@
 use crate::ai::{self, ResolvedProvider};
 use crate::exports::{has_extension, is_test_file};
-use crate::types::{CoverageReport, SpecSyncConfig};
+use crate::types::{CoverageReport, Language, SpecSyncConfig};
 use colored::Colorize;
 use std::fs;
 use std::io::Write;
@@ -110,6 +110,349 @@ depends_on: []
 |------|--------|--------|
 "#;
 
+/// Detect the primary language of a set of source files.
+fn detect_primary_language(files: &[String]) -> Option<Language> {
+    let mut counts = std::collections::HashMap::new();
+    for file in files {
+        let ext = Path::new(file)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
+        if let Some(lang) = Language::from_extension(ext) {
+            *counts.entry(lang).or_insert(0usize) += 1;
+        }
+    }
+    counts.into_iter().max_by_key(|(_, c)| *c).map(|(l, _)| l)
+}
+
+/// Get a language-specific spec template.
+fn language_template(lang: Language) -> &'static str {
+    match lang {
+        Language::Swift => {
+            r#"---
+module: module-name
+version: 1
+status: draft
+files: []
+db_tables: []
+depends_on: []
+---
+
+# Module Name
+
+## Purpose
+
+<!-- TODO: describe what this module does -->
+
+## Public API
+
+### Types
+
+| Type | Kind | Description |
+|------|------|-------------|
+
+### Protocols
+
+| Protocol | Description |
+|----------|-------------|
+
+## Invariants
+
+1. <!-- TODO -->
+
+## Behavioral Examples
+
+### Scenario: TODO
+
+- **Given** precondition
+- **When** action
+- **Then** result
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+
+## Dependencies
+
+### Consumes
+
+| Module | What is used |
+|--------|-------------|
+
+### Consumed By
+
+| Module | What is used |
+|--------|-------------|
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+"#
+        }
+        Language::Rust => {
+            r#"---
+module: module-name
+version: 1
+status: draft
+files: []
+db_tables: []
+depends_on: []
+---
+
+# Module Name
+
+## Purpose
+
+<!-- TODO: describe what this module does -->
+
+## Public API
+
+### Structs & Enums
+
+| Type | Description |
+|------|-------------|
+
+### Traits
+
+| Trait | Description |
+|-------|-------------|
+
+### Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+
+## Invariants
+
+1. <!-- TODO -->
+
+## Behavioral Examples
+
+### Scenario: TODO
+
+- **Given** precondition
+- **When** action
+- **Then** result
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+
+## Dependencies
+
+### Consumes
+
+| Crate/Module | What is used |
+|-------------|-------------|
+
+### Consumed By
+
+| Module | What is used |
+|--------|-------------|
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+"#
+        }
+        Language::Kotlin | Language::Java => {
+            r#"---
+module: module-name
+version: 1
+status: draft
+files: []
+db_tables: []
+depends_on: []
+---
+
+# Module Name
+
+## Purpose
+
+<!-- TODO: describe what this module does -->
+
+## Public API
+
+### Classes & Interfaces
+
+| Type | Kind | Description |
+|------|------|-------------|
+
+### Functions
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+
+## Invariants
+
+1. <!-- TODO -->
+
+## Behavioral Examples
+
+### Scenario: TODO
+
+- **Given** precondition
+- **When** action
+- **Then** result
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+
+## Dependencies
+
+### Consumes
+
+| Module | What is used |
+|--------|-------------|
+
+### Consumed By
+
+| Module | What is used |
+|--------|-------------|
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+"#
+        }
+        Language::Go => {
+            r#"---
+module: module-name
+version: 1
+status: draft
+files: []
+db_tables: []
+depends_on: []
+---
+
+# Module Name
+
+## Purpose
+
+<!-- TODO: describe what this package does -->
+
+## Public API
+
+### Types
+
+| Type | Kind | Description |
+|------|------|-------------|
+
+### Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+
+## Invariants
+
+1. <!-- TODO -->
+
+## Behavioral Examples
+
+### Scenario: TODO
+
+- **Given** precondition
+- **When** action
+- **Then** result
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+
+## Dependencies
+
+### Consumes
+
+| Package | What is used |
+|---------|-------------|
+
+### Consumed By
+
+| Package | What is used |
+|---------|-------------|
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+"#
+        }
+        Language::Python => {
+            r#"---
+module: module-name
+version: 1
+status: draft
+files: []
+db_tables: []
+depends_on: []
+---
+
+# Module Name
+
+## Purpose
+
+<!-- TODO: describe what this module does -->
+
+## Public API
+
+### Classes
+
+| Class | Description |
+|-------|-------------|
+
+### Functions
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+
+## Invariants
+
+1. <!-- TODO -->
+
+## Behavioral Examples
+
+### Scenario: TODO
+
+- **Given** precondition
+- **When** action
+- **Then** result
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+
+## Dependencies
+
+### Consumes
+
+| Module | What is used |
+|--------|-------------|
+
+### Consumed By
+
+| Module | What is used |
+|--------|-------------|
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+"#
+        }
+        // TypeScript, C#, Dart, and fallback use the default template
+        _ => DEFAULT_TEMPLATE,
+    }
+}
+
 /// Find source files in a module directory.
 fn find_module_source_files(dir: &Path, config: &SpecSyncConfig) -> Vec<String> {
     let mut results = Vec::new();
@@ -133,11 +476,27 @@ fn find_module_source_files(dir: &Path, config: &SpecSyncConfig) -> Vec<String> 
         .collect()
 }
 
-/// Find source files for a module, checking subdirectories first, then flat files.
+/// Find source files for a module, checking config module definitions first,
+/// then subdirectories, then flat files.
 fn find_files_for_module(root: &Path, module_name: &str, config: &SpecSyncConfig) -> Vec<String> {
     let mut module_files = Vec::new();
 
-    // First: look for subdirectory-based modules (src/module_name/)
+    // First: check user-defined module definitions in specsync.json
+    if let Some(module_def) = config.modules.get(module_name) {
+        for file in &module_def.files {
+            let full_path = root.join(file);
+            if full_path.exists() {
+                module_files.push(full_path.to_string_lossy().replace('\\', "/"));
+            } else if full_path.is_dir() {
+                module_files.extend(find_module_source_files(&full_path, config));
+            }
+        }
+        if !module_files.is_empty() {
+            return module_files;
+        }
+    }
+
+    // Second: look for subdirectory-based modules (src/module_name/)
     for src_dir in &config.source_dirs {
         let module_dir = root.join(src_dir).join(module_name);
         let files = find_module_source_files(&module_dir, config);
@@ -170,7 +529,7 @@ fn find_files_for_module(root: &Path, module_name: &str, config: &SpecSyncConfig
     module_files
 }
 
-/// Generate a spec from a template.
+/// Generate a spec from a template, using language-aware defaults.
 fn generate_spec(
     module_name: &str,
     source_files: &[String],
@@ -179,9 +538,14 @@ fn generate_spec(
 ) -> String {
     let template_path = specs_dir.join("_template.spec.md");
     let template = if template_path.exists() {
+        // User-provided template takes priority
         fs::read_to_string(&template_path).unwrap_or_else(|_| DEFAULT_TEMPLATE.to_string())
     } else {
-        DEFAULT_TEMPLATE.to_string()
+        // Use language-specific template
+        match detect_primary_language(source_files) {
+            Some(lang) => language_template(lang).to_string(),
+            None => DEFAULT_TEMPLATE.to_string(),
+        }
     };
 
     let title = module_name

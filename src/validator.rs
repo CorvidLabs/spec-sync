@@ -1,5 +1,5 @@
-use crate::config::default_schema_pattern;
-use crate::exports::{get_exported_symbols, has_extension, is_test_file};
+use crate::config::{default_schema_pattern, discover_manifest_modules};
+use crate::exports::{get_exported_symbols_with_level, has_extension, is_test_file};
 use crate::parser::{get_missing_sections, get_spec_symbols, parse_frontmatter};
 use crate::types::{CoverageReport, SpecSyncConfig, ValidationResult};
 use regex::Regex;
@@ -248,7 +248,7 @@ pub fn validate_spec(
         let mut all_exports: Vec<String> = Vec::new();
         for file in &fm.files {
             let full_path = root.join(file);
-            let exports = get_exported_symbols(&full_path);
+            let exports = get_exported_symbols_with_level(&full_path, config.export_level);
             all_exports.extend(exports);
         }
 
@@ -657,6 +657,23 @@ pub fn compute_coverage(
 
     let mut unspecced_modules = Vec::new();
     let mut seen_modules: HashSet<String> = HashSet::new();
+
+    // User-defined modules from specsync.json take priority
+    if !config.modules.is_empty() {
+        for name in config.modules.keys() {
+            if !spec_modules.contains(name) && seen_modules.insert(name.clone()) {
+                unspecced_modules.push(name.clone());
+            }
+        }
+    }
+
+    // Then: detect modules from manifest files (Package.swift, Cargo.toml, etc.)
+    let manifest = discover_manifest_modules(root);
+    for name in manifest.modules.keys() {
+        if !spec_modules.contains(name) && seen_modules.insert(name.clone()) {
+            unspecced_modules.push(name.clone());
+        }
+    }
 
     // Detect subdirectory-based modules
     for src_dir in &config.source_dirs {

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-03-25
+
+### Fixed
+
+- **Rust export extractor** — strip raw strings, char literals with `"`, and multi-line string literals before scanning for `pub` declarations. Fixes false positives from test data inside `r#"..."#` blocks, and false negatives where `'"'` char literals confused the string regex into consuming subsequent source code.
+- **CLI spec** — added spec coverage for `main.rs` (CLI entry point).
+- **Exports spec** — expanded to 100% file coverage across all language extractors.
+
 ## [2.1.0] - 2026-03-24
 
 ### Added

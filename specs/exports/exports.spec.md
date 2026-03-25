@@ -35,6 +35,7 @@ Language-aware export extraction from source files. Auto-detects the programming
 | `is_source_file` | `file_path: &Path` | `bool` | Check if a file extension belongs to a supported source language |
 | `has_extension` | `file_path: &Path, extensions: &[String]` | `bool` | Check if file matches specific extensions, or any supported language if extensions is empty |
 | `extract_exports` | `content: &str` | `Vec<String>` | Per-language backend function that parses source text and returns exported symbol names (one per backend file) |
+| `extract_exports_with_resolver` | `content: &str, resolver: Option<&ImportResolver>` | `Vec<String>` | TypeScript-specific: extract exports with optional wildcard re-export resolution via file resolver callback |
 
 ### Language Backend Functions
 
@@ -42,7 +43,7 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 
 | Backend | File | Extraction Strategy |
 |---------|------|-------------------|
-| TypeScript/JS | `typescript.rs` | `export function/class/interface/type/const/enum`, re-exports (`export { }`, `export type { }`) with `as` alias support; strips `//` and `/* */` comments |
+| TypeScript/JS | `typescript.rs` | `export function/class/interface/type/const/enum`, re-exports (`export { }`, `export type { }`), wildcard re-exports (`export * from`, `export * as Ns from`), default exports (`export default class/function`); with `as` alias support; strips `//` and `/* */` comments |
 | Python | `python.rs` | Uses `__all__` list if present; otherwise top-level `def`/`class`/`async def` not prefixed with `_` |
 | Rust | `rust_lang.rs` | `pub fn/struct/enum/trait/type/const/static/mod` including `pub(crate)` and `pub async/unsafe`; strips comments |
 | Go | `go.rs` | Top-level `func/type/var/const` starting with uppercase letter; also exported methods `func (receiver) Name()`; strips comments |
@@ -60,7 +61,11 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 4. `has_extension` with an empty extensions list delegates to `is_source_file` (matches all supported languages)
 5. Test file detection uses language-specific patterns (e.g. `.test.ts`, `_test.go`, `Test.java`)
 6. Each language backend uses `LazyLock<Regex>` for compiled patterns — compiled once, reused across calls
-7. TypeScript backend handles `export function/class/type/const/enum/interface` and re-exports
+7. TypeScript backend handles `export function/class/type/const/enum/interface`, re-exports, wildcard re-exports (`export * from`), namespace re-exports (`export * as Ns from`), and default exports
+7a. Wildcard `export * from './module'` is resolved via `resolve_ts_import` which tries .ts/.tsx/.js/.jsx/.mts/.cts extensions and /index.ts etc.
+7b. Wildcard resolution is one level deep — resolved modules are parsed without a resolver to avoid infinite loops
+7c. `export * as Ns from './module'` emits the namespace name (Ns) as the export, not the individual symbols
+7d. Without a resolver (e.g. in unit tests), wildcard `export *` lines are silently skipped
 8. Rust backend extracts `pub fn/struct/enum/trait/type/const/static/mod` items
 9. Go backend extracts uppercase (exported) identifiers and methods
 10. Python backend uses `__all__` if present, otherwise top-level non-underscore `def/class`
@@ -114,6 +119,30 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 - **Given** a `.ts` file with `export { Foo as Bar }`
 - **When** `get_exported_symbols(path)` is called
 - **Then** includes "Bar" (the alias), not "Foo"
+
+### Scenario: Wildcard re-export from barrel file
+
+- **Given** a `.ts` barrel file containing `export * from './helpers'` and `helpers.ts` exports `helperA` and `helperB`
+- **When** `get_exported_symbols(barrel_path)` is called
+- **Then** includes "helperA" and "helperB" (resolved via `resolve_ts_import`)
+
+### Scenario: Namespace re-export
+
+- **Given** a `.ts` file containing `export * as Utils from './utils'`
+- **When** `get_exported_symbols(path)` is called
+- **Then** includes "Utils" (the namespace name), not the individual exports from `./utils`
+
+### Scenario: Default export
+
+- **Given** a `.ts` file containing `export default class MyApp {}`
+- **When** `get_exported_symbols(path)` is called
+- **Then** includes "MyApp"
+
+### Scenario: Wildcard resolution is one level deep
+
+- **Given** `top.ts` has `export * from './middle'` and `middle.ts` has `export * from './bottom'`
+- **When** `get_exported_symbols(top_path)` is called
+- **Then** includes symbols directly exported by `middle.ts` but NOT symbols from `bottom.ts` (no recursive resolution)
 
 ### Scenario: Comments are stripped before extraction
 

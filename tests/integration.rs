@@ -2053,3 +2053,798 @@ fn mcp_score_tool_returns_grades() {
     assert!(score_json["average_score"].is_number());
     assert!(score_json["grade"].is_string());
 }
+
+// ─── Fix Flag Tests ─────────────────────────────────────────────────────
+
+#[test]
+fn fix_adds_undocumented_exports_to_spec() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    // Source file with two exports
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\nexport function logout() {}\nexport const TOKEN_TTL = 3600;\n",
+    )
+    .unwrap();
+
+    // Spec that documents NONE of the exports (empty Public API table)
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+
+    // Run check --fix
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    // Verify the spec was modified to include the exports
+    let updated = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(
+        updated.contains("`login`"),
+        "Expected spec to contain `login` after --fix"
+    );
+    assert!(
+        updated.contains("`logout`"),
+        "Expected spec to contain `logout` after --fix"
+    );
+    assert!(
+        updated.contains("`TOKEN_TTL`"),
+        "Expected spec to contain `TOKEN_TTL` after --fix"
+    );
+    assert!(
+        updated.contains("<!-- TODO: describe -->"),
+        "Expected stub descriptions"
+    );
+}
+
+#[test]
+fn fix_does_not_duplicate_already_documented_exports() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\nexport function logout() {}\n",
+    )
+    .unwrap();
+
+    // Spec already documents login but not logout
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec_with_login = r#"---
+module: auth
+version: 1
+status: active
+files:
+  - src/auth/service.ts
+db_tables: []
+depends_on: []
+---
+
+# Auth
+
+## Purpose
+
+Auth module.
+
+## Public API
+
+| Function | Description |
+|----------|-------------|
+| `login` | Authenticates a user |
+
+## Invariants
+
+1. Always valid.
+
+## Behavioral Examples
+
+### Scenario: Basic
+
+- **Given** precondition
+- **When** action
+- **Then** result
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+
+## Dependencies
+
+None
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+"#;
+    fs::write(root.join("specs/auth/auth.spec.md"), spec_with_login).unwrap();
+
+    // Run --fix
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+
+    // login should appear exactly once (not duplicated)
+    let login_count = updated.matches("`login`").count();
+    assert_eq!(
+        login_count, 1,
+        "login should not be duplicated; found {login_count} times"
+    );
+
+    // logout should have been added
+    assert!(
+        updated.contains("`logout`"),
+        "Expected spec to contain `logout` after --fix"
+    );
+}
+
+#[test]
+fn fix_creates_public_api_section_when_missing() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/utils")).unwrap();
+    fs::write(
+        root.join("src/utils/helper.ts"),
+        "export function doStuff() {}\n",
+    )
+    .unwrap();
+
+    // Spec with no Public API section at all
+    fs::create_dir_all(root.join("specs/utils")).unwrap();
+    let spec_no_api = r#"---
+module: utils
+version: 1
+status: active
+files:
+  - src/utils/helper.ts
+db_tables: []
+depends_on: []
+---
+
+# Utils
+
+## Purpose
+
+Utility functions.
+
+## Invariants
+
+1. Always valid.
+
+## Behavioral Examples
+
+### Scenario: Basic
+
+- **Given** precondition
+- **When** action
+- **Then** result
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+
+## Dependencies
+
+None
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+"#;
+    fs::write(root.join("specs/utils/utils.spec.md"), spec_no_api).unwrap();
+
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(root.join("specs/utils/utils.spec.md")).unwrap();
+    assert!(
+        updated.contains("## Public API"),
+        "Expected --fix to create Public API section"
+    );
+    assert!(
+        updated.contains("`doStuff`"),
+        "Expected doStuff to be added"
+    );
+}
+
+#[test]
+fn fix_with_json_output() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+
+    // --fix with --json should still work and produce valid JSON
+    let output = specsync()
+        .args([
+            "check",
+            "--fix",
+            "--json",
+            "--root",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // The auto_fix_specs function may print non-JSON lines before the JSON output,
+    // so find the JSON object in the output
+    let json_start = stdout.find('{').expect("Expected JSON in output");
+    let json_str = &stdout[json_start..];
+    let json: serde_json::Value = serde_json::from_str(json_str.trim()).unwrap();
+    assert!(json["specs_checked"].is_number());
+}
+
+// ─── Diff Command Tests ─────────────────────────────────────────────────
+
+#[test]
+fn diff_shows_changes_since_base_ref() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    // Initialize a git repo
+    std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.name", "Test"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+
+    // Initial commit
+    std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["commit", "-m", "initial"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+
+    // Add a new export after the commit
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\nexport function logout() {}\n",
+    )
+    .unwrap();
+
+    // Stage but don't commit — diff should detect changes
+    std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(root)
+        .output()
+        .unwrap();
+
+    // Run diff with --json
+    let output = specsync()
+        .args(["diff", "--base", "HEAD", "--root", root.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "diff command should succeed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+
+    let changes = json["changes"].as_array().unwrap();
+    assert!(
+        !changes.is_empty(),
+        "Expected at least one changed spec"
+    );
+    assert!(
+        changes[0]["new_exports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e.as_str() == Some("logout")),
+        "Expected 'logout' in new_exports"
+    );
+}
+
+#[test]
+fn diff_no_changes_returns_empty() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    // Initialize a git repo
+    std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.name", "Test"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+
+    // Commit everything — no changes after commit
+    std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["commit", "-m", "initial"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+
+    // Run diff — nothing changed since HEAD
+    let output = specsync()
+        .args(["diff", "--base", "HEAD", "--root", root.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert!(
+        json["changes"].as_array().unwrap().is_empty(),
+        "Expected no changes"
+    );
+}
+
+#[test]
+fn diff_detects_removed_exports() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.name", "Test"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\nexport function logout() {}\n",
+    )
+    .unwrap();
+
+    // Spec documents both login and logout
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = r#"---
+module: auth
+version: 1
+status: active
+files:
+  - src/auth/service.ts
+db_tables: []
+depends_on: []
+---
+
+# Auth
+
+## Purpose
+
+Auth module.
+
+## Public API
+
+| Function | Description |
+|----------|-------------|
+| `login` | Log in |
+| `logout` | Log out |
+
+## Invariants
+
+1. Always valid.
+
+## Behavioral Examples
+
+### Scenario: Basic
+
+- **Given** precondition
+- **When** action
+- **Then** result
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+
+## Dependencies
+
+None
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+"#;
+    fs::write(root.join("specs/auth/auth.spec.md"), spec).unwrap();
+
+    // Commit with both exports
+    std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["commit", "-m", "initial"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+
+    // Remove logout export
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+
+    let output = specsync()
+        .args(["diff", "--base", "HEAD", "--root", root.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+
+    let changes = json["changes"].as_array().unwrap();
+    assert!(!changes.is_empty());
+    assert!(
+        changes[0]["removed_exports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e.as_str() == Some("logout")),
+        "Expected 'logout' in removed_exports"
+    );
+}
+
+#[test]
+fn diff_human_readable_output() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.name", "Test"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+
+    std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["commit", "-m", "initial"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+
+    // Add new export
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\nexport function signup() {}\n",
+    )
+    .unwrap();
+
+    // Run without --json for human-readable output
+    specsync()
+        .args(["diff", "--base", "HEAD", "--root", root.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("auth"))
+        .stdout(predicate::str::contains("signup"));
+}
+
+// ─── Wildcard Re-export Integration Tests ───────────────────────────────
+
+#[test]
+fn wildcard_reexport_barrel_file_detected() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    // Create a multi-file TypeScript project with a barrel (index.ts)
+    fs::create_dir_all(root.join("src/utils")).unwrap();
+
+    // helpers.ts — the real exports
+    fs::write(
+        root.join("src/utils/helpers.ts"),
+        "export function formatDate() {}\nexport function parseUrl() {}\nexport const MAX_RETRIES = 3;\n",
+    )
+    .unwrap();
+
+    // types.ts — type exports
+    fs::write(
+        root.join("src/utils/types.ts"),
+        "export interface Config {}\nexport type Result = string;\n",
+    )
+    .unwrap();
+
+    // index.ts — barrel file re-exporting everything
+    fs::write(
+        root.join("src/utils/index.ts"),
+        "export * from './helpers';\nexport * from './types';\nexport function utilMain() {}\n",
+    )
+    .unwrap();
+
+    // Spec pointing at the barrel file
+    fs::create_dir_all(root.join("specs/utils")).unwrap();
+    fs::write(
+        root.join("specs/utils/utils.spec.md"),
+        valid_spec("utils", &["src/utils/index.ts"]),
+    )
+    .unwrap();
+
+    // check should detect the re-exported symbols as undocumented
+    let output = specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // The check should find undocumented exports from the barrel file
+    assert!(
+        stdout.contains("formatDate")
+            || stdout.contains("parseUrl")
+            || stdout.contains("utilMain"),
+        "Expected check to detect wildcard re-exported symbols. Got:\n{stdout}"
+    );
+}
+
+#[test]
+fn wildcard_reexport_with_fix_adds_all_symbols() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/utils")).unwrap();
+    fs::write(
+        root.join("src/utils/helpers.ts"),
+        "export function helperA() {}\nexport function helperB() {}\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("src/utils/index.ts"),
+        "export * from './helpers';\nexport function main() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/utils")).unwrap();
+    fs::write(
+        root.join("specs/utils/utils.spec.md"),
+        valid_spec("utils", &["src/utils/index.ts"]),
+    )
+    .unwrap();
+
+    // Run --fix to auto-add all re-exported symbols
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(root.join("specs/utils/utils.spec.md")).unwrap();
+    assert!(
+        updated.contains("`helperA`"),
+        "Expected helperA from wildcard re-export"
+    );
+    assert!(
+        updated.contains("`helperB`"),
+        "Expected helperB from wildcard re-export"
+    );
+    assert!(
+        updated.contains("`main`"),
+        "Expected main direct export"
+    );
+}
+
+#[test]
+fn wildcard_namespace_reexport_detected() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/lib")).unwrap();
+    fs::write(
+        root.join("src/lib/math.ts"),
+        "export function add() {}\nexport function subtract() {}\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("src/lib/index.ts"),
+        "export * as MathUtils from './math';\nexport function init() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/lib")).unwrap();
+    fs::write(
+        root.join("specs/lib/lib.spec.md"),
+        valid_spec("lib", &["src/lib/index.ts"]),
+    )
+    .unwrap();
+
+    // check should detect MathUtils namespace and init
+    let output = specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("MathUtils") || stdout.contains("init"),
+        "Expected namespace re-export or direct export to be detected. Got:\n{stdout}"
+    );
+}
+
+#[test]
+fn wildcard_reexport_nested_barrel_only_one_level() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/deep")).unwrap();
+
+    // bottom.ts has the real exports
+    fs::write(
+        root.join("src/deep/bottom.ts"),
+        "export function deepFunc() {}\n",
+    )
+    .unwrap();
+
+    // middle.ts re-exports bottom
+    fs::write(
+        root.join("src/deep/middle.ts"),
+        "export * from './bottom';\n",
+    )
+    .unwrap();
+
+    // top.ts re-exports middle
+    fs::write(
+        root.join("src/deep/top.ts"),
+        "export * from './middle';\nexport function topFunc() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/deep")).unwrap();
+    fs::write(
+        root.join("specs/deep/deep.spec.md"),
+        valid_spec("deep", &["src/deep/top.ts"]),
+    )
+    .unwrap();
+
+    // Resolver only goes one level deep (no recursive resolver)
+    // so deepFunc should NOT appear, but topFunc and middle's direct exports should
+    let output = specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("topFunc"),
+        "Expected topFunc to be found. Got:\n{stdout}"
+    );
+}

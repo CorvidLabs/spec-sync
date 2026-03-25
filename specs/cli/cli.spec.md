@@ -38,7 +38,7 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 
 | Command | Description | Key Flags |
 |---------|-------------|-----------|
-| check | Validate all specs against source code (default when no subcommand given) | --strict, --require-coverage N, --json |
+| check | Validate all specs against source code (default when no subcommand given) | --strict, --require-coverage N, --json, --fix |
 | coverage | Show file and module coverage report | --strict, --require-coverage N, --json |
 | generate | Scaffold spec files for unspecced modules | --provider PROVIDER (AI mode: auto/claude/anthropic/openai/ollama/copilot) |
 | init | Create a specsync.json config file with auto-detected source dirs | — |
@@ -48,6 +48,7 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 | add-spec | Scaffold a new spec with companion files (tasks.md, context.md) | name positional arg |
 | init-registry | Generate a specsync-registry.toml for cross-project references | --name |
 | resolve | Resolve cross-project spec references in depends_on | --remote (enables network fetches) |
+| diff | Show export changes since a git ref (useful for CI/PR comments) | --base REF (default: HEAD), --json |
 | hooks install | Install agent instructions and/or git hooks | --claude, --cursor, --copilot, --precommit, --claude-code-hook |
 | hooks uninstall | Remove previously installed hooks | --claude, --cursor, --copilot, --precommit, --claude-code-hook |
 | hooks status | Show installation status of all hooks | — |
@@ -75,6 +76,8 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 - **cmd_init_registry** — Generate specsync-registry.toml from existing specs
 - **cmd_resolve** — Resolve local and cross-project depends_on references
 - **cmd_hooks** — Dispatch to hooks install/uninstall/status
+- **cmd_diff** — Compare exports across git refs, show new/removed exports per spec
+- **auto_fix_specs** — Scan source files for undocumented exports and auto-add stubs to spec Public API tables
 - **collect_hook_targets** — Convert boolean flags to Vec of HookTarget
 - **load_and_discover** — Load config and find all spec files (filtering _-prefixed templates)
 - **run_validation** — Validate all specs, return counts and collected error/warning strings
@@ -99,6 +102,11 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 11. `load_and_discover` filters out spec files starting with `_` (template files)
 12. Exit codes: 0 = success, 1 = errors (or warnings in strict mode, or coverage below threshold)
 13. `collect_hook_targets` with no flags set returns an empty vec, meaning "all targets"
+14. `--fix` only adds exports not already documented in the spec (no duplicates)
+15. `--fix` modifies spec files on disk — validation runs after fix so the fixed specs are re-checked
+16. `--fix` with `--json` suppresses the human-readable fix summary but still writes the fix
+17. `cmd_diff` shells out to `git diff --name-only <base>` to detect changed files
+18. `cmd_diff` only reports specs whose `files:` frontmatter list intersects the changed file set
 
 ## Behavioral Examples
 
@@ -144,6 +152,42 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 - **When** `specsync resolve` is run (without `--remote`)
 - **Then** lists the refs but does not verify them against remote registries
 
+### Scenario: Fix auto-adds undocumented exports
+
+- **Given** a spec's source files have exports not documented in the Public API section
+- **When** `specsync check --fix` is run
+- **Then** stub rows (`| \`name\` | <!-- TODO: describe --> |`) are appended to the Public API section and the spec file is written to disk
+
+### Scenario: Fix does not duplicate already-documented exports
+
+- **Given** a spec already documents `login` but not `logout`
+- **When** `specsync check --fix` is run
+- **Then** only `logout` is added; `login` is not duplicated
+
+### Scenario: Fix creates Public API section when missing
+
+- **Given** a spec has no `## Public API` section
+- **When** `specsync check --fix` is run
+- **Then** a new `## Public API` section with a table header and stub rows is appended to the spec
+
+### Scenario: Diff shows new exports
+
+- **Given** a source file has a new export added since the base ref
+- **When** `specsync diff --base HEAD` is run
+- **Then** the new export appears in `new_exports` for the affected spec
+
+### Scenario: Diff shows removed exports
+
+- **Given** a source file has an export removed since the base ref but the spec still documents it
+- **When** `specsync diff --base HEAD` is run
+- **Then** the removed export appears in `removed_exports` for the affected spec
+
+### Scenario: Diff with no changes
+
+- **Given** no source files have changed since the base ref
+- **When** `specsync diff --base HEAD` is run
+- **Then** output is empty (`{"changes":[]}` in JSON mode)
+
 ### Scenario: Hooks install with no flags
 
 - **Given** no specific hook flags are passed
@@ -171,7 +215,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 | config | `load_config`, `detect_source_dirs` |
 | parser | `parse_frontmatter` |
 | validator | `validate_spec`, `find_spec_files`, `compute_coverage`, `get_schema_table_names`, `is_cross_project_ref`, `parse_cross_project_ref` |
-| exports | `has_extension` |
+| exports | `has_extension`, `get_exported_symbols` (used by auto_fix_specs and cmd_diff) |
 | generator | `generate_specs_for_unspecced_modules`, `generate_specs_for_unspecced_modules_paths`, `generate_companion_files_for_spec` |
 | ai | `resolve_ai_provider` |
 | scoring | `score_spec`, `compute_project_score`, `SpecScore` |

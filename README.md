@@ -33,7 +33,7 @@ Auto-detected from file extensions. Same spec format for all.
 
 | Language | Exports Detected | Test Exclusions |
 |----------|-----------------|-----------------|
-| **TypeScript/JS** | `export function/class/type/const/enum`, re-exports | `.test.ts`, `.spec.ts`, `.d.ts` |
+| **TypeScript/JS** | `export function/class/type/const/enum`, re-exports, `export *` wildcard resolution | `.test.ts`, `.spec.ts`, `.d.ts` |
 | **Rust** | `pub fn/struct/enum/trait/type/const/static/mod` | `#[cfg(test)]` modules |
 | **Go** | Uppercase `func/type/var/const`, methods | `_test.go` |
 | **Python** | `__all__`, or top-level `def/class` (no `_` prefix) | `test_*.py`, `*_test.py` |
@@ -99,6 +99,9 @@ cargo install --git https://github.com/CorvidLabs/spec-sync
 ```bash
 specsync init                              # Create specsync.json config
 specsync check                             # Validate specs against code
+specsync check --fix                       # Auto-add undocumented exports as stubs
+specsync diff                              # Show exports added/removed since HEAD
+specsync diff HEAD~5                       # Compare against a specific ref
 specsync coverage                          # Show file/module coverage
 specsync generate                          # Scaffold specs for unspecced modules
 specsync generate --provider auto           # AI-powered specs (auto-detect provider)
@@ -254,7 +257,8 @@ specsync [command] [flags]
 
 | Command | Description |
 |---------|-------------|
-| `check` | Validate all specs against source code **(default)** |
+| `check` | Validate all specs against source code **(default)**. `--fix` auto-adds missing exports as stubs |
+| `diff` | Show exports added/removed since a git ref (default: `HEAD`) |
 | `coverage` | File and module coverage report |
 | `generate` | Scaffold specs for modules missing one (`--provider` for AI-powered content) |
 | `add-spec <name>` | Scaffold a single spec + companion files (`tasks.md`, `context.md`) |
@@ -274,6 +278,7 @@ specsync [command] [flags]
 | `--require-coverage N` | Fail if file coverage < N% |
 | `--root <path>` | Project root (default: cwd) |
 | `--provider <name>` | AI provider: `auto`, `anthropic`, `openai`, or `command`. `auto` detects installed provider. Without `--provider`, generate uses templates only. |
+| `--fix` | Auto-add undocumented exports as stub rows in spec Public API tables |
 | `--json` | Structured JSON output |
 
 ### Exit Codes
@@ -495,6 +500,7 @@ The generate command is the entry point for LLM-powered spec workflows:
 
 ```bash
 specsync generate --provider auto                   # AI writes specs from source code
+specsync check --fix                               # auto-add any missing exports as stubs
 specsync check --json                              # validate, get structured feedback
 # LLM fixes errors from JSON output                # iterate until clean
 specsync check --strict --require-coverage 100     # enforce full coverage in CI
@@ -514,7 +520,35 @@ Every output format is designed for machine consumption:
 
 // specsync coverage --json
 { "file_coverage": 85.33, "files_covered": 23, "files_total": 27, "loc_coverage": 79.12, "loc_covered": 4200, "loc_total": 5308, "modules": [...] }
+
+// specsync diff HEAD~3 --json
+{ "added": ["newFunction", "NewType"], "removed": ["oldHelper"], "spec": "specs/auth/auth.spec.md" }
 ```
+
+---
+
+## Auto-Fix & Diff
+
+### `--fix`: Keep specs in sync automatically
+
+```bash
+specsync check --fix              # Add undocumented exports as stub rows
+specsync check --fix --json       # Same, with structured JSON output
+```
+
+When `--fix` is used, any export found in code but missing from the spec gets appended as a stub row (`| \`name\` | | | *TODO* |`) to the Public API table. If no `## Public API` section exists, one is created. Already-documented exports are never duplicated.
+
+This turns spec maintenance from manual table editing into a review-and-refine workflow — run `--fix`, then fill in the descriptions.
+
+### `diff`: Track API changes across commits
+
+```bash
+specsync diff                     # Changes since HEAD (staged + unstaged)
+specsync diff HEAD~5              # Changes since 5 commits ago
+specsync diff v2.1.0              # Changes since a tag
+```
+
+Shows exports added and removed per spec file since the given git ref. Useful for code review, release notes, and CI drift detection.
 
 ---
 

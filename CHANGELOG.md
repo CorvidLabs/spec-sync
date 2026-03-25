@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-03-25
+
+### Added
+
+- **`--fix` flag for `check` command** — automatically adds undocumented exports as stub rows in the spec's Public API table. Creates a `## Public API` section if one doesn't exist. Works with `--json` for structured output of applied fixes. Turns spec maintenance from manual bookkeeping into a one-command operation.
+- **`diff` command** — compares current code exports against a git ref (default: `HEAD`) to show what's been added or removed since a given commit. Human-readable by default, `--json` for structured output. Essential for code review and CI drift detection.
+- **Wildcard re-export resolution** — TypeScript/JS barrel files using `export * from './module'` now have their re-exported symbols resolved and validated. Namespace re-exports (`export * as Ns from`) are detected as a single namespace export. Resolution is depth-limited to one level to prevent infinite recursion.
+
+### Changed
+
+- Spec quality scoring now accounts for `--fix` generated stubs (scored lower than hand-written descriptions).
+- Expanded integration test suite with 12 new tests covering `--fix`, `diff`, and wildcard re-exports (74 total integration tests, 131 total).
+- Updated `cli.spec.md` and `exports.spec.md` to 100% coverage for all new features.
+
 ## [2.1.1] - 2026-03-25
 
 ### Fixed
@@ -149,6 +163,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
+[2.2.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.2.0
 [2.1.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.1.1
 [2.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.1.0
 [2.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.0.0

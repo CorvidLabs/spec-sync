@@ -141,11 +141,40 @@ pub fn load_config(root: &Path) -> SpecSyncConfig {
     }
 }
 
+/// Known config keys in specsync.json (camelCase).
+const KNOWN_JSON_KEYS: &[&str] = &[
+    "specsDir",
+    "sourceDirs",
+    "schemaDir",
+    "schemaPattern",
+    "requiredSections",
+    "excludeDirs",
+    "excludePatterns",
+    "sourceExtensions",
+    "aiProvider",
+    "aiModel",
+    "aiCommand",
+    "aiApiKey",
+    "aiBaseUrl",
+    "aiTimeout",
+];
+
 fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
     let content = match fs::read_to_string(config_path) {
         Ok(c) => c,
         Err(_) => return SpecSyncConfig::default(),
     };
+
+    // Warn about unknown keys
+    if let Ok(raw) = serde_json::from_str::<serde_json::Value>(&content)
+        && let Some(obj) = raw.as_object()
+    {
+        for key in obj.keys() {
+            if !KNOWN_JSON_KEYS.contains(&key.as_str()) {
+                eprintln!("Warning: unknown key \"{key}\" in specsync.json (ignored)");
+            }
+        }
+    }
 
     match serde_json::from_str::<SpecSyncConfig>(&content) {
         Ok(config) => {
@@ -223,7 +252,9 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                 "required_sections" => {
                     config.required_sections = parse_toml_string_array(value);
                 }
-                _ => {} // Ignore unknown keys
+                _ => {
+                    eprintln!("Warning: unknown key \"{key}\" in .specsync.toml (ignored)");
+                }
             }
         }
     }

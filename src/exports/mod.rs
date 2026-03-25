@@ -26,7 +26,14 @@ pub fn get_exported_symbols(file_path: &Path) -> Vec<String> {
     };
 
     let symbols = match lang {
-        Language::TypeScript => typescript::extract_exports(&content),
+        Language::TypeScript => {
+            // Build a resolver that follows wildcard re-exports to sibling files
+            let base_dir = file_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+            let resolver = move |import_path: &str| {
+                resolve_ts_import(&base_dir, import_path)
+            };
+            typescript::extract_exports_with_resolver(&content, Some(&resolver))
+        }
         Language::Rust => rust_lang::extract_exports(&content),
         Language::Go => go::extract_exports(&content),
         Language::Python => python::extract_exports(&content),
@@ -43,6 +50,40 @@ pub fn get_exported_symbols(file_path: &Path) -> Vec<String> {
         .into_iter()
         .filter(|s| seen.insert(s.clone()))
         .collect()
+}
+
+/// Resolve a TypeScript/JavaScript relative import to file content.
+/// Tries common extensions: .ts, .tsx, .js, .jsx, /index.ts, /index.js
+fn resolve_ts_import(base_dir: &Path, import_path: &str) -> Option<String> {
+    // Only resolve relative imports
+    if !import_path.starts_with('.') {
+        return None;
+    }
+
+    let target = base_dir.join(import_path);
+
+    // Try exact path first (might already have extension)
+    if target.is_file() {
+        return std::fs::read_to_string(&target).ok();
+    }
+
+    // Try common extensions
+    for ext in &[".ts", ".tsx", ".js", ".jsx", ".mts", ".cts"] {
+        let with_ext = target.with_extension(ext.trim_start_matches('.'));
+        if with_ext.is_file() {
+            return std::fs::read_to_string(&with_ext).ok();
+        }
+    }
+
+    // Try as directory with index file
+    for index in &["index.ts", "index.tsx", "index.js", "index.jsx"] {
+        let index_path = target.join(index);
+        if index_path.is_file() {
+            return std::fs::read_to_string(&index_path).ok();
+        }
+    }
+
+    None
 }
 
 /// Check if a file is a test file based on language conventions.

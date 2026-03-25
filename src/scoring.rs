@@ -340,3 +340,160 @@ pub fn compute_project_score(spec_scores: Vec<SpecScore>) -> ProjectScore {
         grade_distribution: distribution,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_count_placeholder_todos() {
+        let body = "## Purpose\nSomething useful\n\n## Invariants\n- TODO: fill this in\n- TODO\n";
+        assert_eq!(count_placeholder_todos(body), 2);
+    }
+
+    #[test]
+    fn test_count_placeholder_todos_in_code_blocks() {
+        let body = "## Purpose\n```\nTODO: this is in a code block\n```\n\nTODO: this is real\n";
+        assert_eq!(count_placeholder_todos(body), 1);
+    }
+
+    #[test]
+    fn test_count_placeholder_todos_zero() {
+        let body = "## Purpose\nAll sections filled in with real content.\n";
+        assert_eq!(count_placeholder_todos(body), 0);
+    }
+
+    #[test]
+    fn test_count_sections_with_content() {
+        let body = "## Purpose\nReal content here\n\n## Public API\n\n## Invariants\n1. Must be valid\n";
+        let sections = vec![
+            "Purpose".to_string(),
+            "Public API".to_string(),
+            "Invariants".to_string(),
+        ];
+        assert_eq!(count_sections_with_content(body, &sections), 2); // Purpose + Invariants
+    }
+
+    #[test]
+    fn test_count_sections_with_content_empty() {
+        let body = "## Purpose\n\n## Public API\n\n";
+        let sections = vec!["Purpose".to_string(), "Public API".to_string()];
+        assert_eq!(count_sections_with_content(body, &sections), 0);
+    }
+
+    #[test]
+    fn test_compute_project_score_empty() {
+        let project = compute_project_score(vec![]);
+        assert_eq!(project.total_specs, 0);
+        assert_eq!(project.average_score, 0.0);
+        assert_eq!(project.grade, "F");
+    }
+
+    #[test]
+    fn test_compute_project_score_distribution() {
+        let scores = vec![
+            SpecScore {
+                spec_path: "a".to_string(),
+                frontmatter_score: 20,
+                sections_score: 20,
+                api_score: 20,
+                depth_score: 20,
+                freshness_score: 15,
+                total: 95,
+                grade: "A",
+                suggestions: vec![],
+            },
+            SpecScore {
+                spec_path: "b".to_string(),
+                frontmatter_score: 10,
+                sections_score: 10,
+                api_score: 10,
+                depth_score: 10,
+                freshness_score: 10,
+                total: 50,
+                grade: "F",
+                suggestions: vec![],
+            },
+        ];
+        let project = compute_project_score(scores);
+        assert_eq!(project.total_specs, 2);
+        assert_eq!(project.grade_distribution[0], 1); // 1 A
+        assert_eq!(project.grade_distribution[4], 1); // 1 F
+        assert!((project.average_score - 72.5).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_score_spec_complete() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(
+            src_dir.join("auth.ts"),
+            "export function createAuth() {}\nexport class AuthService {}\n",
+        )
+        .unwrap();
+
+        let spec_dir = tmp.path().join("specs").join("auth");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        let spec_content = r#"---
+module: auth
+version: 1
+status: active
+files:
+  - src/auth.ts
+db_tables: []
+depends_on: []
+---
+
+# Auth
+
+## Purpose
+
+The auth module handles authentication.
+
+## Public API
+
+| Export | Description |
+|--------|-------------|
+| `createAuth` | Creates auth instance |
+| `AuthService` | Main auth service class |
+
+## Invariants
+
+1. Tokens must be validated before use
+
+## Behavioral Examples
+
+### Scenario: Valid login
+
+- **Given** valid credentials
+- **When** login is called
+- **Then** a token is returned
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+| Invalid token | Returns 401 |
+
+## Dependencies
+
+None.
+
+## Change Log
+
+| Date | Change |
+|------|--------|
+| 2024-01-01 | Initial |
+"#;
+        let spec_file = spec_dir.join("auth.spec.md");
+        std::fs::write(&spec_file, spec_content).unwrap();
+
+        let config = SpecSyncConfig::default();
+        let score = score_spec(&spec_file, tmp.path(), &config);
+
+        assert_eq!(score.frontmatter_score, 20);
+        assert!(score.total >= 80, "Expected high score, got {}", score.total);
+        assert!(score.grade == "A" || score.grade == "B");
+    }
+}

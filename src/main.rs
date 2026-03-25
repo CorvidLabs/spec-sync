@@ -51,7 +51,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Validate all specs against source code (default)
-    Check,
+    Check {
+        /// Auto-add undocumented exports to spec Public API tables
+        #[arg(long)]
+        fix: bool,
+    },
     /// Show file and module coverage report
     Coverage,
     /// Scaffold spec files for unspecced modules
@@ -90,6 +94,12 @@ enum Command {
         /// network calls without this flag.
         #[arg(long)]
         remote: bool,
+    },
+    /// Show export changes since last commit (useful for CI/PR comments)
+    Diff {
+        /// Git ref to compare against (default: HEAD)
+        #[arg(long, default_value = "HEAD")]
+        base: String,
     },
     /// Manage agent instruction files and git hooks for spec awareness
     Hooks {
@@ -147,11 +157,13 @@ fn main() {
         .unwrap_or_else(|| std::env::current_dir().expect("Cannot determine cwd"));
     let root = root.canonicalize().unwrap_or(root);
 
-    let command = cli.command.unwrap_or(Command::Check);
+    let command = cli.command.unwrap_or(Command::Check { fix: false });
 
     match command {
         Command::Init => cmd_init(&root),
-        Command::Check => cmd_check(&root, cli.strict, cli.require_coverage, cli.json),
+        Command::Check { fix } => {
+            cmd_check(&root, cli.strict, cli.require_coverage, cli.json, fix)
+        }
         Command::Coverage => cmd_coverage(&root, cli.strict, cli.require_coverage, cli.json),
         Command::Generate { provider } => {
             cmd_generate(&root, cli.strict, cli.require_coverage, cli.json, provider)
@@ -162,6 +174,7 @@ fn main() {
         Command::AddSpec { name } => cmd_add_spec(&root, &name),
         Command::InitRegistry { name } => cmd_init_registry(&root, name),
         Command::Resolve { remote } => cmd_resolve(&root, remote),
+        Command::Diff { base } => cmd_diff(&root, &base, cli.json),
         Command::Hooks { action } => cmd_hooks(&root, action),
     }
 }
@@ -253,14 +266,32 @@ fn cmd_init(root: &Path) {
     });
 
     let content = serde_json::to_string_pretty(&default).unwrap() + "\n";
-    fs::write(&config_path, content).expect("Failed to write specsync.json");
+    if let Err(e) = fs::write(&config_path, content) {
+        eprintln!(
+            "{} Failed to write specsync.json: {e}",
+            "error:".red().bold()
+        );
+        process::exit(1);
+    }
     println!("{} Created specsync.json", "✓".green());
     println!("  Detected source directories: {dirs_display}");
 }
 
-fn cmd_check(root: &Path, strict: bool, require_coverage: Option<usize>, json: bool) {
+fn cmd_check(root: &Path, strict: bool, require_coverage: Option<usize>, json: bool, fix: bool) {
     let (config, spec_files) = load_and_discover(root, false);
     let schema_tables = get_schema_table_names(root, &config);
+
+    // If --fix is requested, auto-add undocumented exports to specs
+    if fix {
+        let fixed = auto_fix_specs(root, &spec_files, &config);
+        if fixed > 0 && !json {
+            println!(
+                "{} Auto-added exports to {fixed} spec(s)\n",
+                "✓".green()
+            );
+        }
+    }
+
     let (total_errors, total_warnings, passed, total, all_errors, all_warnings) =
         run_validation(root, &spec_files, &schema_tables, &config, json);
     let coverage = compute_coverage(root, &spec_files, &config);
@@ -864,6 +895,273 @@ fn cmd_resolve(root: &Path, remote: bool) {
                 "Tip:".cyan()
             );
             println!("  Use --remote to fetch registries and verify they exist.");
+        }
+    }
+}
+
+// ─── Auto-fix: add undocumented exports to spec ─────────────────────────
+
+fn auto_fix_specs(
+    root: &Path,
+    spec_files: &[PathBuf],
+    _config: &types::SpecSyncConfig,
+) -> usize {
+    use crate::exports::get_exported_symbols;
+    use crate::parser::{get_spec_symbols, parse_frontmatter};
+
+    let mut fixed_count = 0;
+
+    for spec_file in spec_files {
+        let content = match fs::read_to_string(spec_file) {
+            Ok(c) => c.replace("\r\n", "\n"),
+            Err(_) => continue,
+        };
+
+        let parsed = match parse_frontmatter(&content) {
+            Some(p) => p,
+            None => continue,
+        };
+
+        if parsed.frontmatter.files.is_empty() {
+            continue;
+        }
+
+        // Collect all exports from source files
+        let mut all_exports: Vec<String> = Vec::new();
+        for file in &parsed.frontmatter.files {
+            let full_path = root.join(file);
+            all_exports.extend(get_exported_symbols(&full_path));
+        }
+        let mut seen = std::collections::HashSet::new();
+        all_exports.retain(|s| seen.insert(s.clone()));
+
+        // Find which exports are already documented
+        let spec_symbols = get_spec_symbols(&parsed.body);
+        let spec_set: std::collections::HashSet<&str> =
+            spec_symbols.iter().map(|s| s.as_str()).collect();
+
+        let undocumented: Vec<&str> = all_exports
+            .iter()
+            .filter(|s| !spec_set.contains(s.as_str()))
+            .map(|s| s.as_str())
+            .collect();
+
+        if undocumented.is_empty() {
+            continue;
+        }
+
+        // Build new rows to append to the Public API section
+        let new_rows: String = undocumented
+            .iter()
+            .map(|name| format!("| `{name}` | <!-- TODO: describe --> |"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        // Find insertion point: end of "## Public API" section, before next "## " heading
+        let mut new_content = content.clone();
+        if let Some(api_start) = content.find("## Public API") {
+            let after = &content[api_start..];
+            // Find the next ## heading after Public API
+            let next_section = after[1..]
+                .find("\n## ")
+                .map(|pos| api_start + 1 + pos);
+
+            let insert_pos = match next_section {
+                Some(pos) => pos,
+                None => content.len(),
+            };
+
+            // Insert new rows before the next section
+            new_content = format!(
+                "{}\n{}\n{}",
+                content[..insert_pos].trim_end(),
+                new_rows,
+                &content[insert_pos..]
+            );
+        } else {
+            // No Public API section — append one
+            let section = format!(
+                "\n## Public API\n\n| Export | Description |\n|--------|-------------|\n{new_rows}\n"
+            );
+            new_content.push_str(&section);
+        }
+
+        if let Ok(()) = fs::write(spec_file, &new_content) {
+            fixed_count += 1;
+            let rel = spec_file
+                .strip_prefix(root)
+                .unwrap_or(spec_file)
+                .display();
+            println!(
+                "  {} {rel}: added {} export(s)",
+                "✓".green(),
+                undocumented.len()
+            );
+        }
+    }
+
+    fixed_count
+}
+
+// ─── Diff command ────────────────────────────────────────────────────────
+
+fn cmd_diff(root: &Path, base: &str, json: bool) {
+    use crate::exports::get_exported_symbols;
+    use crate::parser::parse_frontmatter;
+
+    let (config, spec_files) = load_and_discover(root, false);
+
+    // Get list of files changed since base ref
+    let output = match std::process::Command::new("git")
+        .args(["diff", "--name-only", base])
+        .current_dir(root)
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("Failed to run git diff: {e}");
+            process::exit(1);
+        }
+    };
+
+    let changed_files: std::collections::HashSet<String> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(|l| l.to_string())
+        .collect();
+
+    if changed_files.is_empty() {
+        if json {
+            println!("{{\"changes\":[]}}");
+        } else {
+            println!("No files changed since {base}");
+        }
+        return;
+    }
+
+    // For each spec, check if any of its source files changed
+    let mut changes: Vec<serde_json::Value> = Vec::new();
+
+    for spec_file in &spec_files {
+        let content = match fs::read_to_string(spec_file) {
+            Ok(c) => c.replace("\r\n", "\n"),
+            Err(_) => continue,
+        };
+
+        let parsed = match parse_frontmatter(&content) {
+            Some(p) => p,
+            None => continue,
+        };
+
+        let spec_rel = spec_file
+            .strip_prefix(root)
+            .unwrap_or(spec_file)
+            .to_string_lossy()
+            .replace('\\', "/");
+
+        let affected_files: Vec<&String> = parsed
+            .frontmatter
+            .files
+            .iter()
+            .filter(|f| changed_files.contains(*f))
+            .collect();
+
+        if affected_files.is_empty() {
+            continue;
+        }
+
+        // Get current exports from changed files
+        let mut current_exports: Vec<String> = Vec::new();
+        for file in &parsed.frontmatter.files {
+            let full_path = root.join(file);
+            current_exports.extend(get_exported_symbols(&full_path));
+        }
+        let mut seen = std::collections::HashSet::new();
+        current_exports.retain(|s| seen.insert(s.clone()));
+
+        // Get spec-documented symbols
+        let spec_symbols = crate::parser::get_spec_symbols(&parsed.body);
+        let spec_set: std::collections::HashSet<&str> =
+            spec_symbols.iter().map(|s| s.as_str()).collect();
+        let export_set: std::collections::HashSet<&str> =
+            current_exports.iter().map(|s| s.as_str()).collect();
+
+        let new_exports: Vec<&str> = current_exports
+            .iter()
+            .filter(|s| !spec_set.contains(s.as_str()))
+            .map(|s| s.as_str())
+            .collect();
+
+        let removed_exports: Vec<&str> = spec_symbols
+            .iter()
+            .filter(|s| !export_set.contains(s.as_str()))
+            .map(|s| s.as_str())
+            .collect();
+
+        if json {
+            changes.push(serde_json::json!({
+                "spec": spec_rel,
+                "changed_files": affected_files,
+                "new_exports": new_exports,
+                "removed_exports": removed_exports,
+            }));
+        } else {
+            println!("\n{}", spec_rel.bold());
+            println!(
+                "  Changed files: {}",
+                affected_files
+                    .iter()
+                    .map(|f| f.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+            if !new_exports.is_empty() {
+                println!(
+                    "  {} New exports (not in spec): {}",
+                    "+".green(),
+                    new_exports.join(", ")
+                );
+            }
+            if !removed_exports.is_empty() {
+                println!(
+                    "  {} Removed exports (still in spec): {}",
+                    "-".red(),
+                    removed_exports.join(", ")
+                );
+            }
+            if new_exports.is_empty() && removed_exports.is_empty() {
+                println!("  {} Spec is up to date", "✓".green());
+            }
+        }
+    }
+
+    if json {
+        let output = serde_json::json!({ "changes": changes });
+        println!("{}", serde_json::to_string_pretty(&output).unwrap());
+    } else if changes.is_empty() && !json {
+        // Check if any changed files are NOT covered by specs
+        let specced_files: std::collections::HashSet<String> = spec_files
+            .iter()
+            .filter_map(|f| fs::read_to_string(f).ok())
+            .filter_map(|c| parse_frontmatter(&c.replace("\r\n", "\n")))
+            .flat_map(|p| p.frontmatter.files)
+            .collect();
+
+        let untracked: Vec<&String> = changed_files
+            .iter()
+            .filter(|f| {
+                let path = std::path::Path::new(f.as_str());
+                crate::exports::has_extension(path, &config.source_extensions)
+                    && !specced_files.contains(*f)
+            })
+            .collect();
+
+        if untracked.is_empty() {
+            println!("No spec-tracked source files changed since {base}.");
+        } else {
+            println!("Changed files not covered by any spec:");
+            for f in &untracked {
+                println!("  {} {f}", "?".yellow());
+            }
         }
     }
 }

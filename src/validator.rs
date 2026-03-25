@@ -383,6 +383,114 @@ fn levenshtein(a: &str, b: &str) -> usize {
     dp[a.len()][b.len()]
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_cross_project_ref() {
+        assert!(is_cross_project_ref("corvid-labs/algochat@auth"));
+        assert!(is_cross_project_ref("owner/repo@module"));
+        assert!(!is_cross_project_ref("specs/auth/auth.spec.md"));
+        assert!(!is_cross_project_ref("auth"));
+        assert!(!is_cross_project_ref("owner/repo")); // no @
+        assert!(!is_cross_project_ref("@module")); // no /
+    }
+
+    #[test]
+    fn test_parse_cross_project_ref() {
+        let (repo, module) = parse_cross_project_ref("corvid-labs/algochat@auth").unwrap();
+        assert_eq!(repo, "corvid-labs/algochat");
+        assert_eq!(module, "auth");
+
+        assert!(parse_cross_project_ref("not-a-ref").is_none());
+        assert!(parse_cross_project_ref("/@").is_none()); // empty parts
+    }
+
+    #[test]
+    fn test_levenshtein() {
+        assert_eq!(levenshtein("kitten", "sitting"), 3);
+        assert_eq!(levenshtein("abc", "abc"), 0);
+        assert_eq!(levenshtein("", "abc"), 3);
+        assert_eq!(levenshtein("abc", ""), 3);
+        assert_eq!(levenshtein("config.ts", "confg.ts"), 1);
+    }
+
+    #[test]
+    fn test_find_spec_files_empty_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let files = find_spec_files(tmp.path());
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn test_find_spec_files_nonexistent() {
+        let files = find_spec_files(Path::new("/nonexistent/path"));
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn test_find_spec_files_with_specs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let spec_dir = tmp.path().join("auth");
+        fs::create_dir_all(&spec_dir).unwrap();
+        fs::write(spec_dir.join("auth.spec.md"), "---\nmodule: auth\n---\n").unwrap();
+        fs::write(spec_dir.join("not-a-spec.md"), "other").unwrap();
+
+        let files = find_spec_files(tmp.path());
+        assert_eq!(files.len(), 1);
+        assert!(files[0].ends_with("auth.spec.md"));
+    }
+
+    #[test]
+    fn test_validate_spec_missing_frontmatter() {
+        let tmp = tempfile::tempdir().unwrap();
+        let spec = tmp.path().join("bad.spec.md");
+        fs::write(&spec, "# No frontmatter\n\nJust text.").unwrap();
+
+        let tables = HashSet::new();
+        let config = SpecSyncConfig::default();
+        let result = validate_spec(&spec, tmp.path(), &tables, &config);
+        assert!(!result.errors.is_empty());
+        assert!(result.errors[0].contains("frontmatter"));
+    }
+
+    #[test]
+    fn test_validate_spec_missing_required_fields() {
+        let tmp = tempfile::tempdir().unwrap();
+        let spec = tmp.path().join("partial.spec.md");
+        fs::write(
+            &spec,
+            "---\nmodule: test\n---\n\n## Purpose\nTest\n",
+        )
+        .unwrap();
+
+        let tables = HashSet::new();
+        let config = SpecSyncConfig::default();
+        let result = validate_spec(&spec, tmp.path(), &tables, &config);
+        // Should have errors for missing version, status, files
+        assert!(result.errors.iter().any(|e| e.contains("version")));
+        assert!(result.errors.iter().any(|e| e.contains("status")));
+        assert!(result.errors.iter().any(|e| e.contains("files")));
+    }
+
+    #[test]
+    fn test_validate_spec_missing_source_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let spec = tmp.path().join("missing.spec.md");
+        fs::write(
+            &spec,
+            "---\nmodule: test\nversion: 1\nstatus: active\nfiles:\n  - src/nonexistent.ts\n---\n\n## Purpose\nTest\n## Public API\n## Invariants\n## Behavioral Examples\n## Error Cases\n## Dependencies\n## Change Log\n",
+        )
+        .unwrap();
+
+        let tables = HashSet::new();
+        let config = SpecSyncConfig::default();
+        let result = validate_spec(&spec, tmp.path(), &tables, &config);
+        assert!(result.errors.iter().any(|e| e.contains("Source file not found")));
+    }
+}
+
 // ─── Coverage ────────────────────────────────────────────────────────────
 
 fn collect_specced_files(spec_files: &[PathBuf]) -> HashSet<String> {

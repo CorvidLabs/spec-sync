@@ -9,20 +9,15 @@ static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?
 /// Processed from most hashes to fewest so inner patterns don't match prematurely.
 static RAW_STR_3: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(?s)r\#\#\#".*?"\#\#\#"#).unwrap());
-static RAW_STR_2: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?s)r\#\#".*?"\#\#"#).unwrap());
-static RAW_STR_1: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?s)r\#".*?"\#"#).unwrap());
-static RAW_STR_0: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?s)r"[^"]*""#).unwrap());
+static RAW_STR_2: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)r\#\#".*?"\#\#"#).unwrap());
+static RAW_STR_1: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)r\#".*?"\#"#).unwrap());
+static RAW_STR_0: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)r"[^"]*""#).unwrap());
 
 /// Char literals that contain a double quote: '"' or '\"'
-static CHAR_DQUOTE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"'(?:\\.|")'"#).unwrap());
+static CHAR_DQUOTE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"'(?:\\.|")'"#).unwrap());
 
 /// Regular string literals (handling escaped quotes and line continuations).
-static REG_STR: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?s)"(?:[^"\\]|\\.)*""#).unwrap());
+static REG_STR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)"(?:[^"\\]|\\.)*""#).unwrap());
 
 /// pub fn, pub struct, pub enum, pub trait, pub type, pub const, pub static, pub mod
 static PUB_DECL: LazyLock<Regex> = LazyLock::new(|| {
@@ -139,16 +134,22 @@ pub fn after_string() {}
     fn test_real_ai_rs() {
         let content = std::fs::read_to_string("src/ai.rs").unwrap();
         let symbols = extract_exports(&content);
-        assert!(symbols.contains(&"resolve_ai_command".to_string()),
-            "resolve_ai_command not found in: {:?}", symbols);
+        assert!(
+            symbols.contains(&"resolve_ai_command".to_string()),
+            "resolve_ai_command not found in: {:?}",
+            symbols
+        );
     }
 
     #[test]
     fn test_real_registry_rs() {
         let content = std::fs::read_to_string("src/registry.rs").unwrap();
         let symbols = extract_exports(&content);
-        assert!(symbols.contains(&"generate_registry".to_string()),
-            "generate_registry not found in: {:?}", symbols);
+        assert!(
+            symbols.contains(&"generate_registry".to_string()),
+            "generate_registry not found in: {:?}",
+            symbols
+        );
     }
 
     #[test]

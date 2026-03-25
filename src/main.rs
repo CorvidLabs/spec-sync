@@ -2,6 +2,7 @@ mod ai;
 mod config;
 mod exports;
 mod generator;
+mod hooks;
 mod mcp;
 mod parser;
 mod registry;
@@ -90,6 +91,53 @@ enum Command {
         #[arg(long)]
         remote: bool,
     },
+    /// Manage agent instruction files and git hooks for spec awareness
+    Hooks {
+        #[command(subcommand)]
+        action: HooksAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum HooksAction {
+    /// Install agent instructions and/or git hooks
+    Install {
+        /// Install CLAUDE.md instructions
+        #[arg(long)]
+        claude: bool,
+        /// Install .cursorrules instructions
+        #[arg(long)]
+        cursor: bool,
+        /// Install .github/copilot-instructions.md
+        #[arg(long)]
+        copilot: bool,
+        /// Install git pre-commit hook
+        #[arg(long)]
+        precommit: bool,
+        /// Install Claude Code settings.json hook
+        #[arg(long)]
+        claude_code_hook: bool,
+    },
+    /// Remove previously installed hooks
+    Uninstall {
+        /// Remove CLAUDE.md instructions
+        #[arg(long)]
+        claude: bool,
+        /// Remove .cursorrules instructions
+        #[arg(long)]
+        cursor: bool,
+        /// Remove .github/copilot-instructions.md
+        #[arg(long)]
+        copilot: bool,
+        /// Remove git pre-commit hook
+        #[arg(long)]
+        precommit: bool,
+        /// Remove Claude Code settings.json hook
+        #[arg(long)]
+        claude_code_hook: bool,
+    },
+    /// Show installation status of all hooks
+    Status,
 }
 
 fn main() {
@@ -114,7 +162,63 @@ fn main() {
         Command::AddSpec { name } => cmd_add_spec(&root, &name),
         Command::InitRegistry { name } => cmd_init_registry(&root, name),
         Command::Resolve { remote } => cmd_resolve(&root, remote),
+        Command::Hooks { action } => cmd_hooks(&root, action),
     }
+}
+
+fn cmd_hooks(root: &Path, action: HooksAction) {
+    match action {
+        HooksAction::Install {
+            claude,
+            cursor,
+            copilot,
+            precommit,
+            claude_code_hook,
+        } => {
+            let targets =
+                collect_hook_targets(claude, cursor, copilot, precommit, claude_code_hook);
+            hooks::cmd_install(root, &targets);
+        }
+        HooksAction::Uninstall {
+            claude,
+            cursor,
+            copilot,
+            precommit,
+            claude_code_hook,
+        } => {
+            let targets =
+                collect_hook_targets(claude, cursor, copilot, precommit, claude_code_hook);
+            hooks::cmd_uninstall(root, &targets);
+        }
+        HooksAction::Status => hooks::cmd_status(root),
+    }
+}
+
+fn collect_hook_targets(
+    claude: bool,
+    cursor: bool,
+    copilot: bool,
+    precommit: bool,
+    claude_code_hook: bool,
+) -> Vec<hooks::HookTarget> {
+    let mut targets = Vec::new();
+    if claude {
+        targets.push(hooks::HookTarget::Claude);
+    }
+    if cursor {
+        targets.push(hooks::HookTarget::Cursor);
+    }
+    if copilot {
+        targets.push(hooks::HookTarget::Copilot);
+    }
+    if precommit {
+        targets.push(hooks::HookTarget::Precommit);
+    }
+    if claude_code_hook {
+        targets.push(hooks::HookTarget::ClaudeCodeHook);
+    }
+    // If no specific targets, empty vec means "all"
+    targets
 }
 
 fn cmd_init(root: &Path) {

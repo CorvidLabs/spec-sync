@@ -317,11 +317,17 @@ CRITICAL rules for the `## Public API` section:
 - If a symbol is private/internal (e.g. `const`, `fn` without `pub`, `mod` declarations), do NOT put it in the Public API table
 - Use subsection headers like `### Exported Functions`, `### Exported Types` — NOT `### Constants`, `### Per-language extractors`, `### Methods`, etc.
 
+Context boundaries:
+- This spec covers ONLY the files listed in the frontmatter — do not document symbols from imported/dependent modules
+- If a file imports symbols from other modules, those belong to the dependency's spec, not this one
+- Only document the public contract that THIS module exposes to its consumers
+- Group related types and functions logically, not by file
+
 Other guidelines:
 - For `## Invariants`, list rules that must always hold based on the code
 - For `## Behavioral Examples`, use Given/When/Then format
 - For `## Error Cases`, use a table of Condition | Behavior
-- For `## Dependencies`, list what this module consumes from other modules
+- For `## Dependencies`, list what this module consumes from other modules (imports from outside this module's files)
 - For `## Change Log`, add a single entry with today's date and "Initial spec"
 - Be accurate — only document what the code actually does"#
     )

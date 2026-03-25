@@ -3,6 +3,7 @@ mod config;
 mod exports;
 mod generator;
 mod hooks;
+mod manifest;
 mod mcp;
 mod parser;
 mod registry;
@@ -151,6 +152,27 @@ enum HooksAction {
 }
 
 fn main() {
+    let result = std::panic::catch_unwind(run);
+    match result {
+        Ok(()) => {}
+        Err(e) => {
+            let msg = if let Some(s) = e.downcast_ref::<&str>() {
+                s.to_string()
+            } else if let Some(s) = e.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "unknown error".to_string()
+            };
+            eprintln!(
+                "{} specsync panicked: {msg}\n\nThis is a bug — please report it at https://github.com/CorvidLabs/spec-sync/issues",
+                "Error:".red().bold()
+            );
+            process::exit(1);
+        }
+    }
+}
+
+fn run() {
     let cli = Cli::parse();
     let root = cli
         .root
@@ -161,9 +183,7 @@ fn main() {
 
     match command {
         Command::Init => cmd_init(&root),
-        Command::Check { fix } => {
-            cmd_check(&root, cli.strict, cli.require_coverage, cli.json, fix)
-        }
+        Command::Check { fix } => cmd_check(&root, cli.strict, cli.require_coverage, cli.json, fix),
         Command::Coverage => cmd_coverage(&root, cli.strict, cli.require_coverage, cli.json),
         Command::Generate { provider } => {
             cmd_generate(&root, cli.strict, cli.require_coverage, cli.json, provider)
@@ -278,17 +298,33 @@ fn cmd_init(root: &Path) {
 }
 
 fn cmd_check(root: &Path, strict: bool, require_coverage: Option<usize>, json: bool, fix: bool) {
-    let (config, spec_files) = load_and_discover(root, false);
+    let (config, spec_files) = load_and_discover(root, fix);
+
+    if spec_files.is_empty() {
+        if json {
+            let output = serde_json::json!({
+                "passed": true,
+                "errors": [],
+                "warnings": [],
+                "specs_checked": 0,
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        } else {
+            println!(
+                "No spec files found in {}/. Run `specsync generate` to scaffold specs.",
+                config.specs_dir
+            );
+        }
+        process::exit(0);
+    }
+
     let schema_tables = get_schema_table_names(root, &config);
 
     // If --fix is requested, auto-add undocumented exports to specs
     if fix {
         let fixed = auto_fix_specs(root, &spec_files, &config);
         if fixed > 0 && !json {
-            println!(
-                "{} Auto-added exports to {fixed} spec(s)\n",
-                "✓".green()
-            );
+            println!("{} Auto-added exports to {fixed} spec(s)\n", "✓".green());
         }
     }
 
@@ -901,12 +937,8 @@ fn cmd_resolve(root: &Path, remote: bool) {
 
 // ─── Auto-fix: add undocumented exports to spec ─────────────────────────
 
-fn auto_fix_specs(
-    root: &Path,
-    spec_files: &[PathBuf],
-    _config: &types::SpecSyncConfig,
-) -> usize {
-    use crate::exports::get_exported_symbols;
+fn auto_fix_specs(root: &Path, spec_files: &[PathBuf], config: &types::SpecSyncConfig) -> usize {
+    use crate::exports::get_exported_symbols_with_level;
     use crate::parser::{get_spec_symbols, parse_frontmatter};
 
     let mut fixed_count = 0;
@@ -930,7 +962,10 @@ fn auto_fix_specs(
         let mut all_exports: Vec<String> = Vec::new();
         for file in &parsed.frontmatter.files {
             let full_path = root.join(file);
-            all_exports.extend(get_exported_symbols(&full_path));
+            all_exports.extend(get_exported_symbols_with_level(
+                &full_path,
+                config.export_level,
+            ));
         }
         let mut seen = std::collections::HashSet::new();
         all_exports.retain(|s| seen.insert(s.clone()));
@@ -950,10 +985,33 @@ fn auto_fix_specs(
             continue;
         }
 
-        // Build new rows to append to the Public API section
+        // Detect primary language for context-aware row format
+        let primary_lang = parsed
+            .frontmatter
+            .files
+            .iter()
+            .filter_map(|f| {
+                std::path::Path::new(f)
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .and_then(types::Language::from_extension)
+            })
+            .next();
+
+        // Build new rows with language-appropriate columns
         let new_rows: String = undocumented
             .iter()
-            .map(|name| format!("| `{name}` | <!-- TODO: describe --> |"))
+            .map(|name| match primary_lang {
+                Some(types::Language::Swift)
+                | Some(types::Language::Kotlin)
+                | Some(types::Language::Java) => {
+                    format!("| `{name}` | <!-- kind --> | <!-- TODO: describe --> |")
+                }
+                Some(types::Language::Rust) => {
+                    format!("| `{name}` | <!-- TODO: describe --> |")
+                }
+                _ => format!("| `{name}` | <!-- TODO: describe --> |"),
+            })
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -962,9 +1020,7 @@ fn auto_fix_specs(
         if let Some(api_start) = content.find("## Public API") {
             let after = &content[api_start..];
             // Find the next ## heading after Public API
-            let next_section = after[1..]
-                .find("\n## ")
-                .map(|pos| api_start + 1 + pos);
+            let next_section = after[1..].find("\n## ").map(|pos| api_start + 1 + pos);
 
             let insert_pos = match next_section {
                 Some(pos) => pos,
@@ -988,10 +1044,7 @@ fn auto_fix_specs(
 
         if let Ok(()) = fs::write(spec_file, &new_content) {
             fixed_count += 1;
-            let rel = spec_file
-                .strip_prefix(root)
-                .unwrap_or(spec_file)
-                .display();
+            let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
             println!(
                 "  {} {rel}: added {} export(s)",
                 "✓".green(),

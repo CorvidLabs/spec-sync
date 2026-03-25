@@ -1,4 +1,5 @@
 use crate::exports::has_extension;
+use crate::manifest;
 use crate::types::SpecSyncConfig;
 use std::collections::HashSet;
 use std::fs;
@@ -46,9 +47,32 @@ const IGNORED_DIRS: &[&str] = &[
     "obj",
 ];
 
-/// Auto-detect source directories by scanning the project root for files
-/// with supported language extensions. Returns directories relative to root.
+/// Auto-detect source directories by first checking manifest files
+/// (Cargo.toml, Package.swift, build.gradle.kts, package.json, etc.),
+/// then falling back to scanning the project root for files with supported
+/// language extensions. Returns directories relative to root.
 pub fn detect_source_dirs(root: &Path) -> Vec<String> {
+    // Try manifest-aware detection first
+    let manifest_discovery = manifest::discover_from_manifests(root);
+    if !manifest_discovery.source_dirs.is_empty() {
+        let mut dirs = manifest_discovery.source_dirs;
+        dirs.sort();
+        dirs.dedup();
+        return dirs;
+    }
+
+    // Fall back to directory scanning
+    detect_source_dirs_by_scan(root)
+}
+
+/// Discover modules from manifest files (Package.swift, Cargo.toml, etc.).
+/// Returns the manifest discovery result for use in module detection.
+pub fn discover_manifest_modules(root: &Path) -> manifest::ManifestDiscovery {
+    manifest::discover_from_manifests(root)
+}
+
+/// Scan-based source directory detection (fallback when no manifests found).
+fn detect_source_dirs_by_scan(root: &Path) -> Vec<String> {
     let ignored: HashSet<&str> = IGNORED_DIRS.iter().copied().collect();
     let mut source_dirs: Vec<String> = Vec::new();
     let mut has_root_source_files = false;
@@ -151,6 +175,8 @@ const KNOWN_JSON_KEYS: &[&str] = &[
     "excludeDirs",
     "excludePatterns",
     "sourceExtensions",
+    "exportLevel",
+    "modules",
     "aiProvider",
     "aiModel",
     "aiCommand",
@@ -247,6 +273,20 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                 "ai_timeout" => {
                     if let Ok(n) = value.trim().parse::<u64>() {
                         config.ai_timeout = Some(n);
+                    }
+                }
+                "export_level" => {
+                    let s = parse_toml_string(value);
+                    match s.as_str() {
+                        "type" => {
+                            config.export_level = crate::types::ExportLevel::Type;
+                        }
+                        "member" => {
+                            config.export_level = crate::types::ExportLevel::Member;
+                        }
+                        _ => eprintln!(
+                            "Warning: unknown export_level \"{s}\" (expected \"type\" or \"member\")"
+                        ),
                     }
                 }
                 "required_sections" => {

@@ -2292,13 +2292,7 @@ fn fix_with_json_output() {
 
     // --fix with --json should still work and produce valid JSON
     let output = specsync()
-        .args([
-            "check",
-            "--fix",
-            "--json",
-            "--root",
-            root.to_str().unwrap(),
-        ])
+        .args(["check", "--fix", "--json", "--root", root.to_str().unwrap()])
         .output()
         .unwrap();
 
@@ -2380,7 +2374,14 @@ fn diff_shows_changes_since_base_ref() {
 
     // Run diff with --json
     let output = specsync()
-        .args(["diff", "--base", "HEAD", "--root", root.to_str().unwrap(), "--json"])
+        .args([
+            "diff",
+            "--base",
+            "HEAD",
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+        ])
         .output()
         .unwrap();
 
@@ -2389,10 +2390,7 @@ fn diff_shows_changes_since_base_ref() {
     let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
 
     let changes = json["changes"].as_array().unwrap();
-    assert!(
-        !changes.is_empty(),
-        "Expected at least one changed spec"
-    );
+    assert!(!changes.is_empty(), "Expected at least one changed spec");
     assert!(
         changes[0]["new_exports"]
             .as_array()
@@ -2455,7 +2453,14 @@ fn diff_no_changes_returns_empty() {
 
     // Run diff — nothing changed since HEAD
     let output = specsync()
-        .args(["diff", "--base", "HEAD", "--root", root.to_str().unwrap(), "--json"])
+        .args([
+            "diff",
+            "--base",
+            "HEAD",
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+        ])
         .output()
         .unwrap();
 
@@ -2571,7 +2576,14 @@ None
     .unwrap();
 
     let output = specsync()
-        .args(["diff", "--base", "HEAD", "--root", root.to_str().unwrap(), "--json"])
+        .args([
+            "diff",
+            "--base",
+            "HEAD",
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+        ])
         .output()
         .unwrap();
 
@@ -2705,9 +2717,7 @@ fn wildcard_reexport_barrel_file_detected() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     // The check should find undocumented exports from the barrel file
     assert!(
-        stdout.contains("formatDate")
-            || stdout.contains("parseUrl")
-            || stdout.contains("utilMain"),
+        stdout.contains("formatDate") || stdout.contains("parseUrl") || stdout.contains("utilMain"),
         "Expected check to detect wildcard re-exported symbols. Got:\n{stdout}"
     );
 }
@@ -2753,10 +2763,7 @@ fn wildcard_reexport_with_fix_adds_all_symbols() {
         updated.contains("`helperB`"),
         "Expected helperB from wildcard re-export"
     );
-    assert!(
-        updated.contains("`main`"),
-        "Expected main direct export"
-    );
+    assert!(updated.contains("`main`"), "Expected main direct export");
 }
 
 #[test]

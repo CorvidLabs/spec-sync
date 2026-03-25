@@ -155,6 +155,19 @@ pub struct CoverageReport {
     pub unspecced_file_loc: Vec<(String, usize)>,
 }
 
+/// Controls export extraction granularity.
+/// - `type`: Only top-level type declarations (class, struct, enum, protocol, trait, etc.)
+/// - `member`: Every public symbol including members (functions, properties, etc.)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ExportLevel {
+    /// Only top-level type declarations (class, struct, enum, protocol, trait, etc.)
+    Type,
+    /// Every public symbol including members (default for backwards compatibility).
+    #[default]
+    Member,
+}
+
 /// User-provided configuration (from specsync.json).
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -180,6 +193,16 @@ pub struct SpecSyncConfig {
     /// Source file extensions to scan (default: all supported languages).
     #[serde(default)]
     pub source_extensions: Vec<String>,
+
+    /// Export granularity: "type" (top-level types only) or "member" (all public symbols).
+    /// Default: "member" for backwards compatibility.
+    #[serde(default)]
+    pub export_level: ExportLevel,
+
+    /// Module definitions — override auto-detected modules with explicit groupings.
+    /// Keys are module names, values are objects with `files` and optional `depends_on`.
+    #[serde(default)]
+    pub modules: std::collections::HashMap<String, ModuleDefinition>,
 
     /// AI provider preset: "claude", "cursor", "copilot", "ollama".
     /// Resolves to the correct CLI command automatically.
@@ -208,6 +231,19 @@ pub struct SpecSyncConfig {
     /// Timeout in seconds for each AI command invocation (default: 120).
     #[serde(default)]
     pub ai_timeout: Option<u64>,
+}
+
+/// A user-defined module grouping in specsync.json.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
+pub struct ModuleDefinition {
+    /// Source files belonging to this module (relative to project root).
+    #[serde(default)]
+    pub files: Vec<String>,
+    /// Other module names this module depends on.
+    #[serde(default)]
+    pub depends_on: Vec<String>,
 }
 
 /// Registry entry mapping module names to spec file paths.
@@ -273,10 +309,27 @@ impl Language {
             Language::Rust => &[], // Rust tests are inline, not separate files
             Language::Go => &["_test.go"],
             Language::Python => &["test_", "_test.py"],
-            Language::Swift => &["Tests.swift", "Test.swift"],
-            Language::Kotlin => &["Test.kt", "Tests.kt", "Spec.kt"],
-            Language::Java => &["Test.java", "Tests.java"],
-            Language::CSharp => &["Tests.cs", "Test.cs"],
+            Language::Swift => &[
+                "Tests.swift",
+                "Test.swift",
+                "Spec.swift",
+                "Specs.swift",
+                "Mock.swift",
+                "Mocks.swift",
+                "Stub.swift",
+                "Fake.swift",
+            ],
+            Language::Kotlin => &[
+                "Test.kt", "Tests.kt", "Spec.kt", "Specs.kt", "Mock.kt", "Fake.kt",
+            ],
+            Language::Java => &[
+                "Test.java",
+                "Tests.java",
+                "Spec.java",
+                "Mock.java",
+                "IT.java",
+            ],
+            Language::CSharp => &["Tests.cs", "Test.cs", "Spec.cs", "Mock.cs"],
             Language::Dart => &["_test.dart"],
         }
     }
@@ -327,6 +380,8 @@ impl Default for SpecSyncConfig {
             exclude_dirs: default_exclude_dirs(),
             exclude_patterns: default_exclude_patterns(),
             source_extensions: Vec::new(),
+            export_level: ExportLevel::default(),
+            modules: std::collections::HashMap::new(),
             ai_provider: None,
             ai_model: None,
             ai_command: None,

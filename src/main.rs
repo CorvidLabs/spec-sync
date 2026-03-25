@@ -175,7 +175,8 @@ fn cmd_hooks(root: &Path, action: HooksAction) {
             precommit,
             claude_code_hook,
         } => {
-            let targets = collect_hook_targets(claude, cursor, copilot, precommit, claude_code_hook);
+            let targets =
+                collect_hook_targets(claude, cursor, copilot, precommit, claude_code_hook);
             hooks::cmd_install(root, &targets);
         }
         HooksAction::Uninstall {
@@ -185,7 +186,8 @@ fn cmd_hooks(root: &Path, action: HooksAction) {
             precommit,
             claude_code_hook,
         } => {
-            let targets = collect_hook_targets(claude, cursor, copilot, precommit, claude_code_hook);
+            let targets =
+                collect_hook_targets(claude, cursor, copilot, precommit, claude_code_hook);
             hooks::cmd_uninstall(root, &targets);
         }
         HooksAction::Status => hooks::cmd_status(root),

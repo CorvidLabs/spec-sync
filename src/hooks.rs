@@ -182,9 +182,7 @@ pub fn is_installed(root: &Path, target: HookTarget) -> bool {
                     .unwrap_or(false)
         }
         HookTarget::ClaudeCodeHook => {
-            let path = root
-                .join(".claude")
-                .join("settings.json");
+            let path = root.join(".claude").join("settings.json");
             path.exists()
                 && fs::read_to_string(&path)
                     .map(|c| c.contains("specsync check"))
@@ -249,7 +247,10 @@ pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
         }
         HookTarget::ClaudeCodeHook => {
             // Don't auto-remove Claude Code settings — too risky
-            Err("Claude Code hook settings must be removed manually from .claude/settings.json".to_string())
+            Err(
+                "Claude Code hook settings must be removed manually from .claude/settings.json"
+                    .to_string(),
+            )
         }
     }
 }
@@ -261,16 +262,15 @@ fn install_claude_md(root: &Path) -> Result<bool, String> {
 
     if path.exists() {
         // Append to existing CLAUDE.md
-        let existing = fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read CLAUDE.md: {e}"))?;
+        let existing =
+            fs::read_to_string(&path).map_err(|e| format!("Failed to read CLAUDE.md: {e}"))?;
 
         if existing.contains("Spec-Sync") {
             return Ok(false);
         }
 
         let new_content = format!("{}\n\n{}", existing.trim_end(), CLAUDE_MD_SNIPPET);
-        fs::write(&path, new_content)
-            .map_err(|e| format!("Failed to write CLAUDE.md: {e}"))?;
+        fs::write(&path, new_content).map_err(|e| format!("Failed to write CLAUDE.md: {e}"))?;
     } else {
         fs::write(&path, CLAUDE_MD_SNIPPET)
             .map_err(|e| format!("Failed to create CLAUDE.md: {e}"))?;
@@ -283,16 +283,15 @@ fn install_cursorrules(root: &Path) -> Result<bool, String> {
     let path = root.join(".cursorrules");
 
     if path.exists() {
-        let existing = fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read .cursorrules: {e}"))?;
+        let existing =
+            fs::read_to_string(&path).map_err(|e| format!("Failed to read .cursorrules: {e}"))?;
 
         if existing.contains("Spec-Sync") {
             return Ok(false);
         }
 
         let new_content = format!("{}\n\n{}", existing.trim_end(), CURSORRULES_SNIPPET);
-        fs::write(&path, new_content)
-            .map_err(|e| format!("Failed to write .cursorrules: {e}"))?;
+        fs::write(&path, new_content).map_err(|e| format!("Failed to write .cursorrules: {e}"))?;
     } else {
         fs::write(&path, CURSORRULES_SNIPPET)
             .map_err(|e| format!("Failed to create .cursorrules: {e}"))?;
@@ -304,8 +303,7 @@ fn install_cursorrules(root: &Path) -> Result<bool, String> {
 fn install_copilot(root: &Path) -> Result<bool, String> {
     let github_dir = root.join(".github");
     if !github_dir.exists() {
-        fs::create_dir_all(&github_dir)
-            .map_err(|e| format!("Failed to create .github/: {e}"))?;
+        fs::create_dir_all(&github_dir).map_err(|e| format!("Failed to create .github/: {e}"))?;
     }
 
     let path = github_dir.join("copilot-instructions.md");
@@ -336,8 +334,7 @@ fn install_copilot(root: &Path) -> Result<bool, String> {
 fn install_precommit(root: &Path) -> Result<bool, String> {
     let hooks_dir = root.join(".git").join("hooks");
     if !hooks_dir.exists() {
-        fs::create_dir_all(&hooks_dir)
-            .map_err(|e| format!("Failed to create .git/hooks/: {e}"))?;
+        fs::create_dir_all(&hooks_dir).map_err(|e| format!("Failed to create .git/hooks/: {e}"))?;
     }
 
     let path = hooks_dir.join("pre-commit");
@@ -382,8 +379,7 @@ fn install_precommit(root: &Path) -> Result<bool, String> {
 fn install_claude_code_hook(root: &Path) -> Result<bool, String> {
     let claude_dir = root.join(".claude");
     if !claude_dir.exists() {
-        fs::create_dir_all(&claude_dir)
-            .map_err(|e| format!("Failed to create .claude/: {e}"))?;
+        fs::create_dir_all(&claude_dir).map_err(|e| format!("Failed to create .claude/: {e}"))?;
     }
 
     let path = claude_dir.join("settings.json");
@@ -403,10 +399,10 @@ fn install_claude_code_hook(root: &Path) -> Result<bool, String> {
         let hook_value: serde_json::Value = serde_json::from_str(CLAUDE_CODE_HOOK_SETTINGS)
             .expect("built-in hook template is valid JSON");
 
-        if let Some(obj) = parsed.as_object_mut() {
-            if let Some(hooks) = hook_value.get("hooks") {
-                obj.insert("hooks".to_string(), hooks.clone());
-            }
+        if let Some(obj) = parsed.as_object_mut()
+            && let Some(hooks) = hook_value.get("hooks")
+        {
+            obj.insert("hooks".to_string(), hooks.clone());
         }
 
         let new_content = serde_json::to_string_pretty(&parsed)
@@ -444,8 +440,8 @@ fn remove_section_from_file(path: &Path, marker: &str) -> Result<bool, String> {
         if line.contains(marker) {
             start = Some(i);
             // Look for the next top-level heading that isn't part of our section
-            for j in (i + 1)..lines.len() {
-                if lines[j].starts_with("# ") && !lines[j].contains("Spec-Sync") {
+            for (j, line) in lines.iter().enumerate().skip(i + 1) {
+                if line.starts_with("# ") && !line.contains("Spec-Sync") {
                     end = j;
                     break;
                 }
@@ -467,8 +463,7 @@ fn remove_section_from_file(path: &Path, marker: &str) -> Result<bool, String> {
     let trimmed = new_content.trim();
 
     if trimmed.is_empty() {
-        fs::remove_file(path)
-            .map_err(|e| format!("Failed to remove {}: {e}", path.display()))?;
+        fs::remove_file(path).map_err(|e| format!("Failed to remove {}: {e}", path.display()))?;
     } else {
         fs::write(path, format!("{trimmed}\n"))
             .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
@@ -552,11 +547,7 @@ pub fn cmd_uninstall(root: &Path, targets: &[HookTarget]) {
                 removed += 1;
             }
             Ok(false) => {
-                println!(
-                    "  {} Not installed: {}",
-                    "·".dimmed(),
-                    target.description()
-                );
+                println!("  {} Not installed: {}", "·".dimmed(), target.description());
             }
             Err(e) => {
                 println!("  {} {}: {e}", "!".yellow(), target.description());

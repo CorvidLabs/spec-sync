@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-03-24
+
+### Added
+
+- **`specsync hooks` command** — manage agent instruction files and git hooks for spec awareness. Supports Claude Code (`CLAUDE.md`), Cursor (`.cursor/rules`), GitHub Copilot (`.github/copilot-instructions.md`), pre-commit hooks, and Claude Code hooks. Subcommands: `install`, `uninstall`, `status`.
+
+### Security
+
+- Updated `rustls-webpki` from 0.103.9 → 0.103.10 to fix RUSTSEC-2025-0016 (CRL Distribution Point matching logic).
+
+### Fixed
+
+- Spec scoring now distinguishes placeholder TODOs from descriptive references (#37).
+
 ## [2.0.0] - 2026-03-20
 
 ### Breaking Changes
@@ -127,6 +141,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
+[2.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.1.0
+[2.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.0.0
 [1.3.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v1.3.0
 [1.2.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v1.2.0
 [1.1.2]: https://github.com/CorvidLabs/spec-sync/releases/tag/v1.1.2

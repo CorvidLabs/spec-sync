@@ -107,6 +107,8 @@ specsync init-registry                     # Generate specsync-registry.toml
 specsync resolve                           # Verify spec cross-references
 specsync resolve --remote                  # Verify cross-project refs via GitHub
 specsync score                             # Quality-score your spec files (0–100)
+specsync hooks install                    # Install agent instructions + git hooks
+specsync hooks status                     # Check what's installed
 specsync mcp                               # Start MCP server for AI agent integration
 specsync watch                             # Re-validate on every file change
 ```
@@ -259,6 +261,7 @@ specsync [command] [flags]
 | `resolve` | Verify `depends_on` references exist. `--remote` fetches registries from GitHub |
 | `init-registry` | Generate `specsync-registry.toml` from existing specs |
 | `score` | Quality-score spec files (0–100) with improvement suggestions |
+| `hooks` | Install/uninstall agent instructions and git hooks (`install`, `uninstall`, `status`) |
 | `mcp` | Start MCP server for AI agent integration (Claude Code, Cursor, etc.) |
 | `init` | Create default `specsync.json` |
 | `watch` | Live validation on file changes (500ms debounce) |
@@ -529,6 +532,7 @@ src/
 ├── parser.rs          Frontmatter + spec body parsing
 ├── validator.rs       Validation + coverage + cross-project ref detection
 ├── generator.rs       Spec + companion file scaffolding
+├── hooks.rs           Agent instruction + git hook management
 ├── watch.rs           File watcher (notify, 500ms debounce)
 └── exports/
     ├── mod.rs          Language dispatch

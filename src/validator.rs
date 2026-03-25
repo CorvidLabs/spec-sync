@@ -459,11 +459,7 @@ mod tests {
     fn test_validate_spec_missing_required_fields() {
         let tmp = tempfile::tempdir().unwrap();
         let spec = tmp.path().join("partial.spec.md");
-        fs::write(
-            &spec,
-            "---\nmodule: test\n---\n\n## Purpose\nTest\n",
-        )
-        .unwrap();
+        fs::write(&spec, "---\nmodule: test\n---\n\n## Purpose\nTest\n").unwrap();
 
         let tables = HashSet::new();
         let config = SpecSyncConfig::default();
@@ -487,7 +483,12 @@ mod tests {
         let tables = HashSet::new();
         let config = SpecSyncConfig::default();
         let result = validate_spec(&spec, tmp.path(), &tables, &config);
-        assert!(result.errors.iter().any(|e| e.contains("Source file not found")));
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("Source file not found"))
+        );
     }
 }
 

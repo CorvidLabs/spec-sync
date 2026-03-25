@@ -365,7 +365,8 @@ mod tests {
 
     #[test]
     fn test_count_sections_with_content() {
-        let body = "## Purpose\nReal content here\n\n## Public API\n\n## Invariants\n1. Must be valid\n";
+        let body =
+            "## Purpose\nReal content here\n\n## Public API\n\n## Invariants\n1. Must be valid\n";
         let sections = vec![
             "Purpose".to_string(),
             "Public API".to_string(),
@@ -493,7 +494,11 @@ None.
         let score = score_spec(&spec_file, tmp.path(), &config);
 
         assert_eq!(score.frontmatter_score, 20);
-        assert!(score.total >= 80, "Expected high score, got {}", score.total);
+        assert!(
+            score.total >= 80,
+            "Expected high score, got {}",
+            score.total
+        );
         assert!(score.grade == "A" || score.grade == "B");
     }
 }

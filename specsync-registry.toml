@@ -1,0 +1,17 @@
+[registry]
+name = "spec-sync"
+
+[specs]
+ai = "specs/ai/ai.spec.md"
+cli = "specs/cli/cli.spec.md"
+config = "specs/config/config.spec.md"
+exports = "specs/exports/exports.spec.md"
+generator = "specs/generator/generator.spec.md"
+hooks = "specs/hooks/hooks.spec.md"
+mcp = "specs/mcp/mcp.spec.md"
+parser = "specs/parser/parser.spec.md"
+registry = "specs/registry/registry.spec.md"
+scoring = "specs/scoring/scoring.spec.md"
+types = "specs/types/types.spec.md"
+validator = "specs/validator/validator.spec.md"
+watch = "specs/watch/watch.spec.md"

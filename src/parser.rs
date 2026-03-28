@@ -150,16 +150,20 @@ pub fn get_spec_symbols(body: &str) -> Vec<String> {
             .map(|l| l.trim())
             .find(|l| !l.is_empty())
             .unwrap_or("");
-        if header.ends_with("Methods")
-            || header.ends_with("Constructor")
-            || header.ends_with("Properties")
-        {
+
+        // Allowlist: only validate tables under ### headers containing "Exported"
+        // (e.g., "### Exported Functions", "### Exported Types").
+        // Tables directly under ## Public API (no ### header) are also validated.
+        // Everything else (### API Endpoints, ### Component API, ### Route Handlers,
+        // ### Configuration, ### Internal Functions, etc.) is informational only.
+        if header.starts_with("### ") && !header.contains("Exported") {
             continue;
         }
 
         let mut in_method_subsection = false;
 
         for line in sub.lines() {
+            // Skip #### sub-tables for class methods/constructors/properties
             if METHOD_HEADER_RE.is_match(line) {
                 in_method_subsection = true;
                 continue;
@@ -256,5 +260,74 @@ Something
 "#;
         let symbols = get_spec_symbols(body);
         assert_eq!(symbols, vec!["createAuth", "validateToken", "AuthConfig"]);
+    }
+
+    #[test]
+    fn test_get_spec_symbols_skips_non_exported_subsections() {
+        let body = r#"## Public API
+
+### Exported Functions
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `authenticate` | token: string | User | Validates token |
+
+### API Endpoints
+
+| Endpoint | Method | Handler | Description |
+|----------|--------|---------|-------------|
+| `/login` | POST | `login` | Login route |
+| `/logout` | POST | `logout` | Logout route |
+
+### Component API
+
+| Signal | Type | Description |
+|--------|------|-------------|
+| `activeTab` | string | Current tab |
+
+### Route Handlers
+
+| Handler | Description |
+|---------|-------------|
+| `registration_status` | Check registration |
+
+### Exported Types
+
+| Type | Description |
+|------|-------------|
+| `AuthConfig` | Config type |
+
+### Configuration
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `timeout` | number | 30 | Request timeout |
+
+### Internal Functions
+
+| Function | Description |
+|----------|-------------|
+| `hashPassword` | Internal hashing |
+
+## Invariants
+"#;
+        let symbols = get_spec_symbols(body);
+        // Only symbols under "### Exported ..." subsections should be extracted
+        assert_eq!(symbols, vec!["authenticate", "AuthConfig"]);
+    }
+
+    #[test]
+    fn test_get_spec_symbols_top_level_table() {
+        // Tables directly under ## Public API (no ### header) should be validated
+        let body = r#"## Public API
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `helper` | input: string | string | Helps |
+
+## Invariants
+"#;
+        let symbols = get_spec_symbols(body);
+        assert_eq!(symbols, vec!["helper"]);
     }
 }

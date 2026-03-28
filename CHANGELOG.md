@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.2] - 2026-03-28
+
+### Fixed
+
+- **`action.yml` YAML parse fix** — quoted `${{ github.token }}` default value to prevent YAML stream parse errors when external repos use the action (#56).
+- **`spec:check` in CI** — added spec validation to the CI pipeline so spec drift is caught automatically (#54).
+
+### Added
+
+- **`manifest.spec.md`** — spec for the manifest module, achieving **100% file coverage** across all 23 source files (#55).
+- **Config spec update** — added `manifest` to config's `depends_on` for accurate cross-module references.
+
 ## [2.3.1] - 2026-03-28
 
 ### Added
@@ -203,6 +215,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
+[2.3.2]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.3.2
+[2.3.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.3.1
+[2.3.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.3.0
+[2.2.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.2.1
 [2.2.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.2.0
 [2.1.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.1.1
 [2.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.1.0

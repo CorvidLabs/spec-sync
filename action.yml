@@ -25,6 +25,14 @@ inputs:
     description: 'Additional arguments to pass to specsync check'
     required: false
     default: ''
+  comment:
+    description: 'Post spec drift results as a PR comment (requires pull_request event and write permissions)'
+    required: false
+    default: 'false'
+  token:
+    description: 'GitHub token for posting PR comments (defaults to GITHUB_TOKEN)'
+    required: false
+    default: ${{ github.token }}
 
 runs:
   using: 'composite'
@@ -74,11 +82,37 @@ runs:
         if [ "$OS" = "windows" ]; then
           ARCHIVE="specsync-${OS}-${ARCH}.exe.zip"
           curl -fsSL "${BASE_URL}/${ARCHIVE}" -o "${INSTALL_DIR}/specsync.zip"
+
+          # Verify checksum if available
+          if curl -fsSL "${BASE_URL}/${ARCHIVE}.sha256" -o "${INSTALL_DIR}/specsync.sha256" 2>/dev/null; then
+            echo "Verifying checksum..."
+            cd "$INSTALL_DIR"
+            EXPECTED=$(awk '{print $1}' specsync.sha256)
+            ACTUAL=$(shasum -a 256 specsync.zip | awk '{print $1}')
+            if [ "$EXPECTED" != "$ACTUAL" ]; then
+              echo "::error::Checksum verification failed! Expected: $EXPECTED, Got: $ACTUAL"
+              exit 1
+            fi
+            echo "::notice::Checksum verified"
+            cd -
+          fi
+
           unzip -o "${INSTALL_DIR}/specsync.zip" -d "$INSTALL_DIR"
           mv "${INSTALL_DIR}/specsync-${OS}-${ARCH}.exe" "${INSTALL_DIR}/specsync.exe"
         else
           ARCHIVE="specsync-${OS}-${ARCH}.tar.gz"
-          curl -fsSL "${BASE_URL}/${ARCHIVE}" | tar xz -C "$INSTALL_DIR"
+          curl -fsSL "${BASE_URL}/${ARCHIVE}" -o "${INSTALL_DIR}/${ARCHIVE}"
+
+          # Verify checksum if available
+          if curl -fsSL "${BASE_URL}/${ARCHIVE}.sha256" -o "${INSTALL_DIR}/${ARCHIVE}.sha256" 2>/dev/null; then
+            echo "Verifying checksum..."
+            cd "$INSTALL_DIR"
+            shasum -a 256 -c "${ARCHIVE}.sha256"
+            echo "::notice::Checksum verified"
+            cd -
+          fi
+
+          tar xz -C "$INSTALL_DIR" -f "${INSTALL_DIR}/${ARCHIVE}"
           mv "${INSTALL_DIR}/specsync-${OS}-${ARCH}" "${INSTALL_DIR}/specsync"
           chmod +x "${INSTALL_DIR}/specsync"
         fi
@@ -89,11 +123,13 @@ runs:
 
     - name: Run SpecSync
       shell: bash
+      id: specsync
       working-directory: ${{ inputs.root }}
       env:
         INPUT_STRICT: ${{ inputs.strict }}
         INPUT_REQUIRE_COVERAGE: ${{ inputs.require-coverage }}
         INPUT_ARGS: ${{ inputs.args }}
+        INPUT_COMMENT: ${{ inputs.comment }}
       run: |
         set -euo pipefail
 
@@ -113,5 +149,53 @@ runs:
 
         echo "::group::SpecSync Check"
         echo "Running: $CMD"
-        eval "$CMD"
+        EXIT_CODE=0
+        eval "$CMD" || EXIT_CODE=$?
         echo "::endgroup::"
+
+        # If comment mode is enabled, also run diff with markdown output
+        if [ "$INPUT_COMMENT" = "true" ]; then
+          DIFF_OUTPUT=$(specsync diff --format markdown 2>&1) || true
+          # Save markdown output for the comment step
+          {
+            echo "SPECSYNC_MARKDOWN<<SPECSYNC_EOF"
+            echo "$DIFF_OUTPUT"
+            echo "SPECSYNC_EOF"
+          } >> "$GITHUB_ENV"
+        fi
+
+        exit $EXIT_CODE
+
+    - name: Post PR Comment
+      if: inputs.comment == 'true' && github.event_name == 'pull_request' && always()
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "${SPECSYNC_MARKDOWN:-}" ]; then
+          echo "No drift output to comment"
+          exit 0
+        fi
+
+        COMMENT_BODY="$SPECSYNC_MARKDOWN
+
+---
+<sub>Posted by [SpecSync](https://github.com/CorvidLabs/spec-sync) via GitHub Actions</sub>"
+
+        # Check for existing SpecSync comment and update it, or create new
+        EXISTING_COMMENT_ID=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+          --jq '.[] | select(.body | contains("Posted by [SpecSync]")) | .id' | head -1)
+
+        if [ -n "$EXISTING_COMMENT_ID" ]; then
+          gh api "repos/${REPO}/issues/comments/${EXISTING_COMMENT_ID}" \
+            -X PATCH -f body="$COMMENT_BODY" > /dev/null
+          echo "::notice::Updated existing SpecSync PR comment"
+        else
+          gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+            -f body="$COMMENT_BODY" > /dev/null
+          echo "::notice::Posted SpecSync PR comment"
+        fi

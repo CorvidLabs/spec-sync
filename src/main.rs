@@ -44,7 +44,11 @@ struct Cli {
     #[arg(long, global = true)]
     root: Option<PathBuf>,
 
-    /// Output results as JSON instead of colored text
+    /// Output format: text (default), json, or markdown
+    #[arg(long, value_enum, global = true, default_value = "text")]
+    format: types::OutputFormat,
+
+    /// Output results as JSON (shorthand for --format json)
     #[arg(long, global = true)]
     json: bool,
 }
@@ -179,22 +183,29 @@ fn run() {
         .unwrap_or_else(|| std::env::current_dir().expect("Cannot determine cwd"));
     let root = root.canonicalize().unwrap_or(root);
 
+    // --json flag is shorthand for --format json (backward compat)
+    let format = if cli.json {
+        types::OutputFormat::Json
+    } else {
+        cli.format
+    };
+
     let command = cli.command.unwrap_or(Command::Check { fix: false });
 
     match command {
         Command::Init => cmd_init(&root),
-        Command::Check { fix } => cmd_check(&root, cli.strict, cli.require_coverage, cli.json, fix),
-        Command::Coverage => cmd_coverage(&root, cli.strict, cli.require_coverage, cli.json),
+        Command::Check { fix } => cmd_check(&root, cli.strict, cli.require_coverage, format, fix),
+        Command::Coverage => cmd_coverage(&root, cli.strict, cli.require_coverage, format),
         Command::Generate { provider } => {
-            cmd_generate(&root, cli.strict, cli.require_coverage, cli.json, provider)
+            cmd_generate(&root, cli.strict, cli.require_coverage, format, provider)
         }
-        Command::Score => cmd_score(&root, cli.json),
+        Command::Score => cmd_score(&root, format),
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
         Command::Mcp => mcp::run_mcp_server(&root),
         Command::AddSpec { name } => cmd_add_spec(&root, &name),
         Command::InitRegistry { name } => cmd_init_registry(&root, name),
         Command::Resolve { remote } => cmd_resolve(&root, remote),
-        Command::Diff { base } => cmd_diff(&root, &base, cli.json),
+        Command::Diff { base } => cmd_diff(&root, &base, format),
         Command::Hooks { action } => cmd_hooks(&root, action),
     }
 }
@@ -297,23 +308,38 @@ fn cmd_init(root: &Path) {
     println!("  Detected source directories: {dirs_display}");
 }
 
-fn cmd_check(root: &Path, strict: bool, require_coverage: Option<usize>, json: bool, fix: bool) {
+fn cmd_check(
+    root: &Path,
+    strict: bool,
+    require_coverage: Option<usize>,
+    format: types::OutputFormat,
+    fix: bool,
+) {
+    use types::OutputFormat::*;
+
     let (config, spec_files) = load_and_discover(root, fix);
 
     if spec_files.is_empty() {
-        if json {
-            let output = serde_json::json!({
-                "passed": true,
-                "errors": [],
-                "warnings": [],
-                "specs_checked": 0,
-            });
-            println!("{}", serde_json::to_string_pretty(&output).unwrap());
-        } else {
-            println!(
-                "No spec files found in {}/. Run `specsync generate` to scaffold specs.",
-                config.specs_dir
-            );
+        match format {
+            Json => {
+                let output = serde_json::json!({
+                    "passed": true,
+                    "errors": [],
+                    "warnings": [],
+                    "specs_checked": 0,
+                });
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            }
+            Markdown => {
+                println!("## SpecSync Check Results\n");
+                println!("No spec files found. Run `specsync generate` to scaffold specs.");
+            }
+            Text => {
+                println!(
+                    "No spec files found in {}/. Run `specsync generate` to scaffold specs.",
+                    config.specs_dir
+                );
+            }
         }
         process::exit(0);
     }
@@ -323,45 +349,75 @@ fn cmd_check(root: &Path, strict: bool, require_coverage: Option<usize>, json: b
     // If --fix is requested, auto-add undocumented exports to specs
     if fix {
         let fixed = auto_fix_specs(root, &spec_files, &config);
-        if fixed > 0 && !json {
+        if fixed > 0 && matches!(format, Text) {
             println!("{} Auto-added exports to {fixed} spec(s)\n", "✓".green());
         }
     }
 
+    let collect = !matches!(format, Text);
     let (total_errors, total_warnings, passed, total, all_errors, all_warnings) =
-        run_validation(root, &spec_files, &schema_tables, &config, json);
+        run_validation(root, &spec_files, &schema_tables, &config, collect);
     let coverage = compute_coverage(root, &spec_files, &config);
 
-    if json {
-        let exit_code = compute_exit_code(
-            total_errors,
-            total_warnings,
-            strict,
-            &coverage,
-            require_coverage,
-        );
-        let output = serde_json::json!({
-            "passed": exit_code == 0,
-            "errors": all_errors,
-            "warnings": all_warnings,
-            "specs_checked": total,
-        });
-        println!("{}", serde_json::to_string_pretty(&output).unwrap());
-        process::exit(exit_code);
+    match format {
+        Json => {
+            let exit_code = compute_exit_code(
+                total_errors,
+                total_warnings,
+                strict,
+                &coverage,
+                require_coverage,
+            );
+            let output = serde_json::json!({
+                "passed": exit_code == 0,
+                "errors": all_errors,
+                "warnings": all_warnings,
+                "specs_checked": total,
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            process::exit(exit_code);
+        }
+        Markdown => {
+            let exit_code = compute_exit_code(
+                total_errors,
+                total_warnings,
+                strict,
+                &coverage,
+                require_coverage,
+            );
+            print_check_markdown(
+                total,
+                passed,
+                total_warnings,
+                total_errors,
+                &all_errors,
+                &all_warnings,
+                &coverage,
+                exit_code == 0,
+            );
+            process::exit(exit_code);
+        }
+        Text => {
+            print_summary(total, passed, total_warnings, total_errors);
+            print_coverage_line(&coverage);
+            exit_with_status(
+                total_errors,
+                total_warnings,
+                strict,
+                &coverage,
+                require_coverage,
+            );
+        }
     }
-
-    print_summary(total, passed, total_warnings, total_errors);
-    print_coverage_line(&coverage);
-    exit_with_status(
-        total_errors,
-        total_warnings,
-        strict,
-        &coverage,
-        require_coverage,
-    );
 }
 
-fn cmd_coverage(root: &Path, strict: bool, require_coverage: Option<usize>, json: bool) {
+fn cmd_coverage(
+    root: &Path,
+    strict: bool,
+    require_coverage: Option<usize>,
+    format: types::OutputFormat,
+) {
+    let json = matches!(format, types::OutputFormat::Json);
     let (config, spec_files) = load_and_discover(root, false);
     let schema_tables = get_schema_table_names(root, &config);
     let (total_errors, total_warnings, passed, total, _all_errors, _all_warnings) =
@@ -423,9 +479,10 @@ fn cmd_generate(
     root: &Path,
     strict: bool,
     require_coverage: Option<usize>,
-    json: bool,
+    format: types::OutputFormat,
     provider: Option<String>,
 ) {
+    let json = matches!(format, types::OutputFormat::Json);
     let (config, spec_files) = load_and_discover(root, true);
     let schema_tables = get_schema_table_names(root, &config);
 
@@ -522,7 +579,8 @@ fn cmd_generate(
     );
 }
 
-fn cmd_score(root: &Path, json: bool) {
+fn cmd_score(root: &Path, format: types::OutputFormat) {
+    let json = matches!(format, types::OutputFormat::Json);
     let (config, spec_files) = load_and_discover(root, false);
     let scores: Vec<scoring::SpecScore> = spec_files
         .iter()
@@ -1058,7 +1116,7 @@ fn auto_fix_specs(root: &Path, spec_files: &[PathBuf], config: &types::SpecSyncC
 
 // ─── Diff command ────────────────────────────────────────────────────────
 
-fn cmd_diff(root: &Path, base: &str, json: bool) {
+fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
     use crate::exports::get_exported_symbols;
     use crate::parser::parse_frontmatter;
 
@@ -1083,16 +1141,26 @@ fn cmd_diff(root: &Path, base: &str, json: bool) {
         .collect();
 
     if changed_files.is_empty() {
-        if json {
-            println!("{{\"changes\":[]}}");
-        } else {
-            println!("No files changed since {base}");
+        match format {
+            types::OutputFormat::Json => println!("{{\"changes\":[]}}"),
+            types::OutputFormat::Markdown => {
+                println!("## SpecSync Drift Report\n");
+                println!("No files changed since `{base}`.");
+            }
+            types::OutputFormat::Text => println!("No files changed since {base}"),
         }
         return;
     }
 
-    // For each spec, check if any of its source files changed
-    let mut changes: Vec<serde_json::Value> = Vec::new();
+    // Collect structured diff data for all specs
+    struct DiffEntry {
+        spec: String,
+        changed_files: Vec<String>,
+        new_exports: Vec<String>,
+        removed_exports: Vec<String>,
+    }
+
+    let mut entries: Vec<DiffEntry> = Vec::new();
 
     for spec_file in &spec_files {
         let content = match fs::read_to_string(spec_file) {
@@ -1111,11 +1179,12 @@ fn cmd_diff(root: &Path, base: &str, json: bool) {
             .to_string_lossy()
             .replace('\\', "/");
 
-        let affected_files: Vec<&String> = parsed
+        let affected_files: Vec<String> = parsed
             .frontmatter
             .files
             .iter()
             .filter(|f| changed_files.contains(*f))
+            .cloned()
             .collect();
 
         if affected_files.is_empty() {
@@ -1138,64 +1207,177 @@ fn cmd_diff(root: &Path, base: &str, json: bool) {
         let export_set: std::collections::HashSet<&str> =
             current_exports.iter().map(|s| s.as_str()).collect();
 
-        let new_exports: Vec<&str> = current_exports
+        let new_exports: Vec<String> = current_exports
             .iter()
             .filter(|s| !spec_set.contains(s.as_str()))
-            .map(|s| s.as_str())
+            .cloned()
             .collect();
 
-        let removed_exports: Vec<&str> = spec_symbols
+        let removed_exports: Vec<String> = spec_symbols
             .iter()
             .filter(|s| !export_set.contains(s.as_str()))
-            .map(|s| s.as_str())
+            .cloned()
             .collect();
 
-        if json {
-            changes.push(serde_json::json!({
-                "spec": spec_rel,
-                "changed_files": affected_files,
-                "new_exports": new_exports,
-                "removed_exports": removed_exports,
-            }));
-        } else {
-            println!("\n{}", spec_rel.bold());
-            println!(
-                "  Changed files: {}",
-                affected_files
+        entries.push(DiffEntry {
+            spec: spec_rel,
+            changed_files: affected_files,
+            new_exports,
+            removed_exports,
+        });
+    }
+
+    match format {
+        types::OutputFormat::Json => {
+            let changes: Vec<serde_json::Value> = entries
+                .iter()
+                .map(|e| {
+                    serde_json::json!({
+                        "spec": e.spec,
+                        "changed_files": e.changed_files,
+                        "new_exports": e.new_exports,
+                        "removed_exports": e.removed_exports,
+                    })
+                })
+                .collect();
+            let output = serde_json::json!({ "changes": changes });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        }
+        types::OutputFormat::Markdown => {
+            #[allow(clippy::type_complexity)]
+            let tuples: Vec<(String, Vec<String>, Vec<String>, Vec<String>)> = entries
+                .iter()
+                .map(|e| {
+                    (
+                        e.spec.clone(),
+                        e.changed_files.clone(),
+                        e.new_exports.clone(),
+                        e.removed_exports.clone(),
+                    )
+                })
+                .collect();
+            print_diff_markdown(&tuples, &changed_files, &spec_files, root, &config, base);
+        }
+        types::OutputFormat::Text => {
+            for entry in &entries {
+                println!("\n{}", entry.spec.bold());
+                println!("  Changed files: {}", entry.changed_files.join(", "));
+                if !entry.new_exports.is_empty() {
+                    println!(
+                        "  {} New exports (not in spec): {}",
+                        "+".green(),
+                        entry.new_exports.join(", ")
+                    );
+                }
+                if !entry.removed_exports.is_empty() {
+                    println!(
+                        "  {} Removed exports (still in spec): {}",
+                        "-".red(),
+                        entry.removed_exports.join(", ")
+                    );
+                }
+                if entry.new_exports.is_empty() && entry.removed_exports.is_empty() {
+                    println!("  {} Spec is up to date", "✓".green());
+                }
+            }
+
+            if entries.is_empty() {
+                // Check if any changed files are NOT covered by specs
+                let specced_files: std::collections::HashSet<String> = spec_files
                     .iter()
-                    .map(|f| f.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            );
-            if !new_exports.is_empty() {
-                println!(
-                    "  {} New exports (not in spec): {}",
-                    "+".green(),
-                    new_exports.join(", ")
-                );
-            }
-            if !removed_exports.is_empty() {
-                println!(
-                    "  {} Removed exports (still in spec): {}",
-                    "-".red(),
-                    removed_exports.join(", ")
-                );
-            }
-            if new_exports.is_empty() && removed_exports.is_empty() {
-                println!("  {} Spec is up to date", "✓".green());
+                    .filter_map(|f| fs::read_to_string(f).ok())
+                    .filter_map(|c| parse_frontmatter(&c.replace("\r\n", "\n")))
+                    .flat_map(|p| p.frontmatter.files)
+                    .collect();
+
+                let untracked: Vec<&String> = changed_files
+                    .iter()
+                    .filter(|f| {
+                        let path = std::path::Path::new(f.as_str());
+                        crate::exports::has_extension(path, &config.source_extensions)
+                            && !specced_files.contains(*f)
+                    })
+                    .collect();
+
+                if untracked.is_empty() {
+                    println!("No spec-tracked source files changed since {base}.");
+                } else {
+                    println!("Changed files not covered by any spec:");
+                    for f in &untracked {
+                        println!("  {} {f}", "?".yellow());
+                    }
+                }
             }
         }
     }
+}
 
-    if json {
-        let output = serde_json::json!({ "changes": changes });
-        println!("{}", serde_json::to_string_pretty(&output).unwrap());
-    } else if changes.is_empty() && !json {
-        // Check if any changed files are NOT covered by specs
+// ─── Markdown formatters ─────────────────────────────────────────────────
+
+#[allow(clippy::too_many_arguments)]
+fn print_check_markdown(
+    total: usize,
+    passed: usize,
+    warnings: usize,
+    errors: usize,
+    all_errors: &[String],
+    all_warnings: &[String],
+    coverage: &types::CoverageReport,
+    overall_passed: bool,
+) {
+    let status = if overall_passed { "Passed" } else { "Failed" };
+    let icon = if overall_passed { "✅" } else { "❌" };
+
+    println!("## SpecSync Check Results\n");
+    println!(
+        "**{icon} {status}** — {total} specs checked, {passed} passed, {warnings} warning(s), {errors} error(s)\n"
+    );
+
+    if !all_errors.is_empty() {
+        println!("### Errors\n");
+        for e in all_errors {
+            println!("- {e}");
+        }
+        println!();
+    }
+
+    if !all_warnings.is_empty() {
+        println!("### Warnings\n");
+        for w in all_warnings {
+            println!("- {w}");
+        }
+        println!();
+    }
+
+    println!("### Coverage\n");
+    println!(
+        "- **Files:** {}/{} ({}%)",
+        coverage.specced_file_count, coverage.total_source_files, coverage.coverage_percent
+    );
+    println!(
+        "- **LOC:** {}/{} ({}%)",
+        coverage.specced_loc, coverage.total_loc, coverage.loc_coverage_percent
+    );
+}
+
+/// Print diff results as markdown. Each entry is (spec, changed_files, new_exports, removed_exports).
+#[allow(clippy::type_complexity)]
+fn print_diff_markdown(
+    entries: &[(String, Vec<String>, Vec<String>, Vec<String>)],
+    changed_files: &std::collections::HashSet<String>,
+    spec_files: &[PathBuf],
+    _root: &Path,
+    config: &types::SpecSyncConfig,
+    base: &str,
+) {
+    println!("## SpecSync Drift Report\n");
+
+    if entries.is_empty() {
+        // Check for untracked files
         let specced_files: std::collections::HashSet<String> = spec_files
             .iter()
             .filter_map(|f| fs::read_to_string(f).ok())
-            .filter_map(|c| parse_frontmatter(&c.replace("\r\n", "\n")))
+            .filter_map(|c| crate::parser::parse_frontmatter(&c.replace("\r\n", "\n")))
             .flat_map(|p| p.frontmatter.files)
             .collect();
 
@@ -1209,12 +1391,52 @@ fn cmd_diff(root: &Path, base: &str, json: bool) {
             .collect();
 
         if untracked.is_empty() {
-            println!("No spec-tracked source files changed since {base}.");
+            println!("No spec-tracked source files changed since `{base}`.");
         } else {
-            println!("Changed files not covered by any spec:");
+            println!("**Changed files not covered by any spec:**\n");
             for f in &untracked {
-                println!("  {} {f}", "?".yellow());
+                println!("- `{f}`");
             }
+        }
+        return;
+    }
+
+    let has_drift = entries
+        .iter()
+        .any(|(_, _, new, removed)| !new.is_empty() || !removed.is_empty());
+
+    if has_drift {
+        println!(
+            "Spec drift detected in {} module(s) since `{base}`.\n",
+            entries.len()
+        );
+    } else {
+        println!("All specs are up to date with source code.\n");
+    }
+
+    for (spec, files, new_exports, removed_exports) in entries {
+        println!("### `{spec}`\n");
+        println!(
+            "**Changed files:** {}\n",
+            files
+                .iter()
+                .map(|f| format!("`{f}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+
+        if !new_exports.is_empty() || !removed_exports.is_empty() {
+            println!("| Change | Export |");
+            println!("|--------|--------|");
+            for e in new_exports {
+                println!("| Added | `{e}` |");
+            }
+            for e in removed_exports {
+                println!("| Removed | `{e}` |");
+            }
+            println!();
+        } else {
+            println!("No drift — spec is up to date.\n");
         }
     }
 }
@@ -1246,12 +1468,13 @@ fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConfig, 
 }
 
 /// Run validation, returning counts and collected error/warning strings.
+/// When `collect` is true, errors/warnings are collected into vectors instead of printing inline.
 fn run_validation(
     root: &Path,
     spec_files: &[PathBuf],
     schema_tables: &std::collections::HashSet<String>,
     config: &types::SpecSyncConfig,
-    json: bool,
+    collect: bool,
 ) -> (usize, usize, usize, usize, Vec<String>, Vec<String>) {
     let mut total_errors = 0;
     let mut total_warnings = 0;
@@ -1262,7 +1485,7 @@ fn run_validation(
     for spec_file in spec_files {
         let result = validate_spec(spec_file, root, schema_tables, config);
 
-        if json {
+        if collect {
             all_errors.extend(result.errors.iter().cloned());
             all_warnings.extend(result.warnings.iter().cloned());
             total_errors += result.errors.len();

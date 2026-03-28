@@ -1,3 +1,4 @@
+use clap::ValueEnum;
 use serde::Deserialize;
 use std::fmt;
 
@@ -104,6 +105,18 @@ impl fmt::Display for AiProvider {
             AiProvider::Custom => write!(f, "custom"),
         }
     }
+}
+
+/// Output format for CLI commands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
+pub enum OutputFormat {
+    /// Colored terminal output (default)
+    #[default]
+    Text,
+    /// Machine-readable JSON
+    Json,
+    /// Markdown suitable for PR comments and agent consumption
+    Markdown,
 }
 
 /// YAML frontmatter parsed from a spec file.

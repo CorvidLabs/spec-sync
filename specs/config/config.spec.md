@@ -24,6 +24,7 @@ Loads project configuration from `specsync.json` or `.specsync.toml`, with fallb
 | `load_config` | `root: &Path` | `SpecSyncConfig` | Load config from specsync.json or .specsync.toml, falling back to defaults with auto-detected source dirs |
 | `detect_source_dirs` | `root: &Path` | `Vec<String>` | Auto-detect source directories by scanning for supported language files up to 3 levels deep |
 | `default_schema_pattern` | — | `&'static str` | Returns the default regex for SQL CREATE TABLE extraction |
+| `discover_manifest_modules` | `root: &Path` | `ManifestDiscovery` | Discover modules from manifest files (Package.swift, Cargo.toml, etc.) |
 
 ## Invariants
 
@@ -86,3 +87,4 @@ Loads project configuration from `specsync.json` or `.specsync.toml`, with fallb
 | Date | Change |
 |------|--------|
 | 2026-03-25 | Initial spec |
+| 2026-03-28 | Document discover_manifest_modules |

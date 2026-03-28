@@ -22,6 +22,8 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 |------|-------------|
 | `AiProvider` | Supported AI provider presets: Claude, Cursor, Copilot, Ollama, Anthropic, OpenAi, Custom |
 | `Language` | Detected source language for export extraction: TypeScript, Rust, Go, Python, Swift, Kotlin, Java, CSharp, Dart |
+| `OutputFormat` | CLI output format: Text (colored terminal, default), Json (machine-readable), Markdown (PR comments / agent consumption) |
+| `ExportLevel` | Export extraction granularity: Type (top-level declarations only) or Member (all public symbols, default) |
 
 ### Exported Structs
 
@@ -32,6 +34,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `CoverageReport` | File and LOC coverage metrics for the project |
 | `SpecSyncConfig` | User-provided configuration loaded from specsync.json or .specsync.toml |
 | `RegistryEntry` | Registry entry mapping module names to spec file paths for cross-project resolution |
+| `ModuleDefinition` | User-defined module grouping in specsync.json with files and depends_on lists |
 
 ### AiProvider Functions
 
@@ -122,3 +125,4 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | Date | Change |
 |------|--------|
 | 2026-03-25 | Initial spec |
+| 2026-03-28 | Document OutputFormat, ExportLevel, ModuleDefinition |

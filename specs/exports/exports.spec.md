@@ -31,6 +31,7 @@ Language-aware export extraction from source files. Auto-detects the programming
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `get_exported_symbols` | `file_path: &Path` | `Vec<String>` | Extract exported symbol names from a source file, auto-detecting language from extension |
+| `get_exported_symbols_with_level` | `file_path: &Path, level: ExportLevel` | `Vec<String>` | Extract exports with configurable granularity — Type (declarations only) or Member (all symbols) |
 | `is_test_file` | `file_path: &Path` | `bool` | Check if a file is a test file based on language-specific naming conventions |
 | `is_source_file` | `file_path: &Path` | `bool` | Check if a file extension belongs to a supported source language |
 | `has_extension` | `file_path: &Path, extensions: &[String]` | `bool` | Check if file matches specific extensions, or any supported language if extensions is empty |
@@ -187,3 +188,4 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 | Date | Change |
 |------|--------|
 | 2026-03-25 | Initial spec |
+| 2026-03-28 | Document get_exported_symbols_with_level |

@@ -102,6 +102,39 @@ The core of what SpecSync validates. Use markdown tables with **backtick-quoted 
 {: .note }
 > Column headers don't matter. SpecSync only reads backtick-quoted names in the first column. Structure the table however suits your team.
 
+### Validated vs Informational Subsections
+
+Only `### Exported ...` subsections trigger export validation. Use other heading names to document non-export API surface without triggering validation errors:
+
+```markdown
+## Public API
+
+### Exported Functions              ← validated against code exports
+| Function | Description |
+|----------|-------------|
+| `authenticate` | Validates token |
+
+### API Endpoints                   ← informational, NOT validated
+| Endpoint | Method | Handler | Description |
+|----------|--------|---------|-------------|
+| `/login` | POST | `login` | Login route |
+
+### Component API                   ← informational, NOT validated
+| Signal | Type | Description |
+|--------|------|-------------|
+| `activeTab` | string | Current tab |
+
+### Configuration                   ← informational, NOT validated
+| Key | Type | Default |
+|-----|------|---------|
+| `timeout` | number | 30 |
+```
+
+This lets specs document the full API surface — HTTP endpoints, component signals, route handlers, config options — alongside validated exports, all in one place.
+
+{: .note }
+> Tables placed directly under `## Public API` (without a `###` subsection) are always validated.
+
 ---
 
 ## Consumed By Section

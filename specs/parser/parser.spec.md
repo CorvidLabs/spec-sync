@@ -35,7 +35,7 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 
 1. `parse_frontmatter` returns `None` if the content does not start with `---\n...\n---\n`
 2. `get_spec_symbols` only extracts the first backtick-quoted word per table row (`` `symbol` ``)
-3. `get_spec_symbols` skips sub-tables under `### Methods`, `### Constructor`, or `### Properties` headings
+3. `get_spec_symbols` only extracts from `### Exported ...` subsections (allowlist) and top-level tables; skips non-export subsections (e.g., `### API Endpoints`, `### Route Handlers`, `### Configuration`) and `####` method/constructor/properties sub-tables
 4. Symbols are deduplicated while preserving order
 5. `get_missing_sections` uses regex matching for `## SectionName` headings — case-sensitive
 6. Frontmatter parsing handles both scalar fields (module, version, status) and list fields (files, db_tables, depends_on)

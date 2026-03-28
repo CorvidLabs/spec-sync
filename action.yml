@@ -32,7 +32,7 @@ inputs:
   token:
     description: 'GitHub token for posting PR comments (defaults to GITHUB_TOKEN)'
     required: false
-    default: ${{ github.token }}
+    default: '${{ github.token }}'
 
 runs:
   using: 'composite'
@@ -183,8 +183,8 @@ runs:
 
         COMMENT_BODY="$SPECSYNC_MARKDOWN
 
----
-<sub>Posted by [SpecSync](https://github.com/CorvidLabs/spec-sync) via GitHub Actions</sub>"
+        ---
+        <sub>Posted by [SpecSync](https://github.com/CorvidLabs/spec-sync) via GitHub Actions</sub>"
 
         # Check for existing SpecSync comment and update it, or create new
         EXISTING_COMMENT_ID=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \

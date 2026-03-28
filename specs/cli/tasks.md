@@ -1,6 +1,8 @@
-# CLI Module Tasks
+---
+spec: cli.spec.md
+---
 
-## Open
+## Tasks
 
 - [ ] Add shell completion generation subcommand (`specsync completions bash/zsh/fish`)
 - [ ] Add `--quiet` flag to suppress non-error output
@@ -13,3 +15,15 @@
 - [x] Add `--strict` and `--require-coverage` global flags
 - [x] Add `--root` flag for non-cwd project roots
 - [x] Make `check` the default subcommand when none is specified
+
+## Gaps
+
+- No shell completion support
+- No `--quiet` flag for CI pipelines that only want exit codes
+
+## Review Sign-offs
+
+- **Product**: pending
+- **QA**: pending
+- **Design**: n/a
+- **Dev**: pending

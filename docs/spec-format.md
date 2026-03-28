@@ -51,7 +51,17 @@ depends_on:
 | Field | Type | Description |
 |:------|:-----|:------------|
 | `db_tables` | `string[]` | Validated against `CREATE TABLE` statements in your `schemaDir` |
-| `depends_on` | `string[]` | Paths to other spec files — validated for existence |
+| `depends_on` | `string[]` | Local paths or cross-project refs — validated for existence |
+
+`depends_on` supports two formats:
+
+```yaml
+depends_on:
+  - specs/database/database.spec.md          # Local path (validated by check + resolve)
+  - corvid-labs/algochat@messaging           # Cross-project ref (validated by resolve --remote)
+```
+
+Cross-project refs use the `owner/repo@module` syntax. Local refs are verified by `specsync check` and `specsync resolve`. Cross-project refs require `specsync resolve --remote` which fetches the target repo's `specsync-registry.toml` from GitHub. See [Cross-Project References](cross-project-refs) for the full workflow.
 
 ---
 

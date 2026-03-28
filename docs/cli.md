@@ -86,6 +86,52 @@ specsync mcp                            # start MCP server (stdio JSON-RPC)
 
 Exposes tools: `specsync_check`, `specsync_generate`, `specsync_coverage`, `specsync_score`.
 
+### `add-spec`
+
+Scaffold a single spec with companion files (`tasks.md`, `context.md`).
+
+```bash
+specsync add-spec auth                     # creates specs/auth/auth.spec.md + companions
+```
+
+Companion files sit alongside the spec and give agents structured context:
+- **`tasks.md`** — outstanding work items for the module
+- **`context.md`** — design decisions, constraints, history
+
+### `init-registry`
+
+Generate a `specsync-registry.toml` listing all modules in the project. Other projects reference your modules via this registry.
+
+```bash
+specsync init-registry                     # uses project folder name
+specsync init-registry --name myapp        # custom registry name
+```
+
+Commit the generated file to your repo's default branch so `resolve --remote` can find it.
+
+### `resolve`
+
+Verify that all `depends_on` references in your specs actually exist. By default checks local paths only (no network).
+
+```bash
+specsync resolve                           # verify local refs
+specsync resolve --remote                  # also verify cross-project refs via GitHub
+```
+
+Cross-project refs use the `owner/repo@module` syntax in `depends_on`. The `--remote` flag fetches the target repo's `specsync-registry.toml` from GitHub to confirm the module exists. See [Cross-Project References](cross-project-refs) for details.
+
+### `hooks`
+
+Install agent instruction files and git hooks so AI agents and contributors stay spec-aware.
+
+```bash
+specsync hooks install                     # install agent instructions + pre-commit hook
+specsync hooks uninstall                   # remove installed hooks
+specsync hooks status                      # check what's installed
+```
+
+Supports Claude Code (`CLAUDE.md`), Cursor (`.cursor/rules`), GitHub Copilot (`.github/copilot-instructions.md`), and pre-commit hooks.
+
 ### `init`
 
 Create a default `specsync.json` in the current directory.
@@ -112,7 +158,8 @@ specsync watch
 | `--require-coverage N` | Fail if file coverage < N%. |
 | `--root <path>` | Project root directory (default: cwd). |
 | `--provider <name>` | Enable AI-powered generation and select provider: `auto` (auto-detect), `anthropic`, `openai`, or `command`. Without this flag, `generate` uses templates only. |
-| `--json` | Structured JSON output, no color codes. |
+| `--format <fmt>` | Output format: `text` (default), `json`, or `markdown`. Markdown produces clean tables suitable for PRs and docs. |
+| `--json` | Shorthand for `--format json`. Structured output, no color codes. |
 
 ---
 

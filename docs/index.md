@@ -40,6 +40,10 @@ specsync generate               # scaffold specs for unspecced modules
 specsync generate --provider auto           # AI-powered specs (auto-detect provider)
 specsync generate --provider anthropic      # use Anthropic API directly
 specsync score                  # quality-score your specs (0–100)
+specsync add-spec auth          # scaffold a single spec with companion files
+specsync resolve --remote       # verify cross-project spec references
+specsync init-registry          # publish your modules for other projects
+specsync hooks install          # install agent instructions + git hooks
 specsync mcp                    # start MCP server for AI agents
 specsync watch                  # re-validate on file changes
 ```
@@ -52,4 +56,4 @@ Auto-detected from file extensions. No per-language configuration.
 
 TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart.
 
-See [Spec Format](spec-format) for how to write specs, [CLI Reference](cli) for all commands, and [Configuration](configuration) for `specsync.json` options.
+See [Spec Format](spec-format) for how to write specs, [CLI Reference](cli) for all commands, [Cross-Project References](cross-project-refs) for multi-repo validation, and [Configuration](configuration) for `specsync.json` options.

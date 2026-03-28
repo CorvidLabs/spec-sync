@@ -7,6 +7,7 @@ files:
 db_tables: []
 depends_on:
   - specs/types/types.spec.md
+  - specs/manifest/manifest.spec.md
 ---
 
 # Config

@@ -1244,6 +1244,7 @@ fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
             println!("{}", serde_json::to_string_pretty(&output).unwrap());
         }
         types::OutputFormat::Markdown => {
+            #[allow(clippy::type_complexity)]
             let tuples: Vec<(String, Vec<String>, Vec<String>, Vec<String>)> = entries
                 .iter()
                 .map(|e| {
@@ -1260,10 +1261,7 @@ fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
         types::OutputFormat::Text => {
             for entry in &entries {
                 println!("\n{}", entry.spec.bold());
-                println!(
-                    "  Changed files: {}",
-                    entry.changed_files.join(", ")
-                );
+                println!("  Changed files: {}", entry.changed_files.join(", "));
                 if !entry.new_exports.is_empty() {
                     println!(
                         "  {} New exports (not in spec): {}",
@@ -1316,6 +1314,7 @@ fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
 
 // ─── Markdown formatters ─────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn print_check_markdown(
     total: usize,
     passed: usize,
@@ -1326,11 +1325,7 @@ fn print_check_markdown(
     coverage: &types::CoverageReport,
     overall_passed: bool,
 ) {
-    let status = if overall_passed {
-        "Passed"
-    } else {
-        "Failed"
-    };
+    let status = if overall_passed { "Passed" } else { "Failed" };
     let icon = if overall_passed { "✅" } else { "❌" };
 
     println!("## SpecSync Check Results\n");
@@ -1366,6 +1361,7 @@ fn print_check_markdown(
 }
 
 /// Print diff results as markdown. Each entry is (spec, changed_files, new_exports, removed_exports).
+#[allow(clippy::type_complexity)]
 fn print_diff_markdown(
     entries: &[(String, Vec<String>, Vec<String>, Vec<String>)],
     changed_files: &std::collections::HashSet<String>,
@@ -1381,9 +1377,7 @@ fn print_diff_markdown(
         let specced_files: std::collections::HashSet<String> = spec_files
             .iter()
             .filter_map(|f| fs::read_to_string(f).ok())
-            .filter_map(|c| {
-                crate::parser::parse_frontmatter(&c.replace("\r\n", "\n"))
-            })
+            .filter_map(|c| crate::parser::parse_frontmatter(&c.replace("\r\n", "\n")))
             .flat_map(|p| p.frontmatter.files)
             .collect();
 

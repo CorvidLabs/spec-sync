@@ -5,6 +5,7 @@
 [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-SpecSync-blue?logo=github)](https://github.com/marketplace/actions/spec-sync)
 [![CI](https://github.com/CorvidLabs/spec-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/CorvidLabs/spec-sync/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/specsync.svg)](https://crates.io/crates/specsync)
+[![Downloads](https://img.shields.io/crates/d/specsync.svg)](https://crates.io/crates/specsync)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **Bidirectional spec-to-code validation with cross-project references.** Written in Rust. Single binary. 9 languages.

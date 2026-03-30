@@ -36,7 +36,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `RegistryEntry` | Registry entry mapping module names to spec file paths for cross-project resolution |
 | `ModuleDefinition` | User-defined module grouping in specsync.json with files and depends_on lists |
 
-### AiProvider Functions
+### Exported AiProvider Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
@@ -48,13 +48,13 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `from_str_loose` | `s: &str` | `Option<Self>` | Parse provider name from string (case-insensitive, aliases supported) |
 | `detection_order` | — | `&'static [AiProvider]` | All auto-detectable providers in preference order |
 
-### ValidationResult Functions
+### Exported ValidationResult Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `new` | `spec_path: String` | `Self` | Create a new empty validation result |
 
-### Language Functions
+### Exported Language Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
@@ -84,10 +84,16 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 - **When** `Language::from_extension("tsx")` is called
 - **Then** returns `Some(Language::TypeScript)`
 
-### Scenario: Unknown file extension
+### Scenario: Detect Ruby from file extension
 
 - **Given** a file with extension "rb"
 - **When** `Language::from_extension("rb")` is called
+- **Then** returns `Some(Language::Ruby)`
+
+### Scenario: Unknown file extension
+
+- **Given** a file with extension "haskell"
+- **When** `Language::from_extension("haskell")` is called
 - **Then** returns `None`
 
 ## Error Cases

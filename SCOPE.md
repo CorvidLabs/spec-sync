@@ -6,7 +6,7 @@ This document defines what is in scope for v2 and what is explicitly deferred.
 
 ### Core Validation
 - Bidirectional spec-to-code validation (check, coverage, score)
-- Multi-language export extraction (TS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart)
+- Multi-language export extraction (TS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby)
 - Required section enforcement, frontmatter validation
 - Quality scoring with letter grades and improvement suggestions
 - `--strict` and `--require-coverage` for CI gating

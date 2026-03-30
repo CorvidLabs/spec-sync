@@ -3,7 +3,9 @@ mod dart;
 mod go;
 mod java;
 mod kotlin;
+mod php;
 mod python;
+mod ruby;
 mod rust_lang;
 mod swift;
 mod typescript;
@@ -48,6 +50,8 @@ pub fn get_exported_symbols_with_level(file_path: &Path, level: ExportLevel) -> 
         Language::Java => java::extract_exports(&content),
         Language::CSharp => csharp::extract_exports(&content),
         Language::Dart => dart::extract_exports(&content),
+        Language::Php => php::extract_exports(&content),
+        Language::Ruby => ruby::extract_exports(&content),
     };
 
     // If type-level granularity, filter to only type declarations
@@ -114,6 +118,15 @@ fn filter_type_level_exports(content: &str, symbols: &[String], lang: Language) 
         }
         Language::Dart => {
             Regex::new(r"(?m)(?:abstract\s+)?class\s+(\w+)|(?m)enum\s+(\w+)").ok()
+        }
+        Language::Php => {
+            Regex::new(
+                r"(?m)(?:abstract\s+|final\s+)?(?:readonly\s+)?(?:class|interface|trait|enum)\s+(\w+)",
+            )
+            .ok()
+        }
+        Language::Ruby => {
+            Regex::new(r"(?m)(?:class|module)\s+([A-Z]\w*)").ok()
         }
     };
 

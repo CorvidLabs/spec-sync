@@ -104,4 +104,75 @@ class PublicClass {}
         assert!(!symbols.contains(&"_privateFunc".to_string()));
         assert!(!symbols.contains(&"_secret".to_string()));
     }
+
+    #[test]
+    fn test_dart_comments_stripped() {
+        let src = r#"
+// class FakeClass {}
+/* enum FakeEnum {} */
+/// Documentation comment
+class RealClass {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"RealClass".to_string()));
+        assert!(!symbols.contains(&"FakeClass".to_string()));
+        assert!(!symbols.contains(&"FakeEnum".to_string()));
+    }
+
+    #[test]
+    fn test_dart_abstract_class() {
+        let src = r#"
+abstract class Repository {
+  Future<void> save();
+}
+
+abstract class Disposable {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Repository".to_string()));
+        assert!(symbols.contains(&"Disposable".to_string()));
+    }
+
+    #[test]
+    fn test_dart_future_stream_return() {
+        let src = r#"
+Future<String> fetchData() async {}
+Stream<int> countUp() async* {}
+void doNothing() {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"fetchData".to_string()));
+        assert!(symbols.contains(&"countUp".to_string()));
+        assert!(symbols.contains(&"doNothing".to_string()));
+    }
+
+    #[test]
+    fn test_dart_const_vs_final() {
+        let src = r#"
+const int maxRetries = 3;
+final timeout = Duration(seconds: 30);
+const apiUrl = "https://example.com";
+final _internal = "hidden";
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"maxRetries".to_string()));
+        assert!(symbols.contains(&"timeout".to_string()));
+        assert!(symbols.contains(&"apiUrl".to_string()));
+        assert!(!symbols.contains(&"_internal".to_string()));
+    }
+
+    #[test]
+    fn test_dart_extension_and_mixin() {
+        let src = r#"
+extension StringExt on String {}
+mixin Serializable {}
+enum Status { active, inactive }
+typedef Callback = void Function(String);
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"StringExt".to_string()));
+        assert!(symbols.contains(&"Serializable".to_string()));
+        assert!(symbols.contains(&"Status".to_string()));
+        assert!(symbols.contains(&"Callback".to_string()));
+    }
 }

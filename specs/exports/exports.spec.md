@@ -13,6 +13,8 @@ files:
   - src/exports/swift.rs
   - src/exports/dart.rs
   - src/exports/csharp.rs
+  - src/exports/php.rs
+  - src/exports/ruby.rs
 db_tables: []
 depends_on:
   - specs/types/types.spec.md
@@ -22,7 +24,7 @@ depends_on:
 
 ## Purpose
 
-Language-aware export extraction from source files. Auto-detects the programming language from file extension and extracts public/exported symbol names using regex-based parsing (no AST required). Supports 9 languages: TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, and Dart.
+Language-aware export extraction from source files. Auto-detects the programming language from file extension and extracts public/exported symbol names using regex-based parsing (no AST required). Supports 11 languages: TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, and Ruby.
 
 ## Public API
 
@@ -53,6 +55,8 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 | Swift | `swift.rs` | `public`/`open` declarations: `func/class/struct/enum/protocol/typealias/var/let/actor`; detects `public init` separately; handles `static class func` |
 | Dart | `dart.rs` | `class/mixin/enum/extension/typedef` types, `final`/`const` declarations, top-level functions; excludes `_`-prefixed private identifiers |
 | C# | `csharp.rs` | `public class/struct/interface/enum/record/delegate` types and `public` members; handles `static`, `partial`, `sealed`, `abstract`, `virtual`, `override`, `async` modifiers |
+| PHP | `php.rs` | `class/interface/trait/enum` types (always public); `public`/unqualified `function` and `const` declarations; skips `private`/`protected` members and `__` magic methods; handles `abstract`, `final`, `readonly`, `static` modifiers; strips `//`, `/* */`, and `#` comments |
+| Ruby | `ruby.rs` | `class`/`module` declarations; top-level `def` (always public); class methods with visibility tracking (`public`→`private`→`protected`→`public` toggles); `CONSTANT` assignments; `attr_accessor`/`attr_reader`/`attr_writer` symbols; skips `_`-prefixed names and `initialize`; strips `#` and `=begin/=end` comments |
 
 ## Invariants
 
@@ -76,6 +80,8 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 14. Java and C# backends require explicit `public` keyword for exports
 15. All backends strip single-line (`//`) and multi-line (`/* */`) comments before extraction (except Python which doesn't use this pattern)
 16. Go backend deduplicates methods that might also match top-level declarations
+17. PHP backend treats types (class/interface/trait/enum) as always public; methods and constants require `public` or unqualified visibility; `private`/`protected` are excluded; magic methods (`__construct`, `__toString`, etc.) are excluded
+18. Ruby backend tracks visibility state via `public`/`private`/`protected` toggle statements; defaults to public; `initialize` is excluded; `_`-prefixed names are excluded; `attr_accessor`/`attr_reader`/`attr_writer` emit attribute names as symbols
 
 ## Behavioral Examples
 
@@ -93,9 +99,21 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 
 ### Scenario: Unsupported file type
 
-- **Given** a `.rb` (Ruby) file
+- **Given** an unsupported file (e.g., `.lua`)
 - **When** `get_exported_symbols(path)` is called
 - **Then** returns an empty vector
+
+### Scenario: Extract PHP exports with visibility
+
+- **Given** a `.php` file with a `class AuthService` containing `public function validate()`, `private function internalCheck()`, and `public const DEFAULT_TTL`
+- **When** `get_exported_symbols(path)` is called
+- **Then** includes "AuthService", "validate", "DEFAULT_TTL" but not "internalCheck"
+
+### Scenario: Ruby visibility toggles
+
+- **Given** a `.rb` file with `class Foo` containing `def public_method` then `private` then `def secret_method`
+- **When** `get_exported_symbols(path)` is called
+- **Then** includes "Foo" and "public_method" but not "secret_method"
 
 ### Scenario: Python __all__ takes precedence
 
@@ -189,3 +207,4 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 |------|--------|
 | 2026-03-25 | Initial spec |
 | 2026-03-28 | Document get_exported_symbols_with_level |
+| 2026-03-29 | Add PHP and Ruby language support |

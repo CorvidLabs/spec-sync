@@ -280,6 +280,8 @@ pub enum Language {
     Java,
     CSharp,
     Dart,
+    Php,
+    Ruby,
 }
 
 impl Language {
@@ -295,6 +297,8 @@ impl Language {
             "java" => Some(Language::Java),
             "cs" => Some(Language::CSharp),
             "dart" => Some(Language::Dart),
+            "php" => Some(Language::Php),
+            "rb" => Some(Language::Ruby),
             _ => None,
         }
     }
@@ -312,6 +316,8 @@ impl Language {
             Language::Java => &["java"],
             Language::CSharp => &["cs"],
             Language::Dart => &["dart"],
+            Language::Php => &["php"],
+            Language::Ruby => &["rb"],
         }
     }
 
@@ -344,6 +350,8 @@ impl Language {
             ],
             Language::CSharp => &["Tests.cs", "Test.cs", "Spec.cs", "Mock.cs"],
             Language::Dart => &["_test.dart"],
+            Language::Php => &["Test.php", "test_"],
+            Language::Ruby => &["_spec.rb", "_test.rb", "test_"],
         }
     }
 }

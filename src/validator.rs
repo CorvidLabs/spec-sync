@@ -1,9 +1,10 @@
 use crate::config::{default_schema_pattern, discover_manifest_modules};
 use crate::exports::{get_exported_symbols_with_level, has_extension, is_test_file};
 use crate::parser::{get_missing_sections, get_spec_symbols, parse_frontmatter};
+use crate::schema::{self, SchemaTable};
 use crate::types::{CoverageReport, SpecSyncConfig, ValidationResult};
 use regex::Regex;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -135,6 +136,7 @@ pub fn validate_spec(
     spec_path: &Path,
     root: &Path,
     schema_tables: &HashSet<String>,
+    schema_columns: &HashMap<String, SchemaTable>,
     config: &SpecSyncConfig,
 ) -> ValidationResult {
     let rel_path = spec_path
@@ -228,6 +230,62 @@ pub fn validate_spec(
             result.fixes.push(format!(
                 "Remove `{table}` from db_tables or add a CREATE TABLE migration"
             ));
+        }
+    }
+
+    // ─── Level 1.5: Schema Columns ──────────────────────────────────────
+    if !schema_columns.is_empty() {
+        let spec_schema = schema::parse_spec_schema(body);
+        for table_name in &fm.db_tables {
+            if let Some(actual_table) = schema_columns.get(table_name) {
+                if let Some(spec_cols) = spec_schema.get(table_name) {
+                    let actual_names: HashSet<&str> =
+                        actual_table.columns.iter().map(|c| c.name.as_str()).collect();
+                    let spec_names: HashSet<&str> =
+                        spec_cols.iter().map(|c| c.name.as_str()).collect();
+
+                    // Spec documents a column that doesn't exist = ERROR
+                    for sc in spec_cols {
+                        if !actual_names.contains(sc.name.as_str()) {
+                            result.errors.push(format!(
+                                "Schema column `{}.{}` documented in spec but not found in migrations",
+                                table_name, sc.name
+                            ));
+                            result.fixes.push(format!(
+                                "Remove `{}` from the ### Schema section or add it via ALTER TABLE",
+                                sc.name
+                            ));
+                        }
+                    }
+
+                    // Column exists in schema but not in spec = WARNING
+                    for ac in &actual_table.columns {
+                        if !spec_names.contains(ac.name.as_str()) {
+                            result.warnings.push(format!(
+                                "Schema column `{}.{}` exists in migrations but not documented in spec",
+                                table_name, ac.name
+                            ));
+                        }
+                    }
+
+                    // Type mismatch = WARNING
+                    for sc in spec_cols {
+                        if let Some(ac) = actual_table.columns.iter().find(|c| c.name == sc.name) {
+                            // Normalise both to uppercase for comparison
+                            let spec_type = sc.col_type.to_uppercase();
+                            let actual_type = ac.col_type.to_uppercase();
+                            if spec_type != actual_type {
+                                result.warnings.push(format!(
+                                    "Schema column `{}.{}` type mismatch: spec says {} but migrations say {}",
+                                    table_name, sc.name, spec_type, actual_type
+                                ));
+                            }
+                        }
+                    }
+                }
+                // If spec has db_tables but no ### Schema section, that's fine —
+                // column-level docs are optional. Only validate when present.
+            }
         }
     }
 
@@ -449,8 +507,9 @@ mod tests {
         fs::write(&spec, "# No frontmatter\n\nJust text.").unwrap();
 
         let tables = HashSet::new();
+        let schema_cols = HashMap::new();
         let config = SpecSyncConfig::default();
-        let result = validate_spec(&spec, tmp.path(), &tables, &config);
+        let result = validate_spec(&spec, tmp.path(), &tables, &schema_cols, &config);
         assert!(!result.errors.is_empty());
         assert!(result.errors[0].contains("frontmatter"));
     }
@@ -462,8 +521,9 @@ mod tests {
         fs::write(&spec, "---\nmodule: test\n---\n\n## Purpose\nTest\n").unwrap();
 
         let tables = HashSet::new();
+        let schema_cols = HashMap::new();
         let config = SpecSyncConfig::default();
-        let result = validate_spec(&spec, tmp.path(), &tables, &config);
+        let result = validate_spec(&spec, tmp.path(), &tables, &schema_cols, &config);
         // Should have errors for missing version, status, files
         assert!(result.errors.iter().any(|e| e.contains("version")));
         assert!(result.errors.iter().any(|e| e.contains("status")));
@@ -481,14 +541,185 @@ mod tests {
         .unwrap();
 
         let tables = HashSet::new();
+        let schema_cols = HashMap::new();
         let config = SpecSyncConfig::default();
-        let result = validate_spec(&spec, tmp.path(), &tables, &config);
+        let result = validate_spec(&spec, tmp.path(), &tables, &schema_cols, &config);
         assert!(
             result
                 .errors
                 .iter()
                 .any(|e| e.contains("Source file not found"))
         );
+    }
+
+    #[test]
+    fn test_validate_spec_schema_columns() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("msg.ts"), "export function send() {}").unwrap();
+
+        let spec = tmp.path().join("msg.spec.md");
+        fs::write(
+            &spec,
+            r#"---
+module: msg
+version: 1
+status: active
+files:
+  - src/msg.ts
+db_tables:
+  - messages
+---
+
+## Purpose
+Messaging
+
+### Schema: messages
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | INTEGER | PRIMARY KEY |
+| `content` | TEXT | NOT NULL |
+| `ghost_col` | TEXT | NOT NULL |
+
+## Public API
+
+### Exported Functions
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `send` | msg: string | void | Sends |
+
+## Invariants
+## Behavioral Examples
+## Error Cases
+## Dependencies
+## Change Log
+"#,
+        )
+        .unwrap();
+
+        let mut table_names = HashSet::new();
+        table_names.insert("messages".to_string());
+
+        let mut schema_cols = HashMap::new();
+        schema_cols.insert(
+            "messages".to_string(),
+            SchemaTable {
+                columns: vec![
+                    crate::schema::SchemaColumn {
+                        name: "id".to_string(),
+                        col_type: "INTEGER".to_string(),
+                        nullable: false,
+                        has_default: false,
+                        is_primary_key: true,
+                    },
+                    crate::schema::SchemaColumn {
+                        name: "content".to_string(),
+                        col_type: "TEXT".to_string(),
+                        nullable: false,
+                        has_default: false,
+                        is_primary_key: false,
+                    },
+                    crate::schema::SchemaColumn {
+                        name: "created_at".to_string(),
+                        col_type: "TEXT".to_string(),
+                        nullable: false,
+                        has_default: true,
+                        is_primary_key: false,
+                    },
+                ],
+            },
+        );
+
+        let config = SpecSyncConfig::default();
+        let result = validate_spec(&spec, tmp.path(), &table_names, &schema_cols, &config);
+
+        // ghost_col is in spec but not in schema → ERROR
+        assert!(result.errors.iter().any(|e| e.contains("ghost_col")));
+        // created_at is in schema but not in spec → WARNING
+        assert!(result.warnings.iter().any(|w| w.contains("created_at")));
+    }
+
+    #[test]
+    fn test_validate_spec_schema_type_mismatch() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("t.ts"), "export function f() {}").unwrap();
+
+        let spec = tmp.path().join("t.spec.md");
+        fs::write(
+            &spec,
+            r#"---
+module: t
+version: 1
+status: active
+files:
+  - src/t.ts
+db_tables:
+  - items
+---
+
+## Purpose
+Test
+
+### Schema: items
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | INTEGER | PRIMARY KEY |
+| `price` | TEXT | |
+
+## Public API
+
+### Exported Functions
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `f` | | void | Does stuff |
+
+## Invariants
+## Behavioral Examples
+## Error Cases
+## Dependencies
+## Change Log
+"#,
+        )
+        .unwrap();
+
+        let mut table_names = HashSet::new();
+        table_names.insert("items".to_string());
+
+        let mut schema_cols = HashMap::new();
+        schema_cols.insert(
+            "items".to_string(),
+            SchemaTable {
+                columns: vec![
+                    crate::schema::SchemaColumn {
+                        name: "id".to_string(),
+                        col_type: "INTEGER".to_string(),
+                        nullable: false,
+                        has_default: false,
+                        is_primary_key: true,
+                    },
+                    crate::schema::SchemaColumn {
+                        name: "price".to_string(),
+                        col_type: "REAL".to_string(),
+                        nullable: true,
+                        has_default: false,
+                        is_primary_key: false,
+                    },
+                ],
+            },
+        );
+
+        let config = SpecSyncConfig::default();
+        let result = validate_spec(&spec, tmp.path(), &table_names, &schema_cols, &config);
+
+        // price type mismatch: spec says TEXT, schema says REAL → WARNING
+        assert!(result.warnings.iter().any(|w| w.contains("type mismatch") && w.contains("price")));
     }
 }
 

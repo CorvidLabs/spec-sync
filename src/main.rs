@@ -7,6 +7,7 @@ mod manifest;
 mod mcp;
 mod parser;
 mod registry;
+mod schema;
 mod scoring;
 mod types;
 mod validator;
@@ -345,6 +346,7 @@ fn cmd_check(
     }
 
     let schema_tables = get_schema_table_names(root, &config);
+    let schema_columns = build_schema_columns(root, &config);
 
     // If --fix is requested, auto-add undocumented exports to specs
     if fix {
@@ -356,7 +358,7 @@ fn cmd_check(
 
     let collect = !matches!(format, Text);
     let (total_errors, total_warnings, passed, total, all_errors, all_warnings) =
-        run_validation(root, &spec_files, &schema_tables, &config, collect);
+        run_validation(root, &spec_files, &schema_tables, &schema_columns, &config, collect);
     let coverage = compute_coverage(root, &spec_files, &config);
 
     match format {
@@ -420,8 +422,9 @@ fn cmd_coverage(
     let json = matches!(format, types::OutputFormat::Json);
     let (config, spec_files) = load_and_discover(root, false);
     let schema_tables = get_schema_table_names(root, &config);
+    let schema_columns = build_schema_columns(root, &config);
     let (total_errors, total_warnings, passed, total, _all_errors, _all_warnings) =
-        run_validation(root, &spec_files, &schema_tables, &config, json);
+        run_validation(root, &spec_files, &schema_tables, &schema_columns, &config, json);
     let coverage = compute_coverage(root, &spec_files, &config);
 
     if json {
@@ -485,12 +488,13 @@ fn cmd_generate(
     let json = matches!(format, types::OutputFormat::Json);
     let (config, spec_files) = load_and_discover(root, true);
     let schema_tables = get_schema_table_names(root, &config);
+    let schema_columns = build_schema_columns(root, &config);
 
     let (mut total_errors, mut total_warnings, mut passed, mut total) = if spec_files.is_empty() {
         println!("No existing specs found. Scanning for source modules...");
         (0, 0, 0, 0)
     } else {
-        let (te, tw, p, t, _, _) = run_validation(root, &spec_files, &schema_tables, &config, json);
+        let (te, tw, p, t, _, _) = run_validation(root, &spec_files, &schema_tables, &schema_columns, &config, json);
         (te, tw, p, t)
     };
 
@@ -557,10 +561,11 @@ fn cmd_generate(
         // Recompute coverage and validation now that new specs exist
         let (config, spec_files) = load_and_discover(root, true);
         let schema_tables = get_schema_table_names(root, &config);
+        let schema_columns = build_schema_columns(root, &config);
         coverage = compute_coverage(root, &spec_files, &config);
         if !spec_files.is_empty() {
             let (te, tw, p, t, _, _) =
-                run_validation(root, &spec_files, &schema_tables, &config, json);
+                run_validation(root, &spec_files, &schema_tables, &schema_columns, &config, json);
             total_errors = te;
             total_warnings = tw;
             passed = p;
@@ -1467,12 +1472,24 @@ fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConfig, 
     (config, spec_files)
 }
 
+/// Build column-level schema from migration files (if schema_dir is configured).
+fn build_schema_columns(
+    root: &Path,
+    config: &types::SpecSyncConfig,
+) -> std::collections::HashMap<String, schema::SchemaTable> {
+    match &config.schema_dir {
+        Some(dir) => schema::build_schema(&root.join(dir)),
+        None => std::collections::HashMap::new(),
+    }
+}
+
 /// Run validation, returning counts and collected error/warning strings.
 /// When `collect` is true, errors/warnings are collected into vectors instead of printing inline.
 fn run_validation(
     root: &Path,
     spec_files: &[PathBuf],
     schema_tables: &std::collections::HashSet<String>,
+    schema_columns: &std::collections::HashMap<String, schema::SchemaTable>,
     config: &types::SpecSyncConfig,
     collect: bool,
 ) -> (usize, usize, usize, usize, Vec<String>, Vec<String>) {
@@ -1483,7 +1500,7 @@ fn run_validation(
     let mut all_warnings: Vec<String> = Vec::new();
 
     for spec_file in spec_files {
-        let result = validate_spec(spec_file, root, schema_tables, config);
+        let result = validate_spec(spec_file, root, schema_tables, schema_columns, config);
 
         if collect {
             all_errors.extend(result.errors.iter().cloned());
@@ -1539,6 +1556,26 @@ fn run_validation(
             }
         } else if !schema_tables.is_empty() {
             println!("  {} All DB tables exist in schema", "✓".green());
+        }
+
+        // Schema column check
+        let col_errors: Vec<&str> = result
+            .errors
+            .iter()
+            .filter(|e| e.starts_with("Schema column"))
+            .map(|s| s.as_str())
+            .collect();
+        let col_warnings: Vec<&str> = result
+            .warnings
+            .iter()
+            .filter(|w| w.starts_with("Schema column"))
+            .map(|s| s.as_str())
+            .collect();
+        for e in &col_errors {
+            println!("  {} {e}", "✗".red());
+        }
+        for w in &col_warnings {
+            println!("  {} {w}", "⚠".yellow());
         }
 
         // Section check

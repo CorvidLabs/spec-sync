@@ -71,6 +71,9 @@ export function activate(context: vscode.ExtensionContext) {
   statusBarItem.tooltip = "SpecSync — click to validate";
   statusBarItem.show();
 
+  // Verify CLI binary is reachable
+  checkCliAvailable();
+
   // Register commands
   context.subscriptions.push(
     vscode.commands.registerCommand("specsync.check", () => runCheck()),
@@ -127,6 +130,38 @@ export function deactivate() {
   }
 }
 
+// ── CLI availability check ───────────────────────────────────────────
+
+async function checkCliAvailable(): Promise<void> {
+  const binary = getBinary();
+  try {
+    await execFileAsync(binary, ["--version"], { timeout: 5_000 });
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === "ENOENT") {
+      const install = "Install Instructions";
+      const configure = "Open Settings";
+      const choice = await vscode.window.showErrorMessage(
+        `SpecSync: CLI binary "${binary}" not found. Install specsync and ensure it is on your PATH, or set "specsync.binaryPath" in settings.`,
+        install,
+        configure
+      );
+      if (choice === install) {
+        vscode.env.openExternal(
+          vscode.Uri.parse("https://github.com/CorvidLabs/spec-sync#installation")
+        );
+      } else if (choice === configure) {
+        vscode.commands.executeCommand(
+          "workbench.action.openSettings",
+          "specsync.binaryPath"
+        );
+      }
+      setStatusBar("error", "$(error) SpecSync: CLI not found");
+      log(`CLI binary "${binary}" not found (ENOENT)`);
+    }
+  }
+}
+
 // ── CLI runner ──────────────────────────────────────────────────────────
 
 function getBinary(): string {
@@ -157,7 +192,12 @@ async function runSpecsyncRaw(args: string[]): Promise<string> {
     }
     return stdout;
   } catch (err: unknown) {
-    const execErr = err as { stdout?: string; stderr?: string; code?: number };
+    const execErr = err as { stdout?: string; stderr?: string; code?: string | number };
+    if (execErr.code === "ENOENT") {
+      throw new Error(
+        `CLI binary "${binary}" not found. Install specsync or set "specsync.binaryPath" in settings.`
+      );
+    }
     if (execErr.stdout) {
       if (execErr.stderr) {
         log(`stderr: ${execErr.stderr}`);

@@ -1,7 +1,7 @@
 ---
 title: GitHub Action
 layout: default
-nav_order: 5
+nav_order: 6
 ---
 
 # GitHub Action

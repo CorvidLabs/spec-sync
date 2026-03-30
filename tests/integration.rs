@@ -756,6 +756,105 @@ fn multi_lang_python() {
         .success();
 }
 
+#[test]
+fn multi_lang_php() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config(&root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/phpmod")).unwrap();
+    fs::write(
+        root.join("src/phpmod/Service.php"),
+        r#"<?php
+
+namespace App\Auth;
+
+class AuthService {
+    public const DEFAULT_TTL = 3600;
+
+    public function validate(string $token): bool {
+        return true;
+    }
+
+    private function internalCheck(): void {}
+}
+
+interface Authenticator {
+    public function authenticate(): bool;
+}
+
+function standalone_helper(): void {}
+"#,
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/phpmod")).unwrap();
+    let spec = valid_spec("phpmod", &["src/phpmod/Service.php"]);
+    fs::write(root.join("specs/phpmod/phpmod.spec.md"), spec).unwrap();
+
+    specsync()
+        .arg("check")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("specs checked"));
+}
+
+#[test]
+fn multi_lang_ruby() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config(&root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/rbmod")).unwrap();
+    fs::write(
+        root.join("src/rbmod/service.rb"),
+        r#"
+module Authentication
+  class AuthService
+    DEFAULT_TTL = 3600
+
+    attr_reader :token
+
+    def validate(token)
+      true
+    end
+
+    def self.create(config)
+      new
+    end
+
+    private
+
+    def internal_check
+      false
+    end
+  end
+end
+
+def standalone_helper
+  true
+end
+"#,
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/rbmod")).unwrap();
+    let spec = valid_spec("rbmod", &["src/rbmod/service.rb"]);
+    fs::write(root.join("specs/rbmod/rbmod.spec.md"), spec).unwrap();
+
+    specsync()
+        .arg("check")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("specs checked"));
+}
+
 // ─── 9. Error cases ────────────────────────────────────────────────────
 
 #[test]

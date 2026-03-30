@@ -22,7 +22,7 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 |------|-------------|
 | `HookTarget` | All installable hook targets: Claude, Cursor, Copilot, Precommit, ClaudeCodeHook |
 
-### HookTarget Functions
+### Exported HookTarget Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|

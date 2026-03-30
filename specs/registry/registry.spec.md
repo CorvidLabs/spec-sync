@@ -23,7 +23,7 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 |------|-------------|
 | `RemoteRegistry` | A parsed remote registry with project name and list of (module, spec_path) entries |
 
-### RemoteRegistry Functions
+### Exported RemoteRegistry Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|

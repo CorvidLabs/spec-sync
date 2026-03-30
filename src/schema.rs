@@ -46,27 +46,24 @@ static ALTER_ADD_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+ADD\s+(?:COLUMN\s+)?(\w+)\s+(\w+)").unwrap()
 });
 
-static DROP_TABLE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(\w+)").unwrap()
-});
+static DROP_TABLE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(\w+)").unwrap());
 
 static ALTER_DROP_COL_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+DROP\s+(?:COLUMN\s+)?(\w+)").unwrap()
 });
 
-static ALTER_RENAME_TABLE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+RENAME\s+TO\s+(\w+)").unwrap()
-});
+static ALTER_RENAME_TABLE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+RENAME\s+TO\s+(\w+)").unwrap());
 
 static ALTER_RENAME_COL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+RENAME\s+(?:COLUMN\s+)?(\w+)\s+TO\s+(\w+)")
-        .unwrap()
+    Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+RENAME\s+(?:COLUMN\s+)?(\w+)\s+TO\s+(\w+)").unwrap()
 });
 
 /// File extensions that may contain embedded SQL statements.
 const SQL_EXTENSIONS: &[&str] = &[
-    "sql", "ts", "js", "mjs", "cjs", "swift", "kt", "kts", "java", "py", "rb", "go", "rs",
-    "cs", "dart", "php",
+    "sql", "ts", "js", "mjs", "cjs", "swift", "kt", "kts", "java", "py", "rb", "go", "rs", "cs",
+    "dart", "php",
 ];
 
 /// Build a complete schema map from SQL/migration files in the given directory.
@@ -180,10 +177,10 @@ fn parse_sql_into(sql: &str, tables: &mut HashMap<String, SchemaTable>) {
         let table_name = cap[1].to_string();
         let old_col = cap[2].to_string();
         let new_col = cap[3].to_string();
-        if let Some(table) = tables.get_mut(&table_name) {
-            if let Some(col) = table.columns.iter_mut().find(|c| c.name == old_col) {
-                col.name = new_col;
-            }
+        if let Some(table) = tables.get_mut(&table_name)
+            && let Some(col) = table.columns.iter_mut().find(|c| c.name == old_col)
+        {
+            col.name = new_col;
         }
     }
 }

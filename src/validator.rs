@@ -245,8 +245,7 @@ pub fn validate_spec(
                     .iter()
                     .map(|c| c.name.as_str())
                     .collect();
-                let spec_names: HashSet<&str> =
-                    spec_cols.iter().map(|c| c.name.as_str()).collect();
+                let spec_names: HashSet<&str> = spec_cols.iter().map(|c| c.name.as_str()).collect();
 
                 // Spec documents a column that doesn't exist = ERROR
                 for sc in spec_cols {

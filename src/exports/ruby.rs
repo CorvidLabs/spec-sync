@@ -91,17 +91,16 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             continue;
         }
 
-        if public {
-            if let Some(caps) = RUBY_METHOD.captures(line) {
-                if let Some(name) = caps.get(1) {
-                    let n = name.as_str();
-                    if !n.starts_with('_')
-                        && n != "initialize"
-                        && !symbols.contains(&n.to_string())
-                    {
-                        symbols.push(n.to_string());
-                    }
-                }
+        if public
+            && let Some(caps) = RUBY_METHOD.captures(line)
+            && let Some(name) = caps.get(1)
+        {
+            let n = name.as_str();
+            if !n.starts_with('_')
+                && n != "initialize"
+                && !symbols.contains(&n.to_string())
+            {
+                symbols.push(n.to_string());
             }
         }
     }

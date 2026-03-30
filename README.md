@@ -8,9 +8,9 @@
 [![Downloads](https://img.shields.io/crates/d/specsync.svg)](https://crates.io/crates/specsync)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Bidirectional spec-to-code validation with cross-project references.** Written in Rust. Single binary. 11 languages.
+**Bidirectional spec-to-code validation with cross-project references.** Written in Rust. Single binary. 11 languages. VS Code extension.
 
-[Quick Start](#quick-start) &bull; [Spec Format](#spec-format) &bull; [CLI](#cli-reference) &bull; [Cross-Project Refs](#cross-project-references) &bull; [GitHub Action](#github-action) &bull; [Config](#configuration) &bull; [Docs Site](https://corvidlabs.github.io/spec-sync)
+[Quick Start](#quick-start) &bull; [Spec Format](#spec-format) &bull; [CLI](#cli-reference) &bull; [VS Code Extension](#vs-code-extension) &bull; [Cross-Project Refs](#cross-project-references) &bull; [GitHub Action](#github-action) &bull; [Config](#configuration) &bull; [Docs Site](https://corvidlabs.github.io/spec-sync)
 
 </div>
 
@@ -56,7 +56,7 @@ Auto-detected from file extensions. Same spec format for all.
 ### GitHub Action (recommended)
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v2
+- uses: CorvidLabs/spec-sync@v3
   with:
     strict: 'true'
     require-coverage: '100'
@@ -388,6 +388,45 @@ These files are designed for team coordination and AI agent context — they giv
 
 ---
 
+## VS Code Extension
+
+Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=corvidlabs.specsync) or search "SpecSync" in the Extensions panel.
+
+```bash
+code --install-extension corvidlabs.specsync
+```
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Inline diagnostics** | Errors and warnings mapped to spec files on save |
+| **CodeLens scores** | Quality scores (0–100) displayed inline above spec files |
+| **Coverage report** | Rich webview with file and LOC coverage |
+| **Scoring report** | Per-spec quality breakdown with improvement suggestions |
+| **Status bar** | Persistent pass/fail/error indicator |
+| **Validate-on-save** | Automatic validation with 500ms debounce |
+
+### Commands (Command Palette)
+
+- `SpecSync: Validate Specs` — run `specsync check`
+- `SpecSync: Show Coverage` — open coverage report
+- `SpecSync: Score Spec Quality` — open scoring report
+- `SpecSync: Generate Missing Specs` — scaffold specs for unspecced modules
+- `SpecSync: Initialize Config` — create `specsync.json`
+
+### Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `specsync.binaryPath` | `specsync` | Path to the specsync binary |
+| `specsync.validateOnSave` | `true` | Run validation on file save |
+| `specsync.showInlineScores` | `true` | Show CodeLens quality scores |
+
+The extension activates automatically in workspaces containing `specsync.json`, `.specsync.toml`, or a `specs/` directory. Requires the `specsync` CLI binary to be installed and on your PATH (or configured via `specsync.binaryPath`).
+
+---
+
 ## GitHub Action
 
 Available on the [GitHub Marketplace](https://github.com/marketplace/actions/spec-sync). Auto-detects OS/arch, downloads the binary, runs validation.
@@ -413,7 +452,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v2
+      - uses: CorvidLabs/spec-sync@v3
         with:
           strict: 'true'
           require-coverage: '100'

@@ -25,9 +25,8 @@ static PHP_PRIVATE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*(?:private|protected)\s+").unwrap());
 
 /// PHP const declarations at class or top level
-static PHP_CONST: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^[^\S\n]*(?:public\s+)?const\s+(\w+)").unwrap()
-});
+static PHP_CONST: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*(?:public\s+)?const\s+(\w+)").unwrap());
 
 /// Extract public symbols from PHP source code.
 /// Classes, interfaces, traits, enums are always included.

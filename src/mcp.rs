@@ -271,9 +271,8 @@ fn load_and_discover(
 fn tool_check(root: &Path, arguments: &Value) -> Result<Value, String> {
     let (config, spec_files) = load_and_discover(root, false)?;
     let schema_tables = get_schema_table_names(root, &config);
-    let schema_columns = crate::schema::build_schema(
-        &root.join(config.schema_dir.as_deref().unwrap_or("")),
-    );
+    let schema_columns =
+        crate::schema::build_schema(&root.join(config.schema_dir.as_deref().unwrap_or("")));
     let strict = arguments
         .get("strict")
         .and_then(|s| s.as_bool())

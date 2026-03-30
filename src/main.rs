@@ -357,8 +357,14 @@ fn cmd_check(
     }
 
     let collect = !matches!(format, Text);
-    let (total_errors, total_warnings, passed, total, all_errors, all_warnings) =
-        run_validation(root, &spec_files, &schema_tables, &schema_columns, &config, collect);
+    let (total_errors, total_warnings, passed, total, all_errors, all_warnings) = run_validation(
+        root,
+        &spec_files,
+        &schema_tables,
+        &schema_columns,
+        &config,
+        collect,
+    );
     let coverage = compute_coverage(root, &spec_files, &config);
 
     match format {
@@ -423,8 +429,14 @@ fn cmd_coverage(
     let (config, spec_files) = load_and_discover(root, false);
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);
-    let (total_errors, total_warnings, passed, total, _all_errors, _all_warnings) =
-        run_validation(root, &spec_files, &schema_tables, &schema_columns, &config, json);
+    let (total_errors, total_warnings, passed, total, _all_errors, _all_warnings) = run_validation(
+        root,
+        &spec_files,
+        &schema_tables,
+        &schema_columns,
+        &config,
+        json,
+    );
     let coverage = compute_coverage(root, &spec_files, &config);
 
     if json {
@@ -494,7 +506,14 @@ fn cmd_generate(
         println!("No existing specs found. Scanning for source modules...");
         (0, 0, 0, 0)
     } else {
-        let (te, tw, p, t, _, _) = run_validation(root, &spec_files, &schema_tables, &schema_columns, &config, json);
+        let (te, tw, p, t, _, _) = run_validation(
+            root,
+            &spec_files,
+            &schema_tables,
+            &schema_columns,
+            &config,
+            json,
+        );
         (te, tw, p, t)
     };
 
@@ -564,8 +583,14 @@ fn cmd_generate(
         let schema_columns = build_schema_columns(root, &config);
         coverage = compute_coverage(root, &spec_files, &config);
         if !spec_files.is_empty() {
-            let (te, tw, p, t, _, _) =
-                run_validation(root, &spec_files, &schema_tables, &schema_columns, &config, json);
+            let (te, tw, p, t, _, _) = run_validation(
+                root,
+                &spec_files,
+                &schema_tables,
+                &schema_columns,
+                &config,
+                json,
+            );
             total_errors = te;
             total_warnings = tw;
             passed = p;

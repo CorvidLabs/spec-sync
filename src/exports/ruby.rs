@@ -29,9 +29,8 @@ static RUBY_CONST: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*([A-Z][A-Z0-9_]+)\s*=").unwrap());
 
 /// attr_accessor / attr_reader / attr_writer declarations
-static RUBY_ATTR: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^[^\S\n]*attr_(?:accessor|reader|writer)\s+(.+)$").unwrap()
-});
+static RUBY_ATTR: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*attr_(?:accessor|reader|writer)\s+(.+)$").unwrap());
 
 /// Symbol literal :name
 static RUBY_SYMBOL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r":(\w+)").unwrap());
@@ -96,10 +95,7 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             && let Some(name) = caps.get(1)
         {
             let n = name.as_str();
-            if !n.starts_with('_')
-                && n != "initialize"
-                && !symbols.contains(&n.to_string())
-            {
+            if !n.starts_with('_') && n != "initialize" && !symbols.contains(&n.to_string()) {
                 symbols.push(n.to_string());
             }
         }

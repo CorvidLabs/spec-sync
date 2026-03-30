@@ -1305,7 +1305,16 @@ fn ai_model_config_used_with_ollama_provider() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);
 
-    // aiProvider=ollama with custom model — should mention ollama in error
+    // Add an uncovered source file so `generate` actually attempts AI generation
+    fs::create_dir_all(root.join("src/billing")).unwrap();
+    fs::write(
+        root.join("src/billing/invoice.ts"),
+        "export function createInvoice() {}\n",
+    )
+    .unwrap();
+
+    // aiProvider=ollama with custom model — should mention ollama in error.
+    // Use an empty PATH so ollama binary is not found, even if installed locally.
     let config = serde_json::json!({
         "specsDir": "specs",
         "sourceDirs": ["src"],
@@ -1325,6 +1334,7 @@ fn ai_model_config_used_with_ollama_provider() {
         .arg("generate")
         .arg("--provider")
         .arg("auto")
+        .env("PATH", "")
         .arg("--root")
         .arg(&root)
         .assert()

@@ -46,6 +46,29 @@ static ALTER_ADD_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+ADD\s+(?:COLUMN\s+)?(\w+)\s+(\w+)").unwrap()
 });
 
+static DROP_TABLE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(\w+)").unwrap()
+});
+
+static ALTER_DROP_COL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+DROP\s+(?:COLUMN\s+)?(\w+)").unwrap()
+});
+
+static ALTER_RENAME_TABLE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+RENAME\s+TO\s+(\w+)").unwrap()
+});
+
+static ALTER_RENAME_COL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+RENAME\s+(?:COLUMN\s+)?(\w+)\s+TO\s+(\w+)")
+        .unwrap()
+});
+
+/// File extensions that may contain embedded SQL statements.
+const SQL_EXTENSIONS: &[&str] = &[
+    "sql", "ts", "js", "mjs", "cjs", "swift", "kt", "kts", "java", "py", "rb", "go", "rs",
+    "cs", "dart", "php",
+];
+
 /// Build a complete schema map from SQL/migration files in the given directory.
 /// Files are sorted by name so migrations replay in order.
 pub fn build_schema(schema_dir: &Path) -> HashMap<String, SchemaTable> {
@@ -67,7 +90,7 @@ pub fn build_schema(schema_dir: &Path) -> HashMap<String, SchemaTable> {
                 .and_then(|x| x.to_str())
                 .unwrap_or("")
                 .to_string();
-            ext == "sql" || ext == "ts"
+            SQL_EXTENSIONS.contains(&ext.as_str())
         })
         .collect();
     files.sort_by_key(|e| e.file_name());
@@ -125,6 +148,42 @@ fn parse_sql_into(sql: &str, tables: &mut HashMap<String, SchemaTable>) {
                 has_default,
                 is_primary_key,
             });
+        }
+    }
+
+    // Handle DROP TABLE
+    for cap in DROP_TABLE_RE.captures_iter(sql) {
+        let table_name = cap[1].to_string();
+        tables.remove(&table_name);
+    }
+
+    // Handle ALTER TABLE DROP COLUMN
+    for cap in ALTER_DROP_COL_RE.captures_iter(sql) {
+        let table_name = cap[1].to_string();
+        let col_name = cap[2].to_string();
+        if let Some(table) = tables.get_mut(&table_name) {
+            table.columns.retain(|c| c.name != col_name);
+        }
+    }
+
+    // Handle ALTER TABLE RENAME TO
+    for cap in ALTER_RENAME_TABLE_RE.captures_iter(sql) {
+        let old_name = cap[1].to_string();
+        let new_name = cap[2].to_string();
+        if let Some(table) = tables.remove(&old_name) {
+            tables.insert(new_name, table);
+        }
+    }
+
+    // Handle ALTER TABLE RENAME COLUMN
+    for cap in ALTER_RENAME_COL_RE.captures_iter(sql) {
+        let table_name = cap[1].to_string();
+        let old_col = cap[2].to_string();
+        let new_col = cap[3].to_string();
+        if let Some(table) = tables.get_mut(&table_name) {
+            if let Some(col) = table.columns.iter_mut().find(|c| c.name == old_col) {
+                col.name = new_col;
+            }
         }
     }
 }
@@ -662,6 +721,84 @@ Something
         assert_eq!(t.columns[1].name, "name");
         assert_eq!(t.columns[2].name, "price");
         assert_eq!(t.columns[2].col_type, "REAL");
+    }
+
+    #[test]
+    fn test_drop_table() {
+        let sql = r#"
+CREATE TABLE temp_data (id INTEGER PRIMARY KEY, value TEXT);
+CREATE TABLE keep_me (id INTEGER PRIMARY KEY);
+DROP TABLE temp_data;
+"#;
+        let mut tables = HashMap::new();
+        parse_sql_into(sql, &mut tables);
+        assert!(!tables.contains_key("temp_data"));
+        assert!(tables.contains_key("keep_me"));
+    }
+
+    #[test]
+    fn test_drop_table_if_exists() {
+        let sql = r#"
+CREATE TABLE things (id INTEGER PRIMARY KEY, name TEXT);
+DROP TABLE IF EXISTS things;
+"#;
+        let mut tables = HashMap::new();
+        parse_sql_into(sql, &mut tables);
+        assert!(!tables.contains_key("things"));
+    }
+
+    #[test]
+    fn test_drop_column() {
+        let sql = r#"
+CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, legacy TEXT);
+ALTER TABLE users DROP COLUMN legacy;
+"#;
+        let mut tables = HashMap::new();
+        parse_sql_into(sql, &mut tables);
+        let t = tables.get("users").unwrap();
+        assert_eq!(t.columns.len(), 2);
+        assert_eq!(t.column_names(), vec!["id", "name"]);
+    }
+
+    #[test]
+    fn test_rename_table() {
+        let sql = r#"
+CREATE TABLE old_name (id INTEGER PRIMARY KEY, data TEXT);
+ALTER TABLE old_name RENAME TO new_name;
+"#;
+        let mut tables = HashMap::new();
+        parse_sql_into(sql, &mut tables);
+        assert!(!tables.contains_key("old_name"));
+        let t = tables.get("new_name").unwrap();
+        assert_eq!(t.columns.len(), 2);
+    }
+
+    #[test]
+    fn test_rename_column() {
+        let sql = r#"
+CREATE TABLE items (id INTEGER PRIMARY KEY, old_col TEXT NOT NULL);
+ALTER TABLE items RENAME COLUMN old_col TO new_col;
+"#;
+        let mut tables = HashMap::new();
+        parse_sql_into(sql, &mut tables);
+        let t = tables.get("items").unwrap();
+        assert_eq!(t.columns.len(), 2);
+        assert_eq!(t.columns[1].name, "new_col");
+        assert_eq!(t.columns[1].col_type, "TEXT");
+    }
+
+    #[test]
+    fn test_sql_extensions_list() {
+        // Verify key languages are in the supported list
+        assert!(SQL_EXTENSIONS.contains(&"sql"));
+        assert!(SQL_EXTENSIONS.contains(&"ts"));
+        assert!(SQL_EXTENSIONS.contains(&"swift"));
+        assert!(SQL_EXTENSIONS.contains(&"kt"));
+        assert!(SQL_EXTENSIONS.contains(&"java"));
+        assert!(SQL_EXTENSIONS.contains(&"py"));
+        assert!(SQL_EXTENSIONS.contains(&"rb"));
+        assert!(SQL_EXTENSIONS.contains(&"go"));
+        assert!(SQL_EXTENSIONS.contains(&"rs"));
     }
 
     #[test]

@@ -90,4 +90,99 @@ public class Service {
         assert!(symbols.contains(&"FetchData".to_string()));
         assert!(symbols.contains(&"OnUpdate".to_string()));
     }
+
+    #[test]
+    fn test_csharp_comments_stripped() {
+        let src = r#"
+// public class FakeClass {}
+/* public struct FakeStruct {} */
+/// <summary>XML doc comment</summary>
+/// public enum FakeEnum {}
+public class RealClass {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"RealClass".to_string()));
+        assert!(!symbols.contains(&"FakeClass".to_string()));
+        assert!(!symbols.contains(&"FakeStruct".to_string()));
+        assert!(!symbols.contains(&"FakeEnum".to_string()));
+    }
+
+    #[test]
+    fn test_csharp_static_class() {
+        let src = r#"
+public static class Extensions {
+    public static string ToUpper(string s) {}
+    public static int Parse(string s) {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Extensions".to_string()));
+        assert!(symbols.contains(&"ToUpper".to_string()));
+        assert!(symbols.contains(&"Parse".to_string()));
+    }
+
+    #[test]
+    fn test_csharp_private_internal_excluded() {
+        let src = r#"
+public class Api {
+    private string _secret;
+    internal void Setup() {}
+    protected virtual void OnInit() {}
+    public string Name;
+    public void Process() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Api".to_string()));
+        assert!(symbols.contains(&"Name".to_string()));
+        assert!(symbols.contains(&"Process".to_string()));
+        assert!(!symbols.contains(&"_secret".to_string()));
+        assert!(!symbols.contains(&"Setup".to_string()));
+        assert!(!symbols.contains(&"OnInit".to_string()));
+    }
+
+    #[test]
+    fn test_csharp_sealed_partial() {
+        let src = r#"
+public sealed class Singleton {
+    public static Singleton Instance;
+}
+
+public partial class UserService {
+    public void Create() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Singleton".to_string()));
+        assert!(symbols.contains(&"Instance".to_string()));
+        assert!(symbols.contains(&"UserService".to_string()));
+        assert!(symbols.contains(&"Create".to_string()));
+    }
+
+    #[test]
+    fn test_csharp_nullable_and_array_types() {
+        let src = r#"
+public class DataStore {
+    public string? FindById(int id) {}
+    public int[] GetIds() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"DataStore".to_string()));
+        assert!(symbols.contains(&"FindById".to_string()));
+        assert!(symbols.contains(&"GetIds".to_string()));
+    }
+
+    #[test]
+    fn test_csharp_abstract_members() {
+        let src = r#"
+public abstract class Repository {
+    public abstract void Save();
+    public abstract string Name { get; }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Repository".to_string()));
+        assert!(symbols.contains(&"Save".to_string()));
+    }
 }

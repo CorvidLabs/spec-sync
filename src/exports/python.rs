@@ -85,4 +85,105 @@ async def fetch_token():
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["create_auth", "AuthService", "fetch_token"]);
     }
+
+    #[test]
+    fn test_python_all_single_quotes() {
+        let src = r#"
+__all__ = ['Foo', 'bar_func']
+
+class Foo:
+    pass
+
+def bar_func():
+    pass
+
+class _Hidden:
+    pass
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Foo", "bar_func"]);
+    }
+
+    #[test]
+    fn test_python_all_overrides_conventions() {
+        // When __all__ is present, even underscore-prefixed names are exported if listed
+        let src = r#"
+__all__ = ["_special", "Public"]
+
+def _special():
+    pass
+
+class Public:
+    pass
+
+class AlsoPublicButNotInAll:
+    pass
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"_special".to_string()));
+        assert!(symbols.contains(&"Public".to_string()));
+        assert!(!symbols.contains(&"AlsoPublicButNotInAll".to_string()));
+    }
+
+    #[test]
+    fn test_python_decorators_ignored() {
+        let src = r#"
+@dataclass
+class Config:
+    host: str
+
+@staticmethod
+def create():
+    pass
+
+@app.route("/")
+async def index():
+    pass
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Config".to_string()));
+        assert!(symbols.contains(&"create".to_string()));
+        assert!(symbols.contains(&"index".to_string()));
+    }
+
+    #[test]
+    fn test_python_nested_not_captured() {
+        // Only top-level (no indentation) defs/classes should be captured
+        let src = r#"
+class Outer:
+    class Inner:
+        pass
+    def method(self):
+        pass
+
+def top_level():
+    def nested():
+        pass
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Outer".to_string()));
+        assert!(symbols.contains(&"top_level".to_string()));
+        // Inner and method are indented, should not be captured
+        assert!(!symbols.contains(&"Inner".to_string()));
+        assert!(!symbols.contains(&"method".to_string()));
+        assert!(!symbols.contains(&"nested".to_string()));
+    }
+
+    #[test]
+    fn test_python_dunder_excluded() {
+        let src = r#"
+def __init__(self):
+    pass
+
+def __repr__(self):
+    pass
+
+def public_func():
+    pass
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"public_func".to_string()));
+        assert!(!symbols.contains(&"__init__".to_string()));
+        assert!(!symbols.contains(&"__repr__".to_string()));
+    }
 }

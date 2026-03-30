@@ -79,4 +79,89 @@ func (a *Auth) internal() {}
         assert!(symbols.contains(&"Validate".to_string()));
         assert!(!symbols.contains(&"internal".to_string()));
     }
+
+    #[test]
+    fn test_go_comments_stripped() {
+        let src = r#"
+package main
+
+// func FakeExport() {}
+/* func AlsoFake() {} */
+func RealExport() {}
+/*
+func MultiLineFake() {}
+type FakeType struct {}
+*/
+type RealType struct {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"RealExport".to_string()));
+        assert!(symbols.contains(&"RealType".to_string()));
+        assert!(!symbols.contains(&"FakeExport".to_string()));
+        assert!(!symbols.contains(&"AlsoFake".to_string()));
+        assert!(!symbols.contains(&"MultiLineFake".to_string()));
+        assert!(!symbols.contains(&"FakeType".to_string()));
+    }
+
+    #[test]
+    fn test_go_interface_declarations() {
+        let src = r#"
+package service
+
+type Reader interface {
+    Read(p []byte) (n int, err error)
+}
+
+type Writer interface {
+    Write(p []byte) (n int, err error)
+}
+
+type internalHelper interface {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Reader".to_string()));
+        assert!(symbols.contains(&"Writer".to_string()));
+        assert!(!symbols.contains(&"internalHelper".to_string()));
+    }
+
+    #[test]
+    fn test_go_const_var_groups() {
+        let src = r#"
+package config
+
+const MaxRetries = 3
+const minTimeout = 100
+
+var DefaultClient *Client
+var debugMode = false
+
+type Config struct {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"MaxRetries".to_string()));
+        assert!(symbols.contains(&"DefaultClient".to_string()));
+        assert!(symbols.contains(&"Config".to_string()));
+        assert!(!symbols.contains(&"minTimeout".to_string()));
+        assert!(!symbols.contains(&"debugMode".to_string()));
+    }
+
+    #[test]
+    fn test_go_value_receiver() {
+        let src = r#"
+package auth
+
+func (a Auth) String() string {}
+func (a Auth) serialize() string {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"String".to_string()));
+        assert!(!symbols.contains(&"serialize".to_string()));
+    }
+
+    #[test]
+    fn test_go_empty_file() {
+        let src = "package main\n";
+        let symbols = extract_exports(src);
+        assert!(symbols.is_empty());
+    }
 }

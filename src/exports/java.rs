@@ -88,4 +88,93 @@ public abstract class BaseController {
         assert!(symbols.contains(&"BaseController".to_string()));
         assert!(symbols.contains(&"handle".to_string()));
     }
+
+    #[test]
+    fn test_java_comments_stripped() {
+        let src = r#"
+// public class FakeClass {}
+/* public interface FakeInterface {} */
+/**
+ * Javadoc comment
+ * public enum FakeEnum {}
+ */
+public class RealClass {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"RealClass".to_string()));
+        assert!(!symbols.contains(&"FakeClass".to_string()));
+        assert!(!symbols.contains(&"FakeInterface".to_string()));
+        assert!(!symbols.contains(&"FakeEnum".to_string()));
+    }
+
+    #[test]
+    fn test_java_generics() {
+        let src = r#"
+public class Repository<T extends Entity> {
+    public <E> List<E> findAll() {}
+    public Map<String, Object> getMetadata() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Repository".to_string()));
+        assert!(symbols.contains(&"findAll".to_string()));
+        assert!(symbols.contains(&"getMetadata".to_string()));
+    }
+
+    #[test]
+    fn test_java_annotation_type() {
+        let src = r#"
+public @interface Cacheable {
+    int ttl() default 300;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Cacheable".to_string()));
+    }
+
+    #[test]
+    fn test_java_private_and_protected_excluded() {
+        let src = r#"
+public class Service {
+    private String secret;
+    protected void onInit() {}
+    void packagePrivate() {}
+    public String getName() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Service".to_string()));
+        assert!(symbols.contains(&"getName".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
+        assert!(!symbols.contains(&"onInit".to_string()));
+        assert!(!symbols.contains(&"packagePrivate".to_string()));
+    }
+
+    #[test]
+    fn test_java_sealed_class() {
+        let src = r#"
+public sealed class Shape permits Circle, Rectangle {
+    public String describe() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Shape".to_string()));
+        assert!(symbols.contains(&"describe".to_string()));
+    }
+
+    #[test]
+    fn test_java_static_final_combined() {
+        let src = r#"
+public class Constants {
+    public static final int MAX_SIZE = 100;
+    public static final String VERSION = "1.0";
+    public static void init() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Constants".to_string()));
+        assert!(symbols.contains(&"MAX_SIZE".to_string()));
+        assert!(symbols.contains(&"VERSION".to_string()));
+        assert!(symbols.contains(&"init".to_string()));
+    }
 }

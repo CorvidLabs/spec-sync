@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "publisher": "corvidlabs",
   "license": "MIT",
-  "icon": "icon.svg",
+  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/CorvidLabs/spec-sync"

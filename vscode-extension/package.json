@@ -1,13 +1,18 @@
 {
   "name": "specsync",
   "displayName": "SpecSync",
-  "description": "Bidirectional spec-to-code validation — inline status, quick fixes, and coverage indicators",
+  "description": "Bidirectional spec-to-code validation — inline diagnostics, quality scores, and coverage indicators",
   "version": "0.1.0",
   "publisher": "corvidlabs",
   "license": "MIT",
+  "icon": "icon.svg",
   "repository": {
     "type": "git",
     "url": "https://github.com/CorvidLabs/spec-sync"
+  },
+  "homepage": "https://github.com/CorvidLabs/spec-sync#readme",
+  "bugs": {
+    "url": "https://github.com/CorvidLabs/spec-sync/issues"
   },
   "engines": {
     "vscode": "^1.85.0"
@@ -15,6 +20,13 @@
   "categories": [
     "Linters",
     "Other"
+  ],
+  "keywords": [
+    "spec",
+    "documentation",
+    "validation",
+    "coverage",
+    "lint"
   ],
   "activationEvents": [
     "workspaceContains:specsync.json",
@@ -61,27 +73,33 @@
         "specsync.showInlineScores": {
           "type": "boolean",
           "default": true,
-          "description": "Show quality scores inline on spec files"
+          "description": "Show quality scores as CodeLens on spec files"
         }
       }
     },
     "languages": [
       {
         "id": "specmd",
-        "extensions": [".spec.md"],
-        "aliases": ["SpecSync Spec"]
+        "extensions": [
+          ".spec.md"
+        ],
+        "aliases": [
+          "SpecSync Spec"
+        ]
       }
     ]
   },
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "package": "vsce package"
+    "build": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=es2022 --sourcemap",
+    "watch": "npm run build -- --watch",
+    "package": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=es2022 --minify && vsce package",
+    "compile": "tsc -p ./ --noEmit"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
-    "typescript": "^5.3.0",
-    "@vscode/vsce": "^2.22.0"
+    "@vscode/vsce": "^2.22.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.3.0"
   }
 }

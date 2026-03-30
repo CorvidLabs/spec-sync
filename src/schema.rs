@@ -39,13 +39,11 @@ pub struct SpecColumn {
 // ─── SQL Parsing ─────────────────────────────────────────────────────────
 
 static CREATE_TABLE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)CREATE\s+(?:VIRTUAL\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(")
-        .unwrap()
+    Regex::new(r"(?i)CREATE\s+(?:VIRTUAL\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(").unwrap()
 });
 
 static ALTER_ADD_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+ADD\s+(?:COLUMN\s+)?(\w+)\s+(\w+)")
-        .unwrap()
+    Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+ADD\s+(?:COLUMN\s+)?(\w+)\s+(\w+)").unwrap()
 });
 
 /// Build a complete schema map from SQL/migration files in the given directory.
@@ -380,10 +378,10 @@ pub fn parse_spec_schema(body: &str) -> HashMap<String, Vec<SpecColumn>> {
             for line in section.lines() {
                 if let Some(cap) = SCHEMA_TABLE_HEADER_RE.captures(line) {
                     // Flush previous table
-                    if let Some(name) = current_table.take() {
-                        if !current_columns.is_empty() {
-                            result.insert(name, std::mem::take(&mut current_columns));
-                        }
+                    if let Some(name) = current_table.take()
+                        && !current_columns.is_empty()
+                    {
+                        result.insert(name, std::mem::take(&mut current_columns));
                     }
                     current_table = Some(cap[1].to_string());
                     current_columns.clear();
@@ -409,10 +407,10 @@ pub fn parse_spec_schema(body: &str) -> HashMap<String, Vec<SpecColumn>> {
             }
 
             // Flush last table
-            if let Some(name) = current_table {
-                if !current_columns.is_empty() {
-                    result.insert(name, current_columns);
-                }
+            if let Some(name) = current_table
+                && !current_columns.is_empty()
+            {
+                result.insert(name, current_columns);
             }
             // If columns were found without any #### header, they're orphaned —
             // skip them (we don't know which table they belong to).

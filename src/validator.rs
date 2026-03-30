@@ -237,55 +237,58 @@ pub fn validate_spec(
     if !schema_columns.is_empty() {
         let spec_schema = schema::parse_spec_schema(body);
         for table_name in &fm.db_tables {
-            if let Some(actual_table) = schema_columns.get(table_name) {
-                if let Some(spec_cols) = spec_schema.get(table_name) {
-                    let actual_names: HashSet<&str> =
-                        actual_table.columns.iter().map(|c| c.name.as_str()).collect();
-                    let spec_names: HashSet<&str> =
-                        spec_cols.iter().map(|c| c.name.as_str()).collect();
+            if let Some(actual_table) = schema_columns.get(table_name)
+                && let Some(spec_cols) = spec_schema.get(table_name)
+            {
+                let actual_names: HashSet<&str> = actual_table
+                    .columns
+                    .iter()
+                    .map(|c| c.name.as_str())
+                    .collect();
+                let spec_names: HashSet<&str> =
+                    spec_cols.iter().map(|c| c.name.as_str()).collect();
 
-                    // Spec documents a column that doesn't exist = ERROR
-                    for sc in spec_cols {
-                        if !actual_names.contains(sc.name.as_str()) {
-                            result.errors.push(format!(
-                                "Schema column `{}.{}` documented in spec but not found in migrations",
-                                table_name, sc.name
-                            ));
-                            result.fixes.push(format!(
-                                "Remove `{}` from the ### Schema section or add it via ALTER TABLE",
-                                sc.name
-                            ));
-                        }
+                // Spec documents a column that doesn't exist = ERROR
+                for sc in spec_cols {
+                    if !actual_names.contains(sc.name.as_str()) {
+                        result.errors.push(format!(
+                            "Schema column `{}.{}` documented in spec but not found in migrations",
+                            table_name, sc.name
+                        ));
+                        result.fixes.push(format!(
+                            "Remove `{}` from the ### Schema section or add it via ALTER TABLE",
+                            sc.name
+                        ));
                     }
+                }
 
-                    // Column exists in schema but not in spec = WARNING
-                    for ac in &actual_table.columns {
-                        if !spec_names.contains(ac.name.as_str()) {
+                // Column exists in schema but not in spec = WARNING
+                for ac in &actual_table.columns {
+                    if !spec_names.contains(ac.name.as_str()) {
+                        result.warnings.push(format!(
+                            "Schema column `{}.{}` exists in migrations but not documented in spec",
+                            table_name, ac.name
+                        ));
+                    }
+                }
+
+                // Type mismatch = WARNING
+                for sc in spec_cols {
+                    if let Some(ac) = actual_table.columns.iter().find(|c| c.name == sc.name) {
+                        // Normalise both to uppercase for comparison
+                        let spec_type = sc.col_type.to_uppercase();
+                        let actual_type = ac.col_type.to_uppercase();
+                        if spec_type != actual_type {
                             result.warnings.push(format!(
-                                "Schema column `{}.{}` exists in migrations but not documented in spec",
-                                table_name, ac.name
+                                "Schema column `{}.{}` type mismatch: spec says {} but migrations say {}",
+                                table_name, sc.name, spec_type, actual_type
                             ));
-                        }
-                    }
-
-                    // Type mismatch = WARNING
-                    for sc in spec_cols {
-                        if let Some(ac) = actual_table.columns.iter().find(|c| c.name == sc.name) {
-                            // Normalise both to uppercase for comparison
-                            let spec_type = sc.col_type.to_uppercase();
-                            let actual_type = ac.col_type.to_uppercase();
-                            if spec_type != actual_type {
-                                result.warnings.push(format!(
-                                    "Schema column `{}.{}` type mismatch: spec says {} but migrations say {}",
-                                    table_name, sc.name, spec_type, actual_type
-                                ));
-                            }
                         }
                     }
                 }
-                // If spec has db_tables but no ### Schema section, that's fine —
-                // column-level docs are optional. Only validate when present.
             }
+            // If spec has db_tables but no ### Schema section, that's fine —
+            // column-level docs are optional. Only validate when present.
         }
     }
 
@@ -719,7 +722,12 @@ Test
         let result = validate_spec(&spec, tmp.path(), &table_names, &schema_cols, &config);
 
         // price type mismatch: spec says TEXT, schema says REAL → WARNING
-        assert!(result.warnings.iter().any(|w| w.contains("type mismatch") && w.contains("price")));
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.contains("type mismatch") && w.contains("price"))
+        );
     }
 }
 

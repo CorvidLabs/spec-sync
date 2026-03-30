@@ -1,8 +1,8 @@
 [package]
 name = "specsync"
-version = "2.4.0"
+version = "2.5.0"
 edition = "2024"
-description = "Bidirectional spec-to-code validation — language-agnostic, blazing fast"
+description = "Bidirectional spec-to-code validation with schema column checking — 11 languages, single binary"
 license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/CorvidLabs/spec-sync"

@@ -7,7 +7,7 @@ nav_order: 1
 # SpecSync
 {: .fs-9 }
 
-Bidirectional spec-to-code validation. Written in Rust. Single binary. 9 languages.
+Bidirectional spec-to-code validation. Written in Rust. Single binary. 11 languages.
 {: .fs-6 .fw-300 }
 
 [Get Started](#quick-start){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
@@ -54,6 +54,6 @@ specsync watch                  # re-validate on file changes
 
 Auto-detected from file extensions. No per-language configuration.
 
-TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart.
+TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby.
 
 See [Spec Format](spec-format) for how to write specs, [CLI Reference](cli) for all commands, [Cross-Project References](cross-project-refs) for multi-repo validation, and [Configuration](configuration) for `specsync.json` options.

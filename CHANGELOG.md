@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-03-30
+
+### Added
+
+- **Schema column validation** — SpecSync now parses SQL migrations (CREATE TABLE, ALTER TABLE ADD COLUMN) and validates documented columns in spec `### Schema` sections against the actual database schema. Catches phantom columns (documented but missing from schema), undocumented columns (in schema but not in spec), and column type mismatches. Opt-in via `schema_dir` in `specsync.json`.
+- **Destructive DDL support** — migration parser correctly handles DROP TABLE, ALTER TABLE DROP COLUMN, ALTER TABLE RENAME TO, and ALTER TABLE RENAME COLUMN, ensuring the schema map accurately reflects state after all migrations replay in order.
+- **Multi-language migration files** — schema extraction now supports 16 file types (SQL, TypeScript, JavaScript, Python, Ruby, Go, Rust, PHP, Swift, Kotlin, Java, C#, Dart, and more), not just `.sql`.
+- **PHP language support** — full export extraction for PHP: classes, interfaces, traits, enums, public functions/constants, with visibility filtering and magic method exclusion.
+- **Ruby language support** — full export extraction for Ruby: classes, modules, public methods with visibility toggle tracking, `attr_accessor`/`attr_reader`/`attr_writer`, constants, and `=begin/=end` comment handling.
+- Expanded export parser test coverage for Go, Python, Java, C#, and Dart.
+- Achieved 100% spec coverage across all modules.
+
 ## [2.4.0] - 2026-03-28
 
 ### Changed
@@ -229,6 +241,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
+[2.5.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.5.0
+[2.4.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.4.0
+[2.3.3]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.3.3
 [2.3.2]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.3.2
 [2.3.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.3.1
 [2.3.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.3.0

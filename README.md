@@ -7,7 +7,7 @@
 [![Crates.io](https://img.shields.io/crates/v/specsync.svg)](https://crates.io/crates/specsync)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Bidirectional spec-to-code validation with cross-project references.** Written in Rust. Single binary. 9 languages.
+**Bidirectional spec-to-code validation with cross-project references.** Written in Rust. Single binary. 11 languages.
 
 [Quick Start](#quick-start) &bull; [Spec Format](#spec-format) &bull; [CLI](#cli-reference) &bull; [Cross-Project Refs](#cross-project-references) &bull; [GitHub Action](#github-action) &bull; [Config](#configuration) &bull; [Docs Site](https://corvidlabs.github.io/spec-sync)
 
@@ -25,6 +25,9 @@ SpecSync validates markdown module specs (`*.spec.md`) against your source code 
 | Spec documents something missing from code | **Error** | Stale/phantom entry |
 | Source file in spec was deleted | **Error** | Missing file |
 | DB table in spec missing from schema | **Error** | Phantom table |
+| Column in spec missing from migrations | **Error** | Phantom column |
+| Column in schema not documented in spec | Warning | Undocumented column |
+| Column type mismatch between spec and schema | Warning | Type drift |
 | Required markdown section missing | **Error** | Incomplete spec |
 
 ## Supported Languages
@@ -42,6 +45,8 @@ Auto-detected from file extensions. Same spec format for all.
 | **Java** | `public` class/interface/enum/record/methods | `*Test.java`, `*Tests.java` |
 | **C#** | `public` class/struct/interface/enum/record/delegate | `*Test.cs`, `*Tests.cs` |
 | **Dart** | Top-level (no `_` prefix), class/mixin/enum/typedef | `*_test.dart` |
+| **PHP** | `class/interface/trait/enum`, `public` function/const, skips `private/protected` and `__` magic methods | `*Test.php` |
+| **Ruby** | `class`/`module`, `public` methods with visibility tracking, `attr_accessor`/`attr_reader`/`attr_writer`, constants | `*_test.rb`, `*_spec.rb` |
 
 ---
 
@@ -578,7 +583,9 @@ src/
     ├── kotlin.rs       Kotlin top-level
     ├── java.rs         Java public items
     ├── csharp.rs       C# public items
-    └── dart.rs         Dart public items
+    ├── dart.rs         Dart public items
+    ├── php.rs          PHP public items
+    └── ruby.rs         Ruby public items
 ```
 
 **Design:** Single binary, no runtime deps. Frontmatter parsed with regex (no YAML library). Language backends use regex, not ASTs — works without compilers installed. Release builds use LTO + strip + opt-level 3.

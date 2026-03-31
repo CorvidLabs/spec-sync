@@ -278,6 +278,26 @@ fn tool_check(root: &Path, arguments: &Value) -> Result<Value, String> {
         .and_then(|s| s.as_bool())
         .unwrap_or(false);
 
+    // Classify changes for staleness detection
+    let cache = crate::hash_cache::HashCache::load(root);
+    let classifications = crate::hash_cache::classify_all_changes(root, &spec_files, &cache);
+    let mut stale_entries: Vec<Value> = Vec::new();
+    for classification in &classifications {
+        let spec_rel = classification
+            .spec_path
+            .strip_prefix(root)
+            .unwrap_or(&classification.spec_path)
+            .to_string_lossy()
+            .to_string();
+        if classification.has(&crate::hash_cache::ChangeKind::Requirements) {
+            stale_entries.push(json!({
+                "spec": spec_rel,
+                "reason": "requirements_changed",
+                "message": "requirements changed — spec may need re-validation"
+            }));
+        }
+    }
+
     let mut total_errors = 0;
     let mut total_warnings = 0;
     let mut passed = 0;
@@ -312,16 +332,19 @@ fn tool_check(root: &Path, arguments: &Value) -> Result<Value, String> {
     }
 
     let coverage = compute_coverage(root, &spec_files, &config);
-    let overall_passed = total_errors == 0 && (!strict || total_warnings == 0);
+    let staleness_warnings = stale_entries.len();
+    let effective_warnings = total_warnings + staleness_warnings;
+    let overall_passed = total_errors == 0 && (!strict || effective_warnings == 0);
 
     Ok(json!({
         "passed": overall_passed,
         "specs_checked": spec_files.len(),
         "specs_passed": passed,
         "total_errors": total_errors,
-        "total_warnings": total_warnings,
+        "total_warnings": effective_warnings,
         "errors": all_errors,
         "warnings": all_warnings,
+        "stale": stale_entries,
         "specs": spec_results,
         "coverage": {
             "file_percent": coverage.coverage_percent,

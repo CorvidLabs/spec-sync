@@ -17,6 +17,7 @@ mod watch;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use std::fs;
+use std::io::{IsTerminal, Write as _};
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -338,6 +339,7 @@ fn cmd_check(
     fix: bool,
     force: bool,
 ) {
+    use hash_cache::{ChangeKind, ChangeClassification};
     use types::OutputFormat::*;
 
     let (config, spec_files) = load_and_discover(root, fix);
@@ -349,6 +351,7 @@ fn cmd_check(
                     "passed": true,
                     "errors": [],
                     "warnings": [],
+                    "stale": [],
                     "specs_checked": 0,
                 });
                 println!("{}", serde_json::to_string_pretty(&output).unwrap());
@@ -367,13 +370,14 @@ fn cmd_check(
         process::exit(0);
     }
 
-    // Load hash cache and filter to only changed specs (unless --force or --strict).
-    // --strict changes pass/fail semantics (warnings become errors), so always re-validate.
+    // Load hash cache and classify changes for each spec.
     let mut cache = hash_cache::HashCache::load(root);
-    let specs_to_validate = if force || strict {
-        spec_files.clone()
+    let (specs_to_validate, change_classifications) = if force || strict {
+        (spec_files.clone(), Vec::new())
     } else {
-        hash_cache::filter_unchanged(root, &spec_files, &cache)
+        let classifications = hash_cache::classify_all_changes(root, &spec_files, &cache);
+        let changed: Vec<PathBuf> = classifications.iter().map(|c| c.spec_path.clone()).collect();
+        (changed, classifications)
     };
 
     let skipped = spec_files.len() - specs_to_validate.len();
@@ -391,6 +395,66 @@ fn cmd_check(
         process::exit(0);
     }
 
+    // Report staleness from change classifications
+    let mut stale_entries: Vec<serde_json::Value> = Vec::new();
+    let mut staleness_warnings: usize = 0;
+    let mut requirements_stale_specs: Vec<ChangeClassification> = Vec::new();
+
+    for classification in &change_classifications {
+        let spec_rel = classification
+            .spec_path
+            .strip_prefix(root)
+            .unwrap_or(&classification.spec_path)
+            .to_string_lossy()
+            .to_string();
+
+        if classification.has(&ChangeKind::Requirements) {
+            if matches!(format, Text) {
+                println!(
+                    "  {} {spec_rel}: requirements changed — spec may need re-validation",
+                    "⚠".yellow()
+                );
+            }
+            stale_entries.push(serde_json::json!({
+                "spec": spec_rel,
+                "reason": "requirements_changed",
+                "message": "requirements changed — spec may need re-validation"
+            }));
+            staleness_warnings += 1;
+            requirements_stale_specs.push(classification.clone());
+        }
+
+        if classification.has(&ChangeKind::Companion) && matches!(format, Text) {
+            println!(
+                "  {} {spec_rel}: companion file updated (hash refreshed)",
+                "ℹ".cyan()
+            );
+        }
+    }
+
+    if staleness_warnings > 0 && matches!(format, Text) {
+        println!(); // spacing after staleness messages
+    }
+
+    // Interactive prompting: if TTY and requirements drift detected, offer re-validation
+    if !requirements_stale_specs.is_empty()
+        && matches!(format, Text)
+        && !fix
+        && std::io::stdin().is_terminal()
+    {
+        eprint!(
+            "{} Re-validate spec(s) against new requirements? [y/N] ",
+            "?".cyan()
+        );
+        let _ = std::io::stderr().flush();
+        let mut answer = String::new();
+        let _ = std::io::stdin().read_line(&mut answer);
+        if !answer.trim().eq_ignore_ascii_case("y") {
+            // User declined — just continue with normal validation
+            println!("  Skipping re-validation. Use --fix to auto-regenerate.\n");
+        }
+    }
+
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);
 
@@ -399,6 +463,17 @@ fn cmd_check(
         let fixed = auto_fix_specs(root, &specs_to_validate, &config);
         if fixed > 0 && matches!(format, Text) {
             println!("{} Auto-added exports to {fixed} spec(s)\n", "✓".green());
+        }
+
+        // --fix + requirements changed: regenerate spec via AI
+        if !requirements_stale_specs.is_empty() {
+            let regen_count = auto_regen_stale_specs(root, &requirements_stale_specs, &config, format);
+            if regen_count > 0 && matches!(format, Text) {
+                println!(
+                    "{} Re-generated {regen_count} spec(s) from updated requirements\n",
+                    "✓".green()
+                );
+            }
         }
     }
 
@@ -411,6 +486,8 @@ fn cmd_check(
         &config,
         collect,
     );
+    // Include staleness warnings in total when --strict
+    let effective_warnings = total_warnings + staleness_warnings;
     let coverage = compute_coverage(root, &spec_files, &config);
 
     // Update hash cache after validation (only when no errors).
@@ -424,7 +501,7 @@ fn cmd_check(
         Json => {
             let exit_code = compute_exit_code(
                 total_errors,
-                total_warnings,
+                effective_warnings,
                 strict,
                 &coverage,
                 require_coverage,
@@ -433,6 +510,7 @@ fn cmd_check(
                 "passed": exit_code == 0,
                 "errors": all_errors,
                 "warnings": all_warnings,
+                "stale": stale_entries,
                 "specs_checked": total,
             });
             println!("{}", serde_json::to_string_pretty(&output).unwrap());
@@ -441,7 +519,7 @@ fn cmd_check(
         Markdown => {
             let exit_code = compute_exit_code(
                 total_errors,
-                total_warnings,
+                effective_warnings,
                 strict,
                 &coverage,
                 require_coverage,
@@ -449,7 +527,7 @@ fn cmd_check(
             print_check_markdown(
                 total,
                 passed,
-                total_warnings,
+                effective_warnings,
                 total_errors,
                 &all_errors,
                 &all_warnings,
@@ -459,17 +537,113 @@ fn cmd_check(
             process::exit(exit_code);
         }
         Text => {
-            print_summary(total, passed, total_warnings, total_errors);
+            print_summary(total, passed, effective_warnings, total_errors);
             print_coverage_line(&coverage);
             exit_with_status(
                 total_errors,
-                total_warnings,
+                effective_warnings,
                 strict,
                 &coverage,
                 require_coverage,
             );
         }
     }
+}
+
+/// Auto-regenerate specs whose requirements have drifted, using AI if available.
+fn auto_regen_stale_specs(
+    root: &Path,
+    stale: &[hash_cache::ChangeClassification],
+    config: &types::SpecSyncConfig,
+    format: types::OutputFormat,
+) -> usize {
+    // Try to resolve an AI provider
+    let provider = match ai::resolve_ai_provider(config, None) {
+        Ok(p) => p,
+        Err(_) => {
+            if matches!(format, types::OutputFormat::Text) {
+                println!(
+                    "  {} Requirements changed but no AI provider configured.",
+                    "ℹ".cyan()
+                );
+                println!(
+                    "    Configure one in specsync.json (aiProvider/aiCommand) or set"
+                );
+                println!("    ANTHROPIC_API_KEY / OPENAI_API_KEY to auto-regenerate specs.");
+            }
+            return 0;
+        }
+    };
+
+    let mut regen_count = 0;
+    for classification in stale {
+        let spec_path = &classification.spec_path;
+        let spec_rel = spec_path
+            .strip_prefix(root)
+            .unwrap_or(spec_path)
+            .to_string_lossy()
+            .to_string();
+
+        // Find the requirements file
+        let parent = match spec_path.parent() {
+            Some(p) => p,
+            None => continue,
+        };
+        let req_path = parent.join("requirements.md");
+        if !req_path.exists() {
+            // Try legacy name
+            let stem = spec_path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("");
+            let module = stem.strip_suffix(".spec").unwrap_or(stem);
+            let legacy = parent.join(format!("{module}.req.md"));
+            if !legacy.exists() {
+                continue;
+            }
+            // Use legacy path
+            let module_name = module;
+            if matches!(format, types::OutputFormat::Text) {
+                println!("  {} Regenerating {spec_rel}...", "⟳".cyan());
+            }
+            match ai::regenerate_spec_with_ai(module_name, spec_path, &legacy, root, config, &provider) {
+                Ok(new_spec) => {
+                    if fs::write(spec_path, &new_spec).is_ok() {
+                        regen_count += 1;
+                    }
+                }
+                Err(e) => {
+                    if matches!(format, types::OutputFormat::Text) {
+                        eprintln!("  {} Failed to regenerate {spec_rel}: {e}", "✗".red());
+                    }
+                }
+            }
+            continue;
+        }
+
+        let stem = spec_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        let module_name = stem.strip_suffix(".spec").unwrap_or(stem);
+        if matches!(format, types::OutputFormat::Text) {
+            println!("  {} Regenerating {spec_rel}...", "⟳".cyan());
+        }
+        match ai::regenerate_spec_with_ai(module_name, spec_path, &req_path, root, config, &provider) {
+            Ok(new_spec) => {
+                if fs::write(spec_path, &new_spec).is_ok() {
+                    regen_count += 1;
+                }
+            }
+            Err(e) => {
+                if matches!(format, types::OutputFormat::Text) {
+                    eprintln!("  {} Failed to regenerate {spec_rel}: {e}", "✗".red());
+                }
+            }
+        }
+    }
+
+    regen_count
 }
 
 fn cmd_coverage(

@@ -640,6 +640,86 @@ fn run_provider(
     }
 }
 
+/// Build a prompt for regenerating a spec when requirements have changed.
+fn build_regen_prompt(
+    module_name: &str,
+    current_spec: &str,
+    requirements: &str,
+    source_contents: &[(String, String)],
+) -> String {
+    let mut prompt = format!(
+        "You are updating a module specification for `{module_name}` because its requirements have changed.\n\n\
+         ## Current Spec\n\n```markdown\n{current_spec}\n```\n\n\
+         ## Updated Requirements\n\n```markdown\n{requirements}\n```\n\n"
+    );
+
+    if !source_contents.is_empty() {
+        prompt.push_str("## Source Files\n\n");
+        let mut total_len = 0usize;
+        for (path, content) in source_contents {
+            if total_len > 150_000 {
+                prompt.push_str(&format!("(Skipping {path} — size budget exceeded)\n\n"));
+                continue;
+            }
+            let truncated = if content.len() > 30_000 {
+                &content[..30_000]
+            } else {
+                content.as_str()
+            };
+            prompt.push_str(&format!("### `{path}`\n\n```\n{truncated}\n```\n\n"));
+            total_len += truncated.len();
+        }
+    }
+
+    prompt.push_str(
+        "## Instructions\n\n\
+         Re-validate and update the spec to reflect the new requirements. Preserve the existing \
+         YAML frontmatter fields (module, version, status, files, db_tables, depends_on) and \
+         bump the version by 1. Keep the same markdown structure and section headings. \
+         Focus on updating:\n\
+         - Purpose section (if the module's role has changed)\n\
+         - Public API table (if the interface should change)\n\
+         - Invariants (if constraints have changed)\n\
+         - Behavioral Examples (if behavior expectations have changed)\n\
+         - Error Cases (if error handling should change)\n\n\
+         Output ONLY the complete updated spec as valid markdown with YAML frontmatter. \
+         Do not wrap in code fences.\n"
+    );
+
+    prompt
+}
+
+/// Regenerate a spec file using AI when requirements have drifted.
+pub fn regenerate_spec_with_ai(
+    module_name: &str,
+    spec_path: &Path,
+    requirements_path: &Path,
+    root: &Path,
+    config: &SpecSyncConfig,
+    provider: &ResolvedProvider,
+) -> Result<String, String> {
+    let current_spec =
+        fs::read_to_string(spec_path).map_err(|e| format!("Cannot read spec: {e}"))?;
+    let requirements = fs::read_to_string(requirements_path)
+        .map_err(|e| format!("Cannot read requirements: {e}"))?;
+
+    // Read source files from frontmatter
+    let files = crate::hash_cache::extract_frontmatter_files(&current_spec);
+    let mut source_contents = Vec::new();
+    for file in &files {
+        let full_path = root.join(file);
+        if let Ok(content) = fs::read_to_string(&full_path) {
+            source_contents.push((file.clone(), content));
+        }
+    }
+
+    let prompt = build_regen_prompt(module_name, &current_spec, &requirements, &source_contents);
+    let timeout = config.ai_timeout.unwrap_or(DEFAULT_AI_TIMEOUT_SECS);
+    let raw = run_provider(provider, &prompt, timeout)?;
+
+    postprocess_spec(&raw)
+}
+
 /// Strip code fences and validate frontmatter.
 fn postprocess_spec(raw: &str) -> Result<String, String> {
     let mut spec = raw.to_string();

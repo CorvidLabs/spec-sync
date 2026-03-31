@@ -12,7 +12,17 @@ depends_on: []
 
 ## Purpose
 
-Manages agent instruction files and git hooks for spec-sync integration. Installs and uninstalls instruction snippets for Claude (CLAUDE.md), Cursor (.cursorrules), Copilot (.github/copilot-instructions.md), a git pre-commit hook, and Claude Code settings.json hooks.
+Manages agent instruction files and git hooks for spec-sync integration. Installs and uninstalls instruction snippets for Claude (CLAUDE.md), Cursor (.cursorrules), Copilot (.github/copilot-instructions.md), Agents (AGENTS.md), a git pre-commit hook, and Claude Code settings.json hooks.
+
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
 
 ## Requirements
 
@@ -30,7 +40,7 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 
 | Type | Description |
 |------|-------------|
-| `HookTarget` | All installable hook targets: Claude, Cursor, Copilot, Precommit, ClaudeCodeHook |
+| `HookTarget` | All installable hook targets: Claude, Cursor, Copilot, Agents, Precommit, ClaudeCodeHook |
 
 ### Exported HookTarget Functions
 
@@ -69,7 +79,7 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 
 - **Given** a project with no hooks installed
 - **When** `cmd_install(root, &[])` is called
-- **Then** installs CLAUDE.md, .cursorrules, copilot-instructions.md, pre-commit hook, and Claude Code settings
+- **Then** installs CLAUDE.md, .cursorrules, copilot-instructions.md, AGENTS.md, pre-commit hook, and Claude Code settings
 
 ### Scenario: Already installed
 
@@ -118,3 +128,4 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 | Date | Change |
 |------|--------|
 | 2026-03-25 | Initial spec |
+| 2026-03-30 | Add Agents (AGENTS.md) hook target |

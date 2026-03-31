@@ -205,6 +205,10 @@ depends_on: []
 
 Utility functions.
 
+## Requirements
+
+- As a developer, I want utility functions so that common logic is reusable
+
 ## Public API
 
 ### Exported Functions
@@ -527,6 +531,10 @@ depends_on: []
 ## Purpose
 
 Service.
+
+## Requirements
+
+- As a user, I want service endpoints so that I can interact with the system
 
 ## Public API
 
@@ -1208,6 +1216,10 @@ depends_on: []
 ## Purpose
 
 Something.
+
+## Requirements
+
+- As a user, I want warn functionality so that issues are surfaced
 
 ## Public API
 
@@ -2246,6 +2258,10 @@ depends_on: []
 
 Auth module.
 
+## Requirements
+
+- As a user, I want authentication so that access is controlled
+
 ## Public API
 
 | Function | Description |
@@ -2333,6 +2349,12 @@ depends_on: []
 ## Purpose
 
 Utility functions.
+
+## Requirements
+
+### User Stories
+
+- As a developer, I want utility functions so that I can reuse common logic
 
 ## Invariants
 

@@ -538,7 +538,7 @@ mod tests {
         let spec = tmp.path().join("missing.spec.md");
         fs::write(
             &spec,
-            "---\nmodule: test\nversion: 1\nstatus: active\nfiles:\n  - src/nonexistent.ts\n---\n\n## Purpose\nTest\n## Requirements\n## Public API\n## Invariants\n## Behavioral Examples\n## Error Cases\n## Dependencies\n## Change Log\n",
+            "---\nmodule: test\nversion: 1\nstatus: active\nfiles:\n  - src/nonexistent.ts\n---\n\n## Purpose\nTest\n## Public API\n## Invariants\n## Behavioral Examples\n## Error Cases\n## Dependencies\n## Change Log\n",
         )
         .unwrap();
 
@@ -576,8 +576,6 @@ db_tables:
 
 ## Purpose
 Messaging
-
-## Requirements
 
 ### Schema: messages
 
@@ -668,8 +666,6 @@ db_tables:
 
 ## Purpose
 Test
-
-## Requirements
 
 ### Schema: items
 

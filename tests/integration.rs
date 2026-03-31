@@ -2986,10 +2986,7 @@ fn check_creates_hash_cache() {
     let content = fs::read_to_string(&cache_path).unwrap();
     let cache: serde_json::Value = serde_json::from_str(&content).unwrap();
     let hashes = cache["hashes"].as_object().unwrap();
-    assert!(
-        !hashes.is_empty(),
-        "Expected hash cache to contain entries"
-    );
+    assert!(!hashes.is_empty(), "Expected hash cache to contain entries");
 }
 
 #[test]

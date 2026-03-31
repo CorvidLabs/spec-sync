@@ -14,6 +14,16 @@ depends_on: []
 
 Manifest-aware module detection for multi-language projects. Parses language-specific manifest/build files (Cargo.toml, Package.swift, build.gradle.kts, package.json, pubspec.yaml, go.mod, pyproject.toml) to discover targets, source paths, module names, and dependencies — replacing pure directory scanning with structured project metadata.
 
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
+
 ## Public API
 
 ### Exported Structs

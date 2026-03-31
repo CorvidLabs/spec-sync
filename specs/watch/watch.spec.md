@@ -15,6 +15,16 @@ depends_on:
 
 File watcher that re-runs `specsync check` on file changes. Watches spec and source directories with 500ms debounce, providing live validation feedback during development.
 
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
+
 ## Public API
 
 ### Exported Functions

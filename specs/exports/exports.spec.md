@@ -26,6 +26,16 @@ depends_on:
 
 Language-aware export extraction from source files. Auto-detects the programming language from file extension and extracts public/exported symbol names using regex-based parsing (no AST required). Supports 11 languages: TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, and Ruby.
 
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
+
 ## Public API
 
 ### Exported Functions

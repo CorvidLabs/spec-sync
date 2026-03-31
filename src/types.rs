@@ -369,6 +369,7 @@ fn default_source_dirs() -> Vec<String> {
 fn default_required_sections() -> Vec<String> {
     vec![
         "Purpose".to_string(),
+        "Requirements".to_string(),
         "Public API".to_string(),
         "Invariants".to_string(),
         "Behavioral Examples".to_string(),

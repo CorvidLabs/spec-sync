@@ -151,7 +151,7 @@ depends_on:                                 # Other spec paths, validated for ex
 
 Every spec must include these `##` sections (configurable in `specsync.json`):
 
-Purpose, Requirements, Public API, Invariants, Behavioral Examples, Error Cases, Dependencies, Change Log
+Purpose, Public API, Invariants, Behavioral Examples, Error Cases, Dependencies, Change Log
 
 ### Public API Tables
 
@@ -190,19 +190,6 @@ depends_on:
 
 Handles authentication and session management. Validates bearer tokens,
 manages session lifecycle, provides middleware for route protection.
-
-## Requirements
-
-### User Stories
-
-- As a client, I can authenticate with a bearer token and receive my user object
-- As a client, I can refresh an active session before it expires
-
-### Acceptance Criteria
-
-- Valid JWT tokens return the corresponding User object
-- Expired tokens return null and log a warning
-- Failed auth attempts are rate-limited to 5/minute
 
 ## Public API
 
@@ -280,7 +267,7 @@ specsync [command] [flags]
 | `diff` | Show exports added/removed since a git ref (default: `HEAD`) |
 | `coverage` | File and module coverage report |
 | `generate` | Scaffold specs for modules missing one (`--provider` for AI-powered content) |
-| `add-spec <name>` | Scaffold a single spec + companion files (`tasks.md`, `context.md`) |
+| `add-spec <name>` | Scaffold a single spec + companion files (`requirements.md`, `tasks.md`, `context.md`) |
 | `resolve` | Verify `depends_on` references exist. `--remote` fetches registries from GitHub |
 | `init-registry` | Generate `specsync-registry.toml` from existing specs |
 | `score` | Quality-score spec files (0–100) with improvement suggestions |
@@ -355,7 +342,36 @@ Remote resolution fetches `specsync-registry.toml` from each referenced repo and
 
 ## Companion Files
 
-When you run `specsync generate` or `specsync add-spec`, two companion files are created alongside each spec:
+When you run `specsync generate` or `specsync add-spec`, three companion files are created alongside each spec:
+
+| File | Author | Validated? | Purpose |
+|------|--------|-----------|---------|
+| `{module}.spec.md` | Dev/Architect | Yes — against code | Technical contract |
+| `tasks.md` | Anyone | No | Work coordination |
+| `context.md` | Dev/Agent | No | Architecture notes |
+| `requirements.md` | Product/Design | No | The ask, acceptance criteria |
+
+All scaffolded by SpecSync, all human-filled. Only the spec gets bidirectional validation.
+
+**`requirements.md`** — Product requirements and acceptance criteria:
+
+```markdown
+---
+spec: auth.spec.md
+---
+
+## User Stories
+- As a [role], I want [feature] so that [benefit]
+
+## Acceptance Criteria
+- [ ] <!-- TODO: define acceptance criteria -->
+
+## Constraints
+<!-- Non-functional requirements, performance targets, compliance needs -->
+
+## Out of Scope
+<!-- Explicitly excluded from this module's requirements -->
+```
 
 **`tasks.md`** — Multi-role checkpoint tracking:
 
@@ -482,7 +498,7 @@ Create `specsync.json` or `.specsync.toml` in your project root (or run `specsyn
   "specsDir": "specs",
   "sourceDirs": ["src"],
   "schemaDir": "db/migrations",
-  "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+  "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
   "excludeDirs": ["__tests__"],
   "excludePatterns": ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"],
   "sourceExtensions": [],
@@ -511,7 +527,7 @@ Create `specsync.json` or `.specsync.toml` in your project root (or run `specsyn
 # .specsync.toml
 specs_dir = "specs"
 source_dirs = ["src", "lib"]
-required_sections = ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
+required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
 ai_provider = "claude"
 ai_timeout = 120
 ```

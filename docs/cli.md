@@ -88,13 +88,14 @@ Exposes tools: `specsync_check`, `specsync_generate`, `specsync_coverage`, `spec
 
 ### `add-spec`
 
-Scaffold a single spec with companion files (`tasks.md`, `context.md`).
+Scaffold a single spec with companion files (`requirements.md`, `tasks.md`, `context.md`).
 
 ```bash
 specsync add-spec auth                     # creates specs/auth/auth.spec.md + companions
 ```
 
 Companion files sit alongside the spec and give agents structured context:
+- **`requirements.md`** — user stories, acceptance criteria, constraints (authored by Product/Design)
 - **`tasks.md`** — outstanding work items for the module
 - **`context.md`** — design decisions, constraints, history
 

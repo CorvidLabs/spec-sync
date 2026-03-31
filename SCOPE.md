@@ -27,6 +27,7 @@ This document defines what is in scope for v3 and what is explicitly deferred.
 - Cross-project refs are **metadata only** in `specsync check` (no CI cost)
 
 ### Companion Files
+- `requirements.md` — product requirements, user stories, acceptance criteria (authored by Product/Design)
 - `tasks.md` — checkbox-driven work tracking, multi-role sign-offs (Product, QA, Design, Dev)
 - `context.md` — agent briefing with key decisions, files to read, status
 - Auto-generated alongside every new spec via `generate` and `add-spec`

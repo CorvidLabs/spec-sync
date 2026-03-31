@@ -27,6 +27,27 @@ spec: {module}.spec.md
 - **Dev**: pending
 "#;
 
+const REQUIREMENTS_TEMPLATE: &str = r#"---
+spec: {module}.spec.md
+---
+
+## User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+## Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
+
+## Constraints
+
+<!-- Non-functional requirements, performance targets, compliance needs -->
+
+## Out of Scope
+
+<!-- Explicitly excluded from this module's requirements -->
+"#;
+
 const CONTEXT_TEMPLATE: &str = r#"---
 spec: {module}.spec.md
 ---
@@ -62,16 +83,6 @@ depends_on: []
 ## Purpose
 
 <!-- TODO: describe what this module does -->
-
-## Requirements
-
-### User Stories
-
-- As a [role], I want [feature] so that [benefit]
-
-### Acceptance Criteria
-
-- [ ] <!-- TODO: define acceptance criteria -->
 
 ## Public API
 
@@ -154,16 +165,6 @@ depends_on: []
 
 <!-- TODO: describe what this module does -->
 
-## Requirements
-
-### User Stories
-
-- As a [role], I want [feature] so that [benefit]
-
-### Acceptance Criteria
-
-- [ ] <!-- TODO: define acceptance criteria -->
-
 ## Public API
 
 ### Types
@@ -226,16 +227,6 @@ depends_on: []
 ## Purpose
 
 <!-- TODO: describe what this module does -->
-
-## Requirements
-
-### User Stories
-
-- As a [role], I want [feature] so that [benefit]
-
-### Acceptance Criteria
-
-- [ ] <!-- TODO: define acceptance criteria -->
 
 ## Public API
 
@@ -305,16 +296,6 @@ depends_on: []
 
 <!-- TODO: describe what this module does -->
 
-## Requirements
-
-### User Stories
-
-- As a [role], I want [feature] so that [benefit]
-
-### Acceptance Criteria
-
-- [ ] <!-- TODO: define acceptance criteria -->
-
 ## Public API
 
 ### Classes & Interfaces
@@ -378,16 +359,6 @@ depends_on: []
 
 <!-- TODO: describe what this package does -->
 
-## Requirements
-
-### User Stories
-
-- As a [role], I want [feature] so that [benefit]
-
-### Acceptance Criteria
-
-- [ ] <!-- TODO: define acceptance criteria -->
-
 ## Public API
 
 ### Types
@@ -450,16 +421,6 @@ depends_on: []
 ## Purpose
 
 <!-- TODO: describe what this module does -->
-
-## Requirements
-
-### User Stories
-
-- As a [role], I want [feature] so that [benefit]
-
-### Acceptance Criteria
-
-- [ ] <!-- TODO: define acceptance criteria -->
 
 ## Public API
 
@@ -701,10 +662,11 @@ fn generate_module_spec(
     generate_spec(module_name, module_files, root, specs_dir)
 }
 
-/// Generate companion files (tasks.md, context.md) alongside a spec file.
+/// Generate companion files (tasks.md, context.md, requirements.md) alongside a spec file.
 fn generate_companion_files(spec_dir: &Path, module_name: &str) {
     let tasks_path = spec_dir.join("tasks.md");
     let context_path = spec_dir.join("context.md");
+    let requirements_path = spec_dir.join("requirements.md");
 
     if !tasks_path.exists() {
         let content = TASKS_TEMPLATE.replace("{module}", module_name);
@@ -717,6 +679,13 @@ fn generate_companion_files(spec_dir: &Path, module_name: &str) {
         let content = CONTEXT_TEMPLATE.replace("{module}", module_name);
         if fs::write(&context_path, &content).is_ok() {
             println!("    {} Generated context.md", "✓".green());
+        }
+    }
+
+    if !requirements_path.exists() {
+        let content = REQUIREMENTS_TEMPLATE.replace("{module}", module_name);
+        if fs::write(&requirements_path, &content).is_ok() {
+            println!("    {} Generated requirements.md", "✓".green());
         }
     }
 }

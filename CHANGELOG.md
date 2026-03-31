@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-03-30
+
+### Changed
+
+- **Requirements moved to companion file** — `## Requirements` is no longer a required spec section. Requirements now live in `requirements.md`, a per-module companion file scaffolded alongside `tasks.md` and `context.md`. This keeps the spec focused as a technical contract (authored by Dev/Architect) while giving Product/Design their own space for user stories and acceptance criteria. The `requirements.md` template includes User Stories, Acceptance Criteria, Constraints, and Out of Scope sections.
+
+### Removed
+
+- **`## Requirements` removed from default required sections** — reverts the v3.1.0 addition. Existing specs with `## Requirements` can safely remove it. Projects that want it back can add it to `requiredSections` in config.
+
 ## [3.1.0] - 2026-03-30
 
 ### Added

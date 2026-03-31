@@ -18,16 +18,6 @@ depends_on:
 
 Core validation engine for spec-sync. Validates individual spec files against source code (bidirectional), discovers spec and source files, extracts schema table names from SQL migrations, computes file and LOC coverage metrics, and resolves cross-project dependency references.
 
-## Requirements
-
-### User Stories
-
-- As a [role], I want [feature] so that [benefit]
-
-### Acceptance Criteria
-
-- [ ] <!-- TODO: define acceptance criteria -->
-
 ## Public API
 
 ### Exported Functions

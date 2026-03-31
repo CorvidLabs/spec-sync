@@ -15,16 +15,6 @@ depends_on:
 
 Resolves and executes AI providers for spec generation. Supports CLI-based providers (Claude, Ollama, Copilot) and direct API providers (Anthropic, OpenAI). Builds prompts from source code, runs the provider, and post-processes the output to ensure valid spec format.
 
-## Requirements
-
-### User Stories
-
-- As a [role], I want [feature] so that [benefit]
-
-### Acceptance Criteria
-
-- [ ] <!-- TODO: define acceptance criteria -->
-
 ## Public API
 
 ### Exported Enums

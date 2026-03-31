@@ -29,16 +29,6 @@ depends_on: []
 
 This module does something.
 
-## Requirements
-
-### User Stories
-
-- As a user, I want this module to work so that things function correctly
-
-### Acceptance Criteria
-
-- [ ] Module works as expected
-
 ## Public API
 
 ### Exported Functions
@@ -108,7 +98,6 @@ fn write_config(root: &std::path::Path, specs_dir: &str, source_dirs: &[&str]) {
   "sourceDirs": [{source_dirs}],
   "requiredSections": [
     "Purpose",
-    "Requirements",
     "Public API",
     "Invariants",
     "Behavioral Examples",
@@ -215,10 +204,6 @@ depends_on: []
 ## Purpose
 
 Utility functions.
-
-## Requirements
-
-- As a developer, I want utility functions so that common logic is reusable
 
 ## Public API
 
@@ -542,10 +527,6 @@ depends_on: []
 ## Purpose
 
 Service.
-
-## Requirements
-
-- As a user, I want service endpoints so that I can interact with the system
 
 ## Public API
 
@@ -1228,10 +1209,6 @@ depends_on: []
 
 Something.
 
-## Requirements
-
-- As a user, I want warn functionality so that issues are surfaced
-
 ## Public API
 
 ### Exported Functions
@@ -1332,7 +1309,7 @@ fn ai_provider_config_field_is_respected() {
         "specsDir": "specs",
         "sourceDirs": ["src"],
         "aiProvider": "cursor",
-        "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
@@ -1365,7 +1342,7 @@ fn ai_command_overrides_ai_provider() {
         "sourceDirs": ["src"],
         "aiProvider": "claude",
         "aiCommand": "false",
-        "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
@@ -1401,7 +1378,7 @@ fn cli_provider_overrides_config_provider() {
         "specsDir": "specs",
         "sourceDirs": ["src"],
         "aiProvider": "claude",
-        "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
@@ -1442,7 +1419,7 @@ fn ai_model_config_used_with_ollama_provider() {
         "sourceDirs": ["src"],
         "aiProvider": "ollama",
         "aiModel": "codellama",
-        "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
@@ -1476,7 +1453,7 @@ fn anthropic_provider_requires_api_key() {
         "specsDir": "specs",
         "sourceDirs": ["src"],
         "aiProvider": "anthropic",
-        "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
@@ -1508,7 +1485,7 @@ fn openai_provider_requires_api_key() {
         "specsDir": "specs",
         "sourceDirs": ["src"],
         "aiProvider": "openai",
-        "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
@@ -1617,7 +1594,7 @@ fn ai_api_key_config_field_used_for_anthropic() {
         "sourceDirs": ["src"],
         "aiProvider": "anthropic",
         "aiApiKey": "sk-ant-test-fake-key",
-        "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
@@ -2269,10 +2246,6 @@ depends_on: []
 
 Auth module.
 
-## Requirements
-
-- As a user, I want authentication so that access is controlled
-
 ## Public API
 
 | Function | Description |
@@ -2360,12 +2333,6 @@ depends_on: []
 ## Purpose
 
 Utility functions.
-
-## Requirements
-
-### User Stories
-
-- As a developer, I want utility functions so that I can reuse common logic
 
 ## Invariants
 

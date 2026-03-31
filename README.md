@@ -151,7 +151,7 @@ depends_on:                                 # Other spec paths, validated for ex
 
 Every spec must include these `##` sections (configurable in `specsync.json`):
 
-Purpose, Public API, Invariants, Behavioral Examples, Error Cases, Dependencies, Change Log
+Purpose, Requirements, Public API, Invariants, Behavioral Examples, Error Cases, Dependencies, Change Log
 
 ### Public API Tables
 
@@ -190,6 +190,19 @@ depends_on:
 
 Handles authentication and session management. Validates bearer tokens,
 manages session lifecycle, provides middleware for route protection.
+
+## Requirements
+
+### User Stories
+
+- As a client, I can authenticate with a bearer token and receive my user object
+- As a client, I can refresh an active session before it expires
+
+### Acceptance Criteria
+
+- Valid JWT tokens return the corresponding User object
+- Expired tokens return null and log a warning
+- Failed auth attempts are rate-limited to 5/minute
 
 ## Public API
 
@@ -498,7 +511,7 @@ Create `specsync.json` or `.specsync.toml` in your project root (or run `specsyn
   "specsDir": "specs",
   "sourceDirs": ["src"],
   "schemaDir": "db/migrations",
-  "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+  "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
   "excludeDirs": ["__tests__"],
   "excludePatterns": ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"],
   "sourceExtensions": [],
@@ -513,7 +526,7 @@ Create `specsync.json` or `.specsync.toml` in your project root (or run `specsyn
 | `sourceDirs` | `string[]` | `["src"]` | Source directories for coverage analysis |
 | `schemaDir` | `string?` | — | SQL schema dir for `db_tables` validation |
 | `schemaPattern` | `string?` | `CREATE TABLE` regex | Custom regex for table name extraction |
-| `requiredSections` | `string[]` | 7 defaults | Markdown sections every spec must include |
+| `requiredSections` | `string[]` | 8 defaults | Markdown sections every spec must include |
 | `excludeDirs` | `string[]` | `["__tests__"]` | Directories excluded from coverage |
 | `excludePatterns` | `string[]` | Common test globs | File patterns excluded from coverage |
 | `sourceExtensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |
@@ -527,7 +540,7 @@ Create `specsync.json` or `.specsync.toml` in your project root (or run `specsyn
 # .specsync.toml
 specs_dir = "specs"
 source_dirs = ["src", "lib"]
-required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
+required_sections = ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
 ai_provider = "claude"
 ai_timeout = 120
 ```

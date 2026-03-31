@@ -190,7 +190,7 @@ Use `modules` with `has_spec: false` to identify what `generate` would scaffold.
 2. Status values: `draft`, `review`, `stable`, `deprecated`
 3. `files` must be non-empty, paths relative to project root
 4. Public API tables: first backtick-quoted string per row is the export name
-5. Default required sections: Purpose, Public API, Invariants, Behavioral Examples, Error Cases, Dependencies, Change Log
+5. Default required sections: Purpose, Requirements, Public API, Invariants, Behavioral Examples, Error Cases, Dependencies, Change Log
 
 ### Minimal valid spec
 
@@ -206,6 +206,9 @@ files:
 # MyModule
 
 ## Purpose
+TODO
+
+## Requirements
 TODO
 
 ## Public API

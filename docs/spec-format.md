@@ -191,6 +191,19 @@ depends_on:
 Handles authentication and session management. Validates bearer tokens,
 manages session lifecycle, provides middleware for route protection.
 
+## Requirements
+
+### User Stories
+
+- As a client, I can authenticate with a bearer token and receive my user object
+- As a client, I can refresh an active session before it expires
+
+### Acceptance Criteria
+
+- Valid JWT tokens return the corresponding User object
+- Expired tokens return null and log a warning
+- Failed auth attempts are rate-limited to 5/minute
+
 ## Public API
 
 ### Exported Functions

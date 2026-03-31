@@ -8,11 +8,25 @@ const CLAUDE_MD_SNIPPET: &str = r#"# Spec-Sync Integration
 
 This project uses [spec-sync](https://github.com/CorvidLabs/spec-sync) for bidirectional spec-to-code validation.
 
+## Companion files
+
+Each spec in `specs/<module>/` has companion files — read them before working, update them after:
+
+- **`tasks.md`** — Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
+- **`requirements.md`** — Acceptance criteria and user stories. These are permanent invariants, not tasks — do not check them off. Update if requirements change.
+- **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress.
+
 ## Before modifying any module
 
 1. Read the relevant spec in `specs/<module>/<module>.spec.md`
-2. Check companion files: `specs/<module>/tasks.md` and `specs/<module>/context.md`
+2. Read companion files: `tasks.md`, `requirements.md`, and `context.md`
 3. After changes, run `specsync check` to verify specs still pass
+
+## After completing work
+
+1. Mark completed items in `tasks.md` — check off finished tasks, add new ones discovered
+2. Update `context.md` — record decisions made, update current status
+3. If requirements changed, update `requirements.md` acceptance criteria
 
 ## Before creating a PR
 
@@ -36,11 +50,20 @@ const CURSORRULES_SNIPPET: &str = r#"# Spec-Sync Rules
 
 This project uses spec-sync for spec-to-code validation. Specs live in the `specs/` directory.
 
+## Companion files
+
+Each spec directory has companion files — read before working, update after:
+
+- `tasks.md` — Work items. Check off completed tasks, add new ones discovered.
+- `requirements.md` — Acceptance criteria and user stories. Permanent invariants, not tasks.
+- `context.md` — Decisions, key files, current status. Update when you make design choices.
+
 ## Rules
 
 - Before editing a module, read its spec at `specs/<module>/<module>.spec.md`
-- Check `specs/<module>/tasks.md` for outstanding work and `specs/<module>/context.md` for decisions
+- Read `tasks.md`, `requirements.md`, and `context.md` for outstanding work, requirements, and decisions
 - After modifying code, ensure `specsync check` still passes
+- After completing work, update `tasks.md` (check off done items) and `context.md` (record decisions, update status)
 - When creating new modules, run `specsync add-spec <module-name>` first
 - Keep specs in sync: if you change exports, parameters, or types, update the spec's Public API table
 - Run `specsync check --strict` before committing
@@ -50,11 +73,20 @@ const COPILOT_INSTRUCTIONS_SNIPPET: &str = r#"# Spec-Sync Integration
 
 This project uses spec-sync for bidirectional spec-to-code validation.
 
+## Companion files
+
+Each spec directory has companion files — read before working, update after:
+
+- `tasks.md` — Work items to check off as completed. Add new tasks if you discover work needed.
+- `requirements.md` — Acceptance criteria and user stories. Permanent invariants, not checkable tasks.
+- `context.md` — Architectural decisions, key files, and current status. Update with decisions made.
+
 ## Guidelines
 
 - Specs are in `specs/<module>/<module>.spec.md` — read the relevant spec before modifying a module
-- Companion files `tasks.md` and `context.md` in each spec directory provide additional context
+- Read companion files `tasks.md`, `requirements.md`, and `context.md` before starting work
 - After changes, `specsync check` should pass with no errors
+- After completing work, update `tasks.md` (mark done items) and `context.md` (record decisions, update status)
 - New modules need specs: run `specsync add-spec <module-name>`
 - Keep the Public API table in each spec up to date with actual exports
 "#;
@@ -63,11 +95,25 @@ const AGENTS_MD_SNIPPET: &str = r#"# Spec-Sync Integration
 
 This project uses [spec-sync](https://github.com/CorvidLabs/spec-sync) for bidirectional spec-to-code validation.
 
+## Companion files
+
+Each spec in `specs/<module>/` has companion files — read them before working, update them after:
+
+- **`tasks.md`** — Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
+- **`requirements.md`** — Acceptance criteria and user stories. These are permanent invariants, not tasks — do not check them off. Update if requirements change.
+- **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress.
+
 ## Before modifying any module
 
 1. Read the relevant spec in `specs/<module>/<module>.spec.md`
-2. Check companion files: `specs/<module>/tasks.md` and `specs/<module>/context.md`
+2. Read companion files: `tasks.md`, `requirements.md`, and `context.md`
 3. After changes, run `specsync check` to verify specs still pass
+
+## After completing work
+
+1. Mark completed items in `tasks.md` — check off finished tasks, add new ones discovered
+2. Update `context.md` — record decisions made, update current status
+3. If requirements changed, update `requirements.md` acceptance criteria
 
 ## Before creating a PR
 

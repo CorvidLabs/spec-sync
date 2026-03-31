@@ -37,7 +37,7 @@ spec: {module}.spec.md
 
 ## Acceptance Criteria
 
-- [ ] <!-- TODO: define acceptance criteria -->
+- <!-- TODO: define acceptance criteria -->
 
 ## Constraints
 

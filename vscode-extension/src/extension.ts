@@ -71,6 +71,9 @@ export function activate(context: vscode.ExtensionContext) {
   statusBarItem.tooltip = "SpecSync — click to validate";
   statusBarItem.show();
 
+  // Verify CLI binary is reachable
+  checkCliAvailable();
+
   // Register commands
   context.subscriptions.push(
     vscode.commands.registerCommand("specsync.check", () => runCheck()),
@@ -127,6 +130,38 @@ export function deactivate() {
   }
 }
 
+// ── CLI availability check ───────────────────────────────────────────
+
+async function checkCliAvailable(): Promise<void> {
+  const binary = getBinary();
+  try {
+    await execFileAsync(binary, ["--version"], { timeout: 5_000 });
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === "ENOENT") {
+      const install = "Install Instructions";
+      const configure = "Open Settings";
+      const choice = await vscode.window.showErrorMessage(
+        `SpecSync: CLI binary "${binary}" not found. Install specsync and ensure it is on your PATH, or set "specsync.binaryPath" in settings.`,
+        install,
+        configure
+      );
+      if (choice === install) {
+        vscode.env.openExternal(
+          vscode.Uri.parse("https://github.com/CorvidLabs/spec-sync#installation")
+        );
+      } else if (choice === configure) {
+        vscode.commands.executeCommand(
+          "workbench.action.openSettings",
+          "specsync.binaryPath"
+        );
+      }
+      setStatusBar("error", "$(error) SpecSync: CLI not found");
+      log(`CLI binary "${binary}" not found (ENOENT)`);
+    }
+  }
+}
+
 // ── CLI runner ──────────────────────────────────────────────────────────
 
 function getBinary(): string {
@@ -141,10 +176,10 @@ function getRoot(): string {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? ".";
 }
 
-async function runSpecsync(args: string[]): Promise<string> {
+async function runSpecsyncRaw(args: string[]): Promise<string> {
   const binary = getBinary();
   const root = getRoot();
-  const fullArgs = [...args, "--root", root, "--json"];
+  const fullArgs = [...args, "--root", root];
   log(`> ${binary} ${fullArgs.join(" ")}`);
 
   try {
@@ -157,9 +192,13 @@ async function runSpecsync(args: string[]): Promise<string> {
     }
     return stdout;
   } catch (err: unknown) {
-    // specsync exits non-zero on validation failures but still produces JSON on stdout
-    const execErr = err as { stdout?: string; stderr?: string; code?: number };
-    if (execErr.stdout && execErr.stdout.trim().startsWith("{")) {
+    const execErr = err as { stdout?: string; stderr?: string; code?: string | number };
+    if (execErr.code === "ENOENT") {
+      throw new Error(
+        `CLI binary "${binary}" not found. Install specsync or set "specsync.binaryPath" in settings.`
+      );
+    }
+    if (execErr.stdout) {
       if (execErr.stderr) {
         log(`stderr: ${execErr.stderr}`);
       }
@@ -167,6 +206,10 @@ async function runSpecsync(args: string[]): Promise<string> {
     }
     throw err;
   }
+}
+
+async function runSpecsync(args: string[]): Promise<string> {
+  return runSpecsyncRaw([...args, "--json"]);
 }
 
 // ── Logging ─────────────────────────────────────────────────────────────
@@ -222,6 +265,9 @@ async function runCheck() {
   try {
     const stdout = await runSpecsync(["check"]);
     const result: CheckOutput = JSON.parse(stdout);
+
+    // Invalidate score cache so CodeLens refreshes on next view
+    lastScoreResult = undefined;
 
     diagnosticCollection.clear();
     const diagnosticMap = new Map<vscode.Uri, vscode.Diagnostic[]>();
@@ -438,7 +484,7 @@ async function runGenerate() {
 
 async function runInit() {
   try {
-    await runSpecsync(["init"]);
+    await runSpecsyncRaw(["init"]);
     vscode.window.showInformationMessage("SpecSync: Created specsync.json");
     log("Init: created specsync.json");
   } catch (e: unknown) {
@@ -523,7 +569,8 @@ function parseDiagnostic(
   let specPath = "";
   let text = message;
 
-  const colonMatch = message.match(/^(specs\/[^:]+\.spec\.md):\s*(.+)$/);
+  // CLI prefixes errors with "path/to/spec.spec.md: message"
+  const colonMatch = message.match(/^([^:]+\.spec\.md):\s*(.+)$/);
   if (colonMatch) {
     specPath = colonMatch[1];
     text = colonMatch[2];

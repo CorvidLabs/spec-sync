@@ -2,10 +2,10 @@
   "name": "specsync",
   "displayName": "SpecSync",
   "description": "Bidirectional spec-to-code validation — inline diagnostics, quality scores, and coverage indicators",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "corvidlabs",
   "license": "MIT",
-  "icon": "icon.svg",
+  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/CorvidLabs/spec-sync"

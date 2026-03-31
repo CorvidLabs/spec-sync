@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-03-30
+
+### Added
+
+- **VS Code extension** — first-class editor integration for SpecSync, published on the VS Code Marketplace as `corvidlabs.specsync`.
+  - **Inline diagnostics** — errors and warnings from `specsync check --json` mapped directly to spec files with proper severity levels.
+  - **CodeLens quality scores** — spec quality scores (0–100 with letter grades) displayed inline above spec files via `specsync score`.
+  - **Coverage webview** — rich HTML report showing file and LOC coverage with VS Code theme-aware styling.
+  - **Scoring webview** — detailed quality breakdown per spec with improvement suggestions.
+  - **Five commands** — Validate Specs, Show Coverage, Score Quality, Generate Missing Specs, Initialize Config — all accessible from the Command Palette.
+  - **Status bar indicator** — persistent status bar item showing pass/fail/error/syncing state with color coding.
+  - **Validate-on-save** — debounced (500ms) automatic validation when spec or source files are saved.
+  - **Configurable settings** — `specsync.binaryPath`, `specsync.validateOnSave`, `specsync.showInlineScores`.
+  - Activates automatically in workspaces containing `specsync.json`, `.specsync.toml`, or a `specs/` directory.
+
+### Breaking Changes
+
+- Major version bump to v3. GitHub Action users should update to `CorvidLabs/spec-sync@v3`.
+
 ## [2.5.0] - 2026-03-30
 
 ### Added
@@ -241,6 +260,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
+[3.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.0.0
 [2.5.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.5.0
 [2.4.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.4.0
 [2.3.3]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.3.3

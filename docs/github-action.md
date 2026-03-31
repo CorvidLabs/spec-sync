@@ -1,7 +1,7 @@
 ---
 title: GitHub Action
 layout: default
-nav_order: 5
+nav_order: 6
 ---
 
 # GitHub Action
@@ -22,7 +22,7 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 ## Basic Usage
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v1
+- uses: CorvidLabs/spec-sync@v3
   with:
     strict: 'true'
     require-coverage: '100'
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v1
+      - uses: CorvidLabs/spec-sync@v3
         with:
           strict: 'true'
           require-coverage: '100'
@@ -72,7 +72,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v1
+      - uses: CorvidLabs/spec-sync@v3
         with:
           strict: 'true'
 ```
@@ -82,7 +82,7 @@ jobs:
 ## Monorepo
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v1
+- uses: CorvidLabs/spec-sync@v3
   with:
     root: './packages/backend'
     strict: 'true'

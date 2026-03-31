@@ -1528,8 +1528,9 @@ fn run_validation(
         let result = validate_spec(spec_file, root, schema_tables, schema_columns, config);
 
         if collect {
-            all_errors.extend(result.errors.iter().cloned());
-            all_warnings.extend(result.warnings.iter().cloned());
+            let prefix = &result.spec_path;
+            all_errors.extend(result.errors.iter().map(|e| format!("{prefix}: {e}")));
+            all_warnings.extend(result.warnings.iter().map(|w| format!("{prefix}: {w}")));
             total_errors += result.errors.len();
             total_warnings += result.warnings.len();
             if result.errors.is_empty() {

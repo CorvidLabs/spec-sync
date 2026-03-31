@@ -1,6 +1,6 @@
-# SpecSync v2 Scope
+# SpecSync v3 Scope
 
-This document defines what is in scope for v2 and what is explicitly deferred.
+This document defines what is in scope for v3 and what is explicitly deferred.
 
 ## In Scope (Shipped)
 
@@ -44,9 +44,18 @@ This document defines what is in scope for v2 and what is explicitly deferred.
 - `mcp` — MCP server mode for AI agent integration
 - All commands support `--json` output
 
+### VS Code Extension
+- Real-time spec validation with inline diagnostics (errors + warnings)
+- CodeLens quality scores on spec files
+- Coverage and scoring webview reports with VS Code theme integration
+- Five commands: Validate Specs, Show Coverage, Score Quality, Generate Specs, Initialize Config
+- Persistent status bar with pass/fail/error state indicators
+- Debounced validate-on-save (500ms)
+- Configurable binary path, validate-on-save toggle, inline score toggle
+- Published on VS Code Marketplace as `corvidlabs.specsync`
+
 ### Configuration
 - `specsync.json` (JSON) and `.specsync.toml` (TOML) config formats
-- VS Code extension scaffolding
 
 ## Out of Scope (Deferred / Not Planned)
 

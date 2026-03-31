@@ -14,15 +14,15 @@ spec: validator.spec.md
 
 ## Acceptance Criteria
 
-- [ ] Bidirectional validation: spec documents non-existent export = ERROR; code exports undocumented symbol = WARNING
-- [ ] Missing frontmatter fields (module, version, status) produce errors, not warnings
-- [ ] Cross-project refs (`owner/repo@module` format) are detected and skipped during local validation
-- [ ] Coverage computation excludes test files and configured exclude patterns
-- [ ] `find_spec_files` returns results sorted by path
-- [ ] Schema validation uses configurable regex pattern via `schema_pattern` config
-- [ ] File path suggestions use Levenshtein distance with max distance of 3
-- [ ] Flat source files (not in subdirectories) are detected as modules, excluding common entry points (main.rs, lib.rs, mod.rs, index.ts, etc.)
-- [ ] Source discovery respects `source_extensions` config
+- Bidirectional validation: spec documents non-existent export = ERROR; code exports undocumented symbol = WARNING
+- Missing frontmatter fields (module, version, status) produce errors, not warnings
+- Cross-project refs (`owner/repo@module` format) are detected and skipped during local validation
+- Coverage computation excludes test files and configured exclude patterns
+- `find_spec_files` returns results sorted by path
+- Schema validation uses configurable regex pattern via `schema_pattern` config
+- File path suggestions use Levenshtein distance with max distance of 3
+- Flat source files (not in subdirectories) are detected as modules, excluding common entry points (main.rs, lib.rs, mod.rs, index.ts, etc.)
+- Source discovery respects `source_extensions` config
 
 ## Constraints
 

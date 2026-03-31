@@ -12,15 +12,15 @@ spec: generator.spec.md
 
 ## Acceptance Criteria
 
-- [ ] Specs are never overwritten — modules with existing specs are skipped
-- [ ] Companion files (tasks.md, context.md, requirements.md) are only created if they don't already exist
-- [ ] Custom template at `specs/_template.spec.md` takes precedence over the built-in default
-- [ ] Template fills in module name, version (1), status (draft), and discovered source files
-- [ ] Module title is derived from directory name with title case ("api-gateway" -> "Api Gateway")
-- [ ] AI generation falls back to template on failure, with a warning to stderr
-- [ ] Source file paths in generated specs are relative to the project root
-- [ ] `generate_specs_for_unspecced_modules` returns the count of specs created
-- [ ] `generate_specs_for_unspecced_modules_paths` returns the file paths of specs created
+- Specs are never overwritten — modules with existing specs are skipped
+- Companion files (tasks.md, context.md, requirements.md) are only created if they don't already exist
+- Custom template at `specs/_template.spec.md` takes precedence over the built-in default
+- Template fills in module name, version (1), status (draft), and discovered source files
+- Module title is derived from directory name with title case ("api-gateway" -> "Api Gateway")
+- AI generation falls back to template on failure, with a warning to stderr
+- Source file paths in generated specs are relative to the project root
+- `generate_specs_for_unspecced_modules` returns the count of specs created
+- `generate_specs_for_unspecced_modules_paths` returns the file paths of specs created
 
 ## Constraints
 

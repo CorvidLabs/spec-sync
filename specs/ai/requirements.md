@@ -13,16 +13,16 @@ spec: ai.spec.md
 
 ## Acceptance Criteria
 
-- [ ] CLI flag `--provider` overrides all other provider settings
-- [ ] Config field `aiCommand` overrides `aiProvider` when both are set
-- [ ] Auto-detection tries CLI providers (claude, ollama, copilot) before API providers (anthropic, openai)
-- [ ] Cursor provider returns a clear error explaining it cannot be used (no stdin/stdout pipe mode)
-- [ ] Source code input is capped at 150KB total and 30KB per individual file
-- [ ] AI response has code fences stripped and frontmatter validated before returning
-- [ ] Generation times out after configurable `aiTimeout` (default 120s)
-- [ ] API providers (Anthropic, OpenAI) use direct HTTP calls, not CLI binaries
-- [ ] Missing API key for API providers produces a clear error message naming the expected env var
-- [ ] Provider resolution falls back gracefully: CLI flag > aiCommand > aiProvider > env var > auto-detect
+- CLI flag `--provider` overrides all other provider settings
+- Config field `aiCommand` overrides `aiProvider` when both are set
+- Auto-detection tries CLI providers (claude, ollama, copilot) before API providers (anthropic, openai)
+- Cursor provider returns a clear error explaining it cannot be used (no stdin/stdout pipe mode)
+- Source code input is capped at 150KB total and 30KB per individual file
+- AI response has code fences stripped and frontmatter validated before returning
+- Generation times out after configurable `aiTimeout` (default 120s)
+- API providers (Anthropic, OpenAI) use direct HTTP calls, not CLI binaries
+- Missing API key for API providers produces a clear error message naming the expected env var
+- Provider resolution falls back gracefully: CLI flag > aiCommand > aiProvider > env var > auto-detect
 
 ## Constraints
 

@@ -14,16 +14,16 @@ spec: exports.spec.md
 
 ## Acceptance Criteria
 
-- [ ] Supports 11 languages: TypeScript/JS, Python, Rust, Go, Java, Kotlin, Swift, Dart, C#, PHP, Ruby
-- [ ] Language detection is purely extension-based (no content sniffing)
-- [ ] Symbols are deduplicated while preserving declaration order
-- [ ] Unreadable files or unknown extensions return empty vector (no errors)
-- [ ] TypeScript wildcard re-exports (`export * from`) are followed one level deep via file resolver
-- [ ] Ruby visibility tracking correctly handles public/private/protected toggles
-- [ ] PHP skips magic methods (`__construct`, `__toString`, etc.) and private members
-- [ ] `ExportLevel::Type` filters to only class/struct/enum declarations; `Member` includes all public symbols
-- [ ] Test file detection uses language-specific patterns (`.test.ts`, `_test.go`, `test_*.py`, etc.)
-- [ ] All regex patterns are compiled once via `LazyLock` for performance
+- Supports 11 languages: TypeScript/JS, Python, Rust, Go, Java, Kotlin, Swift, Dart, C#, PHP, Ruby
+- Language detection is purely extension-based (no content sniffing)
+- Symbols are deduplicated while preserving declaration order
+- Unreadable files or unknown extensions return empty vector (no errors)
+- TypeScript wildcard re-exports (`export * from`) are followed one level deep via file resolver
+- Ruby visibility tracking correctly handles public/private/protected toggles
+- PHP skips magic methods (`__construct`, `__toString`, etc.) and private members
+- `ExportLevel::Type` filters to only class/struct/enum declarations; `Member` includes all public symbols
+- Test file detection uses language-specific patterns (`.test.ts`, `_test.go`, `test_*.py`, etc.)
+- All regex patterns are compiled once via `LazyLock` for performance
 
 ## Constraints
 

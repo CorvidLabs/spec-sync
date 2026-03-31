@@ -683,7 +683,7 @@ fn build_regen_prompt(
          - Behavioral Examples (if behavior expectations have changed)\n\
          - Error Cases (if error handling should change)\n\n\
          Output ONLY the complete updated spec as valid markdown with YAML frontmatter. \
-         Do not wrap in code fences.\n"
+         Do not wrap in code fences.\n",
     );
 
     prompt

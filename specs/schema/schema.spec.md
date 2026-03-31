@@ -14,16 +14,6 @@ depends_on: []
 
 Parses SQL schema files (migrations) and spec markdown to build table/column maps for bidirectional validation. Replays CREATE TABLE, ALTER TABLE, DROP TABLE, and RENAME statements in file-sorted order to produce the current schema state. Also extracts column definitions from spec `### Schema` sections for comparison.
 
-## Requirements
-
-### User Stories
-
-- As a [role], I want [feature] so that [benefit]
-
-### Acceptance Criteria
-
-- [ ] <!-- TODO: define acceptance criteria -->
-
 ## Public API
 
 ### Exported Structs

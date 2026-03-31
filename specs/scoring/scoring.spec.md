@@ -17,16 +17,6 @@ depends_on:
 
 Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubric (20 points each): frontmatter completeness, required sections, API documentation coverage, content depth, and freshness. Provides actionable improvement suggestions.
 
-## Requirements
-
-### User Stories
-
-- As a [role], I want [feature] so that [benefit]
-
-### Acceptance Criteria
-
-- [ ] <!-- TODO: define acceptance criteria -->
-
 ## Public API
 
 ### Exported Structs

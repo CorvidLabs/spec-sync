@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - **`## Requirements` removed from default required sections** — reverts the v3.1.0 addition. Existing specs with `## Requirements` can safely remove it. Projects that want it back can add it to `requiredSections` in config.
+
 ## [3.1.0] - 2026-03-30
 
 ### Added

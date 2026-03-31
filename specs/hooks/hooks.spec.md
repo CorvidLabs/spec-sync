@@ -14,16 +14,6 @@ depends_on: []
 
 Manages agent instruction files and git hooks for spec-sync integration. Installs and uninstalls instruction snippets for Claude (CLAUDE.md), Cursor (.cursorrules), Copilot (.github/copilot-instructions.md), Agents (AGENTS.md), a git pre-commit hook, and Claude Code settings.json hooks.
 
-## Requirements
-
-### User Stories
-
-- As a [role], I want [feature] so that [benefit]
-
-### Acceptance Criteria
-
-- [ ] <!-- TODO: define acceptance criteria -->
-
 ## Public API
 
 ### Exported Enums

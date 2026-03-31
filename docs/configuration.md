@@ -37,7 +37,7 @@ source_dirs = ["src"]
 schema_dir = "db/migrations"
 ai_command = "claude -p --output-format text"
 ai_timeout = 120
-required_sections = ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
+required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
 exclude_dirs = ["__tests__"]
 exclude_patterns = ["**/__tests__/**", "**/*.test.ts"]
 ```
@@ -54,7 +54,7 @@ Config resolution order: `specsync.json` → `specsync.toml` → defaults.
   "sourceDirs": ["src"],
   "schemaDir": "db/migrations",
   "schemaPattern": "CREATE (?:VIRTUAL )?TABLE(?:\\s+IF NOT EXISTS)?\\s+(\\w+)",
-  "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+  "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
   "excludeDirs": ["__tests__"],
   "excludePatterns": ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"],
   "sourceExtensions": [],
@@ -73,7 +73,7 @@ Config resolution order: `specsync.json` → `specsync.toml` → defaults.
 | `sourceDirs` | `string[]` | `["src"]` | Source directories for coverage analysis |
 | `schemaDir` | `string?` | — | SQL schema directory for `db_tables` validation |
 | `schemaPattern` | `string?` | `CREATE TABLE` regex | Custom regex for extracting table names (first capture group = table name) |
-| `requiredSections` | `string[]` | 8 defaults | Markdown `##` sections every spec must include |
+| `requiredSections` | `string[]` | 7 defaults | Markdown `##` sections every spec must include |
 | `excludeDirs` | `string[]` | `["__tests__"]` | Directory names skipped during coverage scanning |
 | `excludePatterns` | `string[]` | Common test globs | File patterns excluded from coverage (additive with language-specific test exclusions) |
 | `sourceExtensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |

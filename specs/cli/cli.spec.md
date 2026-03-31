@@ -26,6 +26,16 @@ depends_on:
 
 The `specsync` command-line interface — the main entry point for all user-facing operations. Parses CLI arguments via `clap`, routes to the appropriate subcommand handler, and orchestrates output formatting (colored text or JSON). Delegates all domain logic to the library modules; main.rs itself is purely a command dispatcher and output formatter.
 
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
+
 ## Public API
 
 This module is the binary entry point (main.rs). All functions are private — there are no `pub` exports. The "API" is the CLI interface itself, documented below.

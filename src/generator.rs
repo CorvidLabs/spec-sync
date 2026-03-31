@@ -84,6 +84,16 @@ depends_on: []
 
 <!-- TODO: describe what this module does -->
 
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
+
 ## Public API
 
 ### Exported Functions
@@ -165,6 +175,16 @@ depends_on: []
 
 <!-- TODO: describe what this module does -->
 
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
+
 ## Public API
 
 ### Types
@@ -227,6 +247,16 @@ depends_on: []
 ## Purpose
 
 <!-- TODO: describe what this module does -->
+
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
 
 ## Public API
 
@@ -296,6 +326,16 @@ depends_on: []
 
 <!-- TODO: describe what this module does -->
 
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
+
 ## Public API
 
 ### Classes & Interfaces
@@ -359,6 +399,16 @@ depends_on: []
 
 <!-- TODO: describe what this package does -->
 
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
+
 ## Public API
 
 ### Types
@@ -421,6 +471,16 @@ depends_on: []
 ## Purpose
 
 <!-- TODO: describe what this module does -->
+
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
 
 ## Public API
 

@@ -14,6 +14,16 @@ depends_on: []
 
 Core data structures and enums shared across the entire spec-sync codebase. Defines the configuration schema, validation results, coverage reports, AI provider presets, language detection, and registry entries.
 
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
+
 ## Public API
 
 ### Exported Enums

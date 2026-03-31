@@ -17,6 +17,16 @@ depends_on:
 
 Loads project configuration from `specsync.json` or `.specsync.toml`, with fallback to auto-detected defaults. Auto-detects source directories by scanning for files with supported language extensions.
 
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
+
 ## Public API
 
 ### Exported Functions

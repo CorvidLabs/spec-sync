@@ -15,6 +15,16 @@ depends_on:
 
 Parses spec markdown files — extracts YAML frontmatter into structured data, extracts backtick-quoted symbol names from Public API tables, and checks for required markdown sections. Uses zero-dependency YAML parsing (regex-based, no YAML library).
 
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
+
 ## Public API
 
 ### Exported Structs

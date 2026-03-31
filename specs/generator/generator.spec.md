@@ -17,6 +17,16 @@ depends_on:
 
 Scaffolds spec files and companion files (tasks.md, context.md) for unspecced modules. Supports both template-based generation (using a default or custom `_template.spec.md`) and AI-powered generation that reads source code and calls an LLM to produce meaningful specs.
 
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
+
 ## Public API
 
 ### Exported Functions

@@ -29,6 +29,16 @@ depends_on: []
 
 This module does something.
 
+## Requirements
+
+### User Stories
+
+- As a user, I want this module to work so that things function correctly
+
+### Acceptance Criteria
+
+- [ ] Module works as expected
+
 ## Public API
 
 ### Exported Functions
@@ -98,6 +108,7 @@ fn write_config(root: &std::path::Path, specs_dir: &str, source_dirs: &[&str]) {
   "sourceDirs": [{source_dirs}],
   "requiredSections": [
     "Purpose",
+    "Requirements",
     "Public API",
     "Invariants",
     "Behavioral Examples",
@@ -1321,7 +1332,7 @@ fn ai_provider_config_field_is_respected() {
         "specsDir": "specs",
         "sourceDirs": ["src"],
         "aiProvider": "cursor",
-        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
@@ -1354,7 +1365,7 @@ fn ai_command_overrides_ai_provider() {
         "sourceDirs": ["src"],
         "aiProvider": "claude",
         "aiCommand": "false",
-        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
@@ -1390,7 +1401,7 @@ fn cli_provider_overrides_config_provider() {
         "specsDir": "specs",
         "sourceDirs": ["src"],
         "aiProvider": "claude",
-        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
@@ -1431,7 +1442,7 @@ fn ai_model_config_used_with_ollama_provider() {
         "sourceDirs": ["src"],
         "aiProvider": "ollama",
         "aiModel": "codellama",
-        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
@@ -1465,7 +1476,7 @@ fn anthropic_provider_requires_api_key() {
         "specsDir": "specs",
         "sourceDirs": ["src"],
         "aiProvider": "anthropic",
-        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
@@ -1497,7 +1508,7 @@ fn openai_provider_requires_api_key() {
         "specsDir": "specs",
         "sourceDirs": ["src"],
         "aiProvider": "openai",
-        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });
@@ -1606,7 +1617,7 @@ fn ai_api_key_config_field_used_for_anthropic() {
         "sourceDirs": ["src"],
         "aiProvider": "anthropic",
         "aiApiKey": "sk-ant-test-fake-key",
-        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "requiredSections": ["Purpose", "Requirements", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
     });

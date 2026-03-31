@@ -15,6 +15,16 @@ depends_on:
 
 Manages cross-project spec registries for dependency resolution. Generates `specsync-registry.toml` from local spec files, fetches remote registries from GitHub repos via HTTPS, and parses the TOML registry format using zero-dependency parsing.
 
+## Requirements
+
+### User Stories
+
+- As a [role], I want [feature] so that [benefit]
+
+### Acceptance Criteria
+
+- [ ] <!-- TODO: define acceptance criteria -->
+
 ## Public API
 
 ### Exported Structs

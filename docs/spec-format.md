@@ -72,6 +72,7 @@ Every spec must include these `## Heading` sections (configurable via `requiredS
 | Section | What SpecSync checks |
 |:--------|:---------------------|
 | `## Purpose` | Presence only |
+| `## Requirements` | Presence only |
 | `## Public API` | Backtick-quoted symbols cross-referenced against code exports |
 | `## Invariants` | Presence only |
 | `## Behavioral Examples` | Presence only |

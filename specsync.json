@@ -9,6 +9,7 @@
   ],
   "requiredSections": [
     "Purpose",
+    "Requirements",
     "Public API",
     "Invariants",
     "Behavioral Examples",

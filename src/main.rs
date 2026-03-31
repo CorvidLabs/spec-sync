@@ -127,6 +127,9 @@ enum HooksAction {
         /// Install .github/copilot-instructions.md
         #[arg(long)]
         copilot: bool,
+        /// Install AGENTS.md instructions
+        #[arg(long)]
+        agents: bool,
         /// Install git pre-commit hook
         #[arg(long)]
         precommit: bool,
@@ -145,6 +148,9 @@ enum HooksAction {
         /// Remove .github/copilot-instructions.md
         #[arg(long)]
         copilot: bool,
+        /// Remove AGENTS.md instructions
+        #[arg(long)]
+        agents: bool,
         /// Remove git pre-commit hook
         #[arg(long)]
         precommit: bool,
@@ -217,22 +223,24 @@ fn cmd_hooks(root: &Path, action: HooksAction) {
             claude,
             cursor,
             copilot,
+            agents,
             precommit,
             claude_code_hook,
         } => {
             let targets =
-                collect_hook_targets(claude, cursor, copilot, precommit, claude_code_hook);
+                collect_hook_targets(claude, cursor, copilot, agents, precommit, claude_code_hook);
             hooks::cmd_install(root, &targets);
         }
         HooksAction::Uninstall {
             claude,
             cursor,
             copilot,
+            agents,
             precommit,
             claude_code_hook,
         } => {
             let targets =
-                collect_hook_targets(claude, cursor, copilot, precommit, claude_code_hook);
+                collect_hook_targets(claude, cursor, copilot, agents, precommit, claude_code_hook);
             hooks::cmd_uninstall(root, &targets);
         }
         HooksAction::Status => hooks::cmd_status(root),
@@ -243,6 +251,7 @@ fn collect_hook_targets(
     claude: bool,
     cursor: bool,
     copilot: bool,
+    agents: bool,
     precommit: bool,
     claude_code_hook: bool,
 ) -> Vec<hooks::HookTarget> {
@@ -255,6 +264,9 @@ fn collect_hook_targets(
     }
     if copilot {
         targets.push(hooks::HookTarget::Copilot);
+    }
+    if agents {
+        targets.push(hooks::HookTarget::Agents);
     }
     if precommit {
         targets.push(hooks::HookTarget::Precommit);

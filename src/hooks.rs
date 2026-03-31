@@ -59,6 +59,34 @@ This project uses spec-sync for bidirectional spec-to-code validation.
 - Keep the Public API table in each spec up to date with actual exports
 "#;
 
+const AGENTS_MD_SNIPPET: &str = r#"# Spec-Sync Integration
+
+This project uses [spec-sync](https://github.com/CorvidLabs/spec-sync) for bidirectional spec-to-code validation.
+
+## Before modifying any module
+
+1. Read the relevant spec in `specs/<module>/<module>.spec.md`
+2. Check companion files: `specs/<module>/tasks.md` and `specs/<module>/context.md`
+3. After changes, run `specsync check` to verify specs still pass
+
+## Before creating a PR
+
+Run `specsync check --strict` — all specs must pass with zero warnings.
+
+## When adding new modules
+
+Run `specsync add-spec <module-name>` to scaffold the spec and companion files, then fill in the spec before writing code.
+
+## Key commands
+
+- `specsync check` — validate all specs against source code
+- `specsync check --json` — machine-readable validation output
+- `specsync coverage` — show which modules lack specs
+- `specsync score` — quality score for each spec (0-100)
+- `specsync add-spec <name>` — scaffold a new spec with companion files
+- `specsync resolve --remote` — verify cross-project dependencies
+"#;
+
 const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
 # spec-sync pre-commit hook — validates specs before allowing commits.
 # Installed by: specsync hooks install --precommit
@@ -101,6 +129,7 @@ pub enum HookTarget {
     Claude,
     Cursor,
     Copilot,
+    Agents,
     Precommit,
     ClaudeCodeHook,
 }
@@ -111,6 +140,7 @@ impl HookTarget {
             HookTarget::Claude,
             HookTarget::Cursor,
             HookTarget::Copilot,
+            HookTarget::Agents,
             HookTarget::Precommit,
             HookTarget::ClaudeCodeHook,
         ]
@@ -122,6 +152,7 @@ impl HookTarget {
             HookTarget::Claude => "claude",
             HookTarget::Cursor => "cursor",
             HookTarget::Copilot => "copilot",
+            HookTarget::Agents => "agents",
             HookTarget::Precommit => "precommit",
             HookTarget::ClaudeCodeHook => "claude-code-hook",
         }
@@ -132,6 +163,7 @@ impl HookTarget {
             HookTarget::Claude => "CLAUDE.md agent instructions",
             HookTarget::Cursor => ".cursorrules agent instructions",
             HookTarget::Copilot => ".github/copilot-instructions.md",
+            HookTarget::Agents => "AGENTS.md agent instructions",
             HookTarget::Precommit => "Git pre-commit hook",
             HookTarget::ClaudeCodeHook => "Claude Code settings.json hook",
         }
@@ -143,6 +175,7 @@ impl HookTarget {
             "claude" => Some(HookTarget::Claude),
             "cursor" => Some(HookTarget::Cursor),
             "copilot" => Some(HookTarget::Copilot),
+            "agents" => Some(HookTarget::Agents),
             "precommit" | "pre-commit" => Some(HookTarget::Precommit),
             "claude-code-hook" | "claude-hook" => Some(HookTarget::ClaudeCodeHook),
             _ => None,
@@ -169,6 +202,13 @@ pub fn is_installed(root: &Path, target: HookTarget) -> bool {
         }
         HookTarget::Copilot => {
             let path = root.join(".github").join("copilot-instructions.md");
+            path.exists()
+                && fs::read_to_string(&path)
+                    .map(|c| c.contains("Spec-Sync Integration"))
+                    .unwrap_or(false)
+        }
+        HookTarget::Agents => {
+            let path = root.join("AGENTS.md");
             path.exists()
                 && fs::read_to_string(&path)
                     .map(|c| c.contains("Spec-Sync Integration"))
@@ -201,6 +241,7 @@ pub fn install_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
         HookTarget::Claude => install_claude_md(root),
         HookTarget::Cursor => install_cursorrules(root),
         HookTarget::Copilot => install_copilot(root),
+        HookTarget::Agents => install_agents_md(root),
         HookTarget::Precommit => install_precommit(root),
         HookTarget::ClaudeCodeHook => install_claude_code_hook(root),
     }
@@ -224,6 +265,10 @@ pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
         }
         HookTarget::Copilot => {
             let path = root.join(".github").join("copilot-instructions.md");
+            remove_section_from_file(&path, "# Spec-Sync Integration")
+        }
+        HookTarget::Agents => {
+            let path = root.join("AGENTS.md");
             remove_section_from_file(&path, "# Spec-Sync Integration")
         }
         HookTarget::Precommit => {
@@ -326,6 +371,27 @@ fn install_copilot(root: &Path) -> Result<bool, String> {
     } else {
         fs::write(&path, COPILOT_INSTRUCTIONS_SNIPPET)
             .map_err(|e| format!("Failed to create copilot-instructions.md: {e}"))?;
+    }
+
+    Ok(true)
+}
+
+fn install_agents_md(root: &Path) -> Result<bool, String> {
+    let path = root.join("AGENTS.md");
+
+    if path.exists() {
+        let existing =
+            fs::read_to_string(&path).map_err(|e| format!("Failed to read AGENTS.md: {e}"))?;
+
+        if existing.contains("Spec-Sync") {
+            return Ok(false);
+        }
+
+        let new_content = format!("{}\n\n{}", existing.trim_end(), AGENTS_MD_SNIPPET);
+        fs::write(&path, new_content).map_err(|e| format!("Failed to write AGENTS.md: {e}"))?;
+    } else {
+        fs::write(&path, AGENTS_MD_SNIPPET)
+            .map_err(|e| format!("Failed to create AGENTS.md: {e}"))?;
     }
 
     Ok(true)

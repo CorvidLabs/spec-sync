@@ -513,7 +513,7 @@ Create `specsync.json` or `.specsync.toml` in your project root (or run `specsyn
 | `sourceDirs` | `string[]` | `["src"]` | Source directories for coverage analysis |
 | `schemaDir` | `string?` | — | SQL schema dir for `db_tables` validation |
 | `schemaPattern` | `string?` | `CREATE TABLE` regex | Custom regex for table name extraction |
-| `requiredSections` | `string[]` | 8 defaults | Markdown sections every spec must include |
+| `requiredSections` | `string[]` | 7 defaults | Markdown sections every spec must include |
 | `excludeDirs` | `string[]` | `["__tests__"]` | Directories excluded from coverage |
 | `excludePatterns` | `string[]` | Common test globs | File patterns excluded from coverage |
 | `sourceExtensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |

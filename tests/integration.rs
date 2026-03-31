@@ -2964,3 +2964,113 @@ fn wildcard_reexport_nested_barrel_only_one_level() {
         "Expected topFunc to be found. Got:\n{stdout}"
     );
 }
+
+// ─── Hash caching ────────────────────────────────────────────────────────
+
+#[test]
+fn check_creates_hash_cache() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let cache_path = root.join(".specsync/hashes.json");
+    assert!(
+        cache_path.exists(),
+        "Expected .specsync/hashes.json to be created after check"
+    );
+
+    let content = fs::read_to_string(&cache_path).unwrap();
+    let cache: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let hashes = cache["hashes"].as_object().unwrap();
+    assert!(
+        !hashes.is_empty(),
+        "Expected hash cache to contain entries"
+    );
+}
+
+#[test]
+fn check_skips_unchanged_specs() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    // First run: creates cache
+    specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    // Second run: should skip unchanged specs
+    let output = specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("unchanged"),
+        "Expected 'unchanged' message on second run. Got:\n{stdout}"
+    );
+}
+
+#[test]
+fn check_force_revalidates_all() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    // First run: creates cache
+    specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    // Second run with --force: should NOT skip
+    let output = specsync()
+        .args(["check", "--root", root.to_str().unwrap(), "--force"])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains("Skipped"),
+        "Expected no skip message with --force. Got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("specs checked"),
+        "Expected validation output with --force. Got:\n{stdout}"
+    );
+}
+
+#[test]
+fn check_revalidates_after_source_change() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    // First run: creates cache
+    specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    // Modify source file
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\nexport function logout() {}\nexport function refresh() {}\n",
+    )
+    .unwrap();
+
+    // Second run: should detect change and revalidate
+    let output = specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains("All specs unchanged"),
+        "Expected revalidation after source change. Got:\n{stdout}"
+    );
+}

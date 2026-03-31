@@ -2,6 +2,7 @@ mod ai;
 mod config;
 mod exports;
 mod generator;
+mod hash_cache;
 mod hooks;
 mod manifest;
 mod mcp;
@@ -61,6 +62,9 @@ enum Command {
         /// Auto-add undocumented exports to spec Public API tables
         #[arg(long)]
         fix: bool,
+        /// Skip hash cache and re-validate all specs
+        #[arg(long)]
+        force: bool,
     },
     /// Show file and module coverage report
     Coverage,
@@ -197,11 +201,16 @@ fn run() {
         cli.format
     };
 
-    let command = cli.command.unwrap_or(Command::Check { fix: false });
+    let command = cli.command.unwrap_or(Command::Check {
+        fix: false,
+        force: false,
+    });
 
     match command {
         Command::Init => cmd_init(&root),
-        Command::Check { fix } => cmd_check(&root, cli.strict, cli.require_coverage, format, fix),
+        Command::Check { fix, force } => {
+            cmd_check(&root, cli.strict, cli.require_coverage, format, fix, force)
+        }
         Command::Coverage => cmd_coverage(&root, cli.strict, cli.require_coverage, format),
         Command::Generate { provider } => {
             cmd_generate(&root, cli.strict, cli.require_coverage, format, provider)
@@ -327,6 +336,7 @@ fn cmd_check(
     require_coverage: Option<usize>,
     format: types::OutputFormat,
     fix: bool,
+    force: bool,
 ) {
     use types::OutputFormat::*;
 
@@ -357,12 +367,36 @@ fn cmd_check(
         process::exit(0);
     }
 
+    // Load hash cache and filter to only changed specs (unless --force or --strict).
+    // --strict changes pass/fail semantics (warnings become errors), so always re-validate.
+    let mut cache = hash_cache::HashCache::load(root);
+    let specs_to_validate = if force || strict {
+        spec_files.clone()
+    } else {
+        hash_cache::filter_unchanged(root, &spec_files, &cache)
+    };
+
+    let skipped = spec_files.len() - specs_to_validate.len();
+    if skipped > 0 && matches!(format, Text) {
+        println!(
+            "{} Skipped {skipped} unchanged spec(s) (use --force to re-validate all)\n",
+            "⊘".cyan()
+        );
+    }
+
+    if specs_to_validate.is_empty() && matches!(format, Text) {
+        println!("{}", "All specs unchanged — nothing to validate.".green());
+        let coverage = compute_coverage(root, &spec_files, &config);
+        print_coverage_line(&coverage);
+        process::exit(0);
+    }
+
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);
 
     // If --fix is requested, auto-add undocumented exports to specs
     if fix {
-        let fixed = auto_fix_specs(root, &spec_files, &config);
+        let fixed = auto_fix_specs(root, &specs_to_validate, &config);
         if fixed > 0 && matches!(format, Text) {
             println!("{} Auto-added exports to {fixed} spec(s)\n", "✓".green());
         }
@@ -371,13 +405,20 @@ fn cmd_check(
     let collect = !matches!(format, Text);
     let (total_errors, total_warnings, passed, total, all_errors, all_warnings) = run_validation(
         root,
-        &spec_files,
+        &specs_to_validate,
         &schema_tables,
         &schema_columns,
         &config,
         collect,
     );
     let coverage = compute_coverage(root, &spec_files, &config);
+
+    // Update hash cache after validation (only when no errors).
+    // Specs with warnings are still cached — --strict forces re-validation separately.
+    if total_errors == 0 {
+        hash_cache::update_cache(root, &specs_to_validate, &mut cache);
+        let _ = cache.save(root);
+    }
 
     match format {
         Json => {

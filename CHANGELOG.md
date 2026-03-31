@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [3.2.0] - 2026-03-30
+## [3.1.0] - 2026-03-30
 
 ### Changed
 
@@ -277,7 +277,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
-[3.2.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.2.0
 [3.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.1.0
 [3.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.0.0
 [2.5.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.5.0

@@ -11,17 +11,17 @@ spec: types.spec.md
 
 ## Acceptance Criteria
 
-- [ ] AiProvider enum includes: Claude, Cursor, Copilot, Ollama, Anthropic, OpenAi, Custom
-- [ ] `AiProvider::from_str_loose` is case-insensitive and supports common aliases
-- [ ] `AiProvider::detection_order` returns CLI providers before API providers
-- [ ] Language enum covers all 11 supported languages with correct extension mappings
-- [ ] `Language::from_extension` returns None for unsupported extensions (no panic)
-- [ ] `Language::test_patterns` returns language-appropriate test file patterns
-- [ ] OutputFormat enum includes Text, Json, and Markdown variants
-- [ ] ExportLevel enum has Type (class/struct/enum only) and Member (all public symbols, default) variants
-- [ ] `SpecSyncConfig::default()` provides sensible defaults for all fields
-- [ ] `ValidationResult::new()` initializes with empty error/warning/fix vectors
-- [ ] All types derive necessary serde traits for JSON serialization where needed
+- AiProvider enum includes: Claude, Cursor, Copilot, Ollama, Anthropic, OpenAi, Custom
+- `AiProvider::from_str_loose` is case-insensitive and supports common aliases
+- `AiProvider::detection_order` returns CLI providers before API providers
+- Language enum covers all 11 supported languages with correct extension mappings
+- `Language::from_extension` returns None for unsupported extensions (no panic)
+- `Language::test_patterns` returns language-appropriate test file patterns
+- OutputFormat enum includes Text, Json, and Markdown variants
+- ExportLevel enum has Type (class/struct/enum only) and Member (all public symbols, default) variants
+- `SpecSyncConfig::default()` provides sensible defaults for all fields
+- `ValidationResult::new()` initializes with empty error/warning/fix vectors
+- All types derive necessary serde traits for JSON serialization where needed
 
 ## Constraints
 

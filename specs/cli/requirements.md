@@ -18,14 +18,14 @@ spec: cli.spec.md
 
 ## Acceptance Criteria
 
-- [ ] No subcommand defaults to `check`
-- [ ] Exit code 0 on success, 1 on errors (or warnings in strict mode, or coverage below threshold)
-- [ ] `--json` suppresses all ANSI color codes and outputs valid JSON
-- [ ] `--format markdown` produces output suitable for PR comments
-- [ ] `--root <path>` allows running against a different project directory
-- [ ] All domain logic is delegated to library modules — main.rs is purely a dispatcher
-- [ ] `--fix` only modifies spec files, never source code
-- [ ] `init` auto-detects source directories, language, and creates a sensible default config
+- No subcommand defaults to `check`
+- Exit code 0 on success, 1 on errors (or warnings in strict mode, or coverage below threshold)
+- `--json` suppresses all ANSI color codes and outputs valid JSON
+- `--format markdown` produces output suitable for PR comments
+- `--root <path>` allows running against a different project directory
+- All domain logic is delegated to library modules — main.rs is purely a dispatcher
+- `--fix` only modifies spec files, never source code
+- `init` auto-detects source directories, language, and creates a sensible default config
 
 ## Constraints
 

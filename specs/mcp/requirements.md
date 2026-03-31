@@ -11,17 +11,17 @@ spec: mcp.spec.md
 
 ## Acceptance Criteria
 
-- [ ] Implements JSON-RPC 2.0 over stdio
-- [ ] Protocol version "2024-11-05" returned in initialize response
-- [ ] Six tools exposed: specsync_check, specsync_coverage, specsync_generate, specsync_list_specs, specsync_init, specsync_score
-- [ ] Tool errors returned as `isError: true` in result content, not as JSON-RPC error objects (except parse/method-not-found)
-- [ ] Malformed JSON returns JSON-RPC error -32700 "Parse error"
-- [ ] Unknown method returns JSON-RPC error -32601 "Method not found"
-- [ ] Unknown tool name returns tool-level error "Unknown tool: {name}"
-- [ ] Notifications (requests without id) receive no response
-- [ ] `ping` method returns empty result
-- [ ] Each tool accepts optional `root` parameter to override project directory
-- [ ] stdin EOF triggers graceful exit
+- Implements JSON-RPC 2.0 over stdio
+- Protocol version "2024-11-05" returned in initialize response
+- Six tools exposed: specsync_check, specsync_coverage, specsync_generate, specsync_list_specs, specsync_init, specsync_score
+- Tool errors returned as `isError: true` in result content, not as JSON-RPC error objects (except parse/method-not-found)
+- Malformed JSON returns JSON-RPC error -32700 "Parse error"
+- Unknown method returns JSON-RPC error -32601 "Method not found"
+- Unknown tool name returns tool-level error "Unknown tool: {name}"
+- Notifications (requests without id) receive no response
+- `ping` method returns empty result
+- Each tool accepts optional `root` parameter to override project directory
+- stdin EOF triggers graceful exit
 
 ## Constraints
 

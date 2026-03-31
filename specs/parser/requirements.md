@@ -11,15 +11,15 @@ spec: parser.spec.md
 
 ## Acceptance Criteria
 
-- [ ] `parse_frontmatter` returns None if the file has no `---` delimited frontmatter block
-- [ ] Handles scalar fields (module, version, status) and list fields (files, db_tables, depends_on)
-- [ ] Empty list syntax `[]` is handled correctly (produces empty vec, not a vec containing "[]")
-- [ ] `get_spec_symbols` extracts first backtick-quoted word from each row in `### Exported ...` subsections
-- [ ] Only extracts from allowlisted subsection names (Exported Functions, Exported Types, etc.)
-- [ ] Symbols are deduplicated while preserving order
-- [ ] `get_missing_sections` uses case-sensitive regex matching for `## SectionName`
-- [ ] Unrecognized YAML keys are silently skipped (no errors)
-- [ ] Zero external YAML parsing dependencies — custom line-by-line parser
+- `parse_frontmatter` returns None if the file has no `---` delimited frontmatter block
+- Handles scalar fields (module, version, status) and list fields (files, db_tables, depends_on)
+- Empty list syntax `[]` is handled correctly (produces empty vec, not a vec containing "[]")
+- `get_spec_symbols` extracts first backtick-quoted word from each row in `### Exported ...` subsections
+- Only extracts from allowlisted subsection names (Exported Functions, Exported Types, etc.)
+- Symbols are deduplicated while preserving order
+- `get_missing_sections` uses case-sensitive regex matching for `## SectionName`
+- Unrecognized YAML keys are silently skipped (no errors)
+- Zero external YAML parsing dependencies — custom line-by-line parser
 
 ## Constraints
 

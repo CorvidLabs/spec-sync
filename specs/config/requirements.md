@@ -12,15 +12,15 @@ spec: config.spec.md
 
 ## Acceptance Criteria
 
-- [ ] Config search order: `specsync.json` > `.specsync.toml` > auto-detected defaults
-- [ ] Auto-detection scans up to 3 directory levels deep for source files
-- [ ] At least 46 common build/cache directories are excluded from auto-detection (node_modules, target, .git, dist, etc.)
-- [ ] Falls back to `["src"]` if no source files are found anywhere
-- [ ] Root-level source files produce `["."]` as the source directory
-- [ ] TOML parsing works without external TOML dependencies (zero-dependency line-by-line parser)
-- [ ] Auto-detection runs even when config file exists but omits `sourceDirs`
-- [ ] `load_config` never panics — always returns a valid config with defaults filled in
-- [ ] Manifest-aware discovery (Cargo.toml, package.json, etc.) feeds into source directory detection
+- Config search order: `specsync.json` > `.specsync.toml` > auto-detected defaults
+- Auto-detection scans up to 3 directory levels deep for source files
+- At least 46 common build/cache directories are excluded from auto-detection (node_modules, target, .git, dist, etc.)
+- Falls back to `["src"]` if no source files are found anywhere
+- Root-level source files produce `["."]` as the source directory
+- TOML parsing works without external TOML dependencies (zero-dependency line-by-line parser)
+- Auto-detection runs even when config file exists but omits `sourceDirs`
+- `load_config` never panics — always returns a valid config with defaults filled in
+- Manifest-aware discovery (Cargo.toml, package.json, etc.) feeds into source directory detection
 
 ## Constraints
 

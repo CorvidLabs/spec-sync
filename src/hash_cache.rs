@@ -10,6 +10,12 @@ const CACHE_DIR: &str = ".specsync";
 /// Name of the hash cache file inside the cache directory.
 const CACHE_FILE: &str = "hashes.json";
 
+/// Normalize a relative path to use forward slashes on all platforms.
+/// This ensures cache keys are consistent across Windows and Unix.
+fn normalize_rel(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
 /// Stored content hashes for spec and source files.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct HashCache {
@@ -181,11 +187,7 @@ fn find_companion_files(spec_path: &Path) -> (Vec<PathBuf>, Vec<PathBuf>) {
 pub fn classify_changes(root: &Path, spec_path: &Path, cache: &HashCache) -> ChangeClassification {
     let mut changes = Vec::new();
 
-    let rel = spec_path
-        .strip_prefix(root)
-        .unwrap_or(spec_path)
-        .to_string_lossy()
-        .to_string();
+    let rel = normalize_rel(spec_path.strip_prefix(root).unwrap_or(spec_path));
 
     // Check spec file itself
     if cache.is_changed(root, &rel) {
@@ -195,11 +197,7 @@ pub fn classify_changes(root: &Path, spec_path: &Path, cache: &HashCache) -> Cha
     // Check companion files
     let (req_files, other_files) = find_companion_files(spec_path);
     for companion in &req_files {
-        let comp_rel = companion
-            .strip_prefix(root)
-            .unwrap_or(companion)
-            .to_string_lossy()
-            .to_string();
+        let comp_rel = normalize_rel(companion.strip_prefix(root).unwrap_or(companion));
         if cache.is_changed(root, &comp_rel) {
             if !changes.contains(&ChangeKind::Requirements) {
                 changes.push(ChangeKind::Requirements);
@@ -208,11 +206,7 @@ pub fn classify_changes(root: &Path, spec_path: &Path, cache: &HashCache) -> Cha
         }
     }
     for companion in &other_files {
-        let comp_rel = companion
-            .strip_prefix(root)
-            .unwrap_or(companion)
-            .to_string_lossy()
-            .to_string();
+        let comp_rel = normalize_rel(companion.strip_prefix(root).unwrap_or(companion));
         if cache.is_changed(root, &comp_rel) {
             if !changes.contains(&ChangeKind::Companion) {
                 changes.push(ChangeKind::Companion);
@@ -272,21 +266,13 @@ pub fn classify_all_changes(
 /// spec files and their backing source files.
 pub fn update_cache(root: &Path, spec_files: &[PathBuf], cache: &mut HashCache) {
     for spec_path in spec_files {
-        let rel = spec_path
-            .strip_prefix(root)
-            .unwrap_or(spec_path)
-            .to_string_lossy()
-            .to_string();
+        let rel = normalize_rel(spec_path.strip_prefix(root).unwrap_or(spec_path));
         cache.update(root, &rel);
 
         // Update companion files (both naming conventions)
         let (req_files, other_files) = find_companion_files(spec_path);
         for companion in req_files.iter().chain(other_files.iter()) {
-            let comp_rel = companion
-                .strip_prefix(root)
-                .unwrap_or(companion)
-                .to_string_lossy()
-                .to_string();
+            let comp_rel = normalize_rel(companion.strip_prefix(root).unwrap_or(companion));
             cache.update(root, &comp_rel);
         }
 

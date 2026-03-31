@@ -339,7 +339,7 @@ fn cmd_check(
     fix: bool,
     force: bool,
 ) {
-    use hash_cache::{ChangeKind, ChangeClassification};
+    use hash_cache::{ChangeClassification, ChangeKind};
     use types::OutputFormat::*;
 
     let (config, spec_files) = load_and_discover(root, fix);
@@ -376,7 +376,10 @@ fn cmd_check(
         (spec_files.clone(), Vec::new())
     } else {
         let classifications = hash_cache::classify_all_changes(root, &spec_files, &cache);
-        let changed: Vec<PathBuf> = classifications.iter().map(|c| c.spec_path.clone()).collect();
+        let changed: Vec<PathBuf> = classifications
+            .iter()
+            .map(|c| c.spec_path.clone())
+            .collect();
         (changed, classifications)
     };
 
@@ -467,7 +470,8 @@ fn cmd_check(
 
         // --fix + requirements changed: regenerate spec via AI
         if !requirements_stale_specs.is_empty() {
-            let regen_count = auto_regen_stale_specs(root, &requirements_stale_specs, &config, format);
+            let regen_count =
+                auto_regen_stale_specs(root, &requirements_stale_specs, &config, format);
             if regen_count > 0 && matches!(format, Text) {
                 println!(
                     "{} Re-generated {regen_count} spec(s) from updated requirements\n",
@@ -566,9 +570,7 @@ fn auto_regen_stale_specs(
                     "  {} Requirements changed but no AI provider configured.",
                     "ℹ".cyan()
                 );
-                println!(
-                    "    Configure one in specsync.json (aiProvider/aiCommand) or set"
-                );
+                println!("    Configure one in specsync.json (aiProvider/aiCommand) or set");
                 println!("    ANTHROPIC_API_KEY / OPENAI_API_KEY to auto-regenerate specs.");
             }
             return 0;
@@ -592,10 +594,7 @@ fn auto_regen_stale_specs(
         let req_path = parent.join("requirements.md");
         if !req_path.exists() {
             // Try legacy name
-            let stem = spec_path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("");
+            let stem = spec_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
             let module = stem.strip_suffix(".spec").unwrap_or(stem);
             let legacy = parent.join(format!("{module}.req.md"));
             if !legacy.exists() {
@@ -606,7 +605,14 @@ fn auto_regen_stale_specs(
             if matches!(format, types::OutputFormat::Text) {
                 println!("  {} Regenerating {spec_rel}...", "⟳".cyan());
             }
-            match ai::regenerate_spec_with_ai(module_name, spec_path, &legacy, root, config, &provider) {
+            match ai::regenerate_spec_with_ai(
+                module_name,
+                spec_path,
+                &legacy,
+                root,
+                config,
+                &provider,
+            ) {
                 Ok(new_spec) => {
                     if fs::write(spec_path, &new_spec).is_ok() {
                         regen_count += 1;
@@ -621,15 +627,19 @@ fn auto_regen_stale_specs(
             continue;
         }
 
-        let stem = spec_path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("");
+        let stem = spec_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
         let module_name = stem.strip_suffix(".spec").unwrap_or(stem);
         if matches!(format, types::OutputFormat::Text) {
             println!("  {} Regenerating {spec_rel}...", "⟳".cyan());
         }
-        match ai::regenerate_spec_with_ai(module_name, spec_path, &req_path, root, config, &provider) {
+        match ai::regenerate_spec_with_ai(
+            module_name,
+            spec_path,
+            &req_path,
+            root,
+            config,
+            &provider,
+        ) {
             Ok(new_spec) => {
                 if fs::write(spec_path, &new_spec).is_ok() {
                     regen_count += 1;

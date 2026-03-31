@@ -7,7 +7,7 @@ nav_order: 1
 # SpecSync
 {: .fs-9 }
 
-Bidirectional spec-to-code validation. Written in Rust. Single binary. 11 languages.
+Bidirectional spec-to-code validation. Written in Rust. Single binary. 11 languages. VS Code extension.
 {: .fs-6 .fw-300 }
 
 [Get Started](#quick-start){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
@@ -25,6 +25,9 @@ Specs reference functions that were renamed. Code exports things the spec doesn'
 | Spec documents something missing from code | **Error** |
 | Source file in spec was deleted | **Error** |
 | DB table in spec missing from schema | **Error** |
+| Column in spec missing from migrations | **Error** |
+| Column in schema not documented in spec | Warning |
+| Column type mismatch between spec and schema | Warning |
 | Required section missing | **Error** |
 
 ---
@@ -56,4 +59,4 @@ Auto-detected from file extensions. No per-language configuration.
 
 TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby.
 
-See [Spec Format](spec-format) for how to write specs, [CLI Reference](cli) for all commands, [Cross-Project References](cross-project-refs) for multi-repo validation, and [Configuration](configuration) for `specsync.json` options.
+See [Spec Format](spec-format) for how to write specs, [CLI Reference](cli) for all commands, [VS Code Extension](vscode-extension) for editor integration, [Cross-Project References](cross-project-refs) for multi-repo validation, and [Configuration](configuration) for `specsync.json` options.

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-03-30
+
+### Added
+
+- **Requirements as default required section** — `## Requirements` is now the 8th default required section, positioned between Purpose and Public API. Specs are expected to document user stories and acceptance criteria. All templates (default + 5 language-specific) include a structured Requirements section. Existing specs missing this section will get a validation error — add `## Requirements` or customize `requiredSections` in config to opt out (#81).
+
 ## [3.0.0] - 2026-03-30
 
 ### Added
@@ -260,6 +266,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
+[3.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.1.0
 [3.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.0.0
 [2.5.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.5.0
 [2.4.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.4.0

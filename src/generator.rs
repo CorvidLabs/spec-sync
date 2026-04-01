@@ -660,7 +660,10 @@ fn generate_module_spec(
         }
     }
 
-    (generate_spec(module_name, module_files, root, specs_dir), false)
+    (
+        generate_spec(module_name, module_files, root, specs_dir),
+        false,
+    )
 }
 
 /// Generate companion files (tasks.md, context.md, requirements.md) alongside a spec file.

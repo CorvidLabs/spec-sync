@@ -628,6 +628,7 @@ fn generate_spec(
 }
 
 /// Generate spec content for a module, using AI if a provider is configured.
+/// Returns `(spec_content, ai_was_used)`.
 fn generate_module_spec(
     module_name: &str,
     module_files: &[String],
@@ -635,7 +636,7 @@ fn generate_module_spec(
     specs_dir: &Path,
     config: &SpecSyncConfig,
     provider: Option<&ResolvedProvider>,
-) -> String {
+) -> (String, bool) {
     if let Some(provider) = provider {
         // Make paths relative to root for the AI prompt
         let rel_files: Vec<String> = module_files
@@ -649,7 +650,7 @@ fn generate_module_spec(
             .collect();
 
         match ai::generate_spec_with_ai(module_name, &rel_files, root, config, provider) {
-            Ok(spec) => return spec,
+            Ok(spec) => return (spec, true),
             Err(e) => {
                 eprintln!(
                     "  {} AI generation failed for {module_name}: {e} — falling back to template",
@@ -659,7 +660,10 @@ fn generate_module_spec(
         }
     }
 
-    generate_spec(module_name, module_files, root, specs_dir)
+    (
+        generate_spec(module_name, module_files, root, specs_dir),
+        false,
+    )
 }
 
 /// Generate companion files (tasks.md, context.md, requirements.md) alongside a spec file.
@@ -731,7 +735,7 @@ pub fn generate_specs_for_unspecced_modules(
             eprintln!("  Generating {rel} with AI...");
         }
 
-        let spec_content = generate_module_spec(
+        let (spec_content, ai_used) = generate_module_spec(
             module_name,
             &module_files,
             root,
@@ -743,8 +747,13 @@ pub fn generate_specs_for_unspecced_modules(
         match fs::write(&spec_file, &spec_content) {
             Ok(_) => {
                 let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
+                let from = if provider.is_some() && !ai_used {
+                    " from template"
+                } else {
+                    ""
+                };
                 println!(
-                    "  {} Generated {rel} ({} files)",
+                    "  {} Generated {rel}{from} ({} files)",
                     "✓".green(),
                     module_files.len()
                 );
@@ -789,7 +798,7 @@ pub fn generate_specs_for_unspecced_modules_paths(
             continue;
         }
 
-        let spec_content = generate_module_spec(
+        let (spec_content, _ai_used) = generate_module_spec(
             module_name,
             &module_files,
             root,

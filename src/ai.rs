@@ -54,13 +54,16 @@ fn is_binary_available(name: &str) -> bool {
     if name.is_empty() {
         return false;
     }
-    Command::new("sh")
-        .args(["-c", &format!("command -v {name}")])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    // Search PATH directly — avoids spawning a shell, which may not inherit
+    // the full PATH in IDE terminals, build systems, or macOS app launchers.
+    if let Ok(path_var) = std::env::var("PATH") {
+        for dir in path_var.split(':') {
+            if std::path::Path::new(dir).join(name).exists() {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// Build the CLI command string for a provider, optionally using a custom model.

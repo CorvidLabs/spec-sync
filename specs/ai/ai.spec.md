@@ -30,6 +30,7 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 | `resolve_ai_provider` | `config, cli_provider` | `Result<ResolvedProvider, String>` | Resolve which AI provider to use via 5-level priority chain |
 | `resolve_ai_command` | `config, cli_provider` | `Result<String, String>` | Legacy alias — resolves provider and returns CLI command string |
 | `generate_spec_with_ai` | `module_name, source_files, root, config, provider` | `Result<String, String>` | Generate a spec file by reading source code and calling the AI provider |
+| `regenerate_spec_with_ai` | `module_name, spec_path, requirements_path, root, config, provider` | `Result<String, String>` | Regenerate an existing spec using AI when requirements have drifted; reads source files from the spec's frontmatter |
 
 ## Invariants
 
@@ -96,7 +97,7 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 |--------|-------------|
 | generator | `generate_spec_with_ai`, `ResolvedProvider` |
 | mcp | `resolve_ai_provider` |
-| main | `resolve_ai_provider` |
+| main | `resolve_ai_provider`, `regenerate_spec_with_ai` |
 
 ## Change Log
 

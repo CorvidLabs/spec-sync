@@ -82,7 +82,8 @@ impl HashCache {
 
     /// Remove entries for files that no longer exist on disk.
     pub fn prune(&mut self, root: &Path) {
-        self.hashes.retain(|rel_path, _| root.join(rel_path).exists());
+        self.hashes
+            .retain(|rel_path, _| root.join(rel_path).exists());
     }
 }
 
@@ -145,10 +146,7 @@ fn find_companion_files(spec_path: &Path) -> (Vec<PathBuf>, Vec<PathBuf>) {
         Some(p) => p,
         None => return (vec![], vec![]),
     };
-    let stem = spec_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("");
+    let stem = spec_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
     let module = stem.strip_suffix(".spec").unwrap_or(stem);
 
     let mut req_files = Vec::new();
@@ -237,11 +235,7 @@ pub fn classify_changes(root: &Path, spec_path: &Path, cache: &HashCache) -> Cha
 /// After validation, call `update_cache` with the full spec list to persist
 /// the new hashes.
 #[allow(dead_code)]
-pub fn filter_unchanged(
-    root: &Path,
-    spec_files: &[PathBuf],
-    cache: &HashCache,
-) -> Vec<PathBuf> {
+pub fn filter_unchanged(root: &Path, spec_files: &[PathBuf], cache: &HashCache) -> Vec<PathBuf> {
     spec_files
         .iter()
         .filter(|spec_path| classify_changes(root, spec_path, cache).is_changed())

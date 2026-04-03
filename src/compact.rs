@@ -76,22 +76,20 @@ fn compact_spec_changelog(
     let section = &content[cl_start..section_end];
     let lines: Vec<&str> = section.lines().collect();
 
-    // Find table rows: lines starting with | that are not header/separator
+    // Find table rows: lines starting with | that are not header/separator.
+    // The first two table lines are always header + separator; data rows follow.
     let mut header_lines: Vec<usize> = Vec::new();
     let mut data_rows: Vec<(usize, &str)> = Vec::new();
+    let mut table_line_count = 0usize;
 
     for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if !trimmed.starts_with('|') {
             continue;
         }
-        // Separator line (contains ---)
-        if trimmed.contains("---") {
-            header_lines.push(i);
-            continue;
-        }
-        // Header line (contains "Date" or "Change" or "Author")
-        if trimmed.contains("Date") || trimmed.contains("Change") || trimmed.contains("Author") {
+        table_line_count += 1;
+        // First two table lines are header row and separator row
+        if table_line_count <= 2 {
             header_lines.push(i);
             continue;
         }

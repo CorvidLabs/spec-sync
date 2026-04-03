@@ -7,7 +7,15 @@ use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use walkdir::WalkDir;
+
+static CONSUMED_BY_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)### Consumed By\s*\n(.*?)(?:\n## |\n### |$)").unwrap());
+static FILE_REF_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\|\s*`([^`]+\.\w+)`\s*\|").unwrap());
+static NUMBERED_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^\d+\.\s+\S").unwrap());
 
 /// Check if a dependency reference is a cross-project reference.
 /// Cross-project refs use the format `owner/repo@module` (e.g. `corvid-labs/algochat@auth`).
@@ -405,11 +413,9 @@ pub fn validate_spec(
     }
 
     // Check Consumed By section references
-    let consumed_re = Regex::new(r"(?s)### Consumed By\s*\n(.*?)(?:\n## |\n### |$)").unwrap();
-    if let Some(caps) = consumed_re.captures(body) {
+    if let Some(caps) = CONSUMED_BY_RE.captures(body) {
         let section = caps.get(1).unwrap().as_str();
-        let file_ref_re = Regex::new(r"\|\s*`([^`]+\.\w+)`\s*\|").unwrap();
-        for caps in file_ref_re.captures_iter(section) {
+        for caps in FILE_REF_RE.captures_iter(section) {
             if let Some(file_ref) = caps.get(1) {
                 let file_path = root.join(file_ref.as_str());
                 if !file_path.exists() {
@@ -423,7 +429,7 @@ pub fn validate_spec(
     }
 
     // ─── Custom Validation Rules ─────────────────────────────────────
-    apply_custom_rules(spec_path, body, config, &mut result);
+    apply_custom_rules(spec_path, body, &fm.depends_on, config, &mut result);
 
     result
 }
@@ -432,6 +438,7 @@ pub fn validate_spec(
 fn apply_custom_rules(
     spec_path: &Path,
     body: &str,
+    depends_on: &[String],
     config: &SpecSyncConfig,
     result: &mut ValidationResult,
 ) {
@@ -482,21 +489,11 @@ fn apply_custom_rules(
         }
     }
 
-    // require_depends_on: require non-empty depends_on
-    if rules.require_depends_on == Some(true) {
-        // This is checked via frontmatter, but we access it through the body parse.
-        // The frontmatter was already parsed above; we check if depends_on is empty
-        // by looking at the spec_path's parsed frontmatter.
-        // Since we don't have fm here, we check the Dependencies section content instead.
-        if !body.contains("### Consumes") || {
-            let consumes_re =
-                Regex::new(r"(?s)### Consumes\s*\n\|.*?\|\s*\n\|[-| ]+\|\s*\n(\|.+)").unwrap();
-            !consumes_re.is_match(body)
-        } {
-            result
-                .warnings
-                .push("No consumed dependencies documented (rule: require_depends_on)".to_string());
-        }
+    // require_depends_on: require non-empty depends_on in frontmatter
+    if rules.require_depends_on == Some(true) && depends_on.is_empty() {
+        result
+            .warnings
+            .push("No consumed dependencies documented (rule: require_depends_on)".to_string());
     }
 }
 
@@ -514,15 +511,17 @@ fn count_changelog_entries(body: &str) -> usize {
         .unwrap_or(section.len());
     let section = &section[..section_end];
 
+    // Count data rows: skip the first two table lines (header + separator)
+    let mut table_line_count = 0usize;
     section
         .lines()
         .filter(|line| {
             let trimmed = line.trim();
-            trimmed.starts_with('|')
-                && !trimmed.contains("---")
-                && !trimmed.contains("Date")
-                && !trimmed.contains("Change")
-                && !trimmed.contains("Author")
+            if !trimmed.starts_with('|') {
+                return false;
+            }
+            table_line_count += 1;
+            table_line_count > 2
         })
         .count()
 }
@@ -540,8 +539,7 @@ fn count_invariants(body: &str) -> usize {
         .unwrap_or(section.len());
     let section = &section[..section_end];
 
-    let numbered_re = Regex::new(r"(?m)^\d+\.\s+\S").unwrap();
-    numbered_re.find_iter(section).count()
+    NUMBERED_RE.find_iter(section).count()
 }
 
 /// Suggest a similar file path when a referenced file doesn't exist.

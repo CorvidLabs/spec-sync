@@ -599,8 +599,16 @@ fn cmd_check(
         let _ = std::io::stderr().flush();
         let mut answer = String::new();
         let _ = std::io::stdin().read_line(&mut answer);
-        if !answer.trim().eq_ignore_ascii_case("y") {
-            // User declined — just continue with normal validation
+        if answer.trim().eq_ignore_ascii_case("y") {
+            let regen_count =
+                auto_regen_stale_specs(root, &requirements_stale_specs, &config, format);
+            if regen_count > 0 {
+                println!(
+                    "{} Re-generated {regen_count} spec(s) from updated requirements\n",
+                    "✓".green()
+                );
+            }
+        } else {
             println!("  Skipping re-validation. Use --fix to auto-regenerate.\n");
         }
     }
@@ -733,49 +741,26 @@ fn auto_regen_stale_specs(
             .to_string_lossy()
             .to_string();
 
-        // Find the requirements file
+        // Find the requirements file (current convention, then legacy)
         let parent = match spec_path.parent() {
             Some(p) => p,
             None => continue,
         };
-        let req_path = parent.join("requirements.md");
-        if !req_path.exists() {
-            // Try legacy name
-            let stem = spec_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-            let module = stem.strip_suffix(".spec").unwrap_or(stem);
-            let legacy = parent.join(format!("{module}.req.md"));
-            if !legacy.exists() {
-                continue;
-            }
-            // Use legacy path
-            let module_name = module;
-            if matches!(format, types::OutputFormat::Text) {
-                println!("  {} Regenerating {spec_rel}...", "⟳".cyan());
-            }
-            match ai::regenerate_spec_with_ai(
-                module_name,
-                spec_path,
-                &legacy,
-                root,
-                config,
-                &provider,
-            ) {
-                Ok(new_spec) => {
-                    if fs::write(spec_path, &new_spec).is_ok() {
-                        regen_count += 1;
-                    }
-                }
-                Err(e) => {
-                    if matches!(format, types::OutputFormat::Text) {
-                        eprintln!("  {} Failed to regenerate {spec_rel}: {e}", "✗".red());
-                    }
-                }
-            }
-            continue;
-        }
-
         let stem = spec_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
         let module_name = stem.strip_suffix(".spec").unwrap_or(stem);
+
+        let req_path = parent.join("requirements.md");
+        let req_path = if req_path.exists() {
+            req_path
+        } else {
+            let legacy = parent.join(format!("{module_name}.req.md"));
+            if legacy.exists() {
+                legacy
+            } else {
+                continue;
+            }
+        };
+
         if matches!(format, types::OutputFormat::Text) {
             println!("  {} Regenerating {spec_rel}...", "⟳".cyan());
         }

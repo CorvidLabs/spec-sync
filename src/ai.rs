@@ -10,6 +10,18 @@ const MAX_FILE_CHARS: usize = 30_000;
 const MAX_PROMPT_CHARS: usize = 150_000;
 const DEFAULT_AI_TIMEOUT_SECS: u64 = 120;
 
+/// Truncate a string to at most `max_bytes` bytes on a valid UTF-8 char boundary.
+fn safe_truncate(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
 /// A resolved provider ready to execute — either a CLI command or a direct API call.
 #[derive(Debug, Clone)]
 pub enum ResolvedProvider {
@@ -274,7 +286,7 @@ fn build_prompt(
         let truncated = if content.len() > MAX_FILE_CHARS {
             format!(
                 "{}\n\n[... truncated at {MAX_FILE_CHARS} chars ...]",
-                &content[..MAX_FILE_CHARS]
+                safe_truncate(content, MAX_FILE_CHARS)
             )
         } else {
             content.clone()
@@ -679,11 +691,7 @@ fn build_regen_prompt(
                 prompt.push_str(&format!("(Skipping {path} — size budget exceeded)\n\n"));
                 continue;
             }
-            let truncated = if content.len() > 30_000 {
-                &content[..30_000]
-            } else {
-                content.as_str()
-            };
+            let truncated = safe_truncate(content, 30_000);
             prompt.push_str(&format!("### `{path}`\n\n```\n{truncated}\n```\n\n"));
             total_len += truncated.len();
         }

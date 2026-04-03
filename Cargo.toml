@@ -25,6 +25,7 @@ walkdir = "2"
 colored = "3"
 notify = "7"
 notify-debouncer-full = "0.4"
+sha2 = "0.10"
 ureq = { version = "3", features = ["json"] }
 
 [dev-dependencies]

@@ -77,10 +77,17 @@ pub fn run_watch(root: &Path, strict: bool, require_coverage: Option<usize>) {
             .collect::<Vec<_>>()
             .join(", ")
     );
-    println!(
-        "{} Hash cache active — only changed specs will be re-validated",
-        ">>>".cyan()
-    );
+    if strict {
+        println!(
+            "{} Strict mode active — all specs will be re-validated on each run",
+            ">>>".cyan()
+        );
+    } else {
+        println!(
+            "{} Hash cache active — only changed specs will be re-validated",
+            ">>>".cyan()
+        );
+    }
     println!("{} Press Ctrl+C to stop\n", ">>>".cyan());
 
     // Event loop

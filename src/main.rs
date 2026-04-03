@@ -1,4 +1,6 @@
 mod ai;
+mod archive;
+mod compact;
 mod config;
 mod exports;
 mod generator;
@@ -12,6 +14,7 @@ mod schema;
 mod scoring;
 mod types;
 mod validator;
+mod view;
 mod watch;
 
 use clap::{Parser, Subcommand};
@@ -116,6 +119,30 @@ enum Command {
     Hooks {
         #[command(subcommand)]
         action: HooksAction,
+    },
+    /// Compact changelog entries in spec files to prevent unbounded growth
+    Compact {
+        /// Keep the last N changelog entries (default: 10)
+        #[arg(long, default_value = "10")]
+        keep: usize,
+        /// Show what would be compacted without writing files
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Archive completed tasks from companion tasks.md files
+    ArchiveTasks {
+        /// Show what would be archived without writing files
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// View a spec filtered by role (dev, qa, product, agent)
+    View {
+        /// Role to filter by: dev, qa, product, agent
+        #[arg(long)]
+        role: String,
+        /// Specific spec module to view (shows all if omitted)
+        #[arg(long)]
+        spec: Option<String>,
     },
 }
 
@@ -224,6 +251,9 @@ fn run() {
         Command::Resolve { remote } => cmd_resolve(&root, remote),
         Command::Diff { base } => cmd_diff(&root, &base, format),
         Command::Hooks { action } => cmd_hooks(&root, action),
+        Command::Compact { keep, dry_run } => cmd_compact(&root, keep, dry_run),
+        Command::ArchiveTasks { dry_run } => cmd_archive_tasks(&root, dry_run),
+        Command::View { role, spec } => cmd_view(&root, &role, spec.as_deref()),
     }
 }
 
@@ -286,6 +316,123 @@ fn collect_hook_targets(
     }
     // If no specific targets, empty vec means "all"
     targets
+}
+
+fn cmd_compact(root: &Path, keep: usize, dry_run: bool) {
+    let config = load_config(root);
+    let specs_dir = root.join(&config.specs_dir);
+
+    if dry_run {
+        println!("{} Dry run — no files will be modified\n", "ℹ".cyan());
+    }
+
+    let results = compact::compact_changelogs(root, &specs_dir, keep, dry_run);
+
+    if results.is_empty() {
+        println!(
+            "{}",
+            "No changelogs need compaction (all within limit).".green()
+        );
+        return;
+    }
+
+    for r in &results {
+        let verb = if dry_run {
+            "would compact"
+        } else {
+            "compacted"
+        };
+        println!(
+            "  {} {} — {verb} {} entries (kept {})",
+            "✓".green(),
+            r.spec_path,
+            r.removed,
+            r.compacted_entries,
+        );
+    }
+
+    let total_removed: usize = results.iter().map(|r| r.removed).sum();
+    println!(
+        "\n{} {} entries across {} spec(s)",
+        if dry_run {
+            "Would compact".to_string()
+        } else {
+            "Compacted".to_string()
+        },
+        total_removed,
+        results.len()
+    );
+}
+
+fn cmd_archive_tasks(root: &Path, dry_run: bool) {
+    let config = load_config(root);
+    let specs_dir = root.join(&config.specs_dir);
+
+    if dry_run {
+        println!("{} Dry run — no files will be modified\n", "ℹ".cyan());
+    }
+
+    let results = archive::archive_tasks(root, &specs_dir, dry_run);
+
+    if results.is_empty() {
+        println!("{}", "No completed tasks to archive.".green());
+        return;
+    }
+
+    for r in &results {
+        let verb = if dry_run { "would archive" } else { "archived" };
+        println!(
+            "  {} {} — {verb} {} task(s)",
+            "✓".green(),
+            r.tasks_path,
+            r.archived_count,
+        );
+    }
+
+    let total: usize = results.iter().map(|r| r.archived_count).sum();
+    println!(
+        "\n{} {} task(s) across {} file(s)",
+        if dry_run {
+            "Would archive".to_string()
+        } else {
+            "Archived".to_string()
+        },
+        total,
+        results.len()
+    );
+}
+
+fn cmd_view(root: &Path, role: &str, spec_filter: Option<&str>) {
+    let config = load_config(root);
+    let specs_dir = root.join(&config.specs_dir);
+    let spec_files = find_spec_files(&specs_dir);
+
+    if spec_files.is_empty() {
+        eprintln!("No spec files found in {}/", config.specs_dir);
+        process::exit(1);
+    }
+
+    for spec_path in &spec_files {
+        // If a specific spec was requested, filter by module name
+        if let Some(filter) = spec_filter {
+            let name = spec_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            // Strip .spec suffix if present
+            let module_name = name.strip_suffix(".spec").unwrap_or(name);
+            if module_name != filter {
+                continue;
+            }
+        }
+
+        match view::view_spec(spec_path, role) {
+            Ok(output) => {
+                println!("{output}");
+                println!("---\n");
+            }
+            Err(e) => {
+                eprintln!("{} {e}", "error:".red().bold());
+            }
+        }
+    }
 }
 
 fn cmd_init(root: &Path) {

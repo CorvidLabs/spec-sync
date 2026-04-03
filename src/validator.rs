@@ -190,9 +190,37 @@ pub fn validate_spec(
         result
             .errors
             .push("Frontmatter missing required field: status".to_string());
+        result.fixes.push(
+            "Add `status: active` (or draft/stable/deprecated) to the frontmatter".to_string(),
+        );
+    } else if let Some(status_str) = &fm.status {
+        if fm.parsed_status().is_none() {
+            result.warnings.push(format!(
+                "Unknown status '{}' — expected one of: draft, active, stable, deprecated",
+                status_str
+            ));
+        }
+    }
+
+    // Status lifecycle: deprecated specs emit a warning
+    let spec_status = fm.parsed_status();
+    if spec_status == Some(crate::types::SpecStatus::Deprecated) {
         result
-            .fixes
-            .push("Add `status: active` (or draft/deprecated) to the frontmatter".to_string());
+            .warnings
+            .push("Spec is deprecated — consider removing or archiving".to_string());
+    }
+
+    // Validate agent_policy if present
+    if let Some(policy) = &fm.agent_policy {
+        match policy.as_str() {
+            "read-only" | "suggest-only" | "full-access" => {}
+            _ => {
+                result.warnings.push(format!(
+                    "Unknown agent_policy '{}' — expected: read-only, suggest-only, or full-access",
+                    policy
+                ));
+            }
+        }
     }
     if fm.files.is_empty() {
         result.errors.push(
@@ -291,9 +319,13 @@ pub fn validate_spec(
         }
     }
 
-    // Required markdown sections
+    // Required markdown sections (drafts skip "Public API" requirement)
+    let is_draft = spec_status == Some(crate::types::SpecStatus::Draft);
     let missing = get_missing_sections(body, &config.required_sections);
     for section in &missing {
+        if is_draft && section == "Public API" {
+            continue; // drafts can skip Public API
+        }
         result
             .errors
             .push(format!("Missing required section: ## {section}"));
@@ -303,8 +335,9 @@ pub fn validate_spec(
     }
 
     // ─── Level 2: API Surface ─────────────────────────────────────────
+    // Draft specs skip API surface validation — exports may not exist yet.
 
-    if !fm.files.is_empty() {
+    if !fm.files.is_empty() && !is_draft {
         let mut all_exports: Vec<String> = Vec::new();
         for file in &fm.files {
             let full_path = root.join(file);
@@ -389,7 +422,126 @@ pub fn validate_spec(
         }
     }
 
+    // ─── Custom Validation Rules ─────────────────────────────────────
+    apply_custom_rules(spec_path, body, config, &mut result);
+
     result
+}
+
+/// Apply project-specific custom validation rules from config.
+fn apply_custom_rules(
+    spec_path: &Path,
+    body: &str,
+    config: &SpecSyncConfig,
+    result: &mut ValidationResult,
+) {
+    let rules = &config.rules;
+
+    // max_spec_size_kb: warn if spec file is too large
+    if let Some(max_kb) = rules.max_spec_size_kb {
+        if let Ok(meta) = fs::metadata(spec_path) {
+            let size_kb = meta.len() as usize / 1024;
+            if size_kb > max_kb {
+                result.warnings.push(format!(
+                    "Spec file is {size_kb} KB — exceeds limit of {max_kb} KB"
+                ));
+            }
+        }
+    }
+
+    // max_changelog_entries: warn if Change Log has too many rows
+    if let Some(max_entries) = rules.max_changelog_entries {
+        let count = count_changelog_entries(body);
+        if count > max_entries {
+            result.warnings.push(format!(
+                "Change Log has {count} entries — exceeds limit of {max_entries} (run `specsync compact`)"
+            ));
+        }
+    }
+
+    // require_behavioral_examples: require at least one ### Scenario
+    if rules.require_behavioral_examples == Some(true) {
+        let scenario_count = body.matches("### Scenario").count();
+        if scenario_count == 0 {
+            result.errors.push(
+                "No behavioral examples found (rule: require_behavioral_examples)".to_string(),
+            );
+            result.fixes.push(
+                "Add at least one `### Scenario:` under `## Behavioral Examples`".to_string(),
+            );
+        }
+    }
+
+    // min_invariants: require a minimum number of numbered invariants
+    if let Some(min) = rules.min_invariants {
+        let count = count_invariants(body);
+        if count < min {
+            result.warnings.push(format!(
+                "Only {count} invariant(s) found — minimum is {min}"
+            ));
+        }
+    }
+
+    // require_depends_on: require non-empty depends_on
+    if rules.require_depends_on == Some(true) {
+        // This is checked via frontmatter, but we access it through the body parse.
+        // The frontmatter was already parsed above; we check if depends_on is empty
+        // by looking at the spec_path's parsed frontmatter.
+        // Since we don't have fm here, we check the Dependencies section content instead.
+        if !body.contains("### Consumes") || {
+            let consumes_re =
+                Regex::new(r"(?s)### Consumes\s*\n\|.*?\|\s*\n\|[-| ]+\|\s*\n(\|.+)").unwrap();
+            !consumes_re.is_match(body)
+        } {
+            result
+                .warnings
+                .push("No consumed dependencies documented (rule: require_depends_on)".to_string());
+        }
+    }
+}
+
+/// Count data rows in the Change Log table (excluding header and separator).
+fn count_changelog_entries(body: &str) -> usize {
+    let changelog_start = match body.find("## Change Log") {
+        Some(pos) => pos,
+        None => return 0,
+    };
+    let section = &body[changelog_start..];
+    // Find next ## heading to bound the section
+    let section_end = section[1..]
+        .find("\n## ")
+        .map(|p| p + 1)
+        .unwrap_or(section.len());
+    let section = &section[..section_end];
+
+    section
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            trimmed.starts_with('|')
+                && !trimmed.contains("---")
+                && !trimmed.contains("Date")
+                && !trimmed.contains("Change")
+                && !trimmed.contains("Author")
+        })
+        .count()
+}
+
+/// Count numbered invariants in the Invariants section.
+fn count_invariants(body: &str) -> usize {
+    let inv_start = match body.find("## Invariants") {
+        Some(pos) => pos,
+        None => return 0,
+    };
+    let section = &body[inv_start..];
+    let section_end = section[1..]
+        .find("\n## ")
+        .map(|p| p + 1)
+        .unwrap_or(section.len());
+    let section = &section[..section_end];
+
+    let numbered_re = Regex::new(r"(?m)^\d+\.\s+\S").unwrap();
+    numbered_re.find_iter(section).count()
 }
 
 /// Suggest a similar file path when a referenced file doesn't exist.

@@ -1,14 +1,16 @@
 [package]
 name = "specsync"
-version = "3.2.0"
+version = "3.3.0"
 edition = "2024"
+rust-version = "1.85"
 description = "Bidirectional spec-to-code validation with schema column checking — 11 languages, single binary"
 license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/CorvidLabs/spec-sync"
 repository = "https://github.com/CorvidLabs/spec-sync"
-keywords = ["spec", "documentation", "validation", "coverage"]
+keywords = ["spec", "documentation", "validation", "coverage", "code-quality"]
 categories = ["development-tools", "command-line-utilities"]
+exclude = ["tests/", "specs/", ".github/", ".specsync/"]
 
 [[bin]]
 name = "specsync"

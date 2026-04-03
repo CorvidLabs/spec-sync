@@ -183,6 +183,8 @@ const KNOWN_JSON_KEYS: &[&str] = &[
     "aiApiKey",
     "aiBaseUrl",
     "aiTimeout",
+    "rules",
+    "taskArchiveDays",
 ];
 
 fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
@@ -240,16 +242,37 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
 
     let mut config = SpecSyncConfig::default();
     let mut has_source_dirs = false;
+    let mut current_section: Option<String> = None;
 
     for line in content.lines() {
         let line = line.trim();
-        if line.is_empty() || line.starts_with('#') || line.starts_with('[') {
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        // Track TOML section headers like [rules]
+        if line.starts_with('[') && line.ends_with(']') {
+            current_section = Some(line[1..line.len() - 1].trim().to_string());
             continue;
         }
 
         if let Some(eq_pos) = line.find('=') {
             let key = line[..eq_pos].trim();
             let value = line[eq_pos + 1..].trim();
+
+            // Route to section-specific parsing
+            if let Some(ref section) = current_section {
+                match section.as_str() {
+                    "rules" => {
+                        parse_toml_rules_key(key, value, &mut config.rules);
+                        continue;
+                    }
+                    _ => {
+                        // Unknown section — skip silently
+                        continue;
+                    }
+                }
+            }
 
             match key {
                 "specs_dir" => config.specs_dir = parse_toml_string(value),
@@ -292,6 +315,11 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                 "required_sections" => {
                     config.required_sections = parse_toml_string_array(value);
                 }
+                "task_archive_days" => {
+                    if let Ok(n) = value.trim().parse::<u32>() {
+                        config.task_archive_days = Some(n);
+                    }
+                }
                 _ => {
                     eprintln!("Warning: unknown key \"{key}\" in .specsync.toml (ignored)");
                 }
@@ -328,6 +356,41 @@ fn parse_toml_string_array(s: &str) -> Vec<String> {
         .map(|item| parse_toml_string(item.trim()))
         .filter(|item| !item.is_empty())
         .collect()
+}
+
+/// Parse a key=value pair inside a `[rules]` TOML section.
+fn parse_toml_rules_key(key: &str, value: &str, rules: &mut crate::types::ValidationRules) {
+    match key {
+        "max_changelog_entries" => {
+            if let Ok(n) = value.trim().parse::<usize>() {
+                rules.max_changelog_entries = Some(n);
+            }
+        }
+        "require_behavioral_examples" => {
+            rules.require_behavioral_examples = Some(parse_toml_bool(value));
+        }
+        "min_invariants" => {
+            if let Ok(n) = value.trim().parse::<usize>() {
+                rules.min_invariants = Some(n);
+            }
+        }
+        "max_spec_size_kb" => {
+            if let Ok(n) = value.trim().parse::<usize>() {
+                rules.max_spec_size_kb = Some(n);
+            }
+        }
+        "require_depends_on" => {
+            rules.require_depends_on = Some(parse_toml_bool(value));
+        }
+        _ => {
+            eprintln!("Warning: unknown rule \"{key}\" in [rules] section (ignored)");
+        }
+    }
+}
+
+/// Parse a TOML boolean value.
+fn parse_toml_bool(s: &str) -> bool {
+    matches!(s.trim(), "true" | "yes" | "1")
 }
 
 /// Default schema pattern for SQL table extraction.

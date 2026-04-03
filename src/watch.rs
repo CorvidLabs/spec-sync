@@ -9,6 +9,7 @@ use notify_debouncer_full::{DebouncedEvent, new_debouncer};
 use crate::config::load_config;
 
 /// Run the check command in watch mode, re-running on file changes.
+/// Uses the hash cache to skip unchanged specs on subsequent runs.
 pub fn run_watch(root: &Path, strict: bool, require_coverage: Option<usize>) {
     let config = load_config(root);
     let specs_dir = root.join(&config.specs_dir);
@@ -35,9 +36,9 @@ pub fn run_watch(root: &Path, strict: bool, require_coverage: Option<usize>) {
         std::process::exit(1);
     }
 
-    // Initial run
+    // Initial run with --force to validate everything
     print_separator(None);
-    run_check(root, strict, require_coverage);
+    run_check(root, strict, require_coverage, true);
 
     // Set up debounced file watcher
     let (tx, rx) = mpsc::channel();
@@ -76,6 +77,10 @@ pub fn run_watch(root: &Path, strict: bool, require_coverage: Option<usize>) {
             .collect::<Vec<_>>()
             .join(", ")
     );
+    println!(
+        "{} Hash cache active — only changed specs will be re-validated",
+        ">>>".cyan()
+    );
     println!("{} Press Ctrl+C to stop\n", ">>>".cyan());
 
     // Event loop
@@ -101,7 +106,8 @@ pub fn run_watch(root: &Path, strict: bool, require_coverage: Option<usize>) {
         while rx.try_recv().is_ok() {}
 
         print_separator(changed_file.as_deref());
-        run_check(root, strict, require_coverage);
+        // Subsequent runs use hash cache (no --force), only re-validating changed specs
+        run_check(root, strict, require_coverage, false);
         last_run = Instant::now();
 
         println!(
@@ -129,7 +135,7 @@ fn print_separator(changed_file: Option<&str>) {
     if let Some(file) = changed_file {
         println!("{} Changed: {}", ">>>".cyan(), file.bold());
     } else {
-        println!("{} Initial run", ">>>".cyan());
+        println!("{} Initial run (full validation)", ">>>".cyan());
     }
     println!(
         "{}",
@@ -137,15 +143,19 @@ fn print_separator(changed_file: Option<&str>) {
     );
 }
 
-fn run_check(root: &Path, strict: bool, require_coverage: Option<usize>) {
+fn run_check(root: &Path, strict: bool, require_coverage: Option<usize>, force: bool) {
     // Fork a child process to isolate exit calls from the check command.
     use std::process::Command;
 
+    let start = Instant::now();
     let mut cmd = Command::new(std::env::current_exe().expect("Cannot find current executable"));
     cmd.arg("check");
     cmd.arg("--root").arg(root);
     if strict {
         cmd.arg("--strict");
+    }
+    if force {
+        cmd.arg("--force");
     }
     if let Some(cov) = require_coverage {
         cmd.arg("--require-coverage").arg(cov.to_string());
@@ -153,10 +163,19 @@ fn run_check(root: &Path, strict: bool, require_coverage: Option<usize>) {
 
     match cmd.status() {
         Ok(status) => {
+            let elapsed = start.elapsed();
             if status.success() {
-                println!("\n{}", "All checks passed!".green().bold());
+                println!(
+                    "\n{} ({}ms)",
+                    "All checks passed!".green().bold(),
+                    elapsed.as_millis()
+                );
             } else {
-                println!("\n{}", "Some checks failed.".red().bold());
+                println!(
+                    "\n{} ({}ms)",
+                    "Some checks failed.".red().bold(),
+                    elapsed.as_millis()
+                );
             }
         }
         Err(e) => {

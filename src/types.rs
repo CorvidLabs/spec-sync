@@ -119,6 +119,37 @@ pub enum OutputFormat {
     Markdown,
 }
 
+/// Valid spec lifecycle statuses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecStatus {
+    Draft,
+    Active,
+    Stable,
+    Deprecated,
+}
+
+impl SpecStatus {
+    /// Parse a status string (case-insensitive).
+    pub fn from_str_loose(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "draft" => Some(Self::Draft),
+            "active" => Some(Self::Active),
+            "stable" => Some(Self::Stable),
+            "deprecated" => Some(Self::Deprecated),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Draft => "draft",
+            Self::Active => "active",
+            Self::Stable => "stable",
+            Self::Deprecated => "deprecated",
+        }
+    }
+}
+
 /// YAML frontmatter parsed from a spec file.
 #[derive(Debug, Default, Clone)]
 pub struct Frontmatter {
@@ -128,6 +159,14 @@ pub struct Frontmatter {
     pub files: Vec<String>,
     pub db_tables: Vec<String>,
     pub depends_on: Vec<String>,
+    pub agent_policy: Option<String>,
+}
+
+impl Frontmatter {
+    /// Parse the status field into a typed enum.
+    pub fn parsed_status(&self) -> Option<SpecStatus> {
+        self.status.as_deref().and_then(SpecStatus::from_str_loose)
+    }
 }
 
 /// Result of validating a single spec.
@@ -244,6 +283,35 @@ pub struct SpecSyncConfig {
     /// Timeout in seconds for each AI command invocation (default: 120).
     #[serde(default)]
     pub ai_timeout: Option<u64>,
+
+    /// Custom validation rules for project-specific lint checks.
+    #[serde(default)]
+    pub rules: ValidationRules,
+
+    /// Auto-archive completed tasks older than this many days.
+    #[serde(default)]
+    pub task_archive_days: Option<u32>,
+}
+
+/// Custom validation rules configurable per-project.
+#[derive(Debug, Default, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ValidationRules {
+    /// Warn if a spec's Change Log has more entries than this.
+    #[serde(default)]
+    pub max_changelog_entries: Option<usize>,
+    /// Require at least one Behavioral Example scenario.
+    #[serde(default)]
+    pub require_behavioral_examples: Option<bool>,
+    /// Minimum number of invariants required.
+    #[serde(default)]
+    pub min_invariants: Option<usize>,
+    /// Warn if spec file exceeds this size in KB.
+    #[serde(default)]
+    pub max_spec_size_kb: Option<usize>,
+    /// Require non-empty depends_on in frontmatter.
+    #[serde(default)]
+    pub require_depends_on: Option<bool>,
 }
 
 /// A user-defined module grouping in specsync.json.
@@ -409,6 +477,8 @@ impl Default for SpecSyncConfig {
             ai_api_key: None,
             ai_base_url: None,
             ai_timeout: None,
+            rules: ValidationRules::default(),
+            task_archive_days: None,
         }
     }
 }

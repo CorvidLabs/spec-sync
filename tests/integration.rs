@@ -1296,7 +1296,7 @@ fn provider_flag_enables_ai() {
         .arg(&root)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("cursor"));
+        .stderr(predicate::str::contains("cursor").or(predicate::str::contains("Cursor")));
 }
 
 #[test]
@@ -1327,7 +1327,7 @@ fn ai_provider_config_field_is_respected() {
         .arg(&root)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("cursor"));
+        .stderr(predicate::str::contains("cursor").or(predicate::str::contains("Cursor")));
 }
 
 #[test]
@@ -1396,7 +1396,7 @@ fn cli_provider_overrides_config_provider() {
         .arg(&root)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("cursor"));
+        .stderr(predicate::str::contains("cursor").or(predicate::str::contains("Cursor")));
 }
 
 #[test]

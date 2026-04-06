@@ -35,7 +35,7 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 ## Invariants
 
 1. Provider resolution order: CLI `--provider` flag > `aiCommand` config > `aiProvider` config > `SPECSYNC_AI_COMMAND` env var > auto-detect
-2. Auto-detection checks CLI providers first (by binary availability), then API providers (by env var presence)
+2. Auto-detection checks CLI providers first (by attempting to run `<binary> --version` via OS-level execvp), then API providers (by env var presence)
 3. Source code is capped at 150K characters total and 30K per file to avoid exceeding context windows
 4. AI response is post-processed: code fences are stripped, frontmatter delimiters are validated
 5. Default timeout is 120 seconds, configurable via `aiTimeout` in config

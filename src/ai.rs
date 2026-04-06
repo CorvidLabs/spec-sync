@@ -54,16 +54,17 @@ fn is_binary_available(name: &str) -> bool {
     if name.is_empty() {
         return false;
     }
-    // Search PATH directly — avoids spawning a shell, which may not inherit
-    // the full PATH in IDE terminals, build systems, or macOS app launchers.
-    if let Ok(path_var) = std::env::var("PATH") {
-        for dir in path_var.split(':') {
-            if std::path::Path::new(dir).join(name).exists() {
-                return true;
-            }
-        }
-    }
-    false
+    // Attempt to launch the binary with --version. If the OS cannot find it,
+    // `status()` returns Err (ENOENT); if it launches at all, is_ok() is true
+    // regardless of exit code. This uses the OS-level execvp PATH search, which
+    // handles symlinks and execute-permission checks correctly.
+    Command::new(name)
+        .arg("--version")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok()
 }
 
 /// Build the CLI command string for a provider, optionally using a custom model.

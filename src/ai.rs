@@ -348,11 +348,18 @@ fn run_cli_command(ai_command: &str, prompt: &str, timeout_secs: u64) -> Result<
         .spawn()
         .map_err(|e| format!("Failed to start AI command: {e}"))?;
 
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin
-            .write_all(prompt.as_bytes())
-            .map_err(|e| format!("Failed to write to AI command stdin: {e}"))?;
-    }
+    // Write stdin in a background thread to avoid a pipe deadlock: if the child
+    // process writes to stdout before consuming all stdin (e.g. streaming tokens),
+    // the stdout pipe buffer fills, the child blocks, and a synchronous write_all
+    // would block too — neither side making progress until the 120s timeout fires.
+    let stdin_thread = if let Some(mut stdin) = child.stdin.take() {
+        let prompt_bytes = prompt.as_bytes().to_vec();
+        Some(std::thread::spawn(move || -> std::io::Result<()> {
+            stdin.write_all(&prompt_bytes)
+        }))
+    } else {
+        None
+    };
 
     // Read stdout in a background thread, streaming lines to stderr for live output
     let stdout_pipe = child.stdout.take().ok_or("Failed to capture stdout")?;
@@ -444,6 +451,13 @@ fn run_cli_command(ai_command: &str, prompt: &str, timeout_secs: u64) -> Result<
     // Drain any remaining lines
     for line in rx.try_iter() {
         eprintln!("    │ {line}");
+    }
+
+    if let Some(handle) = stdin_thread {
+        handle
+            .join()
+            .map_err(|_| "stdin writer thread panicked".to_string())?
+            .map_err(|e| format!("Failed to write to AI command stdin: {e}"))?;
     }
 
     let stdout = reader_thread

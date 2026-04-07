@@ -37,6 +37,7 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 | `fetch_remote_registry` | `repo: &str` | `Result<RemoteRegistry, String>` | Fetch `specsync-registry.toml` from a GitHub repo's default branch via raw content URL |
 | `load_registry` | `root: &Path` | `Option<RegistryEntry>` | Load a registry from a local `specsync-registry.toml` file |
 | `generate_registry` | `root, project_name, specs_dir` | `String` | Generate registry TOML content by scanning for spec files |
+| `register_module` | `root, module_name, spec_rel_path` | `bool` | Append a module entry to the registry file; returns false if already exists or file missing |
 
 ## Invariants
 
@@ -97,3 +98,4 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 | Date | Change |
 |------|--------|
 | 2026-03-25 | Initial spec |
+| 2026-04-07 | Document register_module function |

@@ -422,3 +422,313 @@ fn parse_toml_bool(s: &str) -> bool {
 pub fn default_schema_pattern() -> &'static str {
     r"CREATE (?:VIRTUAL )?TABLE(?:\s+IF NOT EXISTS)?\s+(\w+)"
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    // --- TOML parsing helpers ---
+
+    #[test]
+    fn test_parse_toml_string_quoted() {
+        assert_eq!(parse_toml_string("\"hello\""), "hello");
+    }
+
+    #[test]
+    fn test_parse_toml_string_unquoted() {
+        assert_eq!(parse_toml_string("bare_value"), "bare_value");
+    }
+
+    #[test]
+    fn test_parse_toml_string_empty_quotes() {
+        assert_eq!(parse_toml_string("\"\""), "");
+    }
+
+    #[test]
+    fn test_parse_toml_string_with_whitespace() {
+        assert_eq!(parse_toml_string("  \"trimmed\"  "), "trimmed");
+    }
+
+    #[test]
+    fn test_parse_toml_string_array_basic() {
+        let result = parse_toml_string_array("[\"a\", \"b\", \"c\"]");
+        assert_eq!(result, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn test_parse_toml_string_array_single() {
+        let result = parse_toml_string_array("[\"only\"]");
+        assert_eq!(result, vec!["only"]);
+    }
+
+    #[test]
+    fn test_parse_toml_string_array_empty() {
+        let result = parse_toml_string_array("[]");
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_parse_toml_string_array_bare_value() {
+        // When no brackets, treats as single-element array
+        let result = parse_toml_string_array("\"single\"");
+        assert_eq!(result, vec!["single"]);
+    }
+
+    #[test]
+    fn test_parse_toml_bool_true_variants() {
+        assert!(parse_toml_bool("true"));
+        assert!(parse_toml_bool("yes"));
+        assert!(parse_toml_bool("1"));
+        assert!(parse_toml_bool("  true  "));
+    }
+
+    #[test]
+    fn test_parse_toml_bool_false_variants() {
+        assert!(!parse_toml_bool("false"));
+        assert!(!parse_toml_bool("no"));
+        assert!(!parse_toml_bool("0"));
+        assert!(!parse_toml_bool("anything_else"));
+    }
+
+    // --- load_config ---
+
+    #[test]
+    fn test_load_config_no_config_file() {
+        let tmp = TempDir::new().unwrap();
+        let config = load_config(tmp.path());
+        // Should return defaults with auto-detected source dirs
+        assert_eq!(config.specs_dir, "specs");
+        assert!(!config.source_dirs.is_empty());
+    }
+
+    #[test]
+    fn test_load_config_json() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join("specsync.json"),
+            r#"{"specsDir": "my-specs", "sourceDirs": ["lib", "app"]}"#,
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert_eq!(config.specs_dir, "my-specs");
+        assert_eq!(config.source_dirs, vec!["lib", "app"]);
+    }
+
+    #[test]
+    fn test_load_config_toml() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "specs_dir = \"custom-specs\"\nsource_dirs = [\"src\", \"lib\"]\n",
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert_eq!(config.specs_dir, "custom-specs");
+        assert_eq!(config.source_dirs, vec!["src", "lib"]);
+    }
+
+    #[test]
+    fn test_load_config_json_takes_priority_over_toml() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join("specsync.json"),
+            r#"{"specsDir": "from-json", "sourceDirs": ["src"]}"#,
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "specs_dir = \"from-toml\"\nsource_dirs = [\"src\"]\n",
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert_eq!(config.specs_dir, "from-json");
+    }
+
+    #[test]
+    fn test_load_config_malformed_json_returns_defaults() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("specsync.json"), "not valid json {{{").unwrap();
+
+        let config = load_config(tmp.path());
+        assert_eq!(config.specs_dir, "specs"); // default
+    }
+
+    #[test]
+    fn test_load_config_json_without_source_dirs_auto_detects() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join("specsync.json"),
+            r#"{"specsDir": "specs"}"#,
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        // sourceDirs not in JSON, so it should auto-detect
+        assert!(!config.source_dirs.is_empty());
+    }
+
+    // --- TOML config parsing ---
+
+    #[test]
+    fn test_toml_full_config() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            r#"
+specs_dir = "specs"
+source_dirs = ["src", "lib"]
+schema_dir = "db/schema"
+schema_pattern = "CREATE TABLE (\w+)"
+exclude_dirs = ["__tests__"]
+exclude_patterns = ["**/*.test.ts"]
+source_extensions = [".ts", ".rs"]
+export_level = "type"
+ai_provider = "claude"
+ai_model = "opus"
+ai_timeout = 120
+required_sections = ["Purpose", "Public API"]
+task_archive_days = 30
+
+[rules]
+max_changelog_entries = 10
+require_behavioral_examples = true
+min_invariants = 2
+max_spec_size_kb = 50
+require_depends_on = true
+
+[github]
+repo = "CorvidLabs/spec-sync"
+drift_labels = ["spec-drift", "needs-update"]
+verify_issues = false
+"#,
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert_eq!(config.specs_dir, "specs");
+        assert_eq!(config.source_dirs, vec!["src", "lib"]);
+        assert_eq!(config.schema_dir.as_deref(), Some("db/schema"));
+        assert_eq!(config.exclude_dirs, vec!["__tests__"]);
+        assert_eq!(config.exclude_patterns, vec!["**/*.test.ts"]);
+        assert_eq!(config.source_extensions, vec![".ts", ".rs"]);
+        assert!(matches!(
+            config.export_level,
+            crate::types::ExportLevel::Type
+        ));
+        assert!(matches!(
+            config.ai_provider,
+            Some(crate::types::AiProvider::Claude)
+        ));
+        assert_eq!(config.ai_model.as_deref(), Some("opus"));
+        assert_eq!(config.ai_timeout, Some(120));
+        assert_eq!(
+            config.required_sections,
+            vec!["Purpose", "Public API"]
+        );
+        assert_eq!(config.task_archive_days, Some(30));
+
+        // Rules
+        assert_eq!(config.rules.max_changelog_entries, Some(10));
+        assert_eq!(config.rules.require_behavioral_examples, Some(true));
+        assert_eq!(config.rules.min_invariants, Some(2));
+        assert_eq!(config.rules.max_spec_size_kb, Some(50));
+        assert_eq!(config.rules.require_depends_on, Some(true));
+
+        // GitHub
+        let gh = config.github.unwrap();
+        assert_eq!(gh.repo.as_deref(), Some("CorvidLabs/spec-sync"));
+        assert_eq!(gh.drift_labels, vec!["spec-drift", "needs-update"]);
+        assert!(!gh.verify_issues);
+    }
+
+    #[test]
+    fn test_toml_comments_and_blank_lines() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "# This is a comment\n\nspecs_dir = \"specs\"\n\n# Another comment\nsource_dirs = [\"src\"]\n",
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert_eq!(config.specs_dir, "specs");
+        assert_eq!(config.source_dirs, vec!["src"]);
+    }
+
+    #[test]
+    fn test_toml_without_source_dirs_auto_detects() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "specs_dir = \"specs\"\n",
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        // source_dirs not specified, should auto-detect
+        assert!(!config.source_dirs.is_empty());
+    }
+
+    // --- Source directory detection ---
+
+    #[test]
+    fn test_detect_source_dirs_empty_project() {
+        let tmp = TempDir::new().unwrap();
+        // Empty dir, no manifest, no source files -> fallback to "src"
+        let dirs = detect_source_dirs(tmp.path());
+        assert_eq!(dirs, vec!["src"]);
+    }
+
+    #[test]
+    fn test_detect_source_dirs_with_src_dir() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("src");
+        fs::create_dir(&src).unwrap();
+        fs::write(src.join("main.rs"), "fn main() {}").unwrap();
+
+        let dirs = detect_source_dirs(tmp.path());
+        assert!(dirs.contains(&"src".to_string()));
+    }
+
+    #[test]
+    fn test_detect_source_dirs_ignores_node_modules() {
+        let tmp = TempDir::new().unwrap();
+        let nm = tmp.path().join("node_modules");
+        fs::create_dir(&nm).unwrap();
+        fs::write(nm.join("index.js"), "module.exports = {}").unwrap();
+
+        let dirs = detect_source_dirs(tmp.path());
+        assert!(!dirs.contains(&"node_modules".to_string()));
+    }
+
+    #[test]
+    fn test_detect_source_dirs_root_source_files() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("main.py"), "print('hello')").unwrap();
+
+        let dirs = detect_source_dirs(tmp.path());
+        assert_eq!(dirs, vec!["."]);
+    }
+
+    // --- default_schema_pattern ---
+
+    #[test]
+    fn test_default_schema_pattern_matches_create_table() {
+        let pattern = regex::Regex::new(default_schema_pattern()).unwrap();
+        assert!(pattern.is_match("CREATE TABLE users"));
+        assert!(pattern.is_match("CREATE TABLE IF NOT EXISTS users"));
+        assert!(pattern.is_match("CREATE VIRTUAL TABLE users_fts"));
+    }
+
+    #[test]
+    fn test_default_schema_pattern_captures_table_name() {
+        let pattern = regex::Regex::new(default_schema_pattern()).unwrap();
+        let caps = pattern.captures("CREATE TABLE users (id INT)").unwrap();
+        assert_eq!(&caps[1], "users");
+    }
+}

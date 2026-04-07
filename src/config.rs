@@ -561,11 +561,7 @@ mod tests {
     #[test]
     fn test_load_config_json_without_source_dirs_auto_detects() {
         let tmp = TempDir::new().unwrap();
-        fs::write(
-            tmp.path().join("specsync.json"),
-            r#"{"specsDir": "specs"}"#,
-        )
-        .unwrap();
+        fs::write(tmp.path().join("specsync.json"), r#"{"specsDir": "specs"}"#).unwrap();
 
         let config = load_config(tmp.path());
         // sourceDirs not in JSON, so it should auto-detect
@@ -626,10 +622,7 @@ verify_issues = false
         ));
         assert_eq!(config.ai_model.as_deref(), Some("opus"));
         assert_eq!(config.ai_timeout, Some(120));
-        assert_eq!(
-            config.required_sections,
-            vec!["Purpose", "Public API"]
-        );
+        assert_eq!(config.required_sections, vec!["Purpose", "Public API"]);
         assert_eq!(config.task_archive_days, Some(30));
 
         // Rules
@@ -663,11 +656,7 @@ verify_issues = false
     #[test]
     fn test_toml_without_source_dirs_auto_detects() {
         let tmp = TempDir::new().unwrap();
-        fs::write(
-            tmp.path().join(".specsync.toml"),
-            "specs_dir = \"specs\"\n",
-        )
-        .unwrap();
+        fs::write(tmp.path().join(".specsync.toml"), "specs_dir = \"specs\"\n").unwrap();
 
         let config = load_config(tmp.path());
         // source_dirs not specified, should auto-detect

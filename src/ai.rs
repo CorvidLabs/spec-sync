@@ -944,7 +944,10 @@ mod tests {
             model: "gpt-4o".to_string(),
             base_url: Some("https://custom.api.com".to_string()),
         };
-        assert_eq!(format!("{p}"), "OpenAI API (gpt-4o @ https://custom.api.com)");
+        assert_eq!(
+            format!("{p}"),
+            "OpenAI API (gpt-4o @ https://custom.api.com)"
+        );
     }
 
     // ── postprocess_spec ───────────────────────────────────────────
@@ -1070,12 +1073,8 @@ mod tests {
     #[test]
     fn build_regen_prompt_truncates_large_sources() {
         let large = "y".repeat(40_000);
-        let prompt = build_regen_prompt(
-            "big",
-            "spec",
-            "reqs",
-            &[("src/big.rs".to_string(), large)],
-        );
+        let prompt =
+            build_regen_prompt("big", "spec", "reqs", &[("src/big.rs".to_string(), large)]);
         // safe_truncate should have capped it at 30_000
         assert!(prompt.len() < 200_000);
     }
@@ -1121,7 +1120,14 @@ mod tests {
     fn resolve_cursor_provider_errors() {
         let config = SpecSyncConfig::default();
         let err = resolve_ai_provider(&config, Some("cursor")).unwrap_err();
-        assert!(err.contains("Cursor does not have a CLI pipe mode"));
+        // Error depends on whether `cursor` binary is on PATH:
+        // - If not on PATH: "not installed or not on PATH"
+        // - If on PATH: "Cursor does not have a CLI pipe mode"
+        assert!(
+            err.contains("not installed or not on PATH")
+                || err.contains("Cursor does not have a CLI pipe mode"),
+            "unexpected error: {err}"
+        );
     }
 
     // ── resolve_ai_command (compat alias) ──────────────────────────

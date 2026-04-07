@@ -26,6 +26,11 @@ depends_on:
   - specs/hash_cache/hash_cache.spec.md
   - specs/merge/merge.spec.md
   - specs/importer/importer.spec.md
+  - specs/comment/comment.spec.md
+  - specs/manifest/manifest.spec.md
+  - specs/schema/schema.spec.md
+  - specs/changelog/changelog.spec.md
+  - specs/deps/deps.spec.md
 ---
 
 # CLI

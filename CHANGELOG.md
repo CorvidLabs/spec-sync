@@ -290,6 +290,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
+[3.4.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.4.1
 [3.4.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.4.0
 [3.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.1.0
 [3.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.0.0

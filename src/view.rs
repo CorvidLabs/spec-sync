@@ -135,7 +135,7 @@ fn split_sections(body: &str) -> Vec<(String, String)> {
 fn strip_frontmatter(content: &str) -> &str {
     if let Some(stripped) = content.strip_prefix("---\n") {
         if let Some(end) = stripped.find("\n---\n") {
-            return &stripped[end + 4..]; // skip past closing ---
+            return &stripped[end + 5..]; // skip past closing ---\n
         }
     }
     content

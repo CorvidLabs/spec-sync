@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.1] - 2026-04-07
+
+### Fixed
+
+- Added 6 missing `depends_on` entries to CLI and validator specs, resolving all `specsync deps` warnings.
+
 ## [3.4.0] - 2026-04-07
 
 ### Added

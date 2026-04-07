@@ -2123,7 +2123,13 @@ fn check_shows_fix_suggestions() {
     .unwrap();
 
     specsync()
-        .args(["check", "--root", root.to_str().unwrap(), "--enforcement", "strict"])
+        .args([
+            "check",
+            "--root",
+            root.to_str().unwrap(),
+            "--enforcement",
+            "strict",
+        ])
         .assert()
         .failure()
         .stdout(predicate::str::contains("Suggested fixes:"))

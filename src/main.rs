@@ -276,12 +276,21 @@ fn run() {
             force,
             create_issues,
         ),
-        Command::Coverage => {
-            cmd_coverage(&root, cli.strict, cli.enforcement, cli.require_coverage, format)
-        }
-        Command::Generate { provider } => {
-            cmd_generate(&root, cli.strict, cli.enforcement, cli.require_coverage, format, provider)
-        }
+        Command::Coverage => cmd_coverage(
+            &root,
+            cli.strict,
+            cli.enforcement,
+            cli.require_coverage,
+            format,
+        ),
+        Command::Generate { provider } => cmd_generate(
+            &root,
+            cli.strict,
+            cli.enforcement,
+            cli.require_coverage,
+            format,
+            provider,
+        ),
         Command::Score => cmd_score(&root, format),
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
         Command::Mcp => mcp::run_mcp_server(&root),
@@ -547,6 +556,7 @@ fn cmd_init(root: &Path) {
     println!("  Detected source directories: {dirs_display}");
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_check(
     root: &Path,
     strict: bool,
@@ -562,12 +572,10 @@ fn cmd_check(
 
     let (config, spec_files) = load_and_discover(root, fix);
     // CLI --enforcement flag overrides config; --strict implies strict enforcement.
-    let enforcement = enforcement.unwrap_or_else(|| {
-        if strict {
-            types::EnforcementMode::Strict
-        } else {
-            config.enforcement
-        }
+    let enforcement = enforcement.unwrap_or(if strict {
+        types::EnforcementMode::Strict
+    } else {
+        config.enforcement
     });
 
     if spec_files.is_empty() {
@@ -884,12 +892,10 @@ fn cmd_coverage(
 ) {
     let json = matches!(format, types::OutputFormat::Json);
     let (config, spec_files) = load_and_discover(root, false);
-    let enforcement = enforcement.unwrap_or_else(|| {
-        if strict {
-            types::EnforcementMode::Strict
-        } else {
-            config.enforcement
-        }
+    let enforcement = enforcement.unwrap_or(if strict {
+        types::EnforcementMode::Strict
+    } else {
+        config.enforcement
     });
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);
@@ -965,12 +971,10 @@ fn cmd_generate(
 ) {
     let json = matches!(format, types::OutputFormat::Json);
     let (config, spec_files) = load_and_discover(root, true);
-    let enforcement = enforcement.unwrap_or_else(|| {
-        if strict {
-            types::EnforcementMode::Strict
-        } else {
-            config.enforcement
-        }
+    let enforcement = enforcement.unwrap_or(if strict {
+        types::EnforcementMode::Strict
+    } else {
+        config.enforcement
     });
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);
@@ -2663,7 +2667,14 @@ mod tests {
             ..empty_coverage()
         };
         assert_eq!(
-            compute_exit_code(0, 0, false, types::EnforcementMode::Warn, &coverage, Some(80)),
+            compute_exit_code(
+                0,
+                0,
+                false,
+                types::EnforcementMode::Warn,
+                &coverage,
+                Some(80)
+            ),
             1
         );
     }
@@ -2674,7 +2685,14 @@ mod tests {
     fn enforce_new_exits_0_when_all_files_specced() {
         let coverage = empty_coverage();
         assert_eq!(
-            compute_exit_code(0, 0, false, types::EnforcementMode::EnforceNew, &coverage, None),
+            compute_exit_code(
+                0,
+                0,
+                false,
+                types::EnforcementMode::EnforceNew,
+                &coverage,
+                None
+            ),
             0
         );
     }
@@ -2683,7 +2701,14 @@ mod tests {
     fn enforce_new_exits_0_with_errors_if_all_specced() {
         let coverage = empty_coverage();
         assert_eq!(
-            compute_exit_code(3, 2, false, types::EnforcementMode::EnforceNew, &coverage, None),
+            compute_exit_code(
+                3,
+                2,
+                false,
+                types::EnforcementMode::EnforceNew,
+                &coverage,
+                None
+            ),
             0
         );
     }
@@ -2692,7 +2717,14 @@ mod tests {
     fn enforce_new_exits_1_when_unspecced_files_exist() {
         let coverage = coverage_with_unspecced(vec!["src/foo.rs"]);
         assert_eq!(
-            compute_exit_code(0, 0, false, types::EnforcementMode::EnforceNew, &coverage, None),
+            compute_exit_code(
+                0,
+                0,
+                false,
+                types::EnforcementMode::EnforceNew,
+                &coverage,
+                None
+            ),
             1
         );
     }
@@ -2701,7 +2733,14 @@ mod tests {
     fn enforce_new_exits_1_with_multiple_unspecced_files() {
         let coverage = coverage_with_unspecced(vec!["src/foo.rs", "src/bar.rs"]);
         assert_eq!(
-            compute_exit_code(0, 0, false, types::EnforcementMode::EnforceNew, &coverage, None),
+            compute_exit_code(
+                0,
+                0,
+                false,
+                types::EnforcementMode::EnforceNew,
+                &coverage,
+                None
+            ),
             1
         );
     }
@@ -2751,7 +2790,14 @@ mod tests {
             ..empty_coverage()
         };
         assert_eq!(
-            compute_exit_code(0, 0, false, types::EnforcementMode::Strict, &coverage, Some(80)),
+            compute_exit_code(
+                0,
+                0,
+                false,
+                types::EnforcementMode::Strict,
+                &coverage,
+                Some(80)
+            ),
             1
         );
     }
@@ -2763,7 +2809,14 @@ mod tests {
             ..empty_coverage()
         };
         assert_eq!(
-            compute_exit_code(0, 0, false, types::EnforcementMode::Strict, &coverage, Some(80)),
+            compute_exit_code(
+                0,
+                0,
+                false,
+                types::EnforcementMode::Strict,
+                &coverage,
+                Some(80)
+            ),
             0
         );
     }

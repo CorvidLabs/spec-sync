@@ -40,10 +40,7 @@ pub enum ResolvedProvider {
         base_url: Option<String>,
     },
     /// Call the Google Gemini API directly.
-    GeminiApi {
-        api_key: String,
-        model: String,
-    },
+    GeminiApi { api_key: String, model: String },
 }
 
 impl std::fmt::Display for ResolvedProvider {
@@ -716,7 +713,7 @@ fn call_gemini_api(
     timeout_secs: u64,
 ) -> Result<String, String> {
     let url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     );
 
     eprintln!("    Calling Gemini API ({model})...");
@@ -744,6 +741,7 @@ fn call_gemini_api(
     let mut response = agent
         .post(&url)
         .header("content-type", "application/json")
+        .header("x-goog-api-key", api_key)
         .send_json(&body)
         .map_err(|e| {
             let msg = e.to_string();

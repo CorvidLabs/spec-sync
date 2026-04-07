@@ -63,6 +63,7 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 | view | Filter spec content by stakeholder role | --role (dev\|qa\|product\|agent), --spec PATH |
 | merge | Auto-resolve git merge conflicts in spec files | --dry-run, --all, --json |
 | issues | Verify GitHub issue references in spec frontmatter | --create (create drift issues for failures) |
+| wizard | Interactive step-by-step spec creation with prompts and preview | — |
 
 ### Global Flags
 
@@ -95,6 +96,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 - **cmd_view** — Filter and display spec content for a specific role
 - **cmd_merge** — Auto-resolve git merge conflicts in spec files
 - **cmd_issues** — Verify GitHub issue references in spec frontmatter
+- **cmd_wizard** — Interactive wizard for step-by-step spec creation with template selection and preview
 - **auto_fix_specs** — Scan source files for undocumented exports and auto-add stubs to spec Public API tables
 - **collect_hook_targets** — Convert boolean flags to Vec of HookTarget
 - **load_and_discover** — Load config and find all spec files (filtering _-prefixed templates)

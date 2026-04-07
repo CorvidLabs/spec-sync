@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-04-07
+
+### Added
+
+- **`specsync scaffold` command** — enhanced module scaffolding with auto-detected source files, custom template directories, and automatic registry registration (#138).
+- **`specsync deps` command** — cross-module dependency graph validation detecting cycles, missing deps, and undeclared imports (#139).
+- **`specsync comment` command** — post spec-sync check summaries as actionable PR comments with spec links, or print for piping (#140).
+- **`specsync changelog` command** — generate changelogs of spec changes between two git refs (#141).
+- **`specsync report` command** — per-module coverage report with stale and incomplete detection.
+- **Graduated enforcement mode** — new `--enforcement-mode` flag with three levels: `warn` (default), `enforce-new` (errors only for new specs), and `strict` (all warnings are errors) (#134).
+- **External importers** — `specsync import` supports GitHub Issues, Jira, and Confluence as spec sources (#123).
+- **Interactive wizard** — `specsync wizard` for step-by-step guided spec creation (#122).
+- **167+ new unit tests** across config, parser, validator, generator, and export modules.
+- **100% spec coverage** — resolved 9 undocumented export warnings and added 3 missing specs.
+- **Community scaffolding** — CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue/PR templates.
+- **Standalone workflow guide** and onboarding documentation.
+
 ## [3.1.0] - 2026-03-30
 
 ### Added
@@ -267,6 +284,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
+[3.4.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.4.0
 [3.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.1.0
 [3.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.0.0
 [2.5.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v2.5.0

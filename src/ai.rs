@@ -715,9 +715,7 @@ fn call_gemini_api(
     let url =
         format!("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent");
 
-    // Model name is not sensitive — safe to log (api_key is never logged).
-    let display_model = model.to_string();
-    eprintln!("    Calling Gemini API ({display_model})...");
+    eprintln!("    Calling Gemini API...");
     let _ = std::io::stderr().flush();
 
     let body = serde_json::json!({

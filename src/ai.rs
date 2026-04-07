@@ -39,6 +39,11 @@ pub enum ResolvedProvider {
         model: String,
         base_url: Option<String>,
     },
+    /// Call the Google Gemini API directly.
+    GeminiApi {
+        api_key: String,
+        model: String,
+    },
 }
 
 impl std::fmt::Display for ResolvedProvider {
@@ -56,6 +61,9 @@ impl std::fmt::Display for ResolvedProvider {
                 } else {
                     write!(f, "OpenAI API ({model})")
                 }
+            }
+            ResolvedProvider::GeminiApi { model, .. } => {
+                write!(f, "Gemini API ({model})")
             }
         }
     }
@@ -97,7 +105,14 @@ fn command_for_provider(provider: &AiProvider, model: Option<&str>) -> Result<St
              4. Set \"aiCommand\" to any CLI tool that reads stdin and writes stdout"
                 .to_string(),
         ),
-        AiProvider::Anthropic | AiProvider::OpenAi => Err(
+        AiProvider::Anthropic
+        | AiProvider::OpenAi
+        | AiProvider::Gemini
+        | AiProvider::DeepSeek
+        | AiProvider::Groq
+        | AiProvider::Mistral
+        | AiProvider::XAi
+        | AiProvider::Together => Err(
             "API providers should use resolve_api_provider(), not command_for_provider()"
                 .to_string(),
         ),
@@ -135,11 +150,25 @@ fn resolve_api_provider(
             model,
             base_url: config.ai_base_url.clone(),
         }),
-        AiProvider::OpenAi => Ok(ResolvedProvider::OpenAiApi {
-            api_key,
-            model,
-            base_url: config.ai_base_url.clone(),
-        }),
+        AiProvider::Gemini => Ok(ResolvedProvider::GeminiApi { api_key, model }),
+        // OpenAI and all OpenAI-compatible providers resolve to OpenAiApi
+        // with the appropriate base URL (config override > provider default > OpenAI default).
+        AiProvider::OpenAi
+        | AiProvider::DeepSeek
+        | AiProvider::Groq
+        | AiProvider::Mistral
+        | AiProvider::XAi
+        | AiProvider::Together => {
+            let base_url = config
+                .ai_base_url
+                .clone()
+                .or_else(|| provider.default_base_url().map(String::from));
+            Ok(ResolvedProvider::OpenAiApi {
+                api_key,
+                model,
+                base_url,
+            })
+        }
         _ => unreachable!(),
     }
 }
@@ -160,7 +189,8 @@ pub fn resolve_ai_provider(
     if let Some(name) = cli_provider {
         let provider = AiProvider::from_str_loose(name).ok_or_else(|| {
             format!(
-                "Unknown provider \"{name}\". Available: claude, anthropic, openai, ollama, copilot"
+                "Unknown provider \"{name}\". Available: claude, anthropic, openai, gemini, \
+                 deepseek, groq, mistral, xai, together, ollama, copilot"
             )
         })?;
 
@@ -242,10 +272,18 @@ pub fn resolve_ai_provider(
          copilot    — GitHub Copilot (gh extension install github/gh-copilot)\n\n\
          API providers (just set a key — no CLI needed):\n  \
          anthropic  — set ANTHROPIC_API_KEY env var\n  \
-         openai     — set OPENAI_API_KEY env var\n\n\
+         openai     — set OPENAI_API_KEY env var\n  \
+         gemini     — set GEMINI_API_KEY env var\n  \
+         deepseek   — set DEEPSEEK_API_KEY env var\n  \
+         groq       — set GROQ_API_KEY env var\n  \
+         mistral    — set MISTRAL_API_KEY env var\n  \
+         xai        — set XAI_API_KEY env var\n  \
+         together   — set TOGETHER_API_KEY env var\n\n\
          Or configure in specsync.json:\n  \
          \"aiProvider\": \"anthropic\"    + ANTHROPIC_API_KEY\n  \
          \"aiProvider\": \"openai\"       + OPENAI_API_KEY\n  \
+         \"aiProvider\": \"gemini\"       + GEMINI_API_KEY\n  \
+         \"aiProvider\": \"deepseek\"     + DEEPSEEK_API_KEY\n  \
          \"aiCommand\":  \"any-cli\"      (custom command)\n\n\
          Use --provider <name> to select one, or --provider auto to auto-detect."
         .to_string())
@@ -670,6 +708,82 @@ fn call_openai_api(
     Ok(text)
 }
 
+/// Call the Google Gemini API directly.
+fn call_gemini_api(
+    api_key: &str,
+    model: &str,
+    prompt: &str,
+    timeout_secs: u64,
+) -> Result<String, String> {
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    );
+
+    eprintln!("    Calling Gemini API ({model})...");
+    let _ = std::io::stderr().flush();
+
+    let body = serde_json::json!({
+        "contents": [
+            {
+                "parts": [
+                    { "text": prompt }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "maxOutputTokens": 8192
+        }
+    });
+
+    let agent = ureq::Agent::new_with_config(
+        ureq::config::Config::builder()
+            .timeout_global(Some(Duration::from_secs(timeout_secs)))
+            .build(),
+    );
+
+    let mut response = agent
+        .post(&url)
+        .header("content-type", "application/json")
+        .send_json(&body)
+        .map_err(|e| {
+            let msg = e.to_string();
+            if msg.contains(api_key) {
+                "Gemini API request failed: connection error".to_string()
+            } else {
+                format!("Gemini API request failed: {msg}")
+            }
+        })?;
+
+    let status = response.status();
+    let response_body: serde_json::Value = response
+        .body_mut()
+        .read_json()
+        .map_err(|e| format!("Failed to parse Gemini API response: {e}"))?;
+
+    if status != 200 {
+        let error_msg = response_body["error"]["message"]
+            .as_str()
+            .unwrap_or("unknown error");
+        return Err(format!("Gemini API error (HTTP {status}): {error_msg}"));
+    }
+
+    let text = response_body["candidates"][0]["content"]["parts"][0]["text"]
+        .as_str()
+        .ok_or("Gemini API response missing candidates[0].content.parts[0].text")?
+        .to_string();
+
+    if text.trim().is_empty() {
+        return Err("Gemini API returned empty response".to_string());
+    }
+
+    let usage = &response_body["usageMetadata"];
+    let input_tokens = usage["promptTokenCount"].as_u64().unwrap_or(0);
+    let output_tokens = usage["candidatesTokenCount"].as_u64().unwrap_or(0);
+    eprintln!("    ✓ Gemini API: {input_tokens} input + {output_tokens} output tokens");
+
+    Ok(text)
+}
+
 /// Run the resolved provider with the given prompt.
 fn run_provider(
     provider: &ResolvedProvider,
@@ -688,6 +802,9 @@ fn run_provider(
             model,
             base_url,
         } => call_openai_api(api_key, model, base_url.as_deref(), prompt, timeout_secs),
+        ResolvedProvider::GeminiApi { api_key, model } => {
+            call_gemini_api(api_key, model, prompt, timeout_secs)
+        }
     }
 }
 

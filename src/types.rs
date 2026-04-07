@@ -15,6 +15,20 @@ pub enum AiProvider {
     /// Direct OpenAI-compatible API (no CLI needed — uses OPENAI_API_KEY).
     #[serde(alias = "openai")]
     OpenAi,
+    /// Google Gemini API (no CLI needed — uses GEMINI_API_KEY).
+    Gemini,
+    /// DeepSeek API (OpenAI-compatible — uses DEEPSEEK_API_KEY).
+    #[serde(alias = "deepseek")]
+    DeepSeek,
+    /// Groq API (OpenAI-compatible — uses GROQ_API_KEY).
+    Groq,
+    /// Mistral API (OpenAI-compatible — uses MISTRAL_API_KEY).
+    Mistral,
+    /// xAI Grok API (OpenAI-compatible — uses XAI_API_KEY).
+    #[serde(alias = "xai", alias = "grok")]
+    XAi,
+    /// Together AI API (OpenAI-compatible — uses TOGETHER_API_KEY).
+    Together,
     Custom,
 }
 
@@ -29,7 +43,13 @@ impl AiProvider {
             AiProvider::Cursor
             | AiProvider::Custom
             | AiProvider::Anthropic
-            | AiProvider::OpenAi => None,
+            | AiProvider::OpenAi
+            | AiProvider::Gemini
+            | AiProvider::DeepSeek
+            | AiProvider::Groq
+            | AiProvider::Mistral
+            | AiProvider::XAi
+            | AiProvider::Together => None,
         }
     }
 
@@ -40,13 +60,31 @@ impl AiProvider {
             AiProvider::Cursor => "cursor",
             AiProvider::Copilot => "gh",
             AiProvider::Ollama => "ollama",
-            AiProvider::Anthropic | AiProvider::OpenAi | AiProvider::Custom => "",
+            AiProvider::Anthropic
+            | AiProvider::OpenAi
+            | AiProvider::Gemini
+            | AiProvider::DeepSeek
+            | AiProvider::Groq
+            | AiProvider::Mistral
+            | AiProvider::XAi
+            | AiProvider::Together
+            | AiProvider::Custom => "",
         }
     }
 
     /// Whether this provider uses a direct API call (no CLI binary needed).
     pub fn is_api_provider(&self) -> bool {
-        matches!(self, AiProvider::Anthropic | AiProvider::OpenAi)
+        matches!(
+            self,
+            AiProvider::Anthropic
+                | AiProvider::OpenAi
+                | AiProvider::Gemini
+                | AiProvider::DeepSeek
+                | AiProvider::Groq
+                | AiProvider::Mistral
+                | AiProvider::XAi
+                | AiProvider::Together
+        )
     }
 
     /// The environment variable name for the API key.
@@ -54,6 +92,12 @@ impl AiProvider {
         match self {
             AiProvider::Anthropic => Some("ANTHROPIC_API_KEY"),
             AiProvider::OpenAi => Some("OPENAI_API_KEY"),
+            AiProvider::Gemini => Some("GEMINI_API_KEY"),
+            AiProvider::DeepSeek => Some("DEEPSEEK_API_KEY"),
+            AiProvider::Groq => Some("GROQ_API_KEY"),
+            AiProvider::Mistral => Some("MISTRAL_API_KEY"),
+            AiProvider::XAi => Some("XAI_API_KEY"),
+            AiProvider::Together => Some("TOGETHER_API_KEY"),
             _ => None,
         }
     }
@@ -63,6 +107,24 @@ impl AiProvider {
         match self {
             AiProvider::Anthropic => Some("claude-sonnet-4-20250514"),
             AiProvider::OpenAi => Some("gpt-4o"),
+            AiProvider::Gemini => Some("gemini-2.5-flash"),
+            AiProvider::DeepSeek => Some("deepseek-chat"),
+            AiProvider::Groq => Some("llama-3.3-70b-versatile"),
+            AiProvider::Mistral => Some("mistral-large-latest"),
+            AiProvider::XAi => Some("grok-3-mini"),
+            AiProvider::Together => Some("meta-llama/Llama-3.3-70B-Instruct-Turbo"),
+            _ => None,
+        }
+    }
+
+    /// Default base URL for OpenAI-compatible providers (None = use OpenAI default).
+    pub fn default_base_url(&self) -> Option<&'static str> {
+        match self {
+            AiProvider::DeepSeek => Some("https://api.deepseek.com"),
+            AiProvider::Groq => Some("https://api.groq.com/openai"),
+            AiProvider::Mistral => Some("https://api.mistral.ai"),
+            AiProvider::XAi => Some("https://api.x.ai"),
+            AiProvider::Together => Some("https://api.together.xyz"),
             _ => None,
         }
     }
@@ -76,6 +138,12 @@ impl AiProvider {
             "ollama" => Some(AiProvider::Ollama),
             "anthropic" | "anthropic-api" => Some(AiProvider::Anthropic),
             "openai" | "openai-api" => Some(AiProvider::OpenAi),
+            "gemini" | "google" => Some(AiProvider::Gemini),
+            "deepseek" => Some(AiProvider::DeepSeek),
+            "groq" => Some(AiProvider::Groq),
+            "mistral" => Some(AiProvider::Mistral),
+            "xai" | "grok" | "x-ai" => Some(AiProvider::XAi),
+            "together" | "together-ai" => Some(AiProvider::Together),
             _ => None,
         }
     }
@@ -84,11 +152,19 @@ impl AiProvider {
     /// CLI providers first, then API providers (checked via env vars).
     pub fn detection_order() -> &'static [AiProvider] {
         &[
+            // CLI providers (binary detection)
             AiProvider::Claude,
             AiProvider::Ollama,
             AiProvider::Copilot,
+            // API providers (env var detection)
             AiProvider::Anthropic,
             AiProvider::OpenAi,
+            AiProvider::Gemini,
+            AiProvider::DeepSeek,
+            AiProvider::Groq,
+            AiProvider::Mistral,
+            AiProvider::XAi,
+            AiProvider::Together,
         ]
     }
 }
@@ -102,6 +178,12 @@ impl fmt::Display for AiProvider {
             AiProvider::Ollama => write!(f, "ollama"),
             AiProvider::Anthropic => write!(f, "anthropic"),
             AiProvider::OpenAi => write!(f, "openai"),
+            AiProvider::Gemini => write!(f, "gemini"),
+            AiProvider::DeepSeek => write!(f, "deepseek"),
+            AiProvider::Groq => write!(f, "groq"),
+            AiProvider::Mistral => write!(f, "mistral"),
+            AiProvider::XAi => write!(f, "xai"),
+            AiProvider::Together => write!(f, "together"),
             AiProvider::Custom => write!(f, "custom"),
         }
     }

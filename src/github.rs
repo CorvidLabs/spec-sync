@@ -247,14 +247,7 @@ pub fn create_drift_issue(
     );
 
     let mut args = vec![
-        "issue",
-        "create",
-        "--repo",
-        repo,
-        "--title",
-        &title,
-        "--body",
-        &body,
+        "issue", "create", "--repo", repo, "--title", &title, "--body", &body,
     ];
 
     let label_str = labels.join(",");
@@ -316,9 +309,6 @@ mod tests {
 
     #[test]
     fn test_parse_repo_from_url_unknown() {
-        assert_eq!(
-            parse_repo_from_url("https://gitlab.com/foo/bar.git"),
-            None
-        );
+        assert_eq!(parse_repo_from_url("https://gitlab.com/foo/bar.git"), None);
     }
 }

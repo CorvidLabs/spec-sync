@@ -395,11 +395,13 @@ fn parse_toml_rules_key(key: &str, value: &str, rules: &mut crate::types::Valida
 
 /// Parse a key=value pair inside a `[github]` TOML section.
 fn parse_toml_github_key(key: &str, value: &str, config: &mut SpecSyncConfig) {
-    let gh = config.github.get_or_insert_with(|| crate::types::GitHubConfig {
-        repo: None,
-        drift_labels: vec!["spec-drift".to_string()],
-        verify_issues: true,
-    });
+    let gh = config
+        .github
+        .get_or_insert_with(|| crate::types::GitHubConfig {
+            repo: None,
+            drift_labels: vec!["spec-drift".to_string()],
+            verify_issues: true,
+        });
 
     match key {
         "repo" => gh.repo = Some(parse_toml_string(value)),

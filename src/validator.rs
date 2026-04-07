@@ -14,8 +14,7 @@ static CONSUMED_BY_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?s)### Consumed By\s*\n(.*?)(?:\n## |\n### |$)").unwrap());
 static FILE_REF_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\|\s*`([^`]+\.\w+)`\s*\|").unwrap());
-static NUMBERED_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)^\d+\.\s+\S").unwrap());
+static NUMBERED_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^\d+\.\s+\S").unwrap());
 
 /// Check if a dependency reference is a cross-project reference.
 /// Cross-project refs use the format `owner/repo@module` (e.g. `corvid-labs/algochat@auth`).

@@ -7,6 +7,7 @@ use crate::validator::find_spec_files;
 /// Result of compacting a single spec's changelog.
 pub struct CompactResult {
     pub spec_path: String,
+    #[allow(dead_code)]
     pub original_entries: usize,
     pub compacted_entries: usize,
     pub removed: usize,

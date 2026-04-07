@@ -126,7 +126,11 @@ fn resolve_spec_conflicts(content: &str, path: &str) -> (String, MergeResult) {
     for region in &regions {
         match region {
             Region::Clean(text) => output.push_str(text),
-            Region::Conflict { ours, theirs, marker_label } => {
+            Region::Conflict {
+                ours,
+                theirs,
+                marker_label,
+            } => {
                 // Determine what section this conflict is in
                 let section = detect_section(&output);
 
@@ -157,10 +161,12 @@ fn resolve_spec_conflicts(content: &str, path: &str) -> (String, MergeResult) {
     }
 
     // If everything was resolved, validate the result parses
-    if all_resolved && !output.is_empty() {
-        if parse_frontmatter(&output).is_none() && content.contains("---\n") {
-            details.push("Warning: resolved file has invalid frontmatter".to_string());
-        }
+    if all_resolved
+        && !output.is_empty()
+        && parse_frontmatter(&output).is_none()
+        && content.contains("---\n")
+    {
+        details.push("Warning: resolved file has invalid frontmatter".to_string());
     }
 
     let status = if !all_resolved {
@@ -307,7 +313,7 @@ fn resolve_changelog_conflict(ours: &str, theirs: &str) -> Resolution {
     }
 
     // Sort by date (first cell) — dates in ISO format sort lexicographically
-    all_rows.sort_by(|a, b| extract_first_cell(a).cmp(&extract_first_cell(b)));
+    all_rows.sort_by_key(|a| extract_first_cell(a));
 
     let merged = all_rows
         .iter()
@@ -393,7 +399,9 @@ fn resolve_frontmatter_conflict(ours: &str, theirs: &str) -> Resolution {
         let their_val = their_fields.iter().find(|(k, _)| k == key).map(|(_, v)| v);
 
         match (our_val, their_val) {
-            (Some(YamlValue::List(a)), Some(YamlValue::List(b))) if list_keys.contains(key.as_str()) => {
+            (Some(YamlValue::List(a)), Some(YamlValue::List(b)))
+                if list_keys.contains(key.as_str()) =>
+            {
                 // Union the lists
                 let mut combined = a.clone();
                 for item in b {
@@ -494,7 +502,10 @@ fn parse_table_rows(text: &str) -> Vec<&str> {
     text.lines()
         .filter(|l| {
             let t = l.trim();
-            t.starts_with('|') && !t.starts_with("| -") && !t.starts_with("|--") && !t.starts_with("|-")
+            t.starts_with('|')
+                && !t.starts_with("| -")
+                && !t.starts_with("|--")
+                && !t.starts_with("|-")
         })
         .collect()
 }
@@ -519,10 +530,7 @@ fn rel_path(root: &Path, path: &Path) -> String {
 /// Print merge results to stdout (text format).
 pub fn print_results(results: &[MergeResult], dry_run: bool) {
     if results.is_empty() {
-        println!(
-            "{}",
-            "No spec files with merge conflicts found.".green()
-        );
+        println!("{}", "No spec files with merge conflicts found.".green());
         return;
     }
 
@@ -534,12 +542,7 @@ pub fn print_results(results: &[MergeResult], dry_run: bool) {
             MergeStatus::Resolved => {
                 resolved_count += 1;
                 let verb = if dry_run { "would resolve" } else { "resolved" };
-                println!(
-                    "  {} {} {}",
-                    "✓".green(),
-                    verb.green(),
-                    r.spec_path.bold()
-                );
+                println!("  {} {} {}", "✓".green(), verb.green(), r.spec_path.bold());
             }
             MergeStatus::Manual => {
                 manual_count += 1;
@@ -613,13 +616,16 @@ mod tests {
 
     #[test]
     fn test_has_conflict_markers() {
-        assert!(has_conflict_markers("some text\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> branch\n"));
+        assert!(has_conflict_markers(
+            "some text\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> branch\n"
+        ));
         assert!(!has_conflict_markers("clean file\nno conflicts\n"));
     }
 
     #[test]
     fn test_parse_conflict_regions() {
-        let content = "before\n<<<<<<< HEAD\nours line\n=======\ntheirs line\n>>>>>>> branch\nafter\n";
+        let content =
+            "before\n<<<<<<< HEAD\nours line\n=======\ntheirs line\n>>>>>>> branch\nafter\n";
         let regions = parse_conflict_regions(content);
         assert_eq!(regions.len(), 3);
         match &regions[0] {
@@ -627,7 +633,11 @@ mod tests {
             _ => panic!("expected Clean"),
         }
         match &regions[1] {
-            Region::Conflict { ours, theirs, marker_label } => {
+            Region::Conflict {
+                ours,
+                theirs,
+                marker_label,
+            } => {
                 assert_eq!(ours, "ours line\n");
                 assert_eq!(theirs, "theirs line\n");
                 assert_eq!(marker_label, "HEAD");
@@ -679,7 +689,8 @@ mod tests {
 
     #[test]
     fn test_resolve_frontmatter_conflict() {
-        let ours = "module: auth\nversion: 2\nfiles:\n  - src/auth.ts\n  - src/login.ts\ndepends_on: []\n";
+        let ours =
+            "module: auth\nversion: 2\nfiles:\n  - src/auth.ts\n  - src/login.ts\ndepends_on: []\n";
         let theirs = "module: auth\nversion: 3\nfiles:\n  - src/auth.ts\n  - src/signup.ts\ndepends_on: []\n";
 
         match resolve_frontmatter_conflict(ours, theirs) {

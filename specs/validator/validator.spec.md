@@ -11,6 +11,7 @@ depends_on:
   - specs/parser/parser.spec.md
   - specs/exports/exports.spec.md
   - specs/config/config.spec.md
+  - specs/schema/schema.spec.md
 ---
 
 # Validator

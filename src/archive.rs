@@ -130,6 +130,7 @@ fn archive_completed_tasks(content: &str) -> Option<(String, usize)> {
 }
 
 /// Count completed tasks across all tasks.md files (for warnings in check command).
+#[allow(dead_code)]
 pub fn count_completed_tasks(specs_dir: &Path) -> usize {
     let spec_files = find_spec_files(specs_dir);
     let mut total = 0;

@@ -13,6 +13,7 @@ pub struct GitHubIssue {
     pub number: u64,
     pub title: String,
     pub state: String, // "open" or "closed"
+    #[allow(dead_code)]
     pub labels: Vec<String>,
     pub url: String,
 }
@@ -20,6 +21,7 @@ pub struct GitHubIssue {
 /// Result of verifying issue references from spec frontmatter.
 #[derive(Debug)]
 pub struct IssueVerification {
+    #[allow(dead_code)]
     pub spec_path: String,
     pub valid: Vec<GitHubIssue>,
     pub closed: Vec<GitHubIssue>,

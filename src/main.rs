@@ -2290,8 +2290,7 @@ fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
             .to_string_lossy()
             .to_string();
 
-        let verification =
-            github::verify_spec_issues(&repo, &rel_path, &fm.implements, &fm.tracks);
+        let verification = github::verify_spec_issues(&repo, &rel_path, &fm.implements, &fm.tracks);
 
         total_valid += verification.valid.len();
         total_closed += verification.closed.len();
@@ -2355,8 +2354,14 @@ fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
     if create {
         let schema_tables = get_schema_table_names(root, &config);
         let schema_columns = build_schema_columns(root, &config);
-        let (_, _, _, _, all_errors, _) =
-            run_validation(root, &spec_files, &schema_tables, &schema_columns, &config, true);
+        let (_, _, _, _, all_errors, _) = run_validation(
+            root,
+            &spec_files,
+            &schema_tables,
+            &schema_columns,
+            &config,
+            true,
+        );
         if !all_errors.is_empty() {
             create_drift_issues(root, &config, &all_errors, format);
         }

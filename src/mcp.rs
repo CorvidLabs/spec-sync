@@ -605,8 +605,7 @@ fn tool_issues(root: &Path) -> Result<Value, String> {
             .to_string_lossy()
             .to_string();
 
-        let verification =
-            github::verify_spec_issues(&repo, &rel_path, &fm.implements, &fm.tracks);
+        let verification = github::verify_spec_issues(&repo, &rel_path, &fm.implements, &fm.tracks);
 
         total_valid += verification.valid.len();
         total_closed += verification.closed.len();

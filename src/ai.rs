@@ -542,7 +542,7 @@ fn call_anthropic_api(
             // Sanitize error to avoid leaking API key from request headers
             let msg = e.to_string();
             if msg.contains(api_key) {
-                format!("Anthropic API request failed: connection error")
+                "Anthropic API request failed: connection error".to_string()
             } else {
                 format!("Anthropic API request failed: {msg}")
             }
@@ -629,7 +629,7 @@ fn call_openai_api(
             // Sanitize error to avoid leaking API key from request headers
             let msg = e.to_string();
             if msg.contains(api_key) {
-                format!("OpenAI API request failed: connection error")
+                "OpenAI API request failed: connection error".to_string()
             } else {
                 format!("OpenAI API request failed: {msg}")
             }

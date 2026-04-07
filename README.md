@@ -8,7 +8,7 @@
 [![Downloads](https://img.shields.io/crates/d/specsync.svg)](https://crates.io/crates/specsync)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Bidirectional spec-to-code validation with cross-project references.** Written in Rust. Single binary. 11 languages. VS Code extension.
+**Bidirectional spec-to-code validation with cross-project references, dependency graphs, and AI-powered generation.** Written in Rust. Single binary. 11 languages. VS Code extension.
 
 [Quick Start](#quick-start) &bull; [Spec Format](#spec-format) &bull; [CLI](#cli-reference) &bull; [VS Code Extension](#vs-code-extension) &bull; [Cross-Project Refs](#cross-project-references) &bull; [GitHub Action](#github-action) &bull; [Config](#configuration) &bull; [Docs Site](https://corvidlabs.github.io/spec-sync)
 
@@ -109,13 +109,24 @@ specsync check --fix                       # Auto-add undocumented exports as st
 specsync diff                              # Show exports added/removed since HEAD
 specsync diff HEAD~5                       # Compare against a specific ref
 specsync coverage                          # Show file/module coverage
+specsync report                            # Per-module coverage with stale detection
 specsync generate                          # Scaffold specs for unspecced modules
 specsync generate --provider auto           # AI-powered specs (auto-detect provider)
+specsync scaffold auth                     # Scaffold spec + auto-detect source files
 specsync add-spec auth                     # Add a single spec + companion files
+specsync deps                              # Validate cross-module dependency graph
+specsync changelog v3.3.0..v3.4.0         # Generate changelog between git refs
+specsync comment --pr 42                   # Post spec check summary as PR comment
+specsync import github 123                 # Import spec from GitHub issue
+specsync wizard                            # Interactive guided spec creation
 specsync init-registry                     # Generate specsync-registry.toml
 specsync resolve                           # Verify spec cross-references
 specsync resolve --remote                  # Verify cross-project refs via GitHub
 specsync score                             # Quality-score your spec files (0–100)
+specsync compact --keep 10                 # Compact old changelog entries in specs
+specsync archive-tasks                     # Archive completed tasks from tasks.md
+specsync view --role dev                   # View specs filtered by role
+specsync merge                             # Auto-resolve merge conflicts in specs
 specsync hooks install                    # Install agent instructions + git hooks
 specsync hooks status                     # Check what's installed
 specsync mcp                               # Start MCP server for AI agent integration
@@ -266,11 +277,23 @@ specsync [command] [flags]
 | `check` | Validate all specs against source code **(default)**. `--fix` auto-adds missing exports as stubs |
 | `diff` | Show exports added/removed since a git ref (default: `HEAD`) |
 | `coverage` | File and module coverage report |
+| `report` | Per-module coverage report with stale and incomplete detection |
 | `generate` | Scaffold specs for modules missing one (`--provider` for AI-powered content) |
+| `scaffold <name>` | Scaffold spec + auto-detect source files + register in registry |
 | `add-spec <name>` | Scaffold a single spec + companion files (`requirements.md`, `tasks.md`, `context.md`) |
+| `deps` | Validate cross-module dependency graph (cycles, missing deps, undeclared imports) |
+| `changelog <range>` | Generate changelog of spec changes between two git refs |
+| `comment` | Post spec-sync check summary as a PR comment. `--pr N` to post, omit to print |
+| `import <source> <id>` | Import specs from GitHub Issues, Jira, or Confluence |
+| `wizard` | Interactive step-by-step guided spec creation |
 | `resolve` | Verify `depends_on` references exist. `--remote` fetches registries from GitHub |
 | `init-registry` | Generate `specsync-registry.toml` from existing specs |
 | `score` | Quality-score spec files (0–100) with improvement suggestions |
+| `compact` | Compact old changelog entries in spec files. `--keep N` (default: 10) |
+| `archive-tasks` | Archive completed tasks from companion `tasks.md` files |
+| `view` | View specs filtered by role (`--role dev\|qa\|product\|agent`) |
+| `merge` | Auto-resolve git merge conflicts in spec files |
+| `issues` | Verify GitHub issue references in spec frontmatter. `--create` to create missing issues |
 | `hooks` | Install/uninstall agent instructions and git hooks (`install`, `uninstall`, `status`) |
 | `mcp` | Start MCP server for AI agent integration (Claude Code, Cursor, etc.) |
 | `init` | Create default `specsync.json` |
@@ -285,6 +308,9 @@ specsync [command] [flags]
 | `--root <path>` | Project root (default: cwd) |
 | `--provider <name>` | AI provider: `auto`, `anthropic`, `openai`, or `command`. `auto` detects installed provider. Without `--provider`, generate uses templates only. |
 | `--fix` | Auto-add undocumented exports as stub rows in spec Public API tables |
+| `--force` | Skip hash cache and re-validate all specs |
+| `--create-issues` | Create GitHub issues for specs with validation errors (on `check`) |
+| `--dry-run` | Preview changes without writing files (on `compact`, `archive-tasks`, `merge`) |
 | `--json` | Structured JSON output |
 
 ### Exit Codes
@@ -632,15 +658,27 @@ Shows exports added and removed per spec file since the given git ref. Useful fo
 src/
 ├── main.rs            CLI entry + output formatting
 ├── ai.rs              AI-powered spec generation (prompt builder + command runner)
+├── archive.rs         Task archival from companion tasks.md files
+├── changelog.rs       Changelog generation between git refs
+├── comment.rs         PR comment generation with spec links
+├── compact.rs         Changelog entry compaction in spec files
+├── config.rs          specsync.json / .specsync.toml loading
+├── deps.rs            Cross-module dependency graph validation
+├── generator.rs       Spec + companion file scaffolding
+├── github.rs          GitHub API integration (issues, PRs)
+├── hash_cache.rs      Incremental validation via content hashing
+├── hooks.rs           Agent instruction + git hook management
+├── importer.rs        External importers (GitHub Issues, Jira, Confluence)
+├── manifest.rs        Package manifest parsing (Cargo.toml, package.json, etc.)
 ├── mcp.rs             MCP server for AI agent integration (JSON-RPC stdio)
+├── merge.rs           Auto-resolve merge conflicts in spec files
+├── parser.rs          Frontmatter + spec body parsing
 ├── registry.rs        Registry loading, generation, and remote fetching
+├── schema.rs          SQL schema parsing for column validation
 ├── scoring.rs         Spec quality scoring (0–100, weighted rubric)
 ├── types.rs           Data types + config schema
-├── config.rs          specsync.json / .specsync.toml loading
-├── parser.rs          Frontmatter + spec body parsing
 ├── validator.rs       Validation + coverage + cross-project ref detection
-├── generator.rs       Spec + companion file scaffolding
-├── hooks.rs           Agent instruction + git hook management
+├── view.rs            Role-filtered spec viewing (dev, qa, product, agent)
 ├── watch.rs           File watcher (notify, 500ms debounce)
 └── exports/
     ├── mod.rs          Language dispatch

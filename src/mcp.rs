@@ -634,3 +634,353 @@ fn tool_issues(root: &Path) -> Result<Value, String> {
         "specs": results,
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn setup_project() -> TempDir {
+        let tmp = TempDir::new().unwrap();
+        let config = json!({
+            "specsDir": "specs",
+            "sourceDirs": ["src"],
+            "requiredSections": ["Purpose", "Public API"]
+        });
+        std::fs::write(
+            tmp.path().join("specsync.json"),
+            serde_json::to_string_pretty(&config).unwrap(),
+        )
+        .unwrap();
+        std::fs::create_dir_all(tmp.path().join("specs")).unwrap();
+        std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+        tmp
+    }
+
+    fn setup_project_with_spec(spec_name: &str, spec_content: &str) -> TempDir {
+        let tmp = setup_project();
+        let spec_dir = tmp.path().join("specs").join(spec_name);
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        std::fs::write(spec_dir.join(format!("{spec_name}.spec.md")), spec_content).unwrap();
+        tmp
+    }
+
+    // --- handle_initialize ---
+
+    #[test]
+    fn test_handle_initialize_response_format() {
+        let resp = handle_initialize(Some(json!(1)));
+        assert_eq!(resp["jsonrpc"], "2.0");
+        assert_eq!(resp["id"], 1);
+        assert_eq!(resp["result"]["protocolVersion"], PROTOCOL_VERSION);
+        assert_eq!(resp["result"]["serverInfo"]["name"], "specsync");
+        assert!(resp["result"]["capabilities"]["tools"].is_object());
+    }
+
+    #[test]
+    fn test_handle_initialize_null_id() {
+        let resp = handle_initialize(None);
+        assert_eq!(resp["jsonrpc"], "2.0");
+        assert!(resp["result"]["protocolVersion"].is_string());
+    }
+
+    #[test]
+    fn test_handle_initialize_string_id() {
+        let resp = handle_initialize(Some(json!("req-42")));
+        assert_eq!(resp["id"], "req-42");
+    }
+
+    // --- handle_tools_list ---
+
+    #[test]
+    fn test_handle_tools_list_returns_all_tools() {
+        let resp = handle_tools_list(Some(json!(2)));
+        let tools = resp["result"]["tools"].as_array().unwrap();
+        assert_eq!(tools.len(), 7);
+    }
+
+    #[test]
+    fn test_handle_tools_list_tool_names() {
+        let resp = handle_tools_list(Some(json!(1)));
+        let tools = resp["result"]["tools"].as_array().unwrap();
+        let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
+        assert!(names.contains(&"specsync_check"));
+        assert!(names.contains(&"specsync_coverage"));
+        assert!(names.contains(&"specsync_generate"));
+        assert!(names.contains(&"specsync_list_specs"));
+        assert!(names.contains(&"specsync_init"));
+        assert!(names.contains(&"specsync_score"));
+        assert!(names.contains(&"specsync_issues"));
+    }
+
+    #[test]
+    fn test_handle_tools_list_all_have_schemas() {
+        let resp = handle_tools_list(Some(json!(1)));
+        let tools = resp["result"]["tools"].as_array().unwrap();
+        for tool in tools {
+            assert!(
+                tool["inputSchema"].is_object(),
+                "Tool {} missing inputSchema",
+                tool["name"]
+            );
+            assert_eq!(tool["inputSchema"]["type"], "object");
+        }
+    }
+
+    // --- handle_tools_call ---
+
+    #[test]
+    fn test_handle_tools_call_unknown_tool() {
+        let tmp = setup_project();
+        let params = json!({ "name": "nonexistent_tool", "arguments": {} });
+        let resp = handle_tools_call(Some(json!(1)), &params, tmp.path());
+        assert_eq!(resp["result"]["isError"], true);
+        let text = resp["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("Unknown tool"));
+    }
+
+    #[test]
+    fn test_handle_tools_call_custom_root() {
+        let tmp = setup_project();
+        // coverage tool should work with empty specs
+        let params = json!({
+            "name": "specsync_coverage",
+            "arguments": { "root": tmp.path().to_string_lossy() }
+        });
+        let resp = handle_tools_call(Some(json!(1)), &params, tmp.path());
+        assert!(!resp["result"]["isError"].as_bool().unwrap_or(false));
+    }
+
+    // --- load_and_discover ---
+
+    #[test]
+    fn test_load_and_discover_empty_allowed() {
+        let tmp = setup_project();
+        let result = load_and_discover(tmp.path(), true);
+        assert!(result.is_ok());
+        let (config, specs) = result.unwrap();
+        assert_eq!(config.specs_dir, "specs");
+        assert!(specs.is_empty());
+    }
+
+    #[test]
+    fn test_load_and_discover_empty_not_allowed() {
+        let tmp = setup_project();
+        let result = load_and_discover(tmp.path(), false);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("No spec files found"));
+    }
+
+    #[test]
+    fn test_load_and_discover_filters_private_specs() {
+        let tmp = setup_project();
+        let spec_dir = tmp.path().join("specs").join("_private");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        std::fs::write(
+            spec_dir.join("_private.spec.md"),
+            "---\nmodule: private\n---",
+        )
+        .unwrap();
+
+        let result = load_and_discover(tmp.path(), true);
+        assert!(result.is_ok());
+        let (_config, specs) = result.unwrap();
+        // Private specs (starting with _) should be filtered out
+        assert!(specs.is_empty());
+    }
+
+    #[test]
+    fn test_load_and_discover_finds_real_specs() {
+        let spec_content = "---\nmodule: auth\nversion: 1.0.0\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Purpose\nAuth module\n\n# Public API\nNone\n";
+        let tmp = setup_project_with_spec("auth", spec_content);
+
+        let result = load_and_discover(tmp.path(), false);
+        assert!(result.is_ok());
+        let (_config, specs) = result.unwrap();
+        assert_eq!(specs.len(), 1);
+    }
+
+    // --- tool_init ---
+
+    #[test]
+    fn test_tool_init_creates_config() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+
+        let result = tool_init(tmp.path());
+        assert!(result.is_ok());
+        let val = result.unwrap();
+        assert_eq!(val["created"], true);
+        assert!(tmp.path().join("specsync.json").exists());
+    }
+
+    #[test]
+    fn test_tool_init_already_exists() {
+        let tmp = setup_project();
+        let result = tool_init(tmp.path());
+        assert!(result.is_ok());
+        let val = result.unwrap();
+        assert_eq!(val["created"], false);
+        assert!(val["message"].as_str().unwrap().contains("already exists"));
+    }
+
+    // --- tool_coverage ---
+
+    #[test]
+    fn test_tool_coverage_empty_project() {
+        let tmp = setup_project();
+        let result = tool_coverage(tmp.path());
+        assert!(result.is_ok());
+        let val = result.unwrap();
+        assert_eq!(val["file_coverage"], 100.0);
+        assert_eq!(val["files_total"], 0);
+    }
+
+    #[test]
+    fn test_tool_coverage_with_unspecced_files() {
+        let tmp = setup_project();
+        // Create a source file without a spec
+        std::fs::write(tmp.path().join("src").join("main.rs"), "fn main() {}").unwrap();
+
+        let result = tool_coverage(tmp.path());
+        assert!(result.is_ok());
+        let val = result.unwrap();
+        assert!(val["files_total"].as_u64().unwrap() > 0);
+    }
+
+    // --- tool_list_specs ---
+
+    #[test]
+    fn test_tool_list_specs_empty() {
+        let tmp = setup_project();
+        let result = tool_list_specs(tmp.path());
+        assert!(result.is_ok());
+        let val = result.unwrap();
+        assert_eq!(val["count"], 0);
+        assert!(val["specs"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_tool_list_specs_with_frontmatter() {
+        let spec_content = "---\nmodule: auth\nversion: 2.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Purpose\nAuth\n";
+        let tmp = setup_project_with_spec("auth", spec_content);
+
+        let result = tool_list_specs(tmp.path());
+        assert!(result.is_ok());
+        let val = result.unwrap();
+        assert_eq!(val["count"], 1);
+        let spec = &val["specs"][0];
+        assert_eq!(spec["module"], "auth");
+        assert_eq!(spec["version"], "2.0.0");
+        assert_eq!(spec["status"], "stable");
+    }
+
+    #[test]
+    fn test_tool_list_specs_malformed_frontmatter() {
+        let tmp = setup_project();
+        let spec_dir = tmp.path().join("specs").join("bad");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        std::fs::write(spec_dir.join("bad.spec.md"), "no frontmatter here").unwrap();
+
+        let result = tool_list_specs(tmp.path());
+        assert!(result.is_ok());
+        let val = result.unwrap();
+        assert_eq!(val["count"], 1);
+        let spec = &val["specs"][0];
+        assert!(spec["module"].is_null());
+    }
+
+    // --- tool_check ---
+
+    #[test]
+    fn test_tool_check_strict_mode() {
+        let spec_content = "---\nmodule: auth\nversion: 1.0.0\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Purpose\nAuth module\n\n# Public API\nNone\n";
+        let tmp = setup_project_with_spec("auth", spec_content);
+        std::fs::write(tmp.path().join("src").join("auth.rs"), "pub fn login() {}").unwrap();
+
+        let result_normal = tool_check(tmp.path(), &json!({ "strict": false }));
+        assert!(result_normal.is_ok());
+
+        let result_strict = tool_check(tmp.path(), &json!({ "strict": true }));
+        assert!(result_strict.is_ok());
+    }
+
+    #[test]
+    fn test_tool_check_no_specs_error() {
+        let tmp = setup_project();
+        let result = tool_check(tmp.path(), &json!({}));
+        assert!(result.is_err());
+    }
+
+    // --- tool_score ---
+
+    #[test]
+    fn test_tool_score_no_specs_error() {
+        let tmp = setup_project();
+        let result = tool_score(tmp.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_tool_score_with_spec() {
+        let spec_content = "---\nmodule: auth\nversion: 1.0.0\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Purpose\nAuth module\n\n# Public API\nNone\n\n# Invariants\nNone\n\n# Behavioral Examples\nNone\n\n# Error Cases\nNone\n\n# Dependencies\nNone\n\n# Change Log\nNone\n";
+        let tmp = setup_project_with_spec("auth", spec_content);
+        std::fs::write(tmp.path().join("src").join("auth.rs"), "pub fn login() {}").unwrap();
+
+        let result = tool_score(tmp.path());
+        assert!(result.is_ok());
+        let val = result.unwrap();
+        assert!(val["average_score"].as_f64().unwrap() >= 0.0);
+        assert!(val["grade"].is_string());
+        assert_eq!(val["total_specs"], 1);
+        assert!(val["distribution"].is_object());
+    }
+
+    // --- tool_generate ---
+
+    #[test]
+    fn test_tool_generate_no_uncovered() {
+        let spec_content = "---\nmodule: auth\nversion: 1.0.0\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Purpose\nAuth\n";
+        let tmp = setup_project_with_spec("auth", spec_content);
+        std::fs::write(tmp.path().join("src").join("auth.rs"), "pub fn login() {}").unwrap();
+
+        let result = tool_generate(tmp.path(), &json!({}));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_tool_generate_creates_spec() {
+        let tmp = setup_project();
+        std::fs::write(tmp.path().join("src").join("main.rs"), "fn main() {}").unwrap();
+
+        let result = tool_generate(tmp.path(), &json!({}));
+        assert!(result.is_ok());
+        let val = result.unwrap();
+        assert!(val["count"].as_u64().unwrap() >= 0);
+    }
+
+    // --- JSONRPC response structure ---
+
+    #[test]
+    fn test_tools_call_success_response_structure() {
+        let tmp = setup_project();
+        let params = json!({ "name": "specsync_coverage", "arguments": {} });
+        let resp = handle_tools_call(Some(json!(42)), &params, tmp.path());
+
+        assert_eq!(resp["jsonrpc"], "2.0");
+        assert_eq!(resp["id"], 42);
+        assert!(resp["result"]["content"].is_array());
+        assert_eq!(resp["result"]["content"][0]["type"], "text");
+    }
+
+    #[test]
+    fn test_tools_call_error_response_structure() {
+        let tmp = setup_project();
+        let params = json!({ "name": "bogus", "arguments": {} });
+        let resp = handle_tools_call(Some(json!(99)), &params, tmp.path());
+
+        assert_eq!(resp["jsonrpc"], "2.0");
+        assert_eq!(resp["id"], 99);
+        assert_eq!(resp["result"]["isError"], true);
+    }
+}

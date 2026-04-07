@@ -10,7 +10,8 @@ nav_order: 1
 Bidirectional spec-to-code validation. Written in Rust. Single binary. 11 languages. VS Code extension.
 {: .fs-6 .fw-300 }
 
-[Get Started](#quick-start){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
+[Get Started](quickstart){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
+[Why SpecSync?](why-specsync){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [View on GitHub](https://github.com/CorvidLabs/spec-sync){: .btn .fs-5 .mb-4 .mb-md-0 }
 
 ---
@@ -59,4 +60,12 @@ Auto-detected from file extensions. No per-language configuration.
 
 TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby.
 
-See [Workflow Guide](workflow) for the end-to-end workflow, [Spec Format](spec-format) for how to write specs, [CLI Reference](cli) for all commands, [VS Code Extension](vscode-extension) for editor integration, [Cross-Project References](cross-project-refs) for multi-repo validation, and [Configuration](configuration) for `specsync.json` options.
+## Learn More
+
+| New to SpecSync? | Already using it? |
+|:-----------------|:-----------------|
+| [Quick Start Guide](quickstart) — up and running in 5 min | [CLI Reference](cli) — all 14 commands |
+| [Why SpecSync?](why-specsync) — comparison with alternatives | [Configuration](configuration) — `specsync.json` options |
+| [Spec Format](spec-format) — how to write specs | [Cross-Project Refs](cross-project-refs) — multi-repo validation |
+| [Workflow Guide](workflow) — full lifecycle | [AI Agents](ai-agents) — MCP server + AI generation |
+| [Architecture](architecture) — how it works | [VS Code Extension](vscode-extension) — editor integration |

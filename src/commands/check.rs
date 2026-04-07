@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 use crate::ai;
-use crate::commands::{build_schema_columns, compute_exit_code, exit_with_status, load_and_discover, run_validation};
+use crate::commands::{
+    build_schema_columns, compute_exit_code, exit_with_status, load_and_discover, run_validation,
+};
 use crate::hash_cache;
 use crate::output::{print_check_markdown, print_coverage_line, print_summary};
 use crate::types;

@@ -4,7 +4,9 @@ use std::process;
 
 use crate::ai;
 use crate::commands::{build_schema_columns, exit_with_status, load_and_discover, run_validation};
-use crate::generator::{generate_specs_for_unspecced_modules, generate_specs_for_unspecced_modules_paths};
+use crate::generator::{
+    generate_specs_for_unspecced_modules, generate_specs_for_unspecced_modules_paths,
+};
 use crate::output::{print_coverage_line, print_coverage_report, print_summary};
 use crate::types;
 use crate::validator::{compute_coverage, get_schema_table_names};

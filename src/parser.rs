@@ -83,8 +83,33 @@ fn set_scalar(fm: &mut Frontmatter, key: &str, value: &str) {
         "version" => fm.version = Some(value.to_string()),
         "status" => fm.status = Some(value.to_string()),
         "agent_policy" => fm.agent_policy = Some(value.to_string()),
+        // Handle inline bracket arrays like `implements: [42, 57]`
+        "implements" => fm.implements = parse_inline_issue_numbers(value),
+        "tracks" => fm.tracks = parse_inline_issue_numbers(value),
         _ => {}
     }
+}
+
+/// Parse an inline bracket array of issue numbers: `[42, 57]` → vec![42, 57].
+fn parse_inline_issue_numbers(value: &str) -> Vec<u64> {
+    let s = value.trim();
+    let inner = if s.starts_with('[') && s.ends_with(']') {
+        &s[1..s.len() - 1]
+    } else {
+        s
+    };
+    inner
+        .split(',')
+        .filter_map(|v| v.trim().parse::<u64>().ok())
+        .collect()
+}
+
+/// Parse a list of strings as u64 issue numbers, ignoring invalid entries.
+fn parse_issue_numbers(values: &[String]) -> Vec<u64> {
+    values
+        .iter()
+        .filter_map(|v| v.trim().parse::<u64>().ok())
+        .collect()
 }
 
 fn set_field(fm: &mut Frontmatter, key: &str, values: &[String]) {
@@ -92,6 +117,8 @@ fn set_field(fm: &mut Frontmatter, key: &str, values: &[String]) {
         "files" => fm.files = values.to_vec(),
         "db_tables" => fm.db_tables = values.to_vec(),
         "depends_on" => fm.depends_on = values.to_vec(),
+        "implements" => fm.implements = parse_issue_numbers(values),
+        "tracks" => fm.tracks = parse_issue_numbers(values),
         _ => {}
     }
 }
@@ -315,6 +342,30 @@ Something
         let symbols = get_spec_symbols(body);
         // Only symbols under "### Exported ..." subsections should be extracted
         assert_eq!(symbols, vec!["authenticate", "AuthConfig"]);
+    }
+
+    #[test]
+    fn test_parse_frontmatter_implements_list() {
+        let content = "---\nmodule: auth\nversion: 1\nstatus: active\nfiles:\n  - src/auth.ts\nimplements:\n  - 42\n  - 57\ntracks:\n  - 10\n---\n\n# Auth\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert_eq!(parsed.frontmatter.implements, vec![42, 57]);
+        assert_eq!(parsed.frontmatter.tracks, vec![10]);
+    }
+
+    #[test]
+    fn test_parse_frontmatter_implements_inline() {
+        let content = "---\nmodule: auth\nversion: 1\nstatus: active\nfiles:\n  - src/auth.ts\nimplements: [42, 57]\ntracks: [10]\n---\n\n# Auth\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert_eq!(parsed.frontmatter.implements, vec![42, 57]);
+        assert_eq!(parsed.frontmatter.tracks, vec![10]);
+    }
+
+    #[test]
+    fn test_parse_frontmatter_empty_implements() {
+        let content = "---\nmodule: auth\nversion: 1\nstatus: active\nfiles:\n  - src/auth.ts\nimplements: []\n---\n\n# Auth\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert!(parsed.frontmatter.implements.is_empty());
+        assert!(parsed.frontmatter.tracks.is_empty());
     }
 
     #[test]

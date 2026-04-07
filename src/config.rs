@@ -185,6 +185,7 @@ const KNOWN_JSON_KEYS: &[&str] = &[
     "aiTimeout",
     "rules",
     "taskArchiveDays",
+    "github",
 ];
 
 fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
@@ -265,6 +266,10 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                 match section.as_str() {
                     "rules" => {
                         parse_toml_rules_key(key, value, &mut config.rules);
+                        continue;
+                    }
+                    "github" => {
+                        parse_toml_github_key(key, value, &mut config);
                         continue;
                     }
                     _ => {
@@ -384,6 +389,26 @@ fn parse_toml_rules_key(key: &str, value: &str, rules: &mut crate::types::Valida
         }
         _ => {
             eprintln!("Warning: unknown rule \"{key}\" in [rules] section (ignored)");
+        }
+    }
+}
+
+/// Parse a key=value pair inside a `[github]` TOML section.
+fn parse_toml_github_key(key: &str, value: &str, config: &mut SpecSyncConfig) {
+    let gh = config
+        .github
+        .get_or_insert_with(|| crate::types::GitHubConfig {
+            repo: None,
+            drift_labels: vec!["spec-drift".to_string()],
+            verify_issues: true,
+        });
+
+    match key {
+        "repo" => gh.repo = Some(parse_toml_string(value)),
+        "drift_labels" => gh.drift_labels = parse_toml_string_array(value),
+        "verify_issues" => gh.verify_issues = parse_toml_bool(value),
+        _ => {
+            eprintln!("Warning: unknown key \"{key}\" in [github] section (ignored)");
         }
     }
 }

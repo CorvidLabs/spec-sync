@@ -819,3 +819,319 @@ pub fn generate_specs_for_unspecced_modules_paths(
 
     generated_paths
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    // ── detect_primary_language ─────────────────────────────────────
+
+    #[test]
+    fn detect_language_rust() {
+        let files = vec!["src/main.rs".to_string(), "src/lib.rs".to_string()];
+        assert_eq!(detect_primary_language(&files), Some(Language::Rust));
+    }
+
+    #[test]
+    fn detect_language_typescript() {
+        let files = vec![
+            "src/app.ts".to_string(),
+            "src/util.ts".to_string(),
+            "src/types.tsx".to_string(),
+        ];
+        assert_eq!(detect_primary_language(&files), Some(Language::TypeScript));
+    }
+
+    #[test]
+    fn detect_language_python() {
+        let files = vec!["app.py".to_string(), "models.py".to_string()];
+        assert_eq!(detect_primary_language(&files), Some(Language::Python));
+    }
+
+    #[test]
+    fn detect_language_go() {
+        let files = vec!["main.go".to_string()];
+        assert_eq!(detect_primary_language(&files), Some(Language::Go));
+    }
+
+    #[test]
+    fn detect_language_mixed_majority_wins() {
+        let files = vec![
+            "src/main.rs".to_string(),
+            "src/lib.rs".to_string(),
+            "src/utils.rs".to_string(),
+            "build.py".to_string(),
+        ];
+        assert_eq!(detect_primary_language(&files), Some(Language::Rust));
+    }
+
+    #[test]
+    fn detect_language_empty() {
+        let files: Vec<String> = vec![];
+        assert_eq!(detect_primary_language(&files), None);
+    }
+
+    #[test]
+    fn detect_language_unknown_extensions() {
+        let files = vec!["data.csv".to_string(), "readme.md".to_string()];
+        assert_eq!(detect_primary_language(&files), None);
+    }
+
+    // ── language_template ──────────────────────────────────────────
+
+    #[test]
+    fn template_rust_has_structs_enums_section() {
+        let t = language_template(Language::Rust);
+        assert!(t.contains("### Structs & Enums"));
+        assert!(t.contains("### Traits"));
+        assert!(t.contains("Crate/Module"));
+    }
+
+    #[test]
+    fn template_swift_has_protocols_section() {
+        let t = language_template(Language::Swift);
+        assert!(t.contains("### Protocols"));
+        assert!(t.contains("### Types"));
+    }
+
+    #[test]
+    fn template_go_has_package_terminology() {
+        let t = language_template(Language::Go);
+        assert!(t.contains("package"));
+    }
+
+    #[test]
+    fn template_kotlin_has_classes_interfaces() {
+        let t = language_template(Language::Kotlin);
+        assert!(t.contains("### Classes & Interfaces"));
+    }
+
+    #[test]
+    fn template_python_has_classes() {
+        let t = language_template(Language::Python);
+        assert!(t.contains("### Classes"));
+    }
+
+    #[test]
+    fn template_typescript_uses_default() {
+        let t = language_template(Language::TypeScript);
+        // TypeScript falls through to DEFAULT_TEMPLATE
+        assert!(t.contains("### Exported Functions"));
+        assert!(t.contains("### Exported Types"));
+    }
+
+    // ── generate_spec (template-based) ─────────────────────────────
+
+    #[test]
+    fn generate_spec_fills_module_name() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let specs_dir = root.join("specs");
+        fs::create_dir_all(&specs_dir).unwrap();
+
+        let src_dir = root.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("auth.rs"), "pub fn login() {}").unwrap();
+
+        let files = vec![src_dir.join("auth.rs").to_string_lossy().to_string()];
+        let spec = generate_spec("auth", &files, root, &specs_dir);
+
+        assert!(spec.contains("module: auth"));
+        assert!(spec.contains("# Auth"));
+        assert!(spec.contains("version: 1"));
+        assert!(spec.contains("status: draft"));
+    }
+
+    #[test]
+    fn generate_spec_hyphenated_name_title_case() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let specs_dir = root.join("specs");
+        fs::create_dir_all(&specs_dir).unwrap();
+
+        let spec = generate_spec("api-gateway", &[], root, &specs_dir);
+        assert!(spec.contains("# Api Gateway"));
+        assert!(spec.contains("module: api-gateway"));
+    }
+
+    #[test]
+    fn generate_spec_uses_custom_template() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let specs_dir = root.join("specs");
+        fs::create_dir_all(&specs_dir).unwrap();
+
+        let custom_template = "---\nmodule: module-name\nversion: 1\nstatus: draft\nfiles: []\ndb_tables: []\ndepends_on: []\n---\n\n# Module Name\n\n## Purpose\n\nCustom template marker\n";
+        fs::write(specs_dir.join("_template.spec.md"), custom_template).unwrap();
+
+        let spec = generate_spec("my-mod", &[], root, &specs_dir);
+        assert!(spec.contains("Custom template marker"));
+        assert!(spec.contains("module: my-mod"));
+    }
+
+    #[test]
+    fn generate_spec_rust_files_use_rust_template() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let specs_dir = root.join("specs");
+        fs::create_dir_all(&specs_dir).unwrap();
+
+        let files = vec!["src/parser.rs".to_string()];
+        let spec = generate_spec("parser", &files, root, &specs_dir);
+        // Should use Rust template (no custom template file exists)
+        assert!(spec.contains("### Structs & Enums"));
+    }
+
+    // ── companion file templates ───────────────────────────────────
+
+    #[test]
+    fn tasks_template_has_required_sections() {
+        assert!(TASKS_TEMPLATE.contains("## Tasks"));
+        assert!(TASKS_TEMPLATE.contains("## Gaps"));
+        assert!(TASKS_TEMPLATE.contains("## Review Sign-offs"));
+        assert!(TASKS_TEMPLATE.contains("{module}"));
+    }
+
+    #[test]
+    fn requirements_template_has_required_sections() {
+        assert!(REQUIREMENTS_TEMPLATE.contains("## User Stories"));
+        assert!(REQUIREMENTS_TEMPLATE.contains("## Acceptance Criteria"));
+        assert!(REQUIREMENTS_TEMPLATE.contains("## Constraints"));
+        assert!(REQUIREMENTS_TEMPLATE.contains("## Out of Scope"));
+    }
+
+    #[test]
+    fn context_template_has_required_sections() {
+        assert!(CONTEXT_TEMPLATE.contains("## Key Decisions"));
+        assert!(CONTEXT_TEMPLATE.contains("## Files to Read First"));
+        assert!(CONTEXT_TEMPLATE.contains("## Current Status"));
+        assert!(CONTEXT_TEMPLATE.contains("## Notes"));
+    }
+
+    #[test]
+    fn default_template_has_all_required_sections() {
+        assert!(DEFAULT_TEMPLATE.contains("## Purpose"));
+        assert!(DEFAULT_TEMPLATE.contains("## Public API"));
+        assert!(DEFAULT_TEMPLATE.contains("## Invariants"));
+        assert!(DEFAULT_TEMPLATE.contains("## Behavioral Examples"));
+        assert!(DEFAULT_TEMPLATE.contains("## Error Cases"));
+        assert!(DEFAULT_TEMPLATE.contains("## Dependencies"));
+        assert!(DEFAULT_TEMPLATE.contains("## Change Log"));
+    }
+
+    // ── generate_companion_files ───────────────────────────────────
+
+    #[test]
+    fn companion_files_created_when_absent() {
+        let tmp = TempDir::new().unwrap();
+        let spec_dir = tmp.path();
+
+        generate_companion_files(spec_dir, "auth");
+
+        assert!(spec_dir.join("tasks.md").exists());
+        assert!(spec_dir.join("context.md").exists());
+        assert!(spec_dir.join("requirements.md").exists());
+
+        let tasks = fs::read_to_string(spec_dir.join("tasks.md")).unwrap();
+        assert!(tasks.contains("spec: auth.spec.md"));
+
+        let reqs = fs::read_to_string(spec_dir.join("requirements.md")).unwrap();
+        assert!(reqs.contains("spec: auth.spec.md"));
+    }
+
+    #[test]
+    fn companion_files_not_overwritten() {
+        let tmp = TempDir::new().unwrap();
+        let spec_dir = tmp.path();
+
+        fs::write(spec_dir.join("tasks.md"), "existing content").unwrap();
+        generate_companion_files(spec_dir, "auth");
+
+        let tasks = fs::read_to_string(spec_dir.join("tasks.md")).unwrap();
+        assert_eq!(tasks, "existing content");
+    }
+
+    // ── find_files_for_module ──────────────────────────────────────
+
+    #[test]
+    fn find_files_flat_module() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let src_dir = root.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("auth.rs"), "pub fn login() {}").unwrap();
+        fs::write(src_dir.join("other.rs"), "pub fn other() {}").unwrap();
+
+        let config = SpecSyncConfig::default();
+        let files = find_files_for_module(root, "auth", &config);
+        assert_eq!(files.len(), 1);
+        assert!(files[0].contains("auth.rs"));
+    }
+
+    #[test]
+    fn find_files_subdir_module() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let mod_dir = root.join("src").join("auth");
+        fs::create_dir_all(&mod_dir).unwrap();
+        fs::write(mod_dir.join("service.ts"), "export function login() {}").unwrap();
+        fs::write(mod_dir.join("types.ts"), "export interface User {}").unwrap();
+
+        let mut config = SpecSyncConfig::default();
+        config.source_extensions = vec!["ts".to_string()];
+        let files = find_files_for_module(root, "auth", &config);
+        assert_eq!(files.len(), 2);
+    }
+
+    #[test]
+    fn find_files_excludes_test_files() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let src_dir = root.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("auth.ts"), "export function login() {}").unwrap();
+        fs::write(src_dir.join("auth.test.ts"), "test('login', () => {})").unwrap();
+
+        let mut config = SpecSyncConfig::default();
+        config.source_extensions = vec!["ts".to_string()];
+        let files = find_files_for_module(root, "auth", &config);
+        assert_eq!(files.len(), 1);
+        assert!(!files[0].contains("test"));
+    }
+
+    #[test]
+    fn find_files_no_match() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let src_dir = root.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("other.rs"), "fn other() {}").unwrap();
+
+        let config = SpecSyncConfig::default();
+        let files = find_files_for_module(root, "nonexistent", &config);
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn find_files_user_defined_module() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let src_dir = root.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("foo.rs"), "pub fn foo() {}").unwrap();
+        fs::write(src_dir.join("bar.rs"), "pub fn bar() {}").unwrap();
+
+        let mut config = SpecSyncConfig::default();
+        config.modules.insert(
+            "my-module".to_string(),
+            crate::types::ModuleDefinition {
+                files: vec!["src/foo.rs".to_string(), "src/bar.rs".to_string()],
+                depends_on: vec![],
+            },
+        );
+        let files = find_files_for_module(root, "my-module", &config);
+        assert_eq!(files.len(), 2);
+    }
+}

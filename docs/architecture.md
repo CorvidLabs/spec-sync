@@ -24,15 +24,24 @@ How SpecSync is built. Useful for contributors and anyone adding language suppor
 ```
 src/
 ├── main.rs              CLI entry point (clap) + output formatting
-├── ai.rs                AI-powered spec generation (prompt builder + command runner)
-├── mcp.rs               MCP server (JSON-RPC over stdio, tools for check/generate/score)
-├── scoring.rs           Spec quality scoring (0–100, weighted rubric)
-├── types.rs             Core data types + config schema
-├── config.rs            specsync.json / specsync.toml loading
+├── types.rs             Core data types, config schema, enums
+├── config.rs            specsync.json / specsync.toml loading + auto-detection
 ├── parser.rs            Frontmatter + spec body parsing
-├── validator.rs         Validation + coverage computation
-├── generator.rs         Spec scaffolding
+├── validator.rs         Validation pipeline + coverage computation
+├── generator.rs         Spec scaffolding (template + AI-powered)
+├── ai.rs                AI provider resolution, prompt building, API/CLI execution
+├── scoring.rs           Spec quality scoring (0–100, weighted rubric)
+├── mcp.rs               MCP server (JSON-RPC over stdio, tools for check/generate/score)
 ├── watch.rs             File watcher (notify, 500ms debounce)
+├── hash_cache.rs        Content-hash cache for incremental validation
+├── registry.rs          Cross-project module registry (specsync-registry.toml)
+├── manifest.rs          Package manifest parsing (package.json, Cargo.toml, go.mod, etc.)
+├── schema.rs            SQL schema parsing for db_tables validation
+├── merge.rs             Git conflict resolution for spec files
+├── archive.rs           Task archival from companion tasks.md files
+├── compact.rs           Changelog compaction (trim old entries)
+├── view.rs              Role-filtered spec viewing (dev, qa, product, agent)
+├── github.rs            GitHub integration (repo detection, drift issues)
 └── exports/
     ├── mod.rs            Language dispatch + file utilities
     ├── typescript.rs     TS/JS exports
@@ -43,7 +52,9 @@ src/
     ├── kotlin.rs         Kotlin top-level
     ├── java.rs           Java public items
     ├── csharp.rs         C# public items
-    └── dart.rs           Dart public items
+    ├── dart.rs           Dart public items
+    ├── php.rs            PHP public classes/functions
+    └── ruby.rs           Ruby public methods/classes
 ```
 
 ---
@@ -107,8 +118,8 @@ Each extractor: strip comments, apply regex, return symbol names. No compiler ne
 | `walkdir` | Recursive directory traversal |
 | `colored` | Terminal colors |
 | `notify` + `notify-debouncer-full` | File watching for `watch` command |
-| `toml` | TOML config file parsing |
-| `tokio` | Async runtime for MCP server |
+| `ureq` | HTTP client for Anthropic/OpenAI API calls |
+| `sha2` | Content hashing for incremental validation cache |
 
 ### Dev
 

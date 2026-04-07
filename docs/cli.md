@@ -63,7 +63,18 @@ specsync generate --provider auto       # AI mode — auto-detect provider, writ
 specsync generate --provider anthropic  # AI mode — use Anthropic API directly
 ```
 
-With `--provider`, source code is piped to an LLM which generates filled-in specs (Purpose, Public API tables, Invariants, etc.). Use `--provider auto` to auto-detect an installed provider, or specify one by name (`anthropic`, `openai`, `command`). The `command` provider resolves from: `aiCommand` in config → `SPECSYNC_AI_COMMAND` env var → `claude -p --output-format text`. See [Configuration](configuration) for `aiCommand` and `aiTimeout`.
+With `--provider`, source code is sent to an LLM which generates filled-in specs (Purpose, Public API tables, Invariants, etc.). Use `--provider auto` to auto-detect an installed provider, or specify one by name:
+
+| Provider | How it works |
+|:---------|:-------------|
+| `auto` | Auto-detect: checks installed CLIs (`claude`, `ollama`, `copilot`), then API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) |
+| `claude` | Shells out to Claude Code CLI (`claude -p --output-format text`) |
+| `anthropic` | Calls Anthropic Messages API directly (requires `ANTHROPIC_API_KEY`) |
+| `openai` | Calls OpenAI Chat Completions API directly (requires `OPENAI_API_KEY`) |
+| `ollama` | Shells out to Ollama CLI (`ollama run <model>`) |
+| `copilot` | Shells out to GitHub Copilot CLI (`gh copilot suggest`) |
+
+See [Configuration](configuration) for `aiProvider`, `aiModel`, `aiApiKey`, `aiBaseUrl`, and `aiTimeout`.
 
 ### `score`
 
@@ -198,7 +209,7 @@ specsync watch
 | `--strict` | Warnings become errors. Recommended for CI. |
 | `--require-coverage N` | Fail if file coverage < N%. |
 | `--root <path>` | Project root directory (default: cwd). |
-| `--provider <name>` | Enable AI-powered generation and select provider: `auto` (auto-detect), `anthropic`, `openai`, or `command`. Without this flag, `generate` uses templates only. |
+| `--provider <name>` | Enable AI-powered generation and select provider: `auto`, `claude`, `anthropic`, `openai`, `ollama`, or `copilot`. Without this flag, `generate` uses templates only. |
 | `--format <fmt>` | Output format: `text` (default), `json`, or `markdown`. Markdown produces clean tables suitable for PRs and docs. |
 | `--json` | Shorthand for `--format json`. Structured output, no color codes. |
 

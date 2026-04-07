@@ -817,3 +817,329 @@ pub fn generate_spec_with_ai(
 
     postprocess_spec(&raw)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::AiProvider;
+
+    // ── safe_truncate ──────────────────────────────────────────────
+
+    #[test]
+    fn safe_truncate_within_limit() {
+        assert_eq!(safe_truncate("hello", 10), "hello");
+    }
+
+    #[test]
+    fn safe_truncate_exact_limit() {
+        assert_eq!(safe_truncate("hello", 5), "hello");
+    }
+
+    #[test]
+    fn safe_truncate_truncates_ascii() {
+        assert_eq!(safe_truncate("hello world", 5), "hello");
+    }
+
+    #[test]
+    fn safe_truncate_respects_utf8_boundary() {
+        // '€' is 3 bytes (E2 82 AC). Cutting at byte 2 should back up to 0.
+        let s = "€abc";
+        assert_eq!(safe_truncate(s, 2), "");
+        // Cutting at byte 3 should give the full '€'.
+        assert_eq!(safe_truncate(s, 3), "€");
+        // Cutting at byte 4 gives '€a'.
+        assert_eq!(safe_truncate(s, 4), "€a");
+    }
+
+    #[test]
+    fn safe_truncate_multibyte_sequence() {
+        // '🦀' is 4 bytes. Cutting at 1, 2, 3 should all yield "".
+        let s = "🦀rust";
+        assert_eq!(safe_truncate(s, 1), "");
+        assert_eq!(safe_truncate(s, 3), "");
+        assert_eq!(safe_truncate(s, 4), "🦀");
+    }
+
+    #[test]
+    fn safe_truncate_empty_string() {
+        assert_eq!(safe_truncate("", 10), "");
+    }
+
+    // ── command_for_provider ───────────────────────────────────────
+
+    #[test]
+    fn command_for_claude() {
+        let cmd = command_for_provider(&AiProvider::Claude, None).unwrap();
+        assert_eq!(cmd, "claude -p --output-format text");
+    }
+
+    #[test]
+    fn command_for_ollama_default_model() {
+        let cmd = command_for_provider(&AiProvider::Ollama, None).unwrap();
+        assert_eq!(cmd, "ollama run llama3");
+    }
+
+    #[test]
+    fn command_for_ollama_custom_model() {
+        let cmd = command_for_provider(&AiProvider::Ollama, Some("mistral")).unwrap();
+        assert_eq!(cmd, "ollama run mistral");
+    }
+
+    #[test]
+    fn command_for_copilot() {
+        let cmd = command_for_provider(&AiProvider::Copilot, None).unwrap();
+        assert_eq!(cmd, "gh copilot suggest -t shell");
+    }
+
+    #[test]
+    fn command_for_cursor_errors() {
+        let err = command_for_provider(&AiProvider::Cursor, None).unwrap_err();
+        assert!(err.contains("Cursor does not have a CLI pipe mode"));
+    }
+
+    #[test]
+    fn command_for_anthropic_errors() {
+        let err = command_for_provider(&AiProvider::Anthropic, None).unwrap_err();
+        assert!(err.contains("resolve_api_provider"));
+    }
+
+    #[test]
+    fn command_for_custom_errors() {
+        let err = command_for_provider(&AiProvider::Custom, None).unwrap_err();
+        assert!(err.contains("aiCommand"));
+    }
+
+    // ── ResolvedProvider Display ────────────────────────────────────
+
+    #[test]
+    fn display_cli_provider() {
+        let p = ResolvedProvider::Cli("claude -p".to_string());
+        assert_eq!(format!("{p}"), "CLI: claude -p");
+    }
+
+    #[test]
+    fn display_anthropic_provider() {
+        let p = ResolvedProvider::AnthropicApi {
+            api_key: "sk-test".to_string(),
+            model: "claude-sonnet-4-20250514".to_string(),
+            base_url: None,
+        };
+        assert_eq!(format!("{p}"), "Anthropic API (claude-sonnet-4-20250514)");
+    }
+
+    #[test]
+    fn display_openai_provider_no_base_url() {
+        let p = ResolvedProvider::OpenAiApi {
+            api_key: "sk-test".to_string(),
+            model: "gpt-4o".to_string(),
+            base_url: None,
+        };
+        assert_eq!(format!("{p}"), "OpenAI API (gpt-4o)");
+    }
+
+    #[test]
+    fn display_openai_provider_with_base_url() {
+        let p = ResolvedProvider::OpenAiApi {
+            api_key: "sk-test".to_string(),
+            model: "gpt-4o".to_string(),
+            base_url: Some("https://custom.api.com".to_string()),
+        };
+        assert_eq!(format!("{p}"), "OpenAI API (gpt-4o @ https://custom.api.com)");
+    }
+
+    // ── postprocess_spec ───────────────────────────────────────────
+
+    #[test]
+    fn postprocess_strips_markdown_fence() {
+        let raw = "```markdown\n---\nmodule: test\n---\n# Test\n```";
+        let result = postprocess_spec(raw).unwrap();
+        assert!(result.starts_with("---"));
+        assert!(!result.contains("```"));
+    }
+
+    #[test]
+    fn postprocess_strips_plain_fence() {
+        let raw = "```\n---\nmodule: test\n---\n# Test\n```";
+        let result = postprocess_spec(raw).unwrap();
+        assert!(result.starts_with("---"));
+        assert!(!result.contains("```"));
+    }
+
+    #[test]
+    fn postprocess_strips_md_fence() {
+        let raw = "```md\n---\nmodule: test\n---\n# Test\n```";
+        let result = postprocess_spec(raw).unwrap();
+        assert!(result.starts_with("---"));
+    }
+
+    #[test]
+    fn postprocess_no_fence_passthrough() {
+        let raw = "---\nmodule: test\n---\n# Test\n";
+        let result = postprocess_spec(raw).unwrap();
+        assert_eq!(result, raw);
+    }
+
+    #[test]
+    fn postprocess_missing_frontmatter_errors() {
+        let raw = "# No frontmatter here\nJust some text.";
+        let err = postprocess_spec(raw).unwrap_err();
+        assert!(err.contains("missing YAML frontmatter"));
+    }
+
+    #[test]
+    fn postprocess_leading_whitespace_before_frontmatter() {
+        let raw = "  \n---\nmodule: test\n---\n# Test\n";
+        let result = postprocess_spec(raw).unwrap();
+        assert!(result.contains("module: test"));
+    }
+
+    // ── build_prompt ───────────────────────────────────────────────
+
+    #[test]
+    fn build_prompt_contains_module_name() {
+        let prompt = build_prompt(
+            "auth",
+            &[("src/auth.rs".to_string(), "pub fn login() {}".to_string())],
+            &["Purpose".to_string(), "Public API".to_string()],
+        );
+        assert!(prompt.contains("\"auth\""));
+        assert!(prompt.contains("## Purpose"));
+        assert!(prompt.contains("## Public API"));
+        assert!(prompt.contains("src/auth.rs"));
+        assert!(prompt.contains("pub fn login() {}"));
+    }
+
+    #[test]
+    fn build_prompt_truncates_large_files() {
+        let large_content = "x".repeat(MAX_FILE_CHARS + 1000);
+        let prompt = build_prompt(
+            "big",
+            &[("src/big.rs".to_string(), large_content)],
+            &["Purpose".to_string()],
+        );
+        assert!(prompt.contains("truncated at"));
+        // The full content should not appear
+        assert!(prompt.len() < MAX_FILE_CHARS + 10_000);
+    }
+
+    #[test]
+    fn build_prompt_skips_files_over_prompt_limit() {
+        // Create enough files to exceed MAX_PROMPT_CHARS
+        let file_content = "a".repeat(MAX_FILE_CHARS);
+        let mut files = Vec::new();
+        for i in 0..10 {
+            files.push((format!("src/file{i}.rs"), file_content.clone()));
+        }
+        let prompt = build_prompt("multi", &files, &["Purpose".to_string()]);
+        assert!(prompt.contains("skipped: prompt size limit"));
+    }
+
+    #[test]
+    fn build_prompt_empty_files() {
+        let prompt = build_prompt("empty", &[], &["Purpose".to_string()]);
+        assert!(prompt.contains("\"empty\""));
+        assert!(prompt.contains("Source files:"));
+    }
+
+    // ── build_regen_prompt ─────────────────────────────────────────
+
+    #[test]
+    fn build_regen_prompt_contains_spec_and_requirements() {
+        let current = "---\nmodule: auth\n---\n# Auth\n";
+        let requirements = "## User Stories\n- login flow\n";
+        let prompt = build_regen_prompt(
+            "auth",
+            current,
+            requirements,
+            &[("src/auth.rs".to_string(), "pub fn login() {}".to_string())],
+        );
+        assert!(prompt.contains("## Current Spec"));
+        assert!(prompt.contains("## Updated Requirements"));
+        assert!(prompt.contains("login flow"));
+        assert!(prompt.contains("src/auth.rs"));
+        assert!(prompt.contains("bump the version by 1"));
+    }
+
+    #[test]
+    fn build_regen_prompt_no_source_files() {
+        let prompt = build_regen_prompt("auth", "spec content", "requirements", &[]);
+        assert!(!prompt.contains("## Source Files"));
+        assert!(prompt.contains("## Instructions"));
+    }
+
+    #[test]
+    fn build_regen_prompt_truncates_large_sources() {
+        let large = "y".repeat(40_000);
+        let prompt = build_regen_prompt(
+            "big",
+            "spec",
+            "reqs",
+            &[("src/big.rs".to_string(), large)],
+        );
+        // safe_truncate should have capped it at 30_000
+        assert!(prompt.len() < 200_000);
+    }
+
+    // ── resolve_ai_provider ────────────────────────────────────────
+
+    #[test]
+    fn resolve_with_ai_command_in_config() {
+        let mut config = SpecSyncConfig::default();
+        config.ai_command = Some("my-custom-ai".to_string());
+        let result = resolve_ai_provider(&config, None).unwrap();
+        match result {
+            ResolvedProvider::Cli(cmd) => assert_eq!(cmd, "my-custom-ai"),
+            _ => panic!("Expected CLI provider"),
+        }
+    }
+
+    #[test]
+    fn resolve_with_env_var() {
+        let config = SpecSyncConfig::default();
+        // SAFETY: single-threaded test — no concurrent env access
+        unsafe {
+            std::env::set_var("SPECSYNC_AI_COMMAND", "env-ai-tool");
+        }
+        let result = resolve_ai_provider(&config, None);
+        unsafe {
+            std::env::remove_var("SPECSYNC_AI_COMMAND");
+        }
+        match result.unwrap() {
+            ResolvedProvider::Cli(cmd) => assert_eq!(cmd, "env-ai-tool"),
+            _ => panic!("Expected CLI provider"),
+        }
+    }
+
+    #[test]
+    fn resolve_unknown_provider_errors() {
+        let config = SpecSyncConfig::default();
+        let err = resolve_ai_provider(&config, Some("nonexistent")).unwrap_err();
+        assert!(err.contains("Unknown provider"));
+    }
+
+    #[test]
+    fn resolve_cursor_provider_errors() {
+        let config = SpecSyncConfig::default();
+        let err = resolve_ai_provider(&config, Some("cursor")).unwrap_err();
+        assert!(err.contains("Cursor does not have a CLI pipe mode"));
+    }
+
+    // ── resolve_ai_command (compat alias) ──────────────────────────
+
+    #[test]
+    fn resolve_ai_command_returns_cli_string() {
+        let mut config = SpecSyncConfig::default();
+        config.ai_command = Some("test-cmd".to_string());
+        let result = resolve_ai_command(&config, None).unwrap();
+        assert_eq!(result, "test-cmd");
+    }
+
+    // ── constants ──────────────────────────────────────────────────
+
+    #[test]
+    fn constants_are_reasonable() {
+        assert_eq!(MAX_FILE_CHARS, 30_000);
+        assert_eq!(MAX_PROMPT_CHARS, 150_000);
+        assert_eq!(DEFAULT_AI_TIMEOUT_SECS, 120);
+    }
+}

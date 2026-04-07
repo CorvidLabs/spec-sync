@@ -137,10 +137,16 @@ const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
 # spec-sync pre-commit hook — validates specs before allowing commits.
 # Installed by: specsync hooks install --precommit
 # Remove by deleting this file or running: specsync hooks uninstall --precommit
+#
+# Enforcement is controlled by the `enforcement` field in specsync.json:
+#   "warn"         — report violations but never block commits (default)
+#   "enforce-new"  — block commits if files without specs exist
+#   "strict"       — block commits on any validation error
+# Override with --enforcement <mode> below if needed.
 
 if command -v specsync >/dev/null 2>&1; then
     echo "specsync: checking specs..."
-    if ! specsync check --strict; then
+    if ! specsync check; then
         echo ""
         echo "specsync: specs have errors — fix them before committing."
         echo "  Run 'specsync check' to see details."
@@ -326,7 +332,7 @@ pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
                     // If the entire file is our hook, remove it
                     if content.trim().starts_with("#!/bin/sh")
                         && content.contains("specsync check")
-                        && content.lines().count() < 20
+                        && content.lines().count() < 35
                     {
                         fs::remove_file(&path)
                             .map_err(|e| format!("Failed to remove pre-commit hook: {e}"))?;
@@ -958,7 +964,7 @@ mod tests {
         assert!(path.exists());
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("spec-sync pre-commit hook"));
-        assert!(content.contains("specsync check --strict"));
+        assert!(content.contains("specsync check"));
     }
 
     #[test]

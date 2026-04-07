@@ -186,6 +186,7 @@ const KNOWN_JSON_KEYS: &[&str] = &[
     "rules",
     "taskArchiveDays",
     "github",
+    "enforcement",
 ];
 
 fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {

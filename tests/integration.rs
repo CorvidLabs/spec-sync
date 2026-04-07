@@ -168,6 +168,8 @@ fn check_missing_source_file_fails() {
         .arg("check")
         .arg("--root")
         .arg(&root)
+        .arg("--enforcement")
+        .arg("strict")
         .assert()
         .failure()
         .stdout(predicate::str::contains("Source file not found"));
@@ -340,6 +342,8 @@ Core engine.
         .arg("check")
         .arg("--root")
         .arg(&root)
+        .arg("--enforcement")
+        .arg("strict")
         .assert()
         .failure()
         .stdout(predicate::str::contains(
@@ -896,6 +900,8 @@ fn invalid_frontmatter_reports_error() {
         .arg("check")
         .arg("--root")
         .arg(&root)
+        .arg("--enforcement")
+        .arg("strict")
         .assert()
         .failure()
         .stdout(predicate::str::contains("0 passed"));
@@ -952,6 +958,8 @@ Only has Purpose section.
         .arg("check")
         .arg("--root")
         .arg(&root)
+        .arg("--enforcement")
+        .arg("strict")
         .assert()
         .failure()
         .stdout(predicate::str::contains("Missing required section"));
@@ -1014,6 +1022,8 @@ None
         .arg("check")
         .arg("--root")
         .arg(&root)
+        .arg("--enforcement")
+        .arg("strict")
         .assert()
         .failure()
         .stdout(predicate::str::contains("0 passed"))
@@ -1110,6 +1120,8 @@ Something.
         .arg("check")
         .arg("--root")
         .arg(&root)
+        .arg("--enforcement")
+        .arg("strict")
         .assert()
         .failure()
         .stdout(predicate::str::contains("Dependency spec not found"));
@@ -2111,7 +2123,13 @@ fn check_shows_fix_suggestions() {
     .unwrap();
 
     specsync()
-        .args(["check", "--root", root.to_str().unwrap()])
+        .args([
+            "check",
+            "--root",
+            root.to_str().unwrap(),
+            "--enforcement",
+            "strict",
+        ])
         .assert()
         .failure()
         .stdout(predicate::str::contains("Suggested fixes:"))

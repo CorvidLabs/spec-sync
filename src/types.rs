@@ -225,6 +225,24 @@ pub enum ExportLevel {
     Member,
 }
 
+/// Controls how spec-sync responds to validation violations in CI.
+///
+/// - `warn` (default): report violations but always exit 0 (non-blocking).
+/// - `enforce-new`: exit 1 only if files without specs exist (new files must be specced).
+/// - `strict`: exit 1 on any validation error (blocking, opt-in).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, ValueEnum)]
+#[serde(rename_all = "kebab-case")]
+pub enum EnforcementMode {
+    /// Report violations but always exit 0 (default, non-blocking).
+    #[default]
+    Warn,
+    /// Exit 1 only if files without specs exist in the project.
+    /// Existing specced files are not blocked even if they have errors.
+    EnforceNew,
+    /// Exit 1 on any validation error (strictest mode).
+    Strict,
+}
+
 /// User-provided configuration (from specsync.json).
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -300,6 +318,13 @@ pub struct SpecSyncConfig {
     /// GitHub integration settings for linking specs to issues.
     #[serde(default)]
     pub github: Option<GitHubConfig>,
+
+    /// Enforcement mode: controls how spec-sync responds to violations.
+    /// - `warn` (default): report violations but always exit 0.
+    /// - `enforce-new`: exit 1 if any files lack specs.
+    /// - `strict`: exit 1 on any validation error.
+    #[serde(default)]
+    pub enforcement: EnforcementMode,
 }
 
 /// GitHub integration configuration for linking specs to issues.
@@ -512,6 +537,7 @@ impl Default for SpecSyncConfig {
             rules: ValidationRules::default(),
             task_archive_days: None,
             github: None,
+            enforcement: EnforcementMode::default(),
         }
     }
 }

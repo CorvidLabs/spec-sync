@@ -82,6 +82,7 @@ fn set_scalar(fm: &mut Frontmatter, key: &str, value: &str) {
         "module" => fm.module = Some(value.to_string()),
         "version" => fm.version = Some(value.to_string()),
         "status" => fm.status = Some(value.to_string()),
+        "agent_policy" => fm.agent_policy = Some(value.to_string()),
         _ => {}
     }
 }

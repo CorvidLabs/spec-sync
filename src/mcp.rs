@@ -331,6 +331,14 @@ fn tool_check(root: &Path, arguments: &Value) -> Result<Value, String> {
         }
     }
 
+    // Add staleness warnings into the warnings array for consistency
+    for entry in &stale_entries {
+        if let Some(msg) = entry["message"].as_str() {
+            let spec = entry["spec"].as_str().unwrap_or("unknown");
+            all_warnings.push(json!(format!("{spec}: {msg}")));
+        }
+    }
+
     let coverage = compute_coverage(root, &spec_files, &config);
     let staleness_warnings = stale_entries.len();
     let effective_warnings = total_warnings + staleness_warnings;

@@ -188,6 +188,19 @@ fn handle_tools_list(id: Option<Value>) -> Value {
                             }
                         }
                     }
+                },
+                {
+                    "name": "specsync_issues",
+                    "description": "Verify GitHub issue references in spec frontmatter. Checks that linked issues exist and reports their status (open/closed).",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "root": {
+                                "type": "string",
+                                "description": "Project root directory (default: server root)"
+                            }
+                        }
+                    }
                 }
             ]
         }
@@ -212,6 +225,7 @@ fn handle_tools_call(id: Option<Value>, params: &Value, default_root: &Path) -> 
         "specsync_list_specs" => tool_list_specs(&root),
         "specsync_init" => tool_init(&root),
         "specsync_score" => tool_score(&root),
+        "specsync_issues" => tool_issues(&root),
         _ => Err(format!("Unknown tool: {tool_name}")),
     };
 
@@ -552,5 +566,72 @@ fn tool_score(root: &Path) -> Result<Value, String> {
             "F": project.grade_distribution[4],
         },
         "specs": specs_json,
+    }))
+}
+
+fn tool_issues(root: &Path) -> Result<Value, String> {
+    use crate::github;
+    use crate::parser::parse_frontmatter;
+
+    let (config, spec_files) = load_and_discover(root, false)?;
+
+    let repo_config = config.github.as_ref().and_then(|g| g.repo.as_deref());
+    let repo = github::resolve_repo(repo_config, root)?;
+
+    let mut results: Vec<Value> = Vec::new();
+    let mut total_valid = 0usize;
+    let mut total_closed = 0usize;
+    let mut total_not_found = 0usize;
+
+    for spec_path in &spec_files {
+        let content = match std::fs::read_to_string(spec_path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        let parsed = match parse_frontmatter(&content) {
+            Some(p) => p,
+            None => continue,
+        };
+
+        let fm = &parsed.frontmatter;
+        if fm.implements.is_empty() && fm.tracks.is_empty() {
+            continue;
+        }
+
+        let rel_path = spec_path
+            .strip_prefix(root)
+            .unwrap_or(spec_path)
+            .to_string_lossy()
+            .to_string();
+
+        let verification =
+            github::verify_spec_issues(&repo, &rel_path, &fm.implements, &fm.tracks);
+
+        total_valid += verification.valid.len();
+        total_closed += verification.closed.len();
+        total_not_found += verification.not_found.len();
+
+        results.push(json!({
+            "spec": rel_path,
+            "valid": verification.valid.iter().map(|i| json!({
+                "number": i.number,
+                "title": i.title,
+                "state": i.state,
+            })).collect::<Vec<_>>(),
+            "closed": verification.closed.iter().map(|i| json!({
+                "number": i.number,
+                "title": i.title,
+            })).collect::<Vec<_>>(),
+            "not_found": verification.not_found,
+        }));
+    }
+
+    Ok(json!({
+        "repo": repo,
+        "total_valid": total_valid,
+        "total_closed": total_closed,
+        "total_not_found": total_not_found,
+        "specs": results,
     }))
 }

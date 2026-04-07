@@ -160,6 +160,10 @@ pub struct Frontmatter {
     pub db_tables: Vec<String>,
     pub depends_on: Vec<String>,
     pub agent_policy: Option<String>,
+    /// GitHub issue numbers this spec implements (e.g., `[42, 57]`).
+    pub implements: Vec<u64>,
+    /// GitHub issue numbers for ongoing/epic-style tracking.
+    pub tracks: Vec<u64>,
 }
 
 impl Frontmatter {
@@ -291,6 +295,25 @@ pub struct SpecSyncConfig {
     /// Auto-archive completed tasks older than this many days.
     #[serde(default)]
     pub task_archive_days: Option<u32>,
+
+    /// GitHub integration settings for linking specs to issues.
+    #[serde(default)]
+    pub github: Option<GitHubConfig>,
+}
+
+/// GitHub integration configuration for linking specs to issues.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubConfig {
+    /// Repository in `owner/repo` format (auto-detected from git remote if omitted).
+    #[serde(default)]
+    pub repo: Option<String>,
+    /// Labels to apply when creating drift issues (default: `["spec-drift"]`).
+    #[serde(default = "default_drift_labels")]
+    pub drift_labels: Vec<String>,
+    /// Whether to verify linked issues exist during `specsync check`.
+    #[serde(default = "default_true")]
+    pub verify_issues: bool,
 }
 
 /// Custom validation rules configurable per-project.
@@ -458,6 +481,14 @@ fn default_exclude_patterns() -> Vec<String> {
     ]
 }
 
+fn default_drift_labels() -> Vec<String> {
+    vec!["spec-drift".to_string()]
+}
+
+fn default_true() -> bool {
+    true
+}
+
 impl Default for SpecSyncConfig {
     fn default() -> Self {
         Self {
@@ -479,6 +510,7 @@ impl Default for SpecSyncConfig {
             ai_timeout: None,
             rules: ValidationRules::default(),
             task_archive_days: None,
+            github: None,
         }
     }
 }

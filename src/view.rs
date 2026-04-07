@@ -133,9 +133,9 @@ fn split_sections(body: &str) -> Vec<(String, String)> {
 
 /// Strip YAML frontmatter from a markdown file.
 fn strip_frontmatter(content: &str) -> &str {
-    if content.starts_with("---\n") {
-        if let Some(end) = content[4..].find("\n---\n") {
-            return &content[end + 8..]; // skip past closing ---\n
+    if let Some(stripped) = content.strip_prefix("---\n") {
+        if let Some(end) = stripped.find("\n---\n") {
+            return &stripped[end + 4..]; // skip past closing ---
         }
     }
     content

@@ -5,6 +5,7 @@ status: stable
 files:
   - src/generator.rs
 db_tables: []
+tracks: [99]
 depends_on:
   - specs/types/types.spec.md
   - specs/ai/ai.spec.md

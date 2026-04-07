@@ -5,6 +5,7 @@ status: stable
 files:
   - src/main.rs
 db_tables: []
+tracks: [120]
 depends_on:
   - specs/config/config.spec.md
   - specs/parser/parser.spec.md

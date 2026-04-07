@@ -5,6 +5,7 @@ status: stable
 files:
   - src/scoring.rs
 db_tables: []
+tracks: [31]
 depends_on:
   - specs/types/types.spec.md
   - specs/parser/parser.spec.md

@@ -5,6 +5,7 @@ status: stable
 files:
   - src/registry.rs
 db_tables: []
+tracks: [52]
 depends_on:
   - specs/types/types.spec.md
 ---

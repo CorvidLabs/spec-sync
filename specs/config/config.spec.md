@@ -28,6 +28,22 @@ Loads project configuration from `specsync.json` or `.specsync.toml`, with fallb
 | `default_schema_pattern` | — | `&'static str` | Returns the default regex for SQL CREATE TABLE extraction |
 | `discover_manifest_modules` | `root: &Path` | `ManifestDiscovery` | Discover modules from manifest files (Package.swift, Cargo.toml, etc.) |
 
+### Config File Structure
+
+The configuration file supports the following top-level sections:
+
+| Section | Type | Description |
+|---------|------|-------------|
+| `specsDir` | `String` | Directory containing spec files (default: `"specs"`) |
+| `sourceDirs` | `Vec<String>` | Source directories to scan (auto-detected if omitted) |
+| `sourceExtensions` | `Vec<String>` | File extensions to consider as source files |
+| `excludePatterns` | `Vec<String>` | Glob patterns to exclude from coverage |
+| `requiredSections` | `Vec<String>` | Sections every spec must contain |
+| `schemaPattern` | `String` | Regex for SQL CREATE TABLE extraction |
+| `github` | `GitHubConfig` | GitHub integration settings (`repo`, `labels`, `create_on_drift`) |
+| `rules` | `ValidationRules` | Custom validation rules (`max_staleness_days`, etc.) |
+| `modules` | `Map<String, ModuleDefinition>` | User-defined module groupings |
+
 ## Invariants
 
 1. Config file search order: `specsync.json` first, then `.specsync.toml`, then defaults
@@ -90,3 +106,4 @@ Loads project configuration from `specsync.json` or `.specsync.toml`, with fallb
 |------|--------|
 | 2026-03-25 | Initial spec |
 | 2026-03-28 | Document discover_manifest_modules |
+| 2026-04-06 | Document github config section, rules section, and full config file structure |

@@ -97,9 +97,13 @@ Core validation engine for spec-sync. Validates individual spec files against so
 |--------|-------------|
 | main | `validate_spec`, `find_spec_files`, `compute_coverage`, `get_schema_table_names` |
 | mcp | `validate_spec`, `find_spec_files`, `compute_coverage`, `get_schema_table_names` |
+| archive | `find_spec_files` to locate spec companion files |
+| compact | `find_spec_files` to locate all spec files |
+| merge | `find_spec_files` to locate all spec files when `--all` is used |
 
 ## Change Log
 
 | Date | Change |
 |------|--------|
 | 2026-03-25 | Initial spec |
+| 2026-04-06 | Document archive, compact, merge as consumers of find_spec_files; note hash_cache integration for incremental validation |

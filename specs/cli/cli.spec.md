@@ -18,6 +18,12 @@ depends_on:
   - specs/watch/watch.spec.md
   - specs/hooks/hooks.spec.md
   - specs/types/types.spec.md
+  - specs/archive/archive.spec.md
+  - specs/compact/compact.spec.md
+  - specs/view/view.spec.md
+  - specs/github/github.spec.md
+  - specs/hash_cache/hash_cache.spec.md
+  - specs/merge/merge.spec.md
 ---
 
 # CLI
@@ -38,7 +44,7 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 
 | Command | Description | Key Flags |
 |---------|-------------|-----------|
-| check | Validate all specs against source code (default when no subcommand given) | --strict, --require-coverage N, --json, --fix |
+| check | Validate all specs against source code (default when no subcommand given) | --strict, --require-coverage N, --json, --fix, --force, --create-issues |
 | coverage | Show file and module coverage report | --strict, --require-coverage N, --json |
 | generate | Scaffold spec files for unspecced modules | --provider PROVIDER (AI mode: auto/claude/anthropic/openai/ollama/copilot) |
 | init | Create a specsync.json config file with auto-detected source dirs | — |
@@ -52,6 +58,11 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 | hooks install | Install agent instructions and/or git hooks | --claude, --cursor, --copilot, --precommit, --claude-code-hook |
 | hooks uninstall | Remove previously installed hooks | --claude, --cursor, --copilot, --precommit, --claude-code-hook |
 | hooks status | Show installation status of all hooks | — |
+| compact | Compact changelog tables by summarizing old entries | --keep N (default 10), --dry-run |
+| archive-tasks | Move completed task items to archive section | --dry-run |
+| view | Filter spec content by stakeholder role | --role (dev\|qa\|product\|agent), --spec PATH |
+| merge | Auto-resolve git merge conflicts in spec files | --dry-run, --all, --json |
+| issues | Verify GitHub issue references in spec frontmatter | --create (create drift issues for failures) |
 
 ### Global Flags
 
@@ -60,7 +71,9 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 | --strict | bool | false | Treat warnings as errors (exit 1) |
 | --require-coverage | Option usize | None | Fail if file coverage percent is below threshold |
 | --root | Option PathBuf | cwd | Project root directory |
-| --json | bool | false | Output results as JSON instead of colored text |
+| --format | text\|json\|markdown | text | Output format: colored text, machine-readable JSON, or markdown |
+| --json | bool | false | Shorthand for `--format json` |
+| --force | bool | false | Bypass hash cache and re-validate all specs |
 
 ### Internal Functions
 
@@ -77,6 +90,11 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 - **cmd_resolve** — Resolve local and cross-project depends_on references
 - **cmd_hooks** — Dispatch to hooks install/uninstall/status
 - **cmd_diff** — Compare exports across git refs, show new/removed exports per spec
+- **cmd_compact** — Compact changelog tables in all specs
+- **cmd_archive_tasks** — Move completed tasks to archive section in companion files
+- **cmd_view** — Filter and display spec content for a specific role
+- **cmd_merge** — Auto-resolve git merge conflicts in spec files
+- **cmd_issues** — Verify GitHub issue references in spec frontmatter
 - **auto_fix_specs** — Scan source files for undocumented exports and auto-add stubs to spec Public API tables
 - **collect_hook_targets** — Convert boolean flags to Vec of HookTarget
 - **load_and_discover** — Load config and find all spec files (filtering _-prefixed templates)
@@ -224,6 +242,12 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 | watch | `run_watch` |
 | hooks | `cmd_install`, `cmd_uninstall`, `cmd_status`, `HookTarget` |
 | types | `SpecSyncConfig`, `CoverageReport` |
+| archive | `archive_tasks` |
+| compact | `compact_changelogs` |
+| view | `view_spec`, `valid_roles` |
+| github | `verify_spec_issues`, `create_drift_issue`, `resolve_repo` |
+| hash_cache | `HashCache`, `classify_all_changes`, `update_cache` |
+| merge | `merge_specs`, `print_results`, `results_to_json` |
 
 ### Consumed By
 
@@ -236,3 +260,4 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 | Date | Change |
 |------|--------|
 | 2026-03-25 | Initial spec |
+| 2026-04-06 | Add compact, archive-tasks, view, merge, issues subcommands; add --force, --create-issues, --format flags; add hash_cache/github/archive/compact/view/merge dependencies |

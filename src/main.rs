@@ -1,5 +1,6 @@
 mod ai;
 mod archive;
+mod changelog;
 mod comment;
 mod compact;
 mod config;
@@ -214,6 +215,12 @@ enum Command {
         #[arg(long, default_value = "main")]
         base: String,
     },
+    /// Generate a changelog of spec changes between two git refs
+    Changelog {
+        /// Git ref range (e.g., v0.1..v0.2, HEAD~5..HEAD)
+        #[arg(value_name = "RANGE")]
+        range: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -359,6 +366,7 @@ fn run() {
         Command::Import { source, id, repo } => cmd_import(&root, &source, &id, repo.as_deref()),
         Command::Report { stale_threshold } => cmd_report(&root, format, stale_threshold),
         Command::Comment { pr, base } => cmd_comment(&root, pr, &base),
+        Command::Changelog { range } => cmd_changelog(&root, &range, format),
     }
 }
 
@@ -2535,6 +2543,34 @@ fn cmd_deps(root: &Path, format: types::OutputFormat) {
 
     if !report.errors.is_empty() {
         process::exit(1);
+    }
+}
+
+fn cmd_changelog(root: &Path, range: &str, format: types::OutputFormat) {
+    let (from_ref, to_ref) = match changelog::parse_range(range) {
+        Some(r) => r,
+        None => {
+            eprintln!(
+                "{} Invalid range format. Expected FROM..TO (e.g., v0.1..v0.2 or HEAD~5..HEAD)",
+                "Error:".red().bold()
+            );
+            process::exit(1);
+        }
+    };
+
+    let config = load_config(root);
+    let report = changelog::generate_changelog(root, &config.specs_dir, &from_ref, &to_ref);
+
+    match format {
+        types::OutputFormat::Json => {
+            println!("{}", changelog::format_json(&report));
+        }
+        types::OutputFormat::Markdown => {
+            print!("{}", changelog::format_markdown(&report));
+        }
+        types::OutputFormat::Text | types::OutputFormat::Github => {
+            print!("{}", changelog::format_text(&report));
+        }
     }
 }
 

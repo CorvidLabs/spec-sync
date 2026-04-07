@@ -26,6 +26,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `OutputFormat` | CLI output format: Text (colored terminal, default), Json (machine-readable), Markdown (PR comments / agent consumption) |
 | `ExportLevel` | Export extraction granularity: Type (top-level declarations only) or Member (all public symbols, default) |
 | `SpecStatus` | Spec lifecycle status: draft, stable, deprecated. Parsed from frontmatter `status` field |
+| `EnforcementMode` | Graduated enforcement level: Warn (always exit 0), EnforceNew (exit 1 for unspecced files), Strict (exit 1 on any error) |
 
 ### Exported Structs
 
@@ -148,3 +149,4 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | 2026-03-25 | Initial spec |
 | 2026-03-28 | Document OutputFormat, ExportLevel, ModuleDefinition |
 | 2026-04-06 | Add Frontmatter implements/tracks/agent_policy fields, ValidationRules, GitHubConfig structs |
+| 2026-04-07 | Document EnforcementMode enum |

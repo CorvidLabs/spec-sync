@@ -27,6 +27,10 @@ Scaffolds spec files and companion files (tasks.md, context.md) for unspecced mo
 | `generate_specs_for_unspecced_modules` | `root, report, config, provider` | `usize` | Generate specs for all unspecced modules, returning count of generated specs |
 | `generate_specs_for_unspecced_modules_paths` | `root, report, config, provider` | `Vec<String>` | Generate specs for all unspecced modules, returning paths of generated files |
 | `generate_companion_files_for_spec` | `spec_dir, module_name` | `()` | Generate tasks.md and context.md companion files alongside a spec |
+| `find_files_for_module` | `root, module_name, config` | `Vec<String>` | Find source files for a module by checking config definitions, subdirectories, then flat files |
+| `generate_spec` | `module_name, source_files, root, specs_dir` | `String` | Generate a spec from a template (custom or language-aware default) |
+| `generate_spec_from_custom_template` | `template_dir, module_name, source_files, root` | `String` | Generate a spec using files from a custom template directory |
+| `generate_companion_files_from_template` | `spec_dir, module_name, template_dir` | `()` | Generate companion files from a custom template directory with fallback to defaults |
 
 ## Invariants
 
@@ -90,3 +94,4 @@ Scaffolds spec files and companion files (tasks.md, context.md) for unspecced mo
 | Date | Change |
 |------|--------|
 | 2026-03-25 | Initial spec |
+| 2026-04-07 | Document find_files_for_module, generate_spec, generate_spec_from_custom_template, generate_companion_files_from_template |

@@ -744,9 +744,15 @@ mod tests {
 
     #[test]
     fn hook_target_description_returns_human_readable() {
-        assert_eq!(HookTarget::Claude.description(), "CLAUDE.md agent instructions");
+        assert_eq!(
+            HookTarget::Claude.description(),
+            "CLAUDE.md agent instructions"
+        );
         assert_eq!(HookTarget::Precommit.description(), "Git pre-commit hook");
-        assert_eq!(HookTarget::ClaudeCodeHook.description(), "Claude Code settings.json hook");
+        assert_eq!(
+            HookTarget::ClaudeCodeHook.description(),
+            "Claude Code settings.json hook"
+        );
     }
 
     // ── HookTarget::from_str ───────────────────────────────────────
@@ -757,21 +763,36 @@ mod tests {
         assert_eq!(HookTarget::from_str("cursor"), Some(HookTarget::Cursor));
         assert_eq!(HookTarget::from_str("copilot"), Some(HookTarget::Copilot));
         assert_eq!(HookTarget::from_str("agents"), Some(HookTarget::Agents));
-        assert_eq!(HookTarget::from_str("precommit"), Some(HookTarget::Precommit));
-        assert_eq!(HookTarget::from_str("claude-code-hook"), Some(HookTarget::ClaudeCodeHook));
+        assert_eq!(
+            HookTarget::from_str("precommit"),
+            Some(HookTarget::Precommit)
+        );
+        assert_eq!(
+            HookTarget::from_str("claude-code-hook"),
+            Some(HookTarget::ClaudeCodeHook)
+        );
     }
 
     #[test]
     fn from_str_is_case_insensitive() {
         assert_eq!(HookTarget::from_str("CLAUDE"), Some(HookTarget::Claude));
         assert_eq!(HookTarget::from_str("Cursor"), Some(HookTarget::Cursor));
-        assert_eq!(HookTarget::from_str("PreCommit"), Some(HookTarget::Precommit));
+        assert_eq!(
+            HookTarget::from_str("PreCommit"),
+            Some(HookTarget::Precommit)
+        );
     }
 
     #[test]
     fn from_str_accepts_aliases() {
-        assert_eq!(HookTarget::from_str("pre-commit"), Some(HookTarget::Precommit));
-        assert_eq!(HookTarget::from_str("claude-hook"), Some(HookTarget::ClaudeCodeHook));
+        assert_eq!(
+            HookTarget::from_str("pre-commit"),
+            Some(HookTarget::Precommit)
+        );
+        assert_eq!(
+            HookTarget::from_str("claude-hook"),
+            Some(HookTarget::ClaudeCodeHook)
+        );
     }
 
     #[test]
@@ -787,7 +808,11 @@ mod tests {
     fn is_installed_returns_false_for_empty_dir() {
         let tmp = setup();
         for target in HookTarget::all() {
-            assert!(!is_installed(tmp.path(), *target), "expected not installed: {:?}", target);
+            assert!(
+                !is_installed(tmp.path(), *target),
+                "expected not installed: {:?}",
+                target
+            );
         }
     }
 
@@ -820,14 +845,22 @@ mod tests {
         let tmp = setup();
         let github_dir = tmp.path().join(".github");
         fs::create_dir_all(&github_dir).unwrap();
-        fs::write(github_dir.join("copilot-instructions.md"), "# Spec-Sync Integration").unwrap();
+        fs::write(
+            github_dir.join("copilot-instructions.md"),
+            "# Spec-Sync Integration",
+        )
+        .unwrap();
         assert!(is_installed(tmp.path(), HookTarget::Copilot));
     }
 
     #[test]
     fn is_installed_agents_detects_marker() {
         let tmp = setup();
-        fs::write(tmp.path().join("AGENTS.md"), "# Spec-Sync Integration\ncontent").unwrap();
+        fs::write(
+            tmp.path().join("AGENTS.md"),
+            "# Spec-Sync Integration\ncontent",
+        )
+        .unwrap();
         assert!(is_installed(tmp.path(), HookTarget::Agents));
     }
 
@@ -836,7 +869,11 @@ mod tests {
         let tmp = setup();
         let hooks_dir = tmp.path().join(".git").join("hooks");
         fs::create_dir_all(&hooks_dir).unwrap();
-        fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\n# spec-sync pre-commit hook\nspecsync check").unwrap();
+        fs::write(
+            hooks_dir.join("pre-commit"),
+            "#!/bin/sh\n# spec-sync pre-commit hook\nspecsync check",
+        )
+        .unwrap();
         assert!(is_installed(tmp.path(), HookTarget::Precommit));
     }
 
@@ -845,7 +882,11 @@ mod tests {
         let tmp = setup();
         let claude_dir = tmp.path().join(".claude");
         fs::create_dir_all(&claude_dir).unwrap();
-        fs::write(claude_dir.join("settings.json"), r#"{"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"specsync check"}]}]}}"#).unwrap();
+        fs::write(
+            claude_dir.join("settings.json"),
+            r#"{"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"specsync check"}]}]}}"#,
+        )
+        .unwrap();
         assert!(is_installed(tmp.path(), HookTarget::ClaudeCodeHook));
     }
 
@@ -892,8 +933,14 @@ mod tests {
     fn install_copilot_creates_github_dir() {
         let tmp = setup();
         assert!(install_hook(tmp.path(), HookTarget::Copilot).unwrap());
-        assert!(tmp.path().join(".github").join("copilot-instructions.md").exists());
-        let content = fs::read_to_string(tmp.path().join(".github").join("copilot-instructions.md")).unwrap();
+        assert!(
+            tmp.path()
+                .join(".github")
+                .join("copilot-instructions.md")
+                .exists()
+        );
+        let content =
+            fs::read_to_string(tmp.path().join(".github").join("copilot-instructions.md")).unwrap();
         assert!(content.contains("Spec-Sync Integration"));
     }
 
@@ -923,7 +970,11 @@ mod tests {
         let tmp = setup();
         let hooks_dir = tmp.path().join(".git").join("hooks");
         fs::create_dir_all(&hooks_dir).unwrap();
-        fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\necho 'existing hook'").unwrap();
+        fs::write(
+            hooks_dir.join("pre-commit"),
+            "#!/bin/sh\necho 'existing hook'",
+        )
+        .unwrap();
         assert!(install_hook(tmp.path(), HookTarget::Precommit).unwrap());
         let content = fs::read_to_string(hooks_dir.join("pre-commit")).unwrap();
         assert!(content.contains("existing hook"));
@@ -935,7 +986,13 @@ mod tests {
         let tmp = setup();
         // Don't create .git/hooks — let install do it
         assert!(install_hook(tmp.path(), HookTarget::Precommit).unwrap());
-        assert!(tmp.path().join(".git").join("hooks").join("pre-commit").exists());
+        assert!(
+            tmp.path()
+                .join(".git")
+                .join("hooks")
+                .join("pre-commit")
+                .exists()
+        );
     }
 
     #[cfg(unix)]
@@ -1024,7 +1081,13 @@ mod tests {
         install_hook(tmp.path(), HookTarget::Precommit).unwrap();
         let result = uninstall_hook(tmp.path(), HookTarget::Precommit).unwrap();
         assert!(result);
-        assert!(!tmp.path().join(".git").join("hooks").join("pre-commit").exists());
+        assert!(
+            !tmp.path()
+                .join(".git")
+                .join("hooks")
+                .join("pre-commit")
+                .exists()
+        );
     }
 
     #[test]
@@ -1052,7 +1115,11 @@ mod tests {
     fn remove_section_preserves_content_before_marker() {
         let tmp = setup();
         let path = tmp.path().join("test.md");
-        fs::write(&path, "# My Project\n\nKeep this.\n\n# Spec-Sync Integration\nRemove this.\n").unwrap();
+        fs::write(
+            &path,
+            "# My Project\n\nKeep this.\n\n# Spec-Sync Integration\nRemove this.\n",
+        )
+        .unwrap();
         remove_section_from_file(&path, "# Spec-Sync Integration").unwrap();
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("My Project"));
@@ -1079,7 +1146,11 @@ mod tests {
     fn remove_section_stops_at_next_top_level_heading() {
         let tmp = setup();
         let path = tmp.path().join("test.md");
-        fs::write(&path, "# Before\n\nKeep.\n\n# Spec-Sync Integration\nRemove.\n\n# After\n\nAlso keep.\n").unwrap();
+        fs::write(
+            &path,
+            "# Before\n\nKeep.\n\n# Spec-Sync Integration\nRemove.\n\n# After\n\nAlso keep.\n",
+        )
+        .unwrap();
         remove_section_from_file(&path, "# Spec-Sync Integration").unwrap();
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("Before"));

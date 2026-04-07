@@ -538,7 +538,15 @@ fn call_anthropic_api(
         .header("anthropic-version", "2023-06-01")
         .header("content-type", "application/json")
         .send_json(&body)
-        .map_err(|e| format!("Anthropic API request failed: {e}"))?;
+        .map_err(|e| {
+            // Sanitize error to avoid leaking API key from request headers
+            let msg = e.to_string();
+            if msg.contains(api_key) {
+                "Anthropic API request failed: connection error".to_string()
+            } else {
+                format!("Anthropic API request failed: {msg}")
+            }
+        })?;
 
     let status = response.status();
     let response_body: serde_json::Value = response
@@ -617,7 +625,15 @@ fn call_openai_api(
         .header("Authorization", &format!("Bearer {api_key}"))
         .header("content-type", "application/json")
         .send_json(&body)
-        .map_err(|e| format!("OpenAI API request failed: {e}"))?;
+        .map_err(|e| {
+            // Sanitize error to avoid leaking API key from request headers
+            let msg = e.to_string();
+            if msg.contains(api_key) {
+                "OpenAI API request failed: connection error".to_string()
+            } else {
+                format!("OpenAI API request failed: {msg}")
+            }
+        })?;
 
     let status = response.status();
     let response_body: serde_json::Value = response

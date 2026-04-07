@@ -9,6 +9,7 @@ mod hash_cache;
 mod hooks;
 mod manifest;
 mod mcp;
+mod merge;
 mod parser;
 mod registry;
 mod schema;
@@ -148,6 +149,15 @@ enum Command {
         #[arg(long)]
         spec: Option<String>,
     },
+    /// Auto-resolve git merge conflicts in spec files
+    Merge {
+        /// Show what would be resolved without writing files
+        #[arg(long)]
+        dry_run: bool,
+        /// Scan all spec files for conflict markers (not just git-reported)
+        #[arg(long)]
+        all: bool,
+    },
     /// Verify GitHub issue references in spec frontmatter
     Issues {
         /// Create issues for specs with drift/validation errors
@@ -275,6 +285,7 @@ fn run() {
         Command::Compact { keep, dry_run } => cmd_compact(&root, keep, dry_run),
         Command::ArchiveTasks { dry_run } => cmd_archive_tasks(&root, dry_run),
         Command::View { role, spec } => cmd_view(&root, &role, spec.as_deref()),
+        Command::Merge { dry_run, all } => cmd_merge(&root, dry_run, all, format),
         Command::Issues { create } => cmd_issues(&root, format, create),
     }
 }
@@ -454,6 +465,34 @@ fn cmd_view(root: &Path, role: &str, spec_filter: Option<&str>) {
                 eprintln!("{} {e}", "error:".red().bold());
             }
         }
+    }
+}
+
+fn cmd_merge(root: &Path, dry_run: bool, all: bool, format: types::OutputFormat) {
+    let config = load_config(root);
+    let specs_dir = root.join(&config.specs_dir);
+
+    if dry_run {
+        println!("{} Dry run — no files will be modified\n", "ℹ".cyan());
+    }
+
+    let results = merge::merge_specs(root, &specs_dir, dry_run, all);
+
+    match format {
+        types::OutputFormat::Json => {
+            println!("{}", merge::results_to_json(&results));
+        }
+        _ => {
+            merge::print_results(&results, dry_run);
+        }
+    }
+
+    // Exit non-zero if any conflicts need manual resolution
+    if results
+        .iter()
+        .any(|r| matches!(r.status, merge::MergeStatus::Manual))
+    {
+        process::exit(1);
     }
 }
 

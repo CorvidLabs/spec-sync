@@ -133,6 +133,46 @@ specsync hooks status                      # check what's installed
 
 Supports Claude Code (`CLAUDE.md`), Cursor (`.cursor/rules`), GitHub Copilot (`.github/copilot-instructions.md`), and pre-commit hooks.
 
+### `compact`
+
+Trim older changelog entries from specs to prevent unbounded growth.
+
+```bash
+specsync compact --keep 10              # keep last 10 entries per spec
+specsync compact --keep 5 --dry-run     # preview what would be removed
+```
+
+### `archive-tasks`
+
+Archive completed tasks from companion `tasks.md` files.
+
+```bash
+specsync archive-tasks                  # move completed tasks to archive section
+specsync archive-tasks --dry-run        # preview what would be archived
+```
+
+### `view`
+
+View specs filtered by role — shows only the sections relevant to a specific audience.
+
+```bash
+specsync view --role dev                # developer view
+specsync view --role qa                 # QA view
+specsync view --role product            # product manager view
+specsync view --role agent              # AI agent view
+specsync view --role dev --spec auth    # specific spec, developer view
+```
+
+### `diff`
+
+Show API changes since a git ref.
+
+```bash
+specsync diff main                      # changes since main branch
+specsync diff HEAD~5                    # changes in last 5 commits
+specsync diff v1.0.0 --json            # machine-readable output
+```
+
 ### `init`
 
 Create a default `specsync.json` in the current directory.

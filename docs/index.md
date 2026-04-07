@@ -59,4 +59,4 @@ Auto-detected from file extensions. No per-language configuration.
 
 TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby.
 
-See [Spec Format](spec-format) for how to write specs, [CLI Reference](cli) for all commands, [VS Code Extension](vscode-extension) for editor integration, [Cross-Project References](cross-project-refs) for multi-repo validation, and [Configuration](configuration) for `specsync.json` options.
+See [Workflow Guide](workflow) for the end-to-end workflow, [Spec Format](spec-format) for how to write specs, [CLI Reference](cli) for all commands, [VS Code Extension](vscode-extension) for editor integration, [Cross-Project References](cross-project-refs) for multi-repo validation, and [Configuration](configuration) for `specsync.json` options.

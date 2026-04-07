@@ -696,3 +696,394 @@ pub fn cmd_status(root: &Path) {
     println!("Install all: specsync hooks install");
     println!("Install one: specsync hooks install --claude --precommit");
 }
+
+// ─── Tests ─────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn setup() -> TempDir {
+        tempfile::tempdir().unwrap()
+    }
+
+    // ── HookTarget::all ────────────────────────────────────────────
+
+    #[test]
+    fn hook_target_all_returns_six_targets() {
+        let all = HookTarget::all();
+        assert_eq!(all.len(), 6);
+    }
+
+    #[test]
+    fn hook_target_all_contains_all_variants() {
+        let all = HookTarget::all();
+        assert!(all.contains(&HookTarget::Claude));
+        assert!(all.contains(&HookTarget::Cursor));
+        assert!(all.contains(&HookTarget::Copilot));
+        assert!(all.contains(&HookTarget::Agents));
+        assert!(all.contains(&HookTarget::Precommit));
+        assert!(all.contains(&HookTarget::ClaudeCodeHook));
+    }
+
+    // ── HookTarget::name ───────────────────────────────────────────
+
+    #[test]
+    fn hook_target_name_returns_expected_strings() {
+        assert_eq!(HookTarget::Claude.name(), "claude");
+        assert_eq!(HookTarget::Cursor.name(), "cursor");
+        assert_eq!(HookTarget::Copilot.name(), "copilot");
+        assert_eq!(HookTarget::Agents.name(), "agents");
+        assert_eq!(HookTarget::Precommit.name(), "precommit");
+        assert_eq!(HookTarget::ClaudeCodeHook.name(), "claude-code-hook");
+    }
+
+    // ── HookTarget::description ────────────────────────────────────
+
+    #[test]
+    fn hook_target_description_returns_human_readable() {
+        assert_eq!(HookTarget::Claude.description(), "CLAUDE.md agent instructions");
+        assert_eq!(HookTarget::Precommit.description(), "Git pre-commit hook");
+        assert_eq!(HookTarget::ClaudeCodeHook.description(), "Claude Code settings.json hook");
+    }
+
+    // ── HookTarget::from_str ───────────────────────────────────────
+
+    #[test]
+    fn from_str_parses_all_targets() {
+        assert_eq!(HookTarget::from_str("claude"), Some(HookTarget::Claude));
+        assert_eq!(HookTarget::from_str("cursor"), Some(HookTarget::Cursor));
+        assert_eq!(HookTarget::from_str("copilot"), Some(HookTarget::Copilot));
+        assert_eq!(HookTarget::from_str("agents"), Some(HookTarget::Agents));
+        assert_eq!(HookTarget::from_str("precommit"), Some(HookTarget::Precommit));
+        assert_eq!(HookTarget::from_str("claude-code-hook"), Some(HookTarget::ClaudeCodeHook));
+    }
+
+    #[test]
+    fn from_str_is_case_insensitive() {
+        assert_eq!(HookTarget::from_str("CLAUDE"), Some(HookTarget::Claude));
+        assert_eq!(HookTarget::from_str("Cursor"), Some(HookTarget::Cursor));
+        assert_eq!(HookTarget::from_str("PreCommit"), Some(HookTarget::Precommit));
+    }
+
+    #[test]
+    fn from_str_accepts_aliases() {
+        assert_eq!(HookTarget::from_str("pre-commit"), Some(HookTarget::Precommit));
+        assert_eq!(HookTarget::from_str("claude-hook"), Some(HookTarget::ClaudeCodeHook));
+    }
+
+    #[test]
+    fn from_str_returns_none_for_unknown() {
+        assert_eq!(HookTarget::from_str("unknown"), None);
+        assert_eq!(HookTarget::from_str(""), None);
+        assert_eq!(HookTarget::from_str("windsurf"), None);
+    }
+
+    // ── is_installed ───────────────────────────────────────────────
+
+    #[test]
+    fn is_installed_returns_false_for_empty_dir() {
+        let tmp = setup();
+        for target in HookTarget::all() {
+            assert!(!is_installed(tmp.path(), *target), "expected not installed: {:?}", target);
+        }
+    }
+
+    #[test]
+    fn is_installed_claude_detects_marker() {
+        let tmp = setup();
+        let path = tmp.path().join("CLAUDE.md");
+        fs::write(&path, "# Spec-Sync Integration\nSome content").unwrap();
+        assert!(is_installed(tmp.path(), HookTarget::Claude));
+    }
+
+    #[test]
+    fn is_installed_claude_false_without_marker() {
+        let tmp = setup();
+        let path = tmp.path().join("CLAUDE.md");
+        fs::write(&path, "# Some other content\nNo spec-sync here").unwrap();
+        assert!(!is_installed(tmp.path(), HookTarget::Claude));
+    }
+
+    #[test]
+    fn is_installed_cursor_detects_marker() {
+        let tmp = setup();
+        let path = tmp.path().join(".cursorrules");
+        fs::write(&path, "# Spec-Sync Rules\nSome content").unwrap();
+        assert!(is_installed(tmp.path(), HookTarget::Cursor));
+    }
+
+    #[test]
+    fn is_installed_copilot_detects_marker() {
+        let tmp = setup();
+        let github_dir = tmp.path().join(".github");
+        fs::create_dir_all(&github_dir).unwrap();
+        fs::write(github_dir.join("copilot-instructions.md"), "# Spec-Sync Integration").unwrap();
+        assert!(is_installed(tmp.path(), HookTarget::Copilot));
+    }
+
+    #[test]
+    fn is_installed_agents_detects_marker() {
+        let tmp = setup();
+        fs::write(tmp.path().join("AGENTS.md"), "# Spec-Sync Integration\ncontent").unwrap();
+        assert!(is_installed(tmp.path(), HookTarget::Agents));
+    }
+
+    #[test]
+    fn is_installed_precommit_detects_marker() {
+        let tmp = setup();
+        let hooks_dir = tmp.path().join(".git").join("hooks");
+        fs::create_dir_all(&hooks_dir).unwrap();
+        fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\n# spec-sync pre-commit hook\nspecsync check").unwrap();
+        assert!(is_installed(tmp.path(), HookTarget::Precommit));
+    }
+
+    #[test]
+    fn is_installed_claude_code_hook_detects_marker() {
+        let tmp = setup();
+        let claude_dir = tmp.path().join(".claude");
+        fs::create_dir_all(&claude_dir).unwrap();
+        fs::write(claude_dir.join("settings.json"), r#"{"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"specsync check"}]}]}}"#).unwrap();
+        assert!(is_installed(tmp.path(), HookTarget::ClaudeCodeHook));
+    }
+
+    // ── install_hook ───────────────────────────────────────────────
+
+    #[test]
+    fn install_claude_creates_file() {
+        let tmp = setup();
+        let result = install_hook(tmp.path(), HookTarget::Claude).unwrap();
+        assert!(result);
+        let content = fs::read_to_string(tmp.path().join("CLAUDE.md")).unwrap();
+        assert!(content.contains("Spec-Sync Integration"));
+        assert!(content.contains("specsync check"));
+    }
+
+    #[test]
+    fn install_claude_appends_to_existing() {
+        let tmp = setup();
+        let path = tmp.path().join("CLAUDE.md");
+        fs::write(&path, "# My Project\n\nExisting content here.").unwrap();
+        let result = install_hook(tmp.path(), HookTarget::Claude).unwrap();
+        assert!(result);
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.starts_with("# My Project"));
+        assert!(content.contains("Spec-Sync Integration"));
+    }
+
+    #[test]
+    fn install_claude_is_idempotent() {
+        let tmp = setup();
+        assert!(install_hook(tmp.path(), HookTarget::Claude).unwrap());
+        assert!(!install_hook(tmp.path(), HookTarget::Claude).unwrap());
+    }
+
+    #[test]
+    fn install_cursor_creates_file() {
+        let tmp = setup();
+        assert!(install_hook(tmp.path(), HookTarget::Cursor).unwrap());
+        let content = fs::read_to_string(tmp.path().join(".cursorrules")).unwrap();
+        assert!(content.contains("Spec-Sync Rules"));
+    }
+
+    #[test]
+    fn install_copilot_creates_github_dir() {
+        let tmp = setup();
+        assert!(install_hook(tmp.path(), HookTarget::Copilot).unwrap());
+        assert!(tmp.path().join(".github").join("copilot-instructions.md").exists());
+        let content = fs::read_to_string(tmp.path().join(".github").join("copilot-instructions.md")).unwrap();
+        assert!(content.contains("Spec-Sync Integration"));
+    }
+
+    #[test]
+    fn install_agents_creates_file() {
+        let tmp = setup();
+        assert!(install_hook(tmp.path(), HookTarget::Agents).unwrap());
+        let content = fs::read_to_string(tmp.path().join("AGENTS.md")).unwrap();
+        assert!(content.contains("Spec-Sync Integration"));
+    }
+
+    #[test]
+    fn install_precommit_creates_hook_file() {
+        let tmp = setup();
+        // Need .git/hooks directory structure
+        fs::create_dir_all(tmp.path().join(".git").join("hooks")).unwrap();
+        assert!(install_hook(tmp.path(), HookTarget::Precommit).unwrap());
+        let path = tmp.path().join(".git").join("hooks").join("pre-commit");
+        assert!(path.exists());
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.contains("spec-sync pre-commit hook"));
+        assert!(content.contains("specsync check --strict"));
+    }
+
+    #[test]
+    fn install_precommit_appends_to_existing_hook() {
+        let tmp = setup();
+        let hooks_dir = tmp.path().join(".git").join("hooks");
+        fs::create_dir_all(&hooks_dir).unwrap();
+        fs::write(hooks_dir.join("pre-commit"), "#!/bin/sh\necho 'existing hook'").unwrap();
+        assert!(install_hook(tmp.path(), HookTarget::Precommit).unwrap());
+        let content = fs::read_to_string(hooks_dir.join("pre-commit")).unwrap();
+        assert!(content.contains("existing hook"));
+        assert!(content.contains("spec-sync pre-commit hook"));
+    }
+
+    #[test]
+    fn install_precommit_creates_hooks_dir_if_missing() {
+        let tmp = setup();
+        // Don't create .git/hooks — let install do it
+        assert!(install_hook(tmp.path(), HookTarget::Precommit).unwrap());
+        assert!(tmp.path().join(".git").join("hooks").join("pre-commit").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn install_precommit_sets_executable_permission() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = setup();
+        install_hook(tmp.path(), HookTarget::Precommit).unwrap();
+        let path = tmp.path().join(".git").join("hooks").join("pre-commit");
+        let perms = fs::metadata(&path).unwrap().permissions();
+        assert_eq!(perms.mode() & 0o755, 0o755);
+    }
+
+    #[test]
+    fn install_claude_code_hook_creates_settings() {
+        let tmp = setup();
+        assert!(install_hook(tmp.path(), HookTarget::ClaudeCodeHook).unwrap());
+        let path = tmp.path().join(".claude").join("settings.json");
+        assert!(path.exists());
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.contains("specsync check"));
+    }
+
+    #[test]
+    fn install_claude_code_hook_merges_into_existing() {
+        let tmp = setup();
+        let claude_dir = tmp.path().join(".claude");
+        fs::create_dir_all(&claude_dir).unwrap();
+        fs::write(claude_dir.join("settings.json"), r#"{"existingKey": true}"#).unwrap();
+        assert!(install_hook(tmp.path(), HookTarget::ClaudeCodeHook).unwrap());
+        let content = fs::read_to_string(claude_dir.join("settings.json")).unwrap();
+        assert!(content.contains("existingKey"));
+        assert!(content.contains("specsync check"));
+    }
+
+    #[test]
+    fn install_claude_code_hook_idempotent() {
+        let tmp = setup();
+        assert!(install_hook(tmp.path(), HookTarget::ClaudeCodeHook).unwrap());
+        assert!(!install_hook(tmp.path(), HookTarget::ClaudeCodeHook).unwrap());
+    }
+
+    // ── uninstall_hook ─────────────────────────────────────────────
+
+    #[test]
+    fn uninstall_returns_false_when_not_installed() {
+        let tmp = setup();
+        assert!(!uninstall_hook(tmp.path(), HookTarget::Claude).unwrap());
+    }
+
+    #[test]
+    fn uninstall_claude_removes_section() {
+        let tmp = setup();
+        install_hook(tmp.path(), HookTarget::Claude).unwrap();
+        assert!(is_installed(tmp.path(), HookTarget::Claude));
+        let result = uninstall_hook(tmp.path(), HookTarget::Claude).unwrap();
+        assert!(result);
+        // File should be removed since it only had our content
+        assert!(!tmp.path().join("CLAUDE.md").exists());
+    }
+
+    #[test]
+    fn uninstall_claude_preserves_other_content() {
+        let tmp = setup();
+        let path = tmp.path().join("CLAUDE.md");
+        fs::write(&path, "# My Project\n\nExisting rules.\n").unwrap();
+        install_hook(tmp.path(), HookTarget::Claude).unwrap();
+        uninstall_hook(tmp.path(), HookTarget::Claude).unwrap();
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.contains("My Project"));
+        assert!(!content.contains("Spec-Sync Integration"));
+    }
+
+    #[test]
+    fn uninstall_cursor_removes_section() {
+        let tmp = setup();
+        install_hook(tmp.path(), HookTarget::Cursor).unwrap();
+        let result = uninstall_hook(tmp.path(), HookTarget::Cursor).unwrap();
+        assert!(result);
+        assert!(!tmp.path().join(".cursorrules").exists());
+    }
+
+    #[test]
+    fn uninstall_precommit_removes_hook_file() {
+        let tmp = setup();
+        install_hook(tmp.path(), HookTarget::Precommit).unwrap();
+        let result = uninstall_hook(tmp.path(), HookTarget::Precommit).unwrap();
+        assert!(result);
+        assert!(!tmp.path().join(".git").join("hooks").join("pre-commit").exists());
+    }
+
+    #[test]
+    fn uninstall_claude_code_hook_is_refused() {
+        let tmp = setup();
+        install_hook(tmp.path(), HookTarget::ClaudeCodeHook).unwrap();
+        let result = uninstall_hook(tmp.path(), HookTarget::ClaudeCodeHook);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("manually"));
+    }
+
+    // ── remove_section_from_file ───────────────────────────────────
+
+    #[test]
+    fn remove_section_deletes_file_if_empty_after() {
+        let tmp = setup();
+        let path = tmp.path().join("test.md");
+        fs::write(&path, "# Spec-Sync Integration\nSome content\n").unwrap();
+        let result = remove_section_from_file(&path, "# Spec-Sync Integration").unwrap();
+        assert!(result);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn remove_section_preserves_content_before_marker() {
+        let tmp = setup();
+        let path = tmp.path().join("test.md");
+        fs::write(&path, "# My Project\n\nKeep this.\n\n# Spec-Sync Integration\nRemove this.\n").unwrap();
+        remove_section_from_file(&path, "# Spec-Sync Integration").unwrap();
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.contains("My Project"));
+        assert!(content.contains("Keep this"));
+        assert!(!content.contains("Spec-Sync Integration"));
+    }
+
+    #[test]
+    fn remove_section_returns_false_for_missing_marker() {
+        let tmp = setup();
+        let path = tmp.path().join("test.md");
+        fs::write(&path, "# No marker here\n").unwrap();
+        assert!(!remove_section_from_file(&path, "# Spec-Sync Integration").unwrap());
+    }
+
+    #[test]
+    fn remove_section_returns_false_for_missing_file() {
+        let tmp = setup();
+        let path = tmp.path().join("nonexistent.md");
+        assert!(!remove_section_from_file(&path, "# Spec-Sync Integration").unwrap());
+    }
+
+    #[test]
+    fn remove_section_stops_at_next_top_level_heading() {
+        let tmp = setup();
+        let path = tmp.path().join("test.md");
+        fs::write(&path, "# Before\n\nKeep.\n\n# Spec-Sync Integration\nRemove.\n\n# After\n\nAlso keep.\n").unwrap();
+        remove_section_from_file(&path, "# Spec-Sync Integration").unwrap();
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.contains("Before"));
+        assert!(content.contains("Also keep"));
+        assert!(!content.contains("Spec-Sync Integration"));
+    }
+}

@@ -158,6 +158,37 @@ pub fn generate_registry(root: &Path, project_name: &str, specs_dir: &str) -> St
     output
 }
 
+/// Add a module entry to an existing `specsync-registry.toml`.
+/// If the module already exists, it is not duplicated.
+/// Returns `true` if the entry was added, `false` if it already existed or the file is missing.
+pub fn register_module(root: &Path, module_name: &str, spec_rel_path: &str) -> bool {
+    let path = root.join(REGISTRY_FILENAME);
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+
+    // Check if module already registered
+    if let Some(entry) = parse_registry(&content) {
+        if entry.specs.iter().any(|(m, _)| m == module_name) {
+            return false;
+        }
+    }
+
+    // Append to the [specs] section
+    let new_line = format!("{module_name} = \"{spec_rel_path}\"\n");
+
+    // If there's a [specs] section, append after it
+    if content.contains("[specs]") {
+        let updated = format!("{}\n{new_line}", content.trim_end());
+        if fs::write(&path, updated).is_ok() {
+            return true;
+        }
+    }
+
+    false
+}
+
 /// Extract module name from spec frontmatter.
 fn extract_module_name(content: &str) -> Option<String> {
     for line in content.lines() {

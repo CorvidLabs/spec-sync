@@ -499,7 +499,11 @@ fn find_module_source_files(dir: &Path, config: &SpecSyncConfig) -> Vec<String> 
 
 /// Find source files for a module, checking config module definitions first,
 /// then subdirectories, then flat files.
-fn find_files_for_module(root: &Path, module_name: &str, config: &SpecSyncConfig) -> Vec<String> {
+pub fn find_files_for_module(
+    root: &Path,
+    module_name: &str,
+    config: &SpecSyncConfig,
+) -> Vec<String> {
     let mut module_files = Vec::new();
 
     // First: check user-defined module definitions in specsync.json
@@ -551,7 +555,7 @@ fn find_files_for_module(root: &Path, module_name: &str, config: &SpecSyncConfig
 }
 
 /// Generate a spec from a template, using language-aware defaults.
-fn generate_spec(
+pub fn generate_spec(
     module_name: &str,
     source_files: &[String],
     root: &Path,
@@ -695,9 +699,138 @@ fn generate_companion_files(spec_dir: &Path, module_name: &str) {
 }
 
 /// Generate companion files for a given spec, creating the directory if needed.
-/// Used by the `add-spec` command.
+/// Used by the `add-spec` and `scaffold` commands.
 pub fn generate_companion_files_for_spec(spec_dir: &Path, module_name: &str) {
     generate_companion_files(spec_dir, module_name);
+}
+
+/// Generate a spec using templates from a custom template directory.
+/// Looks for `spec.md`, `tasks.md`, `context.md`, `requirements.md` in the template dir.
+/// Falls back to built-in templates for any missing template files.
+pub fn generate_spec_from_custom_template(
+    template_dir: &Path,
+    module_name: &str,
+    source_files: &[String],
+    root: &Path,
+) -> String {
+    let template_file = template_dir.join("spec.md");
+    let template = if template_file.exists() {
+        fs::read_to_string(&template_file).unwrap_or_else(|_| DEFAULT_TEMPLATE.to_string())
+    } else {
+        // No custom spec template — use language-aware default
+        match detect_primary_language(source_files) {
+            Some(lang) => language_template(lang).to_string(),
+            None => DEFAULT_TEMPLATE.to_string(),
+        }
+    };
+
+    let title = module_name
+        .split('-')
+        .map(|w| {
+            let mut chars = w.chars();
+            match chars.next() {
+                Some(c) => c.to_uppercase().to_string() + chars.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let files_yaml: String = source_files
+        .iter()
+        .map(|f| {
+            let rel = Path::new(f)
+                .strip_prefix(root.to_string_lossy().as_ref())
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| f.clone());
+            format!("  - {rel}")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let mut spec = template;
+
+    let module_re = regex::Regex::new(r"(?m)^module:\s*.+$").unwrap();
+    spec = module_re
+        .replace(&spec, format!("module: {module_name}"))
+        .to_string();
+
+    let status_re = regex::Regex::new(r"(?m)^status:\s*.+$").unwrap();
+    spec = status_re.replace(&spec, "status: draft").to_string();
+
+    let version_re = regex::Regex::new(r"(?m)^version:\s*.+$").unwrap();
+    spec = version_re.replace(&spec, "version: 1").to_string();
+
+    let files_re = regex::Regex::new(r"(?m)^files:\s*\[\]|^files:\n(?:\s+-\s+.+\n?)*").unwrap();
+    if source_files.is_empty() {
+        spec = files_re.replace(&spec, "files: []\n").to_string();
+    } else {
+        spec = files_re
+            .replace(&spec, format!("files:\n{files_yaml}\n"))
+            .to_string();
+    }
+
+    let title_re = regex::Regex::new(r"(?m)^# .+$").unwrap();
+    spec = title_re.replace(&spec, format!("# {title}")).to_string();
+
+    let db_re = regex::Regex::new(r"(?m)^db_tables:\n(?:\s+-\s+.+\n?)*").unwrap();
+    spec = db_re.replace(&spec, "db_tables: []\n").to_string();
+
+    spec
+}
+
+/// Generate companion files from a custom template directory.
+/// Falls back to built-in templates for any missing files.
+pub fn generate_companion_files_from_template(
+    spec_dir: &Path,
+    module_name: &str,
+    template_dir: &Path,
+) {
+    let tasks_path = spec_dir.join("tasks.md");
+    let context_path = spec_dir.join("context.md");
+    let requirements_path = spec_dir.join("requirements.md");
+
+    if !tasks_path.exists() {
+        let template_file = template_dir.join("tasks.md");
+        let content = if template_file.exists() {
+            fs::read_to_string(&template_file)
+                .unwrap_or_else(|_| TASKS_TEMPLATE.to_string())
+                .replace("{module}", module_name)
+        } else {
+            TASKS_TEMPLATE.replace("{module}", module_name)
+        };
+        if fs::write(&tasks_path, &content).is_ok() {
+            println!("    {} Generated tasks.md", "✓".green());
+        }
+    }
+
+    if !context_path.exists() {
+        let template_file = template_dir.join("context.md");
+        let content = if template_file.exists() {
+            fs::read_to_string(&template_file)
+                .unwrap_or_else(|_| CONTEXT_TEMPLATE.to_string())
+                .replace("{module}", module_name)
+        } else {
+            CONTEXT_TEMPLATE.replace("{module}", module_name)
+        };
+        if fs::write(&context_path, &content).is_ok() {
+            println!("    {} Generated context.md", "✓".green());
+        }
+    }
+
+    if !requirements_path.exists() {
+        let template_file = template_dir.join("requirements.md");
+        let content = if template_file.exists() {
+            fs::read_to_string(&template_file)
+                .unwrap_or_else(|_| REQUIREMENTS_TEMPLATE.to_string())
+                .replace("{module}", module_name)
+        } else {
+            REQUIREMENTS_TEMPLATE.replace("{module}", module_name)
+        };
+        if fs::write(&requirements_path, &content).is_ok() {
+            println!("    {} Generated requirements.md", "✓".green());
+        }
+    }
 }
 
 /// Generate spec files for all unspecced modules.

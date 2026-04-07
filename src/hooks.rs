@@ -882,11 +882,7 @@ mod tests {
         let tmp = setup();
         let claude_dir = tmp.path().join(".claude");
         fs::create_dir_all(&claude_dir).unwrap();
-        fs::write(
-            claude_dir.join("settings.json"),
-            r#"{"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"specsync check"}]}]}}"#,
-        )
-        .unwrap();
+        fs::write(claude_dir.join("settings.json"), r#"{"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"specsync check"}]}]}}"#).unwrap();
         assert!(is_installed(tmp.path(), HookTarget::ClaudeCodeHook));
     }
 

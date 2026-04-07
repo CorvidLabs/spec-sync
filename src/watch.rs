@@ -150,22 +150,38 @@ fn print_separator(changed_file: Option<&str>) {
     );
 }
 
+fn build_check_args(
+    root: &Path,
+    strict: bool,
+    require_coverage: Option<usize>,
+    force: bool,
+) -> Vec<std::ffi::OsString> {
+    let mut args: Vec<std::ffi::OsString> = Vec::new();
+    args.push("check".into());
+    args.push("--root".into());
+    args.push(root.as_os_str().to_owned());
+    if strict {
+        args.push("--strict".into());
+    }
+    if force {
+        args.push("--force".into());
+    }
+    if let Some(cov) = require_coverage {
+        args.push("--require-coverage".into());
+        args.push(cov.to_string().into());
+    }
+    args
+}
+
 fn run_check(root: &Path, strict: bool, require_coverage: Option<usize>, force: bool) {
     // Fork a child process to isolate exit calls from the check command.
     use std::process::Command;
 
     let start = Instant::now();
+    let args = build_check_args(root, strict, require_coverage, force);
     let mut cmd = Command::new(std::env::current_exe().expect("Cannot find current executable"));
-    cmd.arg("check");
-    cmd.arg("--root").arg(root);
-    if strict {
-        cmd.arg("--strict");
-    }
-    if force {
-        cmd.arg("--force");
-    }
-    if let Some(cov) = require_coverage {
-        cmd.arg("--require-coverage").arg(cov.to_string());
+    for arg in &args {
+        cmd.arg(arg);
     }
 
     match cmd.status() {
@@ -188,5 +204,240 @@ fn run_check(root: &Path, strict: bool, require_coverage: Option<usize>, force: 
         Err(e) => {
             eprintln!("{} Failed to run check: {e}", "Error:".red());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use notify::event::{AccessKind, CreateKind, ModifyKind, RemoveKind};
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    fn make_event(kind: EventKind) -> DebouncedEvent {
+        DebouncedEvent {
+            event: notify::Event {
+                kind,
+                paths: vec![],
+                attrs: Default::default(),
+            },
+            time: Instant::now(),
+        }
+    }
+
+    fn make_event_with_path(kind: EventKind, path: PathBuf) -> DebouncedEvent {
+        DebouncedEvent {
+            event: notify::Event {
+                kind,
+                paths: vec![path],
+                attrs: Default::default(),
+            },
+            time: Instant::now(),
+        }
+    }
+
+    // --- is_relevant_event ---
+
+    #[test]
+    fn test_is_relevant_event_create() {
+        let event = make_event(EventKind::Create(CreateKind::File));
+        assert!(is_relevant_event(&event));
+    }
+
+    #[test]
+    fn test_is_relevant_event_modify() {
+        let event = make_event(EventKind::Modify(ModifyKind::Data(
+            notify::event::DataChange::Content,
+        )));
+        assert!(is_relevant_event(&event));
+    }
+
+    #[test]
+    fn test_is_relevant_event_remove() {
+        let event = make_event(EventKind::Remove(RemoveKind::File));
+        assert!(is_relevant_event(&event));
+    }
+
+    #[test]
+    fn test_is_relevant_event_rejects_access() {
+        let event = make_event(EventKind::Access(AccessKind::Read));
+        assert!(!is_relevant_event(&event));
+    }
+
+    #[test]
+    fn test_is_relevant_event_rejects_other() {
+        let event = make_event(EventKind::Other);
+        assert!(!is_relevant_event(&event));
+    }
+
+    #[test]
+    fn test_is_relevant_event_create_any() {
+        let event = make_event(EventKind::Create(CreateKind::Any));
+        assert!(is_relevant_event(&event));
+    }
+
+    // --- build_check_args ---
+
+    #[test]
+    fn test_build_check_args_basic() {
+        let tmp = TempDir::new().unwrap();
+        let args = build_check_args(tmp.path(), false, None, false);
+        let strs: Vec<String> = args
+            .iter()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect();
+        assert_eq!(strs[0], "check");
+        assert_eq!(strs[1], "--root");
+        assert_eq!(strs[2], tmp.path().to_string_lossy());
+        assert_eq!(strs.len(), 3);
+    }
+
+    #[test]
+    fn test_build_check_args_strict() {
+        let tmp = TempDir::new().unwrap();
+        let args = build_check_args(tmp.path(), true, None, false);
+        let strs: Vec<String> = args
+            .iter()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect();
+        assert!(strs.contains(&"--strict".to_string()));
+        assert!(!strs.contains(&"--force".to_string()));
+    }
+
+    #[test]
+    fn test_build_check_args_force() {
+        let tmp = TempDir::new().unwrap();
+        let args = build_check_args(tmp.path(), false, None, true);
+        let strs: Vec<String> = args
+            .iter()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect();
+        assert!(strs.contains(&"--force".to_string()));
+        assert!(!strs.contains(&"--strict".to_string()));
+    }
+
+    #[test]
+    fn test_build_check_args_require_coverage() {
+        let tmp = TempDir::new().unwrap();
+        let args = build_check_args(tmp.path(), false, Some(80), false);
+        let strs: Vec<String> = args
+            .iter()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect();
+        assert!(strs.contains(&"--require-coverage".to_string()));
+        assert!(strs.contains(&"80".to_string()));
+    }
+
+    #[test]
+    fn test_build_check_args_all_flags() {
+        let tmp = TempDir::new().unwrap();
+        let args = build_check_args(tmp.path(), true, Some(95), true);
+        let strs: Vec<String> = args
+            .iter()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect();
+        assert!(strs.contains(&"--strict".to_string()));
+        assert!(strs.contains(&"--force".to_string()));
+        assert!(strs.contains(&"--require-coverage".to_string()));
+        assert!(strs.contains(&"95".to_string()));
+        assert_eq!(strs.len(), 7); // check --root <path> --strict --force --require-coverage 95
+    }
+
+    // --- run_watch empty directories ---
+
+    #[test]
+    fn test_run_watch_collects_watch_dirs() {
+        // Verify that the watch directory collection logic works correctly
+        let tmp = TempDir::new().unwrap();
+        let specs_dir = tmp.path().join("specs");
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&specs_dir).unwrap();
+        std::fs::create_dir_all(&src_dir).unwrap();
+
+        // Write a basic config
+        let config_content = r#"{"specsDir": "specs", "sourceDirs": ["src"]}"#;
+        std::fs::write(tmp.path().join("specsync.json"), config_content).unwrap();
+
+        let config = load_config(tmp.path());
+        let specs = tmp.path().join(&config.specs_dir);
+        let source_dirs: Vec<PathBuf> = config
+            .source_dirs
+            .iter()
+            .map(|d| tmp.path().join(d))
+            .collect();
+
+        let mut watch_dirs: Vec<PathBuf> = Vec::new();
+        if specs.is_dir() {
+            watch_dirs.push(specs);
+        }
+        for dir in &source_dirs {
+            if dir.is_dir() {
+                watch_dirs.push(dir.clone());
+            }
+        }
+
+        assert_eq!(watch_dirs.len(), 2);
+    }
+
+    #[test]
+    fn test_run_watch_empty_dirs_detected() {
+        // Verify that empty watch dirs are detected
+        let tmp = TempDir::new().unwrap();
+        // No specs or source dirs exist
+        let config_content = r#"{"specsDir": "specs", "sourceDirs": ["src"]}"#;
+        std::fs::write(tmp.path().join("specsync.json"), config_content).unwrap();
+
+        let config = load_config(tmp.path());
+        let specs = tmp.path().join(&config.specs_dir);
+        let source_dirs: Vec<PathBuf> = config
+            .source_dirs
+            .iter()
+            .map(|d| tmp.path().join(d))
+            .collect();
+
+        let mut watch_dirs: Vec<PathBuf> = Vec::new();
+        if specs.is_dir() {
+            watch_dirs.push(specs);
+        }
+        for dir in &source_dirs {
+            if dir.is_dir() {
+                watch_dirs.push(dir.clone());
+            }
+        }
+
+        assert!(watch_dirs.is_empty());
+    }
+
+    // --- event path extraction ---
+
+    #[test]
+    fn test_event_path_extraction() {
+        let root = PathBuf::from("/project");
+        let event = make_event_with_path(
+            EventKind::Modify(ModifyKind::Data(notify::event::DataChange::Content)),
+            PathBuf::from("/project/specs/auth/auth.spec.md"),
+        );
+
+        let changed_file: Option<String> = event
+            .paths
+            .first()
+            .and_then(|p| p.strip_prefix(&root).ok())
+            .map(|p| p.display().to_string());
+
+        assert_eq!(changed_file, Some("specs/auth/auth.spec.md".to_string()));
+    }
+
+    #[test]
+    fn test_event_path_extraction_no_paths() {
+        let root = PathBuf::from("/project");
+        let event = make_event(EventKind::Create(CreateKind::File));
+
+        let changed_file: Option<String> = event
+            .paths
+            .first()
+            .and_then(|p| p.strip_prefix(&root).ok())
+            .map(|p| p.display().to_string());
+
+        assert_eq!(changed_file, None);
     }
 }

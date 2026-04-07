@@ -117,6 +117,8 @@ pub enum OutputFormat {
     Json,
     /// Markdown suitable for PR comments and agent consumption
     Markdown,
+    /// GitHub-flavored markdown with spec links, actionable suggestions, and checklists
+    Github,
 }
 
 /// Valid spec lifecycle statuses.

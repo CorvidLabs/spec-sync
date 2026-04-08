@@ -24,11 +24,11 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
     let mut current_list: Vec<String> = Vec::new();
 
     for line in yaml_block.lines() {
-        // List item: "  - value"
+        // List item: "  - value" (supports spaces or tabs for indentation)
         if let Some(stripped) = line.trim_start().strip_prefix("- ")
             && current_key.is_some()
         {
-            current_list.push(stripped.trim().to_string());
+            current_list.push(strip_yaml_comment(stripped.trim()));
             continue;
         }
 
@@ -45,13 +45,13 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
                 current_list.clear();
             }
 
-            let value = line[colon_pos + 1..].trim();
+            let value = strip_yaml_comment(line[colon_pos + 1..].trim());
 
             if value.is_empty() || value == "[]" {
                 current_key = Some(key.to_string());
                 current_list.clear();
             } else {
-                set_scalar(&mut fm, key, value);
+                set_scalar(&mut fm, key, &value);
             }
             continue;
         }
@@ -75,6 +75,25 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
         frontmatter: fm,
         body,
     })
+}
+
+/// Strip inline YAML comments from a value.
+/// Handles: `value # comment` → `value`
+/// Preserves: `value` (no comment), quoted strings with `#` inside.
+fn strip_yaml_comment(value: &str) -> String {
+    // Don't strip from quoted strings or bracket arrays
+    if value.starts_with('"') || value.starts_with('\'') || value.starts_with('[') {
+        return value.to_string();
+    }
+    // Find ` # ` pattern (space-hash-space) which is a YAML comment
+    if let Some(pos) = value.find(" #") {
+        // Verify the # is followed by a space or is at end of string (YAML comment convention)
+        let after = &value[pos + 2..];
+        if after.is_empty() || after.starts_with(' ') {
+            return value[..pos].trim_end().to_string();
+        }
+    }
+    value.to_string()
 }
 
 fn set_scalar(fm: &mut Frontmatter, key: &str, value: &str) {
@@ -121,6 +140,22 @@ fn set_field(fm: &mut Frontmatter, key: &str, values: &[String]) {
         "tracks" => fm.tracks = parse_issue_numbers(values),
         _ => {}
     }
+}
+
+/// Check if a ### header describes exported symbols (case-insensitive).
+/// Matches headers containing "Exported", "Exports", "Export", or "Public" as keywords.
+/// Examples that match:
+///   "### Exported Functions", "### TypeScript Exports", "### Exports",
+///   "### Public Types", "### Export Functions", "### Exported Symbols"
+/// Examples that do NOT match:
+///   "### API Endpoints", "### Component API", "### Configuration",
+///   "### Internal Functions", "### Route Handlers"
+pub fn is_export_header(header: &str) -> bool {
+    let lower = header.to_ascii_lowercase();
+    lower.contains("exported")
+        || lower.contains("exports")
+        || lower.contains("export ")
+        || lower.contains("public ")
 }
 
 static TABLE_ROW_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\|\s*`(\w+)`").unwrap());
@@ -179,12 +214,16 @@ pub fn get_spec_symbols(body: &str) -> Vec<String> {
             .find(|l| !l.is_empty())
             .unwrap_or("");
 
-        // Allowlist: only validate tables under ### headers containing "Exported"
-        // (e.g., "### Exported Functions", "### Exported Types").
+        // Allowlist: only validate tables under ### headers that describe exports.
+        // Accepted patterns (case-insensitive):
+        //   - "### Exported Functions", "### Exported Types" (contains "Exported")
+        //   - "### TypeScript Exports", "### Exports" (contains "Exports")
+        //   - "### Public Functions", "### Public Types" (contains "Public")
+        //   - "### Exported Symbols", "### Export Types" (contains "Export")
         // Tables directly under ## Public API (no ### header) are also validated.
         // Everything else (### API Endpoints, ### Component API, ### Route Handlers,
         // ### Configuration, ### Internal Functions, etc.) is informational only.
-        if header.starts_with("### ") && !header.contains("Exported") {
+        if header.starts_with("### ") && !is_export_header(header) {
             continue;
         }
 
@@ -244,6 +283,42 @@ mod tests {
         assert_eq!(parsed.frontmatter.status.as_deref(), Some("active"));
         assert_eq!(parsed.frontmatter.files, vec!["src/auth.ts"]);
         assert!(parsed.frontmatter.db_tables.is_empty());
+    }
+
+    #[test]
+    fn test_strip_yaml_comment() {
+        assert_eq!(strip_yaml_comment("active"), "active");
+        assert_eq!(strip_yaml_comment("active # this is the status"), "active");
+        assert_eq!(strip_yaml_comment("value #no-space-means-not-comment"), "value #no-space-means-not-comment");
+        assert_eq!(strip_yaml_comment("[42, 57] # issue list"), "[42, 57] # issue list"); // brackets preserved
+        assert_eq!(strip_yaml_comment("\"quoted # value\""), "\"quoted # value\""); // quotes preserved
+        assert_eq!(strip_yaml_comment("value #"), "value");
+    }
+
+    #[test]
+    fn test_parse_frontmatter_inline_comments() {
+        let content = "---\nmodule: auth # the auth module\nversion: 1 # initial\nstatus: active # current status\nfiles:\n  - src/auth.ts # main file\n---\n\n# Auth\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert_eq!(parsed.frontmatter.module.as_deref(), Some("auth"));
+        assert_eq!(parsed.frontmatter.version.as_deref(), Some("1"));
+        assert_eq!(parsed.frontmatter.status.as_deref(), Some("active"));
+        assert_eq!(parsed.frontmatter.files, vec!["src/auth.ts"]);
+    }
+
+    #[test]
+    fn test_parse_frontmatter_tabs_and_whitespace() {
+        // Tabs used for indentation instead of spaces
+        let content = "---\nmodule: auth\nversion: 1\nstatus: active\nfiles:\n\t- src/auth.ts\n\t- src/auth.utils.ts\n---\n\n# Auth\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert_eq!(parsed.frontmatter.files, vec!["src/auth.ts", "src/auth.utils.ts"]);
+    }
+
+    #[test]
+    fn test_parse_frontmatter_trailing_spaces() {
+        let content = "---\nmodule: auth   \nversion: 1  \nstatus: active  \nfiles:\n  - src/auth.ts   \n---\n\n# Auth\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert_eq!(parsed.frontmatter.module.as_deref(), Some("auth"));
+        assert_eq!(parsed.frontmatter.files, vec!["src/auth.ts"]);
     }
 
     #[test]
@@ -366,6 +441,57 @@ Something
         let parsed = parse_frontmatter(content).unwrap();
         assert!(parsed.frontmatter.implements.is_empty());
         assert!(parsed.frontmatter.tracks.is_empty());
+    }
+
+    #[test]
+    fn test_is_export_header() {
+        // Should match
+        assert!(is_export_header("### Exported Functions"));
+        assert!(is_export_header("### Exported Types"));
+        assert!(is_export_header("### TypeScript Exports"));
+        assert!(is_export_header("### Exports"));
+        assert!(is_export_header("### Public Functions"));
+        assert!(is_export_header("### Public Types"));
+        assert!(is_export_header("### Export Types"));
+        assert!(is_export_header("### Exported Symbols"));
+        assert!(is_export_header("### exported functions")); // case-insensitive
+
+        // Should NOT match
+        assert!(!is_export_header("### API Endpoints"));
+        assert!(!is_export_header("### Component API"));
+        assert!(!is_export_header("### Route Handlers"));
+        assert!(!is_export_header("### Configuration"));
+        assert!(!is_export_header("### Internal Functions"));
+    }
+
+    #[test]
+    fn test_get_spec_symbols_accepts_header_variations() {
+        let body = r#"## Public API
+
+### TypeScript Exports
+
+| Function | Description |
+|----------|-------------|
+| `createAuth` | Creates auth |
+| `validateToken` | Validates |
+
+### Public Types
+
+| Type | Description |
+|------|-------------|
+| `AuthConfig` | Config type |
+
+### API Endpoints
+
+| Endpoint | Method |
+|----------|--------|
+| `/login` | POST |
+
+## Invariants
+"#;
+        let symbols = get_spec_symbols(body);
+        // Should extract from "TypeScript Exports" and "Public Types" but not "API Endpoints"
+        assert_eq!(symbols, vec!["createAuth", "validateToken", "AuthConfig"]);
     }
 
     #[test]

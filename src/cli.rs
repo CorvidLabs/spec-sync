@@ -68,7 +68,11 @@ pub enum Command {
     /// Create a specsync.json config file
     Init,
     /// Score spec quality (0-100) with letter grades and improvement suggestions
-    Score,
+    Score {
+        /// Show detailed per-category breakdown explaining exactly why each spec lost points
+        #[arg(long)]
+        explain: bool,
+    },
     /// Watch spec and source files, re-running check on changes
     Watch,
     /// Run as an MCP (Model Context Protocol) server over stdio

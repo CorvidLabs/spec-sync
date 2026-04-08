@@ -70,35 +70,35 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
 
     // ─── Frontmatter (0-20) ──────────────────────────────────────────
     let mut fm_points = 0u32;
+    let mut fm_missing: Vec<&str> = Vec::new();
     if fm.module.is_some() {
         fm_points += 5;
     } else {
-        score
-            .suggestions
-            .push("Add `module:` field to frontmatter".to_string());
+        fm_missing.push("module (-5pts)");
     }
     if fm.version.is_some() {
         fm_points += 5;
     } else {
-        score
-            .suggestions
-            .push("Add `version:` field to frontmatter".to_string());
+        fm_missing.push("version (-5pts)");
     }
     if fm.status.is_some() {
         fm_points += 4;
     } else {
-        score
-            .suggestions
-            .push("Add `status:` field to frontmatter".to_string());
+        fm_missing.push("status (-4pts)");
     }
     if !fm.files.is_empty() {
         fm_points += 6;
     } else {
-        score
-            .suggestions
-            .push("Add `files:` list linking spec to source files".to_string());
+        fm_missing.push("files (-6pts)");
     }
     score.frontmatter_score = fm_points;
+    if !fm_missing.is_empty() {
+        let lost = 20 - fm_points;
+        score.suggestions.push(format!(
+            "Frontmatter (-{lost}pts): missing {}",
+            fm_missing.join(", ")
+        ));
+    }
 
     // ─── Sections (0-20) ─────────────────────────────────────────────
     let missing = get_missing_sections(body, &config.required_sections);
@@ -110,6 +110,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         ((present as f64 / total_sections as f64) * 20.0).round() as u32
     };
     if !missing.is_empty() {
+        let lost = 20 - score.sections_score;
         let names = missing
             .iter()
             .take(3)
@@ -121,9 +122,9 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         } else {
             String::new()
         };
-        score
-            .suggestions
-            .push(format!("Add missing sections: {names}{suffix}"));
+        score.suggestions.push(format!(
+            "Sections (-{lost}pts): missing ## {names}{suffix}"
+        ));
     }
 
     // ─── API Coverage (0-20) ─────────────────────────────────────────
@@ -151,8 +152,21 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
                 ((documented as f64 / all_exports.len() as f64) * 20.0).round() as u32;
             let undocumented = all_exports.len() - documented;
             if undocumented > 0 {
+                let lost = 20 - score.api_score;
+                let undoc_names: Vec<&str> = all_exports
+                    .iter()
+                    .filter(|s| !spec_symbols.iter().any(|ss| ss == *s))
+                    .take(5)
+                    .map(|s| s.as_str())
+                    .collect();
+                let names_str = undoc_names.join("`, `");
+                let suffix = if undocumented > 5 {
+                    format!(" (+{} more)", undocumented - 5)
+                } else {
+                    String::new()
+                };
                 score.suggestions.push(format!(
-                    "Document {undocumented} undocumented export(s) in ## Public API"
+                    "API coverage (-{lost}pts): {undocumented} undocumented export(s) — `{names_str}`{suffix}"
                 ));
             }
         }
@@ -181,10 +195,20 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         depth_points += 3;
     } else {
         score.suggestions.push(format!(
-            "Fill in {todo_count} TODO placeholder(s) with real content"
+            "Content depth: fill in {todo_count} TODO placeholder(s) with real content"
         ));
     }
     score.depth_score = depth_points.min(20);
+    if score.depth_score < 20 {
+        let lost = 20 - score.depth_score;
+        let filled = sections_with_content;
+        let total_req = config.required_sections.len();
+        if filled < total_req {
+            score.suggestions.push(format!(
+                "Content depth (-{lost}pts): only {filled}/{total_req} sections have meaningful content"
+            ));
+        }
+    }
 
     // ─── Freshness (0-20) ────────────────────────────────────────────
     let mut fresh_points = 20u32;
@@ -198,7 +222,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         let penalty = (stale_files * 5).min(15);
         fresh_points = fresh_points.saturating_sub(penalty);
         score.suggestions.push(format!(
-            "Fix {stale_files} stale file reference(s) in frontmatter"
+            "Freshness (-{penalty}pts): {stale_files} file(s) in frontmatter don't exist"
         ));
     }
 
@@ -210,9 +234,10 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         }
     }
     if stale_deps > 0 {
-        fresh_points = fresh_points.saturating_sub(stale_deps * 3);
+        let dep_penalty = stale_deps * 3;
+        fresh_points = fresh_points.saturating_sub(dep_penalty);
         score.suggestions.push(format!(
-            "Fix {stale_deps} stale dependency reference(s) in frontmatter"
+            "Freshness (-{dep_penalty}pts): {stale_deps} depends_on path(s) don't exist"
         ));
     }
     score.freshness_score = fresh_points;

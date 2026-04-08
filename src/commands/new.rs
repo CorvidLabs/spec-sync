@@ -31,7 +31,7 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
     // Auto-detect source files for this module
     let source_files = detect_module_sources(root, module_name, &config);
     let files_yaml = if source_files.is_empty() {
-        "files: []".to_string()
+        "files: []\n".to_string()
     } else {
         let items: String = source_files.iter().map(|f| format!("  - {f}\n")).collect();
         format!("files:\n{items}")

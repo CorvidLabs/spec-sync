@@ -12,10 +12,17 @@ pub fn cmd_deps(root: &Path, format: types::OutputFormat, mermaid: bool, dot: bo
     // --mermaid or --dot: output graph visualization and exit
     if mermaid || dot {
         let graph = deps::build_dep_graph(root, &config.specs_dir);
+        let has_edges = graph.values().any(|n| !n.declared_deps.is_empty());
         if mermaid {
             println!("{}", render_mermaid(&graph));
         } else {
             println!("{}", render_dot(&graph));
+        }
+        if !has_edges && !graph.is_empty() {
+            eprintln!(
+                "\n{} No depends_on relationships found. Add `depends_on: [module_name]` to spec frontmatter to see the dependency graph.",
+                "Hint:".yellow()
+            );
         }
         return;
     }

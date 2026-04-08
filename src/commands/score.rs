@@ -4,11 +4,12 @@ use std::path::Path;
 use crate::scoring;
 use crate::types;
 
-use super::load_and_discover;
+use super::{filter_specs, load_and_discover};
 
-pub fn cmd_score(root: &Path, format: types::OutputFormat, explain: bool) {
+pub fn cmd_score(root: &Path, format: types::OutputFormat, explain: bool, spec_filters: &[String]) {
     let json = matches!(format, types::OutputFormat::Json);
-    let (config, spec_files) = load_and_discover(root, false);
+    let (config, all_spec_files) = load_and_discover(root, false);
+    let spec_files = filter_specs(root, &all_spec_files, spec_filters);
     let scores: Vec<scoring::SpecScore> = spec_files
         .iter()
         .map(|f| scoring::score_spec(f, root, &config))

@@ -73,6 +73,7 @@ fn run() {
         force: false,
         create_issues: false,
         explain: false,
+        specs: vec![],
     });
 
     match command {
@@ -82,6 +83,7 @@ fn run() {
             force,
             create_issues,
             explain,
+            specs,
         } => commands::check::cmd_check(
             &root,
             cli.strict,
@@ -92,6 +94,7 @@ fn run() {
             force,
             create_issues,
             explain,
+            &specs,
         ),
         Command::Coverage => commands::coverage::cmd_coverage(
             &root,
@@ -108,7 +111,9 @@ fn run() {
             format,
             provider,
         ),
-        Command::Score { explain } => commands::score::cmd_score(&root, format, explain),
+        Command::Score { explain, specs } => {
+            commands::score::cmd_score(&root, format, explain, &specs)
+        }
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
         Command::Mcp => mcp::run_mcp_server(&root),
         Command::AddSpec { name } => commands::scaffold::cmd_add_spec(&root, &name),
@@ -128,8 +133,9 @@ fn run() {
         Command::View { role, spec } => commands::view::cmd_view(&root, &role, spec.as_deref()),
         Command::Merge { dry_run, all } => commands::merge::cmd_merge(&root, dry_run, all, format),
         Command::Issues { create } => commands::issues::cmd_issues(&root, format, create),
+        Command::New { name, full } => commands::new::cmd_new(&root, &name, full),
         Command::Wizard => commands::wizard::cmd_wizard(&root),
-        Command::Deps => commands::deps::cmd_deps(&root, format),
+        Command::Deps { mermaid, dot } => commands::deps::cmd_deps(&root, format, mermaid, dot),
         Command::Import { source, id, repo } => {
             commands::import::cmd_import(&root, &source, &id, repo.as_deref())
         }

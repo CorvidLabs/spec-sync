@@ -51,11 +51,11 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 
 | Command | Description | Key Flags |
 |---------|-------------|-----------|
-| check | Validate all specs against source code (default when no subcommand given) | --strict, --require-coverage N, --json, --fix, --force, --create-issues |
+| check | Validate all specs against source code (default when no subcommand given) | --strict, --require-coverage N, --json, --fix, --force, --create-issues, [SPEC...] |
 | coverage | Show file and module coverage report | --strict, --require-coverage N, --json |
 | generate | Scaffold spec files for unspecced modules | --provider PROVIDER (AI mode: auto/claude/anthropic/openai/ollama/copilot) |
 | init | Create a specsync.json config file with auto-detected source dirs | — |
-| score | Score spec quality (0–100) with letter grades and suggestions | --json |
+| score | Score spec quality (0–100) with letter grades and suggestions | --json, [SPEC...] |
 | watch | Watch spec and source files, re-running check on changes | --strict, --require-coverage N |
 | mcp | Run as an MCP (Model Context Protocol) server over stdio | — |
 | add-spec | Scaffold a new spec with companion files (tasks.md, context.md) | name positional arg |
@@ -72,6 +72,8 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 | issues | Verify GitHub issue references in spec frontmatter | --create (create drift issues for failures) |
 | wizard | Interactive step-by-step spec creation with prompts and preview | — |
 | import | Import specs from external systems (GitHub Issues, Jira, Confluence) | SOURCE, ID, --repo |
+| new | Quick-create a minimal spec with auto-detected source files | name, --full |
+| deps | Validate cross-module dependency graph | --mermaid, --dot, --json |
 
 ### Global Flags
 

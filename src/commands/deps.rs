@@ -6,8 +6,20 @@ use crate::config::load_config;
 use crate::deps;
 use crate::types;
 
-pub fn cmd_deps(root: &Path, format: types::OutputFormat) {
+pub fn cmd_deps(root: &Path, format: types::OutputFormat, mermaid: bool, dot: bool) {
     let config = load_config(root);
+
+    // --mermaid or --dot: output graph visualization and exit
+    if mermaid || dot {
+        let graph = deps::build_dep_graph(root, &config.specs_dir);
+        if mermaid {
+            println!("{}", render_mermaid(&graph));
+        } else {
+            println!("{}", render_dot(&graph));
+        }
+        return;
+    }
+
     let report = deps::validate_deps(root, &config.specs_dir);
 
     match format {
@@ -87,4 +99,67 @@ pub fn cmd_deps(root: &Path, format: types::OutputFormat) {
     if !report.errors.is_empty() {
         process::exit(1);
     }
+}
+
+/// Render the dependency graph as a Mermaid flowchart diagram.
+fn render_mermaid(graph: &std::collections::HashMap<String, deps::DepNode>) -> String {
+    let mut out = String::from("graph LR\n");
+
+    // Sort modules for deterministic output
+    let mut modules: Vec<&String> = graph.keys().collect();
+    modules.sort();
+
+    for module in &modules {
+        out.push_str(&format!("    {module}[{module}]\n"));
+    }
+
+    for module in &modules {
+        if let Some(node) = graph.get(*module) {
+            let mut deps: Vec<&String> = node.declared_deps.iter().collect();
+            deps.sort();
+            for dep in deps {
+                if graph.contains_key(dep) {
+                    out.push_str(&format!("    {module} --> {dep}\n"));
+                } else {
+                    out.push_str(&format!("    {module} -.-> {dep}[\"❌ {dep}\"]\n"));
+                }
+            }
+        }
+    }
+
+    out
+}
+
+/// Render the dependency graph as a Graphviz DOT diagram.
+fn render_dot(graph: &std::collections::HashMap<String, deps::DepNode>) -> String {
+    let mut out =
+        String::from("digraph specs {\n    rankdir=LR;\n    node [shape=box, style=rounded];\n\n");
+
+    let mut modules: Vec<&String> = graph.keys().collect();
+    modules.sort();
+
+    for module in &modules {
+        out.push_str(&format!("    \"{module}\";\n"));
+    }
+
+    out.push('\n');
+
+    for module in &modules {
+        if let Some(node) = graph.get(*module) {
+            let mut deps: Vec<&String> = node.declared_deps.iter().collect();
+            deps.sort();
+            for dep in deps {
+                if graph.contains_key(dep) {
+                    out.push_str(&format!("    \"{module}\" -> \"{dep}\";\n"));
+                } else {
+                    out.push_str(&format!(
+                        "    \"{dep}\" [style=dashed, color=red];\n    \"{module}\" -> \"{dep}\" [style=dashed, color=red];\n"
+                    ));
+                }
+            }
+        }
+    }
+
+    out.push_str("}\n");
+    out
 }

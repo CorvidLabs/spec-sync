@@ -55,6 +55,9 @@ pub enum Command {
         /// Show per-category score breakdown explaining why each spec lost points
         #[arg(long)]
         explain: bool,
+        /// Specific spec files or module names to validate (validates all if omitted)
+        #[arg(value_name = "SPEC")]
+        specs: Vec<String>,
     },
     /// Show file and module coverage report
     Coverage,
@@ -75,6 +78,9 @@ pub enum Command {
         /// Show detailed per-category breakdown explaining exactly why each spec lost points
         #[arg(long)]
         explain: bool,
+        /// Specific spec files or module names to score (scores all if omitted)
+        #[arg(value_name = "SPEC")]
+        specs: Vec<String>,
     },
     /// Watch spec and source files, re-running check on changes
     Watch,
@@ -160,10 +166,25 @@ pub enum Command {
         #[arg(long)]
         create: bool,
     },
+    /// Quick-create a minimal spec for a module (auto-detects source files)
+    New {
+        /// Module name for the new spec
+        name: String,
+        /// Also create companion files (tasks.md, context.md, requirements.md)
+        #[arg(long)]
+        full: bool,
+    },
     /// Interactive wizard for creating new specs step by step
     Wizard,
     /// Validate cross-module dependency graph (cycles, missing deps, undeclared imports)
-    Deps,
+    Deps {
+        /// Output dependency graph as Mermaid diagram
+        #[arg(long)]
+        mermaid: bool,
+        /// Output dependency graph as Graphviz DOT format
+        #[arg(long)]
+        dot: bool,
+    },
     /// Import specs from external systems (GitHub Issues, Jira, Confluence)
     Import {
         /// Import source: github, jira, or confluence

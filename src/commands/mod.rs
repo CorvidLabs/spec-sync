@@ -13,6 +13,7 @@ pub mod init;
 pub mod init_registry;
 pub mod issues;
 pub mod merge;
+pub mod new;
 pub mod report;
 pub mod resolve;
 pub mod scaffold;
@@ -53,6 +54,62 @@ pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConf
     }
 
     (config, spec_files)
+}
+
+/// Filter spec files by user-provided spec names/paths.
+/// Matches against: exact file path, relative path, module name (from filename stem).
+/// Returns the full list if `filters` is empty.
+pub fn filter_specs(root: &Path, spec_files: &[PathBuf], filters: &[String]) -> Vec<PathBuf> {
+    if filters.is_empty() {
+        return spec_files.to_vec();
+    }
+
+    let mut matched: Vec<PathBuf> = Vec::new();
+    let mut unmatched: Vec<&String> = Vec::new();
+
+    for filter in filters {
+        let mut found = false;
+        for spec_file in spec_files {
+            let rel = spec_file
+                .strip_prefix(root)
+                .unwrap_or(spec_file)
+                .to_string_lossy()
+                .to_string();
+
+            // Match by: exact path, relative path, filename, or module name
+            let stem = spec_file.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            let module = stem.strip_suffix(".spec").unwrap_or(stem);
+
+            if rel == *filter
+                || spec_file.to_string_lossy() == *filter
+                || stem == *filter
+                || module == *filter
+                || filter.ends_with(".spec.md") && rel.ends_with(filter.as_str())
+            {
+                if !matched.contains(spec_file) {
+                    matched.push(spec_file.clone());
+                }
+                found = true;
+            }
+        }
+        if !found {
+            unmatched.push(filter);
+        }
+    }
+
+    if !unmatched.is_empty() {
+        eprintln!(
+            "{} No specs matched: {}",
+            "Warning:".yellow(),
+            unmatched
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
+
+    matched
 }
 
 /// Build column-level schema from migration files (if schema_dir is configured).

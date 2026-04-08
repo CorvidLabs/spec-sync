@@ -25,7 +25,9 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 use crate::config::load_config;
+use crate::ignore::IgnoreRules;
 use crate::schema;
+use crate::scoring;
 use crate::types;
 use crate::validator::{find_spec_files, validate_spec};
 
@@ -66,6 +68,8 @@ pub fn build_schema_columns(
 
 /// Run validation, returning counts and collected error/warning strings.
 /// When `collect` is true, errors/warnings are collected into vectors instead of printing inline.
+/// When `explain` is true (text mode), shows per-category score breakdown for each spec.
+#[allow(clippy::too_many_arguments)]
 pub fn run_validation(
     root: &Path,
     spec_files: &[PathBuf],
@@ -73,6 +77,8 @@ pub fn run_validation(
     schema_columns: &std::collections::HashMap<String, schema::SchemaTable>,
     config: &types::SpecSyncConfig,
     collect: bool,
+    explain: bool,
+    ignore_rules: &IgnoreRules,
 ) -> (usize, usize, usize, usize, Vec<String>, Vec<String>) {
     let mut total_errors = 0;
     let mut total_warnings = 0;
@@ -83,17 +89,32 @@ pub fn run_validation(
     for spec_file in spec_files {
         let result = validate_spec(spec_file, root, schema_tables, schema_columns, config);
 
+        // Parse inline ignore directives from the spec file
+        let inline_ignores = std::fs::read_to_string(spec_file)
+            .map(|content| IgnoreRules::parse_inline(&content))
+            .unwrap_or_default();
+
+        // Filter out suppressed warnings
+        let filtered_warnings: Vec<&String> = result
+            .warnings
+            .iter()
+            .filter(|w| !ignore_rules.is_suppressed(w, &result.spec_path, &inline_ignores))
+            .collect();
+
         if collect {
             let prefix = &result.spec_path;
             all_errors.extend(result.errors.iter().map(|e| format!("{prefix}: {e}")));
-            all_warnings.extend(result.warnings.iter().map(|w| format!("{prefix}: {w}")));
+            all_warnings.extend(filtered_warnings.iter().map(|w| format!("{prefix}: {w}")));
             total_errors += result.errors.len();
-            total_warnings += result.warnings.len();
+            total_warnings += filtered_warnings.len();
             if result.errors.is_empty() {
                 passed += 1;
             }
             continue;
         }
+
+        // Use filtered warnings for text output
+        let warnings: Vec<&str> = filtered_warnings.iter().map(|w| w.as_str()).collect();
 
         println!("\n{}", result.spec_path.bold());
 
@@ -147,11 +168,10 @@ pub fn run_validation(
             .filter(|e| e.starts_with("Schema column"))
             .map(|s| s.as_str())
             .collect();
-        let col_warnings: Vec<&str> = result
-            .warnings
+        let col_warnings: Vec<&str> = warnings
             .iter()
             .filter(|w| w.starts_with("Schema column"))
-            .map(|s| s.as_str())
+            .copied()
             .collect();
         for e in &col_errors {
             println!("  {} {e}", "✗".red());
@@ -176,7 +196,7 @@ pub fn run_validation(
         }
 
         // API surface
-        let api_line = result.warnings.iter().find(|w| {
+        let api_line = warnings.iter().find(|w| {
             w.contains("exports documented")
                 && w.chars()
                     .next()
@@ -199,11 +219,10 @@ pub fn run_validation(
             println!("  {} {e}", "✗".red());
         }
 
-        let undocumented: Vec<&str> = result
-            .warnings
+        let undocumented: Vec<&str> = warnings
             .iter()
             .filter(|w| w.starts_with("Export '") || w.starts_with("Undocumented export '"))
-            .map(|s| s.as_str())
+            .copied()
             .collect();
         for w in &undocumented {
             println!("  {} {w}", "⚠".yellow());
@@ -225,17 +244,12 @@ pub fn run_validation(
         }
 
         // Consumed-by warnings
-        for w in result
-            .warnings
-            .iter()
-            .filter(|w| w.starts_with("Consumed By"))
-        {
+        for w in warnings.iter().filter(|w| w.starts_with("Consumed By")) {
             println!("  {} {w}", "⚠".yellow());
         }
 
         // Stub section warnings
-        for w in result
-            .warnings
+        for w in warnings
             .iter()
             .filter(|w| w.starts_with("Section ##") && w.contains("stub"))
         {
@@ -243,24 +257,51 @@ pub fn run_validation(
         }
 
         // Requirements companion file warnings
-        for w in result
-            .warnings
-            .iter()
-            .filter(|w| w.contains("requirements"))
-        {
+        for w in warnings.iter().filter(|w| w.contains("requirements")) {
             println!("  {} {w}", "⚠".yellow());
         }
 
         // Show fix suggestions when there are errors or warnings with fixes
-        if !result.fixes.is_empty() && (!result.errors.is_empty() || !result.warnings.is_empty()) {
+        if !result.fixes.is_empty() && (!result.errors.is_empty() || !warnings.is_empty()) {
             println!("  {}", "Suggested fixes:".cyan());
             for fix in &result.fixes {
                 println!("    {} {fix}", "->".cyan());
             }
         }
 
+        // --explain: show per-category score breakdown
+        if explain {
+            let score = scoring::score_spec(spec_file, root, config);
+            let grade_colored = match score.grade {
+                "A" => score.grade.green().bold().to_string(),
+                "B" => score.grade.green().to_string(),
+                "C" => score.grade.yellow().to_string(),
+                "D" => score.grade.yellow().bold().to_string(),
+                _ => score.grade.red().bold().to_string(),
+            };
+            println!(
+                "  {} [{}] {}/100 — {} {}/20  {} {}/20  {} {}/20  {} {}/20  {} {}/20",
+                "Score:".dimmed(),
+                grade_colored,
+                score.total,
+                "FM:".dimmed(),
+                colorize_subscore(score.frontmatter_score),
+                "Sec:".dimmed(),
+                colorize_subscore(score.sections_score),
+                "API:".dimmed(),
+                colorize_subscore(score.api_score),
+                "Depth:".dimmed(),
+                colorize_subscore(score.depth_score),
+                "Fresh:".dimmed(),
+                colorize_subscore(score.freshness_score),
+            );
+            for suggestion in &score.suggestions {
+                println!("    {} {suggestion}", "->".cyan());
+            }
+        }
+
         total_errors += result.errors.len();
-        total_warnings += result.warnings.len();
+        total_warnings += warnings.len();
         if result.errors.is_empty() {
             passed += 1;
         }
@@ -274,6 +315,16 @@ pub fn run_validation(
         all_errors,
         all_warnings,
     )
+}
+
+/// Colorize a subscore (out of 20) — green for 20, yellow for 10-19, red for <10.
+fn colorize_subscore(score: u32) -> String {
+    let s = score.to_string();
+    match score {
+        20 => s.green().to_string(),
+        10..=19 => s.yellow().to_string(),
+        _ => s.red().to_string(),
+    }
 }
 
 /// Compute exit code without printing or exiting.

@@ -12,6 +12,7 @@ mod generator;
 mod github;
 mod hash_cache;
 mod hooks;
+mod ignore;
 mod importer;
 mod manifest;
 mod mcp;
@@ -71,6 +72,7 @@ fn run() {
         fix: false,
         force: false,
         create_issues: false,
+        explain: false,
     });
 
     match command {
@@ -79,6 +81,7 @@ fn run() {
             fix,
             force,
             create_issues,
+            explain,
         } => commands::check::cmd_check(
             &root,
             cli.strict,
@@ -88,6 +91,7 @@ fn run() {
             fix,
             force,
             create_issues,
+            explain,
         ),
         Command::Coverage => commands::coverage::cmd_coverage(
             &root,

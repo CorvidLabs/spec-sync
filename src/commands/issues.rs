@@ -128,6 +128,7 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
     if create {
         let schema_tables = get_schema_table_names(root, &config);
         let schema_columns = build_schema_columns(root, &config);
+        let ignore_rules = crate::ignore::IgnoreRules::default();
         let (_, _, _, _, all_errors, _) = run_validation(
             root,
             &spec_files,
@@ -135,6 +136,8 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
             &schema_columns,
             &config,
             true,
+            false,
+            &ignore_rules,
         );
         if !all_errors.is_empty() {
             create_drift_issues(root, &config, &all_errors, format);

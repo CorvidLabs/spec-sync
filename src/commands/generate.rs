@@ -29,6 +29,7 @@ pub fn cmd_generate(
     });
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);
+    let ignore_rules = crate::ignore::IgnoreRules::default();
 
     let (mut total_errors, mut total_warnings, mut passed, mut total) = if spec_files.is_empty() {
         println!("No existing specs found. Scanning for source modules...");
@@ -41,6 +42,8 @@ pub fn cmd_generate(
             &schema_columns,
             &config,
             json,
+            false,
+            &ignore_rules,
         );
         (te, tw, p, t)
     };
@@ -118,6 +121,8 @@ pub fn cmd_generate(
                 &schema_columns,
                 &config,
                 json,
+                false,
+                &ignore_rules,
             );
             total_errors = te;
             total_warnings = tw;

@@ -8,6 +8,7 @@ use crate::ai;
 use crate::comment;
 use crate::github;
 use crate::hash_cache;
+use crate::ignore::IgnoreRules;
 use crate::output::{print_check_markdown, print_coverage_line, print_summary};
 use crate::types;
 use crate::validator::{compute_coverage, get_schema_table_names};
@@ -27,6 +28,7 @@ pub fn cmd_check(
     fix: bool,
     force: bool,
     create_issues: bool,
+    explain: bool,
 ) {
     use hash_cache::{ChangeClassification, ChangeKind};
     use types::OutputFormat::*;
@@ -163,6 +165,7 @@ pub fn cmd_check(
 
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);
+    let ignore_rules = IgnoreRules::load(root);
 
     // If --fix is requested, auto-add undocumented exports to specs
     if fix {
@@ -192,6 +195,8 @@ pub fn cmd_check(
         &schema_columns,
         &config,
         collect,
+        explain,
+        &ignore_rules,
     );
     // Include staleness warnings in total when --strict
     let effective_warnings = total_warnings + staleness_warnings;

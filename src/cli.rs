@@ -52,6 +52,9 @@ pub enum Command {
         /// Create GitHub issues for specs with validation errors
         #[arg(long)]
         create_issues: bool,
+        /// Show per-category score breakdown explaining why each spec lost points
+        #[arg(long)]
+        explain: bool,
     },
     /// Show file and module coverage report
     Coverage,

@@ -353,7 +353,8 @@ pub fn section_has_content(body: &str, section: &str) -> bool {
             .filter(|l| {
                 let t = l.trim().trim_start_matches('|').trim_end_matches('|');
                 // A separator row contains only dashes, spaces, pipes, and colons
-                !t.chars().all(|c| c == '-' || c == ' ' || c == '|' || c == ':')
+                !t.chars()
+                    .all(|c| c == '-' || c == ' ' || c == '|' || c == ':')
             })
             .count();
         // Need at least a header row AND a data row (so > 1 non-separator rows)
@@ -650,7 +651,8 @@ Something
 
     #[test]
     fn test_section_has_content_stub_phrases() {
-        let body = "## Purpose\nTo be determined\n\n## Error Cases\nComing soon\n\n## Dependencies\nTBD\n";
+        let body =
+            "## Purpose\nTo be determined\n\n## Error Cases\nComing soon\n\n## Dependencies\nTBD\n";
         assert!(!section_has_content(body, "Purpose"));
         assert!(!section_has_content(body, "Error Cases"));
         assert!(!section_has_content(body, "Dependencies"));

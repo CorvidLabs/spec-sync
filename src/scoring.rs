@@ -543,11 +543,7 @@ None.
         let tmp = tempfile::tempdir().unwrap();
         let src_dir = tmp.path().join("src");
         std::fs::create_dir_all(&src_dir).unwrap();
-        std::fs::write(
-            src_dir.join("stub.ts"),
-            "export function doStuff() {}\n",
-        )
-        .unwrap();
+        std::fs::write(src_dir.join("stub.ts"), "export function doStuff() {}\n").unwrap();
 
         let spec_dir = tmp.path().join("specs").join("stub");
         std::fs::create_dir_all(&spec_dir).unwrap();
@@ -609,7 +605,10 @@ None.
         );
         // Should have a suggestion about stub sections
         assert!(
-            score.suggestions.iter().any(|s| s.contains("Stub sections")),
+            score
+                .suggestions
+                .iter()
+                .any(|s| s.contains("Stub sections")),
             "Expected stub section suggestion, got: {:?}",
             score.suggestions
         );

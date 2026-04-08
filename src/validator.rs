@@ -1,6 +1,8 @@
 use crate::config::{default_schema_pattern, discover_manifest_modules};
 use crate::exports::{get_exported_symbols_with_level, has_extension, is_test_file};
-use crate::parser::{find_stub_sections, get_missing_sections, get_spec_symbols, parse_frontmatter};
+use crate::parser::{
+    find_stub_sections, get_missing_sections, get_spec_symbols, parse_frontmatter,
+};
 use crate::schema::{self, SchemaTable};
 use crate::types::{CoverageReport, SpecSyncConfig, ValidationResult};
 use regex::Regex;
@@ -397,9 +399,9 @@ pub fn validate_spec(
                     .map(|(_, f)| f.as_str());
                 match source_file {
                     Some(file) => {
-                        result.warnings.push(format!(
-                            "Undocumented export '{sym}' from {file}"
-                        ));
+                        result
+                            .warnings
+                            .push(format!("Undocumented export '{sym}' from {file}"));
                     }
                     None => {
                         result

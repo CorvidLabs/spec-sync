@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.1] - 2026-04-08
+
+### Fixed
+
+- **`specsync new` frontmatter formatting** — `files:` and `db_tables:` fields no longer merge onto one line when source files are auto-detected (#174).
+- **Empty dependency graph hint** — `specsync deps --mermaid` and `--dot` now print a helpful message when no `depends_on` relationships exist, instead of rendering only disconnected nodes (#174).
+
 ## [3.6.0] - 2026-04-08
 
 ### Added

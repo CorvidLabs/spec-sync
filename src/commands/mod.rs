@@ -202,7 +202,7 @@ pub fn run_validation(
         let undocumented: Vec<&str> = result
             .warnings
             .iter()
-            .filter(|w| w.starts_with("Export '"))
+            .filter(|w| w.starts_with("Export '") || w.starts_with("Undocumented export '"))
             .map(|s| s.as_str())
             .collect();
         for w in &undocumented {
@@ -233,8 +233,26 @@ pub fn run_validation(
             println!("  {} {w}", "⚠".yellow());
         }
 
-        // Show fix suggestions when there are errors
-        if !result.fixes.is_empty() && !result.errors.is_empty() {
+        // Stub section warnings
+        for w in result
+            .warnings
+            .iter()
+            .filter(|w| w.starts_with("Section ##") && w.contains("stub"))
+        {
+            println!("  {} {w}", "⚠".yellow());
+        }
+
+        // Requirements companion file warnings
+        for w in result
+            .warnings
+            .iter()
+            .filter(|w| w.contains("requirements"))
+        {
+            println!("  {} {w}", "⚠".yellow());
+        }
+
+        // Show fix suggestions when there are errors or warnings with fixes
+        if !result.fixes.is_empty() && (!result.errors.is_empty() || !result.warnings.is_empty()) {
             println!("  {}", "Suggested fixes:".cyan());
             for fix in &result.fixes {
                 println!("    {} {fix}", "->".cyan());

@@ -1,5 +1,8 @@
 use crate::exports::get_exported_symbols;
-use crate::parser::{get_missing_sections, get_spec_symbols, parse_frontmatter};
+use crate::parser::{
+    find_stub_sections, get_missing_sections, get_spec_symbols, parse_frontmatter,
+    section_has_content,
+};
 use crate::types::SpecSyncConfig;
 use std::collections::HashSet;
 use std::fs;
@@ -179,8 +182,9 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     let todo_count = count_placeholder_todos(body);
     let placeholder_count = body.matches("<!-- ").count();
 
-    // Check each required section has meaningful content
+    // Check each required section has meaningful content (stubs don't count)
     let sections_with_content = count_sections_with_content(body, &config.required_sections);
+    let stub_sections = find_stub_sections(body, &config.required_sections);
     let content_ratio = if config.required_sections.is_empty() {
         1.0
     } else {
@@ -208,6 +212,24 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
                 "Content depth (-{lost}pts): only {filled}/{total_req} sections have meaningful content"
             ));
         }
+    }
+
+    // Report stub sections specifically so users know which sections need real content
+    if !stub_sections.is_empty() {
+        let names = stub_sections
+            .iter()
+            .take(4)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(", ");
+        let suffix = if stub_sections.len() > 4 {
+            format!(" (+{} more)", stub_sections.len() - 4)
+        } else {
+            String::new()
+        };
+        score.suggestions.push(format!(
+            "Stub sections: ## {names}{suffix} — replace placeholder text (TBD, N/A, TODO, etc.) with real content"
+        ));
     }
 
     // ─── Freshness (0-20) ────────────────────────────────────────────
@@ -291,31 +313,8 @@ fn count_placeholder_todos(body: &str) -> usize {
 fn count_sections_with_content(body: &str, required_sections: &[String]) -> usize {
     let mut count = 0;
     for section in required_sections {
-        let header = format!("## {section}");
-        if let Some(start) = body.find(&header) {
-            let after = start + header.len();
-            // Find end of this section (next ## or end of body)
-            let rest = &body[after..];
-            let end = rest.find("\n## ").unwrap_or(rest.len());
-            let section_body = rest[..end].trim();
-
-            // Has content beyond placeholders?
-            let meaningful = section_body
-                .lines()
-                .filter(|l| {
-                    let t = l.trim();
-                    !t.is_empty()
-                        && !t.starts_with("<!--")
-                        && !t.starts_with("|--")
-                        && !t.starts_with("| -")
-                        && t != "TODO"
-                        && !t.contains("<!-- TODO")
-                })
-                .count();
-
-            if meaningful >= 1 {
-                count += 1;
-            }
+        if section_has_content(body, section) {
+            count += 1;
         }
     }
     count
@@ -525,5 +524,94 @@ None.
             score.total
         );
         assert!(score.grade == "A" || score.grade == "B");
+    }
+
+    #[test]
+    fn test_count_sections_with_content_stubs_not_counted() {
+        let body = "## Purpose\nTBD\n\n## Public API\nN/A\n\n## Invariants\nReal invariant here\n";
+        let sections = vec![
+            "Purpose".to_string(),
+            "Public API".to_string(),
+            "Invariants".to_string(),
+        ];
+        // Only Invariants has real content; Purpose and Public API are stubs
+        assert_eq!(count_sections_with_content(body, &sections), 1);
+    }
+
+    #[test]
+    fn test_score_spec_stub_sections_penalized() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(
+            src_dir.join("stub.ts"),
+            "export function doStuff() {}\n",
+        )
+        .unwrap();
+
+        let spec_dir = tmp.path().join("specs").join("stub");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        let spec_content = r#"---
+module: stub
+version: 1
+status: active
+files:
+  - src/stub.ts
+db_tables: []
+depends_on: []
+---
+
+# Stub
+
+## Purpose
+
+TBD
+
+## Public API
+
+| Export | Description |
+|--------|-------------|
+| `doStuff` | Does stuff |
+
+## Invariants
+
+N/A
+
+## Behavioral Examples
+
+Coming soon
+
+## Error Cases
+
+TBD
+
+## Dependencies
+
+None.
+
+## Change Log
+
+| Date | Change |
+|------|--------|
+| 2024-01-01 | Initial |
+"#;
+        let spec_file = spec_dir.join("stub.spec.md");
+        std::fs::write(&spec_file, spec_content).unwrap();
+
+        let config = SpecSyncConfig::default();
+        let score = score_spec(&spec_file, tmp.path(), &config);
+
+        // Depth score should be penalized because most sections are stubs
+        assert!(
+            score.depth_score < 14,
+            "Expected low depth score for stub sections, got {}",
+            score.depth_score
+        );
+        // Should have a suggestion about stub sections
+        assert!(
+            score.suggestions.iter().any(|s| s.contains("Stub sections")),
+            "Expected stub section suggestion, got: {:?}",
+            score.suggestions
+        );
     }
 }

@@ -270,6 +270,113 @@ pub fn get_missing_sections(body: &str, required_sections: &[String]) -> Vec<Str
     missing
 }
 
+// ─── Stub/Placeholder Detection ─────────────────────────────────────────
+
+/// Common stub phrases that indicate a section has no real content.
+const STUB_PHRASES: &[&str] = &[
+    "tbd",
+    "tbd.",
+    "to be determined",
+    "to be defined",
+    "to be documented",
+    "coming soon",
+    "n/a",
+    "n/a.",
+    "not applicable",
+    "todo",
+    "todo.",
+    "placeholder",
+    "fill in",
+    "add content",
+    "describe here",
+    "write here",
+    "...",
+    "\u{2026}", // ellipsis character
+];
+
+/// Check if a line is a stub/placeholder (case-insensitive).
+fn is_stub_line(line: &str) -> bool {
+    let t = line
+        .trim()
+        .trim_start_matches("- ")
+        .trim_start_matches("* ")
+        .trim_start_matches("> ");
+    let lower = t.to_ascii_lowercase();
+    STUB_PHRASES.contains(&lower.as_str())
+}
+
+/// Check if a specific section has meaningful (non-stub) content.
+pub fn section_has_content(body: &str, section: &str) -> bool {
+    let header = format!("## {section}");
+    let start = match body.find(&header) {
+        Some(s) => s,
+        None => return false,
+    };
+    let after = start + header.len();
+    let rest = &body[after..];
+    let end = rest.find("\n## ").unwrap_or(rest.len());
+    let section_body = rest[..end].trim();
+
+    // Filter to meaningful lines (not empty, not HTML comments, not table separators)
+    let content_lines: Vec<&str> = section_body
+        .lines()
+        .filter(|l| {
+            let t = l.trim();
+            !t.is_empty()
+                && !t.starts_with("<!--")
+                && !t.ends_with("-->")
+                && !t.starts_with("|--")
+                && !t.starts_with("| -")
+                && !t.contains("<!-- TODO")
+        })
+        .collect();
+
+    if content_lines.is_empty() {
+        return false;
+    }
+
+    // If ALL content lines are stubs, section is not meaningful
+    let non_stub_count = content_lines.iter().filter(|l| !is_stub_line(l)).count();
+
+    // A table header + separator with no data rows is not meaningful content
+    // Header rows have column names, separator rows have dashes (|---|---|)
+    let table_lines: Vec<&&str> = content_lines
+        .iter()
+        .filter(|l| l.trim().starts_with('|'))
+        .collect();
+    let non_table_lines = content_lines.len() - table_lines.len();
+    if non_table_lines == 0 && !table_lines.is_empty() {
+        // All content is table rows — check if there are any data rows
+        // (rows that aren't header separators like |---|---|)
+        let data_rows = table_lines
+            .iter()
+            .filter(|l| {
+                let t = l.trim().trim_start_matches('|').trim_end_matches('|');
+                // A separator row contains only dashes, spaces, pipes, and colons
+                !t.chars().all(|c| c == '-' || c == ' ' || c == '|' || c == ':')
+            })
+            .count();
+        // Need at least a header row AND a data row (so > 1 non-separator rows)
+        if data_rows <= 1 {
+            return false;
+        }
+    }
+
+    non_stub_count > 0
+}
+
+/// Find sections that exist but contain only stub/placeholder content.
+pub fn find_stub_sections(body: &str, required_sections: &[String]) -> Vec<String> {
+    let mut stubs = Vec::new();
+    for section in required_sections {
+        let header = format!("## {section}");
+        if body.contains(&header) && !section_has_content(body, section) {
+            stubs.push(section.clone());
+        }
+    }
+    stubs
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -519,5 +626,73 @@ Something
 "#;
         let symbols = get_spec_symbols(body);
         assert_eq!(symbols, vec!["helper"]);
+    }
+
+    #[test]
+    fn test_section_has_content_real() {
+        let body = "## Purpose\nThis module handles authentication.\n\n## Invariants\n1. Tokens must be valid\n";
+        assert!(section_has_content(body, "Purpose"));
+        assert!(section_has_content(body, "Invariants"));
+    }
+
+    #[test]
+    fn test_section_has_content_empty() {
+        let body = "## Purpose\n\n## Invariants\n";
+        assert!(!section_has_content(body, "Purpose"));
+    }
+
+    #[test]
+    fn test_section_has_content_stub_tbd() {
+        let body = "## Purpose\nTBD\n\n## Invariants\n- N/A\n";
+        assert!(!section_has_content(body, "Purpose"));
+        assert!(!section_has_content(body, "Invariants"));
+    }
+
+    #[test]
+    fn test_section_has_content_stub_phrases() {
+        let body = "## Purpose\nTo be determined\n\n## Error Cases\nComing soon\n\n## Dependencies\nTBD\n";
+        assert!(!section_has_content(body, "Purpose"));
+        assert!(!section_has_content(body, "Error Cases"));
+        assert!(!section_has_content(body, "Dependencies"));
+    }
+
+    #[test]
+    fn test_section_has_content_none_is_valid() {
+        // "None." is legitimate content (e.g. "no dependencies")
+        let body = "## Dependencies\nNone.\n";
+        assert!(section_has_content(body, "Dependencies"));
+    }
+
+    #[test]
+    fn test_section_has_content_table_header_only() {
+        let body = "## Public API\n\n| Export | Description |\n|--------|-------------|\n\n## Invariants\n";
+        assert!(!section_has_content(body, "Public API"));
+    }
+
+    #[test]
+    fn test_section_has_content_table_with_data() {
+        let body = "## Public API\n\n| Export | Description |\n|--------|-------------|\n| `foo` | Does things |\n\n## Invariants\n";
+        assert!(section_has_content(body, "Public API"));
+    }
+
+    #[test]
+    fn test_find_stub_sections() {
+        let body = "## Purpose\nReal content here\n\n## Public API\nTBD\n\n## Invariants\nN/A\n\n## Error Cases\n| Condition | Behavior |\n|-----------|----------|\n| Bad input | Returns error |\n";
+        let required = vec![
+            "Purpose".to_string(),
+            "Public API".to_string(),
+            "Invariants".to_string(),
+            "Error Cases".to_string(),
+        ];
+        let stubs = find_stub_sections(body, &required);
+        assert_eq!(stubs, vec!["Public API", "Invariants"]);
+    }
+
+    #[test]
+    fn test_find_stub_sections_none() {
+        let body = "## Purpose\nReal content\n\n## Public API\n| Export | Desc |\n|--------|------|\n| `foo` | Bar |\n";
+        let required = vec!["Purpose".to_string(), "Public API".to_string()];
+        let stubs = find_stub_sections(body, &required);
+        assert!(stubs.is_empty());
     }
 }

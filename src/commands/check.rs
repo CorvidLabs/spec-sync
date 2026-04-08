@@ -396,17 +396,19 @@ fn fix_near_miss_headers(content: &mut String) -> bool {
     // Known canonical headers and their near-miss patterns
     let canonical_map: &[(&[&str], &str)] = &[
         (
-            &["exportd function", "exportd func", "exproted function", "expported function"],
+            &[
+                "exportd function",
+                "exportd func",
+                "exproted function",
+                "expported function",
+            ],
             "Exported Functions",
         ),
         (
             &["exportd type", "exproted type", "expported type"],
             "Exported Types",
         ),
-        (
-            &["exportd class", "exproted class"],
-            "Exported Classes",
-        ),
+        (&["exportd class", "exproted class"], "Exported Classes"),
         (
             &["exportd constant", "exportd const", "exproted constant"],
             "Exported Constants",

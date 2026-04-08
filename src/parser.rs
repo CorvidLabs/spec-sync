@@ -289,9 +289,18 @@ mod tests {
     fn test_strip_yaml_comment() {
         assert_eq!(strip_yaml_comment("active"), "active");
         assert_eq!(strip_yaml_comment("active # this is the status"), "active");
-        assert_eq!(strip_yaml_comment("value #no-space-means-not-comment"), "value #no-space-means-not-comment");
-        assert_eq!(strip_yaml_comment("[42, 57] # issue list"), "[42, 57] # issue list"); // brackets preserved
-        assert_eq!(strip_yaml_comment("\"quoted # value\""), "\"quoted # value\""); // quotes preserved
+        assert_eq!(
+            strip_yaml_comment("value #no-space-means-not-comment"),
+            "value #no-space-means-not-comment"
+        );
+        assert_eq!(
+            strip_yaml_comment("[42, 57] # issue list"),
+            "[42, 57] # issue list"
+        ); // brackets preserved
+        assert_eq!(
+            strip_yaml_comment("\"quoted # value\""),
+            "\"quoted # value\""
+        ); // quotes preserved
         assert_eq!(strip_yaml_comment("value #"), "value");
     }
 
@@ -310,7 +319,10 @@ mod tests {
         // Tabs used for indentation instead of spaces
         let content = "---\nmodule: auth\nversion: 1\nstatus: active\nfiles:\n\t- src/auth.ts\n\t- src/auth.utils.ts\n---\n\n# Auth\n";
         let parsed = parse_frontmatter(content).unwrap();
-        assert_eq!(parsed.frontmatter.files, vec!["src/auth.ts", "src/auth.utils.ts"]);
+        assert_eq!(
+            parsed.frontmatter.files,
+            vec!["src/auth.ts", "src/auth.utils.ts"]
+        );
     }
 
     #[test]

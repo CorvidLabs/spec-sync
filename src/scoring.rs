@@ -122,9 +122,9 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         } else {
             String::new()
         };
-        score.suggestions.push(format!(
-            "Sections (-{lost}pts): missing ## {names}{suffix}"
-        ));
+        score
+            .suggestions
+            .push(format!("Sections (-{lost}pts): missing ## {names}{suffix}"));
     }
 
     // ─── API Coverage (0-20) ─────────────────────────────────────────

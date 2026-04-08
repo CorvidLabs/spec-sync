@@ -372,6 +372,80 @@ fn auto_regen_stale_specs(
 
 // ─── Auto-fix: add undocumented exports to spec ─────────────────────────
 
+/// Normalize near-miss export headers within ## Public API.
+/// E.g., "### Exportd Functions" → "### Exported Functions"
+/// Returns true if the content was modified.
+fn fix_near_miss_headers(content: &mut String) -> bool {
+    use regex::Regex;
+    let re = Regex::new(r"(?m)^(### )(.+)$").unwrap();
+
+    // Find the Public API section bounds
+    let api_start = match content.find("## Public API") {
+        Some(pos) => pos,
+        None => return false,
+    };
+    let after = &content[api_start..];
+    let api_end = after[1..]
+        .find("\n## ")
+        .map(|p| api_start + 1 + p)
+        .unwrap_or(content.len());
+
+    let api_section = content[api_start..api_end].to_string();
+    let mut modified = false;
+
+    // Known canonical headers and their near-miss patterns
+    let canonical_map: &[(&[&str], &str)] = &[
+        (
+            &[
+                "exportd function",
+                "exportd func",
+                "exproted function",
+                "expported function",
+            ],
+            "Exported Functions",
+        ),
+        (
+            &["exportd type", "exproted type", "expported type"],
+            "Exported Types",
+        ),
+        (&["exportd class", "exproted class"], "Exported Classes"),
+        (
+            &["exportd constant", "exportd const", "exproted constant"],
+            "Exported Constants",
+        ),
+    ];
+
+    let mut new_section = api_section.clone();
+    for cap in re.captures_iter(&api_section) {
+        let header_text = cap.get(2).unwrap().as_str();
+        let lower = header_text.to_ascii_lowercase();
+
+        // Skip headers that already match via is_export_header
+        if crate::parser::is_export_header(&format!("### {header_text}")) {
+            continue;
+        }
+
+        // Check for near-miss (Levenshtein distance ≤ 2 from any canonical)
+        for (patterns, canonical) in canonical_map {
+            for pattern in *patterns {
+                if lower.contains(pattern) {
+                    let old = format!("### {header_text}");
+                    let new = format!("### {canonical}");
+                    new_section = new_section.replacen(&old, &new, 1);
+                    modified = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if modified {
+        content.replace_range(api_start..api_end, &new_section);
+    }
+
+    modified
+}
+
 fn auto_fix_specs(root: &Path, spec_files: &[PathBuf], config: &types::SpecSyncConfig) -> usize {
     use crate::exports::get_exported_symbols_with_level;
     use crate::parser::{get_spec_symbols, parse_frontmatter};
@@ -383,6 +457,17 @@ fn auto_fix_specs(root: &Path, spec_files: &[PathBuf], config: &types::SpecSyncC
             Ok(c) => c.replace("\r\n", "\n"),
             Err(_) => continue,
         };
+
+        // First pass: fix near-miss headers
+        let mut content = content;
+        if fix_near_miss_headers(&mut content) {
+            let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
+            println!(
+                "  {} {rel}: renamed near-miss header(s) to canonical form",
+                "✓".green()
+            );
+            let _ = fs::write(spec_file, &content);
+        }
 
         let parsed = match parse_frontmatter(&content) {
             Some(p) => p,

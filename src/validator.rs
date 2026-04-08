@@ -1,6 +1,8 @@
 use crate::config::{default_schema_pattern, discover_manifest_modules};
 use crate::exports::{get_exported_symbols_with_level, has_extension, is_test_file};
-use crate::parser::{get_missing_sections, get_spec_symbols, parse_frontmatter};
+use crate::parser::{
+    find_stub_sections, get_missing_sections, get_spec_symbols, parse_frontmatter,
+};
 use crate::schema::{self, SchemaTable};
 use crate::types::{CoverageReport, SpecSyncConfig, ValidationResult};
 use regex::Regex;
@@ -341,18 +343,36 @@ pub fn validate_spec(
             .push(format!("Add `## {section}` heading to the spec body"));
     }
 
+    // ─── Level 1.7: Stub/Placeholder Detection ──────────────────────
+    let stub_sections = find_stub_sections(body, &config.required_sections);
+    if !stub_sections.is_empty() {
+        for section in &stub_sections {
+            result.warnings.push(format!(
+                "Section ## {section} contains only stub/placeholder text (TBD, N/A, TODO, etc.)"
+            ));
+            result.fixes.push(format!(
+                "Replace placeholder content in ## {section} with real documentation"
+            ));
+        }
+    }
+
     // ─── Level 2: API Surface ─────────────────────────────────────────
     // Draft specs skip API surface validation — exports may not exist yet.
 
     if !fm.files.is_empty() && !is_draft {
+        // Track exports with their source file for attribution
+        let mut exports_by_file: Vec<(String, String)> = Vec::new(); // (symbol, file)
         let mut all_exports: Vec<String> = Vec::new();
         for file in &fm.files {
             let full_path = root.join(file);
             let exports = get_exported_symbols_with_level(&full_path, config.export_level);
+            for sym in &exports {
+                exports_by_file.push((sym.clone(), file.clone()));
+            }
             all_exports.extend(exports);
         }
 
-        // Deduplicate
+        // Deduplicate (keep first occurrence for file attribution)
         let mut seen = HashSet::new();
         all_exports.retain(|s| seen.insert(s.clone()));
 
@@ -369,12 +389,26 @@ pub fn validate_spec(
             }
         }
 
-        // Code exports something not in spec = WARNING
+        // Code exports something not in spec = WARNING (with source file attribution)
         for sym in &all_exports {
             if !spec_set.contains(sym.as_str()) {
-                result
-                    .warnings
-                    .push(format!("Export '{sym}' not in spec (undocumented)"));
+                // Find the source file for this export
+                let source_file = exports_by_file
+                    .iter()
+                    .find(|(s, _)| s == sym)
+                    .map(|(_, f)| f.as_str());
+                match source_file {
+                    Some(file) => {
+                        result
+                            .warnings
+                            .push(format!("Undocumented export '{sym}' from {file}"));
+                    }
+                    None => {
+                        result
+                            .warnings
+                            .push(format!("Export '{sym}' not in spec (undocumented)"));
+                    }
+                }
             }
         }
 
@@ -423,6 +457,34 @@ pub fn validate_spec(
                         file_ref.as_str()
                     ));
                 }
+            }
+        }
+    }
+
+    // ─── Level 4: Requirements Companion File ─────────────────────────
+    // spec-sync expects requirements in a separate companion file (requirements.md),
+    // not inline in the spec body. Warn if requirements appear inline.
+    if !is_draft {
+        let has_inline_requirements = {
+            let lower = body.to_ascii_lowercase();
+            lower.contains("## requirements") || lower.contains("## acceptance criteria")
+        };
+        if has_inline_requirements {
+            result.warnings.push(
+                "Requirements appear inline in the spec body — move to a companion requirements.md file".to_string()
+            );
+            result.fixes.push(
+                "Create a requirements.md alongside the spec with ## User Stories and ## Acceptance Criteria sections".to_string()
+            );
+        }
+
+        // Check that the companion requirements.md exists for non-draft specs
+        if let Some(parent) = spec_path.parent() {
+            let req_path = parent.join("requirements.md");
+            if !req_path.exists() {
+                result.warnings.push(
+                    "Missing companion requirements.md — run `specsync generate` or create one manually".to_string()
+                );
             }
         }
     }

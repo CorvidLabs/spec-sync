@@ -258,7 +258,7 @@ Utility functions.
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "Export 'undocumented' not in spec",
+            "Undocumented export 'undocumented' from src/utils/helpers.ts",
         ));
 }
 

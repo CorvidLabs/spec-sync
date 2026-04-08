@@ -104,7 +104,7 @@ fn run() {
             format,
             provider,
         ),
-        Command::Score => commands::score::cmd_score(&root, format),
+        Command::Score { explain } => commands::score::cmd_score(&root, format, explain),
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
         Command::Mcp => mcp::run_mcp_server(&root),
         Command::AddSpec { name } => commands::scaffold::cmd_add_spec(&root, &name),

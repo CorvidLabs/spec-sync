@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-04-08
+
+### Added
+
+- **Stub/placeholder detection** — sections containing only "TBD", "N/A", "TODO", "Coming soon", or similar placeholders are now flagged as warnings and no longer inflate quality scores (#162).
+- **Source-attributed export warnings** — undocumented export warnings now show which source file the export comes from, making them actionable in large codebases (#165).
+- **Requirements companion validation** — warns when specs contain inline requirements sections (should be in `requirements.md`) and when companion files are missing (#163).
+- **Score diagnostics** — `specsync score` now shows per-category breakdowns (completeness, structure, cross-references) with actionable improvement suggestions (#167).
+
+### Fixed
+
+- **Header matching flexibility** — fuzzy matching for common header variations like "Public API" → "Exports", "Tech Stack" → "Dependencies", reducing false negatives (#166).
+- **Frontmatter parser edge cases** — correctly handles tabs, trailing whitespace, and inline YAML comments in spec frontmatter (#161).
+- **`--fix` header renaming** — near-miss headers are now renamed in-place instead of duplicating the section (#164).
+
 ## [3.4.1] - 2026-04-07
 
 ### Fixed
@@ -290,6 +305,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
+[3.4.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.4.1
+[3.5.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.5.0
 [3.4.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.4.1
 [3.4.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.4.0
 [3.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.1.0

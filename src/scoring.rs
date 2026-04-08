@@ -1,5 +1,8 @@
 use crate::exports::get_exported_symbols;
-use crate::parser::{get_missing_sections, get_spec_symbols, parse_frontmatter};
+use crate::parser::{
+    find_stub_sections, get_missing_sections, get_spec_symbols, parse_frontmatter,
+    section_has_content,
+};
 use crate::types::SpecSyncConfig;
 use std::collections::HashSet;
 use std::fs;
@@ -70,35 +73,35 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
 
     // ─── Frontmatter (0-20) ──────────────────────────────────────────
     let mut fm_points = 0u32;
+    let mut fm_missing: Vec<&str> = Vec::new();
     if fm.module.is_some() {
         fm_points += 5;
     } else {
-        score
-            .suggestions
-            .push("Add `module:` field to frontmatter".to_string());
+        fm_missing.push("module (-5pts)");
     }
     if fm.version.is_some() {
         fm_points += 5;
     } else {
-        score
-            .suggestions
-            .push("Add `version:` field to frontmatter".to_string());
+        fm_missing.push("version (-5pts)");
     }
     if fm.status.is_some() {
         fm_points += 4;
     } else {
-        score
-            .suggestions
-            .push("Add `status:` field to frontmatter".to_string());
+        fm_missing.push("status (-4pts)");
     }
     if !fm.files.is_empty() {
         fm_points += 6;
     } else {
-        score
-            .suggestions
-            .push("Add `files:` list linking spec to source files".to_string());
+        fm_missing.push("files (-6pts)");
     }
     score.frontmatter_score = fm_points;
+    if !fm_missing.is_empty() {
+        let lost = 20 - fm_points;
+        score.suggestions.push(format!(
+            "Frontmatter (-{lost}pts): missing {}",
+            fm_missing.join(", ")
+        ));
+    }
 
     // ─── Sections (0-20) ─────────────────────────────────────────────
     let missing = get_missing_sections(body, &config.required_sections);
@@ -110,6 +113,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         ((present as f64 / total_sections as f64) * 20.0).round() as u32
     };
     if !missing.is_empty() {
+        let lost = 20 - score.sections_score;
         let names = missing
             .iter()
             .take(3)
@@ -123,7 +127,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         };
         score
             .suggestions
-            .push(format!("Add missing sections: {names}{suffix}"));
+            .push(format!("Sections (-{lost}pts): missing ## {names}{suffix}"));
     }
 
     // ─── API Coverage (0-20) ─────────────────────────────────────────
@@ -151,8 +155,21 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
                 ((documented as f64 / all_exports.len() as f64) * 20.0).round() as u32;
             let undocumented = all_exports.len() - documented;
             if undocumented > 0 {
+                let lost = 20 - score.api_score;
+                let undoc_names: Vec<&str> = all_exports
+                    .iter()
+                    .filter(|s| !spec_symbols.iter().any(|ss| ss == *s))
+                    .take(5)
+                    .map(|s| s.as_str())
+                    .collect();
+                let names_str = undoc_names.join("`, `");
+                let suffix = if undocumented > 5 {
+                    format!(" (+{} more)", undocumented - 5)
+                } else {
+                    String::new()
+                };
                 score.suggestions.push(format!(
-                    "Document {undocumented} undocumented export(s) in ## Public API"
+                    "API coverage (-{lost}pts): {undocumented} undocumented export(s) — `{names_str}`{suffix}"
                 ));
             }
         }
@@ -165,8 +182,9 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     let todo_count = count_placeholder_todos(body);
     let placeholder_count = body.matches("<!-- ").count();
 
-    // Check each required section has meaningful content
+    // Check each required section has meaningful content (stubs don't count)
     let sections_with_content = count_sections_with_content(body, &config.required_sections);
+    let stub_sections = find_stub_sections(body, &config.required_sections);
     let content_ratio = if config.required_sections.is_empty() {
         1.0
     } else {
@@ -181,10 +199,38 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         depth_points += 3;
     } else {
         score.suggestions.push(format!(
-            "Fill in {todo_count} TODO placeholder(s) with real content"
+            "Content depth: fill in {todo_count} TODO placeholder(s) with real content"
         ));
     }
     score.depth_score = depth_points.min(20);
+    if score.depth_score < 20 {
+        let lost = 20 - score.depth_score;
+        let filled = sections_with_content;
+        let total_req = config.required_sections.len();
+        if filled < total_req {
+            score.suggestions.push(format!(
+                "Content depth (-{lost}pts): only {filled}/{total_req} sections have meaningful content"
+            ));
+        }
+    }
+
+    // Report stub sections specifically so users know which sections need real content
+    if !stub_sections.is_empty() {
+        let names = stub_sections
+            .iter()
+            .take(4)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(", ");
+        let suffix = if stub_sections.len() > 4 {
+            format!(" (+{} more)", stub_sections.len() - 4)
+        } else {
+            String::new()
+        };
+        score.suggestions.push(format!(
+            "Stub sections: ## {names}{suffix} — replace placeholder text (TBD, N/A, TODO, etc.) with real content"
+        ));
+    }
 
     // ─── Freshness (0-20) ────────────────────────────────────────────
     let mut fresh_points = 20u32;
@@ -198,7 +244,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         let penalty = (stale_files * 5).min(15);
         fresh_points = fresh_points.saturating_sub(penalty);
         score.suggestions.push(format!(
-            "Fix {stale_files} stale file reference(s) in frontmatter"
+            "Freshness (-{penalty}pts): {stale_files} file(s) in frontmatter don't exist"
         ));
     }
 
@@ -210,9 +256,10 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         }
     }
     if stale_deps > 0 {
-        fresh_points = fresh_points.saturating_sub(stale_deps * 3);
+        let dep_penalty = stale_deps * 3;
+        fresh_points = fresh_points.saturating_sub(dep_penalty);
         score.suggestions.push(format!(
-            "Fix {stale_deps} stale dependency reference(s) in frontmatter"
+            "Freshness (-{dep_penalty}pts): {stale_deps} depends_on path(s) don't exist"
         ));
     }
     score.freshness_score = fresh_points;
@@ -266,31 +313,8 @@ fn count_placeholder_todos(body: &str) -> usize {
 fn count_sections_with_content(body: &str, required_sections: &[String]) -> usize {
     let mut count = 0;
     for section in required_sections {
-        let header = format!("## {section}");
-        if let Some(start) = body.find(&header) {
-            let after = start + header.len();
-            // Find end of this section (next ## or end of body)
-            let rest = &body[after..];
-            let end = rest.find("\n## ").unwrap_or(rest.len());
-            let section_body = rest[..end].trim();
-
-            // Has content beyond placeholders?
-            let meaningful = section_body
-                .lines()
-                .filter(|l| {
-                    let t = l.trim();
-                    !t.is_empty()
-                        && !t.starts_with("<!--")
-                        && !t.starts_with("|--")
-                        && !t.starts_with("| -")
-                        && t != "TODO"
-                        && !t.contains("<!-- TODO")
-                })
-                .count();
-
-            if meaningful >= 1 {
-                count += 1;
-            }
+        if section_has_content(body, section) {
+            count += 1;
         }
     }
     count
@@ -500,5 +524,93 @@ None.
             score.total
         );
         assert!(score.grade == "A" || score.grade == "B");
+    }
+
+    #[test]
+    fn test_count_sections_with_content_stubs_not_counted() {
+        let body = "## Purpose\nTBD\n\n## Public API\nN/A\n\n## Invariants\nReal invariant here\n";
+        let sections = vec![
+            "Purpose".to_string(),
+            "Public API".to_string(),
+            "Invariants".to_string(),
+        ];
+        // Only Invariants has real content; Purpose and Public API are stubs
+        assert_eq!(count_sections_with_content(body, &sections), 1);
+    }
+
+    #[test]
+    fn test_score_spec_stub_sections_penalized() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(src_dir.join("stub.ts"), "export function doStuff() {}\n").unwrap();
+
+        let spec_dir = tmp.path().join("specs").join("stub");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        let spec_content = r#"---
+module: stub
+version: 1
+status: active
+files:
+  - src/stub.ts
+db_tables: []
+depends_on: []
+---
+
+# Stub
+
+## Purpose
+
+TBD
+
+## Public API
+
+| Export | Description |
+|--------|-------------|
+| `doStuff` | Does stuff |
+
+## Invariants
+
+N/A
+
+## Behavioral Examples
+
+Coming soon
+
+## Error Cases
+
+TBD
+
+## Dependencies
+
+None.
+
+## Change Log
+
+| Date | Change |
+|------|--------|
+| 2024-01-01 | Initial |
+"#;
+        let spec_file = spec_dir.join("stub.spec.md");
+        std::fs::write(&spec_file, spec_content).unwrap();
+
+        let config = SpecSyncConfig::default();
+        let score = score_spec(&spec_file, tmp.path(), &config);
+
+        // Depth score should be penalized because most sections are stubs
+        assert!(
+            score.depth_score < 14,
+            "Expected low depth score for stub sections, got {}",
+            score.depth_score
+        );
+        // Should have a suggestion about stub sections
+        assert!(
+            score
+                .suggestions
+                .iter()
+                .any(|s| s.contains("Stub sections")),
+            "Expected stub section suggestion, got: {:?}",
+            score.suggestions
+        );
     }
 }

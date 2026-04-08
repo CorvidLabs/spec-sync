@@ -6,7 +6,7 @@ use crate::types;
 
 use super::load_and_discover;
 
-pub fn cmd_score(root: &Path, format: types::OutputFormat) {
+pub fn cmd_score(root: &Path, format: types::OutputFormat, explain: bool) {
     let json = matches!(format, types::OutputFormat::Json);
     let (config, spec_files) = load_and_discover(root, false);
     let scores: Vec<scoring::SpecScore> = spec_files
@@ -70,10 +70,33 @@ pub fn cmd_score(root: &Path, format: types::OutputFormat) {
             grade_colored,
             s.total
         );
-        println!(
-            "    Frontmatter: {}/20  Sections: {}/20  API: {}/20  Depth: {}/20  Fresh: {}/20",
-            s.frontmatter_score, s.sections_score, s.api_score, s.depth_score, s.freshness_score
-        );
+
+        if explain {
+            // Show color-coded per-category bars
+            println!(
+                "    {} {}/20  {} {}/20  {} {}/20  {} {}/20  {} {}/20",
+                "Frontmatter:".dimmed(),
+                colorize_subscore(s.frontmatter_score),
+                "Sections:".dimmed(),
+                colorize_subscore(s.sections_score),
+                "API:".dimmed(),
+                colorize_subscore(s.api_score),
+                "Depth:".dimmed(),
+                colorize_subscore(s.depth_score),
+                "Fresh:".dimmed(),
+                colorize_subscore(s.freshness_score),
+            );
+        } else {
+            println!(
+                "    Frontmatter: {}/20  Sections: {}/20  API: {}/20  Depth: {}/20  Fresh: {}/20",
+                s.frontmatter_score,
+                s.sections_score,
+                s.api_score,
+                s.depth_score,
+                s.freshness_score
+            );
+        }
+
         if !s.suggestions.is_empty() {
             for suggestion in &s.suggestions {
                 println!("    {} {suggestion}", "->".cyan());
@@ -102,4 +125,14 @@ pub fn cmd_score(root: &Path, format: types::OutputFormat) {
         project.grade_distribution[3],
         project.grade_distribution[4]
     );
+}
+
+/// Colorize a subscore (out of 20) — green for 20, yellow for 10-19, red for <10.
+fn colorize_subscore(score: u32) -> String {
+    let s = score.to_string();
+    match score {
+        20 => s.green().to_string(),
+        10..=19 => s.yellow().to_string(),
+        _ => s.red().to_string(),
+    }
 }

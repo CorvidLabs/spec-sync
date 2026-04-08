@@ -71,7 +71,7 @@ pub fn cmd_check(
 
     // Load hash cache and classify changes for each spec.
     let mut cache = hash_cache::HashCache::load(root);
-    let (specs_to_validate, change_classifications) = if force || strict {
+    let (specs_to_validate, change_classifications) = if force || strict || !spec_filters.is_empty() {
         (spec_files.clone(), Vec::new())
     } else {
         let classifications = hash_cache::classify_all_changes(root, &spec_files, &cache);

@@ -13,6 +13,15 @@ use super::load_and_discover;
 pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
     let (config, spec_files) = load_and_discover(root, false);
 
+    // Auto-detect PR context: when base is default "HEAD" and we're in a GitHub
+    // Actions pull_request event, compare against the PR's base branch instead.
+    let effective_base = if base == "HEAD" {
+        detect_pr_base().unwrap_or_else(|| base.to_string())
+    } else {
+        base.to_string()
+    };
+    let base = effective_base.as_str();
+
     // Get list of files changed since base ref
     let output = match std::process::Command::new("git")
         .args(["diff", "--name-only", base])
@@ -201,4 +210,22 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
             }
         }
     }
+}
+
+/// Detect the PR base ref from GitHub Actions environment variables.
+/// Returns `Some("origin/<base_branch>")` when running in a pull_request event,
+/// or `None` otherwise.
+fn detect_pr_base() -> Option<String> {
+    let event = std::env::var("GITHUB_EVENT_NAME").ok()?;
+    if event != "pull_request" && event != "pull_request_target" {
+        return None;
+    }
+    let base_ref = std::env::var("GITHUB_BASE_REF").ok()?;
+    if base_ref.is_empty() {
+        return None;
+    }
+    eprintln!(
+        "specsync: detected PR context (GITHUB_BASE_REF={base_ref}), comparing against origin/{base_ref}"
+    );
+    Some(format!("origin/{base_ref}"))
 }

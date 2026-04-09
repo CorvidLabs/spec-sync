@@ -6,8 +6,12 @@ use tempfile::TempDir;
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
 /// Create a specsync binary command.
+/// Clears GitHub Actions env vars so PR-base auto-detection doesn't interfere with tests.
 fn specsync() -> Command {
-    Command::cargo_bin("specsync").unwrap()
+    let mut cmd = Command::cargo_bin("specsync").unwrap();
+    cmd.env_remove("GITHUB_EVENT_NAME");
+    cmd.env_remove("GITHUB_BASE_REF");
+    cmd
 }
 
 /// A valid spec file that passes all checks.

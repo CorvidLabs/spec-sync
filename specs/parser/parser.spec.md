@@ -31,6 +31,9 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 | `parse_frontmatter` | `content: &str` | `Option<ParsedSpec>` | Parse YAML frontmatter delimited by `---` from a spec file |
 | `get_spec_symbols` | `body: &str` | `Vec<String>` | Extract backtick-quoted symbol names from the `## Public API` section tables |
 | `get_missing_sections` | `body: &str, required_sections: &[String]` | `Vec<String>` | Check which required `##` sections are missing from the spec body |
+| `is_export_header` | <!-- TODO: describe --> |
+| `section_has_content` | <!-- TODO: describe --> |
+| `find_stub_sections` | <!-- TODO: describe --> |
 
 ## Invariants
 

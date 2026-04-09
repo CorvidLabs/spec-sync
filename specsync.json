@@ -20,6 +20,7 @@
     "src"
   ],
   "specsDir": "specs",
+  "enforcement": "strict",
   "aiCommand": "claude -p --output-format text",
   "aiTimeout": 300
 }

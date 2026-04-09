@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.2] - 2026-04-09
+
+### Fixed
+
+- **`specsync diff` in PR context** — auto-detects `GITHUB_BASE_REF` in GitHub Actions so diff compares against the PR base branch instead of `HEAD` (the merge commit), which previously always reported "No files changed" (#180).
+
+### Changed
+
+- **Strict spec enforcement** — spec-sync now dogfoods its own `--enforcement-mode=strict` in CI, catching spec drift in the tool itself (#182).
+- **100% spec file coverage** — added specs for all 62 source files (26 new spec modules), up from 58% (#183).
+
 ## [3.6.1] - 2026-04-08
 
 ### Fixed

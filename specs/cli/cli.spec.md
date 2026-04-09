@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 1
+version: 2
 status: stable
 files:
   - src/main.rs
@@ -51,19 +51,20 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 
 | Command | Description | Key Flags |
 |---------|-------------|-----------|
-| check | Validate all specs against source code (default when no subcommand given) | --strict, --require-coverage N, --json, --fix, --force, --create-issues, [SPEC...] |
+| check | Validate all specs against source code (default when no subcommand given) | --strict, --require-coverage N, --json, --fix, --force, --create-issues, --explain, [SPEC...] |
 | coverage | Show file and module coverage report | --strict, --require-coverage N, --json |
 | generate | Scaffold spec files for unspecced modules | --provider PROVIDER (AI mode: auto/claude/anthropic/openai/ollama/copilot) |
 | init | Create a specsync.json config file with auto-detected source dirs | — |
-| score | Score spec quality (0–100) with letter grades and suggestions | --json, [SPEC...] |
+| score | Score spec quality (0–100) with letter grades and suggestions | --json, --explain, [SPEC...] |
 | watch | Watch spec and source files, re-running check on changes | --strict, --require-coverage N |
 | mcp | Run as an MCP (Model Context Protocol) server over stdio | — |
 | add-spec | Scaffold a new spec with companion files (tasks.md, context.md) | name positional arg |
+| scaffold | Full scaffold: spec + companions + source detection + registry entry | name, --dir PATH, --template PATH |
 | init-registry | Generate a specsync-registry.toml for cross-project references | --name |
 | resolve | Resolve cross-project spec references in depends_on | --remote (enables network fetches) |
 | diff | Show export changes since a git ref (useful for CI/PR comments) | --base REF (default: HEAD), --json |
-| hooks install | Install agent instructions and/or git hooks | --claude, --cursor, --copilot, --precommit, --claude-code-hook |
-| hooks uninstall | Remove previously installed hooks | --claude, --cursor, --copilot, --precommit, --claude-code-hook |
+| hooks install | Install agent instructions and/or git hooks | --claude, --cursor, --copilot, --agents, --precommit, --claude-code-hook |
+| hooks uninstall | Remove previously installed hooks | --claude, --cursor, --copilot, --agents, --precommit, --claude-code-hook |
 | hooks status | Show installation status of all hooks | — |
 | compact | Compact changelog tables by summarizing old entries | --keep N (default 10), --dry-run |
 | archive-tasks | Move completed task items to archive section | --dry-run |
@@ -74,6 +75,9 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 | import | Import specs from external systems (GitHub Issues, Jira, Confluence) | SOURCE, ID, --repo |
 | new | Quick-create a minimal spec with auto-detected source files | name, --full |
 | deps | Validate cross-module dependency graph | --mermaid, --dot, --json |
+| report | Per-module coverage report with stale and incomplete detection | --stale-threshold N (default 5) |
+| comment | Post spec-check summary as a PR comment (or print for piping) | --pr N, --base REF (default: main) |
+| changelog | Generate changelog of spec changes between two git refs | RANGE positional arg |
 
 ### Global Flags
 
@@ -84,6 +88,7 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 | --root | Option PathBuf | cwd | Project root directory |
 | --format | text\|json\|markdown | text | Output format: colored text, machine-readable JSON, or markdown |
 | --json | bool | false | Shorthand for `--format json` |
+| --enforcement | Option EnforcementMode | None | Override enforcement mode from specsync.json (warn, enforce-new, strict) |
 | --force | bool | false | Bypass hash cache and re-validate all specs |
 
 ### Internal Functions
@@ -108,6 +113,10 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 - **cmd_issues** — Verify GitHub issue references in spec frontmatter
 - **cmd_wizard** — Interactive wizard for step-by-step spec creation with template selection and preview
 - **cmd_import** — Import specs from external systems (GitHub Issues, Jira, Confluence) using `importer` module
+- **cmd_report** — Per-module coverage report with stale detection (modules N+ commits behind source)
+- **cmd_comment** — Post spec-check summary as a PR comment via `gh`, or print the comment body
+- **cmd_changelog** — Generate a changelog of spec changes between two git refs
+- **cmd_scaffold** — Full module scaffold: spec + companion files + source detection + registry entry
 - **auto_fix_specs** — Scan source files for undocumented exports and auto-add stubs to spec Public API tables
 - **collect_hook_targets** — Convert boolean flags to Vec of HookTarget
 - **load_and_discover** — Load config and find all spec files (filtering _-prefixed templates)
@@ -138,6 +147,11 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 16. `--fix` with `--json` suppresses the human-readable fix summary but still writes the fix
 17. `cmd_diff` shells out to `git diff --name-only <base>` to detect changed files
 18. `cmd_diff` only reports specs whose `files:` frontmatter list intersects the changed file set
+19. `cmd_scaffold` auto-detects source files, creates companion files, and registers the module in `specsync-registry.toml` if it exists
+20. `cmd_report` flags modules whose specs are N+ commits behind their source files (default threshold: 5)
+21. `cmd_comment` without `--pr` prints the comment body to stdout; with `--pr N` posts via `gh` CLI
+22. `cmd_changelog` requires a git ref range (e.g., `v0.1..v0.2`); exits 1 if range is invalid
+23. `--enforcement` CLI flag overrides the `enforcement` field in specsync.json; `--strict` implies strict enforcement
 
 ## Behavioral Examples
 
@@ -261,6 +275,9 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 | github | `verify_spec_issues`, `create_drift_issue`, `resolve_repo` |
 | hash_cache | `HashCache`, `classify_all_changes`, `update_cache` |
 | merge | `merge_specs`, `print_results`, `results_to_json` |
+| comment | `render_comment_body`, `detect_branch`, `SpecViolation` |
+| changelog | `changelog_between_refs` |
+| deps | `validate_deps`, `render_mermaid`, `render_dot` |
 
 ### Consumed By
 
@@ -274,3 +291,4 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 |------|--------|
 | 2026-03-25 | Initial spec |
 | 2026-04-06 | Add compact, archive-tasks, view, merge, issues subcommands; add --force, --create-issues, --format flags; add hash_cache/github/archive/compact/view/merge dependencies |
+| 2026-04-09 | Add scaffold, report, comment, changelog subcommands; add --enforcement and --explain flags; add --agents hook target; add comment/changelog/deps dependencies |

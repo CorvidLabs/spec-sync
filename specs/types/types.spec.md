@@ -73,6 +73,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `from_extension` | `ext: &str` | `Option<Self>` | Detect language from file extension |
 | `extensions` | `&self` | `&[&str]` | Default source file extensions for this language |
 | `test_patterns` | `&self` | `&[&str]` | File patterns to exclude (test files) |
+| `default_base_url` | <!-- TODO: describe --> |
 
 ## Invariants
 

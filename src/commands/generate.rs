@@ -12,6 +12,7 @@ use crate::validator::{compute_coverage, get_schema_table_names};
 
 use super::{build_schema_columns, exit_with_status, load_and_discover, run_validation};
 
+#[allow(clippy::too_many_arguments)]
 pub fn cmd_generate(
     root: &Path,
     strict: bool,

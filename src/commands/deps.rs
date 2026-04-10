@@ -70,7 +70,7 @@ pub fn cmd_deps(root: &Path, format: types::OutputFormat, mermaid: bool, dot: bo
                 println!("All dependency declarations are valid.");
             }
         }
-        types::OutputFormat::Text => {
+        types::OutputFormat::Text | types::OutputFormat::Table | types::OutputFormat::Csv => {
             println!(
                 "\n--- {} ------------------------------------------------",
                 "Dependency Validation".bold()

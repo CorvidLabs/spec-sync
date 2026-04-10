@@ -28,7 +28,10 @@ pub fn cmd_changelog(root: &Path, range: &str, format: types::OutputFormat) {
         types::OutputFormat::Markdown => {
             print!("{}", changelog::format_markdown(&report));
         }
-        types::OutputFormat::Text | types::OutputFormat::Github => {
+        types::OutputFormat::Text
+        | types::OutputFormat::Github
+        | types::OutputFormat::Table
+        | types::OutputFormat::Csv => {
             print!("{}", changelog::format_text(&report));
         }
     }

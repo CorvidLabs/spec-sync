@@ -70,7 +70,7 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
         total_errors += verification.errors.len();
 
         match format {
-            types::OutputFormat::Text => {
+            types::OutputFormat::Text | types::OutputFormat::Table | types::OutputFormat::Csv => {
                 if !verification.valid.is_empty()
                     || !verification.closed.is_empty()
                     || !verification.not_found.is_empty()
@@ -165,7 +165,7 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
             println!("| Not found | {total_not_found} |");
             println!("| Errors | {total_errors} |");
         }
-        types::OutputFormat::Text => {
+        types::OutputFormat::Text | types::OutputFormat::Table | types::OutputFormat::Csv => {
             let total_refs = total_valid + total_closed + total_not_found;
             if total_refs == 0 {
                 println!(

@@ -58,6 +58,7 @@ Shared command infrastructure used by all CLI subcommands. Provides config loadi
 | `new` | Quick-create minimal specs |
 | `report` | Per-module coverage report with staleness |
 | `resolve` | Resolve cross-project dependency refs |
+| `stale` | Git-based staleness detection for spec drift |
 | `scaffold` | Full spec scaffolding with templates |
 | `score` | Spec quality scoring (0-100, A-F) |
 | `view` | Role-filtered spec rendering |
@@ -128,6 +129,7 @@ Shared command infrastructure used by all CLI subcommands. Provides config loadi
 | cmd_score | `load_and_discover`, `filter_specs` |
 | cmd_report | `load_and_discover` |
 | cmd_resolve | `load_and_discover` |
+| cmd_stale | `load_and_discover` |
 | cmd_diff | `load_and_discover` |
 
 ## Change Log

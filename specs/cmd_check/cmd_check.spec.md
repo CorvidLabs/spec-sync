@@ -9,6 +9,7 @@ tracks: []
 depends_on:
   - specs/commands/commands.spec.md
   - specs/ai/ai.spec.md
+  - specs/git_utils/git_utils.spec.md
   - specs/hash_cache/hash_cache.spec.md
   - specs/ignore/ignore.spec.md
   - specs/output/output.spec.md

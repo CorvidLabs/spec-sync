@@ -55,6 +55,9 @@ pub enum Command {
         /// Show per-category score breakdown explaining why each spec lost points
         #[arg(long)]
         explain: bool,
+        /// Include git-based staleness warnings (specs behind source by N+ commits)
+        #[arg(long)]
+        stale: Option<Option<usize>>,
         /// Spec filters — validates all if omitted. Matches by: module name (e.g. "cli"),
         /// filename stem ("cli.spec"), relative path ("specs/cli/cli.spec.md"), or absolute path.
         #[arg(value_name = "SPEC")]
@@ -200,6 +203,12 @@ pub enum Command {
         /// GitHub repo (owner/repo) — only for GitHub source; auto-detected if omitted
         #[arg(long)]
         repo: Option<String>,
+    },
+    /// Detect specs that have drifted from their source files (git-based)
+    Stale {
+        /// Flag specs whose source files have N+ commits since the spec was last updated
+        #[arg(long, default_value = "5")]
+        threshold: usize,
     },
     /// Per-module coverage report with stale and incomplete detection
     Report {

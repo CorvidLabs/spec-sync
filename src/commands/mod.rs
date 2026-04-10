@@ -18,6 +18,7 @@ pub mod report;
 pub mod resolve;
 pub mod scaffold;
 pub mod score;
+pub mod stale;
 pub mod view;
 pub mod wizard;
 

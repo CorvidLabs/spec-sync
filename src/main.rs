@@ -107,17 +107,25 @@ fn run() {
             cli.require_coverage,
             format,
         ),
-        Command::Generate { provider } => commands::generate::cmd_generate(
+        Command::Generate {
+            provider,
+            uncovered,
+            batch,
+        } => commands::generate::cmd_generate(
             &root,
             cli.strict,
             cli.enforcement,
             cli.require_coverage,
             format,
             provider,
+            uncovered,
+            batch,
         ),
-        Command::Score { explain, specs } => {
-            commands::score::cmd_score(&root, format, explain, &specs)
-        }
+        Command::Score {
+            explain,
+            all,
+            specs,
+        } => commands::score::cmd_score(&root, format, explain, all, &specs),
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
         Command::Mcp => mcp::run_mcp_server(&root),
         Command::AddSpec { name } => commands::scaffold::cmd_add_spec(&root, &name),
@@ -140,9 +148,22 @@ fn run() {
         Command::New { name, full } => commands::new::cmd_new(&root, &name, full),
         Command::Wizard => commands::wizard::cmd_wizard(&root),
         Command::Deps { mermaid, dot } => commands::deps::cmd_deps(&root, format, mermaid, dot),
-        Command::Import { source, id, repo } => {
-            commands::import::cmd_import(&root, &source, &id, repo.as_deref())
-        }
+        Command::Import {
+            source,
+            id,
+            repo,
+            all_issues,
+            label,
+            from_dir,
+        } => commands::import::cmd_import(
+            &root,
+            source.as_deref(),
+            id.as_deref(),
+            repo.as_deref(),
+            all_issues,
+            label.as_deref(),
+            from_dir.as_deref(),
+        ),
         Command::Stale { threshold } => commands::stale::cmd_stale(&root, format, threshold),
         Command::Report { stale_threshold } => {
             commands::report::cmd_report(&root, format, stale_threshold)

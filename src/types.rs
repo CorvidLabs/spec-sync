@@ -201,6 +201,10 @@ pub enum OutputFormat {
     Markdown,
     /// GitHub-flavored markdown with spec links, actionable suggestions, and checklists
     Github,
+    /// ASCII table (useful for score --all --format table)
+    Table,
+    /// CSV output (useful for score --all --format csv, dashboards)
+    Csv,
 }
 
 /// Valid spec lifecycle statuses.
@@ -282,7 +286,7 @@ impl ValidationResult {
 }
 
 /// Coverage report for the project.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CoverageReport {
     pub total_source_files: usize,
     pub specced_file_count: usize,

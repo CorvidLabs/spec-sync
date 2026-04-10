@@ -74,6 +74,13 @@ pub enum Command {
         /// claude, anthropic, openai, ollama, copilot.
         #[arg(long, value_name = "PROVIDER")]
         provider: Option<String>,
+        /// Generate specs for all unspecced modules (default behavior, made explicit)
+        #[arg(long)]
+        uncovered: bool,
+        /// Generate specs only for these specific modules (space or comma-separated list).
+        /// Skips modules that already have specs. Ignores modules not found in coverage report.
+        #[arg(long, value_name = "MODULE", num_args(1..))]
+        batch: Vec<String>,
     },
     /// Create a specsync.json config file
     Init,
@@ -82,6 +89,9 @@ pub enum Command {
         /// Show detailed per-category breakdown explaining exactly why each spec lost points
         #[arg(long)]
         explain: bool,
+        /// Score all specs (default when no filters provided; enables batch summary stats)
+        #[arg(long)]
+        all: bool,
         /// Spec filters — scores all if omitted. Matches by: module name (e.g. "cli"),
         /// filename stem ("cli.spec"), relative path ("specs/cli/cli.spec.md"), or absolute path.
         #[arg(value_name = "SPEC")]
@@ -194,15 +204,25 @@ pub enum Command {
     },
     /// Import specs from external systems (GitHub Issues, Jira, Confluence)
     Import {
-        /// Import source: github, jira, or confluence
+        /// Import source: github, jira, or confluence (required unless --all-issues or --from-dir)
         #[arg(value_name = "SOURCE")]
-        source: String,
+        source: Option<String>,
         /// Issue number, key, or page ID to import (e.g., 42, PROJ-123, or 98765)
+        /// Required unless --all-issues or --from-dir is set.
         #[arg(value_name = "ID")]
-        id: String,
+        id: Option<String>,
         /// GitHub repo (owner/repo) — only for GitHub source; auto-detected if omitted
         #[arg(long)]
         repo: Option<String>,
+        /// Import all open GitHub issues as spec drafts (batch mode)
+        #[arg(long)]
+        all_issues: bool,
+        /// Filter issues by label when using --all-issues
+        #[arg(long, value_name = "LABEL")]
+        label: Option<String>,
+        /// Bulk import all markdown files from a directory as spec drafts
+        #[arg(long, value_name = "PATH")]
+        from_dir: Option<PathBuf>,
     },
     /// Detect specs that have drifted from their source files (git-based)
     Stale {

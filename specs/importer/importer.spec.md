@@ -26,6 +26,7 @@ Generates spec files from external project management systems. Supports importin
 | `import_jira_issue` | `issue_key: &str` | `Result<ImportedItem, String>` | Fetch a Jira issue via REST API v3 and convert to `ImportedItem` |
 | `import_confluence_page` | `page_id: &str` | `Result<ImportedItem, String>` | Fetch a Confluence page via REST API and convert to `ImportedItem` |
 | `render_spec` | `item: &ImportedItem` | `String` | Render an `ImportedItem` into a complete spec markdown string |
+| `extract_requirements_pub` | `body: &str` | `Vec<String>` | Extract requirement-like bullets (checkboxes, numbered lists, acceptance criteria sections) from text |
 | `slugify` | `title: &str` | `String` | Convert a title into a valid module name (lowercase, hyphen-separated) |
 
 ### Exported Structs

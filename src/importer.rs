@@ -537,6 +537,10 @@ fn strip_html_tags(html: &str) -> String {
 
 /// Extract requirement-like bullets from a body of text.
 /// Looks for markdown checkboxes, numbered lists, "Acceptance Criteria" sections, etc.
+pub fn extract_requirements_pub(body: &str) -> Vec<String> {
+    extract_requirements(body)
+}
+
 fn extract_requirements(body: &str) -> Vec<String> {
     let mut reqs = Vec::new();
     let mut in_criteria_section = false;

@@ -29,6 +29,7 @@ Links spec files to GitHub issues for traceability. Validates `implements` and `
 | `fetch_issue_api` | `repo: &str, number: u64` | `Result<GitHubIssue, String>` | Fetch issue via GitHub REST API with `GITHUB_TOKEN` env var |
 | `fetch_issue` | `repo: &str, number: u64` | `Result<GitHubIssue, String>` | Fetch issue — tries `gh` CLI first, falls back to REST API |
 | `verify_spec_issues` | `repo: &str, spec_path: &str, implements: &[u64], tracks: &[u64]` | `IssueVerification` | Verify all issue references from a spec's frontmatter |
+| `list_issues` | `repo: &str, label: Option<&str>` | `Result<Vec<GitHubIssue>, String>` | List open issues; optionally filter by label. Tries `gh` CLI first, falls back to REST API |
 | `create_drift_issue` | `repo: &str, spec_path: &str, errors: &[String], labels: &[String]` | `Result<GitHubIssue, String>` | Create a "Spec drift detected" issue with validation errors |
 
 ### Exported Structs

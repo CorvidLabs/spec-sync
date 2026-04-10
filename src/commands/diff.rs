@@ -47,7 +47,9 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
                 println!("## SpecSync Drift Report\n");
                 println!("No files changed since `{base}`.");
             }
-            types::OutputFormat::Text => println!("No files changed since {base}"),
+            types::OutputFormat::Text | types::OutputFormat::Table | types::OutputFormat::Csv => {
+                println!("No files changed since {base}")
+            }
         }
         return;
     }
@@ -158,7 +160,7 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
                 .collect();
             print_diff_markdown(&tuples, &changed_files, &spec_files, root, &config, base);
         }
-        types::OutputFormat::Text => {
+        types::OutputFormat::Text | types::OutputFormat::Table | types::OutputFormat::Csv => {
             for entry in &entries {
                 println!("\n{}", entry.spec.bold());
                 println!("  Changed files: {}", entry.changed_files.join(", "));

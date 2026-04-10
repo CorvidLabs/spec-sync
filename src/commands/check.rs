@@ -60,9 +60,10 @@ pub fn cmd_check(
                 println!("No spec files found. Run `specsync generate` to scaffold specs.");
             }
             Text => {
+                let abs_specs = root.join(&config.specs_dir);
                 println!(
                     "No spec files found in {}/. Run `specsync generate` to scaffold specs.",
-                    config.specs_dir
+                    abs_specs.display()
                 );
             }
         }
@@ -85,9 +86,15 @@ pub fn cmd_check(
 
     let skipped = spec_files.len() - specs_to_validate.len();
     if skipped > 0 && matches!(format, Text) {
+        let cache_path = root.join(".specsync").join("hashes.json");
         println!(
-            "{} Skipped {skipped} unchanged spec(s) (use --force to re-validate all)\n",
+            "{} Skipped {skipped} unchanged spec(s) (use --force/--no-cache to re-validate all)",
             "⊘".cyan()
+        );
+        println!(
+            "  {} Cache: {}\n",
+            "ℹ".dimmed(),
+            cache_path.display()
         );
     }
 

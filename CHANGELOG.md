@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.7.0] - 2026-04-10
+
+### Added
+
+- **`--no-cache` flag** — discoverable alias for `--force` that skips the hash cache (#178).
+- **Cache location hint** — when specs are skipped due to caching, the path to `.specsync/hashes.json` is printed so users know where the cache lives (#178).
+
+### Fixed
+
+- **Absolute paths in error messages** — "No spec files found" now shows the full resolved path, making it immediately clear if you're in the wrong directory (#177).
+
+### Changed
+
+- **Clearer help text for spec filters** — `check` and `score` help now documents all four matching modes: module name, filename stem, relative path, and absolute path (#179).
+
+### Closed
+
+- **`--json` output for `score`** — already supported via the global `--json` / `--format json` flags since v3.5.0 (#172).
+
 ## [3.6.2] - 2026-04-09
 
 ### Fixed

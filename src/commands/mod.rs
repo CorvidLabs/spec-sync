@@ -46,9 +46,10 @@ pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConf
         .collect();
 
     if spec_files.is_empty() && !allow_empty {
+        let abs_specs = root.join(&config.specs_dir);
         println!(
             "No spec files found in {}/. Run `specsync generate` to scaffold specs.",
-            config.specs_dir
+            abs_specs.display()
         );
         process::exit(0);
     }

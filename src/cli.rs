@@ -47,7 +47,7 @@ pub enum Command {
         #[arg(long)]
         fix: bool,
         /// Skip hash cache and re-validate all specs
-        #[arg(long)]
+        #[arg(long, visible_alias = "no-cache")]
         force: bool,
         /// Create GitHub issues for specs with validation errors
         #[arg(long)]
@@ -55,7 +55,8 @@ pub enum Command {
         /// Show per-category score breakdown explaining why each spec lost points
         #[arg(long)]
         explain: bool,
-        /// Specific spec files or module names to validate (validates all if omitted)
+        /// Spec filters — validates all if omitted. Matches by: module name (e.g. "cli"),
+        /// filename stem ("cli.spec"), relative path ("specs/cli/cli.spec.md"), or absolute path.
         #[arg(value_name = "SPEC")]
         specs: Vec<String>,
     },
@@ -78,7 +79,8 @@ pub enum Command {
         /// Show detailed per-category breakdown explaining exactly why each spec lost points
         #[arg(long)]
         explain: bool,
-        /// Specific spec files or module names to score (scores all if omitted)
+        /// Spec filters — scores all if omitted. Matches by: module name (e.g. "cli"),
+        /// filename stem ("cli.spec"), relative path ("specs/cli/cli.spec.md"), or absolute path.
         #[arg(value_name = "SPEC")]
         specs: Vec<String>,
     },

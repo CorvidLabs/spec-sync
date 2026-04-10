@@ -15,6 +15,10 @@ files:
   - src/exports/csharp.rs
   - src/exports/php.rs
   - src/exports/ruby.rs
+  - src/exports/ast/mod.rs
+  - src/exports/ast/typescript.rs
+  - src/exports/ast/python.rs
+  - src/exports/ast/rust_lang.rs
 db_tables: []
 tracks: [60]
 depends_on:
@@ -25,7 +29,7 @@ depends_on:
 
 ## Purpose
 
-Language-aware export extraction from source files. Auto-detects the programming language from file extension and extracts public/exported symbol names using regex-based parsing (no AST required). Supports 11 languages: TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, and Ruby.
+Language-aware export extraction from source files. Auto-detects the programming language from file extension and extracts public/exported symbol names using regex-based parsing or tree-sitter AST analysis. Supports 11 languages: TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, and Ruby.
 
 ## Public API
 
@@ -40,6 +44,23 @@ Language-aware export extraction from source files. Auto-detects the programming
 | `has_extension` | `file_path: &Path, extensions: &[String]` | `bool` | Check if file matches specific extensions, or any supported language if extensions is empty |
 | `extract_exports` | `content: &str` | `Vec<String>` | Per-language backend function that parses source text and returns exported symbol names (one per backend file) |
 | `extract_exports_with_resolver` | `content: &str, resolver: Option<&ImportResolver>` | `Vec<String>` | TypeScript-specific: extract exports with optional wildcard re-export resolution via file resolver callback |
+| `get_exported_symbols_full` | `file_path: &Path, level: ExportLevel, parse_mode: ParseMode` | `Vec<String>` | Extract exports with full control over granularity and parse mode (Regex or Ast) |
+
+### Exported Modules
+
+| Module | Source | Description |
+|--------|--------|-------------|
+| `ast` | `src/exports/mod.rs` | Tree-sitter based AST export extraction backends |
+
+### Exported AST Sub-modules
+
+Tree-sitter based export extraction backends for TypeScript, Python, and Rust. Used when `ParseMode::Ast` is selected. Falls back to regex extraction for unsupported languages or when AST parsing fails.
+
+| Sub-module | File | Description |
+|------------|------|-------------|
+| `typescript` | `ast/typescript.rs` | Tree-sitter based TypeScript/JS export extraction with wildcard resolver support |
+| `python` | `ast/python.rs` | Tree-sitter based Python export extraction using `__all__` and top-level definitions |
+| `rust_lang` | `ast/rust_lang.rs` | Tree-sitter based Rust `pub` item extraction |
 
 ### Language Backend Functions
 

@@ -313,6 +313,20 @@ pub enum ExportLevel {
     Member,
 }
 
+/// Controls which parser backend to use for export extraction.
+/// - `regex` (default): Fast regex-based parsing (current behavior).
+/// - `ast`: Tree-sitter AST-based parsing for higher accuracy (TypeScript, Python, Rust only).
+///   Falls back to regex for unsupported languages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ParseMode {
+    /// Regex-based parsing (default, all languages).
+    #[default]
+    Regex,
+    /// AST-based parsing via tree-sitter (TypeScript, Python, Rust). Falls back to regex for others.
+    Ast,
+}
+
 /// Controls how spec-sync responds to validation violations in CI.
 ///
 /// - `warn` (default): report violations but always exit 0 (non-blocking).
@@ -361,6 +375,11 @@ pub struct SpecSyncConfig {
     /// Default: "member" for backwards compatibility.
     #[serde(default)]
     pub export_level: ExportLevel,
+
+    /// Parser backend: "regex" (default) or "ast" (tree-sitter, opt-in).
+    /// AST mode supports TypeScript, Python, and Rust; other languages fall back to regex.
+    #[serde(default)]
+    pub parse_mode: ParseMode,
 
     /// Module definitions — override auto-detected modules with explicit groupings.
     /// Keys are module names, values are objects with `files` and optional `depends_on`.
@@ -615,6 +634,7 @@ impl Default for SpecSyncConfig {
             exclude_patterns: default_exclude_patterns(),
             source_extensions: Vec::new(),
             export_level: ExportLevel::default(),
+            parse_mode: ParseMode::default(),
             modules: std::collections::HashMap::new(),
             ai_provider: None,
             ai_model: None,

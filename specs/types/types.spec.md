@@ -29,6 +29,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `EnforcementMode` | Graduated enforcement level: Warn (always exit 0), EnforceNew (exit 1 for unspecced files), Strict (exit 1 on any error) |
 | `CustomRuleType` | Type of a declarative custom validation rule: RequireSection, MinWordCount, RequirePattern, ForbidPattern |
 | `RuleSeverity` | Severity level for custom rules: Error, Warning (default), Info |
+| `ParseMode` | Export parsing strategy: Regex (default, all languages) or Ast (tree-sitter, supports TypeScript/Python/Rust with regex fallback) |
 
 ### Exported Structs
 

@@ -1,5 +1,5 @@
 use crate::config::{default_schema_pattern, discover_manifest_modules};
-use crate::exports::{get_exported_symbols_with_level, has_extension, is_test_file};
+use crate::exports::{get_exported_symbols_full, has_extension, is_test_file};
 use crate::parser::{
     find_stub_sections, get_missing_sections, get_spec_symbols, parse_frontmatter,
 };
@@ -367,7 +367,8 @@ pub fn validate_spec(
         let mut all_exports: Vec<String> = Vec::new();
         for file in &fm.files {
             let full_path = root.join(file);
-            let exports = get_exported_symbols_with_level(&full_path, config.export_level);
+            let exports =
+                get_exported_symbols_full(&full_path, config.export_level, config.parse_mode);
             for sym in &exports {
                 exports_by_file.push((sym.clone(), file.clone()));
             }

@@ -1,3 +1,4 @@
+pub mod ast;
 mod csharp;
 mod dart;
 mod go;
@@ -10,19 +11,32 @@ mod rust_lang;
 mod swift;
 mod typescript;
 
-use crate::types::{ExportLevel, Language};
+use crate::types::{ExportLevel, Language, ParseMode};
 use std::path::Path;
 
 /// Extract exported symbol names from a source file, auto-detecting language.
-/// Uses `ExportLevel::Member` (all symbols) for backwards compatibility.
+/// Uses `ExportLevel::Member` (all symbols) and regex parsing for backwards compatibility.
 pub fn get_exported_symbols(file_path: &Path) -> Vec<String> {
-    get_exported_symbols_with_level(file_path, ExportLevel::Member)
+    get_exported_symbols_full(file_path, ExportLevel::Member, ParseMode::Regex)
 }
 
 /// Extract exported symbol names from a source file with configurable granularity.
 /// When `level` is `Type`, only top-level type declarations are returned.
 /// When `level` is `Member`, all public symbols are returned (default).
+/// Uses regex parsing for backwards compatibility.
+#[allow(dead_code)]
 pub fn get_exported_symbols_with_level(file_path: &Path, level: ExportLevel) -> Vec<String> {
+    get_exported_symbols_full(file_path, level, ParseMode::Regex)
+}
+
+/// Extract exported symbol names with full control over granularity and parse mode.
+/// When `parse_mode` is `Ast`, uses tree-sitter for TypeScript, Python, and Rust.
+/// Falls back to regex for all other languages or if AST parsing fails.
+pub fn get_exported_symbols_full(
+    file_path: &Path,
+    level: ExportLevel,
+    parse_mode: ParseMode,
+) -> Vec<String> {
     let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
     let lang = match Language::from_extension(ext) {
@@ -35,23 +49,44 @@ pub fn get_exported_symbols_with_level(file_path: &Path, level: ExportLevel) -> 
         Err(_) => return Vec::new(),
     };
 
-    let symbols = match lang {
-        Language::TypeScript => {
-            // Build a resolver that follows wildcard re-exports to sibling files
-            let base_dir = file_path.parent().unwrap_or(Path::new(".")).to_path_buf();
-            let resolver = move |import_path: &str| resolve_ts_import(&base_dir, import_path);
-            typescript::extract_exports_with_resolver(&content, Some(&resolver))
+    let symbols = if parse_mode == ParseMode::Ast {
+        match lang {
+            Language::TypeScript => {
+                let base_dir = file_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+                let resolver = move |import_path: &str| resolve_ts_import(&base_dir, import_path);
+                let result =
+                    ast::typescript::extract_exports_with_resolver(&content, Some(&resolver));
+                if result.is_empty() {
+                    // Fallback to regex if AST returned nothing (parse failure)
+                    let base_dir2 = file_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+                    let resolver2 =
+                        move |import_path: &str| resolve_ts_import(&base_dir2, import_path);
+                    typescript::extract_exports_with_resolver(&content, Some(&resolver2))
+                } else {
+                    result
+                }
+            }
+            Language::Python => {
+                let result = ast::python::extract_exports(&content);
+                if result.is_empty() {
+                    python::extract_exports(&content)
+                } else {
+                    result
+                }
+            }
+            Language::Rust => {
+                let result = ast::rust_lang::extract_exports(&content);
+                if result.is_empty() {
+                    rust_lang::extract_exports(&content)
+                } else {
+                    result
+                }
+            }
+            // All other languages: fall back to regex
+            _ => extract_with_regex(&content, lang, file_path),
         }
-        Language::Rust => rust_lang::extract_exports(&content),
-        Language::Go => go::extract_exports(&content),
-        Language::Python => python::extract_exports(&content),
-        Language::Swift => swift::extract_exports(&content),
-        Language::Kotlin => kotlin::extract_exports(&content),
-        Language::Java => java::extract_exports(&content),
-        Language::CSharp => csharp::extract_exports(&content),
-        Language::Dart => dart::extract_exports(&content),
-        Language::Php => php::extract_exports(&content),
-        Language::Ruby => ruby::extract_exports(&content),
+    } else {
+        extract_with_regex(&content, lang, file_path)
     };
 
     // If type-level granularity, filter to only type declarations
@@ -67,6 +102,27 @@ pub fn get_exported_symbols_with_level(file_path: &Path, level: ExportLevel) -> 
         .into_iter()
         .filter(|s| seen.insert(s.clone()))
         .collect()
+}
+
+/// Dispatch to the regex-based export extractor for the given language.
+fn extract_with_regex(content: &str, lang: Language, file_path: &Path) -> Vec<String> {
+    match lang {
+        Language::TypeScript => {
+            let base_dir = file_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+            let resolver = move |import_path: &str| resolve_ts_import(&base_dir, import_path);
+            typescript::extract_exports_with_resolver(content, Some(&resolver))
+        }
+        Language::Rust => rust_lang::extract_exports(content),
+        Language::Go => go::extract_exports(content),
+        Language::Python => python::extract_exports(content),
+        Language::Swift => swift::extract_exports(content),
+        Language::Kotlin => kotlin::extract_exports(content),
+        Language::Java => java::extract_exports(content),
+        Language::CSharp => csharp::extract_exports(content),
+        Language::Dart => dart::extract_exports(content),
+        Language::Php => php::extract_exports(content),
+        Language::Ruby => ruby::extract_exports(content),
+    }
 }
 
 /// Filter symbols to only include type-level declarations (class, struct, enum, etc.).

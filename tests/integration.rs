@@ -3392,7 +3392,6 @@ fn rules_command_lists_custom_rules() {
     );
 }
 
-
 // ─── Batch Operations ────────────────────────────────────────────────────
 
 #[test]

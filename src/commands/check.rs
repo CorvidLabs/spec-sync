@@ -91,11 +91,7 @@ pub fn cmd_check(
             "{} Skipped {skipped} unchanged spec(s) (use --force/--no-cache to re-validate all)",
             "⊘".cyan()
         );
-        println!(
-            "  {} Cache: {}\n",
-            "ℹ".dimmed(),
-            cache_path.display()
-        );
+        println!("  {} Cache: {}\n", "ℹ".dimmed(), cache_path.display());
     }
 
     if specs_to_validate.is_empty() && matches!(format, Text) {

@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 2
+version: 3
 status: stable
 files:
   - src/main.rs
@@ -251,6 +251,64 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 | Failed to write `specsync-registry.toml` | Prints error to stderr and exits 1 |
 | No spec files found (non-generate commands) | Prints guidance message and exits 0 |
 
+## Performance Requirements
+
+### Response Time Targets
+
+| Operation | Target | Maximum |
+|-----------|--------|---------|
+| `check` (cached) | < 500ms | 2s |
+| `check` (full validation) | < 2s | 5s |
+| `coverage` | < 1s | 3s |
+| `score` | < 1s | 3s |
+| `generate` (local) | < 2s | 5s |
+| `generate` (AI provider) | < 10s | 30s |
+| `init` | < 500ms | 2s |
+| `view` | < 200ms | 1s |
+| `diff` | < 1s | 3s |
+| `compact` | < 1s | 3s |
+| `archive-tasks` | < 1s | 3s |
+| `deps` | < 2s | 5s |
+| `merge` | < 1s | 3s |
+| `changelog` | < 2s | 5s |
+| `comment` (local) | < 500ms | 2s |
+| `report` | < 2s | 5s |
+
+### Cache Requirements
+
+| Cache Type | Invalidation Time | Behavior |
+|------------|-------------------|----------|
+| File hash cache | 5 seconds | `hash_cache` module updates cache entries within 5s of file changes |
+| Spec parse cache | N/A | Parsed frontmatter is not cached; re-parsed on each run |
+| AI response cache | N/A | AI responses are not cached across runs |
+| Registry cache | 60 seconds | Remote registry entries cached for 60s with `--remote` flag |
+
+### Resource Limits
+
+| Resource | Limit | Behavior |
+|----------|-------|----------|
+| Memory | 512MB | CLI should not exceed 512MB heap for projects with < 100 specs |
+| Concurrent file operations | 10 | Maximum 10 concurrent file reads during validation |
+| AI request timeout | 120s | AI provider calls timeout after 120 seconds |
+| HTTP timeout | 10s | GitHub API calls timeout after 10 seconds |
+| Git operation timeout | 30s | Git diff/log operations timeout after 30 seconds |
+
+### Scalability Targets
+
+- Projects with up to **50 specs**: All operations complete within performance targets
+- Projects with up to **100 specs**: `check` may exceed 2s but should complete within 5s
+- Projects with **500+ specs**: Consider using `--force` to bypass cache only when necessary; incremental validation recommended
+
+### Measurement
+
+Performance is measured on a standard development machine:
+- CPU: 4-core modern processor
+- RAM: 16GB
+- Storage: SSD
+- Network: Standard broadband (for AI/network operations)
+
+Cold start times (first run after boot) may be 2-3x higher due to disk cache warming.
+
 ## Dependencies
 
 ### Consumes
@@ -289,6 +347,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 
 | Date | Change |
 |------|--------|
+| 2026-04-10 | Add Performance Requirements section with response time targets, cache requirements, resource limits, and scalability targets |
 | 2026-03-25 | Initial spec |
 | 2026-04-06 | Add compact, archive-tasks, view, merge, issues subcommands; add --force, --create-issues, --format flags; add hash_cache/github/archive/compact/view/merge dependencies |
 | 2026-04-09 | Add scaffold, report, comment, changelog subcommands; add --enforcement and --explain flags; add --agents hook target; add comment/changelog/deps dependencies |

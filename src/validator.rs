@@ -4,7 +4,9 @@ use crate::parser::{
     find_stub_sections, get_missing_sections, get_spec_symbols, parse_frontmatter,
 };
 use crate::schema::{self, SchemaTable};
-use crate::types::{CoverageReport, SpecSyncConfig, ValidationResult};
+use crate::types::{
+    CoverageReport, CustomRuleType, Frontmatter, RuleSeverity, SpecSyncConfig, ValidationResult,
+};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -490,7 +492,7 @@ pub fn validate_spec(
     }
 
     // ─── Custom Validation Rules ─────────────────────────────────────
-    apply_custom_rules(spec_path, body, &fm.depends_on, config, &mut result);
+    apply_custom_rules(spec_path, body, fm, config, &mut result);
 
     result
 }
@@ -499,7 +501,7 @@ pub fn validate_spec(
 fn apply_custom_rules(
     spec_path: &Path,
     body: &str,
-    depends_on: &[String],
+    fm: &Frontmatter,
     config: &SpecSyncConfig,
     result: &mut ValidationResult,
 ) {
@@ -551,10 +553,111 @@ fn apply_custom_rules(
     }
 
     // require_depends_on: require non-empty depends_on in frontmatter
-    if rules.require_depends_on == Some(true) && depends_on.is_empty() {
+    if rules.require_depends_on == Some(true) && fm.depends_on.is_empty() {
         result
             .warnings
             .push("No consumed dependencies documented (rule: require_depends_on)".to_string());
+    }
+
+    // ─── Declarative Custom Rules ────────────────────────────────────
+    for rule in &config.custom_rules {
+        if !custom_rule_applies(rule, fm) {
+            continue;
+        }
+        if let Some(msg) = evaluate_custom_rule(rule, body) {
+            let tagged = format!("{msg} (rule: {})", rule.name);
+            match rule.severity {
+                RuleSeverity::Error => result.errors.push(tagged),
+                RuleSeverity::Warning => result.warnings.push(tagged),
+                RuleSeverity::Info => result.warnings.push(format!("[info] {tagged}")),
+            }
+        }
+    }
+}
+
+/// Check whether a custom rule applies to the given spec based on its filter.
+fn custom_rule_applies(rule: &crate::types::CustomRule, fm: &Frontmatter) -> bool {
+    let Some(ref filter) = rule.applies_to else {
+        return true;
+    };
+
+    if let Some(ref status) = filter.status {
+        let spec_status = fm.status.as_deref().unwrap_or("");
+        if !spec_status.eq_ignore_ascii_case(status) {
+            return false;
+        }
+    }
+
+    if let Some(ref module_pattern) = filter.module {
+        let spec_module = fm.module.as_deref().unwrap_or("");
+        if let Ok(re) = Regex::new(module_pattern) {
+            if !re.is_match(spec_module) {
+                return false;
+            }
+        }
+    }
+
+    true
+}
+
+/// Evaluate a single custom rule against the spec body.
+/// Returns `Some(message)` if the rule is violated, `None` if it passes.
+fn evaluate_custom_rule(rule: &crate::types::CustomRule, body: &str) -> Option<String> {
+    match rule.rule_type {
+        CustomRuleType::RequireSection => {
+            let section = rule.section.as_deref()?;
+            let header = format!("## {section}");
+            if !body.contains(&header) {
+                let msg = rule
+                    .message
+                    .clone()
+                    .unwrap_or_else(|| format!("Missing required section: ## {section}"));
+                return Some(msg);
+            }
+            None
+        }
+        CustomRuleType::MinWordCount => {
+            let section = rule.section.as_deref()?;
+            let min = rule.min_words.unwrap_or(1);
+            let header = format!("## {section}");
+            let section_start = body.find(&header)?;
+            let after_header = &body[section_start + header.len()..];
+            // Bound section to next ## heading
+            let section_end = after_header.find("\n## ").unwrap_or(after_header.len());
+            let section_body = &after_header[..section_end];
+            let word_count = section_body.split_whitespace().count();
+            if word_count < min {
+                let msg = rule.message.clone().unwrap_or_else(|| {
+                    format!("Section ## {section} has {word_count} words — minimum is {min}")
+                });
+                return Some(msg);
+            }
+            None
+        }
+        CustomRuleType::RequirePattern => {
+            let pattern = rule.pattern.as_deref()?;
+            let re = Regex::new(pattern).ok()?;
+            if !re.is_match(body) {
+                let msg = rule
+                    .message
+                    .clone()
+                    .unwrap_or_else(|| format!("Required pattern not found: {pattern}"));
+                return Some(msg);
+            }
+            None
+        }
+        CustomRuleType::ForbidPattern => {
+            let pattern = rule.pattern.as_deref()?;
+            let re = Regex::new(pattern).ok()?;
+            if re.is_match(body) {
+                let msg = rule
+                    .message
+                    .clone()
+                    .unwrap_or_else(|| format!("Forbidden pattern found: {pattern}"));
+                return Some(msg);
+            }
+            None
+        }
     }
 }
 

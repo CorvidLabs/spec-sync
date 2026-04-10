@@ -184,6 +184,7 @@ const KNOWN_JSON_KEYS: &[&str] = &[
     "aiBaseUrl",
     "aiTimeout",
     "rules",
+    "customRules",
     "taskArchiveDays",
     "github",
     "enforcement",

@@ -395,6 +395,10 @@ pub struct SpecSyncConfig {
     #[serde(default)]
     pub rules: ValidationRules,
 
+    /// Declarative custom rules for flexible, user-defined validation.
+    #[serde(default)]
+    pub custom_rules: Vec<CustomRule>,
+
     /// Auto-archive completed tasks older than this many days.
     #[serde(default)]
     pub task_archive_days: Option<u32>,
@@ -445,6 +449,73 @@ pub struct ValidationRules {
     /// Require non-empty depends_on in frontmatter.
     #[serde(default)]
     pub require_depends_on: Option<bool>,
+}
+
+/// A declarative custom validation rule defined in specsync.json.
+///
+/// Supports four rule types:
+/// - `require_section` — require a named `## Section` to exist
+/// - `min_word_count` — require a section to have at least N words
+/// - `require_pattern` — require a regex pattern to match somewhere in the spec body
+/// - `forbid_pattern` — forbid a regex pattern from appearing in the spec body
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomRule {
+    /// Human-readable rule name (e.g. "security-threat-model").
+    pub name: String,
+    /// Rule type: "require_section", "min_word_count", "require_pattern", "forbid_pattern".
+    #[serde(rename = "type")]
+    pub rule_type: CustomRuleType,
+    /// Section name for `require_section` and `min_word_count` rules.
+    #[serde(default)]
+    pub section: Option<String>,
+    /// Regex pattern for `require_pattern` and `forbid_pattern` rules.
+    #[serde(default)]
+    pub pattern: Option<String>,
+    /// Minimum word count for `min_word_count` rules.
+    #[serde(default)]
+    pub min_words: Option<usize>,
+    /// Severity level: "error", "warning", or "info" (default: "warning").
+    #[serde(default)]
+    pub severity: RuleSeverity,
+    /// Custom message shown when the rule is violated.
+    #[serde(default)]
+    pub message: Option<String>,
+    /// Optional filter — only apply to specs matching these criteria.
+    #[serde(default)]
+    pub applies_to: Option<RuleFilter>,
+}
+
+/// The type of a custom validation rule.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum CustomRuleType {
+    RequireSection,
+    MinWordCount,
+    RequirePattern,
+    ForbidPattern,
+}
+
+/// Severity level for custom rules.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum RuleSeverity {
+    Error,
+    #[default]
+    Warning,
+    Info,
+}
+
+/// Filter to restrict which specs a custom rule applies to.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuleFilter {
+    /// Only apply to specs with this status (e.g. "active", "stable").
+    #[serde(default)]
+    pub status: Option<String>,
+    /// Only apply to specs whose module name matches this regex.
+    #[serde(default)]
+    pub module: Option<String>,
 }
 
 /// A user-defined module grouping in specsync.json.
@@ -619,6 +690,7 @@ impl Default for SpecSyncConfig {
             ai_base_url: None,
             ai_timeout: None,
             rules: ValidationRules::default(),
+            custom_rules: Vec::new(),
             task_archive_days: None,
             github: None,
             enforcement: EnforcementMode::default(),

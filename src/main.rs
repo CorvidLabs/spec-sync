@@ -143,6 +143,7 @@ fn run() {
             commands::report::cmd_report(&root, format, stale_threshold)
         }
         Command::Comment { pr, base } => commands::comment::cmd_comment(&root, pr, &base),
+        Command::Rules => commands::rules::cmd_rules(&root),
         Command::Changelog { range } => commands::changelog::cmd_changelog(&root, &range, format),
     }
 }

@@ -216,6 +216,8 @@ pub enum Command {
         #[arg(long, default_value = "main")]
         base: String,
     },
+    /// List active validation rules (built-in and custom)
+    Rules,
     /// Generate a changelog of spec changes between two git refs
     Changelog {
         /// Git ref range (e.g., v0.1..v0.2, HEAD~5..HEAD)

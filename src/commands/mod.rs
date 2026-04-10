@@ -16,6 +16,7 @@ pub mod merge;
 pub mod new;
 pub mod report;
 pub mod resolve;
+pub mod rules;
 pub mod scaffold;
 pub mod score;
 pub mod view;
@@ -316,6 +317,41 @@ pub fn run_validation(
 
         // Requirements companion file warnings
         for w in warnings.iter().filter(|w| w.contains("requirements")) {
+            println!("  {} {w}", "⚠".yellow());
+        }
+
+        // Custom rule violations and any other uncategorized warnings/errors
+        let categorized_error_prefixes = [
+            "Frontmatter",
+            "Missing or malformed",
+            "Source file",
+            "DB table",
+            "Schema column",
+            "Missing required section",
+            "Spec documents",
+            "Dependency spec",
+        ];
+        let categorized_warning_prefixes = [
+            "exports documented",
+            "Export '",
+            "Undocumented export '",
+            "Consumed By",
+            "Schema column",
+        ];
+        for e in result
+            .errors
+            .iter()
+            .filter(|e| !categorized_error_prefixes.iter().any(|p| e.starts_with(p)))
+        {
+            println!("  {} {e}", "✗".red());
+        }
+        for w in warnings.iter().filter(|w| {
+            !(categorized_warning_prefixes
+                .iter()
+                .any(|p| w.starts_with(p) || w.contains(p))
+                || (w.starts_with("Section ##") && w.contains("stub"))
+                || w.contains("requirements"))
+        }) {
             println!("  {} {w}", "⚠".yellow());
         }
 

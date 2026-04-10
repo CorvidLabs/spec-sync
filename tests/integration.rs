@@ -3093,3 +3093,301 @@ fn check_revalidates_after_source_change() {
         "Expected revalidation after source change. Got:\n{stdout}"
     );
 }
+
+// ─── Custom validation rules ────────────────────────────────────────────
+
+/// Write a specsync.json with custom rules.
+fn write_config_with_custom_rules(root: &std::path::Path, custom_rules_json: &str) {
+    let config = format!(
+        r#"{{
+  "specsDir": "specs",
+  "sourceDirs": ["src"],
+  "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+  "excludeDirs": ["__tests__"],
+  "excludePatterns": ["**/__tests__/**"],
+  "customRules": {custom_rules_json}
+}}"#
+    );
+    fs::write(root.join("specsync.json"), config).unwrap();
+}
+
+#[test]
+fn custom_rule_require_section_triggers_warning() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config_with_custom_rules(
+        &root,
+        r#"[{
+            "name": "need-threat-model",
+            "type": "require_section",
+            "section": "Threat Model",
+            "severity": "warning",
+            "message": "Specs must include a Threat Model section"
+        }]"#,
+    );
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+
+    let output = specsync()
+        .args(["check", "--root", root.to_str().unwrap(), "--force"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Threat Model"),
+        "Expected custom rule warning about Threat Model. Got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("need-threat-model"),
+        "Expected rule name in output. Got:\n{stdout}"
+    );
+}
+
+#[test]
+fn custom_rule_require_section_passes_when_section_exists() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config_with_custom_rules(
+        &root,
+        r#"[{
+            "name": "need-purpose",
+            "type": "require_section",
+            "section": "Purpose",
+            "severity": "error"
+        }]"#,
+    );
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+
+    let output = specsync()
+        .args(["check", "--root", root.to_str().unwrap(), "--force"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains("need-purpose"),
+        "Purpose section exists — rule should NOT trigger. Got:\n{stdout}"
+    );
+}
+
+#[test]
+fn custom_rule_forbid_pattern_triggers_on_match() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config_with_custom_rules(
+        &root,
+        r#"[{
+            "name": "no-fixme",
+            "type": "forbid_pattern",
+            "pattern": "FIXME",
+            "severity": "warning",
+            "message": "Specs should not contain FIXME markers"
+        }]"#,
+    );
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    // Add FIXME to the spec
+    let mut spec = valid_spec("auth", &["src/auth/service.ts"]);
+    spec.push_str("\nFIXME: need to update this\n");
+    fs::write(root.join("specs/auth/auth.spec.md"), spec).unwrap();
+
+    let output = specsync()
+        .args(["check", "--root", root.to_str().unwrap(), "--force"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("FIXME"),
+        "Expected forbid_pattern warning about FIXME. Got:\n{stdout}"
+    );
+}
+
+#[test]
+fn custom_rule_min_word_count_triggers_on_short_section() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config_with_custom_rules(
+        &root,
+        r#"[{
+            "name": "detailed-purpose",
+            "type": "min_word_count",
+            "section": "Purpose",
+            "minWords": 50,
+            "severity": "warning"
+        }]"#,
+    );
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    // valid_spec has a very short Purpose section ("This module does something.")
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+
+    let output = specsync()
+        .args(["check", "--root", root.to_str().unwrap(), "--force"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("detailed-purpose"),
+        "Expected min_word_count warning. Got:\n{stdout}"
+    );
+}
+
+#[test]
+fn custom_rule_applies_to_filters_by_status() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    // Rule only applies to "stable" specs — our spec is "active", so it should NOT trigger
+    write_config_with_custom_rules(
+        &root,
+        r#"[{
+            "name": "stable-only-rule",
+            "type": "require_section",
+            "section": "Security Considerations",
+            "severity": "error",
+            "appliesTo": { "status": "stable" }
+        }]"#,
+    );
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+
+    let output = specsync()
+        .args(["check", "--root", root.to_str().unwrap(), "--force"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains("stable-only-rule"),
+        "Rule should NOT trigger for active specs. Got:\n{stdout}"
+    );
+}
+
+#[test]
+fn custom_rule_error_severity_causes_failure_in_strict() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config_with_custom_rules(
+        &root,
+        r#"[{
+            "name": "require-security",
+            "type": "require_section",
+            "section": "Security Review",
+            "severity": "error",
+            "message": "All specs must include a Security Review"
+        }]"#,
+    );
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+
+    specsync()
+        .args([
+            "check",
+            "--root",
+            root.to_str().unwrap(),
+            "--force",
+            "--enforcement",
+            "strict",
+        ])
+        .assert()
+        .failure();
+}
+
+#[test]
+fn rules_command_lists_custom_rules() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config_with_custom_rules(
+        &root,
+        r#"[{
+            "name": "my-custom-rule",
+            "type": "forbid_pattern",
+            "pattern": "HACK",
+            "severity": "warning",
+            "message": "No HACK comments allowed"
+        }]"#,
+    );
+
+    let output = specsync()
+        .args(["rules", "--root", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("my-custom-rule"),
+        "Expected rule name in rules output. Got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("forbid_pattern"),
+        "Expected rule type in output. Got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("HACK"),
+        "Expected pattern in output. Got:\n{stdout}"
+    );
+}

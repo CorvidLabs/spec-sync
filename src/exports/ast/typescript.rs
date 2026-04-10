@@ -24,6 +24,7 @@ pub fn extract_exports(content: &str) -> Vec<String> {
 }
 
 /// Extract exports, optionally resolving wildcard re-exports via a file resolver.
+#[allow(clippy::type_complexity)]
 pub fn extract_exports_with_resolver(
     content: &str,
     resolver: Option<&dyn Fn(&str) -> Option<String>>,
@@ -42,6 +43,7 @@ pub fn extract_exports_with_resolver(
     symbols
 }
 
+#[allow(clippy::type_complexity)]
 fn collect_exports(
     node: &tree_sitter::Node,
     src: &[u8],
@@ -71,6 +73,7 @@ fn collect_exports(
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn handle_export_statement(
     node: &tree_sitter::Node,
     src: &[u8],

@@ -110,8 +110,8 @@ fn extract_string_list(node: &tree_sitter::Node, src: &[u8]) -> Vec<String> {
             let text = child.utf8_text(src).unwrap_or_default();
             // Strip surrounding quotes
             let trimmed = text
-                .trim_start_matches(|c| c == '\'' || c == '"')
-                .trim_end_matches(|c| c == '\'' || c == '"');
+                .trim_start_matches(['\'', '"'])
+                .trim_end_matches(['\'', '"']);
             if !trimmed.is_empty() {
                 names.push(trimmed.to_string());
             }

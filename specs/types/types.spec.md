@@ -27,6 +27,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `ExportLevel` | Export extraction granularity: Type (top-level declarations only) or Member (all public symbols, default) |
 | `SpecStatus` | Spec lifecycle status: draft, stable, deprecated. Parsed from frontmatter `status` field |
 | `EnforcementMode` | Graduated enforcement level: Warn (always exit 0), EnforceNew (exit 1 for unspecced files), Strict (exit 1 on any error) |
+| `ParseMode` | Export parsing strategy: Regex (default, all languages) or Ast (tree-sitter, supports TypeScript/Python/Rust with regex fallback) |
 
 ### Exported Structs
 

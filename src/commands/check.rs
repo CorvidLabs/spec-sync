@@ -542,7 +542,7 @@ fn fix_near_miss_headers(content: &mut String) -> bool {
 }
 
 fn auto_fix_specs(root: &Path, spec_files: &[PathBuf], config: &types::SpecSyncConfig) -> usize {
-    use crate::exports::get_exported_symbols_with_level;
+    use crate::exports::get_exported_symbols_full;
     use crate::parser::{get_spec_symbols, parse_frontmatter};
 
     let mut fixed_count = 0;
@@ -577,9 +577,10 @@ fn auto_fix_specs(root: &Path, spec_files: &[PathBuf], config: &types::SpecSyncC
         let mut all_exports: Vec<String> = Vec::new();
         for file in &parsed.frontmatter.files {
             let full_path = root.join(file);
-            all_exports.extend(get_exported_symbols_with_level(
+            all_exports.extend(get_exported_symbols_full(
                 &full_path,
                 config.export_level,
+                config.parse_mode,
             ));
         }
         let mut seen = std::collections::HashSet::new();

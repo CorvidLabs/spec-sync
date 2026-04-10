@@ -9,6 +9,7 @@ mod config;
 mod deps;
 mod exports;
 mod generator;
+mod git_utils;
 mod github;
 mod hash_cache;
 mod hooks;
@@ -73,6 +74,7 @@ fn run() {
         force: false,
         create_issues: false,
         explain: false,
+        stale: None,
         specs: vec![],
     });
 
@@ -83,6 +85,7 @@ fn run() {
             force,
             create_issues,
             explain,
+            stale,
             specs,
         } => commands::check::cmd_check(
             &root,
@@ -94,6 +97,7 @@ fn run() {
             force,
             create_issues,
             explain,
+            stale,
             &specs,
         ),
         Command::Coverage => commands::coverage::cmd_coverage(
@@ -160,6 +164,7 @@ fn run() {
             label.as_deref(),
             from_dir.as_deref(),
         ),
+        Command::Stale { threshold } => commands::stale::cmd_stale(&root, format, threshold),
         Command::Report { stale_threshold } => {
             commands::report::cmd_report(&root, format, stale_threshold)
         }

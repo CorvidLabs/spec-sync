@@ -62,7 +62,7 @@ pub fn cmd_check(
                 println!("## SpecSync Check Results\n");
                 println!("No spec files found. Run `specsync generate` to scaffold specs.");
             }
-            Text => {
+            Text | Table | Csv => {
                 let abs_specs = root.join(&config.specs_dir);
                 println!(
                     "No spec files found in {}/. Run `specsync generate` to scaffold specs.",
@@ -371,7 +371,7 @@ pub fn cmd_check(
             print!("{body}");
             process::exit(exit_code);
         }
-        Text => {
+        Text | Table | Csv => {
             print_summary(total, passed, effective_warnings, total_errors);
             print_coverage_line(&coverage);
             exit_with_status(

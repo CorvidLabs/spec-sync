@@ -168,7 +168,7 @@ pub fn cmd_stale(root: &Path, format: types::OutputFormat, threshold: usize) {
                 );
             }
         }
-        types::OutputFormat::Text => {
+        types::OutputFormat::Text | types::OutputFormat::Table | types::OutputFormat::Csv => {
             println!(
                 "\n--- {} ------------------------------------------------",
                 "Stale Spec Detection".bold()

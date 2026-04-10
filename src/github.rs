@@ -221,6 +221,130 @@ pub fn verify_spec_issues(
     result
 }
 
+/// List open GitHub issues for a repository.
+/// Optionally filter by label. Uses `gh` CLI first, falls back to REST API.
+pub fn list_issues(repo: &str, label: Option<&str>) -> Result<Vec<GitHubIssue>, String> {
+    if gh_is_available() {
+        list_issues_gh(repo, label)
+    } else {
+        list_issues_api(repo, label)
+    }
+}
+
+fn list_issues_gh(repo: &str, label: Option<&str>) -> Result<Vec<GitHubIssue>, String> {
+    let mut args = vec![
+        "issue",
+        "list",
+        "--repo",
+        repo,
+        "--state",
+        "open",
+        "--json",
+        "number,title,state,labels,url",
+        "--limit",
+        "500",
+    ];
+
+    let label_owned;
+    if let Some(l) = label {
+        label_owned = l.to_string();
+        args.push("--label");
+        args.push(&label_owned);
+    }
+
+    let output = Command::new("gh")
+        .args(&args)
+        .output()
+        .map_err(|e| format!("Failed to run gh: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("gh error: {}", stderr.trim()));
+    }
+
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse gh output: {e}"))?;
+
+    let issues = json
+        .as_array()
+        .ok_or_else(|| "Expected JSON array from gh issue list".to_string())?
+        .iter()
+        .map(|i| GitHubIssue {
+            number: i["number"].as_u64().unwrap_or(0),
+            title: i["title"].as_str().unwrap_or("").to_string(),
+            state: i["state"].as_str().unwrap_or("OPEN").to_lowercase(),
+            labels: i["labels"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|l| l["name"].as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            url: i["url"].as_str().unwrap_or("").to_string(),
+        })
+        .collect();
+
+    Ok(issues)
+}
+
+fn list_issues_api(repo: &str, label: Option<&str>) -> Result<Vec<GitHubIssue>, String> {
+    let token = std::env::var("GITHUB_TOKEN")
+        .map_err(|_| "GITHUB_TOKEN not set and gh CLI not available".to_string())?;
+
+    let mut url = format!("https://api.github.com/repos/{repo}/issues?state=open&per_page=100");
+    if let Some(l) = label {
+        url.push_str(&format!("&labels={}", l));
+    }
+
+    let agent = ureq::Agent::new_with_config(
+        ureq::config::Config::builder()
+            .timeout_global(Some(Duration::from_secs(15)))
+            .build(),
+    );
+
+    let mut response = agent
+        .get(&url)
+        .header("Authorization", &format!("Bearer {token}"))
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "specsync")
+        .call()
+        .map_err(|e| format!("GitHub API request failed: {e}"))?;
+
+    if response.status() != 200 {
+        return Err(format!("GitHub API returned HTTP {}", response.status()));
+    }
+
+    let body: serde_json::Value = response
+        .body_mut()
+        .read_json()
+        .map_err(|e| format!("Failed to parse GitHub API response: {e}"))?;
+
+    let issues = body
+        .as_array()
+        .ok_or_else(|| "Expected JSON array from GitHub API".to_string())?
+        .iter()
+        // Skip pull requests (they appear in issues endpoint)
+        .filter(|i| i["pull_request"].is_null())
+        .map(|i| GitHubIssue {
+            number: i["number"].as_u64().unwrap_or(0),
+            title: i["title"].as_str().unwrap_or("").to_string(),
+            state: i["state"].as_str().unwrap_or("open").to_string(),
+            labels: i["labels"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|l| l["name"].as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            url: i["html_url"].as_str().unwrap_or("").to_string(),
+        })
+        .collect();
+
+    Ok(issues)
+}
+
 /// Create a GitHub issue for spec drift using `gh` CLI.
 pub fn create_drift_issue(
     repo: &str,

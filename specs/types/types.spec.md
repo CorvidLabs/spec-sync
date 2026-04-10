@@ -27,6 +27,8 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `ExportLevel` | Export extraction granularity: Type (top-level declarations only) or Member (all public symbols, default) |
 | `SpecStatus` | Spec lifecycle status: draft, stable, deprecated. Parsed from frontmatter `status` field |
 | `EnforcementMode` | Graduated enforcement level: Warn (always exit 0), EnforceNew (exit 1 for unspecced files), Strict (exit 1 on any error) |
+| `CustomRuleType` | Type of a declarative custom validation rule: RequireSection, MinWordCount, RequirePattern, ForbidPattern |
+| `RuleSeverity` | Severity level for custom rules: Error, Warning (default), Info |
 
 ### Exported Structs
 
@@ -40,6 +42,8 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `ModuleDefinition` | User-defined module grouping in specsync.json with files and depends_on lists |
 | `ValidationRules` | Custom validation rules configured in specsync.json (required_sections, max_staleness_days, etc.) |
 | `GitHubConfig` | GitHub integration config — `repo: Option<String>`, `labels: Vec<String>`, `create_on_drift: bool` |
+| `CustomRule` | A declarative custom validation rule defined in specsync.json — name, type, section, pattern, min_words, severity, message, applies_to filter |
+| `RuleFilter` | Filter to restrict which specs a custom rule applies to — optional status and module regex match |
 
 ### Exported AiProvider Functions
 
@@ -131,7 +135,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 |--------|-------------|
 | config | `SpecSyncConfig`, `AiProvider` |
 | parser | `Frontmatter` |
-| validator | `CoverageReport`, `ValidationResult`, `SpecSyncConfig` |
+| validator | `CoverageReport`, `ValidationResult`, `SpecSyncConfig`, `CustomRuleType`, `RuleSeverity`, `Frontmatter` |
 | generator | `CoverageReport`, `SpecSyncConfig` |
 | ai | `AiProvider`, `SpecSyncConfig` |
 | scoring | `SpecSyncConfig` |
@@ -151,3 +155,4 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | 2026-03-28 | Document OutputFormat, ExportLevel, ModuleDefinition |
 | 2026-04-06 | Add Frontmatter implements/tracks/agent_policy fields, ValidationRules, GitHubConfig structs |
 | 2026-04-07 | Document EnforcementMode enum |
+| 2026-04-10 | Document CustomRule, CustomRuleType, RuleSeverity, RuleFilter for declarative custom validation rules |

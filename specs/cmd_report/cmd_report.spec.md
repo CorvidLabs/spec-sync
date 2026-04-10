@@ -8,6 +8,7 @@ db_tables: []
 tracks: []
 depends_on:
   - specs/commands/commands.spec.md
+  - specs/git_utils/git_utils.spec.md
   - specs/parser/parser.spec.md
   - specs/types/types.spec.md
   - specs/validator/validator.spec.md

@@ -10,6 +10,7 @@ depends_on:
   - specs/types/types.spec.md
   - specs/parser/parser.spec.md
   - specs/exports/exports.spec.md
+  - specs/git_utils/git_utils.spec.md
 ---
 
 # Scoring

@@ -6,10 +6,12 @@ use std::process;
 
 use crate::ai;
 use crate::comment;
+use crate::git_utils;
 use crate::github;
 use crate::hash_cache;
 use crate::ignore::IgnoreRules;
 use crate::output::{print_check_markdown, print_coverage_line, print_summary};
+use crate::parser;
 use crate::types;
 use crate::validator::{compute_coverage, get_schema_table_names};
 
@@ -29,6 +31,7 @@ pub fn cmd_check(
     force: bool,
     create_issues: bool,
     explain: bool,
+    stale: Option<Option<usize>>,
     spec_filters: &[String],
 ) {
     use hash_cache::{ChangeClassification, ChangeKind};
@@ -204,8 +207,89 @@ pub fn cmd_check(
         explain,
         &ignore_rules,
     );
+    // Git-based staleness detection (--stale flag)
+    let stale_threshold = stale.map(|opt| opt.unwrap_or(5));
+    let mut git_stale_warnings: usize = 0;
+    let mut git_stale_entries: Vec<serde_json::Value> = Vec::new();
+
+    if let Some(threshold) = stale_threshold {
+        if git_utils::is_git_repo(root) {
+            for spec_file in &spec_files {
+                let content = match fs::read_to_string(spec_file) {
+                    Ok(c) => c.replace("\r\n", "\n"),
+                    Err(_) => continue,
+                };
+                let parsed = match parser::parse_frontmatter(&content) {
+                    Some(p) => p,
+                    None => continue,
+                };
+                let fm = &parsed.frontmatter;
+                if fm.files.is_empty() {
+                    continue;
+                }
+
+                let rel_spec = spec_file
+                    .strip_prefix(root)
+                    .unwrap_or(spec_file)
+                    .to_string_lossy()
+                    .to_string();
+
+                let spec_commit = git_utils::git_last_commit_hash(root, &rel_spec);
+                if spec_commit.is_none() {
+                    continue;
+                }
+
+                let mut max_behind: usize = 0;
+                let mut drifted_files: Vec<(String, usize)> = Vec::new();
+                for source_file in &fm.files {
+                    if !root.join(source_file).exists() {
+                        continue;
+                    }
+                    let behind = git_utils::git_commits_between(root, &rel_spec, source_file);
+                    if behind >= threshold {
+                        drifted_files.push((source_file.clone(), behind));
+                    }
+                    max_behind = max_behind.max(behind);
+                }
+
+                if max_behind >= threshold {
+                    git_stale_warnings += 1;
+                    if matches!(format, types::OutputFormat::Text) {
+                        let module = fm.module.as_deref().unwrap_or(&rel_spec);
+                        println!(
+                            "  {} {module}: spec is {max_behind} commits behind source files",
+                            "⚠".yellow()
+                        );
+                        for (file, behind) in &drifted_files {
+                            println!(
+                                "      {} {file} ({behind} commit{})",
+                                "→".dimmed(),
+                                if *behind == 1 { "" } else { "s" },
+                            );
+                        }
+                    }
+                    let details: Vec<serde_json::Value> = drifted_files
+                        .iter()
+                        .map(|(f, n)| serde_json::json!({"file": f, "commits_behind": n}))
+                        .collect();
+                    git_stale_entries.push(serde_json::json!({
+                        "spec": rel_spec,
+                        "reason": "git_drift",
+                        "commits_behind": max_behind,
+                        "drifted_files": details,
+                    }));
+                }
+            }
+
+            if git_stale_warnings > 0 && matches!(format, types::OutputFormat::Text) {
+                println!();
+            }
+        }
+    }
+    stale_entries.extend(git_stale_entries);
+
     // Include staleness warnings in total when --strict
-    let effective_warnings = total_warnings + staleness_warnings;
+    let effective_warnings = total_warnings + staleness_warnings + git_stale_warnings;
     let coverage = compute_coverage(root, &spec_files, &config);
 
     // Update hash cache after validation (only when no errors).

@@ -1,4 +1,5 @@
 use crate::exports::get_exported_symbols;
+use crate::git_utils;
 use crate::parser::{
     find_stub_sections, get_missing_sections, get_spec_symbols, parse_frontmatter,
     section_has_content,
@@ -262,6 +263,38 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             "Freshness (-{dep_penalty}pts): {stale_deps} depends_on path(s) don't exist"
         ));
     }
+
+    // Git-based staleness: penalize if source files have commits since spec was last updated
+    if !fm.files.is_empty() && git_utils::is_git_repo(root) {
+        let rel_path = spec_path
+            .strip_prefix(root)
+            .unwrap_or(spec_path)
+            .to_string_lossy()
+            .to_string();
+        if git_utils::git_last_commit_hash(root, &rel_path).is_some() {
+            let mut max_behind: usize = 0;
+            for file in &fm.files {
+                if root.join(file).exists() {
+                    let behind = git_utils::git_commits_between(root, &rel_path, file);
+                    max_behind = max_behind.max(behind);
+                }
+            }
+            if max_behind >= 10 {
+                let penalty = 5u32;
+                fresh_points = fresh_points.saturating_sub(penalty);
+                score.suggestions.push(format!(
+                    "Freshness (-{penalty}pts): spec is {max_behind} commits behind source files"
+                ));
+            } else if max_behind >= 5 {
+                let penalty = 3u32;
+                fresh_points = fresh_points.saturating_sub(penalty);
+                score.suggestions.push(format!(
+                    "Freshness (-{penalty}pts): spec is {max_behind} commits behind source files"
+                ));
+            }
+        }
+    }
+
     score.freshness_score = fresh_points;
 
     // ─── Total & Grade ───────────────────────────────────────────────

@@ -1,8 +1,8 @@
 use colored::Colorize;
 use std::fs;
 use std::path::Path;
-use std::process;
 
+use crate::git_utils::{git_commits_between, git_last_commit_hash};
 use crate::parser;
 use crate::types;
 use crate::validator::compute_coverage;
@@ -269,45 +269,4 @@ pub fn cmd_report(root: &Path, format: types::OutputFormat, stale_threshold: usi
             println!();
         }
     }
-}
-
-/// Get the last commit hash that touched a file.
-fn git_last_commit_hash(root: &Path, file: &str) -> Option<String> {
-    let output = process::Command::new("git")
-        .args(["log", "-1", "--format=%H", "--", file])
-        .current_dir(root)
-        .output()
-        .ok()?;
-    let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if hash.is_empty() { None } else { Some(hash) }
-}
-
-/// Count commits that touched `source_file` since `spec_file` was last modified.
-fn git_commits_between(root: &Path, spec_file: &str, source_file: &str) -> usize {
-    // Get the last commit that touched the spec
-    let spec_commit = match git_last_commit_hash(root, spec_file) {
-        Some(h) => h,
-        None => return 0,
-    };
-
-    // Count commits to source_file since that spec commit
-    let output = match process::Command::new("git")
-        .args([
-            "rev-list",
-            "--count",
-            &format!("{spec_commit}..HEAD"),
-            "--",
-            source_file,
-        ])
-        .current_dir(root)
-        .output()
-    {
-        Ok(o) => o,
-        Err(_) => return 0,
-    };
-
-    String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .parse::<usize>()
-        .unwrap_or(0)
 }

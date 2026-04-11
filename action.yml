@@ -196,10 +196,7 @@ runs:
           exit 0
         fi
 
-        COMMENT_BODY="${SPECSYNC_MARKDOWN}
-
----
-<sub>Posted by [SpecSync](https://github.com/CorvidLabs/spec-sync) via GitHub Actions</sub>"
+        COMMENT_BODY="$(printf '%s\n\n---\n<sub>Posted by [SpecSync](https://github.com/CorvidLabs/spec-sync) via GitHub Actions</sub>' "$SPECSYNC_MARKDOWN")"
 
         # Check for existing SpecSync comment and update it, or create new
         EXISTING_COMMENT_ID=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \

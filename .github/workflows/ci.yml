@@ -37,6 +37,13 @@ jobs:
           components: rustfmt
       - run: cargo fmt --check
 
+  validate-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate action.yml
+        run: python3 -c "import yaml; yaml.safe_load(open('action.yml'))"
+
   spec-check:
     runs-on: ubuntu-latest
     steps:

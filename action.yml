@@ -171,7 +171,14 @@ runs:
         # Uses the same `specsync comment` pipeline as our own CI workflow
         # for identical output between the marketplace action and direct usage.
         if [ "$INPUT_COMMENT" = "true" ]; then
-          COMMENT_OUTPUT=$(specsync comment 2>/dev/null) || true
+          COMMENT_CMD="specsync comment"
+          if [ "$INPUT_STRICT" = "true" ]; then
+            COMMENT_CMD="$COMMENT_CMD --strict"
+          fi
+          if [ "$INPUT_REQUIRE_COVERAGE" != "0" ]; then
+            COMMENT_CMD="$COMMENT_CMD --require-coverage $INPUT_REQUIRE_COVERAGE"
+          fi
+          COMMENT_OUTPUT=$(eval "$COMMENT_CMD" 2>/dev/null) || true
           {
             echo "SPECSYNC_MARKDOWN<<SPECSYNC_EOF"
             echo "$COMMENT_OUTPUT"

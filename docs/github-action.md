@@ -39,6 +39,8 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 | `require-coverage` | `0` | Minimum file coverage % (0–100) |
 | `root` | `.` | Project root directory |
 | `args` | `''` | Extra CLI arguments passed to `specsync check` |
+| `comment` | `false` | Post spec drift results as a PR comment. Requires `pull_request` event and write permissions |
+| `token` | `${{ github.token }}` | GitHub token for posting PR comments. Override if using a PAT for cross-repo access |
 
 ---
 
@@ -57,6 +59,46 @@ jobs:
         with:
           strict: 'true'
           require-coverage: '100'
+```
+
+---
+
+## PR Comments
+
+Post spec drift results directly on pull requests. SpecSync runs `diff --format markdown` and posts (or updates) a comment showing added/removed exports.
+
+```yaml
+name: Spec Check
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  specsync:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: CorvidLabs/spec-sync@v3
+        with:
+          strict: 'true'
+          comment: 'true'
+```
+
+**How it works:**
+- Runs `specsync check` as normal
+- If `comment: 'true'`, also runs `specsync diff --format markdown`
+- Posts the markdown output as a PR comment (or updates an existing SpecSync comment)
+- Requires `pull-requests: write` permission and the `pull_request` event trigger
+
+**Custom token (e.g., for private registries or cross-repo refs):**
+
+```yaml
+- uses: CorvidLabs/spec-sync@v3
+  with:
+    comment: 'true'
+    token: ${{ secrets.MY_PAT }}
 ```
 
 ---

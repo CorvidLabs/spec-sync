@@ -47,7 +47,7 @@ create → validate → iterate → stabilize → maintain → compact → archi
 specsync init
 ```
 
-This creates `specsync.json` with auto-detected source directories. Review it and adjust `specsDir`, `sourceDirs`, `excludeDirs`, and `requiredSections` as needed. See [Configuration](configuration) for all options.
+This creates `.specsync/config.toml` with auto-detected source directories. Review it and adjust `specs_dir`, `source_dirs`, `exclude_dirs`, and `required_sections` as needed. See [Configuration](configuration) for all options.
 
 ### Install hooks and agent instructions
 

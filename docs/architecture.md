@@ -25,7 +25,7 @@ How SpecSync is built. Useful for contributors and anyone adding language suppor
 src/
 ├── main.rs              CLI entry point (clap) + output formatting
 ├── types.rs             Core data types, config schema, enums
-├── config.rs            specsync.json / specsync.toml loading + auto-detection
+├── config.rs            .specsync/config.toml loading + legacy fallback
 ├── parser.rs            Frontmatter + spec body parsing
 ├── validator.rs         Validation pipeline + coverage computation
 ├── generator.rs         Spec scaffolding (template + AI-powered)
@@ -34,7 +34,7 @@ src/
 ├── mcp.rs               MCP server (JSON-RPC over stdio, tools for check/generate/score)
 ├── watch.rs             File watcher (notify, 500ms debounce)
 ├── hash_cache.rs        Content-hash cache for incremental validation
-├── registry.rs          Cross-project module registry (specsync-registry.toml)
+├── registry.rs          Cross-project module registry (.specsync/registry.toml)
 ├── manifest.rs          Package manifest parsing (package.json, Cargo.toml, go.mod, etc.)
 ├── schema.rs            SQL schema parsing for db_tables validation
 ├── merge.rs             Git conflict resolution for spec files

@@ -37,7 +37,7 @@ depends_on:
 
 1. **You declare a cross-project dependency** in your spec's `depends_on`
 2. **`specsync resolve --remote`** parses the `owner/repo@module` syntax
-3. **Fetches `specsync-registry.toml`** from the target repo's default branch on GitHub
+3. **Fetches `.specsync/registry.toml`** from the target repo's default branch on GitHub
 4. **Checks that the module exists** in the registry
 
 No authentication required for public repos. Private repos need a `GITHUB_TOKEN` environment variable.
@@ -46,12 +46,12 @@ No authentication required for public repos. Private repos need a `GITHUB_TOKEN`
 
 ## Publishing Your Registry
 
-For other projects to reference your modules, commit a `specsync-registry.toml` to your repo's default branch:
+For other projects to reference your modules, commit `.specsync/registry.toml` to your repo's default branch:
 
 ```bash
 specsync init-registry                     # uses project folder name
 specsync init-registry --name myapp        # custom name
-git add specsync-registry.toml
+git add .specsync/registry.toml
 git commit -m "chore: add spec registry for cross-project refs"
 git push
 ```
@@ -115,5 +115,5 @@ Add `resolve --remote` to your CI pipeline to catch broken cross-project refs:
 |:---------|:-------|
 | Module not in registry | `✗ module not in registry` |
 | Repository not found | `! HTTP 404` + `? registry fetch failed` |
-| No registry file | `? registry fetch failed` (registry not committed) |
+| No registry file | `? registry fetch failed` (`.specsync/registry.toml` not committed) |
 | Network error | `? registry fetch failed` with details |

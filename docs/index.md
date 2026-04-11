@@ -37,7 +37,7 @@ Specs reference functions that were renamed. Code exports things the spec doesn'
 
 ```bash
 cargo install specsync          # or use the GitHub Action, or download a binary
-specsync init                   # create specsync.json
+specsync init                   # create .specsync/config.toml
 specsync check                  # validate specs against code
 specsync coverage               # see what's covered
 specsync generate               # scaffold specs for unspecced modules
@@ -65,7 +65,7 @@ TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby.
 | New to SpecSync? | Already using it? |
 |:-----------------|:-----------------|
 | [Quick Start Guide](quickstart) — up and running in 5 min | [CLI Reference](cli) — all 14 commands |
-| [Why SpecSync?](why-specsync) — comparison with alternatives | [Configuration](configuration) — `specsync.json` options |
+| [Why SpecSync?](why-specsync) — comparison with alternatives | [Configuration](configuration) — `.specsync/config.toml` options |
 | [Spec Format](spec-format) — how to write specs | [Cross-Project Refs](cross-project-refs) — multi-repo validation |
 | [Workflow Guide](workflow) — full lifecycle | [AI Agents](ai-agents) — MCP server + AI generation |
 | [Architecture](architecture) — how it works | [VS Code Extension](vscode-extension) — editor integration |

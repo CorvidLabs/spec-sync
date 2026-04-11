@@ -112,7 +112,7 @@ Companion files sit alongside the spec and give agents structured context:
 
 ### `init-registry`
 
-Generate a `specsync-registry.toml` listing all modules in the project. Other projects reference your modules via this registry.
+Generate a `.specsync/registry.toml` listing all modules in the project. Other projects reference your modules via this registry.
 
 ```bash
 specsync init-registry                     # uses project folder name
@@ -130,7 +130,7 @@ specsync resolve                           # verify local refs
 specsync resolve --remote                  # also verify cross-project refs via GitHub
 ```
 
-Cross-project refs use the `owner/repo@module` syntax in `depends_on`. The `--remote` flag fetches the target repo's `specsync-registry.toml` from GitHub to confirm the module exists. See [Cross-Project References](cross-project-refs) for details.
+Cross-project refs use the `owner/repo@module` syntax in `depends_on`. The `--remote` flag fetches the target repo's `.specsync/registry.toml` from GitHub to confirm the module exists. See [Cross-Project References](cross-project-refs) for details.
 
 ### `hooks`
 
@@ -340,13 +340,13 @@ specsync lifecycle enforce --allowed       # check specs are in allowed statuses
 - Supports `--format json` for machine-readable output
 
 **Transition guards:**
-- Configure in `specsync.json` under `lifecycle.guards` (see [Configuration](../README.md#lifecycle-guards))
+- Configure in `.specsync/config.toml` under `[lifecycle.guards]` (see [Configuration](configuration))
 - Guards can require minimum score, required sections, or no-stale status
 - Use `lifecycle guard` to dry-run guard checks without changing status
 - Blocked transitions show which guards failed and why
 
 **Transition history:**
-- When `lifecycle.trackHistory` is enabled (default), transitions are recorded in frontmatter `lifecycle_log`
+- When `lifecycle.trackHistory` is enabled (default), transitions are recorded in `.specsync/lifecycle/<module>.json`
 - Use `lifecycle history <spec>` to view the full audit trail
 
 **Auto-promote:**
@@ -356,8 +356,8 @@ specsync lifecycle enforce --allowed       # check specs are in allowed statuses
 
 **CI enforcement (`enforce`):**
 - `--require-status`: every spec must have a valid `status` field in frontmatter
-- `--max-age`: flag specs stuck in a status longer than configured in `lifecycle.maxAge` (days per status)
-- `--allowed`: require all specs to have a status in `lifecycle.allowedStatuses`
+- `--max-age`: flag specs stuck in a status longer than configured in `[lifecycle] max_age` (days per status)
+- `--allowed`: require all specs to have a status in `[lifecycle] allowed_statuses`
 - `--all`: run all three checks at once
 - Exits non-zero if any violations are found — designed for CI pipelines
 
@@ -373,7 +373,7 @@ specsync diff v1.0.0 --json            # machine-readable output
 
 ### `init`
 
-Create a default `specsync.json` in the current directory.
+Create a default `.specsync/config.toml` in the current directory.
 
 ```bash
 specsync init

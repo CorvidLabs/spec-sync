@@ -44,28 +44,26 @@ Navigate to your project root and run:
 specsync init
 ```
 
-This creates a `specsync.json` config file with auto-detected source directories. The config looks like:
+This creates `.specsync/config.toml` with auto-detected source directories. The config looks like:
 
-```json
-{
-  "specsDir": "specs",
-  "sourceDirs": ["src"],
-  "requiredSections": [
+```toml
+specs_dir = "specs"
+source_dirs = ["src"]
+required_sections = [
     "Purpose",
     "Public API",
     "Invariants",
     "Behavioral Examples",
     "Error Cases",
     "Dependencies",
-    "Change Log"
-  ]
-}
+    "Change Log",
+]
 ```
 
 **Key settings:**
-- `specsDir` — where spec files live (default: `specs/`)
-- `sourceDirs` — where your source code lives (auto-detected from package manifests)
-- `requiredSections` — what every spec must contain
+- `specs_dir` — where spec files live (default: `specs/`)
+- `source_dirs` — where your source code lives (auto-detected from package manifests)
+- `required_sections` — what every spec must contain
 
 See [Configuration](configuration.md) for all options.
 
@@ -198,7 +196,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v3
+      - uses: CorvidLabs/spec-sync@v4
         with:
           strict: true
           require-coverage: 80

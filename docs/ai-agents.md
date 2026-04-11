@@ -88,24 +88,21 @@ specsync generate --provider auto
 ### Configuring the AI command
 
 The AI command is resolved in order:
-1. `"aiCommand"` in `specsync.json`
+1. `ai_command` in `.specsync/config.toml` (or `.specsync/config.local.toml` for per-developer overrides)
 2. `SPECSYNC_AI_COMMAND` environment variable
 3. `claude -p --output-format text` (default, requires Claude CLI)
 
 Any command that reads a prompt from stdin and writes markdown to stdout works:
 
-```json
-{
-  "aiCommand": "claude -p --output-format text",
-  "aiTimeout": 300
-}
+```toml
+# .specsync/config.toml (or .specsync/config.local.toml for per-developer overrides)
+ai_command = "claude -p --output-format text"
+ai_timeout = 300
 ```
 
-```json
-{
-  "aiCommand": "ollama run llama3",
-  "aiTimeout": 60
-}
+```toml
+ai_command = "ollama run llama3"
+ai_timeout = 60
 ```
 
 If AI generation fails for a module, it falls back to template generation automatically.

@@ -61,13 +61,13 @@ depends_on:
   - corvid-labs/algochat@messaging           # Cross-project ref (validated by resolve --remote)
 ```
 
-Cross-project refs use the `owner/repo@module` syntax. Local refs are verified by `specsync check` and `specsync resolve`. Cross-project refs require `specsync resolve --remote` which fetches the target repo's `specsync-registry.toml` from GitHub. See [Cross-Project References](cross-project-refs) for the full workflow.
+Cross-project refs use the `owner/repo@module` syntax. Local refs are verified by `specsync check` and `specsync resolve`. Cross-project refs require `specsync resolve --remote` which fetches the target repo's `.specsync/registry.toml` from GitHub. See [Cross-Project References](cross-project-refs) for the full workflow.
 
 ---
 
 ## Required Sections
 
-Every spec must include these `## Heading` sections (configurable via `requiredSections` in `specsync.json`):
+Every spec must include these `## Heading` sections (configurable via `required_sections` in `.specsync/config.toml`):
 
 | Section | What SpecSync checks |
 |:--------|:---------------------|
@@ -81,8 +81,9 @@ Every spec must include these `## Heading` sections (configurable via `requiredS
 
 Override the list in config:
 
-```json
-{ "requiredSections": ["Purpose", "Public API"] }
+```toml
+# .specsync/config.toml
+required_sections = ["Purpose", "Public API"]
 ```
 
 ---

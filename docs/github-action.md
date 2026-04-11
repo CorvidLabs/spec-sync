@@ -22,7 +22,7 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 ## Basic Usage
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v3
+- uses: CorvidLabs/spec-sync@v4
   with:
     strict: 'true'
     require-coverage: '100'
@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v3
+      - uses: CorvidLabs/spec-sync@v4
         with:
           strict: 'true'
           require-coverage: '100'
@@ -80,7 +80,7 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v3
+      - uses: CorvidLabs/spec-sync@v4
         with:
           strict: 'true'
           comment: 'true'
@@ -95,7 +95,7 @@ jobs:
 **Custom token (e.g., for private registries or cross-repo refs):**
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v3
+- uses: CorvidLabs/spec-sync@v4
   with:
     comment: 'true'
     token: ${{ secrets.MY_PAT }}
@@ -114,7 +114,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v3
+      - uses: CorvidLabs/spec-sync@v4
         with:
           strict: 'true'
 ```
@@ -124,7 +124,7 @@ jobs:
 ## Monorepo
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v3
+- uses: CorvidLabs/spec-sync@v4
   with:
     root: './packages/backend'
     strict: 'true'

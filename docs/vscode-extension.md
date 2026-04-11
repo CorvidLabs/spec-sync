@@ -36,8 +36,10 @@ The extension requires the `specsync` CLI binary to be installed and on your PAT
 
 The extension activates automatically when your workspace contains any of:
 
-- `specsync.json`
-- `.specsync.toml`
+- `.specsync/config.toml` (v4)
+- `.specsync/config.json`
+- `specsync.json` (legacy)
+- `.specsync.toml` (legacy)
 - A `specs/` directory
 
 On activation, it runs an initial validation and displays results in the status bar.
@@ -67,7 +69,7 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 | `SpecSync: Show Coverage` | Open the coverage report webview |
 | `SpecSync: Score Spec Quality` | Open the scoring report webview |
 | `SpecSync: Generate Missing Specs` | Scaffold specs for unspecced modules |
-| `SpecSync: Initialize Config` | Create a `specsync.json` in the workspace root |
+| `SpecSync: Initialize Config` | Create `.specsync/config.toml` in the workspace root |
 
 ---
 
@@ -134,7 +136,7 @@ The scoring report (`SpecSync: Score Spec Quality`) shows:
 ## Troubleshooting
 
 **"SpecSync" not activating?**
-Ensure your workspace contains `specsync.json`, `.specsync.toml`, or a `specs/` directory.
+Ensure your workspace contains `.specsync/config.toml`, `specsync.json` (legacy), `.specsync.toml` (legacy), or a `specs/` directory.
 
 **"Command not found" errors?**
 The `specsync` binary must be on your PATH or configured via `specsync.binaryPath`. Check the Output panel (View → Output → SpecSync) for detailed logs.

@@ -19,6 +19,8 @@ depends_on:
 
 Implements the `specsync comment` command. Generates a spec-sync check summary as markdown and optionally posts it as a GitHub PR comment via `gh pr comment`.
 
+**This is the single source of PR comment output for all spec-sync integrations.** Both the marketplace GitHub Action (`action.yml`, `comment: true`) and the project's own CI workflow (`.github/workflows/ci.yml`) invoke `specsync comment` (without `--pr`) to capture the markdown body, then post it via their respective GitHub API methods. This guarantees identical comment content regardless of invocation method.
+
 ## Public API
 
 ### Exported Functions
@@ -33,6 +35,7 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 2. When `--pr` is omitted, prints markdown to stdout for piping
 3. When `--pr N` is set, resolves repo and uses `gh pr comment` to post
 4. Exits 1 if `gh` CLI fails or repo cannot be determined
+5. The marketplace action and CI workflow both use `specsync comment` (stdout mode) as the single source of comment content — no alternative comment generation paths exist
 
 ## Behavioral Examples
 
@@ -47,6 +50,12 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 - **Given** `--pr 42` is set
 - **When** `cmd_comment` runs
 - **Then** posts comment on PR #42
+
+### Scenario: Marketplace action captures stdout
+
+- **Given** the marketplace action runs with `comment: true`
+- **When** `specsync comment` is invoked without `--pr`
+- **Then** the stdout output is identical to what the CI workflow captures via `cargo run -- comment`
 
 ## Error Cases
 
@@ -76,4 +85,5 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 
 | Date | Change |
 |------|--------|
+| 2026-04-11 | Documented unified pipeline: marketplace action and CI both use `specsync comment` for identical PR comments |
 | 2026-04-09 | Initial spec |

@@ -16,6 +16,8 @@ depends_on:
 
 GitHub PR comment formatting with spec links and actionable suggestions. Produces GitHub-flavored markdown output designed for posting as PR comments, including direct links to spec files, actionable checklists, and diff-aware suggestions for updating specs.
 
+**Unified output pipeline**: Both the marketplace GitHub Action (`action.yml`) and the project's own CI workflow (`.github/workflows/ci.yml`) use `specsync comment` to generate PR comments. This ensures identical output regardless of how spec-sync is invoked. The action captures stdout from `specsync comment` and posts it via `gh api`; the CI workflow captures it via `cargo run -- comment` and posts via `actions/github-script`.
+
 ## Public API
 
 ### Exported Functions
@@ -32,6 +34,7 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 3. The comment header includes a pass/fail icon and status based on `overall_passed`
 4. Coverage metrics (file and LOC percentages) are always included in the summary table
 5. `detect_branch` returns `None` if not in a git repository or git command fails
+6. The marketplace GitHub Action (`action.yml`) and project CI workflow (`.github/workflows/ci.yml`) both invoke `specsync comment` to produce identical PR comment output
 
 ## Behavioral Examples
 
@@ -78,5 +81,6 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 
 | Date | Change |
 |------|--------|
+| 2026-04-11 | Documented unified output pipeline: marketplace action and CI workflow both use `specsync comment` for identical PR comments |
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-07 | Initial spec |

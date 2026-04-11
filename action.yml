@@ -167,13 +167,14 @@ runs:
           echo "::endgroup::"
         fi
 
-        # If comment mode is enabled, also run diff with markdown output
+        # If comment mode is enabled, generate the rich comment body
+        # Uses the same `specsync comment` pipeline as our own CI workflow
+        # for identical output between the marketplace action and direct usage.
         if [ "$INPUT_COMMENT" = "true" ]; then
-          DIFF_OUTPUT=$(specsync diff --format markdown 2>&1) || true
-          # Save markdown output for the comment step
+          COMMENT_OUTPUT=$(specsync comment 2>/dev/null) || true
           {
             echo "SPECSYNC_MARKDOWN<<SPECSYNC_EOF"
-            echo "$DIFF_OUTPUT"
+            echo "$COMMENT_OUTPUT"
             echo "SPECSYNC_EOF"
           } >> "$GITHUB_ENV"
         fi
@@ -195,10 +196,10 @@ runs:
           exit 0
         fi
 
-        COMMENT_BODY="$SPECSYNC_MARKDOWN
+        COMMENT_BODY="${SPECSYNC_MARKDOWN}
 
-        ---
-        <sub>Posted by [SpecSync](https://github.com/CorvidLabs/spec-sync) via GitHub Actions</sub>"
+---
+<sub>Posted by [SpecSync](https://github.com/CorvidLabs/spec-sync) via GitHub Actions</sub>"
 
         # Check for existing SpecSync comment and update it, or create new
         EXISTING_COMMENT_ID=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \

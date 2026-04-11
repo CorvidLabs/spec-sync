@@ -7,11 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.1] - 2026-04-11
+
 ### Fixed
 
 - **Unified comment and check validation pipelines** — `specsync comment` now uses the same `run_validation()` pipeline as `specsync check`, ensuring identical output. Previously, `comment` skipped `.specsyncignore` rules, inline `specsync-ignore` directives, and staleness checks (#209).
 - **Stripped ANSI codes from PR comments** — CI comments no longer contain color escape sequences from cargo build output (#209).
 - **Marketplace action now uses `specsync comment`** — the GitHub Action (`action.yml`) now uses `specsync comment` instead of `specsync diff --format markdown` when `comment: true` is set, producing identical PR comment output to the project's own CI workflow.
+- **Fixed YAML parse error in `action.yml`** — unindented `---` inside a block scalar was treated as a YAML document separator, breaking the action. Comment body now uses `printf` instead of a raw heredoc (#211).
+
+### Added
+
+- **YAML validation CI step** — `action.yml` is now validated with `python3 -c "import yaml; yaml.safe_load(open('action.yml'))"` in CI to catch parse errors before release (#211).
 
 ## [4.1.0] - 2026-04-11
 

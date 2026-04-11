@@ -1190,10 +1190,7 @@ fn load_lifecycle_json(root: &Path, module: &str) -> Vec<String> {
     let data: serde_json::Value = match serde_json::from_str(&content) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!(
-                "[warn] Failed to parse {}: {e}",
-                path.display()
-            );
+            eprintln!("[warn] Failed to parse {}: {e}", path.display());
             return vec![];
         }
     };

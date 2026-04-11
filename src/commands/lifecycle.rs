@@ -15,7 +15,7 @@ static STATUS_LINE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^status:\s*\S+").unwrap());
 
 static LIFECYCLE_LOG_BLOCK_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)^lifecycle_log:\n(?:  - [^\n]+\n)*").unwrap());
+    LazyLock::new(|| Regex::new(r"(?m)^lifecycle_log:\n(?:  - [^\n]+\n?)*").unwrap());
 
 /// Update the status field in a spec file's frontmatter.
 /// Only replaces `status:` within the YAML frontmatter (between `---` delimiters),
@@ -1181,14 +1181,21 @@ fn chrono_today() -> String {
 /// `.specsync/lifecycle/{module}.json`, this function reads those entries
 /// so history/enforce commands still work.
 fn load_lifecycle_json(root: &Path, module: &str) -> Vec<String> {
-    let path = root.join(format!(".specsync/lifecycle/{module}.json"));
+    let safe_module = module.replace(['/', '\\'], "_").replace("..", "_");
+    let path = root.join(format!(".specsync/lifecycle/{safe_module}.json"));
     let content = match std::fs::read_to_string(&path) {
         Ok(c) => c,
         Err(_) => return vec![],
     };
     let data: serde_json::Value = match serde_json::from_str(&content) {
         Ok(v) => v,
-        Err(_) => return vec![],
+        Err(e) => {
+            eprintln!(
+                "[warn] Failed to parse {}: {e}",
+                path.display()
+            );
+            return vec![];
+        }
     };
     data["entries"]
         .as_array()

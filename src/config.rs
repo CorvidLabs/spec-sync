@@ -333,8 +333,9 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
     if let Some(ref cmd) = config.ai_command {
         lines.push(format!("ai_command = \"{}\"", toml_escape(cmd)));
     }
-    if let Some(ref key) = config.ai_api_key {
-        lines.push(format!("ai_api_key = \"{}\"", toml_escape(key)));
+    if config.ai_api_key.is_some() {
+        eprintln!("[warn] ai_api_key found in config but NOT written to config.toml.");
+        eprintln!("       Set the AI_API_KEY environment variable instead.");
     }
     if let Some(ref url) = config.ai_base_url {
         lines.push(format!("ai_base_url = \"{}\"", toml_escape(url)));

@@ -30,6 +30,7 @@ Shared command infrastructure used by all CLI subcommands. Provides config loadi
 |----------|-----------|---------|-------------|
 | `load_and_discover` | `root: &Path, allow_empty: bool` | `(SpecSyncConfig, Vec<PathBuf>)` | Load config and discover all spec files (excluding `_`-prefixed); exits if empty and `allow_empty` is false |
 | `filter_specs` | `root: &Path, spec_files: &[PathBuf], filters: &[String]` | `Vec<PathBuf>` | Filter spec files by user-provided names/paths (exact path, relative path, filename, module name); returns all if filters is empty |
+| `filter_by_status` | `spec_files: &[PathBuf], exclude: &[String], only: &[String]` | `Vec<PathBuf>` | Filter spec files by their frontmatter status field; supports exclude-list and allow-list modes |
 | `build_schema_columns` | `root: &Path, config: &SpecSyncConfig` | `HashMap<String, SchemaTable>` | Build column-level schema from migration files if `schema_dir` is configured |
 | `run_validation` | `root, spec_files, schema_tables, schema_columns, config, collect, explain, ignore_rules` | `(usize, usize, usize, usize, Vec<String>, Vec<String>)` | Run validation on all spec files returning (errors, warnings, passed, total, error_strings, warning_strings); contains full text rendering logic |
 | `compute_exit_code` | `total_errors, total_warnings, strict, enforcement, coverage, require_coverage` | `i32` | Compute exit code without printing or exiting based on enforcement mode |
@@ -64,6 +65,7 @@ Shared command infrastructure used by all CLI subcommands. Provides config loadi
 | `score` | Spec quality scoring (0-100, A-F) |
 | `view` | Role-filtered spec rendering |
 | `wizard` | Interactive spec creation wizard |
+| `lifecycle` | Spec lifecycle status transitions (promote, demote, set, status) |
 
 ## Invariants
 
@@ -138,3 +140,4 @@ Shared command infrastructure used by all CLI subcommands. Provides config loadi
 | Date | Change |
 |------|--------|
 | 2026-04-09 | Initial spec |
+| 2026-04-11 | Add lifecycle submodule and filter_by_status function |

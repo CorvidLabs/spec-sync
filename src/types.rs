@@ -297,10 +297,11 @@ impl SpecStatus {
             transitions.push(prev);
         }
         // Any status can be deprecated directly
-        if *self != Self::Deprecated && *self != Self::Archived {
-            if !transitions.contains(&Self::Deprecated) {
-                transitions.push(Self::Deprecated);
-            }
+        if *self != Self::Deprecated
+            && *self != Self::Archived
+            && !transitions.contains(&Self::Deprecated)
+        {
+            transitions.push(Self::Deprecated);
         }
         transitions
     }

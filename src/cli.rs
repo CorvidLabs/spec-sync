@@ -321,6 +321,27 @@ pub enum LifecycleAction {
         /// Target status to check (checks all valid transitions if omitted)
         target: Option<String>,
     },
+    /// Auto-promote all specs that pass their guards
+    AutoPromote {
+        /// Show what would be promoted without writing files
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// CI enforcement — validate lifecycle rules, exit non-zero on violations
+    Enforce {
+        /// Require all specs to have a status field
+        #[arg(long)]
+        require_status: bool,
+        /// Flag specs that exceed their max-age for the current status (configured in lifecycle.maxAge)
+        #[arg(long)]
+        max_age: bool,
+        /// Require all specs to be in one of the allowed statuses (configured in lifecycle.allowedStatuses)
+        #[arg(long)]
+        allowed: bool,
+        /// Run all enforcement checks (equivalent to --require-status --max-age --allowed)
+        #[arg(long)]
+        all: bool,
+    },
 }
 
 #[derive(Subcommand)]

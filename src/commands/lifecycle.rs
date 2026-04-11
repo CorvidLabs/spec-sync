@@ -674,6 +674,357 @@ pub fn cmd_guard(root: &Path, spec_filter: &str, target_str: Option<&str>, forma
     }
 }
 
+/// `specsync lifecycle auto-promote` — scan all specs and promote any that pass guards.
+pub fn cmd_auto_promote(root: &Path, format: OutputFormat, dry_run: bool) {
+    let (config, spec_files) = load_and_discover(root, false);
+    let mut promoted: Vec<(String, String, String)> = Vec::new(); // (rel, from, to)
+    let mut skipped: Vec<(String, String, Vec<String>)> = Vec::new(); // (rel, reason, failures)
+
+    for spec_path in &spec_files {
+        let (content, current, rel) = read_spec_status(root, spec_path);
+
+        let current = match current {
+            Some(s) => s,
+            None => {
+                skipped.push((rel, "no valid status".to_string(), vec![]));
+                continue;
+            }
+        };
+
+        let next = match current.next() {
+            Some(n) => n,
+            None => continue, // Already at end of lifecycle — not an error
+        };
+
+        if !current.can_transition_to(&next) {
+            continue; // Skip invalid transitions silently
+        }
+
+        let guard_result = evaluate_guards(root, spec_path, &config, &current, &next);
+        if !guard_result.passed {
+            skipped.push((
+                rel,
+                format!("{} → {}: guards failed", current.as_str(), next.as_str()),
+                guard_result.failures,
+            ));
+            continue;
+        }
+
+        // Guards passed — promote
+        if dry_run {
+            promoted.push((rel, current.as_str().to_string(), next.as_str().to_string()));
+        } else {
+            let new_content = match update_status_in_content(&content, next.as_str()) {
+                Some(c) => c,
+                None => {
+                    skipped.push((rel, "could not find status line".to_string(), vec![]));
+                    continue;
+                }
+            };
+
+            let final_content = if config.lifecycle.track_history {
+                let today = chrono_today();
+                let entry = format!("{today}: {} → {} (auto-promote)", current.as_str(), next.as_str());
+                append_lifecycle_log_entry(&new_content, &entry)
+            } else {
+                new_content
+            };
+
+            if let Err(e) = std::fs::write(spec_path, &final_content) {
+                skipped.push((rel, format!("write failed: {e}"), vec![]));
+                continue;
+            }
+
+            promoted.push((rel, current.as_str().to_string(), next.as_str().to_string()));
+        }
+    }
+
+    match format {
+        OutputFormat::Json => {
+            let promoted_json: Vec<serde_json::Value> = promoted
+                .iter()
+                .map(|(rel, from, to)| {
+                    serde_json::json!({
+                        "spec": rel,
+                        "from": from,
+                        "to": to,
+                    })
+                })
+                .collect();
+            let skipped_json: Vec<serde_json::Value> = skipped
+                .iter()
+                .map(|(rel, reason, failures)| {
+                    serde_json::json!({
+                        "spec": rel,
+                        "reason": reason,
+                        "failures": failures,
+                    })
+                })
+                .collect();
+            let output = serde_json::json!({
+                "dry_run": dry_run,
+                "promoted": promoted_json,
+                "skipped": skipped_json,
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        }
+        _ => {
+            if dry_run {
+                println!("{}", "Dry run — no files will be modified.\n".dimmed());
+            }
+
+            if promoted.is_empty() && skipped.is_empty() {
+                println!("No specs eligible for auto-promotion.");
+                return;
+            }
+
+            if !promoted.is_empty() {
+                println!(
+                    "{} {} spec(s) {}:\n",
+                    "✓".green(),
+                    promoted.len(),
+                    if dry_run { "would be promoted" } else { "promoted" }
+                );
+                for (rel, from, to) in &promoted {
+                    println!("  {} {} → {}", rel, from.dimmed(), to.green());
+                }
+            }
+
+            if !skipped.is_empty() {
+                println!(
+                    "\n{} {} spec(s) skipped:\n",
+                    "⚠".yellow(),
+                    skipped.len()
+                );
+                for (rel, reason, failures) in &skipped {
+                    println!("  {} {rel}: {reason}", "—".dimmed());
+                    for f in failures {
+                        println!("      {}", f.dimmed());
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// `specsync lifecycle enforce` — CI enforcement: validate lifecycle rules, exit non-zero on violations.
+pub fn cmd_enforce(
+    root: &Path,
+    format: OutputFormat,
+    require_status: bool,
+    check_max_age: bool,
+    check_allowed: bool,
+) {
+    let (config, spec_files) = load_and_discover(root, false);
+    let mut violations: Vec<(String, String)> = Vec::new(); // (spec_rel, message)
+
+    let allowed_set: Vec<SpecStatus> = config
+        .lifecycle
+        .allowed_statuses
+        .iter()
+        .filter_map(|s| SpecStatus::from_str_loose(s))
+        .collect();
+
+    for spec_path in &spec_files {
+        let rel = spec_path
+            .strip_prefix(root)
+            .unwrap_or(spec_path)
+            .display()
+            .to_string();
+
+        let content = match std::fs::read_to_string(spec_path) {
+            Ok(c) => c.replace("\r\n", "\n"),
+            Err(_) => continue,
+        };
+
+        let parsed = match parser::parse_frontmatter(&content) {
+            Some(p) => p,
+            None => {
+                if require_status {
+                    violations.push((rel, "could not parse frontmatter".to_string()));
+                }
+                continue;
+            }
+        };
+
+        let status = parsed.frontmatter.parsed_status();
+
+        // Check: require status field
+        if require_status && status.is_none() {
+            violations.push((rel.clone(), "missing status field".to_string()));
+        }
+
+        if let Some(status) = &status {
+            // Check: allowed statuses
+            if check_allowed && !allowed_set.is_empty() && !allowed_set.contains(status) {
+                let allowed_str = config.lifecycle.allowed_statuses.join(", ");
+                violations.push((
+                    rel.clone(),
+                    format!(
+                        "status '{}' not in allowed list ({})",
+                        status.as_str(),
+                        allowed_str
+                    ),
+                ));
+            }
+
+            // Check: max age
+            if check_max_age {
+                if let Some(max_days) = config.lifecycle.max_age.get(status.as_str()) {
+                    // Look at lifecycle_log for the most recent transition into this status
+                    let age_days = estimate_status_age(root, &rel, &parsed.frontmatter.lifecycle_log, status);
+                    if let Some(age) = age_days {
+                        if age > *max_days {
+                            violations.push((
+                                rel.clone(),
+                                format!(
+                                    "stuck in '{}' for ~{} days (max: {} days)",
+                                    status.as_str(),
+                                    age,
+                                    max_days
+                                ),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let violation_count = violations.len();
+
+    match format {
+        OutputFormat::Json => {
+            let items: Vec<serde_json::Value> = violations
+                .iter()
+                .map(|(spec, msg)| {
+                    serde_json::json!({
+                        "spec": spec,
+                        "violation": msg,
+                    })
+                })
+                .collect();
+            let output = serde_json::json!({
+                "total_specs": spec_files.len(),
+                "violations": violation_count,
+                "details": items,
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        }
+        _ => {
+            if violations.is_empty() {
+                println!(
+                    "{} All {} specs pass lifecycle enforcement checks.",
+                    "✓".green(),
+                    spec_files.len()
+                );
+                return;
+            }
+
+            println!(
+                "{} {} violation(s) across {} specs:\n",
+                "✗".red().bold(),
+                violation_count,
+                spec_files.len()
+            );
+
+            for (spec, msg) in &violations {
+                println!("  {} {spec}: {msg}", "✗".red());
+            }
+
+            println!(
+                "\n{} Fix violations or adjust lifecycle config in specsync.json.",
+                "Tip:".cyan()
+            );
+        }
+    }
+
+    if violation_count > 0 {
+        process::exit(1);
+    }
+}
+
+/// Estimate how many days a spec has been in its current status.
+/// Uses lifecycle_log entries (format: "YYYY-MM-DD: from → to") or falls back to git.
+fn estimate_status_age(
+    root: &Path,
+    spec_rel: &str,
+    lifecycle_log: &[String],
+    current_status: &SpecStatus,
+) -> Option<u64> {
+    // Try lifecycle_log first — look for the most recent entry that transitions INTO current status
+    let target_suffix = format!("→ {}", current_status.as_str());
+    let target_suffix_ascii = format!("-> {}", current_status.as_str());
+
+    for entry in lifecycle_log.iter().rev() {
+        if entry.contains(&target_suffix) || entry.contains(&target_suffix_ascii) {
+            // Extract date from "YYYY-MM-DD: ..."
+            if let Some(date_str) = entry.split(':').next() {
+                let date_str = date_str.trim();
+                if let Some(days) = days_since_date(date_str) {
+                    return Some(days);
+                }
+            }
+        }
+    }
+
+    // Fallback: use git to find last modification date of the spec file
+    let output = std::process::Command::new("git")
+        .args(["log", "-1", "--format=%ct", "--", spec_rel])
+        .current_dir(root)
+        .output()
+        .ok()?;
+
+    let timestamp_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let timestamp: u64 = timestamp_str.parse().ok()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+
+    Some((now - timestamp) / 86400)
+}
+
+/// Calculate days since a YYYY-MM-DD date string.
+fn days_since_date(date_str: &str) -> Option<u64> {
+    let parts: Vec<&str> = date_str.split('-').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let year: i64 = parts[0].parse().ok()?;
+    let month: i64 = parts[1].parse().ok()?;
+    let day: i64 = parts[2].parse().ok()?;
+
+    // Simple days-since calculation using Unix-like date math
+    // Julian day number approximation
+    let jdn = |y: i64, m: i64, d: i64| -> i64 {
+        let a = (14 - m) / 12;
+        let y2 = y + 4800 - a;
+        let m2 = m + 12 * a - 3;
+        d + (153 * m2 + 2) / 5 + 365 * y2 + y2 / 4 - y2 / 100 + y2 / 400 - 32045
+    };
+
+    let then_jdn = jdn(year, month, day);
+
+    // Get today's date
+    let today_str = chrono_today();
+    let today_parts: Vec<&str> = today_str.split('-').collect();
+    if today_parts.len() != 3 {
+        return None;
+    }
+    let ty: i64 = today_parts[0].parse().ok()?;
+    let tm: i64 = today_parts[1].parse().ok()?;
+    let td: i64 = today_parts[2].parse().ok()?;
+    let today_jdn = jdn(ty, tm, td);
+
+    let diff = today_jdn - then_jdn;
+    if diff >= 0 {
+        Some(diff as u64)
+    } else {
+        Some(0)
+    }
+}
+
 /// Write the updated status to disk, optionally recording in lifecycle_log, and print the result.
 fn write_status(
     spec_path: &Path,
@@ -873,6 +1224,8 @@ mod tests {
         let config = LifecycleConfig {
             guards,
             track_history: true,
+            max_age: std::collections::HashMap::new(),
+            allowed_statuses: vec![],
         };
 
         // Specific match
@@ -907,10 +1260,66 @@ mod tests {
         let config = LifecycleConfig {
             guards,
             track_history: true,
+            max_age: std::collections::HashMap::new(),
+            allowed_statuses: vec![],
         };
 
         let found = find_guards(&config, &SpecStatus::Draft, &SpecStatus::Review);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].min_score, Some(30));
+    }
+
+    #[test]
+    fn days_since_date_same_day_is_zero() {
+        let today = chrono_today();
+        assert_eq!(days_since_date(&today), Some(0));
+    }
+
+    #[test]
+    fn days_since_date_invalid_format_returns_none() {
+        assert_eq!(days_since_date("not-a-date"), None);
+        assert_eq!(days_since_date("2026"), None);
+        assert_eq!(days_since_date(""), None);
+    }
+
+    #[test]
+    fn days_since_date_past_date_is_positive() {
+        // Use a date far in the past to ensure it's always positive
+        let result = days_since_date("2020-01-01");
+        assert!(result.is_some());
+        assert!(result.unwrap() > 365);
+    }
+
+    #[test]
+    fn estimate_status_age_from_lifecycle_log() {
+        let today = chrono_today();
+        let log = vec![
+            format!("{today}: draft → review"),
+        ];
+        let age = estimate_status_age(
+            Path::new("/tmp"),
+            "specs/test.spec.md",
+            &log,
+            &SpecStatus::Review,
+        );
+        assert_eq!(age, Some(0));
+    }
+
+    #[test]
+    fn estimate_status_age_picks_latest_entry() {
+        let today = chrono_today();
+        let log = vec![
+            "2020-01-01: draft → review".to_string(),
+            "2020-06-01: review → draft".to_string(),
+            format!("{today}: draft → review"),
+        ];
+        let age = estimate_status_age(
+            Path::new("/tmp"),
+            "specs/test.spec.md",
+            &log,
+            &SpecStatus::Review,
+        );
+        // Should pick the most recent entry (today)
+        assert_eq!(age, Some(0));
     }
 }

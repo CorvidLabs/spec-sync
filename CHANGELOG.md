@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.2] - 2026-04-11
+
+### Fixed
+
+- **`specsync comment` now respects `--strict` and `--require-coverage`** — Previously, `specsync comment` hardcoded pass/fail as `total_errors == 0`, ignoring strict mode, enforcement level, and coverage requirements. PR comments could show "✅ Passed" even when `specsync check --strict` correctly failed with exit code 1. Now uses the same `compute_exit_code()` logic as `check` (#213).
+
 ## [4.1.1] - 2026-04-11
 
 ### Fixed

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-04-11
+
+### Added
+
+- **`specsync rehash` command** — regenerates `.specsync/hashes.json` from scratch without running validation. Useful after manual spec edits or when the hash cache is stale (#208).
+- **Auto-gitignore hashes.json** — `specsync init` and `specsync migrate` now automatically add `.specsync/hashes.json` to `.gitignore`. The hash cache is a local artifact and should not be committed (#208).
+- **Force hash rebuild in CI** — GitHub Action now runs `specsync rehash` before `specsync check` to ensure CI always validates against fresh hashes, not a stale cache (#208).
+
+### Changed
+
+- **hashes.json removed from version control** — `.specsync/hashes.json` is no longer tracked in git. Existing tracked copies are removed during migration (#208).
+
+### Documentation
+
+- **Updated all docs for v4.0.0** — CLI examples, config paths, GitHub Action usage, quickstart, and architecture docs now reflect the `.specsync/` directory structure and v4 commands (#206).
+
 ## [4.0.0] - 2026-04-11
 
 ### Breaking Changes

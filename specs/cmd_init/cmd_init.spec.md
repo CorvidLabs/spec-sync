@@ -23,6 +23,7 @@ Implements the `specsync init` command. Creates a `specsync.json` configuration 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `cmd_init` | `root: &Path` | `()` | Create specsync.json with auto-detected source dirs |
+| `ensure_hashes_gitignored` | `root: &Path` | `Result<bool, std::io::Error>` | Add hashes.json to .specsync/.gitignore and .specsync/hashes.json to root .gitignore; returns Ok(true) if changes were made |
 
 ## Invariants
 

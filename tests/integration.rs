@@ -3848,10 +3848,7 @@ fn migrate_full_v3_to_v4() {
     let hashes_is_ignored = gitignore
         .lines()
         .any(|line| !line.starts_with('#') && line.trim() == "hashes.json");
-    assert!(
-        hashes_is_ignored,
-        "gitignore SHOULD ignore hashes.json"
-    );
+    assert!(hashes_is_ignored, "gitignore SHOULD ignore hashes.json");
     // Also check root .gitignore has .specsync/hashes.json
     let root_gitignore = fs::read_to_string(root.join(".gitignore")).unwrap_or_default();
     assert!(

@@ -10,10 +10,7 @@ pub fn cmd_rehash(root: &Path) {
     hash_cache::update_cache(root, &spec_files, &mut cache);
 
     if let Err(e) = cache.save(root) {
-        eprintln!(
-            "{} Failed to save hash cache: {e}",
-            "error:".red().bold()
-        );
+        eprintln!("{} Failed to save hash cache: {e}", "error:".red().bold());
         std::process::exit(1);
     }
 

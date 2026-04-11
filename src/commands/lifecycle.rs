@@ -184,10 +184,8 @@ pub fn evaluate_guards(
                     let parsed = parser::parse_frontmatter(&content.replace("\r\n", "\n"));
                     match parsed {
                         Some(parsed) => {
-                            let missing = parser::get_missing_sections(
-                                &parsed.body,
-                                &guard.require_sections,
-                            );
+                            let missing =
+                                parser::get_missing_sections(&parsed.body, &guard.require_sections);
                             if !missing.is_empty() {
                                 failures.push(format!(
                                     "guard: missing required sections: {}",
@@ -196,9 +194,7 @@ pub fn evaluate_guards(
                             }
                         }
                         None => {
-                            failures.push(format!(
-                                "guard: could not parse frontmatter for {rel}"
-                            ));
+                            failures.push(format!("guard: could not parse frontmatter for {rel}"));
                         }
                     }
                 }
@@ -227,9 +223,7 @@ pub fn evaluate_guards(
                             }
                         }
                         None => {
-                            failures.push(format!(
-                                "guard: could not parse frontmatter for {rel}"
-                            ));
+                            failures.push(format!("guard: could not parse frontmatter for {rel}"));
                         }
                     }
                 }

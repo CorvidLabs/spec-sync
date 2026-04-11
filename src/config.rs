@@ -724,11 +724,7 @@ fn parse_toml_github_key(key: &str, value: &str, config: &mut SpecSyncConfig) {
 }
 
 /// Parse a key=value pair inside a `[lifecycle]` TOML section.
-fn parse_toml_lifecycle_key(
-    key: &str,
-    value: &str,
-    lc: &mut crate::types::LifecycleConfig,
-) {
+fn parse_toml_lifecycle_key(key: &str, value: &str, lc: &mut crate::types::LifecycleConfig) {
     match key {
         "track_history" => lc.track_history = parse_toml_bool(value),
         "allowed_statuses" => lc.allowed_statuses = parse_toml_string_array(value),
@@ -756,7 +752,7 @@ fn parse_toml_lifecycle_nested(
         let guard = lc
             .guards
             .entry(name)
-            .or_insert_with(crate::types::TransitionGuard::default);
+            .or_default();
         match key {
             "min_score" => {
                 if let Ok(n) = value.trim().parse::<u32>() {
@@ -772,9 +768,7 @@ fn parse_toml_lifecycle_nested(
             }
             "message" => guard.message = Some(parse_toml_string(value)),
             _ => {
-                eprintln!(
-                    "Warning: unknown key \"{key}\" in [lifecycle.guards] section (ignored)"
-                );
+                eprintln!("Warning: unknown key \"{key}\" in [lifecycle.guards] section (ignored)");
             }
         }
     }

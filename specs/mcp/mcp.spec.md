@@ -13,6 +13,7 @@ depends_on:
   - specs/scoring/scoring.spec.md
   - specs/generator/generator.spec.md
   - specs/ai/ai.spec.md
+  - specs/deps/deps.spec.md
 ---
 
 # Mcp
@@ -32,13 +33,15 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 ## Invariants
 
 1. Protocol version is "2024-11-05"
-2. Server reports capabilities with `tools: {}` — no prompts or resources
-3. Six tools are exposed: `specsync_check`, `specsync_coverage`, `specsync_generate`, `specsync_list_specs`, `specsync_init`, `specsync_score`
+2. Server reports capabilities with `tools: {}` and `resources: {}`
+3. Seven tools are exposed: `specsync_check`, `specsync_coverage`, `specsync_generate`, `specsync_list_specs`, `specsync_init`, `specsync_score`, `specsync_issues`
 4. All tool responses use `content: [{ type: "text", text: "..." }]` format
-5. Errors are returned as `isError: true` in the result, not as JSON-RPC errors (except parse errors and method-not-found)
+5. Errors are returned as `isError: true` in the result, not as JSON-RPC errors (except parse errors, method-not-found, and resource-not-found)
 6. Notifications (requests without `id`) receive no response
 7. `ping` method returns an empty result object
 8. Each tool accepts an optional `root` parameter to override the default project root
+9. Four static resources are exposed: `specsync:///specs`, `specsync:///graph`, `specsync:///config`, `specsync:///coverage`
+10. One resource template is exposed: `specsync:///specs/{module}` for reading individual specs
 
 ## Behavioral Examples
 
@@ -54,6 +57,18 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 - **When** the server processes the request
 - **Then** responds with validation results including passed/failed status, errors, and warnings
 
+### Scenario: List available resources
+
+- **Given** a client sends `{"jsonrpc":"2.0","id":2,"method":"resources/list"}`
+- **When** the server processes the request
+- **Then** responds with 4 static resources and 1 resource template
+
+### Scenario: Read a spec by module name
+
+- **Given** a client sends `{"jsonrpc":"2.0","id":3,"method":"resources/read","params":{"uri":"specsync:///specs/auth"}}`
+- **When** the module "auth" exists in the project
+- **Then** responds with the full spec content as text/markdown
+
 ### Scenario: Unknown method
 
 - **Given** a client sends a request with `method: "unknown/method"` and an `id`
@@ -67,6 +82,8 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | Malformed JSON input | JSON-RPC error -32700 "Parse error" |
 | Unknown method with id | JSON-RPC error -32601 "Method not found" |
 | Unknown tool name | Tool error: "Unknown tool: {name}" |
+| Unknown resource URI | JSON-RPC error -32602 "Unknown resource URI: {uri}" |
+| Spec module not found | JSON-RPC error -32602 "No spec found for module: {name}" |
 | No spec files found | Tool error with suggestion to run `specsync generate` |
 | stdin EOF | Server exits gracefully |
 
@@ -83,6 +100,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | ai | `resolve_ai_provider` |
 | parser | `parse_frontmatter` |
 | types | `SpecSyncConfig` |
+| deps | `build_dep_graph`, `validate_deps`, `topological_sort` |
 
 ### Consumed By
 
@@ -94,4 +112,5 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 
 | Date | Change |
 |------|--------|
+| 2026-04-10 | Add MCP resources: specs list, spec by module, dependency graph, config, coverage |
 | 2026-03-25 | Initial spec |

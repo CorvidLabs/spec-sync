@@ -1,5 +1,6 @@
 use crate::ai;
 use crate::config::{detect_source_dirs, load_config};
+use crate::deps::build_dep_graph;
 use crate::generator::generate_specs_for_unspecced_modules_paths;
 use crate::scoring;
 use crate::types::SpecSyncConfig;
@@ -54,6 +55,11 @@ pub fn run_mcp_server(root: &Path) {
                 let params = request.get("params").cloned().unwrap_or(json!({}));
                 Some(handle_tools_call(id, &params, root))
             }
+            "resources/list" => Some(handle_resources_list(id)),
+            "resources/read" => {
+                let params = request.get("params").cloned().unwrap_or(json!({}));
+                Some(handle_resources_read(id, &params, root))
+            }
             "ping" => Some(json!({ "jsonrpc": "2.0", "id": id, "result": {} })),
             _ => {
                 // Notifications (no id) get no response
@@ -83,7 +89,8 @@ fn handle_initialize(id: Option<Value>) -> Value {
         "result": {
             "protocolVersion": PROTOCOL_VERSION,
             "capabilities": {
-                "tools": {}
+                "tools": {},
+                "resources": {}
             },
             "serverInfo": {
                 "name": SERVER_NAME,
@@ -252,6 +259,257 @@ fn handle_tools_call(id: Option<Value>, params: &Value, default_root: &Path) -> 
             }
         }),
     }
+}
+
+// ─── Resource Handlers ──────────────────────────────────────────────────
+
+fn handle_resources_list(id: Option<Value>) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": {
+            "resources": [
+                {
+                    "uri": "specsync:///specs",
+                    "name": "All Specs",
+                    "description": "List all spec modules with metadata (name, path, version, status, score)",
+                    "mimeType": "application/json"
+                },
+                {
+                    "uri": "specsync:///graph",
+                    "name": "Dependency Graph",
+                    "description": "Cross-module dependency graph with edges, cycles, and topological order",
+                    "mimeType": "application/json"
+                },
+                {
+                    "uri": "specsync:///config",
+                    "name": "Configuration",
+                    "description": "Current specsync.json configuration",
+                    "mimeType": "application/json"
+                },
+                {
+                    "uri": "specsync:///coverage",
+                    "name": "Coverage Report",
+                    "description": "File and LOC coverage metrics — which modules have specs and which don't",
+                    "mimeType": "application/json"
+                }
+            ],
+            "resourceTemplates": [
+                {
+                    "uriTemplate": "specsync:///specs/{module}",
+                    "name": "Spec by Module",
+                    "description": "Read a specific spec's full content with parsed frontmatter and score",
+                    "mimeType": "text/markdown"
+                }
+            ]
+        }
+    })
+}
+
+fn handle_resources_read(id: Option<Value>, params: &Value, root: &Path) -> Value {
+    let uri = params.get("uri").and_then(|u| u.as_str()).unwrap_or("");
+
+    let result = match uri {
+        "specsync:///specs" => resource_specs_list(root),
+        "specsync:///graph" => resource_graph(root),
+        "specsync:///config" => resource_config(root),
+        "specsync:///coverage" => resource_coverage(root),
+        _ if uri.starts_with("specsync:///specs/") => {
+            let module = &uri["specsync:///specs/".len()..];
+            resource_spec_by_module(root, module)
+        }
+        _ => Err(format!("Unknown resource URI: {uri}")),
+    };
+
+    match result {
+        Ok((content, mime_type)) => json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "contents": [{
+                    "uri": uri,
+                    "mimeType": mime_type,
+                    "text": content
+                }]
+            }
+        }),
+        Err(msg) => json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "error": { "code": -32602, "message": msg }
+        }),
+    }
+}
+
+// ─── Resource Implementations ───────────────────────────────────────────
+
+fn resource_specs_list(root: &Path) -> Result<(String, &'static str), String> {
+    let (config, spec_files) = load_and_discover(root, true)?;
+
+    let specs: Vec<Value> = spec_files
+        .iter()
+        .map(|f| {
+            let content = std::fs::read_to_string(f).unwrap_or_default();
+            let parsed = crate::parser::parse_frontmatter(&content);
+            let score = scoring::score_spec(f, root, &config);
+            let relative = f
+                .strip_prefix(root)
+                .unwrap_or(f)
+                .to_string_lossy()
+                .to_string();
+
+            if let Some(parsed) = parsed {
+                let fm = parsed.frontmatter;
+                json!({
+                    "path": relative,
+                    "module": fm.module,
+                    "version": fm.version,
+                    "status": fm.status,
+                    "files": fm.files,
+                    "depends_on": fm.depends_on,
+                    "score": score.total,
+                    "grade": score.grade,
+                })
+            } else {
+                json!({
+                    "path": relative,
+                    "module": null,
+                    "score": score.total,
+                    "grade": score.grade,
+                })
+            }
+        })
+        .collect();
+
+    let output = json!({ "specs": specs, "count": specs.len() });
+    Ok((serde_json::to_string_pretty(&output).unwrap(), "application/json"))
+}
+
+fn resource_spec_by_module(root: &Path, module: &str) -> Result<(String, &'static str), String> {
+    let (_config, spec_files) = load_and_discover(root, true)?;
+
+    // Find the spec file matching this module name
+    for f in &spec_files {
+        let content = match std::fs::read_to_string(f) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        let parsed = crate::parser::parse_frontmatter(&content);
+        let matches = parsed
+            .as_ref()
+            .and_then(|p| p.frontmatter.module.as_deref())
+            .map(|m| m == module)
+            .unwrap_or(false);
+
+        if matches {
+            return Ok((content, "text/markdown"));
+        }
+    }
+
+    Err(format!("No spec found for module: {module}"))
+}
+
+fn resource_graph(root: &Path) -> Result<(String, &'static str), String> {
+    let config = load_config(root);
+    let graph = build_dep_graph(root, &config.specs_dir);
+
+    let nodes: Vec<Value> = graph
+        .values()
+        .map(|node| {
+            json!({
+                "module": node.module,
+                "spec_path": node.spec_path,
+                "depends_on": node.declared_deps,
+                "files": node.files,
+            })
+        })
+        .collect();
+
+    // Build edges list
+    let mut edges: Vec<Value> = Vec::new();
+    for node in graph.values() {
+        for dep in &node.declared_deps {
+            edges.push(json!({
+                "from": node.module,
+                "to": dep,
+            }));
+        }
+    }
+
+    // Detect cycles
+    let cycles = crate::deps::validate_deps(root, &config.specs_dir).cycles;
+    let cycle_values: Vec<Value> = cycles.iter().map(|c| json!(c)).collect();
+
+    // Topological order
+    let topo = crate::deps::topological_sort(&graph);
+
+    let output = json!({
+        "modules": nodes,
+        "edges": edges,
+        "module_count": graph.len(),
+        "edge_count": edges.len(),
+        "cycles": cycle_values,
+        "topological_order": topo,
+    });
+
+    Ok((serde_json::to_string_pretty(&output).unwrap(), "application/json"))
+}
+
+fn resource_config(root: &Path) -> Result<(String, &'static str), String> {
+    let config = load_config(root);
+    let output = json!({
+        "specs_dir": config.specs_dir,
+        "source_dirs": config.source_dirs,
+        "required_sections": config.required_sections,
+        "exclude_dirs": config.exclude_dirs,
+        "exclude_patterns": config.exclude_patterns,
+        "schema_dir": config.schema_dir,
+    });
+
+    Ok((serde_json::to_string_pretty(&output).unwrap(), "application/json"))
+}
+
+fn resource_coverage(root: &Path) -> Result<(String, &'static str), String> {
+    let (config, spec_files) = load_and_discover(root, true)?;
+    let coverage = compute_coverage(root, &spec_files, &config);
+
+    let file_coverage = if coverage.total_source_files == 0 {
+        100.0
+    } else {
+        (coverage.specced_file_count as f64 / coverage.total_source_files as f64) * 100.0
+    };
+
+    let loc_coverage = if coverage.total_loc == 0 {
+        100.0
+    } else {
+        (coverage.specced_loc as f64 / coverage.total_loc as f64) * 100.0
+    };
+
+    let uncovered_modules: Vec<Value> = coverage
+        .unspecced_modules
+        .iter()
+        .map(|m| json!({ "name": m }))
+        .collect();
+
+    let uncovered_files: Vec<Value> = coverage
+        .unspecced_file_loc
+        .iter()
+        .map(|(f, loc)| json!({ "file": f, "loc": loc }))
+        .collect();
+
+    let output = json!({
+        "file_coverage_percent": (file_coverage * 100.0).round() / 100.0,
+        "files_covered": coverage.specced_file_count,
+        "files_total": coverage.total_source_files,
+        "loc_coverage_percent": (loc_coverage * 100.0).round() / 100.0,
+        "loc_covered": coverage.specced_loc,
+        "loc_total": coverage.total_loc,
+        "uncovered_modules": uncovered_modules,
+        "uncovered_files": uncovered_files,
+    });
+
+    Ok((serde_json::to_string_pretty(&output).unwrap(), "application/json"))
 }
 
 // ─── Tool Implementations ────────────────────────────────────────────────
@@ -675,6 +933,7 @@ mod tests {
         assert_eq!(resp["result"]["protocolVersion"], PROTOCOL_VERSION);
         assert_eq!(resp["result"]["serverInfo"]["name"], "specsync");
         assert!(resp["result"]["capabilities"]["tools"].is_object());
+        assert!(resp["result"]["capabilities"]["resources"].is_object());
     }
 
     #[test]
@@ -982,5 +1241,126 @@ mod tests {
         assert_eq!(resp["jsonrpc"], "2.0");
         assert_eq!(resp["id"], 99);
         assert_eq!(resp["result"]["isError"], true);
+    }
+
+    // --- handle_resources_list ---
+
+    #[test]
+    fn test_handle_resources_list_returns_resources() {
+        let resp = handle_resources_list(Some(json!(1)));
+        assert_eq!(resp["jsonrpc"], "2.0");
+        let resources = resp["result"]["resources"].as_array().unwrap();
+        assert_eq!(resources.len(), 4);
+        let uris: Vec<&str> = resources.iter().map(|r| r["uri"].as_str().unwrap()).collect();
+        assert!(uris.contains(&"specsync:///specs"));
+        assert!(uris.contains(&"specsync:///graph"));
+        assert!(uris.contains(&"specsync:///config"));
+        assert!(uris.contains(&"specsync:///coverage"));
+    }
+
+    #[test]
+    fn test_handle_resources_list_has_templates() {
+        let resp = handle_resources_list(Some(json!(1)));
+        let templates = resp["result"]["resourceTemplates"].as_array().unwrap();
+        assert_eq!(templates.len(), 1);
+        assert_eq!(
+            templates[0]["uriTemplate"].as_str().unwrap(),
+            "specsync:///specs/{module}"
+        );
+    }
+
+    // --- handle_resources_read ---
+
+    #[test]
+    fn test_resource_specs_list_empty() {
+        let tmp = setup_project();
+        let params = json!({ "uri": "specsync:///specs" });
+        let resp = handle_resources_read(Some(json!(1)), &params, tmp.path());
+        assert_eq!(resp["jsonrpc"], "2.0");
+        let text = resp["result"]["contents"][0]["text"].as_str().unwrap();
+        let parsed: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(parsed["count"], 0);
+    }
+
+    #[test]
+    fn test_resource_specs_list_with_spec() {
+        let spec_content = "---\nmodule: auth\nversion: 2.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Purpose\nAuth\n";
+        let tmp = setup_project_with_spec("auth", spec_content);
+
+        let params = json!({ "uri": "specsync:///specs" });
+        let resp = handle_resources_read(Some(json!(1)), &params, tmp.path());
+        let text = resp["result"]["contents"][0]["text"].as_str().unwrap();
+        let parsed: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(parsed["count"], 1);
+        assert_eq!(parsed["specs"][0]["module"], "auth");
+        assert!(parsed["specs"][0]["score"].is_number());
+    }
+
+    #[test]
+    fn test_resource_spec_by_module() {
+        let spec_content = "---\nmodule: auth\nversion: 1.0.0\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Purpose\nAuth module\n";
+        let tmp = setup_project_with_spec("auth", spec_content);
+
+        let params = json!({ "uri": "specsync:///specs/auth" });
+        let resp = handle_resources_read(Some(json!(1)), &params, tmp.path());
+        let text = resp["result"]["contents"][0]["text"].as_str().unwrap();
+        assert!(text.contains("module: auth"));
+        assert_eq!(
+            resp["result"]["contents"][0]["mimeType"].as_str().unwrap(),
+            "text/markdown"
+        );
+    }
+
+    #[test]
+    fn test_resource_spec_by_module_not_found() {
+        let tmp = setup_project();
+        let params = json!({ "uri": "specsync:///specs/nonexistent" });
+        let resp = handle_resources_read(Some(json!(1)), &params, tmp.path());
+        assert!(resp["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("No spec found"));
+    }
+
+    #[test]
+    fn test_resource_graph_empty() {
+        let tmp = setup_project();
+        let params = json!({ "uri": "specsync:///graph" });
+        let resp = handle_resources_read(Some(json!(1)), &params, tmp.path());
+        let text = resp["result"]["contents"][0]["text"].as_str().unwrap();
+        let parsed: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(parsed["module_count"], 0);
+        assert_eq!(parsed["edge_count"], 0);
+    }
+
+    #[test]
+    fn test_resource_config() {
+        let tmp = setup_project();
+        let params = json!({ "uri": "specsync:///config" });
+        let resp = handle_resources_read(Some(json!(1)), &params, tmp.path());
+        let text = resp["result"]["contents"][0]["text"].as_str().unwrap();
+        let parsed: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(parsed["specs_dir"], "specs");
+    }
+
+    #[test]
+    fn test_resource_coverage_empty() {
+        let tmp = setup_project();
+        let params = json!({ "uri": "specsync:///coverage" });
+        let resp = handle_resources_read(Some(json!(1)), &params, tmp.path());
+        let text = resp["result"]["contents"][0]["text"].as_str().unwrap();
+        let parsed: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(parsed["file_coverage_percent"], 100.0);
+    }
+
+    #[test]
+    fn test_resource_unknown_uri() {
+        let tmp = setup_project();
+        let params = json!({ "uri": "specsync:///bogus" });
+        let resp = handle_resources_read(Some(json!(1)), &params, tmp.path());
+        assert!(resp["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Unknown resource URI"));
     }
 }

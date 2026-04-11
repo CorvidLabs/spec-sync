@@ -224,6 +224,8 @@ fn merge_local_config(local_path: &Path, config: &mut SpecSyncConfig) {
             let key = line[..eq_pos].trim();
             let value = line[eq_pos + 1..].trim();
 
+            let value = strip_inline_comment(value);
+
             // Skip section-specific keys in local config (only top-level AI fields make sense)
             if current_section.is_some() {
                 continue;
@@ -231,13 +233,13 @@ fn merge_local_config(local_path: &Path, config: &mut SpecSyncConfig) {
 
             match key {
                 "ai_provider" => {
-                    let s = parse_toml_string(value);
+                    let s = parse_toml_string(&value);
                     config.ai_provider = crate::types::AiProvider::from_str_loose(&s);
                 }
-                "ai_model" => config.ai_model = Some(parse_toml_string(value)),
-                "ai_command" => config.ai_command = Some(parse_toml_string(value)),
-                "ai_api_key" => config.ai_api_key = Some(parse_toml_string(value)),
-                "ai_base_url" => config.ai_base_url = Some(parse_toml_string(value)),
+                "ai_model" => config.ai_model = Some(parse_toml_string(&value)),
+                "ai_command" => config.ai_command = Some(parse_toml_string(&value)),
+                "ai_api_key" => config.ai_api_key = Some(parse_toml_string(&value)),
+                "ai_base_url" => config.ai_base_url = Some(parse_toml_string(&value)),
                 "ai_timeout" => {
                     if let Ok(n) = value.trim().parse::<u64>() {
                         config.ai_timeout = Some(n);
@@ -729,6 +731,24 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
 }
 
 /// Parse a TOML string value: `"value"` -> `value`
+/// Strip an inline TOML comment from a value string.
+/// Respects quoted strings — `#` inside quotes is not a comment.
+/// Examples:
+///   `"ollama" # local`  →  `"ollama"`
+///   `120 # seconds`     →  `120`
+///   `"has # inside"`    →  `"has # inside"`
+fn strip_inline_comment(s: &str) -> String {
+    let mut in_string = false;
+    for (i, c) in s.char_indices() {
+        match c {
+            '"' => in_string = !in_string,
+            '#' if !in_string => return s[..i].trim().to_string(),
+            _ => {}
+        }
+    }
+    s.to_string()
+}
+
 fn parse_toml_string(s: &str) -> String {
     let s = s.trim();
     if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
@@ -1248,6 +1268,41 @@ verify_issues = false
             config.ai_provider,
             Some(crate::types::AiProvider::OpenAi)
         ));
+    }
+
+    #[test]
+    fn test_local_config_strips_inline_comments() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.local.toml"),
+            "ai_provider = \"ollama\" # local dev\nai_model = \"llama3\" # fast model\nai_timeout = 60 # seconds\n",
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert!(matches!(
+            config.ai_provider,
+            Some(crate::types::AiProvider::Ollama)
+        ));
+        assert_eq!(config.ai_model, Some("llama3".to_string()));
+        assert_eq!(config.ai_timeout, Some(60));
+    }
+
+    #[test]
+    fn test_strip_inline_comment_preserves_hash_in_quotes() {
+        assert_eq!(
+            strip_inline_comment(r#""has # inside""#),
+            r#""has # inside""#
+        );
+        assert_eq!(strip_inline_comment(r#""ollama" # comment"#), r#""ollama""#);
+        assert_eq!(strip_inline_comment("120 # seconds"), "120");
+        assert_eq!(strip_inline_comment("plain_value"), "plain_value");
     }
 
     // --- default_schema_pattern ---

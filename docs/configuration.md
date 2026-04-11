@@ -7,7 +7,7 @@ nav_order: 4
 # Configuration
 {: .no_toc }
 
-SpecSync is configured via `specsync.json` in your project root. All fields are optional — sensible defaults apply.
+SpecSync is configured via `.specsync/config.toml` (v4) or legacy `specsync.json` / `.specsync.toml` in your project root. All fields are optional — sensible defaults apply.
 {: .fs-6 .fw-300 }
 
 <details open markdown="block">
@@ -25,11 +25,13 @@ SpecSync is configured via `specsync.json` in your project root. All fields are 
 specsync init
 ```
 
-Creates `specsync.json` with defaults. SpecSync also works without a config file.
+Creates `.specsync/config.toml` (v4) with defaults. SpecSync also works without a config file.
 
 ### TOML Config
 
-SpecSync also supports `specsync.toml` as an alternative to JSON:
+Config resolution order: `.specsync/config.toml` → `.specsync/config.json` → `.specsync.toml` (legacy) → `specsync.json` (legacy) → defaults. If `.specsync/config.local.toml` exists (gitignored), it's merged on top for per-developer overrides.
+
+Example:
 
 ```toml
 specs_dir = "specs"
@@ -54,7 +56,7 @@ drift_labels = ["spec-drift"]
 verify_issues = true
 ```
 
-Config resolution order: `specsync.json` → `specsync.toml` → defaults.
+Config resolution order: `.specsync/config.toml` → `.specsync/config.json` → `.specsync.toml` (legacy) → `specsync.json` (legacy) → defaults. Per-developer overrides via `.specsync/config.local.toml` are merged on top.
 
 ---
 

@@ -265,8 +265,8 @@ pub fn resolve_ai_provider(
     Err("No AI provider found. Options:\n\n\
          CLI providers (install a tool):\n  \
          claude     — Claude Code CLI (npm i -g @anthropic-ai/claude-code)\n  \
-         ollama     — Local models (ollama.com)\n  \
-         copilot    — GitHub Copilot (gh extension install github/gh-copilot)\n\n\
+         copilot    — GitHub Copilot (gh extension install github/gh-copilot)\n  \
+         ollama     — Local models (ollama.com)\n\n\
          API providers (just set a key — no CLI needed):\n  \
          anthropic  — set ANTHROPIC_API_KEY env var\n  \
          openai     — set OPENAI_API_KEY env var\n  \

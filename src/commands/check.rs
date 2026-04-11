@@ -15,6 +15,8 @@ use crate::parser;
 use crate::types;
 use crate::validator::{compute_coverage, get_schema_table_names};
 
+use crate::config::is_legacy_layout;
+
 use super::{
     build_schema_columns, compute_exit_code, create_drift_issues, exit_with_status,
     filter_by_status, filter_specs, load_and_discover, run_validation,
@@ -38,6 +40,22 @@ pub fn cmd_check(
 ) {
     use hash_cache::{ChangeClassification, ChangeKind};
     use types::OutputFormat::*;
+
+    // Auto-detect legacy 3.x layout and suggest migration
+    if is_legacy_layout(root) && matches!(format, Text) {
+        eprintln!(
+            "{} Legacy 3.x layout detected (config files at project root).",
+            "⚠".yellow()
+        );
+        eprintln!(
+            "  Run {} to upgrade to v4.0.0 (.specsync/ directory structure, TOML config).",
+            "specsync migrate".cyan()
+        );
+        eprintln!(
+            "  Use {} to preview changes without modifying files.\n",
+            "specsync migrate --dry-run".dimmed()
+        );
+    }
 
     let (config, all_spec_files) = load_and_discover(root, fix);
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);

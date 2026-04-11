@@ -141,28 +141,236 @@ fn dir_contains_source_files(dir: &Path, ignored: &HashSet<&str>, max_depth: usi
     false
 }
 
-/// Load config from specsync.json or .specsync.toml, falling back to defaults.
+/// Load config from TOML or JSON, falling back to defaults.
 /// When no config file exists, auto-detects source directories.
 ///
-/// Config file search order:
-/// 1. `specsync.json` (JSON format)
-/// 2. `.specsync.toml` (TOML format)
+/// Config file search order (v4 first, then legacy):
+/// 1. `.specsync/config.toml` (v4 TOML — canonical)
+/// 2. `.specsync/config.json` (v4 JSON — pre-TOML migration)
+/// 3. `.specsync.toml` (legacy root TOML)
+/// 4. `specsync.json` (legacy root JSON)
 pub fn load_config(root: &Path) -> SpecSyncConfig {
-    let json_path = root.join("specsync.json");
-    let toml_path = root.join(".specsync.toml");
+    let v4_toml = root.join(".specsync/config.toml");
+    let v4_json = root.join(".specsync/config.json");
+    let legacy_toml = root.join(".specsync.toml");
+    let legacy_json = root.join("specsync.json");
 
-    if json_path.exists() {
-        return load_json_config(&json_path, root);
+    if v4_toml.exists() {
+        return load_toml_config(&v4_toml, root);
     }
 
-    if toml_path.exists() {
-        return load_toml_config(&toml_path, root);
+    if v4_json.exists() {
+        return load_json_config(&v4_json, root);
+    }
+
+    if legacy_toml.exists() {
+        return load_toml_config(&legacy_toml, root);
+    }
+
+    if legacy_json.exists() {
+        return load_json_config(&legacy_json, root);
     }
 
     SpecSyncConfig {
         source_dirs: detect_source_dirs(root),
         ..Default::default()
     }
+}
+
+/// Detect whether this project is using a legacy 3.x layout.
+/// Returns true if root-level config files exist without a .specsync/version stamp.
+pub fn is_legacy_layout(root: &Path) -> bool {
+    let has_root_json = root.join("specsync.json").exists();
+    let has_root_toml = root.join(".specsync.toml").exists();
+    let has_root_registry = root.join("specsync-registry.toml").exists();
+    let has_v4_version = root.join(".specsync/version").exists();
+
+    (has_root_json || has_root_toml || has_root_registry) && !has_v4_version
+}
+
+/// Serialize a SpecSyncConfig to TOML format string.
+pub fn config_to_toml(config: &SpecSyncConfig) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    lines.push("# spec-sync v4 configuration".to_string());
+    lines.push("# Docs: https://github.com/CorvidLabs/spec-sync".to_string());
+    lines.push(String::new());
+
+    // Core settings
+    lines.push(format!("specs_dir = \"{}\"", config.specs_dir));
+
+    if !config.source_dirs.is_empty() {
+        lines.push(format!(
+            "source_dirs = [{}]",
+            config
+                .source_dirs
+                .iter()
+                .map(|s| format!("\"{s}\""))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+
+    if let Some(ref schema_dir) = config.schema_dir {
+        lines.push(format!("schema_dir = \"{schema_dir}\""));
+    }
+    if let Some(ref schema_pattern) = config.schema_pattern {
+        lines.push(format!("schema_pattern = \"{schema_pattern}\""));
+    }
+
+    if !config.exclude_dirs.is_empty() {
+        lines.push(format!(
+            "exclude_dirs = [{}]",
+            config
+                .exclude_dirs
+                .iter()
+                .map(|s| format!("\"{s}\""))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    if !config.exclude_patterns.is_empty() {
+        lines.push(format!(
+            "exclude_patterns = [{}]",
+            config
+                .exclude_patterns
+                .iter()
+                .map(|s| format!("\"{s}\""))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    if !config.source_extensions.is_empty() {
+        lines.push(format!(
+            "source_extensions = [{}]",
+            config
+                .source_extensions
+                .iter()
+                .map(|s| format!("\"{s}\""))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+
+    if !config.required_sections.is_empty() {
+        lines.push(format!(
+            "required_sections = [{}]",
+            config
+                .required_sections
+                .iter()
+                .map(|s| format!("\"{s}\""))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+
+    // Export level
+    match config.export_level {
+        crate::types::ExportLevel::Type => lines.push("export_level = \"type\"".to_string()),
+        crate::types::ExportLevel::Member => {} // default, omit
+    }
+
+    // Enforcement
+    match config.enforcement {
+        crate::types::EnforcementMode::Warn => {} // default, omit
+        crate::types::EnforcementMode::EnforceNew => {
+            lines.push("enforcement = \"enforce-new\"".to_string());
+        }
+        crate::types::EnforcementMode::Strict => {
+            lines.push("enforcement = \"strict\"".to_string());
+        }
+    }
+
+    // AI settings
+    if let Some(ref provider) = config.ai_provider {
+        let name = match provider {
+            crate::types::AiProvider::Claude => "claude",
+            crate::types::AiProvider::Cursor => "cursor",
+            crate::types::AiProvider::Copilot => "copilot",
+            crate::types::AiProvider::Ollama => "ollama",
+            crate::types::AiProvider::Anthropic => "anthropic",
+            crate::types::AiProvider::OpenAi => "openai",
+            crate::types::AiProvider::Gemini => "gemini",
+            crate::types::AiProvider::DeepSeek => "deepseek",
+            crate::types::AiProvider::Groq => "groq",
+            crate::types::AiProvider::Mistral => "mistral",
+            crate::types::AiProvider::XAi => "xai",
+            crate::types::AiProvider::Together => "together",
+            crate::types::AiProvider::Custom => "custom",
+        };
+        lines.push(format!("ai_provider = \"{name}\""));
+    }
+    if let Some(ref model) = config.ai_model {
+        lines.push(format!("ai_model = \"{model}\""));
+    }
+    if let Some(ref cmd) = config.ai_command {
+        lines.push(format!("ai_command = \"{cmd}\""));
+    }
+    if let Some(ref key) = config.ai_api_key {
+        lines.push(format!("ai_api_key = \"{key}\""));
+    }
+    if let Some(ref url) = config.ai_base_url {
+        lines.push(format!("ai_base_url = \"{url}\""));
+    }
+    if let Some(timeout) = config.ai_timeout {
+        lines.push(format!("ai_timeout = {timeout}"));
+    }
+
+    if let Some(days) = config.task_archive_days {
+        lines.push(format!("task_archive_days = {days}"));
+    }
+
+    // Rules section
+    let rules = &config.rules;
+    let has_rules = rules.max_changelog_entries.is_some()
+        || rules.require_behavioral_examples.is_some()
+        || rules.min_invariants.is_some()
+        || rules.max_spec_size_kb.is_some()
+        || rules.require_depends_on.is_some();
+
+    if has_rules {
+        lines.push(String::new());
+        lines.push("[rules]".to_string());
+        if let Some(n) = rules.max_changelog_entries {
+            lines.push(format!("max_changelog_entries = {n}"));
+        }
+        if let Some(b) = rules.require_behavioral_examples {
+            lines.push(format!("require_behavioral_examples = {b}"));
+        }
+        if let Some(n) = rules.min_invariants {
+            lines.push(format!("min_invariants = {n}"));
+        }
+        if let Some(n) = rules.max_spec_size_kb {
+            lines.push(format!("max_spec_size_kb = {n}"));
+        }
+        if let Some(b) = rules.require_depends_on {
+            lines.push(format!("require_depends_on = {b}"));
+        }
+    }
+
+    // GitHub section
+    if let Some(ref gh) = config.github {
+        lines.push(String::new());
+        lines.push("[github]".to_string());
+        if let Some(ref repo) = gh.repo {
+            lines.push(format!("repo = \"{repo}\""));
+        }
+        if !gh.drift_labels.is_empty() {
+            lines.push(format!(
+                "drift_labels = [{}]",
+                gh.drift_labels
+                    .iter()
+                    .map(|s| format!("\"{s}\""))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        if !gh.verify_issues {
+            lines.push(format!("verify_issues = {}", gh.verify_issues));
+        }
+    }
+
+    lines.push(String::new()); // trailing newline
+    lines.join("\n")
 }
 
 /// Known config keys in specsync.json (camelCase).
@@ -327,8 +535,25 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                         config.task_archive_days = Some(n);
                     }
                 }
+                "enforcement" => {
+                    let s = parse_toml_string(value);
+                    match s.as_str() {
+                        "strict" => {
+                            config.enforcement = crate::types::EnforcementMode::Strict;
+                        }
+                        "enforce-new" | "enforce_new" => {
+                            config.enforcement = crate::types::EnforcementMode::EnforceNew;
+                        }
+                        "warn" => {
+                            config.enforcement = crate::types::EnforcementMode::Warn;
+                        }
+                        _ => eprintln!(
+                            "Warning: unknown enforcement \"{s}\" (expected \"warn\", \"enforce-new\", or \"strict\")"
+                        ),
+                    }
+                }
                 _ => {
-                    eprintln!("Warning: unknown key \"{key}\" in .specsync.toml (ignored)");
+                    eprintln!("Warning: unknown key \"{key}\" in config.toml (ignored)");
                 }
             }
         }
@@ -534,7 +759,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_config_json_takes_priority_over_toml() {
+    fn test_load_config_toml_takes_priority_over_json() {
         let tmp = TempDir::new().unwrap();
         fs::write(
             tmp.path().join("specsync.json"),
@@ -548,7 +773,28 @@ mod tests {
         .unwrap();
 
         let config = load_config(tmp.path());
-        assert_eq!(config.specs_dir, "from-json");
+        // TOML at root takes priority over JSON at root
+        assert_eq!(config.specs_dir, "from-toml");
+    }
+
+    #[test]
+    fn test_load_config_v4_toml_takes_priority() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.toml"),
+            "specs_dir = \"v4-specs\"\nsource_dirs = [\"src\"]\n",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join("specsync.json"),
+            r#"{"specsDir": "legacy", "sourceDirs": ["src"]}"#,
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        // v4 .specsync/config.toml wins over legacy root files
+        assert_eq!(config.specs_dir, "v4-specs");
     }
 
     #[test]

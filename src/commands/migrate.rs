@@ -6,8 +6,10 @@ use std::process;
 use std::sync::LazyLock;
 use std::time::SystemTime;
 
+use crate::config;
 use crate::parser;
 use crate::types::OutputFormat;
+use crate::validator;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -77,7 +79,7 @@ fn steps() -> Vec<MigrationStep> {
         },
         MigrationStep {
             name: "relocate_config",
-            description: "Move specsync.json → .specsync/config.json",
+            description: "Convert config → .specsync/config.toml",
             check: check_relocate_config,
             apply: apply_relocate_config,
         },
@@ -104,6 +106,12 @@ fn steps() -> Vec<MigrationStep> {
             description: "Create .specsync/.gitignore",
             check: check_write_gitignore,
             apply: apply_write_gitignore,
+        },
+        MigrationStep {
+            name: "scan_cross_project",
+            description: "Scan for cross-project registry references",
+            check: check_scan_cross_project,
+            apply: apply_scan_cross_project,
         },
         MigrationStep {
             name: "stamp_version",
@@ -294,13 +302,16 @@ fn apply_create_directories(
 // ─── Step: relocate_config ──────────────────────────────────────────────────
 
 fn check_relocate_config(ctx: &MigrationContext) -> StepStatus {
-    let old = ctx.root.join("specsync.json");
-    let new = ctx.root.join(".specsync/config.json");
-    if new.exists() && !old.exists() {
+    let old_json = ctx.root.join("specsync.json");
+    let old_toml = ctx.root.join(".specsync.toml");
+    let new_toml = ctx.root.join(".specsync/config.toml");
+    let new_json = ctx.root.join(".specsync/config.json");
+    if new_toml.exists() && !old_json.exists() && !old_toml.exists() {
         StepStatus::Done
-    } else if new.exists() && old.exists() {
-        StepStatus::Partial("Both specsync.json and .specsync/config.json exist".to_string())
-    } else if old.exists() {
+    } else if new_json.exists() && !old_json.exists() && !old_toml.exists() {
+        // v4 JSON exists but not yet converted to TOML
+        StepStatus::Pending
+    } else if old_json.exists() || old_toml.exists() {
         StepStatus::Pending
     } else {
         StepStatus::Partial("No config file found".to_string())
@@ -311,32 +322,65 @@ fn apply_relocate_config(
     ctx: &MigrationContext,
     report: &mut MigrationReport,
 ) -> Result<(), String> {
-    let old = ctx.root.join("specsync.json");
-    let new = ctx.root.join(".specsync/config.json");
+    let old_json = ctx.root.join("specsync.json");
+    let old_toml_root = ctx.root.join(".specsync.toml");
+    let new_toml = ctx.root.join(".specsync/config.toml");
+    let new_json = ctx.root.join(".specsync/config.json");
 
-    if new.exists() && !old.exists() {
+    if new_toml.exists() && !old_json.exists() && !old_toml_root.exists() {
         return Ok(());
     }
 
-    if old.exists() {
-        // Ensure parent dir exists
-        if let Some(parent) = new.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("Failed to create .specsync/: {e}"))?;
-        }
-        fs::copy(&old, &new).map_err(|e| format!("Failed to copy config: {e}"))?;
-        fs::remove_file(&old).map_err(|e| format!("Failed to remove old config: {e}"))?;
-        report.files_moved.push((
-            "specsync.json".to_string(),
-            ".specsync/config.json".to_string(),
-        ));
-        report
-            .steps_completed
-            .push("Relocated specsync.json → .specsync/config.json".to_string());
+    // Determine the source config to convert
+    let source_path = if old_json.exists() {
+        &old_json
+    } else if old_toml_root.exists() {
+        &old_toml_root
+    } else if new_json.exists() {
+        &new_json
     } else {
         report
             .warnings
-            .push("No specsync.json found at root — skipping config relocation".to_string());
+            .push("No config file found — skipping config relocation".to_string());
+        return Ok(());
+    };
+
+    // Load config from the source file, then serialize to TOML
+    let loaded_config = config::load_config(&ctx.root);
+    let toml_content = config::config_to_toml(&loaded_config);
+
+    // Ensure parent dir exists
+    if let Some(parent) = new_toml.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create .specsync/: {e}"))?;
     }
+
+    fs::write(&new_toml, &toml_content)
+        .map_err(|e| format!("Failed to write .specsync/config.toml: {e}"))?;
+
+    let source_name = source_path
+        .strip_prefix(&ctx.root)
+        .unwrap_or(source_path)
+        .display()
+        .to_string();
+
+    // Remove old config files
+    if old_json.exists() {
+        let _ = fs::remove_file(&old_json);
+    }
+    if old_toml_root.exists() {
+        let _ = fs::remove_file(&old_toml_root);
+    }
+    // Remove intermediate v4 JSON if it existed
+    if new_json.exists() {
+        let _ = fs::remove_file(&new_json);
+    }
+
+    report
+        .files_moved
+        .push((source_name.clone(), ".specsync/config.toml".to_string()));
+    report.steps_completed.push(format!(
+        "Converted {source_name} → .specsync/config.toml (TOML)"
+    ));
     Ok(())
 }
 
@@ -628,6 +672,109 @@ fn apply_write_gitignore(
     report
         .steps_completed
         .push("Created .specsync/.gitignore".to_string());
+    Ok(())
+}
+
+// ─── Step: scan_cross_project ───────────────────────────────────────────────
+
+fn check_scan_cross_project(ctx: &MigrationContext) -> StepStatus {
+    let xref_path = ctx.root.join(".specsync/cross-project-refs.json");
+    if xref_path.exists() {
+        StepStatus::Done
+    } else {
+        // Only needed if any specs have cross-project references
+        let has_xrefs = ctx.spec_files.iter().any(|f| {
+            fs::read_to_string(f)
+                .map(|c| {
+                    let normalized = c.replace("\r\n", "\n");
+                    if let Some(parsed) = parser::parse_frontmatter(&normalized) {
+                        parsed
+                            .frontmatter
+                            .depends_on
+                            .iter()
+                            .any(|d| validator::is_cross_project_ref(d))
+                    } else {
+                        false
+                    }
+                })
+                .unwrap_or(false)
+        });
+        if has_xrefs {
+            StepStatus::Pending
+        } else {
+            StepStatus::Done
+        }
+    }
+}
+
+fn apply_scan_cross_project(
+    ctx: &MigrationContext,
+    report: &mut MigrationReport,
+) -> Result<(), String> {
+    let xref_path = ctx.root.join(".specsync/cross-project-refs.json");
+    if xref_path.exists() {
+        return Ok(());
+    }
+
+    let mut refs: Vec<serde_json::Value> = Vec::new();
+
+    for spec_file in &ctx.spec_files {
+        let content = match fs::read_to_string(spec_file) {
+            Ok(c) => c.replace("\r\n", "\n"),
+            Err(_) => continue,
+        };
+        let parsed = match parser::parse_frontmatter(&content) {
+            Some(p) => p,
+            None => continue,
+        };
+
+        let module = parsed.frontmatter.module.clone().unwrap_or_else(|| {
+            spec_file
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .map(|s| s.strip_suffix(".spec").unwrap_or(s).to_string())
+                .unwrap_or_default()
+        });
+
+        for dep in &parsed.frontmatter.depends_on {
+            if validator::is_cross_project_ref(dep) {
+                if let Some((repo, remote_module)) = validator::parse_cross_project_ref(dep) {
+                    refs.push(serde_json::json!({
+                        "local_module": module,
+                        "remote_repo": repo,
+                        "remote_module": remote_module,
+                        "raw": dep,
+                        "spec_file": spec_file.strip_prefix(&ctx.root)
+                            .unwrap_or(spec_file).display().to_string(),
+                    }));
+                }
+            }
+        }
+    }
+
+    if refs.is_empty() {
+        // No cross-project refs — nothing to record
+        return Ok(());
+    }
+
+    let manifest = serde_json::json!({
+        "version": V4_VERSION,
+        "scanned_at": iso_timestamp(),
+        "note": "Cross-project dependencies detected. Each referenced project should also be migrated to v4 for full compatibility. Run `specsync resolve --remote --verify` after all projects are migrated.",
+        "references": refs,
+    });
+
+    fs::write(&xref_path, serde_json::to_string_pretty(&manifest).unwrap())
+        .map_err(|e| format!("Failed to write cross-project-refs.json: {e}"))?;
+
+    report.steps_completed.push(format!(
+        "Found {} cross-project reference(s) across {} remote repo(s)",
+        refs.len(),
+        refs.iter()
+            .map(|r| r["remote_repo"].as_str().unwrap_or(""))
+            .collect::<std::collections::HashSet<_>>()
+            .len()
+    ));
     Ok(())
 }
 

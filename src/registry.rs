@@ -19,6 +19,74 @@ impl RemoteRegistry {
     pub fn has_spec(&self, module: &str) -> bool {
         self.specs.iter().any(|(m, _)| m == module)
     }
+
+    /// Get the spec file path for a module.
+    pub fn spec_path(&self, module: &str) -> Option<&str> {
+        self.specs
+            .iter()
+            .find(|(m, _)| m == module)
+            .map(|(_, p)| p.as_str())
+    }
+}
+
+/// Fetched remote spec content with parsed metadata.
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct RemoteSpec {
+    pub module: String,
+    pub status: Option<String>,
+    pub depends_on: Vec<String>,
+    pub exports: Vec<String>,
+    pub body: String,
+}
+
+/// Fetch a spec file's raw content from a GitHub repo.
+///
+/// `repo` is `owner/repo`, `spec_path` is the relative path from the registry.
+pub fn fetch_remote_spec(repo: &str, spec_path: &str) -> Result<String, String> {
+    let url = format!("https://raw.githubusercontent.com/{repo}/HEAD/{spec_path}");
+
+    let agent = ureq::Agent::new_with_config(
+        ureq::config::Config::builder()
+            .timeout_global(Some(Duration::from_secs(10)))
+            .build(),
+    );
+
+    let mut response = agent
+        .get(&url)
+        .call()
+        .map_err(|e| format!("HTTP request failed: {e}"))?;
+
+    if response.status() != 200 {
+        return Err(format!(
+            "HTTP {} — could not fetch {spec_path} from {repo}",
+            response.status()
+        ));
+    }
+
+    response
+        .body_mut()
+        .read_to_string()
+        .map_err(|e| format!("Failed to read response body: {e}"))
+}
+
+/// Parse a fetched spec into its relevant metadata for verification.
+pub fn parse_remote_spec(module: &str, content: &str) -> Option<RemoteSpec> {
+    use crate::parser;
+
+    let parsed = parser::parse_frontmatter(content)?;
+    let exports = parser::get_spec_symbols(&parsed.body);
+
+    Some(RemoteSpec {
+        module: parsed
+            .frontmatter
+            .module
+            .unwrap_or_else(|| module.to_string()),
+        status: parsed.frontmatter.status,
+        depends_on: parsed.frontmatter.depends_on,
+        exports,
+        body: parsed.body,
+    })
 }
 
 /// Fetch `specsync-registry.toml` from a GitHub repo's default branch.

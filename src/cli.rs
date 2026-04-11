@@ -130,6 +130,14 @@ pub enum Command {
         /// network calls without this flag.
         #[arg(long)]
         remote: bool,
+        /// Deep-verify remote spec content: fetch actual spec files, check
+        /// exports still exist, validate bidirectional dependencies, and
+        /// detect drift. Implies --remote. Exit 1 if drift is detected.
+        #[arg(long)]
+        verify: bool,
+        /// Cache TTL in seconds for remote spec content (default: 3600 = 1 hour)
+        #[arg(long, default_value = "3600")]
+        cache_ttl: u64,
     },
     /// Show export changes since last commit (useful for CI/PR comments)
     Diff {

@@ -1,6 +1,6 @@
 ---
 module: registry
-version: 1
+version: 2
 status: stable
 files:
   - src/registry.rs
@@ -23,18 +23,22 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 | Type | Description |
 |------|-------------|
 | `RemoteRegistry` | A parsed remote registry with project name and list of (module, spec_path) entries |
+| `RemoteSpec` | Fetched remote spec content with parsed module, status, depends_on, exports, and body |
 
 ### Exported RemoteRegistry Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `has_spec` | `module: &str` | `bool` | Check whether a module name exists in this registry |
+| `spec_path` | `module: &str` | `Option<&str>` | Get the spec file path for a module from the registry |
 
 ### Exported Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `fetch_remote_registry` | `repo: &str` | `Result<RemoteRegistry, String>` | Fetch `specsync-registry.toml` from a GitHub repo's default branch via raw content URL |
+| `fetch_remote_spec` | `repo: &str, spec_path: &str` | `Result<String, String>` | Fetch a spec file's raw content from a GitHub repo |
+| `parse_remote_spec` | `module: &str, content: &str` | `Option<RemoteSpec>` | Parse fetched spec content into metadata for verification |
 | `load_registry` | `root: &Path` | `Option<RegistryEntry>` | Load a registry from a local `specsync-registry.toml` file |
 | `generate_registry` | `root, project_name, specs_dir` | `String` | Generate registry TOML content by scanning for spec files |
 | `register_module` | `root, module_name, spec_rel_path` | `bool` | Append a module entry to the registry file; returns false if already exists or file missing |
@@ -99,3 +103,4 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 |------|--------|
 | 2026-03-25 | Initial spec |
 | 2026-04-07 | Document register_module function |
+| 2026-04-10 | v2: Added `fetch_remote_spec`, `parse_remote_spec`, `RemoteSpec`, `spec_path` for cross-repo content verification |

@@ -135,7 +135,11 @@ fn run() {
             template,
         } => commands::scaffold::cmd_scaffold(&root, &name, dir, template),
         Command::InitRegistry { name } => commands::init_registry::cmd_init_registry(&root, name),
-        Command::Resolve { remote } => commands::resolve::cmd_resolve(&root, remote),
+        Command::Resolve {
+            remote,
+            verify,
+            cache_ttl,
+        } => commands::resolve::cmd_resolve(&root, remote || verify, verify, cache_ttl),
         Command::Diff { base } => commands::diff::cmd_diff(&root, &base, format),
         Command::Hooks { action } => commands::hooks::cmd_hooks(&root, action),
         Command::Compact { keep, dry_run } => commands::compact::cmd_compact(&root, keep, dry_run),

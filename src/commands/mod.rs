@@ -10,6 +10,7 @@ pub mod generate;
 pub mod hooks;
 pub mod import;
 pub mod init;
+pub mod lifecycle;
 pub mod init_registry;
 pub mod issues;
 pub mod merge;

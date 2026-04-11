@@ -234,7 +234,6 @@ impl SpecStatus {
         }
     }
 
-    #[allow(dead_code)]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Draft => "draft",
@@ -247,7 +246,6 @@ impl SpecStatus {
     }
 
     /// All valid statuses in lifecycle order.
-    #[allow(dead_code)]
     pub fn all() -> &'static [SpecStatus] {
         &[
             Self::Draft,
@@ -260,7 +258,6 @@ impl SpecStatus {
     }
 
     /// Lifecycle ordinal (0-based) for transition logic.
-    #[allow(dead_code)]
     pub fn ordinal(&self) -> usize {
         match self {
             Self::Draft => 0,
@@ -270,6 +267,47 @@ impl SpecStatus {
             Self::Deprecated => 4,
             Self::Archived => 5,
         }
+    }
+
+    /// Next status in the lifecycle, or None if already at the end.
+    pub fn next(&self) -> Option<Self> {
+        let all = Self::all();
+        let idx = self.ordinal();
+        all.get(idx + 1).copied()
+    }
+
+    /// Previous status in the lifecycle, or None if already at the start.
+    pub fn prev(&self) -> Option<Self> {
+        let idx = self.ordinal();
+        if idx == 0 {
+            return None;
+        }
+        Some(Self::all()[idx - 1])
+    }
+
+    /// Valid transitions from this status.
+    /// Forward: one step up. Backward: one step down.
+    /// Special: any status can go to deprecated; deprecated can go to archived.
+    pub fn valid_transitions(&self) -> Vec<Self> {
+        let mut transitions = Vec::new();
+        if let Some(next) = self.next() {
+            transitions.push(next);
+        }
+        if let Some(prev) = self.prev() {
+            transitions.push(prev);
+        }
+        // Any status can be deprecated directly
+        if *self != Self::Deprecated && *self != Self::Archived {
+            if !transitions.contains(&Self::Deprecated) {
+                transitions.push(Self::Deprecated);
+            }
+        }
+        transitions
+    }
+
+    /// Check if transitioning to `target` is valid.
+    pub fn can_transition_to(&self, target: &Self) -> bool {
+        self.valid_transitions().contains(target)
     }
 }
 

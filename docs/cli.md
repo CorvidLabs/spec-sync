@@ -174,6 +174,149 @@ specsync view --role agent              # AI agent view
 specsync view --role dev --spec auth    # specific spec, developer view
 ```
 
+### `new`
+
+Quick-create a minimal spec with auto-detected source files. Faster than `add-spec` when you just need the spec.
+
+```bash
+specsync new auth                          # creates specs/auth/auth.spec.md
+specsync new auth --full                   # also creates companion files (requirements.md, tasks.md, context.md)
+```
+
+Scans `sourceDirs` for files matching the module name to auto-populate the `files:` frontmatter field.
+
+### `stale`
+
+Identify specs that haven't been updated since their source files changed. Uses git history to compare the last spec commit against source file commits.
+
+```bash
+specsync stale                             # show all stale specs
+specsync stale --threshold 5              # only flag specs 5+ commits behind
+specsync stale --json                      # machine-readable output
+```
+
+### `report`
+
+Per-module coverage report with stale and incomplete detection. Combines coverage, staleness, and validation into a single dashboard.
+
+```bash
+specsync report                            # full module health report
+specsync report --json                     # machine-readable output
+specsync report --stale-threshold 5       # custom staleness threshold
+```
+
+### `comment`
+
+Post spec-sync check results as a PR comment. Useful in CI to surface spec drift directly in pull requests.
+
+```bash
+specsync comment --pr 42                   # post comment to PR #42
+specsync comment --pr 42 --base main       # compare against specific base branch
+specsync comment                           # print comment body to stdout (no posting)
+```
+
+Requires `GITHUB_TOKEN` environment variable when posting. The comment includes a markdown diff of exports added/removed. Existing SpecSync comments are updated rather than duplicated.
+
+### `deps`
+
+Validate the cross-module dependency graph. Detects cycles, missing dependencies, and undeclared imports.
+
+```bash
+specsync deps                              # validate dependency graph
+specsync deps --json                       # machine-readable output
+specsync deps --mermaid                    # output Mermaid diagram
+specsync deps --dot                        # output Graphviz DOT
+```
+
+### `scaffold`
+
+Scaffold a spec with optional directory and template overrides.
+
+```bash
+specsync scaffold auth                     # scaffold in default specs dir
+specsync scaffold auth --dir modules       # scaffold in custom directory
+specsync scaffold auth --template custom   # use custom template
+```
+
+### `import`
+
+Import specs from external sources — GitHub Issues, Jira, or local directories.
+
+```bash
+specsync import github 123                 # import from GitHub issue #123
+specsync import github --all-issues        # import all open issues as specs
+specsync import github --label spec        # import issues with specific label
+specsync import jira PROJ-123              # import from Jira ticket
+specsync import --from-dir ./docs/specs    # import from local directory
+```
+
+### `wizard`
+
+Interactive step-by-step guided spec creation. Prompts for module name, source files, dependencies, and fills in sections interactively.
+
+```bash
+specsync wizard
+```
+
+### `issues`
+
+Verify that GitHub issue references in spec frontmatter point to real issues. Optionally create missing issues.
+
+```bash
+specsync issues                            # verify issue references
+specsync issues --create                   # create GitHub issues for specs with errors
+specsync issues --json                     # machine-readable output
+```
+
+### `changelog`
+
+Generate a changelog of spec changes between two git refs.
+
+```bash
+specsync changelog v3.3.0..v3.4.0         # changes between tags
+specsync changelog HEAD~10..HEAD           # recent changes
+specsync changelog v3.3.0..v3.4.0 --json  # machine-readable output
+```
+
+### `merge`
+
+Auto-resolve git merge conflicts in spec files. Understands spec structure to make intelligent merge decisions.
+
+```bash
+specsync merge                             # resolve conflicts in conflicted specs
+specsync merge --dry-run                   # preview resolutions without writing
+specsync merge --all                       # process all conflicted files
+```
+
+### `rules`
+
+Display configured validation rules and their current status (built-in rules, custom rules, severity levels).
+
+```bash
+specsync rules                             # show all rules and their configuration
+```
+
+### `lifecycle`
+
+Manage spec status transitions. Supports `promote`, `demote`, `set`, and `status` subcommands.
+
+```bash
+specsync lifecycle status                  # show status of all specs
+specsync lifecycle status auth             # show status of a specific spec
+specsync lifecycle promote auth            # advance: draft → review → active → stable
+specsync lifecycle demote auth             # step back one status level
+specsync lifecycle set auth deprecated     # jump to any status
+specsync lifecycle set auth review --force # skip transition validation
+```
+
+**Transition rules:**
+- `promote` advances one step: draft → review → active → stable
+- `demote` steps back one level
+- `set` allows jumping to any status, with validation that the transition is sensible
+- Any non-terminal status can jump directly to `deprecated`
+- Use `--force` to override transition validation
+- Supports `--format json` for machine-readable output
+
 ### `diff`
 
 Show API changes since a git ref.
@@ -212,6 +355,17 @@ specsync watch
 | `--provider <name>` | Enable AI-powered generation and select provider: `auto`, `claude`, `anthropic`, `openai`, `ollama`, or `copilot`. Without this flag, `generate` uses templates only. |
 | `--format <fmt>` | Output format: `text` (default), `json`, or `markdown`. Markdown produces clean tables suitable for PRs and docs. |
 | `--json` | Shorthand for `--format json`. Structured output, no color codes. |
+| `--fix` | Auto-add undocumented exports as stub rows in spec Public API tables (on `check`). |
+| `--force` | Skip hash cache and re-validate all specs (on `check`). Override transition validation (on `lifecycle`). |
+| `--create-issues` | Create GitHub issues for specs with validation errors (on `check`). |
+| `--dry-run` | Preview changes without writing files (on `compact`, `archive-tasks`, `merge`). |
+| `--stale N` | Flag specs N+ commits behind their source files (on `check`). |
+| `--exclude-status <s>` | Exclude specs with the given status from processing. Repeatable. |
+| `--only-status <s>` | Only process specs with the given status. Repeatable. |
+| `--mermaid` | Output dependency graph as Mermaid diagram (on `deps`). |
+| `--dot` | Output dependency graph as Graphviz DOT (on `deps`). |
+| `--full` | Include companion files when creating a spec (on `new`). |
+| `--all` | Process all items, not just the first match (on `merge`, `score`). |
 
 ---
 

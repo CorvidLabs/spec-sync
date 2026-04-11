@@ -127,6 +127,11 @@ specsync compact --keep 10                 # Compact old changelog entries in sp
 specsync archive-tasks                     # Archive completed tasks from tasks.md
 specsync view --role dev                   # View specs filtered by role
 specsync merge                             # Auto-resolve merge conflicts in specs
+specsync new auth                          # Quick-create a minimal spec (auto-detects sources)
+specsync stale                             # Find specs that haven't kept up with code changes
+specsync rules                             # Show configured validation rules
+specsync lifecycle status                  # Show lifecycle status of all specs
+specsync lifecycle promote auth            # Advance auth spec to next status
 specsync hooks install                    # Install agent instructions + git hooks
 specsync hooks status                     # Check what's installed
 specsync mcp                               # Start MCP server for AI agent integration
@@ -295,6 +300,13 @@ specsync [command] [flags]
 | `archive-tasks` | Archive completed tasks from companion `tasks.md` files |
 | `view` | View specs filtered by role (`--role dev\|qa\|product\|agent`) |
 | `merge` | Auto-resolve git merge conflicts in spec files |
+| `new <name>` | Quick-create a minimal spec with auto-detected source files. `--full` includes companion files |
+| `stale` | Identify specs that haven't been updated since their source files changed |
+| `rules` | Display configured validation rules and built-in rule status |
+| `lifecycle promote <spec>` | Advance spec to next status (draft→review→active→stable) |
+| `lifecycle demote <spec>` | Step back one status level |
+| `lifecycle set <spec> <status>` | Set spec to any status (with transition validation) |
+| `lifecycle status [spec]` | Show lifecycle status of one or all specs |
 | `issues` | Verify GitHub issue references in spec frontmatter. `--create` to create missing issues |
 | `hooks` | Install/uninstall agent instructions and git hooks (`install`, `uninstall`, `status`) |
 | `mcp` | Start MCP server for AI agent integration (Claude Code, Cursor, etc.) |
@@ -313,6 +325,12 @@ specsync [command] [flags]
 | `--force` | Skip hash cache and re-validate all specs |
 | `--create-issues` | Create GitHub issues for specs with validation errors (on `check`) |
 | `--dry-run` | Preview changes without writing files (on `compact`, `archive-tasks`, `merge`) |
+| `--stale N` | Flag specs N+ commits behind their source files (on `check`) |
+| `--exclude-status <s>` | Exclude specs with the given status. Repeatable |
+| `--only-status <s>` | Only process specs with the given status. Repeatable |
+| `--mermaid` | Output dependency graph as Mermaid diagram (on `deps`) |
+| `--dot` | Output dependency graph as Graphviz DOT (on `deps`) |
+| `--full` | Include companion files (on `new`) |
 | `--json` | Structured JSON output |
 
 ### Exit Codes
@@ -499,8 +517,12 @@ Available on the [GitHub Marketplace](https://github.com/marketplace/actions/spe
 | `require-coverage` | `0` | Minimum file coverage % |
 | `root` | `.` | Project root directory |
 | `args` | `''` | Extra CLI arguments |
+| `comment` | `false` | Post spec drift results as a PR comment (requires `pull_request` event) |
+| `token` | `${{ github.token }}` | GitHub token for posting PR comments (needs write permissions) |
 
-### Workflow example
+### Workflow examples
+
+**Basic CI check:**
 
 ```yaml
 name: Spec Check
@@ -516,6 +538,29 @@ jobs:
           strict: 'true'
           require-coverage: '100'
 ```
+
+**With PR comments:**
+
+```yaml
+name: Spec Check
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  specsync:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: CorvidLabs/spec-sync@v3
+        with:
+          strict: 'true'
+          comment: 'true'
+```
+
+When `comment: 'true'` is set, SpecSync posts (or updates) a PR comment showing spec drift — added/removed exports since the base branch. The comment is automatically updated on subsequent pushes.
 
 ---
 
@@ -673,13 +718,17 @@ src/
 ├── hash_cache.rs      Incremental validation via content hashing
 ├── hooks.rs           Agent instruction + git hook management
 ├── importer.rs        External importers (GitHub Issues, Jira, Confluence)
+├── lifecycle.rs       Spec status transitions (promote, demote, set, status)
 ├── manifest.rs        Package manifest parsing (Cargo.toml, package.json, etc.)
 ├── mcp.rs             MCP server for AI agent integration (JSON-RPC stdio)
 ├── merge.rs           Auto-resolve merge conflicts in spec files
+├── new.rs             Quick-create minimal spec with source auto-detection
 ├── parser.rs          Frontmatter + spec body parsing
+├── rules.rs           Display configured validation rules
 ├── registry.rs        Registry loading, generation, and remote fetching
 ├── schema.rs          SQL schema parsing for column validation
 ├── scoring.rs         Spec quality scoring (0–100, weighted rubric)
+├── stale.rs           Staleness detection (spec vs source modification)
 ├── types.rs           Data types + config schema
 ├── validator.rs       Validation + coverage + cross-project ref detection
 ├── view.rs            Role-filtered spec viewing (dev, qa, product, agent)

@@ -749,10 +749,7 @@ fn parse_toml_lifecycle_nested(
     } else if let Some(guard_name) = section.strip_prefix("lifecycle.guards.") {
         // Strip surrounding quotes from guard name if present
         let name = guard_name.trim_matches('"').to_string();
-        let guard = lc
-            .guards
-            .entry(name)
-            .or_default();
+        let guard = lc.guards.entry(name).or_default();
         match key {
             "min_score" => {
                 if let Ok(n) = value.trim().parse::<u32>() {

@@ -210,6 +210,12 @@ fn run() {
             LifecycleAction::Status { spec } => {
                 commands::lifecycle::cmd_status(&root, spec.as_deref(), format)
             }
+            LifecycleAction::History { spec } => {
+                commands::lifecycle::cmd_history(&root, &spec, format)
+            }
+            LifecycleAction::Guard { spec, target } => {
+                commands::lifecycle::cmd_guard(&root, &spec, target.as_deref(), format)
+            }
         },
     }
 }

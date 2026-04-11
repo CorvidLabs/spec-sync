@@ -138,6 +138,7 @@ fn set_field(fm: &mut Frontmatter, key: &str, values: &[String]) {
         "depends_on" => fm.depends_on = values.to_vec(),
         "implements" => fm.implements = parse_issue_numbers(values),
         "tracks" => fm.tracks = parse_issue_numbers(values),
+        "lifecycle_log" => fm.lifecycle_log = values.to_vec(),
         _ => {}
     }
 }

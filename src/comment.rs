@@ -7,7 +7,6 @@
 use crate::types::CoverageReport;
 use std::path::Path;
 
-
 /// Build a GitHub-friendly file link.  When `repo` and `branch` are known we
 /// produce a full `https://github.com/…/blob/…` URL; otherwise we fall back to
 /// a relative markdown link.
@@ -164,7 +163,6 @@ pub fn render_check_comment(
 
     out
 }
-
 
 /// Group prefixed messages (`spec/path: message`) by spec path.
 /// Returns a vector of (spec_path, messages) preserving insertion order.

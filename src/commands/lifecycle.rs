@@ -724,7 +724,11 @@ pub fn cmd_auto_promote(root: &Path, format: OutputFormat, dry_run: bool) {
 
             let final_content = if config.lifecycle.track_history {
                 let today = chrono_today();
-                let entry = format!("{today}: {} → {} (auto-promote)", current.as_str(), next.as_str());
+                let entry = format!(
+                    "{today}: {} → {} (auto-promote)",
+                    current.as_str(),
+                    next.as_str()
+                );
                 append_lifecycle_log_entry(&new_content, &entry)
             } else {
                 new_content
@@ -783,7 +787,11 @@ pub fn cmd_auto_promote(root: &Path, format: OutputFormat, dry_run: bool) {
                     "{} {} spec(s) {}:\n",
                     "✓".green(),
                     promoted.len(),
-                    if dry_run { "would be promoted" } else { "promoted" }
+                    if dry_run {
+                        "would be promoted"
+                    } else {
+                        "promoted"
+                    }
                 );
                 for (rel, from, to) in &promoted {
                     println!("  {} {} → {}", rel, from.dimmed(), to.green());
@@ -791,11 +799,7 @@ pub fn cmd_auto_promote(root: &Path, format: OutputFormat, dry_run: bool) {
             }
 
             if !skipped.is_empty() {
-                println!(
-                    "\n{} {} spec(s) skipped:\n",
-                    "⚠".yellow(),
-                    skipped.len()
-                );
+                println!("\n{} {} spec(s) skipped:\n", "⚠".yellow(), skipped.len());
                 for (rel, reason, failures) in &skipped {
                     println!("  {} {rel}: {reason}", "—".dimmed());
                     for f in failures {
@@ -872,7 +876,8 @@ pub fn cmd_enforce(
             if check_max_age {
                 if let Some(max_days) = config.lifecycle.max_age.get(status.as_str()) {
                     // Look at lifecycle_log for the most recent transition into this status
-                    let age_days = estimate_status_age(root, &rel, &parsed.frontmatter.lifecycle_log, status);
+                    let age_days =
+                        estimate_status_age(root, &rel, &parsed.frontmatter.lifecycle_log, status);
                     if let Some(age) = age_days {
                         if age > *max_days {
                             violations.push((
@@ -1293,9 +1298,7 @@ mod tests {
     #[test]
     fn estimate_status_age_from_lifecycle_log() {
         let today = chrono_today();
-        let log = vec![
-            format!("{today}: draft → review"),
-        ];
+        let log = vec![format!("{today}: draft → review")];
         let age = estimate_status_age(
             Path::new("/tmp"),
             "specs/test.spec.md",

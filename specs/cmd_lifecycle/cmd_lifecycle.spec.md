@@ -37,6 +37,8 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 | `cmd_status` | `root: &Path, spec_filter: Option<&str>, format: OutputFormat` | `()` | Display lifecycle status of one or all specs |
 | `cmd_history` | `root: &Path, spec_filter: &str, format: OutputFormat` | `()` | Display lifecycle transition history for a spec |
 | `cmd_guard` | `root: &Path, spec_filter: &str, target_str: Option<&str>, format: OutputFormat` | `()` | Evaluate and display guard results for a spec transition |
+| `cmd_auto_promote` | `root: &Path, format: OutputFormat, dry_run: bool` | `()` | Scan all specs and promote any that pass guards automatically |
+| `cmd_enforce` | `root: &Path, format: OutputFormat, require_status: bool, check_max_age: bool` | `()` | Enforce lifecycle policies — flag specs without status or stuck too long in a phase |
 | `evaluate_guards` | `root: &Path, spec_path: &Path, config: &SpecSyncConfig, from: &SpecStatus, to: &SpecStatus` | `GuardResult` | Evaluate all transition guards for a status change |
 
 ## Invariants

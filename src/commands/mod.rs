@@ -133,6 +133,17 @@ pub fn filter_by_status(
         return spec_files.to_vec();
     }
 
+    // Warn about unrecognized status values so typos don't silently filter nothing
+    for s in exclude.iter().chain(only.iter()) {
+        if SpecStatus::from_str_loose(s).is_none() {
+            eprintln!(
+                "{} unknown status '{}' — valid statuses: draft, review, active, stable, deprecated, archived",
+                "warning:".yellow().bold(),
+                s
+            );
+        }
+    }
+
     let exclude_set: HashSet<SpecStatus> = exclude
         .iter()
         .filter_map(|s| SpecStatus::from_str_loose(s))

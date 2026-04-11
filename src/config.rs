@@ -201,6 +201,15 @@ pub fn is_legacy_layout(root: &Path) -> bool {
     (has_root_json || has_root_toml || has_root_registry) && !has_v4_version
 }
 
+/// Escape a string value for safe embedding in a TOML quoted string.
+fn toml_escape(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
+}
+
 /// Serialize a SpecSyncConfig to TOML format string.
 pub fn config_to_toml(config: &SpecSyncConfig) -> String {
     let mut lines: Vec<String> = Vec::new();
@@ -209,7 +218,10 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
     lines.push(String::new());
 
     // Core settings
-    lines.push(format!("specs_dir = \"{}\"", config.specs_dir));
+    lines.push(format!(
+        "specs_dir = \"{}\"",
+        toml_escape(&config.specs_dir)
+    ));
 
     if !config.source_dirs.is_empty() {
         lines.push(format!(
@@ -217,17 +229,20 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
             config
                 .source_dirs
                 .iter()
-                .map(|s| format!("\"{s}\""))
+                .map(|s| format!("\"{}\"", toml_escape(s)))
                 .collect::<Vec<_>>()
                 .join(", ")
         ));
     }
 
     if let Some(ref schema_dir) = config.schema_dir {
-        lines.push(format!("schema_dir = \"{schema_dir}\""));
+        lines.push(format!("schema_dir = \"{}\"", toml_escape(schema_dir)));
     }
     if let Some(ref schema_pattern) = config.schema_pattern {
-        lines.push(format!("schema_pattern = \"{schema_pattern}\""));
+        lines.push(format!(
+            "schema_pattern = \"{}\"",
+            toml_escape(schema_pattern)
+        ));
     }
 
     if !config.exclude_dirs.is_empty() {
@@ -236,7 +251,7 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
             config
                 .exclude_dirs
                 .iter()
-                .map(|s| format!("\"{s}\""))
+                .map(|s| format!("\"{}\"", toml_escape(s)))
                 .collect::<Vec<_>>()
                 .join(", ")
         ));
@@ -247,7 +262,7 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
             config
                 .exclude_patterns
                 .iter()
-                .map(|s| format!("\"{s}\""))
+                .map(|s| format!("\"{}\"", toml_escape(s)))
                 .collect::<Vec<_>>()
                 .join(", ")
         ));
@@ -258,7 +273,7 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
             config
                 .source_extensions
                 .iter()
-                .map(|s| format!("\"{s}\""))
+                .map(|s| format!("\"{}\"", toml_escape(s)))
                 .collect::<Vec<_>>()
                 .join(", ")
         ));
@@ -270,7 +285,7 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
             config
                 .required_sections
                 .iter()
-                .map(|s| format!("\"{s}\""))
+                .map(|s| format!("\"{}\"", toml_escape(s)))
                 .collect::<Vec<_>>()
                 .join(", ")
         ));
@@ -313,16 +328,16 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
         lines.push(format!("ai_provider = \"{name}\""));
     }
     if let Some(ref model) = config.ai_model {
-        lines.push(format!("ai_model = \"{model}\""));
+        lines.push(format!("ai_model = \"{}\"", toml_escape(model)));
     }
     if let Some(ref cmd) = config.ai_command {
-        lines.push(format!("ai_command = \"{cmd}\""));
+        lines.push(format!("ai_command = \"{}\"", toml_escape(cmd)));
     }
     if let Some(ref key) = config.ai_api_key {
-        lines.push(format!("ai_api_key = \"{key}\""));
+        lines.push(format!("ai_api_key = \"{}\"", toml_escape(key)));
     }
     if let Some(ref url) = config.ai_base_url {
-        lines.push(format!("ai_base_url = \"{url}\""));
+        lines.push(format!("ai_base_url = \"{}\"", toml_escape(url)));
     }
     if let Some(timeout) = config.ai_timeout {
         lines.push(format!("ai_timeout = {timeout}"));
@@ -365,14 +380,14 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
         lines.push(String::new());
         lines.push("[github]".to_string());
         if let Some(ref repo) = gh.repo {
-            lines.push(format!("repo = \"{repo}\""));
+            lines.push(format!("repo = \"{}\"", toml_escape(repo)));
         }
         if !gh.drift_labels.is_empty() {
             lines.push(format!(
                 "drift_labels = [{}]",
                 gh.drift_labels
                     .iter()
-                    .map(|s| format!("\"{s}\""))
+                    .map(|s| format!("\"{}\"", toml_escape(s)))
                     .collect::<Vec<_>>()
                     .join(", ")
             ));
@@ -400,7 +415,7 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
                 "allowed_statuses = [{}]",
                 lc.allowed_statuses
                     .iter()
-                    .map(|s| format!("\"{s}\""))
+                    .map(|s| format!("\"{}\"", toml_escape(s)))
                     .collect::<Vec<_>>()
                     .join(", ")
             ));
@@ -425,7 +440,7 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
                         guard
                             .require_sections
                             .iter()
-                            .map(|s| format!("\"{s}\""))
+                            .map(|s| format!("\"{}\"", toml_escape(s)))
                             .collect::<Vec<_>>()
                             .join(", ")
                     ));
@@ -437,7 +452,7 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
                     lines.push(format!("stale_threshold = {threshold}"));
                 }
                 if let Some(ref msg) = guard.message {
-                    lines.push(format!("message = \"{msg}\""));
+                    lines.push(format!("message = \"{}\"", toml_escape(msg)));
                 }
             }
         }

@@ -113,13 +113,13 @@ Migration uses a step-based pipeline:
 
 | Dependency | Why |
 |------------|-----|
-| `config.rs` | Load existing specsync.json config |
+| `config.rs` | Load existing config via `load_config_from_path`, serialize to TOML via `config_to_toml` |
 | `parser.rs` | Parse spec frontmatter to extract lifecycle_log |
-| `commands/mod.rs` | `load_and_discover` for finding all specs |
-| `commands/check.rs` | Post-migration validation |
+| `validator.rs` | `find_spec_files` for discovering all specs during lifecycle extraction |
 | `std::fs` | File I/O for moves, copies, directory creation |
+| `std::time::SystemTime` | Timestamps for backup manifest and lifecycle extraction |
 | `serde_json` | Serialize lifecycle history, backup manifest, migration report |
-| `chrono` | Timestamps for backup manifest |
+| `regex` | Parse `specsDir` from TOML config during spec discovery |
 
 ## Change Log
 

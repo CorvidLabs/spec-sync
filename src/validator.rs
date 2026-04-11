@@ -179,6 +179,12 @@ pub fn validate_spec(
     let fm = &parsed.frontmatter;
     let body = &parsed.body;
 
+    // Archived specs: skip all validation with zero diagnostics.
+    // Must be invisible to --strict mode.
+    if fm.parsed_status() == Some(crate::types::SpecStatus::Archived) {
+        return result;
+    }
+
     // ─── Level 1: Structural ──────────────────────────────────────────
 
     if fm.module.is_none() {
@@ -220,12 +226,6 @@ pub fn validate_spec(
         result
             .warnings
             .push("Spec is deprecated — consider archiving with `specsync lifecycle promote <spec>` or `specsync lifecycle set <spec> archived`".to_string());
-    }
-
-    // Archived specs: skip all further validation with zero diagnostics.
-    // No warnings or errors — archived specs must be invisible to --strict mode.
-    if spec_status == Some(crate::types::SpecStatus::Archived) {
-        return result;
     }
 
     // Validate agent_policy if present

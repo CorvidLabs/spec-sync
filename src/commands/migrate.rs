@@ -528,7 +528,9 @@ fn apply_extract_lifecycle(
             }
         };
 
-        if module.is_empty() {
+        // Sanitize module name: strip path separators and traversal components
+        let module = module.replace(['/', '\\'], "_").replace("..", "_");
+        if module.is_empty() || module == "." {
             report.warnings.push(format!(
                 "Could not determine module name for {}",
                 spec_file.display()

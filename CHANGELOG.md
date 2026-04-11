@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Unified comment and check validation pipelines** — `specsync comment` now uses the same `run_validation()` pipeline as `specsync check`, ensuring identical output. Previously, `comment` skipped `.specsyncignore` rules, inline `specsync-ignore` directives, and staleness checks (#209).
+- **Stripped ANSI codes from PR comments** — CI comments no longer contain color escape sequences from cargo build output (#209).
+
 ## [4.1.0] - 2026-04-11
 
 ### Added

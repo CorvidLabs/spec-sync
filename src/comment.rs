@@ -7,16 +7,6 @@
 use crate::types::CoverageReport;
 use std::path::Path;
 
-/// Information about a spec violation suitable for PR comment rendering.
-/// Used in tests to verify `render_comment_body` delegation.
-#[cfg(test)]
-#[derive(Debug, Clone)]
-pub(crate) struct SpecViolation {
-    pub spec_path: String,
-    pub errors: Vec<String>,
-    pub warnings: Vec<String>,
-    pub fixes: Vec<String>,
-}
 
 /// Build a GitHub-friendly file link.  When `repo` and `branch` are known we
 /// produce a full `https://github.com/…/blob/…` URL; otherwise we fall back to
@@ -175,44 +165,6 @@ pub fn render_check_comment(
     out
 }
 
-/// Render a GitHub PR comment for the `specsync comment` subcommand, combining
-/// check results with diff-aware suggestions.
-/// Used in tests to verify end-to-end rendering from violations.
-#[cfg(test)]
-fn render_comment_body(
-    violations: &[SpecViolation],
-    coverage: &CoverageReport,
-    repo: Option<&str>,
-    branch: Option<&str>,
-) -> String {
-    let total = violations.len();
-    let errors: usize = violations.iter().map(|v| v.errors.len()).sum();
-    let warnings: usize = violations.iter().map(|v| v.warnings.len()).sum();
-    let passed = violations.iter().filter(|v| v.errors.is_empty()).count();
-    let overall_passed = errors == 0;
-
-    let all_errors: Vec<String> = violations
-        .iter()
-        .flat_map(|v| v.errors.iter().map(|e| format!("{}: {e}", v.spec_path)))
-        .collect();
-    let all_warnings: Vec<String> = violations
-        .iter()
-        .flat_map(|v| v.warnings.iter().map(|w| format!("{}: {w}", v.spec_path)))
-        .collect();
-
-    render_check_comment(
-        total,
-        passed,
-        warnings,
-        errors,
-        &all_errors,
-        &all_warnings,
-        coverage,
-        overall_passed,
-        repo,
-        branch,
-    )
-}
 
 /// Group prefixed messages (`spec/path: message`) by spec path.
 /// Returns a vector of (spec_path, messages) preserving insertion order.
@@ -272,6 +224,50 @@ pub fn detect_branch(root: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Debug, Clone)]
+    struct SpecViolation {
+        spec_path: String,
+        errors: Vec<String>,
+        warnings: Vec<String>,
+        #[allow(dead_code)]
+        fixes: Vec<String>,
+    }
+
+    fn render_comment_body(
+        violations: &[SpecViolation],
+        coverage: &CoverageReport,
+        repo: Option<&str>,
+        branch: Option<&str>,
+    ) -> String {
+        let total = violations.len();
+        let errors: usize = violations.iter().map(|v| v.errors.len()).sum();
+        let warnings: usize = violations.iter().map(|v| v.warnings.len()).sum();
+        let passed = violations.iter().filter(|v| v.errors.is_empty()).count();
+        let overall_passed = errors == 0;
+
+        let all_errors: Vec<String> = violations
+            .iter()
+            .flat_map(|v| v.errors.iter().map(|e| format!("{}: {e}", v.spec_path)))
+            .collect();
+        let all_warnings: Vec<String> = violations
+            .iter()
+            .flat_map(|v| v.warnings.iter().map(|w| format!("{}: {w}", v.spec_path)))
+            .collect();
+
+        render_check_comment(
+            total,
+            passed,
+            warnings,
+            errors,
+            &all_errors,
+            &all_warnings,
+            coverage,
+            overall_passed,
+            repo,
+            branch,
+        )
+    }
 
     #[test]
     fn test_spec_link_with_repo() {

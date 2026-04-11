@@ -18,24 +18,11 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 
 ## Public API
 
-### Exported Structs
-
-| Type | Description |
-|------|-------------|
-| `SpecViolation` | A spec violation with path, errors, warnings, and fix suggestions |
-
-### Exported SpecViolation Functions
-
-| Function | Parameters | Returns | Description |
-|----------|-----------|---------|-------------|
-| `from_result` | `result: &ValidationResult` | `Self` | Build a SpecViolation from a ValidationResult |
-
 ### Exported Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `render_check_comment` | `total, passed, warnings, errors, all_errors, all_warnings, coverage, overall_passed, repo, branch` | `String` | Render full GitHub PR comment for `specsync check --format github` |
-| `render_comment_body` | `violations, coverage, repo, branch` | `String` | Render PR comment for `specsync comment` subcommand with diff-aware suggestions |
+| `render_check_comment` | `total, passed, warnings, errors, all_errors, all_warnings, coverage, overall_passed, repo, branch` | `String` | Render full GitHub PR comment for `specsync check --format github` and `specsync comment` |
 | `detect_branch` | `root: &Path` | `Option<String>` | Detect the current git branch name via `git rev-parse` |
 
 ## Invariants
@@ -54,10 +41,10 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 - **When** `render_check_comment(10, 10, 0, 0, &[], &[], &coverage, true, Some("org/repo"), Some("main"))` is called
 - **Then** returns markdown with "✅ SpecSync: Passed" header and summary table
 
-### Scenario: Render failing comment with spec links
+### Scenario: Render failing check comment with errors
 
-- **Given** violations with errors pointing to `specs/auth/auth.spec.md` and repo "org/repo" on branch "feat/auth"
-- **When** `render_comment_body` is called
+- **Given** 10 specs checked, 8 passed, 2 with errors pointing to `specs/auth/auth.spec.md` and repo "org/repo" on branch "feat/auth"
+- **When** `render_check_comment` is called with errors
 - **Then** error lines include clickable GitHub links to the spec file
 
 ### Scenario: Detect branch
@@ -79,13 +66,13 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 
 | Module | What is used |
 |--------|-------------|
-| types | `CoverageReport`, `ValidationResult` |
+| types | `CoverageReport` |
 
 ### Consumed By
 
 | Module | What is used |
 |--------|-------------|
-| cli | `render_check_comment`, `render_comment_body`, `detect_branch`, `SpecViolation` |
+| cli | `render_check_comment`, `detect_branch` |
 
 ## Change Log
 

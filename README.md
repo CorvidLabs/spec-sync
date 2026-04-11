@@ -296,7 +296,7 @@ specsync [command] [flags]
 | `add-spec <name>` | Scaffold a single spec + companion files (`requirements.md`, `tasks.md`, `context.md`) |
 | `deps` | Validate cross-module dependency graph (cycles, missing deps, undeclared imports) |
 | `changelog <range>` | Generate changelog of spec changes between two git refs |
-| `comment` | Post spec-sync check summary as a PR comment. `--pr N` to post, omit to print |
+| `comment` | Post spec-sync check summary as a PR comment (same validation pipeline as `check`). `--pr N` to post, omit to print |
 | `import <source> <id>` | Import specs from GitHub Issues, Jira, or Confluence |
 | `wizard` | Interactive step-by-step guided spec creation |
 | `resolve` | Verify `depends_on` references exist. `--remote` fetches registries from GitHub |

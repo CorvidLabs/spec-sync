@@ -208,12 +208,16 @@ pub enum OutputFormat {
 }
 
 /// Valid spec lifecycle statuses.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Lifecycle order: draft → review → active → stable → deprecated → archived
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SpecStatus {
     Draft,
+    Review,
     Active,
     Stable,
     Deprecated,
+    Archived,
 }
 
 impl SpecStatus {
@@ -221,9 +225,11 @@ impl SpecStatus {
     pub fn from_str_loose(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "draft" => Some(Self::Draft),
+            "review" => Some(Self::Review),
             "active" => Some(Self::Active),
             "stable" => Some(Self::Stable),
             "deprecated" => Some(Self::Deprecated),
+            "archived" => Some(Self::Archived),
             _ => None,
         }
     }
@@ -232,9 +238,37 @@ impl SpecStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Draft => "draft",
+            Self::Review => "review",
             Self::Active => "active",
             Self::Stable => "stable",
             Self::Deprecated => "deprecated",
+            Self::Archived => "archived",
+        }
+    }
+
+    /// All valid statuses in lifecycle order.
+    #[allow(dead_code)]
+    pub fn all() -> &'static [SpecStatus] {
+        &[
+            Self::Draft,
+            Self::Review,
+            Self::Active,
+            Self::Stable,
+            Self::Deprecated,
+            Self::Archived,
+        ]
+    }
+
+    /// Lifecycle ordinal (0-based) for transition logic.
+    #[allow(dead_code)]
+    pub fn ordinal(&self) -> usize {
+        match self {
+            Self::Draft => 0,
+            Self::Review => 1,
+            Self::Active => 2,
+            Self::Stable => 3,
+            Self::Deprecated => 4,
+            Self::Archived => 5,
         }
     }
 }

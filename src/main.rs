@@ -99,6 +99,8 @@ fn run() {
             explain,
             stale,
             &specs,
+            &cli.exclude_status,
+            &cli.only_status,
         ),
         Command::Coverage => commands::coverage::cmd_coverage(
             &root,
@@ -125,7 +127,15 @@ fn run() {
             explain,
             all,
             specs,
-        } => commands::score::cmd_score(&root, format, explain, all, &specs),
+        } => commands::score::cmd_score(
+            &root,
+            format,
+            explain,
+            all,
+            &specs,
+            &cli.exclude_status,
+            &cli.only_status,
+        ),
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
         Command::Mcp => mcp::run_mcp_server(&root),
         Command::AddSpec { name } => commands::scaffold::cmd_add_spec(&root, &name),
@@ -168,10 +178,20 @@ fn run() {
             label.as_deref(),
             from_dir.as_deref(),
         ),
-        Command::Stale { threshold } => commands::stale::cmd_stale(&root, format, threshold),
-        Command::Report { stale_threshold } => {
-            commands::report::cmd_report(&root, format, stale_threshold)
-        }
+        Command::Stale { threshold } => commands::stale::cmd_stale(
+            &root,
+            format,
+            threshold,
+            &cli.exclude_status,
+            &cli.only_status,
+        ),
+        Command::Report { stale_threshold } => commands::report::cmd_report(
+            &root,
+            format,
+            stale_threshold,
+            &cli.exclude_status,
+            &cli.only_status,
+        ),
         Command::Comment { pr, base } => commands::comment::cmd_comment(&root, pr, &base),
         Command::Rules => commands::rules::cmd_rules(&root),
         Command::Changelog { range } => commands::changelog::cmd_changelog(&root, &range, format),

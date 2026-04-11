@@ -202,23 +202,32 @@ pub fn validate_spec(
             .errors
             .push("Frontmatter missing required field: status".to_string());
         result.fixes.push(
-            "Add `status: active` (or draft/stable/deprecated) to the frontmatter".to_string(),
+            "Add `status: active` (or draft/review/stable/deprecated/archived) to the frontmatter"
+                .to_string(),
         );
     } else if let Some(status_str) = &fm.status {
         if fm.parsed_status().is_none() {
             result.warnings.push(format!(
-                "Unknown status '{}' — expected one of: draft, active, stable, deprecated",
+                "Unknown status '{}' — expected one of: draft, review, active, stable, deprecated, archived",
                 status_str
             ));
         }
     }
 
-    // Status lifecycle: deprecated specs emit a warning
+    // Status lifecycle warnings
     let spec_status = fm.parsed_status();
     if spec_status == Some(crate::types::SpecStatus::Deprecated) {
         result
             .warnings
-            .push("Spec is deprecated — consider removing or archiving".to_string());
+            .push("Spec is deprecated — consider archiving with `specsync lifecycle archive`".to_string());
+    }
+
+    // Archived specs: skip all further validation
+    if spec_status == Some(crate::types::SpecStatus::Archived) {
+        result
+            .warnings
+            .push("Spec is archived — excluded from validation".to_string());
+        return result;
     }
 
     // Validate agent_policy if present
@@ -330,12 +339,19 @@ pub fn validate_spec(
         }
     }
 
-    // Required markdown sections (drafts skip "Public API" requirement)
+    // Required markdown sections
+    // - draft: structure only, skip "Public API"
+    // - review: structure + sections, skip "Public API"
+    // - active/stable/deprecated: all sections required
+    let skip_public_api = matches!(
+        spec_status,
+        Some(crate::types::SpecStatus::Draft) | Some(crate::types::SpecStatus::Review)
+    );
     let is_draft = spec_status == Some(crate::types::SpecStatus::Draft);
     let missing = get_missing_sections(body, &config.required_sections);
     for section in &missing {
-        if is_draft && section == "Public API" {
-            continue; // drafts can skip Public API
+        if skip_public_api && section == "Public API" {
+            continue; // drafts and review specs can skip Public API
         }
         result
             .errors
@@ -359,9 +375,13 @@ pub fn validate_spec(
     }
 
     // ─── Level 2: API Surface ─────────────────────────────────────────
-    // Draft specs skip API surface validation — exports may not exist yet.
+    // Draft and review specs skip API surface validation — exports may not exist yet.
+    let skip_api = matches!(
+        spec_status,
+        Some(crate::types::SpecStatus::Draft) | Some(crate::types::SpecStatus::Review)
+    );
 
-    if !fm.files.is_empty() && !is_draft {
+    if !fm.files.is_empty() && !skip_api {
         // Track exports with their source file for attribution
         let mut exports_by_file: Vec<(String, String)> = Vec::new(); // (symbol, file)
         let mut all_exports: Vec<String> = Vec::new();
@@ -467,7 +487,8 @@ pub fn validate_spec(
     // ─── Level 4: Requirements Companion File ─────────────────────────
     // spec-sync expects requirements in a separate companion file (requirements.md),
     // not inline in the spec body. Warn if requirements appear inline.
-    if !is_draft {
+    // Drafts and review specs skip this check.
+    if !is_draft && spec_status != Some(crate::types::SpecStatus::Review) {
         let has_inline_requirements = {
             let lower = body.to_ascii_lowercase();
             lower.contains("## requirements") || lower.contains("## acceptance criteria")

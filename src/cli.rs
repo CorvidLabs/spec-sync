@@ -37,6 +37,14 @@ pub struct Cli {
     /// Overrides the `enforcement` field in specsync.json.
     #[arg(long, value_name = "MODE", global = true)]
     pub enforcement: Option<types::EnforcementMode>,
+
+    /// Exclude specs with these statuses (comma-separated, e.g. "deprecated,archived")
+    #[arg(long, value_name = "STATUSES", global = true, value_delimiter = ',')]
+    pub exclude_status: Vec<String>,
+
+    /// Only include specs with these statuses (comma-separated, e.g. "active,stable")
+    #[arg(long, value_name = "STATUSES", global = true, value_delimiter = ',')]
+    pub only_status: Vec<String>,
 }
 
 #[derive(Subcommand)]

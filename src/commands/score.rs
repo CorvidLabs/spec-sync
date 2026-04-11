@@ -4,7 +4,7 @@ use std::path::Path;
 use crate::scoring;
 use crate::types;
 
-use super::{filter_specs, load_and_discover};
+use super::{filter_by_status, filter_specs, load_and_discover};
 
 pub fn cmd_score(
     root: &Path,
@@ -12,10 +12,13 @@ pub fn cmd_score(
     explain: bool,
     all: bool,
     spec_filters: &[String],
+    exclude_status: &[String],
+    only_status: &[String],
 ) {
     let json = matches!(format, types::OutputFormat::Json);
     let (config, all_spec_files) = load_and_discover(root, false);
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
+    let spec_files = filter_by_status(&spec_files, exclude_status, only_status);
     let scores: Vec<scoring::SpecScore> = spec_files
         .iter()
         .map(|f| scoring::score_spec(f, root, &config))

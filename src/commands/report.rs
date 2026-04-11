@@ -7,10 +7,17 @@ use crate::parser;
 use crate::types;
 use crate::validator::compute_coverage;
 
-use super::load_and_discover;
+use super::{filter_by_status, load_and_discover};
 
-pub fn cmd_report(root: &Path, format: types::OutputFormat, stale_threshold: usize) {
-    let (config, spec_files) = load_and_discover(root, true);
+pub fn cmd_report(
+    root: &Path,
+    format: types::OutputFormat,
+    stale_threshold: usize,
+    exclude_status: &[String],
+    only_status: &[String],
+) {
+    let (config, all_spec_files) = load_and_discover(root, true);
+    let spec_files = filter_by_status(&all_spec_files, exclude_status, only_status);
     let coverage = compute_coverage(root, &spec_files, &config);
 
     // Build per-module stats from spec files

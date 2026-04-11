@@ -70,9 +70,10 @@ pub fn ensure_hashes_gitignored(root: &Path) -> Result<bool, String> {
     if !content.is_empty() && !content.ends_with('\n') {
         content.push('\n');
     }
-    content.push_str(&format!("\n# spec-sync hash cache (regenerated locally)\n{entry}\n"));
+    content.push_str(&format!(
+        "\n# spec-sync hash cache (regenerated locally)\n{entry}\n"
+    ));
 
-    fs::write(&gitignore_path, content)
-        .map_err(|e| format!("Failed to update .gitignore: {e}"))?;
+    fs::write(&gitignore_path, content).map_err(|e| format!("Failed to update .gitignore: {e}"))?;
     Ok(true)
 }

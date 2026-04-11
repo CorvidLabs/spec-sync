@@ -5,16 +5,31 @@ use std::process;
 use crate::comment;
 use crate::github;
 use crate::ignore::IgnoreRules;
+use crate::types;
 use crate::validator::{compute_coverage, get_schema_table_names};
 
-use super::{build_schema_columns, load_and_discover, run_validation};
+use super::{build_schema_columns, compute_exit_code, load_and_discover, run_validation};
 
-pub fn cmd_comment(root: &Path, pr: Option<u64>, _base: &str) {
+pub fn cmd_comment(
+    root: &Path,
+    pr: Option<u64>,
+    _base: &str,
+    strict: bool,
+    enforcement: Option<types::EnforcementMode>,
+    require_coverage: Option<usize>,
+) {
     let (config, spec_files) = load_and_discover(root, false);
 
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);
     let ignore_rules = IgnoreRules::load(root);
+
+    // CLI --enforcement flag overrides config; --strict implies strict enforcement.
+    let enforcement = enforcement.unwrap_or(if strict {
+        types::EnforcementMode::Strict
+    } else {
+        config.enforcement
+    });
 
     // Use the same validation pipeline as `check` for consistent results
     let (total_errors, total_warnings, passed, total, all_errors, all_warnings) = run_validation(
@@ -28,8 +43,18 @@ pub fn cmd_comment(root: &Path, pr: Option<u64>, _base: &str) {
         &ignore_rules,
     );
 
-    let overall_passed = total_errors == 0;
     let coverage = compute_coverage(root, &spec_files, &config);
+
+    // Use the same exit-code logic as `check` so the comment status matches CI
+    let exit_code = compute_exit_code(
+        total_errors,
+        total_warnings,
+        strict,
+        enforcement,
+        &coverage,
+        require_coverage,
+    );
+    let overall_passed = exit_code == 0;
     let repo = github::detect_repo(root);
     let branch = comment::detect_branch(root);
 

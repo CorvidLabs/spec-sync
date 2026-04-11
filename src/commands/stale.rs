@@ -6,9 +6,15 @@ use crate::git_utils::{StaleInfo, git_commits_between, git_last_commit_hash, is_
 use crate::parser;
 use crate::types;
 
-use super::load_and_discover;
+use super::{filter_by_status, load_and_discover};
 
-pub fn cmd_stale(root: &Path, format: types::OutputFormat, threshold: usize) {
+pub fn cmd_stale(
+    root: &Path,
+    format: types::OutputFormat,
+    threshold: usize,
+    exclude_status: &[String],
+    only_status: &[String],
+) {
     if !is_git_repo(root) {
         match format {
             types::OutputFormat::Json => {
@@ -28,7 +34,8 @@ pub fn cmd_stale(root: &Path, format: types::OutputFormat, threshold: usize) {
         std::process::exit(1);
     }
 
-    let (_config, spec_files) = load_and_discover(root, false);
+    let (_config, all_spec_files) = load_and_discover(root, false);
+    let spec_files = filter_by_status(&all_spec_files, exclude_status, only_status);
 
     let mut stale_specs: Vec<StaleInfo> = Vec::new();
     let mut fresh_count = 0;

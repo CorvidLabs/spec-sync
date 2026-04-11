@@ -24,14 +24,17 @@ pub mod view;
 pub mod wizard;
 
 use colored::Colorize;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process;
 
 use crate::config::load_config;
 use crate::ignore::IgnoreRules;
+use crate::parser;
 use crate::schema;
 use crate::scoring;
 use crate::types;
+use crate::types::SpecStatus;
 use crate::validator::{find_spec_files, validate_spec};
 
 pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConfig, Vec<PathBuf>) {
@@ -113,6 +116,54 @@ pub fn filter_specs(root: &Path, spec_files: &[PathBuf], filters: &[String]) -> 
     }
 
     matched
+}
+
+/// Filter spec files by lifecycle status.
+/// `exclude` removes specs with any of the listed statuses.
+/// `only` keeps only specs with one of the listed statuses.
+/// If both are empty, returns the full list unchanged.
+pub fn filter_by_status(
+    spec_files: &[PathBuf],
+    exclude: &[String],
+    only: &[String],
+) -> Vec<PathBuf> {
+    if exclude.is_empty() && only.is_empty() {
+        return spec_files.to_vec();
+    }
+
+    let exclude_set: HashSet<SpecStatus> = exclude
+        .iter()
+        .filter_map(|s| SpecStatus::from_str_loose(s))
+        .collect();
+    let only_set: HashSet<SpecStatus> = only
+        .iter()
+        .filter_map(|s| SpecStatus::from_str_loose(s))
+        .collect();
+
+    spec_files
+        .iter()
+        .filter(|path| {
+            let status = std::fs::read_to_string(path)
+                .ok()
+                .and_then(|content| parser::parse_frontmatter(&content.replace("\r\n", "\n")))
+                .and_then(|parsed| parsed.frontmatter.parsed_status());
+
+            // If we can't parse status, include the spec (let validation catch the error)
+            let status = match status {
+                Some(s) => s,
+                None => return true,
+            };
+
+            if !exclude_set.is_empty() && exclude_set.contains(&status) {
+                return false;
+            }
+            if !only_set.is_empty() && !only_set.contains(&status) {
+                return false;
+            }
+            true
+        })
+        .cloned()
+        .collect()
 }
 
 /// Build column-level schema from migration files (if schema_dir is configured).

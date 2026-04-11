@@ -66,17 +66,22 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 |----------|-----------|---------|-------------|
 | `new` | `spec_path: String` | `Self` | Create a new empty validation result |
 
+### Exported Frontmatter Functions
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `parsed_status` | `&self` | `Option<SpecStatus>` | Parse the Frontmatter status field into a typed SpecStatus enum |
+
 ### Exported SpecStatus Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `as_str` | `&self` | `&str` | String representation of the status |
 | `from_str_loose` | `s: &str` | `Option<Self>` | Parse status string into SpecStatus enum (case-insensitive) |
-| `parsed_status` | `&self` | `Option<SpecStatus>` | Parse the Frontmatter status field into a typed enum |
 | `all` | — | `&[Self]` | Returns all status variants in lifecycle order |
 | `ordinal` | `&self` | `usize` | Numeric position in lifecycle order (0=draft, 5=archived) |
-| `next` | `&self` | `Option<Self>` | Next status in linear lifecycle (draft→review→active→stable), None at end |
-| `prev` | `&self` | `Option<Self>` | Previous status in linear lifecycle, None at start |
+| `next` | `&self` | `Option<Self>` | Next status in linear lifecycle (draft→review→active→stable→deprecated→archived), None at archived |
+| `prev` | `&self` | `Option<Self>` | Previous status in linear lifecycle (archived→deprecated→stable→active→review→draft), None at draft |
 | `valid_transitions` | `&self` | `Vec<Self>` | All valid target statuses from current (next, prev, deprecated) |
 | `can_transition_to` | `&self, target: &Self` | `bool` | Whether transitioning to `target` is valid |
 
@@ -167,3 +172,4 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | 2026-04-07 | Document EnforcementMode enum |
 | 2026-04-10 | Document CustomRule, CustomRuleType, RuleSeverity, RuleFilter for declarative custom validation rules |
 | 2026-04-11 | Document SpecStatus lifecycle methods (all, ordinal, next, prev, valid_transitions, can_transition_to) |
+| 2026-04-11 | Move parsed_status to Frontmatter section; fix next/prev descriptions to include deprecated/archived |

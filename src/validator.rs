@@ -222,11 +222,9 @@ pub fn validate_spec(
             .push("Spec is deprecated — consider archiving with `specsync lifecycle promote <spec>` or `specsync lifecycle set <spec> archived`".to_string());
     }
 
-    // Archived specs: skip all further validation
+    // Archived specs: skip all further validation with zero diagnostics.
+    // No warnings or errors — archived specs must be invisible to --strict mode.
     if spec_status == Some(crate::types::SpecStatus::Archived) {
-        result
-            .warnings
-            .push("Spec is archived — excluded from validation".to_string());
         return result;
     }
 
@@ -340,25 +338,25 @@ pub fn validate_spec(
     }
 
     // Required markdown sections
-    // - draft: structure only, skip "Public API"
-    // - review: structure + sections, skip "Public API"
+    // - draft: structure only — skip all required section checks
+    // - review: structure + sections, but skip "Public API"
     // - active/stable/deprecated: all sections required
-    let skip_public_api = matches!(
-        spec_status,
-        Some(crate::types::SpecStatus::Draft) | Some(crate::types::SpecStatus::Review)
-    );
     let is_draft = spec_status == Some(crate::types::SpecStatus::Draft);
-    let missing = get_missing_sections(body, &config.required_sections);
-    for section in &missing {
-        if skip_public_api && section == "Public API" {
-            continue; // drafts and review specs can skip Public API
+    let is_review = spec_status == Some(crate::types::SpecStatus::Review);
+
+    if !is_draft {
+        let missing = get_missing_sections(body, &config.required_sections);
+        for section in &missing {
+            if is_review && section == "Public API" {
+                continue; // review specs can skip Public API
+            }
+            result
+                .errors
+                .push(format!("Missing required section: ## {section}"));
+            result
+                .fixes
+                .push(format!("Add `## {section}` heading to the spec body"));
         }
-        result
-            .errors
-            .push(format!("Missing required section: ## {section}"));
-        result
-            .fixes
-            .push(format!("Add `## {section}` heading to the spec body"));
     }
 
     // ─── Level 1.7: Stub/Placeholder Detection ──────────────────────

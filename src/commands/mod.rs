@@ -150,10 +150,11 @@ pub fn filter_by_status(
                 .and_then(|content| parser::parse_frontmatter(&content.replace("\r\n", "\n")))
                 .and_then(|parsed| parsed.frontmatter.parsed_status());
 
-            // If we can't parse status, include the spec (let validation catch the error)
+            // If we can't parse status: include when excluding (let validation catch the error),
+            // but exclude when --only-status is active (no status ≠ matching status).
             let status = match status {
                 Some(s) => s,
-                None => return true,
+                None => return only_set.is_empty(),
             };
 
             if !exclude_set.is_empty() && exclude_set.contains(&status) {

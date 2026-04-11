@@ -592,7 +592,19 @@ pub fn cmd_history(root: &Path, spec_filter: &str, format: OutputFormat) {
         }
     };
 
-    let log = &parsed.frontmatter.lifecycle_log;
+    // Use frontmatter lifecycle_log, or fall back to external JSON (post-migration)
+    let log_owned;
+    let log = if parsed.frontmatter.lifecycle_log.is_empty() {
+        let module = parsed
+            .frontmatter
+            .module
+            .clone()
+            .unwrap_or_else(|| derive_module_from_path(&spec_path));
+        log_owned = load_lifecycle_json(root, &module);
+        &log_owned
+    } else {
+        &parsed.frontmatter.lifecycle_log
+    };
 
     match format {
         OutputFormat::Json => {
@@ -911,9 +923,18 @@ pub fn cmd_enforce(
             // Check: max age
             if check_max_age {
                 if let Some(max_days) = config.lifecycle.max_age.get(status.as_str()) {
-                    // Look at lifecycle_log for the most recent transition into this status
-                    let age_days =
-                        estimate_status_age(root, &rel, &parsed.frontmatter.lifecycle_log, status);
+                    // Look at lifecycle_log (frontmatter or external JSON) for the most recent transition
+                    let lifecycle_log = if parsed.frontmatter.lifecycle_log.is_empty() {
+                        let module = parsed
+                            .frontmatter
+                            .module
+                            .clone()
+                            .unwrap_or_else(|| derive_module_from_path(spec_path));
+                        load_lifecycle_json(root, &module)
+                    } else {
+                        parsed.frontmatter.lifecycle_log.clone()
+                    };
+                    let age_days = estimate_status_age(root, &rel, &lifecycle_log, status);
                     if let Some(age) = age_days {
                         if age > *max_days {
                             violations.push((
@@ -1153,6 +1174,38 @@ fn chrono_today() -> String {
     let y = if m <= 2 { y + 1 } else { y };
 
     format!("{:04}-{:02}-{:02}", y, m, d)
+}
+
+/// Load lifecycle log entries from the external JSON file (post-migration).
+/// After `specsync migrate` extracts lifecycle_log from frontmatter to
+/// `.specsync/lifecycle/{module}.json`, this function reads those entries
+/// so history/enforce commands still work.
+fn load_lifecycle_json(root: &Path, module: &str) -> Vec<String> {
+    let path = root.join(format!(".specsync/lifecycle/{module}.json"));
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return vec![],
+    };
+    let data: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(_) => return vec![],
+    };
+    data["entries"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|e| e["raw"].as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Derive a module name from a spec file path (fallback when frontmatter has no module field).
+fn derive_module_from_path(path: &Path) -> String {
+    path.file_stem()
+        .and_then(|s| s.to_str())
+        .map(|s| s.strip_suffix(".spec").unwrap_or(s).to_string())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

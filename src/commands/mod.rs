@@ -120,6 +120,30 @@ pub fn filter_specs(root: &Path, spec_files: &[PathBuf], filters: &[String]) -> 
     matched
 }
 
+/// Read only the YAML frontmatter section of a spec file (up to the closing `---`).
+/// Avoids reading the full file body when only metadata is needed, reducing I/O
+/// for commands that re-read specs later for full validation.
+fn read_frontmatter_section(path: &Path) -> std::io::Result<String> {
+    use std::io::{BufRead, BufReader};
+    let file = std::fs::File::open(path)?;
+    let reader = BufReader::new(file);
+    let mut result = String::new();
+    let mut found_start = false;
+
+    for line in reader.lines() {
+        let line = line?;
+        result.push_str(&line);
+        result.push('\n');
+        if line.trim() == "---" {
+            if found_start {
+                break; // Found closing ---
+            }
+            found_start = true;
+        }
+    }
+    Ok(result)
+}
+
 /// Filter spec files by lifecycle status.
 /// `exclude` removes specs with any of the listed statuses.
 /// `only` keeps only specs with one of the listed statuses.
@@ -156,7 +180,9 @@ pub fn filter_by_status(
     spec_files
         .iter()
         .filter(|path| {
-            let status = std::fs::read_to_string(path)
+            // Read only the frontmatter section (up to closing ---) to avoid
+            // re-reading the full file body that callers will parse later.
+            let status = read_frontmatter_section(path)
                 .ok()
                 .and_then(|content| parser::parse_frontmatter(&content.replace("\r\n", "\n")))
                 .and_then(|parsed| parsed.frontmatter.parsed_status());

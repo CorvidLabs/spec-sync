@@ -261,7 +261,15 @@ pub fn cmd_promote(root: &Path, spec_filter: &str, format: OutputFormat, force: 
         }
     }
 
-    write_status(&spec_path, &content, current, next, &rel, format, config.lifecycle.track_history);
+    write_status(
+        &spec_path,
+        &content,
+        current,
+        next,
+        &rel,
+        format,
+        config.lifecycle.track_history,
+    );
 }
 
 /// `specsync lifecycle demote <spec>`
@@ -321,7 +329,15 @@ pub fn cmd_demote(root: &Path, spec_filter: &str, format: OutputFormat, force: b
         }
     }
 
-    write_status(&spec_path, &content, current, prev, &rel, format, config.lifecycle.track_history);
+    write_status(
+        &spec_path,
+        &content,
+        current,
+        prev,
+        &rel,
+        format,
+        config.lifecycle.track_history,
+    );
 }
 
 /// `specsync lifecycle set <spec> <status>`
@@ -405,7 +421,15 @@ pub fn cmd_set(
         }
     }
 
-    write_status(&spec_path, &content, current, target, &rel, format, config.lifecycle.track_history);
+    write_status(
+        &spec_path,
+        &content,
+        current,
+        target,
+        &rel,
+        format,
+        config.lifecycle.track_history,
+    );
 }
 
 /// `specsync lifecycle status [spec]` — show status of one or all specs.

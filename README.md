@@ -307,6 +307,7 @@ specsync [command] [flags]
 | `new <name>` | Quick-create a minimal spec with auto-detected source files. `--full` includes companion files |
 | `stale` | Identify specs that haven't been updated since their source files changed |
 | `rules` | Display configured validation rules and built-in rule status |
+| `migrate` | Upgrade from 3.x to 4.0.0 layout (`.specsync/` directory, TOML config). `--dry-run` to preview, `--no-backup` to skip |
 | `lifecycle promote <spec>` | Advance spec to next status (draft→review→active→stable) |
 | `lifecycle demote <spec>` | Step back one status level |
 | `lifecycle set <spec> <status>` | Set spec to any status (with transition validation) |
@@ -615,7 +616,7 @@ ai_provider = "claude"
 ai_timeout = 120
 ```
 
-Config resolution order: `specsync.json` → `.specsync.toml` → defaults with auto-detected source dirs.
+Config resolution order: `.specsync/config.toml` → `.specsync/config.json` → `.specsync.toml` → `specsync.json` → defaults with auto-detected source dirs.
 
 ### Lifecycle Guards
 

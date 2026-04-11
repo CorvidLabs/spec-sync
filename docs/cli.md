@@ -185,6 +185,19 @@ specsync new auth --full                   # also creates companion files (requi
 
 Scans `sourceDirs` for files matching the module name to auto-populate the `files:` frontmatter field.
 
+### `migrate`
+
+Upgrade a 3.x project to the v4.0.0 layout. Moves config into `.specsync/`, converts to TOML, extracts lifecycle history, and stamps the version.
+
+```bash
+specsync migrate                           # run full migration
+specsync migrate --dry-run                 # preview what would change
+specsync migrate --no-backup               # skip backup creation
+specsync migrate --json                    # machine-readable output
+```
+
+The migration is step-based and idempotent — re-running on a partially migrated project resumes from where it left off. A backup is created in `.specsync/backup-3x/` before any destructive changes.
+
 ### `stale`
 
 Identify specs that haven't been updated since their source files changed. Uses git history to compare the last spec commit against source file commits.

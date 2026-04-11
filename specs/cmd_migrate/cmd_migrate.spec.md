@@ -44,17 +44,16 @@ Migration uses a step-based pipeline:
 
 | # | Step | What it does |
 |---|------|-------------|
-| 1 | `detect_version` | Read current config, determine if 3.x or already 4.0. Exit early if already migrated |
-| 2 | `create_backup` | Copy `specsync.json`, `specsync-registry.toml`, and all spec files to `.specsync/backup-3x/` with `manifest.json` |
-| 3 | `create_directory_structure` | Create `.specsync/`, `.specsync/lifecycle/`, `.specsync/changes/`, `.specsync/archive/` |
-| 4 | `relocate_config` | Move `specsync.json` → `.specsync/config.json`, remove old file |
+| 1 | `detect_version` | Read current config, determine if 3.x or already 4.0. Exit early if already migrated. Detects `specsync.json`, `.specsync.toml`, and `specsync-registry.toml` |
+| 2 | `create_backup` | Copy config files, registry, and all spec files to `.specsync/backup-3x/` with `manifest.json` |
+| 3 | `create_directories` | Create `.specsync/`, `.specsync/lifecycle/`, `.specsync/changes/`, `.specsync/archive/` |
+| 4 | `relocate_config` | Convert config to TOML and write `.specsync/config.toml`, remove old `specsync.json` / `.specsync.toml` / `.specsync/config.json` |
 | 5 | `relocate_registry` | Move `specsync-registry.toml` → `.specsync/registry.toml`, remove old file |
-| 6 | `extract_lifecycle_history` | For each spec with `lifecycle_log`, extract entries into `.specsync/lifecycle/{module}.json` |
+| 6 | `extract_lifecycle` | For each spec with `lifecycle_log`, extract entries into `.specsync/lifecycle/{module}.json` |
 | 7 | `cleanup_frontmatter` | Remove `lifecycle_log` field from all spec frontmatter |
-| 8 | `rebuild_hash_cache` | Regenerate `.specsync/hashes.json` from current spec content |
-| 9 | `write_gitignore` | Create `.specsync/.gitignore` with sensible defaults (ignore backup-3x/, archive/) |
+| 8 | `write_gitignore` | Create `.specsync/.gitignore` with sensible defaults (ignore backup-3x/, archive/, hashes.json) |
+| 9 | `scan_cross_project` | Scan specs for cross-project references and write `.specsync/cross-project-refs.json` if any found |
 | 10 | `stamp_version` | Write `.specsync/version` containing `4.0.0` |
-| 11 | `post_validate` | Run spec-check validation to confirm migration didn't break anything |
 
 ## Invariants
 
@@ -74,7 +73,7 @@ Migration uses a step-based pipeline:
 
 - **Given** a project with `specsync.json` in root, specs with `lifecycle_log` in frontmatter
 - **When** `specsync migrate` runs
-- **Then** config moves to `.specsync/config.json`, lifecycle logs extracted to `.specsync/lifecycle/`, frontmatter cleaned, backup created in `.specsync/backup-3x/`
+- **Then** config converts to `.specsync/config.toml`, lifecycle logs extracted to `.specsync/lifecycle/`, frontmatter cleaned, backup created in `.specsync/backup-3x/`
 
 ### Scenario: Already migrated project
 

@@ -145,6 +145,19 @@ fn dir_contains_source_files(dir: &Path, ignored: &HashSet<&str>, max_depth: usi
 /// When no config file exists, auto-detects source directories.
 ///
 /// Config file search order (v4 first, then legacy):
+/// Load config from a specific file path (JSON or TOML based on extension).
+/// Used by migration to convert a known source file rather than relying on precedence.
+pub fn load_config_from_path(config_path: &Path, root: &Path) -> SpecSyncConfig {
+    let ext = config_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    match ext {
+        "toml" => load_toml_config(config_path, root),
+        _ => load_json_config(config_path, root),
+    }
+}
+
 /// 1. `.specsync/config.toml` (v4 TOML — canonical)
 /// 2. `.specsync/config.json` (v4 JSON — pre-TOML migration)
 /// 3. `.specsync.toml` (legacy root TOML)
@@ -369,6 +382,67 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
         }
     }
 
+    // Lifecycle section
+    let lc = &config.lifecycle;
+    let has_lifecycle = !lc.guards.is_empty()
+        || !lc.track_history
+        || !lc.max_age.is_empty()
+        || !lc.allowed_statuses.is_empty();
+
+    if has_lifecycle {
+        lines.push(String::new());
+        lines.push("[lifecycle]".to_string());
+        if !lc.track_history {
+            lines.push(format!("track_history = {}", lc.track_history));
+        }
+        if !lc.allowed_statuses.is_empty() {
+            lines.push(format!(
+                "allowed_statuses = [{}]",
+                lc.allowed_statuses
+                    .iter()
+                    .map(|s| format!("\"{s}\""))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        if !lc.max_age.is_empty() {
+            lines.push(String::new());
+            lines.push("[lifecycle.max_age]".to_string());
+            for (status, days) in &lc.max_age {
+                lines.push(format!("{status} = {days}"));
+            }
+        }
+        if !lc.guards.is_empty() {
+            for (transition, guard) in &lc.guards {
+                lines.push(String::new());
+                lines.push(format!("[lifecycle.guards.\"{transition}\"]"));
+                if let Some(score) = guard.min_score {
+                    lines.push(format!("min_score = {score}"));
+                }
+                if !guard.require_sections.is_empty() {
+                    lines.push(format!(
+                        "require_sections = [{}]",
+                        guard
+                            .require_sections
+                            .iter()
+                            .map(|s| format!("\"{s}\""))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                if let Some(no_stale) = guard.no_stale {
+                    lines.push(format!("no_stale = {no_stale}"));
+                }
+                if let Some(threshold) = guard.stale_threshold {
+                    lines.push(format!("stale_threshold = {threshold}"));
+                }
+                if let Some(ref msg) = guard.message {
+                    lines.push(format!("message = \"{msg}\""));
+                }
+            }
+        }
+    }
+
     lines.push(String::new()); // trailing newline
     lines.join("\n")
 }
@@ -396,6 +470,7 @@ const KNOWN_JSON_KEYS: &[&str] = &[
     "taskArchiveDays",
     "github",
     "enforcement",
+    "lifecycle",
 ];
 
 fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
@@ -480,6 +555,14 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                     }
                     "github" => {
                         parse_toml_github_key(key, value, &mut config);
+                        continue;
+                    }
+                    "lifecycle" => {
+                        parse_toml_lifecycle_key(key, value, &mut config.lifecycle);
+                        continue;
+                    }
+                    s if s.starts_with("lifecycle.") => {
+                        parse_toml_lifecycle_nested(s, key, value, &mut config.lifecycle);
                         continue;
                     }
                     _ => {
@@ -636,6 +719,63 @@ fn parse_toml_github_key(key: &str, value: &str, config: &mut SpecSyncConfig) {
         "verify_issues" => gh.verify_issues = parse_toml_bool(value),
         _ => {
             eprintln!("Warning: unknown key \"{key}\" in [github] section (ignored)");
+        }
+    }
+}
+
+/// Parse a key=value pair inside a `[lifecycle]` TOML section.
+fn parse_toml_lifecycle_key(
+    key: &str,
+    value: &str,
+    lc: &mut crate::types::LifecycleConfig,
+) {
+    match key {
+        "track_history" => lc.track_history = parse_toml_bool(value),
+        "allowed_statuses" => lc.allowed_statuses = parse_toml_string_array(value),
+        _ => {
+            eprintln!("Warning: unknown key \"{key}\" in [lifecycle] section (ignored)");
+        }
+    }
+}
+
+/// Parse a key=value pair inside nested lifecycle sections like `[lifecycle.max_age]`
+/// or `[lifecycle.guards."review→active"]`.
+fn parse_toml_lifecycle_nested(
+    section: &str,
+    key: &str,
+    value: &str,
+    lc: &mut crate::types::LifecycleConfig,
+) {
+    if section == "lifecycle.max_age" {
+        if let Ok(days) = value.trim().parse::<u64>() {
+            lc.max_age.insert(key.to_string(), days);
+        }
+    } else if let Some(guard_name) = section.strip_prefix("lifecycle.guards.") {
+        // Strip surrounding quotes from guard name if present
+        let name = guard_name.trim_matches('"').to_string();
+        let guard = lc
+            .guards
+            .entry(name)
+            .or_insert_with(crate::types::TransitionGuard::default);
+        match key {
+            "min_score" => {
+                if let Ok(n) = value.trim().parse::<u32>() {
+                    guard.min_score = Some(n);
+                }
+            }
+            "require_sections" => guard.require_sections = parse_toml_string_array(value),
+            "no_stale" => guard.no_stale = Some(parse_toml_bool(value)),
+            "stale_threshold" => {
+                if let Ok(n) = value.trim().parse::<usize>() {
+                    guard.stale_threshold = Some(n);
+                }
+            }
+            "message" => guard.message = Some(parse_toml_string(value)),
+            _ => {
+                eprintln!(
+                    "Warning: unknown key \"{key}\" in [lifecycle.guards] section (ignored)"
+                );
+            }
         }
     }
 }

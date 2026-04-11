@@ -980,7 +980,7 @@ pub fn cmd_enforce(
             }
 
             println!(
-                "\n{} Fix violations or adjust lifecycle config in specsync.json.",
+                "\n{} Fix violations or adjust lifecycle config in .specsync/config.toml (run `specsync migrate` for older projects).",
                 "Tip:".cyan()
             );
         }

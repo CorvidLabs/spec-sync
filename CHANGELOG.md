@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-04-11
+
+### Breaking Changes
+
+- **Directory restructure** — all spec-sync metadata moves into `.specsync/`: config, registry, lifecycle history, change records, and archives. Root-level `specsync.json` and `specsync-registry.toml` are relocated automatically by `specsync migrate`.
+- **Config format change** — `specsync.json` is converted to `.specsync/config.toml` (TOML). Legacy JSON/TOML files at the root still work as fallback.
+- **`lifecycle_log` removed from frontmatter** — lifecycle history is extracted from spec YAML frontmatter into `.specsync/lifecycle/*.json` files. The `lifecycle_log` field is removed from specs during migration.
+- **GitHub Action version** — update workflows from `@v3` to `@v4`.
+
+### Added
+
+- **`specsync migrate` command** — automated 3.x → 4.0.0 migration with 10 steps: version detection, backup, directory creation, config conversion, registry relocation, lifecycle extraction, frontmatter cleanup, gitignore, cross-project ref scanning, and version stamping. Supports `--dry-run`, `--no-backup`, `--format json`. Idempotent and safe to re-run (#198).
+- **Full spec lifecycle management** — `specsync lifecycle` subcommands: `status`, `promote`, `demote`, `set`, `history`, `guard`, `auto-promote`, `enforce`. Specs track lifecycle stages (draft → review → stable → deprecated → archived) with configurable transition guards.
+- **Lifecycle enforcement in CI** — `specsync lifecycle enforce --all` validates lifecycle rules in CI. Available via GitHub Action with `lifecycle-enforce: 'true'`.
+- **Change records** — `.specsync/changes/` directory for tracking spec modifications over time.
+- **Spec archival** — `.specsync/archive/` directory for retired specs. Archive contents are version-controlled (not gitignored).
+- **Migration backup** — `.specsync/backup-3x/` with timestamped manifest preserves original 3.x files for rollback.
+- **Cross-project reference scanning** — migration detects `depends_on` refs to external repos and records them in `.specsync/cross-project-refs.json`.
+
+### Fixed
+
+- **Archive not gitignored** — `.specsync/archive/` is no longer excluded from git. Users who want to remove archived specs can delete them explicitly (#202).
+
+### Documentation
+
+- **MIGRATION.md** — comprehensive upgrade guide with breaking changes, step-by-step instructions, and FAQ.
+
 ## [3.8.0] - 2026-04-10
 
 ### Added
@@ -366,6 +393,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
+[4.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v4.0.0
 [3.8.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.8.0
 [3.7.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.7.0
 [3.6.2]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.6.2

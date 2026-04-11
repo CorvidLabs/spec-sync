@@ -56,7 +56,7 @@ Auto-detected from file extensions. Same spec format for all.
 ### GitHub Action (recommended)
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v3
+- uses: CorvidLabs/spec-sync@v4
   with:
     strict: 'true'
     require-coverage: '100'
@@ -103,6 +103,8 @@ cargo install --git https://github.com/CorvidLabs/spec-sync
 ## Quick Start
 
 ```bash
+specsync migrate                           # Upgrade from 3.x to 4.0.0 (.specsync/ layout)
+specsync migrate --dry-run                 # Preview migration without changes
 specsync init                              # Create specsync.json config
 specsync check                             # Validate specs against code
 specsync check --fix                       # Auto-add undocumented exports as stubs
@@ -542,7 +544,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v3
+      - uses: CorvidLabs/spec-sync@v4
         with:
           strict: 'true'
           require-coverage: '100'
@@ -563,7 +565,7 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v3
+      - uses: CorvidLabs/spec-sync@v4
         with:
           strict: 'true'
           comment: 'true'
@@ -705,7 +707,7 @@ Configure enforcement rules in `specsync.json`:
 **GitHub Action** — add `lifecycle-enforce: 'true'` to the spec-sync action to enforce lifecycle rules in CI:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v3
+- uses: CorvidLabs/spec-sync@v4
   with:
     lifecycle-enforce: 'true'
 ```

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-04-10
+
+### Added
+
+- **Staleness detection** — new `specsync stale` command identifies specs that haven't been updated since their source files changed. Also available via `specsync check --stale` (#189).
+- **AST-based export parsing** — tree-sitter powered export extraction replaces regex-based parsing for more accurate and reliable results across all supported languages (#192).
+- **Batch operations** — `specsync import --all-issues` and `--from-dir` for bulk import; `specsync score --format table|csv` for tabular output; `specsync generate --uncovered` and `--batch` for generating specs in bulk (#191).
+- **Declarative custom validation rules** — define project-specific validation rules in config that are checked alongside built-in rules (#190).
+- **Cross-repo spec content verification** — `specsync resolve --verify` fetches and validates referenced specs from remote repositories, ensuring cross-project refs point to real, valid content (#159, #195).
+- **MCP resource support** — agents can browse the spec tree via 5 new MCP resources (`specsync:///specs`, `specsync:///specs/{module}`, etc.) without knowing file paths (#194).
+
+### Fixed
+
+- **Requirements convention docs** — clarified that requirements belong in companion `requirements.md` files, not inline in specs (#163, #193).
+
 ## [3.7.0] - 2026-04-10
 
 ### Added
@@ -351,7 +366,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
-[3.4.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.4.1
+[3.8.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.8.0
+[3.7.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.7.0
+[3.6.2]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.6.2
+[3.6.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.6.1
+[3.6.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.6.0
 [3.5.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.5.0
 [3.4.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.4.1
 [3.4.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.4.0

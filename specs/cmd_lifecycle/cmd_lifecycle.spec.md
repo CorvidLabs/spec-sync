@@ -9,6 +9,7 @@ tracks: []
 depends_on:
   - specs/commands/commands.spec.md
   - specs/parser/parser.spec.md
+  - specs/scoring/scoring.spec.md
   - specs/types/types.spec.md
 ---
 
@@ -16,9 +17,15 @@ depends_on:
 
 ## Purpose
 
-Implements the `specsync lifecycle` command. Manages spec status transitions — promote, demote, set, and status display. Validates transitions against the `SpecStatus` lifecycle graph and writes updated frontmatter to disk.
+Implements the `specsync lifecycle` command. Manages spec status transitions — promote, demote, set, status, history, and guard evaluation. Validates transitions against the `SpecStatus` lifecycle graph with configurable transition guards and writes updated frontmatter to disk.
 
 ## Public API
+
+### Exported Structs
+
+| Type | Description |
+|------|-------------|
+| `GuardResult` | Result of evaluating transition guards — `passed: bool` and `failures: Vec<String>` |
 
 ### Exported Functions
 
@@ -28,6 +35,9 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 | `cmd_demote` | `root: &Path, spec_filter: &str, format: OutputFormat, force: bool` | `()` | Move a spec back to its previous lifecycle status |
 | `cmd_set` | `root: &Path, spec_filter: &str, target_status: &str, format: OutputFormat, force: bool` | `()` | Set a spec to any valid status with transition validation |
 | `cmd_status` | `root: &Path, spec_filter: Option<&str>, format: OutputFormat` | `()` | Display lifecycle status of one or all specs |
+| `cmd_history` | `root: &Path, spec_filter: &str, format: OutputFormat` | `()` | Display lifecycle transition history for a spec |
+| `cmd_guard` | `root: &Path, spec_filter: &str, target_str: Option<&str>, format: OutputFormat` | `()` | Evaluate and display guard results for a spec transition |
+| `evaluate_guards` | `root: &Path, spec_path: &Path, config: &SpecSyncConfig, from: &SpecStatus, to: &SpecStatus` | `GuardResult` | Evaluate all transition guards for a status change |
 
 ## Invariants
 
@@ -36,6 +46,8 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 3. Status updates are written in-place by regex-replacing the `status:` frontmatter line
 4. Single spec is resolved via `filter_specs` — exits 1 if ambiguous or no match
 5. JSON output uses `OutputFormat::Json` for machine-readable results
+6. Transition guards check min_score, require_sections, and staleness
+7. Lifecycle history is appended to frontmatter `lifecycle_log` when `track_history` is enabled
 
 ## Behavioral Examples
 
@@ -45,11 +57,11 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 - **When** `cmd_promote(root, "auth", Text, false)` runs
 - **Then** updates `auth.spec.md` to `status: review`
 
-### Scenario: Invalid transition without force
+### Scenario: Guard blocks transition
 
-- **Given** spec `auth` has `status: stable`
-- **When** `cmd_promote` is called (no next status from stable in linear chain)
-- **Then** prints error and exits 1
+- **Given** transition guard requires min_score of 60
+- **When** spec has score 45
+- **Then** prints guard failure and exits 1
 
 ### Scenario: Status of all specs
 
@@ -65,6 +77,7 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 | Ambiguous spec filter (multiple matches) | Exits 1, lists all matches |
 | No `status:` line in frontmatter | Prints error, exits 1 |
 | Invalid transition (without `--force`) | Prints error with valid alternatives, exits 1 |
+| Guard check fails (without `--force`) | Prints guard failures, exits 1 |
 | File write fails | Prints error, exits 1 |
 
 ## Dependencies
@@ -74,8 +87,9 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 | Module | What is used |
 |--------|-------------|
 | commands | `load_and_discover`, `filter_specs` |
-| parser | `parse_frontmatter` |
-| types | `SpecStatus`, `OutputFormat` |
+| parser | `parse_frontmatter`, `get_missing_sections` |
+| scoring | `score_spec` |
+| types | `SpecStatus`, `OutputFormat`, `SpecSyncConfig`, `LifecycleConfig`, `TransitionGuard` |
 
 ### Consumed By
 

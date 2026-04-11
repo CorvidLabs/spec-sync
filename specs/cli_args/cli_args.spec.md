@@ -30,7 +30,7 @@ Defines the CLI argument parser using Clap derive macros. Declares all subcomman
 |------|-------------|
 | `Command` | Subcommand enum with 23 variants: Check, Coverage, Generate, Init, Score, Watch, Mcp, AddSpec, Scaffold, InitRegistry, Resolve, Diff, Hooks, Compact, ArchiveTasks, View, Merge, Issues, New, Wizard, Deps, Import, Report, Comment, Changelog, Lifecycle |
 | `HooksAction` | Sub-subcommand for `Hooks`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, copilot, agents, precommit, claude_code_hook) |
-| `LifecycleAction` | Sub-subcommand for `Lifecycle`: Promote, Demote, Set, Status — manages spec lifecycle transitions |
+| `LifecycleAction` | Sub-subcommand for `Lifecycle`: Promote, Demote, Set, Status, History, Guard — manages spec lifecycle transitions |
 
 ## Invariants
 

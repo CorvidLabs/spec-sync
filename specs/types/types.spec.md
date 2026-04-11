@@ -35,7 +35,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 
 | Type | Description |
 |------|-------------|
-| `Frontmatter` | YAML frontmatter parsed from a spec file (module, version, status, files, db_tables, depends_on, implements, tracks, agent_policy) |
+| `Frontmatter` | YAML frontmatter parsed from a spec file (module, version, status, files, db_tables, depends_on, implements, tracks, agent_policy, lifecycle_log) |
 | `ValidationResult` | Result of validating a single spec — errors, warnings, fixes, and export summary |
 | `CoverageReport` | File and LOC coverage metrics for the project |
 | `SpecSyncConfig` | User-provided configuration loaded from specsync.json or .specsync.toml |
@@ -45,6 +45,8 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `GitHubConfig` | GitHub integration config — `repo: Option<String>`, `labels: Vec<String>`, `create_on_drift: bool` |
 | `CustomRule` | A declarative custom validation rule defined in specsync.json — name, type, section, pattern, min_words, severity, message, applies_to filter |
 | `RuleFilter` | Filter to restrict which specs a custom rule applies to — optional status and module regex match |
+| `LifecycleConfig` | Lifecycle configuration for transition guards and history tracking (guards map, track_history flag) |
+| `TransitionGuard` | A transition guard — min_score, require_sections, no_stale, stale_threshold, message |
 
 ### Exported AiProvider Functions
 
@@ -69,7 +71,8 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `as_str` | `&self` | `&str` | String representation of the status |
-| `parsed_status` | `s: &str` | `Option<Self>` | Parse status string into SpecStatus enum |
+| `from_str_loose` | `s: &str` | `Option<Self>` | Parse status string into SpecStatus enum (case-insensitive) |
+| `parsed_status` | `&self` | `Option<SpecStatus>` | Parse the Frontmatter status field into a typed enum |
 | `all` | — | `&[Self]` | Returns all status variants in lifecycle order |
 | `ordinal` | `&self` | `usize` | Numeric position in lifecycle order (0=draft, 5=archived) |
 | `next` | `&self` | `Option<Self>` | Next status in linear lifecycle (draft→review→active→stable), None at end |

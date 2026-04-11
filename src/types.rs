@@ -544,7 +544,7 @@ pub struct LifecycleConfig {
 
 /// A transition guard — conditions that must be satisfied before a lifecycle
 /// transition is allowed.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransitionGuard {
     /// Minimum spec quality score (0-100) required.

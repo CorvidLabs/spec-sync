@@ -18,14 +18,26 @@ static LIFECYCLE_LOG_BLOCK_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^lifecycle_log:\n(?:  - [^\n]+\n)*").unwrap());
 
 /// Update the status field in a spec file's frontmatter.
+/// Only replaces `status:` within the YAML frontmatter (between `---` delimiters),
+/// never in the body content.
 /// Returns the new file content, or None if the status line wasn't found.
 fn update_status_in_content(content: &str, new_status: &str) -> Option<String> {
-    if STATUS_LINE_RE.is_match(content) {
-        Some(
-            STATUS_LINE_RE
-                .replace(content, format!("status: {new_status}"))
-                .to_string(),
-        )
+    // Find frontmatter boundaries (first --- to second ---)
+    let first = content.find("---\n")?;
+    let rest = &content[first + 4..];
+    let second = rest.find("\n---")?;
+    let fm_end = first + 4 + second;
+
+    let frontmatter = &content[first..fm_end];
+    if STATUS_LINE_RE.is_match(frontmatter) {
+        let new_fm = STATUS_LINE_RE
+            .replace(frontmatter, format!("status: {new_status}"))
+            .to_string();
+        let mut result = String::with_capacity(content.len());
+        result.push_str(&content[..first]);
+        result.push_str(&new_fm);
+        result.push_str(&content[fm_end..]);
+        Some(result)
     } else {
         None
     }
@@ -167,15 +179,31 @@ pub fn evaluate_guards(
 
         // Check required sections
         if !guard.require_sections.is_empty() {
-            let content = std::fs::read_to_string(spec_path).unwrap_or_default();
-            let parsed = parser::parse_frontmatter(&content.replace("\r\n", "\n"));
-            if let Some(parsed) = &parsed {
-                let missing = parser::get_missing_sections(&parsed.body, &guard.require_sections);
-                if !missing.is_empty() {
-                    failures.push(format!(
-                        "guard: missing required sections: {}",
-                        missing.join(", ")
-                    ));
+            match std::fs::read_to_string(spec_path) {
+                Ok(content) => {
+                    let parsed = parser::parse_frontmatter(&content.replace("\r\n", "\n"));
+                    match parsed {
+                        Some(parsed) => {
+                            let missing = parser::get_missing_sections(
+                                &parsed.body,
+                                &guard.require_sections,
+                            );
+                            if !missing.is_empty() {
+                                failures.push(format!(
+                                    "guard: missing required sections: {}",
+                                    missing.join(", ")
+                                ));
+                            }
+                        }
+                        None => {
+                            failures.push(format!(
+                                "guard: could not parse frontmatter for {rel}"
+                            ));
+                        }
+                    }
+                }
+                Err(e) => {
+                    failures.push(format!("guard: could not read spec {rel}: {e}"));
                 }
             }
         }
@@ -183,16 +211,30 @@ pub fn evaluate_guards(
         // Check staleness
         if guard.no_stale.unwrap_or(false) {
             let threshold = guard.stale_threshold.unwrap_or(5);
-            let content = std::fs::read_to_string(spec_path).unwrap_or_default();
-            let parsed = parser::parse_frontmatter(&content.replace("\r\n", "\n"));
-            if let Some(parsed) = &parsed {
-                for source_file in &parsed.frontmatter.files {
-                    let commits = git_utils::git_commits_between(root, &rel, source_file);
-                    if commits >= threshold {
-                        failures.push(format!(
-                            "guard: stale — {source_file} has {commits} commits since spec was last updated (threshold: {threshold})"
-                        ));
+            match std::fs::read_to_string(spec_path) {
+                Ok(content) => {
+                    let parsed = parser::parse_frontmatter(&content.replace("\r\n", "\n"));
+                    match parsed {
+                        Some(parsed) => {
+                            for source_file in &parsed.frontmatter.files {
+                                let commits =
+                                    git_utils::git_commits_between(root, &rel, source_file);
+                                if commits >= threshold {
+                                    failures.push(format!(
+                                        "guard: stale — {source_file} has {commits} commits since spec was last updated (threshold: {threshold})"
+                                    ));
+                                }
+                            }
+                        }
+                        None => {
+                            failures.push(format!(
+                                "guard: could not parse frontmatter for {rel}"
+                            ));
+                        }
                     }
+                }
+                Err(e) => {
+                    failures.push(format!("guard: could not read spec {rel}: {e}"));
                 }
             }
         }
@@ -938,7 +980,7 @@ pub fn cmd_enforce(
             }
 
             println!(
-                "\n{} Fix violations or adjust lifecycle config in specsync.json.",
+                "\n{} Fix violations or adjust lifecycle config in .specsync/config.toml (run `specsync migrate` for older projects).",
                 "Tip:".cyan()
             );
         }
@@ -1093,15 +1135,28 @@ fn write_status(
 }
 
 /// Get today's date as YYYY-MM-DD string.
+/// Uses pure Rust (no shell dependency) so it works cross-platform including Windows.
 fn chrono_today() -> String {
-    // Use std::time to avoid a chrono dependency
-    let output = std::process::Command::new("date")
-        .args(["+%Y-%m-%d"])
-        .output();
-    match output {
-        Ok(o) => String::from_utf8_lossy(&o.stdout).trim().to_string(),
-        Err(_) => "unknown-date".to_string(),
-    }
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    // Convert Unix timestamp to date using civil calendar math
+    let days = (secs / 86400) as i64;
+    // Algorithm from http://howardhinnant.github.io/date_algorithms.html
+    let z = days + 719468;
+    let era = (if z >= 0 { z } else { z - 146096 }) / 146097;
+    let doe = (z - era * 146097) as u64; // day of era [0, 146096]
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = (yoe as i64) + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+
+    format!("{:04}-{:02}-{:02}", y, m, d)
 }
 
 #[cfg(test)]

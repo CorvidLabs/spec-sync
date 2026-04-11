@@ -45,7 +45,7 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 
 1. Promote/demote use `SpecStatus::next()` / `SpecStatus::prev()` for linear transitions
 2. `set` validates transitions via `SpecStatus::can_transition_to()` unless `--force` is used
-3. Status updates are written in-place by regex-replacing the `status:` frontmatter line
+3. Status updates are written in-place by regex-replacing the `status:` line within frontmatter delimiters only (never in body)
 4. Single spec is resolved via `filter_specs` — exits 1 if ambiguous or no match
 5. JSON output uses `OutputFormat::Json` for machine-readable results
 6. Transition guards check min_score, require_sections, and staleness
@@ -104,3 +104,4 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 | Date | Change |
 |------|--------|
 | 2026-04-11 | Initial spec |
+| 2026-04-11 | Add cmd_auto_promote, cmd_enforce to API table; fix invariant #3 scope |

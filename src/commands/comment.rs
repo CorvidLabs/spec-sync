@@ -4,35 +4,47 @@ use std::process;
 
 use crate::comment;
 use crate::github;
+use crate::ignore::IgnoreRules;
 use crate::validator::{compute_coverage, get_schema_table_names};
 
-use super::{build_schema_columns, load_and_discover};
+use super::{build_schema_columns, load_and_discover, run_validation};
 
 pub fn cmd_comment(root: &Path, pr: Option<u64>, _base: &str) {
     let (config, spec_files) = load_and_discover(root, false);
 
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);
+    let ignore_rules = IgnoreRules::load(root);
 
-    // Run validation, collecting all results
-    let mut violations: Vec<comment::SpecViolation> = Vec::new();
-    for spec_file in &spec_files {
-        let result = crate::validator::validate_spec(
-            spec_file,
-            root,
-            &schema_tables,
-            &schema_columns,
-            &config,
-        );
-        violations.push(comment::SpecViolation::from_result(&result));
-    }
+    // Use the same validation pipeline as `check` for consistent results
+    let (total_errors, total_warnings, passed, total, all_errors, all_warnings) = run_validation(
+        root,
+        &spec_files,
+        &schema_tables,
+        &schema_columns,
+        &config,
+        true, // collect mode
+        false,
+        &ignore_rules,
+    );
 
+    let overall_passed = total_errors == 0;
     let coverage = compute_coverage(root, &spec_files, &config);
     let repo = github::detect_repo(root);
     let branch = comment::detect_branch(root);
 
-    let body =
-        comment::render_comment_body(&violations, &coverage, repo.as_deref(), branch.as_deref());
+    let body = comment::render_check_comment(
+        total,
+        passed,
+        total_warnings,
+        total_errors,
+        &all_errors,
+        &all_warnings,
+        &coverage,
+        overall_passed,
+        repo.as_deref(),
+        branch.as_deref(),
+    );
 
     if let Some(pr_number) = pr {
         // Post as a PR comment via `gh`

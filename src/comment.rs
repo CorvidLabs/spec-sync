@@ -4,33 +4,18 @@
 //! including direct links to spec files, actionable checklists, and diff-aware
 //! suggestions for updating specs.
 
-use crate::types::{CoverageReport, ValidationResult};
+use crate::types::CoverageReport;
 use std::path::Path;
 
 /// Information about a spec violation suitable for PR comment rendering.
+/// Used in tests to verify `render_comment_body` delegation.
+#[cfg(test)]
 #[derive(Debug, Clone)]
-pub struct SpecViolation {
-    /// Relative path to the spec file (e.g., `specs/auth.spec.md`).
+pub(crate) struct SpecViolation {
     pub spec_path: String,
-    /// Error messages from validation.
     pub errors: Vec<String>,
-    /// Warning messages from validation.
     pub warnings: Vec<String>,
-    /// Actionable fix suggestions (reserved for future diff-aware suggestions).
-    #[allow(dead_code)]
     pub fixes: Vec<String>,
-}
-
-impl SpecViolation {
-    /// Build a violation from a `ValidationResult`.
-    pub fn from_result(result: &ValidationResult) -> Self {
-        Self {
-            spec_path: result.spec_path.clone(),
-            errors: result.errors.clone(),
-            warnings: result.warnings.clone(),
-            fixes: result.fixes.clone(),
-        }
-    }
 }
 
 /// Build a GitHub-friendly file link.  When `repo` and `branch` are known we
@@ -192,7 +177,9 @@ pub fn render_check_comment(
 
 /// Render a GitHub PR comment for the `specsync comment` subcommand, combining
 /// check results with diff-aware suggestions.
-pub fn render_comment_body(
+/// Used in tests to verify end-to-end rendering from violations.
+#[cfg(test)]
+fn render_comment_body(
     violations: &[SpecViolation],
     coverage: &CoverageReport,
     repo: Option<&str>,

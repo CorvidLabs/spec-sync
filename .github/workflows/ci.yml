@@ -43,11 +43,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Build specsync
+        run: cargo build
       - name: Run spec-check
         id: spec-check
         run: |
           # Generate rich comment body via `specsync comment`
-          BODY=$(cargo run -- comment 2>&1) || true
+          BODY=$(cargo run -- comment 2>/dev/null) || true
           echo "$BODY"
           {
             echo 'body<<EOF'

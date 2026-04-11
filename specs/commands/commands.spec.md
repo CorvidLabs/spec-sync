@@ -66,6 +66,7 @@ Shared command infrastructure used by all CLI subcommands. Provides config loadi
 | `view` | Role-filtered spec rendering |
 | `wizard` | Interactive spec creation wizard |
 | `lifecycle` | Spec lifecycle status transitions (promote, demote, set, status) |
+| `migrate` | v3.x to v4.0.0 project migration (config relocation, lifecycle extraction) |
 
 ## Invariants
 

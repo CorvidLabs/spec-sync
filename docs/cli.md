@@ -198,6 +198,16 @@ specsync migrate --json                    # machine-readable output
 
 The migration is step-based and idempotent — re-running on a partially migrated project resumes from where it left off. A backup is created in `.specsync/backup-3x/` before any destructive changes.
 
+### `rehash`
+
+Regenerate the hash cache for all specs. Useful after `git pull`, branch switches, or manual spec edits to reset the incremental validation baseline.
+
+```bash
+specsync rehash                            # rebuild .specsync/hashes.json
+```
+
+> **Note:** The hash cache (`.specsync/hashes.json`) should **not** be committed to git — it is a local-only optimization for incremental validation. Both `specsync init` and `specsync migrate` automatically add it to `.gitignore`. In CI, use `specsync check --force` (the GitHub Action does this by default).
+
 ### `stale`
 
 Identify specs that haven't been updated since their source files changed. Uses git history to compare the last spec commit against source file commits.

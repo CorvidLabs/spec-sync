@@ -46,4 +46,33 @@ pub fn cmd_init(root: &Path) {
     }
     println!("{} Created specsync.json", "✓".green());
     println!("  Detected source directories: {dirs_display}");
+
+    // Ensure .specsync/hashes.json is gitignored (hash cache is local-only)
+    match ensure_hashes_gitignored(root) {
+        Ok(true) => println!("{} Added .specsync/hashes.json to .gitignore", "✓".green()),
+        Ok(false) => {}
+        Err(e) => eprintln!("{} {e}", "warning:".yellow().bold()),
+    }
+}
+
+/// Append `.specsync/hashes.json` to the root `.gitignore` if not already present.
+/// Returns `Ok(true)` if added, `Ok(false)` if already present, `Err` on write failure.
+pub fn ensure_hashes_gitignored(root: &Path) -> Result<bool, String> {
+    let gitignore_path = root.join(".gitignore");
+    let entry = ".specsync/hashes.json";
+
+    let existing = fs::read_to_string(&gitignore_path).unwrap_or_default();
+    if existing.lines().any(|line| line.trim() == entry) {
+        return Ok(false);
+    }
+
+    let mut content = existing;
+    if !content.is_empty() && !content.ends_with('\n') {
+        content.push('\n');
+    }
+    content.push_str(&format!("\n# spec-sync hash cache (regenerated locally)\n{entry}\n"));
+
+    fs::write(&gitignore_path, content)
+        .map_err(|e| format!("Failed to update .gitignore: {e}"))?;
+    Ok(true)
 }

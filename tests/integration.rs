@@ -3839,17 +3839,24 @@ fn migrate_full_v3_to_v4() {
         gitignore.contains("backup-3x/"),
         "gitignore should ignore backup-3x"
     );
-    // archive/ and hashes.json should not be gitignored (they're part of the v4 lifecycle)
+    // archive/ should not be gitignored (part of the v4 lifecycle)
     let archive_is_ignored = gitignore
         .lines()
         .any(|line| !line.starts_with('#') && line.trim() == "archive/");
     assert!(!archive_is_ignored, "gitignore should NOT ignore archive");
+    // hashes.json SHOULD be gitignored (local-only cache, regenerated on each run)
     let hashes_is_ignored = gitignore
         .lines()
         .any(|line| !line.starts_with('#') && line.trim() == "hashes.json");
     assert!(
-        !hashes_is_ignored,
-        "gitignore should NOT ignore hashes.json"
+        hashes_is_ignored,
+        "gitignore SHOULD ignore hashes.json"
+    );
+    // Also check root .gitignore has .specsync/hashes.json
+    let root_gitignore = fs::read_to_string(root.join(".gitignore")).unwrap_or_default();
+    assert!(
+        root_gitignore.contains(".specsync/hashes.json"),
+        "root .gitignore should contain .specsync/hashes.json"
     );
 }
 

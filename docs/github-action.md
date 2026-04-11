@@ -87,7 +87,7 @@ jobs:
 ```
 
 **How it works:**
-- Runs `specsync check` as normal
+- Runs `specsync check --force` (always validates all specs — the hash cache is not committed to git)
 - If `comment: 'true'`, also runs `specsync diff --format markdown`
 - Posts the markdown output as a PR comment (or updates an existing SpecSync comment)
 - Requires `pull-requests: write` permission and the `pull_request` event trigger

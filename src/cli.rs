@@ -269,6 +269,8 @@ pub enum Command {
         #[arg(value_name = "RANGE")]
         range: String,
     },
+    /// Regenerate the hash cache for all specs (useful after git pull or manual edits)
+    Rehash,
     /// Migrate a spec-sync project from v3.x to v4.0.0
     Migrate {
         /// Preview migration without writing any files

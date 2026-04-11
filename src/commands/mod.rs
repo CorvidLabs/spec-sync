@@ -16,6 +16,7 @@ pub mod lifecycle;
 pub mod merge;
 pub mod migrate;
 pub mod new;
+pub mod rehash;
 pub mod report;
 pub mod resolve;
 pub mod rules;

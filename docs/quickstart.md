@@ -44,7 +44,7 @@ Navigate to your project root and run:
 specsync init
 ```
 
-This creates `.specsync/config.toml` with auto-detected source directories. The config looks like:
+This creates `.specsync/config.toml` with auto-detected source directories and adds `.specsync/hashes.json` to your `.gitignore` (the hash cache is a local-only optimization). The config looks like:
 
 ```toml
 specs_dir = "specs"

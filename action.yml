@@ -138,7 +138,9 @@ runs:
       run: |
         set -euo pipefail
 
-        CMD="specsync check"
+        # Always use --force in CI — hash cache is not committed, so
+        # every CI run validates all specs from scratch.
+        CMD="specsync check --force"
 
         if [ "$INPUT_STRICT" = "true" ]; then
           CMD="$CMD --strict"

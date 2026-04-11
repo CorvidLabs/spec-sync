@@ -2798,6 +2798,91 @@ fn diff_human_readable_output() {
         .stdout(predicate::str::contains("signup"));
 }
 
+#[test]
+fn diff_detects_spec_file_only_changes() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.name", "Test"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+
+    std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["commit", "-m", "initial"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+
+    // Modify ONLY the spec file — no source file changes
+    let updated_spec = valid_spec("auth", &["src/auth/service.ts"]).replace(
+        "This module does something.",
+        "Updated auth module description.",
+    );
+    fs::write(root.join("specs/auth/auth.spec.md"), &updated_spec).unwrap();
+
+    // diff should detect the spec was modified even though no source files changed
+    let output = specsync()
+        .args([
+            "diff",
+            "--base",
+            "HEAD",
+            "--root",
+            root.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("auth"),
+        "Expected diff to report the auth spec when only the spec file changed. Got:\n{stdout}"
+    );
+
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let changes = json["changes"].as_array().unwrap();
+    assert_eq!(changes.len(), 1, "Expected exactly 1 change entry");
+    assert_eq!(changes[0]["spec_modified"], true);
+    assert!(
+        changes[0]["changed_files"].as_array().unwrap().is_empty(),
+        "No source files should have changed"
+    );
+}
+
 // ─── Wildcard Re-export Integration Tests ───────────────────────────────
 
 #[test]

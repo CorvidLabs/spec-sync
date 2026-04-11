@@ -132,7 +132,7 @@ pub fn print_check_markdown(
 /// Print diff results as markdown. Each entry is (spec, changed_files, new_exports, removed_exports).
 #[allow(clippy::type_complexity)]
 pub fn print_diff_markdown(
-    entries: &[(String, Vec<String>, Vec<String>, Vec<String>)],
+    entries: &[(String, Vec<String>, Vec<String>, Vec<String>, bool)],
     changed_files: &std::collections::HashSet<String>,
     spec_files: &[std::path::PathBuf],
     _root: &std::path::Path,
@@ -172,7 +172,7 @@ pub fn print_diff_markdown(
 
     let has_drift = entries
         .iter()
-        .any(|(_, _, new, removed)| !new.is_empty() || !removed.is_empty());
+        .any(|(_, _, new, removed, _)| !new.is_empty() || !removed.is_empty());
 
     if has_drift {
         println!(
@@ -183,16 +183,21 @@ pub fn print_diff_markdown(
         println!("All specs are up to date with source code.\n");
     }
 
-    for (spec, files, new_exports, removed_exports) in entries {
+    for (spec, files, new_exports, removed_exports, spec_modified) in entries {
         println!("### `{spec}`\n");
-        println!(
-            "**Changed files:** {}\n",
-            files
-                .iter()
-                .map(|f| format!("`{f}`"))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
+        if *spec_modified {
+            println!("**Spec file modified in this PR.**\n");
+        }
+        if !files.is_empty() {
+            println!(
+                "**Changed source files:** {}\n",
+                files
+                    .iter()
+                    .map(|f| format!("`{f}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        }
 
         if !new_exports.is_empty() || !removed_exports.is_empty() {
             println!("| Change | Export |");

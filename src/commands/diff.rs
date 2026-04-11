@@ -60,6 +60,7 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
         changed_files: Vec<String>,
         new_exports: Vec<String>,
         removed_exports: Vec<String>,
+        spec_itself_changed: bool,
     }
 
     let mut entries: Vec<DiffEntry> = Vec::new();
@@ -89,7 +90,9 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
             .cloned()
             .collect();
 
-        if affected_files.is_empty() {
+        let spec_itself_changed = changed_files.contains(&spec_rel);
+
+        if affected_files.is_empty() && !spec_itself_changed {
             continue;
         }
 
@@ -126,6 +129,7 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
             changed_files: affected_files,
             new_exports,
             removed_exports,
+            spec_itself_changed,
         });
     }
 
@@ -139,6 +143,7 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
                         "changed_files": e.changed_files,
                         "new_exports": e.new_exports,
                         "removed_exports": e.removed_exports,
+                        "spec_modified": e.spec_itself_changed,
                     })
                 })
                 .collect();
@@ -147,7 +152,7 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
         }
         types::OutputFormat::Markdown | types::OutputFormat::Github => {
             #[allow(clippy::type_complexity)]
-            let tuples: Vec<(String, Vec<String>, Vec<String>, Vec<String>)> = entries
+            let tuples: Vec<(String, Vec<String>, Vec<String>, Vec<String>, bool)> = entries
                 .iter()
                 .map(|e| {
                     (
@@ -155,6 +160,7 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
                         e.changed_files.clone(),
                         e.new_exports.clone(),
                         e.removed_exports.clone(),
+                        e.spec_itself_changed,
                     )
                 })
                 .collect();
@@ -163,7 +169,12 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
         types::OutputFormat::Text | types::OutputFormat::Table | types::OutputFormat::Csv => {
             for entry in &entries {
                 println!("\n{}", entry.spec.bold());
-                println!("  Changed files: {}", entry.changed_files.join(", "));
+                if entry.spec_itself_changed {
+                    println!("  {} Spec file modified in this PR", "~".cyan());
+                }
+                if !entry.changed_files.is_empty() {
+                    println!("  Changed files: {}", entry.changed_files.join(", "));
+                }
                 if !entry.new_exports.is_empty() {
                     println!(
                         "  {} New exports (not in spec): {}",

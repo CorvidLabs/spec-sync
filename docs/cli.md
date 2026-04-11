@@ -298,7 +298,7 @@ specsync rules                             # show all rules and their configurat
 
 ### `lifecycle`
 
-Manage spec status transitions. Supports `promote`, `demote`, `set`, and `status` subcommands.
+Manage spec status transitions. Supports `promote`, `demote`, `set`, `status`, `history`, and `guard` subcommands.
 
 ```bash
 specsync lifecycle status                  # show status of all specs
@@ -307,6 +307,9 @@ specsync lifecycle promote auth            # advance: draft → review → activ
 specsync lifecycle demote auth             # step back one status level
 specsync lifecycle set auth deprecated     # jump to any status
 specsync lifecycle set auth review --force # skip transition validation
+specsync lifecycle history auth            # view transition audit log
+specsync lifecycle guard auth              # dry-run: check all valid transitions
+specsync lifecycle guard auth active       # dry-run: check specific transition
 ```
 
 **Transition rules:**
@@ -314,8 +317,18 @@ specsync lifecycle set auth review --force # skip transition validation
 - `demote` steps back one level
 - `set` allows jumping to any status, with validation that the transition is sensible
 - Any non-terminal status can jump directly to `deprecated`
-- Use `--force` to override transition validation
+- Use `--force` to override both transition validation and guards
 - Supports `--format json` for machine-readable output
+
+**Transition guards:**
+- Configure in `specsync.json` under `lifecycle.guards` (see [Configuration](../README.md#lifecycle-guards))
+- Guards can require minimum score, required sections, or no-stale status
+- Use `lifecycle guard` to dry-run guard checks without changing status
+- Blocked transitions show which guards failed and why
+
+**Transition history:**
+- When `lifecycle.trackHistory` is enabled (default), transitions are recorded in frontmatter `lifecycle_log`
+- Use `lifecycle history <spec>` to view the full audit trail
 
 ### `diff`
 

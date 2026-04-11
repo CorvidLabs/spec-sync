@@ -325,6 +325,8 @@ pub struct Frontmatter {
     pub implements: Vec<u64>,
     /// GitHub issue numbers for ongoing/epic-style tracking.
     pub tracks: Vec<u64>,
+    /// Lifecycle transition history log entries (e.g. "2026-04-11: draft → review").
+    pub lifecycle_log: Vec<String>,
 }
 
 impl Frontmatter {
@@ -508,6 +510,51 @@ pub struct SpecSyncConfig {
     /// - `strict`: exit 1 on any validation error.
     #[serde(default)]
     pub enforcement: EnforcementMode,
+
+    /// Lifecycle transition guards — configurable rules that must pass before
+    /// a spec can be promoted/transitioned.
+    #[serde(default)]
+    pub lifecycle: LifecycleConfig,
+}
+
+/// Lifecycle configuration for transition guards and history tracking.
+#[derive(Debug, Default, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LifecycleConfig {
+    /// Transition guard rules keyed by "from→to" (e.g. "review→active").
+    /// Use "*→<status>" to apply to all transitions into a status.
+    #[serde(default)]
+    pub guards: std::collections::HashMap<String, TransitionGuard>,
+
+    /// Whether to record transitions in spec frontmatter (default: true).
+    #[serde(default = "default_true")]
+    pub track_history: bool,
+}
+
+/// A transition guard — conditions that must be satisfied before a lifecycle
+/// transition is allowed.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransitionGuard {
+    /// Minimum spec quality score (0-100) required.
+    #[serde(default)]
+    pub min_score: Option<u32>,
+
+    /// Sections that must exist and have non-empty content.
+    #[serde(default)]
+    pub require_sections: Vec<String>,
+
+    /// Spec must not be stale (source files changed since spec was last updated).
+    #[serde(default)]
+    pub no_stale: Option<bool>,
+
+    /// Maximum staleness threshold (commits behind) — only used when no_stale is true.
+    #[serde(default)]
+    pub stale_threshold: Option<usize>,
+
+    /// Custom message shown when the guard blocks a transition.
+    #[serde(default)]
+    pub message: Option<String>,
 }
 
 /// GitHub integration configuration for linking specs to issues.
@@ -790,6 +837,7 @@ impl Default for SpecSyncConfig {
             task_archive_days: None,
             github: None,
             enforcement: EnforcementMode::default(),
+            lifecycle: LifecycleConfig::default(),
         }
     }
 }

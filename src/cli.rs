@@ -309,6 +309,18 @@ pub enum LifecycleAction {
         /// Specific spec to show (shows all if omitted)
         spec: Option<String>,
     },
+    /// Show transition history for a spec
+    History {
+        /// Spec to show history for (module name, filename, or path)
+        spec: String,
+    },
+    /// Dry-run guard evaluation — check if a transition would pass guards
+    Guard {
+        /// Spec to check (module name, filename, or path)
+        spec: String,
+        /// Target status to check (checks all valid transitions if omitted)
+        target: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]

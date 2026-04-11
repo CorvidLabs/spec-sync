@@ -132,6 +132,8 @@ specsync stale                             # Find specs that haven't kept up wit
 specsync rules                             # Show configured validation rules
 specsync lifecycle status                  # Show lifecycle status of all specs
 specsync lifecycle promote auth            # Advance auth spec to next status
+specsync lifecycle history auth            # View transition history for a spec
+specsync lifecycle guard auth              # Dry-run: check if guards would pass
 specsync hooks install                    # Install agent instructions + git hooks
 specsync hooks status                     # Check what's installed
 specsync mcp                               # Start MCP server for AI agent integration
@@ -307,6 +309,8 @@ specsync [command] [flags]
 | `lifecycle demote <spec>` | Step back one status level |
 | `lifecycle set <spec> <status>` | Set spec to any status (with transition validation) |
 | `lifecycle status [spec]` | Show lifecycle status of one or all specs |
+| `lifecycle history <spec>` | Show transition history (audit log) for a spec |
+| `lifecycle guard <spec> [target]` | Dry-run guard evaluation — check if transition would pass |
 | `issues` | Verify GitHub issue references in spec frontmatter. `--create` to create missing issues |
 | `hooks` | Install/uninstall agent instructions and git hooks (`install`, `uninstall`, `status`) |
 | `mcp` | Start MCP server for AI agent integration (Claude Code, Cursor, etc.) |
@@ -609,6 +613,53 @@ ai_timeout = 120
 
 Config resolution order: `specsync.json` → `.specsync.toml` → defaults with auto-detected source dirs.
 
+### Lifecycle Guards
+
+Configure transition guards in `specsync.json` to enforce quality gates before specs can be promoted:
+
+```json
+{
+  "lifecycle": {
+    "trackHistory": true,
+    "guards": {
+      "review→active": {
+        "minScore": 70,
+        "requireSections": ["Public API", "Invariants"]
+      },
+      "active→stable": {
+        "minScore": 85,
+        "noStale": true,
+        "requireSections": ["Public API", "Behavioral Examples", "Error Cases"]
+      },
+      "*→stable": {
+        "minScore": 85,
+        "message": "Stable specs require high quality scores"
+      }
+    }
+  }
+}
+```
+
+| Guard Option | Type | Description |
+|-------------|------|-------------|
+| `minScore` | `number?` | Minimum spec quality score (0-100) required |
+| `requireSections` | `string[]` | Sections that must exist with non-empty content |
+| `noStale` | `bool?` | Spec must not be stale (source files ahead of spec) |
+| `staleThreshold` | `number?` | Max commits behind when `noStale` is true (default: 5) |
+| `message` | `string?` | Custom message shown when guard blocks transition |
+
+Guard keys use `"from→to"` format (e.g., `"review→active"`) or `"*→to"` for wildcard. ASCII arrows (`->`) also work.
+
+When `trackHistory` is enabled (default: `true`), every status transition is recorded in the spec's frontmatter:
+
+```yaml
+lifecycle_log:
+  - "2026-04-11: draft → review"
+  - "2026-04-12: review → active"
+```
+
+Use `specsync lifecycle guard <spec>` to dry-run guard evaluation without making changes.
+
 ---
 
 ## Spec Generation
@@ -718,7 +769,7 @@ src/
 ├── hash_cache.rs      Incremental validation via content hashing
 ├── hooks.rs           Agent instruction + git hook management
 ├── importer.rs        External importers (GitHub Issues, Jira, Confluence)
-├── lifecycle.rs       Spec status transitions (promote, demote, set, status)
+├── lifecycle.rs       Spec status transitions (promote, demote, set, status, history, guard)
 ├── manifest.rs        Package manifest parsing (Cargo.toml, package.json, etc.)
 ├── mcp.rs             MCP server for AI agent integration (JSON-RPC stdio)
 ├── merge.rs           Auto-resolve merge conflicts in spec files

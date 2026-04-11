@@ -269,6 +269,15 @@ pub enum Command {
         #[arg(value_name = "RANGE")]
         range: String,
     },
+    /// Migrate a spec-sync project from v3.x to v4.0.0
+    Migrate {
+        /// Preview migration without writing any files
+        #[arg(long)]
+        dry_run: bool,
+        /// Skip backup creation (not recommended)
+        #[arg(long)]
+        no_backup: bool,
+    },
     /// Manage spec lifecycle statuses (promote, demote, set, status)
     Lifecycle {
         #[command(subcommand)]

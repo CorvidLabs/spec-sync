@@ -14,6 +14,7 @@ pub mod init_registry;
 pub mod issues;
 pub mod lifecycle;
 pub mod merge;
+pub mod migrate;
 pub mod new;
 pub mod report;
 pub mod resolve;

@@ -471,10 +471,10 @@ pub fn validate_spec(
         };
         if has_inline_requirements {
             result.warnings.push(
-                "Requirements appear inline in the spec body — move to a companion requirements.md file".to_string()
+                "Inline requirements detected — specs are technical contracts; user stories and acceptance criteria belong in a companion requirements.md file".to_string()
             );
             result.fixes.push(
-                "Create a requirements.md alongside the spec with ## User Stories and ## Acceptance Criteria sections".to_string()
+                "Run `specsync add-spec <name>` to scaffold requirements.md, then move ## Requirements / ## Acceptance Criteria content there".to_string()
             );
         }
 
@@ -483,7 +483,7 @@ pub fn validate_spec(
             let req_path = parent.join("requirements.md");
             if !req_path.exists() {
                 result.warnings.push(
-                    "Missing companion requirements.md — run `specsync generate` or create one manually".to_string()
+                    "Missing companion requirements.md — run `specsync add-spec <name>` or `specsync generate` to scaffold one".to_string()
                 );
             }
         }

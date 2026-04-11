@@ -82,6 +82,8 @@ Creates `specs/auth/` with four files:
 
 The spec file is the only one SpecSync validates against code. The companion files provide structured context for humans and AI agents working on the module.
 
+> **Convention:** Requirements (user stories, acceptance criteria) belong in `requirements.md`, not as inline sections in the spec. Non-draft specs with inline `## Requirements` or `## Acceptance Criteria` sections will produce a warning.
+
 ### Option B: Scaffold all unspecced modules
 
 ```bash

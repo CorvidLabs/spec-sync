@@ -164,6 +164,8 @@ Every spec must include these `##` sections (configurable in `specsync.json`):
 
 Purpose, Public API, Invariants, Behavioral Examples, Error Cases, Dependencies, Change Log
 
+> **Note:** Requirements (user stories, acceptance criteria) belong in a companion `requirements.md` file, not inline in the spec. Specs are technical contracts; requirements are product intent. See [Companion Files](#companion-files) below.
+
 ### Public API Tables
 
 SpecSync extracts the first backtick-quoted name per row and cross-references it against code exports:
@@ -378,6 +380,8 @@ When you run `specsync generate` or `specsync add-spec`, three companion files a
 | `requirements.md` | Product/Design | No | The ask, acceptance criteria |
 
 All scaffolded by SpecSync, all human-filled. Only the spec gets bidirectional validation.
+
+> **Convention:** Requirements (user stories, acceptance criteria) must live in `requirements.md`, not as inline `## Requirements` sections inside the spec. Specs define the *technical contract*; requirements capture *product intent*. Inline requirements in non-draft specs produce a warning prompting you to move them to the companion file.
 
 **`requirements.md`** — Product requirements and acceptance criteria:
 

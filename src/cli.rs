@@ -88,7 +88,7 @@ pub enum Command {
     Watch,
     /// Run as an MCP (Model Context Protocol) server over stdio
     Mcp,
-    /// Scaffold a new spec with companion files (tasks.md, context.md)
+    /// Scaffold a new spec with companion files (requirements.md, tasks.md, context.md)
     AddSpec {
         /// Module name for the new spec
         name: String,

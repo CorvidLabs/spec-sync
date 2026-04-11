@@ -199,13 +199,13 @@ mod tests {
     fn test_classify_requirements_companion() {
         assert_eq!(
             WarningCategory::classify(
-                "Missing companion requirements.md — run `specsync generate` or create one manually"
+                "Missing companion requirements.md — run `specsync add-spec <name>` or `specsync generate` to scaffold one"
             ),
             Some(WarningCategory::RequirementsCompanion)
         );
         assert_eq!(
             WarningCategory::classify(
-                "Requirements appear inline in the spec body — move to a companion requirements.md file"
+                "Inline requirements detected — specs are technical contracts; user stories and acceptance criteria belong in a companion requirements.md file"
             ),
             Some(WarningCategory::RequirementsCompanion)
         );
@@ -286,7 +286,7 @@ mod tests {
 
         let inline = HashSet::new();
         assert!(rules.is_suppressed(
-            "Missing companion requirements.md — run `specsync generate`",
+            "Missing companion requirements.md — run `specsync add-spec <name>` or `specsync generate` to scaffold one",
             "specs/auth/auth.spec.md",
             &inline,
         ));

@@ -588,7 +588,6 @@ Create `specsync.json` or `.specsync.toml` in your project root (or run `specsyn
   "excludeDirs": ["__tests__"],
   "excludePatterns": ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"],
   "sourceExtensions": [],
-  "aiCommand": "claude -p --output-format text",
   "aiTimeout": 120
 }
 ```
@@ -603,8 +602,8 @@ Create `specsync.json` or `.specsync.toml` in your project root (or run `specsyn
 | `excludeDirs` | `string[]` | `["__tests__"]` | Directories excluded from coverage |
 | `excludePatterns` | `string[]` | Common test globs | File patterns excluded from coverage |
 | `sourceExtensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |
-| `aiCommand` | `string?` | `claude -p ...` | Command for `generate --provider command` (reads stdin prompt, writes stdout markdown) |
-| `aiProvider` | `string?` | — | Default AI provider (`auto`, `claude`, `anthropic`, `openai`, `ollama`) |
+| `aiCommand` | `string?` | — | Custom command for AI generation (reads stdin prompt, writes stdout markdown) |
+| `aiProvider` | `string?` | — | AI provider (`auto`, `claude`, `anthropic`, `openai`, `ollama`, `copilot`, etc.) |
 | `aiTimeout` | `number?` | `120` | Seconds before AI command times out per module |
 
 ### TOML alternative
@@ -614,11 +613,22 @@ Create `specsync.json` or `.specsync.toml` in your project root (or run `specsyn
 specs_dir = "specs"
 source_dirs = ["src", "lib"]
 required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
-ai_provider = "claude"
 ai_timeout = 120
 ```
 
 Config resolution order: `.specsync/config.toml` → `.specsync/config.json` → `.specsync.toml` → `specsync.json` → defaults with auto-detected source dirs.
+
+### Per-developer AI config
+
+On multi-agent teams, each contributor may use a different AI provider. To avoid conflicts in the shared config, create a **local override file**:
+
+```toml
+# .specsync/config.local.toml (gitignored automatically)
+ai_provider = "ollama"
+ai_model = "llama3"
+```
+
+This file is merged on top of the shared config and only supports `ai_*` keys. Alternatively, set the `SPECSYNC_AI_COMMAND` env var or pass `--provider` on the CLI.
 
 ### Lifecycle Guards
 

@@ -174,10 +174,10 @@ fn resolve_api_provider(
 ///
 /// Resolution order:
 /// 1. `--provider` CLI flag (passed as `cli_provider`)
-/// 2. `aiCommand` in config (explicit override always wins)
+/// 2. `aiCommand` in config — includes `.specsync/config.local.toml` overrides
 /// 3. `aiProvider` in config (resolved to CLI command or API)
 /// 4. `SPECSYNC_AI_COMMAND` env var
-/// 5. Auto-detect installed CLIs, then check for API keys
+/// 5. Auto-detect installed CLIs (alphabetical), then check for API keys
 pub fn resolve_ai_provider(
     config: &SpecSyncConfig,
     cli_provider: Option<&str>,

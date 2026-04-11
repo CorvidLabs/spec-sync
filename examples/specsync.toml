@@ -28,11 +28,11 @@ exclude_dirs = ["__tests__", "fixtures"]
 exclude_patterns = ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"]
 
 # AI provider for `specsync generate --provider <name>`
-# Options: auto, anthropic, openai, command
-# ai_provider = "claude"
+# Options: auto, claude, anthropic, openai, ollama, copilot, gemini, deepseek, groq, mistral, xai, together
+# ai_provider = "auto"
 
 # AI model override (optional)
-# ai_model = "claude-sonnet-4-20250514"
+# ai_model = "gpt-4o"
 
 # Timeout in seconds for AI generation (default: 120)
 # ai_timeout = 120

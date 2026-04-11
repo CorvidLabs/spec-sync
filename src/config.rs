@@ -162,31 +162,94 @@ pub fn load_config_from_path(config_path: &Path, root: &Path) -> SpecSyncConfig 
 /// 2. `.specsync/config.json` (v4 JSON — pre-TOML migration)
 /// 3. `.specsync.toml` (legacy root TOML)
 /// 4. `specsync.json` (legacy root JSON)
+///
+/// After loading the shared config, `.specsync/config.local.toml` is merged
+/// on top (if it exists). This file is gitignored and holds per-developer
+/// overrides — particularly `ai_provider`, `ai_command`, and `ai_model` —
+/// so contributors using different AI agents don't conflict.
 pub fn load_config(root: &Path) -> SpecSyncConfig {
     let v4_toml = root.join(".specsync/config.toml");
     let v4_json = root.join(".specsync/config.json");
     let legacy_toml = root.join(".specsync.toml");
     let legacy_json = root.join("specsync.json");
 
-    if v4_toml.exists() {
-        return load_toml_config(&v4_toml, root);
+    let mut config = if v4_toml.exists() {
+        load_toml_config(&v4_toml, root)
+    } else if v4_json.exists() {
+        load_json_config(&v4_json, root)
+    } else if legacy_toml.exists() {
+        load_toml_config(&legacy_toml, root)
+    } else if legacy_json.exists() {
+        load_json_config(&legacy_json, root)
+    } else {
+        SpecSyncConfig {
+            source_dirs: detect_source_dirs(root),
+            ..Default::default()
+        }
+    };
+
+    // Merge local overrides (gitignored, per-developer config)
+    let local_toml = root.join(".specsync/config.local.toml");
+    if local_toml.exists() {
+        merge_local_config(&local_toml, &mut config);
     }
 
-    if v4_json.exists() {
-        return load_json_config(&v4_json, root);
-    }
+    config
+}
 
-    if legacy_toml.exists() {
-        return load_toml_config(&legacy_toml, root);
-    }
+/// Merge a local config file on top of an existing config.
+/// Only fields explicitly set in the local file override the shared config.
+/// This lets each developer set their own `ai_provider`, `ai_command`, etc.
+/// without conflicting in the shared `config.toml`.
+fn merge_local_config(local_path: &Path, config: &mut SpecSyncConfig) {
+    let content = match fs::read_to_string(local_path) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
 
-    if legacy_json.exists() {
-        return load_json_config(&legacy_json, root);
-    }
+    let mut current_section: Option<String> = None;
 
-    SpecSyncConfig {
-        source_dirs: detect_source_dirs(root),
-        ..Default::default()
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        if line.starts_with('[') && line.ends_with(']') {
+            current_section = Some(line[1..line.len() - 1].trim().to_string());
+            continue;
+        }
+
+        if let Some(eq_pos) = line.find('=') {
+            let key = line[..eq_pos].trim();
+            let value = line[eq_pos + 1..].trim();
+
+            // Skip section-specific keys in local config (only top-level AI fields make sense)
+            if current_section.is_some() {
+                continue;
+            }
+
+            match key {
+                "ai_provider" => {
+                    let s = parse_toml_string(value);
+                    config.ai_provider = crate::types::AiProvider::from_str_loose(&s);
+                }
+                "ai_model" => config.ai_model = Some(parse_toml_string(value)),
+                "ai_command" => config.ai_command = Some(parse_toml_string(value)),
+                "ai_api_key" => config.ai_api_key = Some(parse_toml_string(value)),
+                "ai_base_url" => config.ai_base_url = Some(parse_toml_string(value)),
+                "ai_timeout" => {
+                    if let Ok(n) = value.trim().parse::<u64>() {
+                        config.ai_timeout = Some(n);
+                    }
+                }
+                _ => {
+                    eprintln!(
+                        "Warning: unknown key \"{key}\" in config.local.toml (only ai_* keys are supported)"
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -1097,6 +1160,94 @@ verify_issues = false
 
         let dirs = detect_source_dirs(tmp.path());
         assert_eq!(dirs, vec!["."]);
+    }
+
+    // --- config.local.toml merging ---
+
+    #[test]
+    fn test_local_config_overrides_ai_provider() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\nai_provider = \"claude\"\n",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.local.toml"),
+            "ai_provider = \"ollama\"\nai_model = \"llama3\"\n",
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert!(matches!(
+            config.ai_provider,
+            Some(crate::types::AiProvider::Ollama)
+        ));
+        assert_eq!(config.ai_model.as_deref(), Some("llama3"));
+        // Non-AI fields unchanged
+        assert_eq!(config.specs_dir, "specs");
+    }
+
+    #[test]
+    fn test_local_config_overrides_ai_command() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.local.toml"),
+            "ai_command = \"my-custom-agent --prompt\"\n",
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert_eq!(
+            config.ai_command.as_deref(),
+            Some("my-custom-agent --prompt")
+        );
+    }
+
+    #[test]
+    fn test_local_config_missing_is_fine() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\nai_provider = \"claude\"\n",
+        )
+        .unwrap();
+        // No config.local.toml — should load normally
+        let config = load_config(tmp.path());
+        assert!(matches!(
+            config.ai_provider,
+            Some(crate::types::AiProvider::Claude)
+        ));
+    }
+
+    #[test]
+    fn test_local_config_works_with_legacy_json() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join("specsync.json"),
+            r#"{"specsDir": "specs", "sourceDirs": ["src"], "aiProvider": "anthropic"}"#,
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.local.toml"),
+            "ai_provider = \"openai\"\n",
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert!(matches!(
+            config.ai_provider,
+            Some(crate::types::AiProvider::OpenAi)
+        ));
     }
 
     // --- default_schema_pattern ---

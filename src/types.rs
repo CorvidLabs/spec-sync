@@ -148,23 +148,24 @@ impl AiProvider {
         }
     }
 
-    /// All providers that can be auto-detected, in preference order.
-    /// CLI providers first, then API providers (checked via env vars).
+    /// All providers that can be auto-detected, in alphabetical order within
+    /// each category. CLI providers are checked first (binary detection),
+    /// then API providers (env var detection). No vendor preference.
     pub fn detection_order() -> &'static [AiProvider] {
         &[
-            // CLI providers (binary detection)
+            // CLI providers (binary detection) — alphabetical
             AiProvider::Claude,
-            AiProvider::Ollama,
             AiProvider::Copilot,
-            // API providers (env var detection)
+            AiProvider::Ollama,
+            // API providers (env var detection) — alphabetical
             AiProvider::Anthropic,
-            AiProvider::OpenAi,
-            AiProvider::Gemini,
             AiProvider::DeepSeek,
+            AiProvider::Gemini,
             AiProvider::Groq,
             AiProvider::Mistral,
-            AiProvider::XAi,
+            AiProvider::OpenAi,
             AiProvider::Together,
+            AiProvider::XAi,
         ]
     }
 }

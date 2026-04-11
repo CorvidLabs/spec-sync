@@ -127,10 +127,12 @@ Config resolution order: `specsync.json` → `specsync.toml` → defaults.
 When you run `specsync generate --provider auto`, the provider is resolved in this order:
 
 1. `--provider` CLI flag (explicit)
-2. `aiCommand` in config (custom command always wins)
-3. `aiProvider` in config (resolved to CLI or API)
+2. `aiCommand` in config — checked in shared config first, then `.specsync/config.local.toml` (gitignored, per-developer overrides)
+3. `aiProvider` in config (same merge order as above)
 4. `SPECSYNC_AI_COMMAND` env var
-5. Auto-detect: installed CLIs first (`claude`, `ollama`, `copilot`), then API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)
+5. Auto-detect: installed CLIs (`claude`, `copilot`, `ollama` — alphabetical), then API keys
+
+> **Multi-agent teams**: Don't put `ai_provider` or `ai_command` in the shared `config.toml`. Instead, each contributor creates `.specsync/config.local.toml` with their preferred AI settings. This file is automatically gitignored.
 
 ### API Providers
 

@@ -32,7 +32,7 @@ use clap::Parser;
 use colored::Colorize;
 use std::process;
 
-use cli::{Cli, Command};
+use cli::{Cli, Command, LifecycleAction};
 
 fn main() {
     let result = std::panic::catch_unwind(run);
@@ -195,6 +195,22 @@ fn run() {
         Command::Comment { pr, base } => commands::comment::cmd_comment(&root, pr, &base),
         Command::Rules => commands::rules::cmd_rules(&root),
         Command::Changelog { range } => commands::changelog::cmd_changelog(&root, &range, format),
+        Command::Lifecycle { action } => match action {
+            LifecycleAction::Promote { spec, force } => {
+                commands::lifecycle::cmd_promote(&root, &spec, format, force)
+            }
+            LifecycleAction::Demote { spec, force } => {
+                commands::lifecycle::cmd_demote(&root, &spec, format, force)
+            }
+            LifecycleAction::Set {
+                spec,
+                status,
+                force,
+            } => commands::lifecycle::cmd_set(&root, &spec, &status, format, force),
+            LifecycleAction::Status { spec } => {
+                commands::lifecycle::cmd_status(&root, spec.as_deref(), format)
+            }
+        },
     }
 }
 

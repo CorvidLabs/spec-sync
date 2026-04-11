@@ -219,7 +219,7 @@ pub fn validate_spec(
     if spec_status == Some(crate::types::SpecStatus::Deprecated) {
         result
             .warnings
-            .push("Spec is deprecated — consider archiving with `specsync lifecycle archive`".to_string());
+            .push("Spec is deprecated — consider archiving with `specsync lifecycle promote <spec>` or `specsync lifecycle set <spec> archived`".to_string());
     }
 
     // Archived specs: skip all further validation

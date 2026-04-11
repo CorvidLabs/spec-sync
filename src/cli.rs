@@ -269,6 +269,46 @@ pub enum Command {
         #[arg(value_name = "RANGE")]
         range: String,
     },
+    /// Manage spec lifecycle statuses (promote, demote, set, status)
+    Lifecycle {
+        #[command(subcommand)]
+        action: LifecycleAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum LifecycleAction {
+    /// Advance a spec to the next lifecycle status
+    Promote {
+        /// Spec to promote (module name, filename, or path)
+        spec: String,
+        /// Skip transition validation
+        #[arg(long)]
+        force: bool,
+    },
+    /// Move a spec back to the previous lifecycle status
+    Demote {
+        /// Spec to demote (module name, filename, or path)
+        spec: String,
+        /// Skip transition validation
+        #[arg(long)]
+        force: bool,
+    },
+    /// Set a spec to a specific lifecycle status
+    Set {
+        /// Spec to update (module name, filename, or path)
+        spec: String,
+        /// Target status (draft, review, active, stable, deprecated, archived)
+        status: String,
+        /// Skip transition validation
+        #[arg(long)]
+        force: bool,
+    },
+    /// Show lifecycle status of specs (all or filtered)
+    Status {
+        /// Specific spec to show (shows all if omitted)
+        spec: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]

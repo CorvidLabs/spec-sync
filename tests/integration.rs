@@ -3847,10 +3847,7 @@ fn migrate_full_v3_to_v4() {
     let archive_is_ignored = gitignore
         .lines()
         .any(|line| !line.starts_with('#') && line.trim() == "archive/");
-    assert!(
-        !archive_is_ignored,
-        "gitignore should NOT ignore archive"
-    );
+    assert!(!archive_is_ignored, "gitignore should NOT ignore archive");
 }
 
 #[test]

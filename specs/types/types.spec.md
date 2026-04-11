@@ -25,7 +25,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `Language` | Detected source language for export extraction: TypeScript, Rust, Go, Python, Swift, Kotlin, Java, CSharp, Dart, Php, Ruby |
 | `OutputFormat` | CLI output format: Text (colored terminal, default), Json (machine-readable), Markdown (PR comments / agent consumption) |
 | `ExportLevel` | Export extraction granularity: Type (top-level declarations only) or Member (all public symbols, default) |
-| `SpecStatus` | Spec lifecycle status: draft, stable, deprecated. Parsed from frontmatter `status` field |
+| `SpecStatus` | Spec lifecycle status: draft, review, active, stable, deprecated, archived. Parsed from frontmatter `status` field |
 | `EnforcementMode` | Graduated enforcement level: Warn (always exit 0), EnforceNew (exit 1 for unspecced files), Strict (exit 1 on any error) |
 | `CustomRuleType` | Type of a declarative custom validation rule: RequireSection, MinWordCount, RequirePattern, ForbidPattern |
 | `RuleSeverity` | Severity level for custom rules: Error, Warning (default), Info |
@@ -70,6 +70,12 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 |----------|-----------|---------|-------------|
 | `as_str` | `&self` | `&str` | String representation of the status |
 | `parsed_status` | `s: &str` | `Option<Self>` | Parse status string into SpecStatus enum |
+| `all` | — | `&[Self]` | Returns all status variants in lifecycle order |
+| `ordinal` | `&self` | `usize` | Numeric position in lifecycle order (0=draft, 5=archived) |
+| `next` | `&self` | `Option<Self>` | Next status in linear lifecycle (draft→review→active→stable), None at end |
+| `prev` | `&self` | `Option<Self>` | Previous status in linear lifecycle, None at start |
+| `valid_transitions` | `&self` | `Vec<Self>` | All valid target statuses from current (next, prev, deprecated) |
+| `can_transition_to` | `&self, target: &Self` | `bool` | Whether transitioning to `target` is valid |
 
 ### Exported Language Functions
 
@@ -157,3 +163,4 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | 2026-04-06 | Add Frontmatter implements/tracks/agent_policy fields, ValidationRules, GitHubConfig structs |
 | 2026-04-07 | Document EnforcementMode enum |
 | 2026-04-10 | Document CustomRule, CustomRuleType, RuleSeverity, RuleFilter for declarative custom validation rules |
+| 2026-04-11 | Document SpecStatus lifecycle methods (all, ordinal, next, prev, valid_transitions, can_transition_to) |

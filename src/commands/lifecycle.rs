@@ -68,11 +68,7 @@ fn resolve_spec(root: &Path, spec_filter: &str) -> std::path::PathBuf {
     let (_, spec_files) = load_and_discover(root, false);
     let matched = filter_specs(root, &spec_files, &[spec_filter.to_string()]);
     if matched.is_empty() {
-        eprintln!(
-            "{} No spec matched: {}",
-            "error:".red().bold(),
-            spec_filter
-        );
+        eprintln!("{} No spec matched: {}", "error:".red().bold(), spec_filter);
         process::exit(1);
     }
     if matched.len() > 1 {
@@ -83,10 +79,7 @@ fn resolve_spec(root: &Path, spec_filter: &str) -> std::path::PathBuf {
             spec_filter
         );
         for m in &matched {
-            eprintln!(
-                "  {}",
-                m.strip_prefix(root).unwrap_or(m).display()
-            );
+            eprintln!("  {}", m.strip_prefix(root).unwrap_or(m).display());
         }
         process::exit(1);
     }
@@ -94,10 +87,7 @@ fn resolve_spec(root: &Path, spec_filter: &str) -> std::path::PathBuf {
 }
 
 /// Read a spec file and return its current status, content, and relative path.
-fn read_spec_status(
-    root: &Path,
-    spec_path: &Path,
-) -> (String, Option<SpecStatus>, String) {
+fn read_spec_status(root: &Path, spec_path: &Path) -> (String, Option<SpecStatus>, String) {
     let rel = spec_path
         .strip_prefix(root)
         .unwrap_or(spec_path)
@@ -112,8 +102,7 @@ fn read_spec_status(
         }
     };
 
-    let status = parser::parse_frontmatter(&content)
-        .and_then(|p| p.frontmatter.parsed_status());
+    let status = parser::parse_frontmatter(&content).and_then(|p| p.frontmatter.parsed_status());
 
     (content, status, rel)
 }
@@ -506,11 +495,7 @@ pub fn cmd_status(root: &Path, spec_filter: Option<&str>, format: OutputFormat) 
                     _ => label.red().bold().to_string(),
                 };
 
-                println!(
-                    "\n{} ({})",
-                    colored_label,
-                    paths.len()
-                );
+                println!("\n{} ({})", colored_label, paths.len());
                 for path in paths {
                     println!("  {path}");
                 }
@@ -521,7 +506,9 @@ pub fn cmd_status(root: &Path, spec_filter: Option<&str>, format: OutputFormat) 
             let summary: Vec<String> = SpecStatus::all()
                 .iter()
                 .filter_map(|s| {
-                    counts.get(s.as_str()).map(|c| format!("{}: {c}", s.as_str()))
+                    counts
+                        .get(s.as_str())
+                        .map(|c| format!("{}: {c}", s.as_str()))
                 })
                 .collect();
             println!("{} specs — {}", entries.len(), summary.join(", "));
@@ -744,7 +731,8 @@ mod tests {
 
     #[test]
     fn update_status_in_content_replaces_status_line() {
-        let content = "---\nmodule: foo\nversion: 1\nstatus: draft\nfiles:\n  - src/foo.rs\n---\n# Foo\n";
+        let content =
+            "---\nmodule: foo\nversion: 1\nstatus: draft\nfiles:\n  - src/foo.rs\n---\n# Foo\n";
         let result = update_status_in_content(content, "review").unwrap();
         assert!(result.contains("status: review"));
         assert!(!result.contains("status: draft"));

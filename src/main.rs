@@ -216,6 +216,21 @@ fn run() {
             LifecycleAction::Guard { spec, target } => {
                 commands::lifecycle::cmd_guard(&root, &spec, target.as_deref(), format)
             }
+            LifecycleAction::AutoPromote { dry_run } => {
+                commands::lifecycle::cmd_auto_promote(&root, format, dry_run)
+            }
+            LifecycleAction::Enforce {
+                require_status,
+                max_age,
+                allowed,
+                all,
+            } => commands::lifecycle::cmd_enforce(
+                &root,
+                format,
+                require_status || all,
+                max_age || all,
+                allowed || all,
+            ),
         },
     }
 }

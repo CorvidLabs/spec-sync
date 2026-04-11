@@ -298,7 +298,7 @@ specsync rules                             # show all rules and their configurat
 
 ### `lifecycle`
 
-Manage spec status transitions. Supports `promote`, `demote`, `set`, `status`, `history`, and `guard` subcommands.
+Manage spec status transitions. Supports `promote`, `demote`, `set`, `status`, `history`, `guard`, `auto-promote`, and `enforce` subcommands.
 
 ```bash
 specsync lifecycle status                  # show status of all specs
@@ -310,6 +310,12 @@ specsync lifecycle set auth review --force # skip transition validation
 specsync lifecycle history auth            # view transition audit log
 specsync lifecycle guard auth              # dry-run: check all valid transitions
 specsync lifecycle guard auth active       # dry-run: check specific transition
+specsync lifecycle auto-promote            # promote all specs that pass guards
+specsync lifecycle auto-promote --dry-run  # preview what would be promoted
+specsync lifecycle enforce --all           # CI mode: check all lifecycle rules
+specsync lifecycle enforce --require-status # require all specs to have a status field
+specsync lifecycle enforce --max-age       # flag specs stuck too long in a status
+specsync lifecycle enforce --allowed       # check specs are in allowed statuses
 ```
 
 **Transition rules:**
@@ -329,6 +335,18 @@ specsync lifecycle guard auth active       # dry-run: check specific transition
 **Transition history:**
 - When `lifecycle.trackHistory` is enabled (default), transitions are recorded in frontmatter `lifecycle_log`
 - Use `lifecycle history <spec>` to view the full audit trail
+
+**Auto-promote:**
+- Scans all specs and promotes any whose next transition passes all configured guards
+- History entries are tagged `(auto-promote)` for audit clarity
+- Use `--dry-run` to preview without modifying files
+
+**CI enforcement (`enforce`):**
+- `--require-status`: every spec must have a valid `status` field in frontmatter
+- `--max-age`: flag specs stuck in a status longer than configured in `lifecycle.maxAge` (days per status)
+- `--allowed`: require all specs to have a status in `lifecycle.allowedStatuses`
+- `--all`: run all three checks at once
+- Exits non-zero if any violations are found — designed for CI pipelines
 
 ### `diff`
 

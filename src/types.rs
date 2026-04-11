@@ -530,6 +530,16 @@ pub struct LifecycleConfig {
     /// Whether to record transitions in spec frontmatter (default: true).
     #[serde(default = "default_true")]
     pub track_history: bool,
+
+    /// Maximum age (in days) a spec may stay in a given status before being flagged.
+    /// Keys are status names (e.g. "draft": 30, "review": 14).
+    #[serde(default)]
+    pub max_age: std::collections::HashMap<String, u64>,
+
+    /// Required statuses — specs must have one of these statuses, or `enforce` will flag them.
+    /// Empty means no restriction.
+    #[serde(default)]
+    pub allowed_statuses: Vec<String>,
 }
 
 /// A transition guard — conditions that must be satisfied before a lifecycle

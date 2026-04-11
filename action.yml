@@ -25,6 +25,10 @@ inputs:
     description: 'Additional arguments to pass to specsync check'
     required: false
     default: ''
+  lifecycle-enforce:
+    description: 'Run lifecycle enforcement checks (--all). Fails CI if specs violate lifecycle rules.'
+    required: false
+    default: 'false'
   comment:
     description: 'Post spec drift results as a PR comment (requires pull_request event and write permissions)'
     required: false
@@ -130,6 +134,7 @@ runs:
         INPUT_REQUIRE_COVERAGE: ${{ inputs.require-coverage }}
         INPUT_ARGS: ${{ inputs.args }}
         INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_LIFECYCLE_ENFORCE: ${{ inputs.lifecycle-enforce }}
       run: |
         set -euo pipefail
 
@@ -152,6 +157,13 @@ runs:
         EXIT_CODE=0
         eval "$CMD" || EXIT_CODE=$?
         echo "::endgroup::"
+
+        # If lifecycle enforcement is enabled, run it (may override exit code)
+        if [ "$INPUT_LIFECYCLE_ENFORCE" = "true" ]; then
+          echo "::group::SpecSync Lifecycle Enforce"
+          specsync lifecycle enforce --all || EXIT_CODE=$?
+          echo "::endgroup::"
+        fi
 
         # If comment mode is enabled, also run diff with markdown output
         if [ "$INPUT_COMMENT" = "true" ]; then

@@ -134,6 +134,8 @@ specsync lifecycle status                  # Show lifecycle status of all specs
 specsync lifecycle promote auth            # Advance auth spec to next status
 specsync lifecycle history auth            # View transition history for a spec
 specsync lifecycle guard auth              # Dry-run: check if guards would pass
+specsync lifecycle auto-promote            # Promote all specs that pass guards
+specsync lifecycle enforce --all           # CI: validate lifecycle rules
 specsync hooks install                    # Install agent instructions + git hooks
 specsync hooks status                     # Check what's installed
 specsync mcp                               # Start MCP server for AI agent integration
@@ -311,6 +313,8 @@ specsync [command] [flags]
 | `lifecycle status [spec]` | Show lifecycle status of one or all specs |
 | `lifecycle history <spec>` | Show transition history (audit log) for a spec |
 | `lifecycle guard <spec> [target]` | Dry-run guard evaluation — check if transition would pass |
+| `lifecycle auto-promote` | Promote all specs that pass their transition guards. `--dry-run` to preview |
+| `lifecycle enforce` | CI enforcement — validate lifecycle rules, exit non-zero on violations. `--all` for all checks |
 | `issues` | Verify GitHub issue references in spec frontmatter. `--create` to create missing issues |
 | `hooks` | Install/uninstall agent instructions and git hooks (`install`, `uninstall`, `status`) |
 | `mcp` | Start MCP server for AI agent integration (Claude Code, Cursor, etc.) |
@@ -660,6 +664,51 @@ lifecycle_log:
 
 Use `specsync lifecycle guard <spec>` to dry-run guard evaluation without making changes.
 
+### Auto-Promote & CI Enforcement
+
+**Auto-promote** scans all specs and promotes any whose next transition passes all configured guards:
+
+```bash
+specsync lifecycle auto-promote            # promote eligible specs
+specsync lifecycle auto-promote --dry-run  # preview without modifying
+```
+
+**Enforce** validates lifecycle rules for CI pipelines (exits non-zero on violations):
+
+```bash
+specsync lifecycle enforce --all           # run all checks
+specsync lifecycle enforce --require-status # every spec needs a status field
+specsync lifecycle enforce --max-age       # flag stale statuses
+specsync lifecycle enforce --allowed       # check allowed statuses
+```
+
+Configure enforcement rules in `specsync.json`:
+
+```json
+{
+  "lifecycle": {
+    "maxAge": {
+      "draft": 30,
+      "review": 14
+    },
+    "allowedStatuses": ["draft", "review", "active", "stable"]
+  }
+}
+```
+
+| Config Key | Type | Description |
+|-----------|------|-------------|
+| `maxAge` | `object` | Maximum days a spec may stay in each status (e.g., `"draft": 30`) |
+| `allowedStatuses` | `string[]` | Restrict specs to these statuses only |
+
+**GitHub Action** — add `lifecycle-enforce: 'true'` to the spec-sync action to enforce lifecycle rules in CI:
+
+```yaml
+- uses: CorvidLabs/spec-sync@v3
+  with:
+    lifecycle-enforce: 'true'
+```
+
 ---
 
 ## Spec Generation
@@ -769,7 +818,7 @@ src/
 ├── hash_cache.rs      Incremental validation via content hashing
 ├── hooks.rs           Agent instruction + git hook management
 ├── importer.rs        External importers (GitHub Issues, Jira, Confluence)
-├── lifecycle.rs       Spec status transitions (promote, demote, set, status, history, guard)
+├── lifecycle.rs       Spec status transitions (promote, demote, set, status, history, guard, auto-promote, enforce)
 ├── manifest.rs        Package manifest parsing (Cargo.toml, package.json, etc.)
 ├── mcp.rs             MCP server for AI agent integration (JSON-RPC stdio)
 ├── merge.rs           Auto-resolve merge conflicts in spec files

@@ -382,7 +382,10 @@ fn resource_specs_list(root: &Path) -> Result<(String, &'static str), String> {
         .collect();
 
     let output = json!({ "specs": specs, "count": specs.len() });
-    Ok((serde_json::to_string_pretty(&output).unwrap(), "application/json"))
+    Ok((
+        serde_json::to_string_pretty(&output).unwrap(),
+        "application/json",
+    ))
 }
 
 fn resource_spec_by_module(root: &Path, module: &str) -> Result<(String, &'static str), String> {
@@ -453,7 +456,10 @@ fn resource_graph(root: &Path) -> Result<(String, &'static str), String> {
         "topological_order": topo,
     });
 
-    Ok((serde_json::to_string_pretty(&output).unwrap(), "application/json"))
+    Ok((
+        serde_json::to_string_pretty(&output).unwrap(),
+        "application/json",
+    ))
 }
 
 fn resource_config(root: &Path) -> Result<(String, &'static str), String> {
@@ -467,7 +473,10 @@ fn resource_config(root: &Path) -> Result<(String, &'static str), String> {
         "schema_dir": config.schema_dir,
     });
 
-    Ok((serde_json::to_string_pretty(&output).unwrap(), "application/json"))
+    Ok((
+        serde_json::to_string_pretty(&output).unwrap(),
+        "application/json",
+    ))
 }
 
 fn resource_coverage(root: &Path) -> Result<(String, &'static str), String> {
@@ -509,7 +518,10 @@ fn resource_coverage(root: &Path) -> Result<(String, &'static str), String> {
         "uncovered_files": uncovered_files,
     });
 
-    Ok((serde_json::to_string_pretty(&output).unwrap(), "application/json"))
+    Ok((
+        serde_json::to_string_pretty(&output).unwrap(),
+        "application/json",
+    ))
 }
 
 // ─── Tool Implementations ────────────────────────────────────────────────
@@ -1251,7 +1263,10 @@ mod tests {
         assert_eq!(resp["jsonrpc"], "2.0");
         let resources = resp["result"]["resources"].as_array().unwrap();
         assert_eq!(resources.len(), 4);
-        let uris: Vec<&str> = resources.iter().map(|r| r["uri"].as_str().unwrap()).collect();
+        let uris: Vec<&str> = resources
+            .iter()
+            .map(|r| r["uri"].as_str().unwrap())
+            .collect();
         assert!(uris.contains(&"specsync:///specs"));
         assert!(uris.contains(&"specsync:///graph"));
         assert!(uris.contains(&"specsync:///config"));
@@ -1316,10 +1331,12 @@ mod tests {
         let tmp = setup_project();
         let params = json!({ "uri": "specsync:///specs/nonexistent" });
         let resp = handle_resources_read(Some(json!(1)), &params, tmp.path());
-        assert!(resp["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("No spec found"));
+        assert!(
+            resp["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("No spec found")
+        );
     }
 
     #[test]
@@ -1358,9 +1375,11 @@ mod tests {
         let tmp = setup_project();
         let params = json!({ "uri": "specsync:///bogus" });
         let resp = handle_resources_read(Some(json!(1)), &params, tmp.path());
-        assert!(resp["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("Unknown resource URI"));
+        assert!(
+            resp["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("Unknown resource URI")
+        );
     }
 }

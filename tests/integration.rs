@@ -3839,15 +3839,18 @@ fn migrate_full_v3_to_v4() {
         gitignore.contains("backup-3x/"),
         "gitignore should ignore backup-3x"
     );
-    assert!(
-        gitignore.contains("hashes.json"),
-        "gitignore should ignore hashes.json"
-    );
-    // archive/ should not be listed as a gitignore pattern (but may appear in comments)
+    // archive/ and hashes.json should not be gitignored (they're part of the v4 lifecycle)
     let archive_is_ignored = gitignore
         .lines()
         .any(|line| !line.starts_with('#') && line.trim() == "archive/");
     assert!(!archive_is_ignored, "gitignore should NOT ignore archive");
+    let hashes_is_ignored = gitignore
+        .lines()
+        .any(|line| !line.starts_with('#') && line.trim() == "hashes.json");
+    assert!(
+        !hashes_is_ignored,
+        "gitignore should NOT ignore hashes.json"
+    );
 }
 
 #[test]

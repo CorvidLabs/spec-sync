@@ -10,6 +10,7 @@ mod ruby;
 mod rust_lang;
 mod swift;
 mod typescript;
+mod yaml;
 
 use crate::types::{ExportLevel, Language, ParseMode};
 use std::path::Path;
@@ -122,6 +123,7 @@ fn extract_with_regex(content: &str, lang: Language, file_path: &Path) -> Vec<St
         Language::Dart => dart::extract_exports(content),
         Language::Php => php::extract_exports(content),
         Language::Ruby => ruby::extract_exports(content),
+        Language::Yaml => yaml::extract_exports(content),
     }
 }
 
@@ -183,6 +185,10 @@ fn filter_type_level_exports(content: &str, symbols: &[String], lang: Language) 
         }
         Language::Ruby => {
             Regex::new(r"(?m)(?:class|module)\s+([A-Z]\w*)").ok()
+        }
+        Language::Yaml => {
+            // YAML has no type declarations
+            return symbols.to_vec();
         }
     };
 

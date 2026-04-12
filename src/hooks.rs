@@ -16,11 +16,12 @@ Each spec in `specs/<module>/` has companion files — read them before working,
 - **`requirements.md`** — Acceptance criteria and user stories. These are permanent invariants, not tasks — do not check them off. Update if requirements change.
 - **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress.
 - **`testing.md`** — Test strategy: automated test locations, manual QA checklists, and edge cases/boundary conditions.
+- **`design.md`** *(opt-in)* — Layout, component hierarchy, design tokens, and asset references. Present when `companions.design` is enabled in config.
 
 ## Before modifying any module
 
 1. Read the relevant spec in `specs/<module>/<module>.spec.md`
-2. Read companion files: `tasks.md`, `requirements.md`, `context.md`, and `testing.md`
+2. Read companion files: `tasks.md`, `requirements.md`, `context.md`, `testing.md`, and `design.md` (if present)
 3. After changes, run `specsync check` to verify specs still pass
 
 ## After completing work
@@ -29,6 +30,7 @@ Each spec in `specs/<module>/` has companion files — read them before working,
 2. Update `context.md` — record decisions made, update current status
 3. If requirements changed, update `requirements.md` acceptance criteria
 4. If test coverage changed, update `testing.md` with new test files or edge cases
+5. If UI/layout changed, update `design.md` with revised layout, components, or tokens
 
 ## Before creating a PR
 
@@ -60,11 +62,12 @@ Each spec directory has companion files — read before working, update after:
 - `requirements.md` — Acceptance criteria and user stories. Permanent invariants, not tasks.
 - `context.md` — Decisions, key files, current status. Update when you make design choices.
 - `testing.md` — Test strategy: automated test locations, manual QA checklists, edge cases.
+- `design.md` *(opt-in)* — Layout, component hierarchy, design tokens, and asset references.
 
 ## Rules
 
 - Before editing a module, read its spec at `specs/<module>/<module>.spec.md`
-- Read `tasks.md`, `requirements.md`, `context.md`, and `testing.md` for outstanding work, requirements, decisions, and test strategy
+- Read `tasks.md`, `requirements.md`, `context.md`, `testing.md`, and `design.md` (if present) for outstanding work, requirements, decisions, test strategy, and design specs
 - After modifying code, ensure `specsync check` still passes
 - After completing work, update `tasks.md` (check off done items) and `context.md` (record decisions, update status)
 - When creating new modules, run `specsync add-spec <module-name>` first
@@ -84,11 +87,12 @@ Each spec directory has companion files — read before working, update after:
 - `requirements.md` — Acceptance criteria and user stories. Permanent invariants, not checkable tasks.
 - `context.md` — Architectural decisions, key files, and current status. Update with decisions made.
 - `testing.md` — Test strategy: automated test locations, manual QA checklists, edge cases.
+- `design.md` *(opt-in)* — Layout, component hierarchy, design tokens, and asset references.
 
 ## Guidelines
 
 - Specs are in `specs/<module>/<module>.spec.md` — read the relevant spec before modifying a module
-- Read companion files `tasks.md`, `requirements.md`, `context.md`, and `testing.md` before starting work
+- Read companion files `tasks.md`, `requirements.md`, `context.md`, `testing.md`, and `design.md` (if present) before starting work
 - After changes, `specsync check` should pass with no errors
 - After completing work, update `tasks.md` (mark done items) and `context.md` (record decisions, update status)
 - New modules need specs: run `specsync add-spec <module-name>`
@@ -107,11 +111,12 @@ Each spec in `specs/<module>/` has companion files — read them before working,
 - **`requirements.md`** — Acceptance criteria and user stories. These are permanent invariants, not tasks — do not check them off. Update if requirements change.
 - **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress.
 - **`testing.md`** — Test strategy: automated test locations, manual QA checklists, and edge cases/boundary conditions.
+- **`design.md`** *(opt-in)* — Layout, component hierarchy, design tokens, and asset references. Present when `companions.design` is enabled in config.
 
 ## Before modifying any module
 
 1. Read the relevant spec in `specs/<module>/<module>.spec.md`
-2. Read companion files: `tasks.md`, `requirements.md`, `context.md`, and `testing.md`
+2. Read companion files: `tasks.md`, `requirements.md`, `context.md`, `testing.md`, and `design.md` (if present)
 3. After changes, run `specsync check` to verify specs still pass
 
 ## After completing work
@@ -120,6 +125,7 @@ Each spec in `specs/<module>/` has companion files — read them before working,
 2. Update `context.md` — record decisions made, update current status
 3. If requirements changed, update `requirements.md` acceptance criteria
 4. If test coverage changed, update `testing.md` with new test files or edge cases
+5. If UI/layout changed, update `design.md` with revised layout, components, or tokens
 
 ## Before creating a PR
 

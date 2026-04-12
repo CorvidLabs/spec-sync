@@ -94,6 +94,28 @@ spec: {module}.spec.md
 |----------|-------------------|
 "#;
 
+const DESIGN_TEMPLATE: &str = r#"---
+spec: {module}.spec.md
+sources: []
+---
+
+## Layout
+
+<!-- Page/component layout, responsive breakpoints, positioning -->
+
+## Components
+
+<!-- Component tree, props, slots -->
+
+## Tokens
+
+<!-- Design token overrides from global design system -->
+
+## Assets
+
+<!-- Icons, images, illustrations needed -->
+"#;
+
 const DEFAULT_TEMPLATE: &str = r#"---
 module: module-name
 version: 1
@@ -695,8 +717,9 @@ fn generate_module_spec(
     )
 }
 
-/// Generate companion files (tasks.md, context.md, requirements.md, testing.md) alongside a spec file.
-fn generate_companion_files(spec_dir: &Path, module_name: &str) {
+/// Generate companion files (tasks.md, context.md, requirements.md, testing.md,
+/// and optionally design.md) alongside a spec file.
+fn generate_companion_files(spec_dir: &Path, module_name: &str, design_enabled: bool) {
     let tasks_path = spec_dir.join("tasks.md");
     let context_path = spec_dir.join("context.md");
     let requirements_path = spec_dir.join("requirements.md");
@@ -729,12 +752,28 @@ fn generate_companion_files(spec_dir: &Path, module_name: &str) {
             println!("    {} Generated testing.md", "✓".green());
         }
     }
+
+    if design_enabled {
+        let design_path = spec_dir.join("design.md");
+        if !design_path.exists() {
+            let content = DESIGN_TEMPLATE.replace("{module}", module_name);
+            if fs::write(&design_path, &content).is_ok() {
+                println!("    {} Generated design.md", "✓".green());
+            }
+        }
+    }
 }
 
 /// Generate companion files for a given spec, creating the directory if needed.
 /// Used by the `add-spec` and `scaffold` commands.
-pub fn generate_companion_files_for_spec(spec_dir: &Path, module_name: &str) {
-    generate_companion_files(spec_dir, module_name);
+///
+/// When `design_enabled` is true, a `design.md` companion is also generated.
+pub fn generate_companion_files_for_spec(
+    spec_dir: &Path,
+    module_name: &str,
+    design_enabled: bool,
+) {
+    generate_companion_files(spec_dir, module_name, design_enabled);
 }
 
 /// Generate a spec using templates from a custom template directory.
@@ -818,6 +857,7 @@ pub fn generate_companion_files_from_template(
     spec_dir: &Path,
     module_name: &str,
     template_dir: &Path,
+    design_enabled: bool,
 ) {
     let tasks_path = spec_dir.join("tasks.md");
     let context_path = spec_dir.join("context.md");
@@ -879,6 +919,23 @@ pub fn generate_companion_files_from_template(
             println!("    {} Generated testing.md", "✓".green());
         }
     }
+
+    if design_enabled {
+        let design_path = spec_dir.join("design.md");
+        if !design_path.exists() {
+            let template_file = template_dir.join("design.md");
+            let content = if template_file.exists() {
+                fs::read_to_string(&template_file)
+                    .unwrap_or_else(|_| DESIGN_TEMPLATE.to_string())
+                    .replace("{module}", module_name)
+            } else {
+                DESIGN_TEMPLATE.replace("{module}", module_name)
+            };
+            if fs::write(&design_path, &content).is_ok() {
+                println!("    {} Generated design.md", "✓".green());
+            }
+        }
+    }
 }
 
 /// Generate spec files for all unspecced modules.
@@ -938,7 +995,7 @@ pub fn generate_specs_for_unspecced_modules(
                     "✓".green(),
                     module_files.len()
                 );
-                generate_companion_files(&spec_dir, module_name);
+                generate_companion_files(&spec_dir, module_name, config.companions.design);
                 let _ = std::io::stdout().flush();
                 generated += 1;
             }
@@ -1200,6 +1257,16 @@ mod tests {
     }
 
     #[test]
+    fn design_template_has_required_sections() {
+        assert!(DESIGN_TEMPLATE.contains("## Layout"));
+        assert!(DESIGN_TEMPLATE.contains("## Components"));
+        assert!(DESIGN_TEMPLATE.contains("## Tokens"));
+        assert!(DESIGN_TEMPLATE.contains("## Assets"));
+        assert!(DESIGN_TEMPLATE.contains("{module}"));
+        assert!(DESIGN_TEMPLATE.contains("sources:"));
+    }
+
+    #[test]
     fn default_template_has_all_required_sections() {
         assert!(DEFAULT_TEMPLATE.contains("## Purpose"));
         assert!(DEFAULT_TEMPLATE.contains("## Public API"));
@@ -1217,12 +1284,14 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let spec_dir = tmp.path();
 
-        generate_companion_files(spec_dir, "auth");
+        generate_companion_files(spec_dir, "auth", false);
 
         assert!(spec_dir.join("tasks.md").exists());
         assert!(spec_dir.join("context.md").exists());
         assert!(spec_dir.join("requirements.md").exists());
         assert!(spec_dir.join("testing.md").exists());
+        // design.md should NOT be created when design_enabled is false
+        assert!(!spec_dir.join("design.md").exists());
 
         let tasks = fs::read_to_string(spec_dir.join("tasks.md")).unwrap();
         assert!(tasks.contains("spec: auth.spec.md"));
@@ -1236,18 +1305,42 @@ mod tests {
     }
 
     #[test]
+    fn companion_files_created_with_design_enabled() {
+        let tmp = TempDir::new().unwrap();
+        let spec_dir = tmp.path();
+
+        generate_companion_files(spec_dir, "auth", true);
+
+        assert!(spec_dir.join("tasks.md").exists());
+        assert!(spec_dir.join("context.md").exists());
+        assert!(spec_dir.join("requirements.md").exists());
+        assert!(spec_dir.join("testing.md").exists());
+        assert!(spec_dir.join("design.md").exists());
+
+        let design = fs::read_to_string(spec_dir.join("design.md")).unwrap();
+        assert!(design.contains("spec: auth.spec.md"));
+        assert!(design.contains("## Layout"));
+        assert!(design.contains("## Components"));
+        assert!(design.contains("## Tokens"));
+        assert!(design.contains("## Assets"));
+    }
+
+    #[test]
     fn companion_files_not_overwritten() {
         let tmp = TempDir::new().unwrap();
         let spec_dir = tmp.path();
 
         fs::write(spec_dir.join("tasks.md"), "existing content").unwrap();
         fs::write(spec_dir.join("testing.md"), "existing tests").unwrap();
-        generate_companion_files(spec_dir, "auth");
+        fs::write(spec_dir.join("design.md"), "existing design").unwrap();
+        generate_companion_files(spec_dir, "auth", true);
 
         let tasks = fs::read_to_string(spec_dir.join("tasks.md")).unwrap();
         assert_eq!(tasks, "existing content");
         let testing = fs::read_to_string(spec_dir.join("testing.md")).unwrap();
         assert_eq!(testing, "existing tests");
+        let design = fs::read_to_string(spec_dir.join("design.md")).unwrap();
+        assert_eq!(design, "existing design");
     }
 
     #[test]
@@ -1261,7 +1354,7 @@ mod tests {
             "---\nspec: {module}.spec.md\n---\n\n## Custom Tests\n\nCustom testing template\n";
         fs::write(template_dir.join("testing.md"), custom).unwrap();
 
-        generate_companion_files_from_template(spec_dir, "auth", &template_dir);
+        generate_companion_files_from_template(spec_dir, "auth", &template_dir, false);
 
         let testing = fs::read_to_string(spec_dir.join("testing.md")).unwrap();
         assert!(testing.contains("Custom testing template"));
@@ -1276,11 +1369,43 @@ mod tests {
         fs::create_dir_all(&template_dir).unwrap();
         // No testing.md in template dir — should fall back to built-in
 
-        generate_companion_files_from_template(spec_dir, "auth", &template_dir);
+        generate_companion_files_from_template(spec_dir, "auth", &template_dir, false);
 
         let testing = fs::read_to_string(spec_dir.join("testing.md")).unwrap();
         assert!(testing.contains("## Automated Testing"));
         assert!(testing.contains("spec: auth.spec.md"));
+    }
+
+    #[test]
+    fn companion_files_from_template_uses_custom_design() {
+        let tmp = TempDir::new().unwrap();
+        let spec_dir = tmp.path();
+        let template_dir = tmp.path().join("templates");
+        fs::create_dir_all(&template_dir).unwrap();
+
+        let custom =
+            "---\nspec: {module}.spec.md\nsources: []\n---\n\n## Custom Design\n\nCustom layout\n";
+        fs::write(template_dir.join("design.md"), custom).unwrap();
+
+        generate_companion_files_from_template(spec_dir, "auth", &template_dir, true);
+
+        let design = fs::read_to_string(spec_dir.join("design.md")).unwrap();
+        assert!(design.contains("Custom layout"));
+        assert!(design.contains("spec: auth.spec.md"));
+    }
+
+    #[test]
+    fn companion_files_from_template_falls_back_for_design() {
+        let tmp = TempDir::new().unwrap();
+        let spec_dir = tmp.path();
+        let template_dir = tmp.path().join("templates");
+        fs::create_dir_all(&template_dir).unwrap();
+
+        generate_companion_files_from_template(spec_dir, "auth", &template_dir, true);
+
+        let design = fs::read_to_string(spec_dir.join("design.md")).unwrap();
+        assert!(design.contains("## Layout"));
+        assert!(design.contains("spec: auth.spec.md"));
     }
 
     // ── find_files_for_module ──────────────────────────────────────

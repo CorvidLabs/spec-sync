@@ -517,6 +517,21 @@ pub struct SpecSyncConfig {
     /// a spec can be promoted/transitioned.
     #[serde(default)]
     pub lifecycle: LifecycleConfig,
+
+    /// Companion file settings.
+    #[serde(default)]
+    pub companions: CompanionConfig,
+}
+
+/// Configuration for companion file generation.
+#[derive(Debug, Default, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompanionConfig {
+    /// Enable design.md companion files (default: false).
+    /// When enabled, `add-spec`, `scaffold`, and other generators will create
+    /// a design.md companion alongside tasks.md, context.md, etc.
+    #[serde(default)]
+    pub design: bool,
 }
 
 /// Lifecycle configuration for transition guards and history tracking.
@@ -854,6 +869,7 @@ impl Default for SpecSyncConfig {
             github: None,
             enforcement: EnforcementMode::default(),
             lifecycle: LifecycleConfig::default(),
+            companions: CompanionConfig::default(),
         }
     }
 }

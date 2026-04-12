@@ -139,8 +139,10 @@ impl ChangeClassification {
 /// and the legacy `{module}.` prefixed names.
 const COMPANION_REQ_NAMES: &[&str] = &["requirements.md"];
 const COMPANION_REQ_LEGACY_SUFFIX: &str = "req.md";
-const COMPANION_OTHER_NAMES: &[&str] = &["context.md", "tasks.md"];
-const COMPANION_OTHER_LEGACY_SUFFIXES: &[&str] = &["context.md", "tasks.md"];
+const COMPANION_OTHER_NAMES: &[&str] = &["context.md", "tasks.md", "testing.md"];
+/// Legacy suffixes check for `{module}.suffix` naming. testing.md is included
+/// for forward-consistency even though no legacy-named testing files exist yet.
+const COMPANION_OTHER_LEGACY_SUFFIXES: &[&str] = &["context.md", "tasks.md", "testing.md"];
 
 /// Find all companion files for a spec, checking both naming conventions.
 fn find_companion_files(spec_path: &Path) -> (Vec<PathBuf>, Vec<PathBuf>) {
@@ -432,6 +434,22 @@ mod tests {
     }
 
     #[test]
+    fn classify_detects_testing_companion_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let specs = root.join("specs/auth");
+        fs::create_dir_all(&specs).unwrap();
+        let spec_path = specs.join("auth.spec.md");
+        fs::write(&spec_path, "---\nmodule: auth\nfiles:\n---").unwrap();
+        fs::write(specs.join("testing.md"), "# Testing").unwrap();
+
+        let mut cache = HashCache::default();
+        cache.update(root, "specs/auth/auth.spec.md");
+        let result = classify_changes(root, &spec_path, &cache);
+        assert!(result.has(&ChangeKind::Companion));
+    }
+
+    #[test]
     fn classify_detects_source_change() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
@@ -462,11 +480,13 @@ mod tests {
         fs::write(specs.join("requirements.md"), "").unwrap();
         fs::write(specs.join("context.md"), "").unwrap();
         fs::write(specs.join("tasks.md"), "").unwrap();
+        fs::write(specs.join("testing.md"), "").unwrap();
 
         let (req, other) = find_companion_files(&specs.join("auth.spec.md"));
         assert_eq!(req.len(), 1);
         assert!(req[0].ends_with("requirements.md"));
-        assert_eq!(other.len(), 2);
+        assert_eq!(other.len(), 3);
+        assert!(other.iter().any(|p| p.ends_with("testing.md")));
     }
 
     #[test]

@@ -69,6 +69,31 @@ spec: {module}.spec.md
 <!-- Free-form notes, links, or context -->
 "#;
 
+const TESTING_TEMPLATE: &str = r#"---
+spec: {module}.spec.md
+---
+
+## Automated Testing
+
+<!-- Expected test file locations, coverage targets, fixture descriptions -->
+
+| Test File | Type | What It Covers |
+|-----------|------|----------------|
+
+## Manual Testing
+
+<!-- Step-by-step QA checklists, device/browser matrices, user flow walkthroughs -->
+
+- [ ] <!-- Add manual test steps -->
+
+## Edge Cases & Boundary Conditions
+
+<!-- Boundary values, race conditions, permission matrices, error paths -->
+
+| Scenario | Expected Behavior |
+|----------|-------------------|
+"#;
+
 const DEFAULT_TEMPLATE: &str = r#"---
 module: module-name
 version: 1
@@ -670,11 +695,12 @@ fn generate_module_spec(
     )
 }
 
-/// Generate companion files (tasks.md, context.md, requirements.md) alongside a spec file.
+/// Generate companion files (tasks.md, context.md, requirements.md, testing.md) alongside a spec file.
 fn generate_companion_files(spec_dir: &Path, module_name: &str) {
     let tasks_path = spec_dir.join("tasks.md");
     let context_path = spec_dir.join("context.md");
     let requirements_path = spec_dir.join("requirements.md");
+    let testing_path = spec_dir.join("testing.md");
 
     if !tasks_path.exists() {
         let content = TASKS_TEMPLATE.replace("{module}", module_name);
@@ -696,6 +722,13 @@ fn generate_companion_files(spec_dir: &Path, module_name: &str) {
             println!("    {} Generated requirements.md", "✓".green());
         }
     }
+
+    if !testing_path.exists() {
+        let content = TESTING_TEMPLATE.replace("{module}", module_name);
+        if fs::write(&testing_path, &content).is_ok() {
+            println!("    {} Generated testing.md", "✓".green());
+        }
+    }
 }
 
 /// Generate companion files for a given spec, creating the directory if needed.
@@ -705,7 +738,7 @@ pub fn generate_companion_files_for_spec(spec_dir: &Path, module_name: &str) {
 }
 
 /// Generate a spec using templates from a custom template directory.
-/// Looks for `spec.md`, `tasks.md`, `context.md`, `requirements.md` in the template dir.
+/// Looks for `spec.md`, `tasks.md`, `context.md`, `requirements.md`, `testing.md` in the template dir.
 /// Falls back to built-in templates for any missing template files.
 pub fn generate_spec_from_custom_template(
     template_dir: &Path,
@@ -789,6 +822,7 @@ pub fn generate_companion_files_from_template(
     let tasks_path = spec_dir.join("tasks.md");
     let context_path = spec_dir.join("context.md");
     let requirements_path = spec_dir.join("requirements.md");
+    let testing_path = spec_dir.join("testing.md");
 
     if !tasks_path.exists() {
         let template_file = template_dir.join("tasks.md");
@@ -829,6 +863,20 @@ pub fn generate_companion_files_from_template(
         };
         if fs::write(&requirements_path, &content).is_ok() {
             println!("    {} Generated requirements.md", "✓".green());
+        }
+    }
+
+    if !testing_path.exists() {
+        let template_file = template_dir.join("testing.md");
+        let content = if template_file.exists() {
+            fs::read_to_string(&template_file)
+                .unwrap_or_else(|_| TESTING_TEMPLATE.to_string())
+                .replace("{module}", module_name)
+        } else {
+            TESTING_TEMPLATE.replace("{module}", module_name)
+        };
+        if fs::write(&testing_path, &content).is_ok() {
+            println!("    {} Generated testing.md", "✓".green());
         }
     }
 }
@@ -1144,6 +1192,14 @@ mod tests {
     }
 
     #[test]
+    fn testing_template_has_required_sections() {
+        assert!(TESTING_TEMPLATE.contains("## Automated Testing"));
+        assert!(TESTING_TEMPLATE.contains("## Manual Testing"));
+        assert!(TESTING_TEMPLATE.contains("## Edge Cases & Boundary Conditions"));
+        assert!(TESTING_TEMPLATE.contains("{module}"));
+    }
+
+    #[test]
     fn default_template_has_all_required_sections() {
         assert!(DEFAULT_TEMPLATE.contains("## Purpose"));
         assert!(DEFAULT_TEMPLATE.contains("## Public API"));
@@ -1166,12 +1222,17 @@ mod tests {
         assert!(spec_dir.join("tasks.md").exists());
         assert!(spec_dir.join("context.md").exists());
         assert!(spec_dir.join("requirements.md").exists());
+        assert!(spec_dir.join("testing.md").exists());
 
         let tasks = fs::read_to_string(spec_dir.join("tasks.md")).unwrap();
         assert!(tasks.contains("spec: auth.spec.md"));
 
         let reqs = fs::read_to_string(spec_dir.join("requirements.md")).unwrap();
         assert!(reqs.contains("spec: auth.spec.md"));
+
+        let testing = fs::read_to_string(spec_dir.join("testing.md")).unwrap();
+        assert!(testing.contains("spec: auth.spec.md"));
+        assert!(testing.contains("## Automated Testing"));
     }
 
     #[test]
@@ -1180,10 +1241,46 @@ mod tests {
         let spec_dir = tmp.path();
 
         fs::write(spec_dir.join("tasks.md"), "existing content").unwrap();
+        fs::write(spec_dir.join("testing.md"), "existing tests").unwrap();
         generate_companion_files(spec_dir, "auth");
 
         let tasks = fs::read_to_string(spec_dir.join("tasks.md")).unwrap();
         assert_eq!(tasks, "existing content");
+        let testing = fs::read_to_string(spec_dir.join("testing.md")).unwrap();
+        assert_eq!(testing, "existing tests");
+    }
+
+    #[test]
+    fn companion_files_from_template_uses_custom_testing() {
+        let tmp = TempDir::new().unwrap();
+        let spec_dir = tmp.path();
+        let template_dir = tmp.path().join("templates");
+        fs::create_dir_all(&template_dir).unwrap();
+
+        let custom =
+            "---\nspec: {module}.spec.md\n---\n\n## Custom Tests\n\nCustom testing template\n";
+        fs::write(template_dir.join("testing.md"), custom).unwrap();
+
+        generate_companion_files_from_template(spec_dir, "auth", &template_dir);
+
+        let testing = fs::read_to_string(spec_dir.join("testing.md")).unwrap();
+        assert!(testing.contains("Custom testing template"));
+        assert!(testing.contains("spec: auth.spec.md"));
+    }
+
+    #[test]
+    fn companion_files_from_template_falls_back_for_testing() {
+        let tmp = TempDir::new().unwrap();
+        let spec_dir = tmp.path();
+        let template_dir = tmp.path().join("templates");
+        fs::create_dir_all(&template_dir).unwrap();
+        // No testing.md in template dir — should fall back to built-in
+
+        generate_companion_files_from_template(spec_dir, "auth", &template_dir);
+
+        let testing = fs::read_to_string(spec_dir.join("testing.md")).unwrap();
+        assert!(testing.contains("## Automated Testing"));
+        assert!(testing.contains("spec: auth.spec.md"));
     }
 
     // ── find_files_for_module ──────────────────────────────────────

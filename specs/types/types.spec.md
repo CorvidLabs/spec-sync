@@ -22,7 +22,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | Type | Description |
 |------|-------------|
 | `AiProvider` | Supported AI provider presets: Claude, Cursor, Copilot, Ollama, Anthropic, OpenAi, Custom |
-| `Language` | Detected source language for export extraction: TypeScript, Rust, Go, Python, Swift, Kotlin, Java, CSharp, Dart, Php, Ruby |
+| `Language` | Detected source language for export extraction: TypeScript, Rust, Go, Python, Swift, Kotlin, Java, CSharp, Dart, Php, Ruby, Yaml |
 | `OutputFormat` | CLI output format: Text (colored terminal, default), Json (machine-readable), Markdown (PR comments / agent consumption) |
 | `ExportLevel` | Export extraction granularity: Type (top-level declarations only) or Member (all public symbols, default) |
 | `SpecStatus` | Spec lifecycle status: draft, review, active, stable, deprecated, archived. Parsed from frontmatter `status` field |

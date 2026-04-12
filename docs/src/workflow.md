@@ -65,6 +65,7 @@ Creates `specs/auth/` with five files:
 | `tasks.md` | Outstanding work items, review sign-offs | Anyone |
 | `context.md` | Design decisions, key files, current status | Developer / Agent |
 | `testing.md` | Test strategy, QA checklists, edge cases | QA / Developer |
+| `design.md` *(opt-in)* | Layout, component hierarchy, design tokens | Design / Frontend |
 
 The spec file is the only one SpecSync validates against code. The companion files provide structured context for humans and AI agents working on the module.
 

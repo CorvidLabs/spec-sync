@@ -81,12 +81,15 @@ specs/
 │   ├── auth.spec.md        ← The spec (validated)
 │   ├── requirements.md     ← User stories & acceptance criteria
 │   ├── tasks.md            ← Work items & sign-offs
-│   └── context.md          ← Architecture notes & key files
+│   ├── context.md          ← Architecture notes & key files
+│   ├── testing.md          ← Test strategy & QA checklist
+│   └── design.md           ← (opt-in) Layout & design tokens
 ├── database/
 │   ├── database.spec.md
 │   ├── requirements.md
 │   ├── tasks.md
-│   └── context.md
+│   ├── context.md
+│   └── testing.md
 └── ...
 ```
 

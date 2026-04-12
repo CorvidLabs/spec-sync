@@ -8,7 +8,7 @@
 [![Downloads](https://img.shields.io/crates/d/specsync.svg)](https://crates.io/crates/specsync)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Bidirectional spec-to-code validation with cross-project references, dependency graphs, and AI-powered generation.** Written in Rust. Single binary. 11 languages. VS Code extension.
+**Bidirectional spec-to-code validation with cross-project references, dependency graphs, and AI-powered generation.** Written in Rust. Single binary. 12 languages. VS Code extension.
 
 [Quick Start](#quick-start) &bull; [Spec Format](#spec-format) &bull; [CLI](#cli-reference) &bull; [VS Code Extension](#vs-code-extension) &bull; [Cross-Project Refs](#cross-project-references) &bull; [GitHub Action](#github-action) &bull; [Config](#configuration) &bull; [Docs Site](https://corvidlabs.github.io/spec-sync)
 
@@ -48,6 +48,7 @@ Auto-detected from file extensions. Same spec format for all.
 | **Dart** | Top-level (no `_` prefix), class/mixin/enum/typedef | `*_test.dart` |
 | **PHP** | `class/interface/trait/enum`, `public` function/const, skips `private/protected` and `__` magic methods | `*Test.php` |
 | **Ruby** | `class`/`module`, `public` methods with visibility tracking, `attr_accessor`/`attr_reader`/`attr_writer`, constants | `*_test.rb`, `*_spec.rb` |
+| **YAML** | Top-level mapping keys (anchors, aliases supported) | — |
 
 ---
 
@@ -293,7 +294,7 @@ specsync [command] [flags]
 | `report` | Per-module coverage report with stale and incomplete detection |
 | `generate` | Scaffold specs for modules missing one (`--provider` for AI-powered content) |
 | `scaffold <name>` | Scaffold spec + auto-detect source files + register in registry |
-| `add-spec <name>` | Scaffold a single spec + companion files (`requirements.md`, `tasks.md`, `context.md`) |
+| `add-spec <name>` | Scaffold a single spec + companion files (`requirements.md`, `tasks.md`, `context.md`, `testing.md`, and `design.md` if enabled) |
 | `deps` | Validate cross-module dependency graph (cycles, missing deps, undeclared imports) |
 | `changelog <range>` | Generate changelog of spec changes between two git refs |
 | `comment` | Post spec-sync check summary as a PR comment (same validation pipeline as `check`). `--pr N` to post, omit to print |
@@ -399,7 +400,7 @@ Remote resolution fetches `specsync-registry.toml` from each referenced repo and
 
 ## Companion Files
 
-When you run `specsync generate` or `specsync add-spec`, three companion files are created alongside each spec:
+When you run `specsync generate` or `specsync add-spec`, four companion files are created alongside each spec, plus one opt-in:
 
 | File | Author | Validated? | Purpose |
 |------|--------|-----------|---------|
@@ -407,6 +408,15 @@ When you run `specsync generate` or `specsync add-spec`, three companion files a
 | `tasks.md` | Anyone | No | Work coordination |
 | `context.md` | Dev/Agent | No | Architecture notes |
 | `requirements.md` | Product/Design | No | The ask, acceptance criteria |
+| `testing.md` | QA/Dev | No | Test strategy, edge cases, manual checklists |
+| `design.md` *(opt-in)* | Design/Frontend | No | Layout, component hierarchy, design tokens |
+
+`design.md` is opt-in — enable it in `.specsync/config.toml`:
+
+```toml
+[companions]
+design = true
+```
 
 All scaffolded by SpecSync, all human-filled. Only the spec gets bidirectional validation.
 
@@ -470,6 +480,43 @@ spec: auth.spec.md
 
 ## Notes
 <!-- Free-form notes, links, context -->
+```
+
+**`testing.md`** — Test strategy and QA checklist:
+
+```markdown
+---
+spec: auth.spec.md
+---
+
+## Automated Tests
+<!-- Test file locations and what they cover -->
+
+## Manual QA Checklist
+- [ ] <!-- Manual verification steps -->
+
+## Edge Cases
+<!-- Boundary conditions, race conditions, unusual inputs -->
+```
+
+**`design.md`** *(opt-in)* — Design and layout documentation:
+
+```markdown
+---
+spec: auth.spec.md
+---
+
+## Layout
+<!-- Page/component layout description -->
+
+## Component Hierarchy
+<!-- Component tree or structure -->
+
+## Design Tokens
+<!-- Colors, spacing, typography references -->
+
+## Assets
+<!-- Icons, images, and other design assets -->
 ```
 
 These files are designed for team coordination and AI agent context — they give any contributor (human or AI) the full picture of where a module stands.
@@ -858,7 +905,8 @@ src/
     ├── csharp.rs       C# public items
     ├── dart.rs         Dart public items
     ├── php.rs          PHP public items
-    └── ruby.rs         Ruby public items
+    ├── ruby.rs         Ruby public items
+    └── yaml.rs         YAML top-level keys
 ```
 
 **Design:** Single binary, no runtime deps. Frontmatter parsed with regex (no YAML library). Language backends use regex, not ASTs — works without compilers installed. Release builds use LTO + strip + opt-level 3.

@@ -39,7 +39,8 @@ src/
     ├── csharp.rs         C# public items
     ├── dart.rs           Dart public items
     ├── php.rs            PHP public classes/functions
-    └── ruby.rs           Ruby public methods/classes
+    ├── ruby.rs           Ruby public methods/classes
+    └── yaml.rs           YAML top-level keys
 ```
 
 ---

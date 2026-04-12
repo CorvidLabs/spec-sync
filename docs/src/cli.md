@@ -85,7 +85,7 @@ Exposes tools: `specsync_check`, `specsync_generate`, `specsync_coverage`, `spec
 
 ### `add-spec`
 
-Scaffold a single spec with companion files (`requirements.md`, `tasks.md`, `context.md`).
+Scaffold a single spec with companion files (`requirements.md`, `tasks.md`, `context.md`, `testing.md`, and `design.md` if enabled).
 
 ```bash
 specsync add-spec auth                     # creates specs/auth/auth.spec.md + companions
@@ -166,7 +166,7 @@ Quick-create a minimal spec with auto-detected source files. Faster than `add-sp
 
 ```bash
 specsync new auth                          # creates specs/auth/auth.spec.md
-specsync new auth --full                   # also creates companion files (requirements.md, tasks.md, context.md)
+specsync new auth --full                   # also creates companion files (requirements.md, tasks.md, context.md, testing.md)
 ```
 
 Scans `sourceDirs` for files matching the module name to auto-populate the `files:` frontmatter field.

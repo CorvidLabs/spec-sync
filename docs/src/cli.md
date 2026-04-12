@@ -166,7 +166,7 @@ Quick-create a minimal spec with auto-detected source files. Faster than `add-sp
 
 ```bash
 specsync new auth                          # creates specs/auth/auth.spec.md
-specsync new auth --full                   # also creates companion files (requirements.md, tasks.md, context.md, testing.md)
+specsync new auth --full                   # also creates companion files (requirements.md, tasks.md, context.md, testing.md, and design.md if enabled)
 ```
 
 Scans `sourceDirs` for files matching the module name to auto-populate the `files:` frontmatter field.

@@ -507,16 +507,16 @@ spec: auth.spec.md
 ---
 
 ## Layout
-<!-- Page/component layout description -->
+<!-- Page/component layout, responsive breakpoints, positioning -->
 
-## Component Hierarchy
-<!-- Component tree or structure -->
+## Components
+<!-- Component tree, props, slots -->
 
-## Design Tokens
-<!-- Colors, spacing, typography references -->
+## Tokens
+<!-- Design token overrides from global design system -->
 
 ## Assets
-<!-- Icons, images, and other design assets -->
+<!-- Icons, images, illustrations needed -->
 ```
 
 These files are designed for team coordination and AI agent context — they give any contributor (human or AI) the full picture of where a module stands.

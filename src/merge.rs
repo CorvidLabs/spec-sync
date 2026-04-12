@@ -107,7 +107,7 @@ fn detect_conflicted_specs(root: &Path, specs_dir: &Path) -> Vec<std::path::Path
 
     String::from_utf8_lossy(&output.stdout)
         .lines()
-        .filter(|l| l.starts_with(specs_rel.as_ref()) && l.ends_with(".spec.md"))
+        .filter(|l| l.starts_with(specs_rel.as_ref()) && l.ends_with(".md"))
         .map(|l| root.join(l))
         .collect()
 }

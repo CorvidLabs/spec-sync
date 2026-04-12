@@ -56,7 +56,7 @@ Check what's installed with `specsync hooks status`.
 specsync add-spec auth
 ```
 
-Creates `specs/auth/` with four files:
+Creates `specs/auth/` with five files:
 
 | File | Purpose | Who writes it |
 |:-----|:--------|:--------------|

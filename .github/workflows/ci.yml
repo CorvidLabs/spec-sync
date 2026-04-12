@@ -74,7 +74,7 @@ jobs:
     needs: [test, fmt, validate-action, spec-check]
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/corvid-pet@v1
+      - uses: CorvidLabs/corvid-pet@v1.0.0
         with:
           mode: pr-comment
           event: auto

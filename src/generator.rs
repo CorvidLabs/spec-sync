@@ -1257,7 +1257,8 @@ mod tests {
         let template_dir = tmp.path().join("templates");
         fs::create_dir_all(&template_dir).unwrap();
 
-        let custom = "---\nspec: {module}.spec.md\n---\n\n## Custom Tests\n\nCustom testing template\n";
+        let custom =
+            "---\nspec: {module}.spec.md\n---\n\n## Custom Tests\n\nCustom testing template\n";
         fs::write(template_dir.join("testing.md"), custom).unwrap();
 
         generate_companion_files_from_template(spec_dir, "auth", &template_dir);

@@ -97,3 +97,17 @@ jobs:
                 body,
               });
             }
+
+  corvid-pet:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && always()
+    needs: [test, fmt, validate-action, spec-check]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: CorvidLabs/corvid-pet@v1
+        with:
+          mode: pr-comment
+          event: auto
+          pet-name: Corvin
+          review-on-pr: "true"
+          job-status: ${{ (needs.test.result == 'success' && needs.fmt.result == 'success' && needs.validate-action.result == 'success' && needs.spec-check.result == 'success') && 'success' || 'failure' }}

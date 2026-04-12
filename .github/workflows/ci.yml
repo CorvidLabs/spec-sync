@@ -74,11 +74,60 @@ jobs:
     needs: [test, fmt, validate-action, spec-check]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Determine combined status
+        id: status
+        env:
+          CHECK_TEST: "Tests (build, test, clippy)=${{ needs.test.result }}"
+          CHECK_FMT: "Format Check=${{ needs.fmt.result }}"
+          CHECK_ACTION: "Validate action.yml=${{ needs.validate-action.result }}"
+          CHECK_SPEC: "Spec Validation=${{ needs.spec-check.result }}"
+          REPORT_SPEC: ${{ needs.spec-check.outputs.body }}
+        run: |
+          OVERALL="success"
+          TABLE="| Check | Status |\n|-------|--------|\n"
+          DETAILS=""
+
+          while IFS= read -r line; do
+            VAR_NAME="${line%%=*}"
+            VAR_VALUE="${!VAR_NAME}"
+            LABEL="${VAR_VALUE%%=*}"
+            RESULT="${VAR_VALUE##*=}"
+
+            if [ "$RESULT" = "success" ]; then
+              ICON="✅ Passed"
+            else
+              ICON="❌ ${RESULT}"
+              OVERALL="failure"
+            fi
+            TABLE+="| **${LABEL}** | ${ICON} |\n"
+
+            SUFFIX="${VAR_NAME#CHECK_}"
+            REPORT_VAR="REPORT_${SUFFIX}"
+            REPORT_VALUE="${!REPORT_VAR}"
+            if [ -n "$REPORT_VALUE" ]; then
+              DETAILS+="\n<details>\n<summary>📋 ${LABEL} Details</summary>\n\n${REPORT_VALUE}\n\n</details>\n"
+            fi
+          done < <(env | grep '^CHECK_' | sort)
+
+          echo "result=${OVERALL}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "context<<CONTEXT_EOF"
+            echo "### CI Summary"
+            echo ""
+            echo -e "$TABLE"
+            if [ -n "$DETAILS" ]; then
+              echo -e "$DETAILS"
+            fi
+            echo "CONTEXT_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - uses: CorvidLabs/corvid-pet@v1.0.0
         with:
           mode: pr-comment
           event: auto
           pet-name: Corvin
           review-on-pr: "true"
-          context: ${{ needs.spec-check.outputs.body }}
-          job-status: ${{ (needs.test.result == 'success' && needs.fmt.result == 'success' && needs.validate-action.result == 'success' && needs.spec-check.result == 'success') && 'success' || 'failure' }}
+          context: ${{ steps.status.outputs.context }}
+          job-status: ${{ steps.status.outputs.result }}

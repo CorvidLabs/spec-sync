@@ -1,21 +1,6 @@
----
-title: Spec Format
-layout: default
-nav_order: 2
----
-
 # Spec Format
-{: .no_toc }
 
 Specs are markdown files (`*.spec.md`) with YAML frontmatter, placed in your specs directory (default: `specs/`).
-{: .fs-6 .fw-300 }
-
-<details open markdown="block">
-  <summary>Table of contents</summary>
-  {: .text-delta }
-1. TOC
-{:toc}
-</details>
 
 ---
 
@@ -61,7 +46,7 @@ depends_on:
   - corvid-labs/algochat@messaging           # Cross-project ref (validated by resolve --remote)
 ```
 
-Cross-project refs use the `owner/repo@module` syntax. Local refs are verified by `specsync check` and `specsync resolve`. Cross-project refs require `specsync resolve --remote` which fetches the target repo's `.specsync/registry.toml` from GitHub. See [Cross-Project References](cross-project-refs) for the full workflow.
+Cross-project refs use the `owner/repo@module` syntax. Local refs are verified by `specsync check` and `specsync resolve`. Cross-project refs require `specsync resolve --remote` which fetches the target repo's `.specsync/registry.toml` from GitHub. See [Cross-Project References](cross-project-refs.md) for the full workflow.
 
 ---
 
@@ -100,7 +85,6 @@ The core of what SpecSync validates. Use markdown tables with **backtick-quoted 
 | `authenticate` | `(token: string)` | `User \| null` | Validates bearer token |
 ```
 
-{: .note }
 > Column headers don't matter. SpecSync only reads backtick-quoted names in the first column. Structure the table however suits your team.
 
 ### Validated vs Informational Subsections
@@ -133,7 +117,6 @@ Only `### Exported ...` subsections trigger export validation. Use other heading
 
 This lets specs document the full API surface — HTTP endpoints, component signals, route handlers, config options — alongside validated exports, all in one place.
 
-{: .note }
 > Tables placed directly under `## Public API` (without a `###` subsection) are always validated.
 
 ---

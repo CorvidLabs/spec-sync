@@ -1,21 +1,6 @@
----
-title: Architecture
-layout: default
-nav_order: 8
----
-
 # Architecture
-{: .no_toc }
 
 How SpecSync is built. Useful for contributors and anyone adding language support.
-{: .fs-6 .fw-300 }
-
-<details open markdown="block">
-  <summary>Table of contents</summary>
-  {: .text-delta }
-1. TOC
-{:toc}
-</details>
 
 ---
 

@@ -1,0 +1,17 @@
+/* Rust-themed accent overrides for mdBook coal theme */
+
+:root {
+    --links: #e87d2f;
+    --sidebar-active: #e87d2f;
+}
+
+/* Sidebar active link accent */
+.sidebar .chapter li.chapter-item a.active {
+    color: #e87d2f;
+    border-left-color: #e87d2f;
+}
+
+/* Link hover */
+.content a:hover {
+    color: #f0943f;
+}

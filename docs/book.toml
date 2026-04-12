@@ -1,0 +1,13 @@
+[book]
+title = "SpecSync"
+description = "Bidirectional spec-to-code validation — keep your docs honest."
+authors = ["CorvidLabs"]
+language = "en"
+src = "src"
+
+[output.html]
+default-theme = "coal"
+preferred-dark-theme = "coal"
+git-repository-url = "https://github.com/CorvidLabs/spec-sync"
+edit-url-template = "https://github.com/CorvidLabs/spec-sync/edit/main/docs/src/{path}"
+additional-css = ["theme/custom.css"]

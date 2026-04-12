@@ -1,21 +1,6 @@
----
-title: Configuration
-layout: default
-nav_order: 4
----
-
 # Configuration
-{: .no_toc }
 
 SpecSync is configured via `.specsync/config.toml` (v4) or legacy `specsync.json` / `.specsync.toml` in your project root. All fields are optional — sensible defaults apply.
-{: .fs-6 .fw-300 }
-
-<details open markdown="block">
-  <summary>Table of contents</summary>
-  {: .text-delta }
-1. TOC
-{:toc}
-</details>
 
 ---
 

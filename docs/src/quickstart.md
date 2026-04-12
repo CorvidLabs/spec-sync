@@ -1,14 +1,6 @@
----
-title: Quick Start
-layout: default
-nav_order: 3
----
-
 # Quick Start Guide
-{: .fs-9 }
 
 Get SpecSync running on your project in under 5 minutes.
-{: .fs-6 .fw-300 }
 
 ---
 

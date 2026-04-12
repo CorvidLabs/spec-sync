@@ -1,21 +1,6 @@
----
-title: Cross-Project References
-layout: default
-nav_order: 5
----
-
 # Cross-Project References
-{: .no_toc }
 
 Validate spec dependencies across repositories. Zero network cost by default — remote verification is opt-in.
-{: .fs-6 .fw-300 }
-
-<details open markdown="block">
-  <summary>Table of contents</summary>
-  {: .text-delta }
-1. TOC
-{:toc}
-</details>
 
 ---
 
@@ -104,7 +89,6 @@ Add `resolve --remote` to your CI pipeline to catch broken cross-project refs:
   run: specsync resolve --remote
 ```
 
-{: .note }
 > `specsync check` validates local refs only and never hits the network. Use `resolve --remote` explicitly when you want cross-project verification. This keeps CI fast by default.
 
 ---

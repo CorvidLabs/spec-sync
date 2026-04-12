@@ -1,21 +1,6 @@
----
-title: Workflow Guide
-layout: default
-nav_order: 4
----
-
 # Workflow Guide
-{: .no_toc }
 
 End-to-end walkthrough of the SpecSync workflow — from first spec to CI enforcement, maintenance, and team collaboration.
-{: .fs-6 .fw-300 }
-
-<details open markdown="block">
-  <summary>Table of contents</summary>
-  {: .text-delta }
-1. TOC
-{:toc}
-</details>
 
 ---
 
@@ -47,7 +32,7 @@ create → validate → iterate → stabilize → maintain → compact → archi
 specsync init
 ```
 
-This creates `.specsync/config.toml` with auto-detected source directories. Review it and adjust `specs_dir`, `source_dirs`, `exclude_dirs`, and `required_sections` as needed. See [Configuration](configuration) for all options.
+This creates `.specsync/config.toml` with auto-detected source directories. Review it and adjust `specs_dir`, `source_dirs`, `exclude_dirs`, and `required_sections` as needed. See [Configuration](configuration.md) for all options.
 
 ### Install hooks and agent instructions
 
@@ -93,12 +78,11 @@ specsync generate --provider auto       # AI reads code, writes real content
 
 Template mode creates stubs you fill in. AI mode (`--provider`) sends source code to an LLM and generates filled-in specs — Purpose, Public API tables, Invariants, Error Cases, everything.
 
-{: .note }
 > AI-generated specs are a starting point, not a finished product. Always review and refine them. Run `specsync check` immediately after to catch any drift.
 
 ### Option C: Write specs by hand
 
-Create `specs/<module>/<module>.spec.md` with the required frontmatter (`module`, `version`, `status`, `files`) and sections. See [Spec Format](spec-format) for the full reference.
+Create `specs/<module>/<module>.spec.md` with the required frontmatter (`module`, `version`, `status`, `files`) and sections. See [Spec Format](spec-format.md) for the full reference.
 
 ---
 
@@ -271,7 +255,7 @@ specsync resolve
 specsync resolve --remote
 ```
 
-See [Cross-Project References](cross-project-refs) for the full setup.
+See [Cross-Project References](cross-project-refs.md) for the full setup.
 
 ---
 
@@ -284,7 +268,7 @@ See [Cross-Project References](cross-project-refs) for the full setup.
   run: specsync check --strict --require-coverage 80
 ```
 
-See [GitHub Action](github-action) for the official action with caching and PR comments.
+See [GitHub Action](github-action.md) for the official action with caching and PR comments.
 
 ### Pre-commit hook
 
@@ -310,7 +294,7 @@ SpecSync is designed for AI-assisted development. Three integration modes:
 specsync mcp
 ```
 
-Exposes `specsync_check`, `specsync_generate`, `specsync_coverage`, `specsync_score` as native tools. Claude Code, Cursor, and Windsurf can call them directly. See [For AI Agents](ai-agents) for setup.
+Exposes `specsync_check`, `specsync_generate`, `specsync_coverage`, `specsync_score` as native tools. Claude Code, Cursor, and Windsurf can call them directly. See [For AI Agents](ai-agents.md) for setup.
 
 ### Agent instruction files
 

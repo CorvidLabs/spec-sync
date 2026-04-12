@@ -1,21 +1,6 @@
----
-title: For AI Agents
-layout: default
-nav_order: 7
----
-
 # For AI Agents
-{: .no_toc }
 
 SpecSync is built for LLM-powered coding tools — structured output, machine-readable specs, and automated scaffolding.
-{: .fs-6 .fw-300 }
-
-<details open markdown="block">
-  <summary>Table of contents</summary>
-  {: .text-delta }
-1. TOC
-{:toc}
-</details>
 
 ---
 

@@ -1,18 +1,10 @@
----
-title: Home
-layout: home
-nav_order: 1
----
-
 # SpecSync
-{: .fs-9 }
 
 Bidirectional spec-to-code validation. Written in Rust. Single binary. 11 languages. VS Code extension.
-{: .fs-6 .fw-300 }
 
-[Get Started](quickstart){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
-[Why SpecSync?](why-specsync){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
-[View on GitHub](https://github.com/CorvidLabs/spec-sync){: .btn .fs-5 .mb-4 .mb-md-0 }
+[Get Started](quickstart.md)
+[Why SpecSync?](why-specsync.md)
+[View on GitHub](https://github.com/CorvidLabs/spec-sync)
 
 ---
 
@@ -64,8 +56,8 @@ TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby.
 
 | New to SpecSync? | Already using it? |
 |:-----------------|:-----------------|
-| [Quick Start Guide](quickstart) — up and running in 5 min | [CLI Reference](cli) — all 14 commands |
-| [Why SpecSync?](why-specsync) — comparison with alternatives | [Configuration](configuration) — `.specsync/config.toml` options |
-| [Spec Format](spec-format) — how to write specs | [Cross-Project Refs](cross-project-refs) — multi-repo validation |
-| [Workflow Guide](workflow) — full lifecycle | [AI Agents](ai-agents) — MCP server + AI generation |
-| [Architecture](architecture) — how it works | [VS Code Extension](vscode-extension) — editor integration |
+| [Quick Start Guide](quickstart.md) — up and running in 5 min | [CLI Reference](cli.md) — all 14 commands |
+| [Why SpecSync?](why-specsync.md) — comparison with alternatives | [Configuration](configuration.md) — `.specsync/config.toml` options |
+| [Spec Format](spec-format.md) — how to write specs | [Cross-Project Refs](cross-project-refs.md) — multi-repo validation |
+| [Workflow Guide](workflow.md) — full lifecycle | [AI Agents](ai-agents.md) — MCP server + AI generation |
+| [Architecture](architecture.md) — how it works | [VS Code Extension](vscode-extension.md) — editor integration |

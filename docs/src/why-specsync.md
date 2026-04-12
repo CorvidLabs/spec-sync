@@ -1,14 +1,6 @@
----
-title: Why SpecSync?
-layout: default
-nav_order: 2
----
-
 # Why SpecSync?
-{: .fs-9 }
 
 How SpecSync compares to other documentation validation approaches.
-{: .fs-6 .fw-300 }
 
 ---
 

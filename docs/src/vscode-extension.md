@@ -1,21 +1,6 @@
----
-title: VS Code Extension
-layout: default
-nav_order: 5
----
-
 # VS Code Extension
-{: .no_toc }
 
 Real-time spec validation, quality scores, and coverage reports inside VS Code.
-{: .fs-6 .fw-300 }
-
-<details open markdown="block">
-  <summary>Table of contents</summary>
-  {: .text-delta }
-1. TOC
-{:toc}
-</details>
 
 ---
 
@@ -27,7 +12,6 @@ Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/item
 code --install-extension corvidlabs.specsync
 ```
 
-{: .note }
 The extension requires the `specsync` CLI binary to be installed and on your PATH. See the [CLI Reference](cli.html) for installation instructions.
 
 ---

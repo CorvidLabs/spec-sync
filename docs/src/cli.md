@@ -1,18 +1,4 @@
----
-title: CLI Reference
-layout: default
-nav_order: 3
----
-
 # CLI Reference
-{: .no_toc }
-
-<details open markdown="block">
-  <summary>Table of contents</summary>
-  {: .text-delta }
-1. TOC
-{:toc}
-</details>
 
 ---
 
@@ -74,7 +60,7 @@ With `--provider`, source code is sent to an LLM which generates filled-in specs
 | `ollama` | Shells out to Ollama CLI (`ollama run <model>`) |
 | `copilot` | Shells out to GitHub Copilot CLI (`gh copilot suggest`) |
 
-See [Configuration](configuration) for `aiProvider`, `aiModel`, `aiApiKey`, `aiBaseUrl`, and `aiTimeout`.
+See [Configuration](configuration.md) for `aiProvider`, `aiModel`, `aiApiKey`, `aiBaseUrl`, and `aiTimeout`.
 
 ### `score`
 
@@ -130,7 +116,7 @@ specsync resolve                           # verify local refs
 specsync resolve --remote                  # also verify cross-project refs via GitHub
 ```
 
-Cross-project refs use the `owner/repo@module` syntax in `depends_on`. The `--remote` flag fetches the target repo's `.specsync/registry.toml` from GitHub to confirm the module exists. See [Cross-Project References](cross-project-refs) for details.
+Cross-project refs use the `owner/repo@module` syntax in `depends_on`. The `--remote` flag fetches the target repo's `.specsync/registry.toml` from GitHub to confirm the module exists. See [Cross-Project References](cross-project-refs.md) for details.
 
 ### `hooks`
 
@@ -350,7 +336,7 @@ specsync lifecycle enforce --allowed       # check specs are in allowed statuses
 - Supports `--format json` for machine-readable output
 
 **Transition guards:**
-- Configure in `.specsync/config.toml` under `[lifecycle.guards]` (see [Configuration](configuration))
+- Configure in `.specsync/config.toml` under `[lifecycle.guards]` (see [Configuration](configuration.md))
 - Guards can require minimum score, required sections, or no-stale status
 - Use `lifecycle guard` to dry-run guard checks without changing status
 - Blocked transitions show which guards failed and why

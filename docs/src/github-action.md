@@ -1,21 +1,6 @@
----
-title: GitHub Action
-layout: default
-nav_order: 6
----
-
 # GitHub Action
-{: .no_toc }
 
 Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, runs validation.
-{: .fs-6 .fw-300 }
-
-<details open markdown="block">
-  <summary>Table of contents</summary>
-  {: .text-delta }
-1. TOC
-{:toc}
-</details>
 
 ---
 

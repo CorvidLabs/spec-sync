@@ -142,7 +142,8 @@ const COMPANION_REQ_LEGACY_SUFFIX: &str = "req.md";
 const COMPANION_OTHER_NAMES: &[&str] = &["context.md", "tasks.md", "testing.md", "design.md"];
 /// Legacy suffixes check for `{module}.suffix` naming. testing.md and design.md
 /// are included for forward-consistency even though no legacy-named files exist yet.
-const COMPANION_OTHER_LEGACY_SUFFIXES: &[&str] = &["context.md", "tasks.md", "testing.md", "design.md"];
+const COMPANION_OTHER_LEGACY_SUFFIXES: &[&str] =
+    &["context.md", "tasks.md", "testing.md", "design.md"];
 
 /// Find all companion files for a spec, checking both naming conventions.
 fn find_companion_files(spec_path: &Path) -> (Vec<PathBuf>, Vec<PathBuf>) {

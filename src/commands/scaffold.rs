@@ -20,7 +20,11 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
             spec_file.strip_prefix(root).unwrap_or(&spec_file).display()
         );
         // Still generate companion files if missing
-        generator::generate_companion_files_for_spec(&spec_dir, module_name, config.companions.design);
+        generator::generate_companion_files_for_spec(
+            &spec_dir,
+            module_name,
+            config.companions.design,
+        );
         return;
     }
 
@@ -161,7 +165,11 @@ depends_on: []
         Ok(_) => {
             let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
             println!("  {} Created {rel}", "✓".green());
-            generator::generate_companion_files_for_spec(&spec_dir, module_name, config.companions.design);
+            generator::generate_companion_files_for_spec(
+                &spec_dir,
+                module_name,
+                config.companions.design,
+            );
         }
         Err(e) => {
             eprintln!("Failed to write {}: {e}", spec_file.display());
@@ -189,9 +197,18 @@ pub fn cmd_scaffold(
         );
         // Still generate companion files if missing
         if let Some(ref tpl_dir) = template {
-            generator::generate_companion_files_from_template(&spec_dir, module_name, tpl_dir, config.companions.design);
+            generator::generate_companion_files_from_template(
+                &spec_dir,
+                module_name,
+                tpl_dir,
+                config.companions.design,
+            );
         } else {
-            generator::generate_companion_files_for_spec(&spec_dir, module_name, config.companions.design);
+            generator::generate_companion_files_for_spec(
+                &spec_dir,
+                module_name,
+                config.companions.design,
+            );
         }
         return;
     }
@@ -231,9 +248,18 @@ pub fn cmd_scaffold(
 
     // Generate companion files
     if let Some(ref tpl_dir) = template {
-        generator::generate_companion_files_from_template(&spec_dir, module_name, tpl_dir, config.companions.design);
+        generator::generate_companion_files_from_template(
+            &spec_dir,
+            module_name,
+            tpl_dir,
+            config.companions.design,
+        );
     } else {
-        generator::generate_companion_files_for_spec(&spec_dir, module_name, config.companions.design);
+        generator::generate_companion_files_for_spec(
+            &spec_dir,
+            module_name,
+            config.companions.design,
+        );
     }
 
     // Auto-register in specsync-registry.toml if one exists

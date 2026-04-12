@@ -308,7 +308,11 @@ depends_on: {depends_yaml}
         Ok(_) => {
             let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
             println!("\n  {} Created {rel}", "✓".green());
-            generator::generate_companion_files_for_spec(&spec_dir, &module_name, config.companions.design);
+            generator::generate_companion_files_for_spec(
+                &spec_dir,
+                &module_name,
+                config.companions.design,
+            );
             println!(
                 "\n{} Run {} to validate your new spec.",
                 "Tip:".cyan().bold(),

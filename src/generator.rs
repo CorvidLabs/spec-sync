@@ -768,11 +768,7 @@ fn generate_companion_files(spec_dir: &Path, module_name: &str, design_enabled: 
 /// Used by the `add-spec` and `scaffold` commands.
 ///
 /// When `design_enabled` is true, a `design.md` companion is also generated.
-pub fn generate_companion_files_for_spec(
-    spec_dir: &Path,
-    module_name: &str,
-    design_enabled: bool,
-) {
+pub fn generate_companion_files_for_spec(spec_dir: &Path, module_name: &str, design_enabled: bool) {
     generate_companion_files(spec_dir, module_name, design_enabled);
 }
 

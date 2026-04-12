@@ -102,7 +102,11 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
     }
 
     if full {
-        generator::generate_companion_files_for_spec(&spec_dir, module_name, config.companions.design);
+        generator::generate_companion_files_for_spec(
+            &spec_dir,
+            module_name,
+            config.companions.design,
+        );
         println!(
             "  {} Created companion files (tasks.md, context.md, requirements.md)",
             "→".cyan(),

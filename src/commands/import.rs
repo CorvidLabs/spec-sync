@@ -146,7 +146,11 @@ fn cmd_import_single(root: &Path, source: &str, id: &str, repo_override: Option<
         Ok(_) => {
             let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
             println!("  {} Created {rel}", "✓".green());
-            generator::generate_companion_files_for_spec(&spec_dir, &item.module_name, config.companions.design);
+            generator::generate_companion_files_for_spec(
+                &spec_dir,
+                &item.module_name,
+                config.companions.design,
+            );
             println!(
                 "\n{} Run {} to validate and fill in the details.",
                 "Tip:".cyan().bold(),
@@ -249,7 +253,11 @@ fn cmd_import_all_issues(root: &Path, repo_override: Option<&str>, label: Option
             Ok(_) => {
                 let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
                 println!("{} #{} → {}", "✓".green(), issue.number, rel);
-                generator::generate_companion_files_for_spec(&spec_dir, &item.module_name, config.companions.design);
+                generator::generate_companion_files_for_spec(
+                    &spec_dir,
+                    &item.module_name,
+                    config.companions.design,
+                );
                 stats.imported += 1;
             }
             Err(e) => {
@@ -349,7 +357,11 @@ fn cmd_import_from_dir(root: &Path, dir: &Path) {
             Ok(_) => {
                 let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
                 println!("{} → {}", "✓".green(), rel);
-                generator::generate_companion_files_for_spec(&spec_dir, &item.module_name, config.companions.design);
+                generator::generate_companion_files_for_spec(
+                    &spec_dir,
+                    &item.module_name,
+                    config.companions.design,
+                );
                 stats.imported += 1;
             }
             Err(e) => {

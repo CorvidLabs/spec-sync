@@ -47,6 +47,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `RuleFilter` | Filter to restrict which specs a custom rule applies to — optional status and module regex match |
 | `LifecycleConfig` | Lifecycle configuration for transition guards and history tracking (guards map, track_history flag) |
 | `TransitionGuard` | A transition guard — min_score, require_sections, no_stale, stale_threshold, message |
+| `CompanionConfig` | Configuration for companion file generation — controls opt-in companions like design.md |
 
 ### Exported AiProvider Functions
 
@@ -173,3 +174,4 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | 2026-04-10 | Document CustomRule, CustomRuleType, RuleSeverity, RuleFilter for declarative custom validation rules |
 | 2026-04-11 | Document SpecStatus lifecycle methods (all, ordinal, next, prev, valid_transitions, can_transition_to) |
 | 2026-04-11 | Move parsed_status to Frontmatter section; fix next/prev descriptions to include deprecated/archived |
+| 2026-04-12 | Document CompanionConfig struct for opt-in companion file settings |

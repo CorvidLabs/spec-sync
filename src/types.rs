@@ -708,6 +708,7 @@ pub enum Language {
     Dart,
     Php,
     Ruby,
+    Yaml,
 }
 
 impl Language {
@@ -725,6 +726,7 @@ impl Language {
             "dart" => Some(Language::Dart),
             "php" => Some(Language::Php),
             "rb" => Some(Language::Ruby),
+            "yaml" | "yml" => Some(Language::Yaml),
             _ => None,
         }
     }
@@ -744,6 +746,7 @@ impl Language {
             Language::Dart => &["dart"],
             Language::Php => &["php"],
             Language::Ruby => &["rb"],
+            Language::Yaml => &["yaml", "yml"],
         }
     }
 
@@ -778,6 +781,7 @@ impl Language {
             Language::Dart => &["_test.dart"],
             Language::Php => &["Test.php", "test_"],
             Language::Ruby => &["_spec.rb", "_test.rb", "test_"],
+            Language::Yaml => &[], // YAML files are typically not test files
         }
     }
 }

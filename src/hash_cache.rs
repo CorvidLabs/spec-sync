@@ -139,8 +139,8 @@ impl ChangeClassification {
 /// and the legacy `{module}.` prefixed names.
 const COMPANION_REQ_NAMES: &[&str] = &["requirements.md"];
 const COMPANION_REQ_LEGACY_SUFFIX: &str = "req.md";
-const COMPANION_OTHER_NAMES: &[&str] = &["context.md", "tasks.md"];
-const COMPANION_OTHER_LEGACY_SUFFIXES: &[&str] = &["context.md", "tasks.md"];
+const COMPANION_OTHER_NAMES: &[&str] = &["context.md", "tasks.md", "testing.md"];
+const COMPANION_OTHER_LEGACY_SUFFIXES: &[&str] = &["context.md", "tasks.md", "testing.md"];
 
 /// Find all companion files for a spec, checking both naming conventions.
 fn find_companion_files(spec_path: &Path) -> (Vec<PathBuf>, Vec<PathBuf>) {

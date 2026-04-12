@@ -46,6 +46,8 @@ jobs:
 
   spec-check:
     runs-on: ubuntu-latest
+    outputs:
+      body: ${{ steps.spec-check.outputs.body }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -55,7 +57,7 @@ jobs:
       - name: Run spec-check
         id: spec-check
         run: |
-          # Generate rich comment body via `specsync comment`
+          # Generate rich comment body for corvid-pet context
           BODY=$(cargo run -- comment 2>/dev/null) || true
           echo "$BODY"
           {
@@ -65,38 +67,6 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           # Fail the step if check fails
           cargo run -- check --strict
-      - name: Comment on PR
-        if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
-        env:
-          SPEC_BODY: ${{ steps.spec-check.outputs.body }}
-        with:
-          script: |
-            const body = process.env.SPEC_BODY || '## ⚠️ SpecSync\n\nNo output captured.';
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-            const botComment = comments.find(c =>
-              c.user.type === 'Bot' && c.body.includes('SpecSync')
-            );
-            if (botComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body,
-              });
-            }
 
   corvid-pet:
     runs-on: ubuntu-latest
@@ -110,4 +80,5 @@ jobs:
           event: auto
           pet-name: Corvin
           review-on-pr: "true"
+          context: ${{ needs.spec-check.outputs.body }}
           job-status: ${{ (needs.test.result == 'success' && needs.fmt.result == 'success' && needs.validate-action.result == 'success' && needs.spec-check.result == 'success') && 'success' || 'failure' }}

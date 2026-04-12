@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.3] - 2026-04-11
+
+### Fixed
+
+- **`specsync merge` now detects conflicts in all spec `.md` files** — Previously, merge conflict detection only matched `*.spec.md` files, silently skipping `tasks.md`, `requirements.md`, `context.md`, and other markdown files under the specs directory. Now matches any `.md` file in the specs path (#215).
+
 ## [4.1.2] - 2026-04-11
 
 ### Fixed

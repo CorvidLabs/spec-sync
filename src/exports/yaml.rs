@@ -47,10 +47,8 @@ pub fn extract_exports(content: &str) -> Vec<String> {
 
     // For well-known parent keys, extract second-level children as `parent.child`
     // We scan line-by-line, matching against individual lines (no trailing newline)
-    let top_level_line =
-        Regex::new(r"^([a-zA-Z_][a-zA-Z0-9_-]*):").unwrap();
-    let second_level_line =
-        Regex::new(r"^  ([a-zA-Z_][a-zA-Z0-9_-]*):").unwrap();
+    let top_level_line = Regex::new(r"^([a-zA-Z_][a-zA-Z0-9_-]*):").unwrap();
+    let second_level_line = Regex::new(r"^  ([a-zA-Z_][a-zA-Z0-9_-]*):").unwrap();
 
     let lines: Vec<&str> = content.lines().collect();
     let mut i = 0;
@@ -74,8 +72,7 @@ pub fn extract_exports(content: &str) -> Vec<String> {
                         }
                         if let Some(child_caps) = second_level_line.captures(child_line) {
                             if let Some(child_match) = child_caps.get(1) {
-                                symbols
-                                    .push(format!("{}.{}", parent, child_match.as_str()));
+                                symbols.push(format!("{}.{}", parent, child_match.as_str()));
                             }
                         }
                         j += 1;

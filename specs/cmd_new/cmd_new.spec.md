@@ -30,7 +30,7 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 
 1. Auto-detects source files by scanning source dirs for module name matches
 2. Extracts exports to pre-populate Public API tables
-3. `--full` generates companion files via `generator::generate_companion_files()`
+3. `--full` generates companion files (tasks.md, context.md, requirements.md, testing.md) via `generator::generate_companion_files_for_spec()`; design.md is included only when `companions.design` is enabled in config
 4. Includes custom `chrono_lite_today()` for dates without chrono dependency
 5. Will not overwrite existing spec
 
@@ -46,7 +46,7 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 
 - **Given** `--full` flag
 - **When** `cmd_new` runs
-- **Then** creates spec.md, tasks.md, context.md, requirements.md
+- **Then** creates spec.md, tasks.md, context.md, requirements.md, testing.md (and design.md if `companions.design` is enabled)
 
 ## Error Cases
 
@@ -77,3 +77,4 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 | Date | Change |
 |------|--------|
 | 2026-04-09 | Initial spec |
+| 2026-04-13 | Document testing.md and conditional design.md in companion generation |

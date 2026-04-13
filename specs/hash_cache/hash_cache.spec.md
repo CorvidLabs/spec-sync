@@ -50,7 +50,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 3. Unreadable files are treated as "changed" (conservative — triggers re-validation)
 4. SHA-256 is computed in 8KB chunks for memory efficiency on large files
 5. Path keys are normalized for cross-platform consistency (forward slashes)
-6. Companion file detection covers both naming conventions: plain (`requirements.md`) and prefixed (`{module}.req.md`)
+6. Companion file detection covers all five companion types (requirements.md, context.md, tasks.md, testing.md, design.md) in both naming conventions: plain (`requirements.md`) and prefixed (`{module}.req.md`)
 7. `update_cache` prunes entries for deleted files to prevent unbounded cache growth
 8. `extract_frontmatter_files` uses quick string matching — does not invoke the full YAML parser
 
@@ -79,6 +79,12 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 - **Given** `requirements.md` companion has been updated
 - **When** `classify_changes` is called for the parent spec
 - **Then** returns `ChangeClassification` with `ChangeKind::Requirements`
+
+### Scenario: Design or testing companion change detected
+
+- **Given** `testing.md` or `design.md` has been modified
+- **When** `classify_changes` is called for the parent spec
+- **Then** returns `ChangeClassification` with `ChangeKind::Companion`
 
 ## Error Cases
 
@@ -110,3 +116,4 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 |------|--------|
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-06 | Initial spec for v3.3.0 |
+| 2026-04-13 | Document design.md and testing.md in companion file detection list |

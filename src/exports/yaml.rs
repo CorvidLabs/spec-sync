@@ -46,9 +46,9 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     }
 
     // For well-known parent keys, extract second-level children as `parent.child`
-    // We scan line-by-line, matching against individual lines (no trailing newline)
+    // We scan line-by-line, detecting the indent of the first child to only match
+    // direct children (not deeper nested keys).
     let top_level_line = Regex::new(r"^([a-zA-Z_][a-zA-Z0-9_-]*):").unwrap();
-    let second_level_line = Regex::new(r"^  ([a-zA-Z_][a-zA-Z0-9_-]*):").unwrap();
 
     let lines: Vec<&str> = content.lines().collect();
     let mut i = 0;
@@ -61,18 +61,33 @@ pub fn extract_exports(content: &str) -> Vec<String> {
                 if NESTED_SYMBOL_PARENTS.contains(&parent) {
                     // Scan subsequent lines for second-level keys under this parent
                     let mut j = i + 1;
+                    let mut child_indent: Option<usize> = None;
                     while j < lines.len() {
                         let child_line = lines[j];
                         // Stop if we hit another top-level key or end of file
                         if !child_line.is_empty()
                             && !child_line.starts_with(' ')
+                            && !child_line.starts_with('\t')
                             && !child_line.starts_with('#')
                         {
                             break;
                         }
-                        if let Some(child_caps) = second_level_line.captures(child_line) {
-                            if let Some(child_match) = child_caps.get(1) {
-                                symbols.push(format!("{}.{}", parent, child_match.as_str()));
+                        // Measure leading whitespace
+                        let indent = child_line.len() - child_line.trim_start().len();
+                        let trimmed = child_line.trim_start();
+                        if indent > 0 && !trimmed.is_empty() && !trimmed.starts_with('#') {
+                            // Detect indent of first child
+                            if child_indent.is_none() {
+                                child_indent = Some(indent);
+                            }
+                            // Only match lines at the exact child indent level
+                            if Some(indent) == child_indent {
+                                let key_re = Regex::new(r"^([a-zA-Z_][a-zA-Z0-9_-]*):").unwrap();
+                                if let Some(child_caps) = key_re.captures(trimmed) {
+                                    if let Some(child_match) = child_caps.get(1) {
+                                        symbols.push(format!("{}.{}", parent, child_match.as_str()));
+                                    }
+                                }
                             }
                         }
                         j += 1;
@@ -180,6 +195,47 @@ spec:
         assert!(symbols.contains(&"spec".to_string()));
         // metadata.name should NOT be extracted since metadata is not a well-known parent
         assert!(!symbols.contains(&"metadata.name".to_string()));
+    }
+
+    #[test]
+    fn test_four_space_indentation() {
+        let content = r#"name: CI
+on: push
+jobs:
+    test:
+        runs-on: ubuntu-latest
+    build:
+        runs-on: ubuntu-latest
+services:
+    web:
+        image: nginx
+"#;
+        let symbols = extract_exports(content);
+        assert!(symbols.contains(&"jobs.test".to_string()));
+        assert!(symbols.contains(&"jobs.build".to_string()));
+        assert!(symbols.contains(&"services.web".to_string()));
+    }
+
+    #[test]
+    fn test_four_space_nested_not_extracted() {
+        let content = r#"jobs:
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - name: checkout
+"#;
+        let symbols = extract_exports(content);
+        assert!(symbols.contains(&"jobs.test".to_string()));
+        // `runs-on` is deeper nesting, not a direct child of `jobs`
+        assert!(!symbols.contains(&"jobs.runs-on".to_string()));
+    }
+
+    #[test]
+    fn test_tab_indentation() {
+        let content = "services:\n\tweb:\n\t\timage: nginx\n\tdb:\n\t\timage: postgres\n";
+        let symbols = extract_exports(content);
+        assert!(symbols.contains(&"services.web".to_string()));
+        assert!(symbols.contains(&"services.db".to_string()));
     }
 
     #[test]

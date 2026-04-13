@@ -489,7 +489,7 @@ spec: auth.spec.md
 spec: auth.spec.md
 ---
 
-## Automated Tests
+## Automated Testing
 <!-- Test file locations and what they cover -->
 
 ## Manual QA Checklist

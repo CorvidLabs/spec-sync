@@ -1361,7 +1361,10 @@ verify_issues = false
         )
         .unwrap();
         let config = load_config(root);
-        assert!(config.companions.design, "design companion should be enabled");
+        assert!(
+            config.companions.design,
+            "design companion should be enabled"
+        );
     }
 
     #[test]
@@ -1375,7 +1378,10 @@ verify_issues = false
         )
         .unwrap();
         let config = load_config(root);
-        assert!(!config.companions.design, "design companion should default to false");
+        assert!(
+            !config.companions.design,
+            "design companion should default to false"
+        );
     }
 
     #[test]
@@ -1383,7 +1389,13 @@ verify_issues = false
         let mut config = SpecSyncConfig::default();
         config.companions.design = true;
         let toml_str = config_to_toml(&config);
-        assert!(toml_str.contains("[companions]"), "should contain [companions] section");
-        assert!(toml_str.contains("design = true"), "should contain design = true");
+        assert!(
+            toml_str.contains("[companions]"),
+            "should contain [companions] section"
+        );
+        assert!(
+            toml_str.contains("design = true"),
+            "should contain design = true"
+        );
     }
 }

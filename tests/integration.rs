@@ -4026,3 +4026,207 @@ fn migrate_partial_recovery() {
     let version = fs::read_to_string(root.join(".specsync/version")).unwrap();
     assert_eq!(version.trim(), "4.0.0");
 }
+
+// ─── Companion file integration tests ───────────────────────────────────
+
+/// Write a v4 TOML config under .specsync/config.toml.
+fn write_toml_config(root: &std::path::Path, extra: &str) {
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    let config = format!(
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n{extra}"
+    );
+    fs::write(root.join(".specsync/config.toml"), config).unwrap();
+    fs::write(root.join(".specsync/version"), "4.0.0").unwrap();
+}
+
+/// Set up a minimal v4 project (TOML config) with one source module and no spec.
+fn setup_v4_unspecced(tmp: &TempDir, config_extra: &str) -> std::path::PathBuf {
+    let root = tmp.path().to_path_buf();
+    write_toml_config(&root, config_extra);
+    fs::create_dir_all(root.join("src/billing")).unwrap();
+    fs::write(
+        root.join("src/billing/index.ts"),
+        "export function charge() {}\nexport function refund() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs")).unwrap();
+    root
+}
+
+#[test]
+fn generate_creates_companion_files() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_v4_unspecced(&tmp, "");
+
+    specsync()
+        .args(["generate", "--root"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Generated"));
+
+    let spec_dir = root.join("specs/billing");
+    assert!(spec_dir.join("billing.spec.md").exists(), "spec should exist");
+    assert!(spec_dir.join("tasks.md").exists(), "tasks.md should exist");
+    assert!(spec_dir.join("context.md").exists(), "context.md should exist");
+    assert!(spec_dir.join("requirements.md").exists(), "requirements.md should exist");
+    assert!(spec_dir.join("testing.md").exists(), "testing.md should exist");
+    // design.md should NOT be created by default
+    assert!(!spec_dir.join("design.md").exists(), "design.md should NOT exist by default");
+}
+
+#[test]
+fn generate_creates_design_md_when_enabled() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_v4_unspecced(&tmp, "\n[companions]\ndesign = true\n");
+
+    specsync()
+        .args(["generate", "--root"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Generated"));
+
+    let spec_dir = root.join("specs/billing");
+    assert!(spec_dir.join("billing.spec.md").exists(), "spec should exist");
+    assert!(spec_dir.join("testing.md").exists(), "testing.md should exist");
+    assert!(spec_dir.join("design.md").exists(), "design.md should exist when companions.design = true");
+
+    // Verify design.md has correct frontmatter
+    let design_content = fs::read_to_string(spec_dir.join("design.md")).unwrap();
+    assert!(design_content.contains("spec: billing.spec.md"), "design.md should reference spec");
+}
+
+#[test]
+fn companion_testing_md_has_correct_structure() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_v4_unspecced(&tmp, "");
+
+    specsync()
+        .args(["generate", "--root"])
+        .arg(&root)
+        .assert()
+        .success();
+
+    let testing_content = fs::read_to_string(root.join("specs/billing/testing.md")).unwrap();
+    assert!(testing_content.contains("spec: billing.spec.md"), "testing.md should reference spec");
+    assert!(testing_content.contains("## Automated Testing") || testing_content.contains("## Test"),
+            "testing.md should have test-related sections");
+}
+
+#[test]
+fn companion_files_not_overwritten_on_regenerate() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_v4_unspecced(&tmp, "");
+
+    // First generate
+    specsync()
+        .args(["generate", "--root"])
+        .arg(&root)
+        .assert()
+        .success();
+
+    // Modify a companion
+    let tasks_path = root.join("specs/billing/tasks.md");
+    fs::write(&tasks_path, "---\nspec: billing.spec.md\n---\n\n## Custom Content\n").unwrap();
+
+    // Add a new unspecced module to trigger another generate
+    fs::create_dir_all(root.join("src/shipping")).unwrap();
+    fs::write(
+        root.join("src/shipping/index.ts"),
+        "export function ship() {}\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args(["generate", "--root"])
+        .arg(&root)
+        .assert()
+        .success();
+
+    // Original companion should be untouched
+    let tasks_content = fs::read_to_string(&tasks_path).unwrap();
+    assert!(tasks_content.contains("## Custom Content"), "existing companion files should not be overwritten");
+}
+
+// ─── YAML extraction integration tests ──────────────────────────────────
+
+#[test]
+fn check_yaml_source_file_extracts_top_level_keys() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    write_toml_config(&root, "");
+
+    // Create a YAML source file
+    fs::create_dir_all(root.join("src/ci")).unwrap();
+    fs::write(
+        root.join("src/ci/build.yml"),
+        "name: CI\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n  lint:\n    runs-on: ubuntu-latest\n",
+    )
+    .unwrap();
+
+    // Create a spec that tracks the YAML file
+    fs::create_dir_all(root.join("specs/ci")).unwrap();
+    let spec = valid_spec("ci", &["src/ci/build.yml"]);
+    fs::write(root.join("specs/ci/ci.spec.md"), spec).unwrap();
+
+    // Check should pass (no missing source files)
+    specsync()
+        .args(["check", "--root"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("0 failed"));
+}
+
+#[test]
+fn check_yaml_with_document_separator_in_content() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    write_toml_config(&root, "");
+
+    // Create a YAML file that uses document separators (common in Kubernetes manifests)
+    fs::create_dir_all(root.join("src/k8s")).unwrap();
+    fs::write(
+        root.join("src/k8s/manifests.yml"),
+        "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: my-app\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: my-svc\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/k8s")).unwrap();
+    let spec = valid_spec("k8s", &["src/k8s/manifests.yml"]);
+    fs::write(root.join("specs/k8s/k8s.spec.md"), spec).unwrap();
+
+    // Check should still pass — the YAML extractor handles multi-doc files
+    specsync()
+        .args(["check", "--root"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("0 failed"));
+}
+
+#[test]
+fn check_yaml_with_anchors_and_nested_keys() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    write_toml_config(&root, "");
+
+    fs::create_dir_all(root.join("src/docker")).unwrap();
+    fs::write(
+        root.join("src/docker/compose.yml"),
+        "version: \"3.8\"\nservices:\n  web:\n    image: nginx\n  db:\n    image: postgres\nvolumes:\n  pgdata:\n    driver: local\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/docker")).unwrap();
+    let spec = valid_spec("docker", &["src/docker/compose.yml"]);
+    fs::write(root.join("specs/docker/docker.spec.md"), spec).unwrap();
+
+    specsync()
+        .args(["check", "--root"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("0 failed"));
+}

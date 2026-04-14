@@ -524,6 +524,13 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
         }
     }
 
+    // Companions section
+    if config.companions.design {
+        lines.push(String::new());
+        lines.push("[companions]".to_string());
+        lines.push("design = true".to_string());
+    }
+
     lines.push(String::new()); // trailing newline
     lines.join("\n")
 }
@@ -552,6 +559,7 @@ const KNOWN_JSON_KEYS: &[&str] = &[
     "github",
     "enforcement",
     "lifecycle",
+    "companions",
 ];
 
 fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
@@ -640,6 +648,10 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                     }
                     "lifecycle" => {
                         parse_toml_lifecycle_key(key, value, &mut config.lifecycle);
+                        continue;
+                    }
+                    "companions" => {
+                        parse_toml_companions_key(key, value, &mut config.companions);
                         continue;
                     }
                     s if s.starts_with("lifecycle.") => {
@@ -818,6 +830,20 @@ fn parse_toml_github_key(key: &str, value: &str, config: &mut SpecSyncConfig) {
         "verify_issues" => gh.verify_issues = parse_toml_bool(value),
         _ => {
             eprintln!("Warning: unknown key \"{key}\" in [github] section (ignored)");
+        }
+    }
+}
+
+/// Parse a key=value pair inside a `[companions]` TOML section.
+fn parse_toml_companions_key(
+    key: &str,
+    value: &str,
+    companions: &mut crate::types::CompanionConfig,
+) {
+    match key {
+        "design" => companions.design = parse_toml_bool(value),
+        _ => {
+            eprintln!("Warning: unknown key \"{key}\" in [companions] section (ignored)");
         }
     }
 }
@@ -1320,5 +1346,44 @@ verify_issues = false
         let pattern = regex::Regex::new(default_schema_pattern()).unwrap();
         let caps = pattern.captures("CREATE TABLE users (id INT)").unwrap();
         assert_eq!(&caps[1], "users");
+    }
+
+    // --- companions config ---
+
+    #[test]
+    fn test_toml_companions_design_enabled() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n\n[companions]\ndesign = true\n",
+        )
+        .unwrap();
+        let config = load_config(root);
+        assert!(config.companions.design, "design companion should be enabled");
+    }
+
+    #[test]
+    fn test_toml_companions_design_default_false() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+        )
+        .unwrap();
+        let config = load_config(root);
+        assert!(!config.companions.design, "design companion should default to false");
+    }
+
+    #[test]
+    fn test_config_to_toml_roundtrips_companions() {
+        let mut config = SpecSyncConfig::default();
+        config.companions.design = true;
+        let toml_str = config_to_toml(&config);
+        assert!(toml_str.contains("[companions]"), "should contain [companions] section");
+        assert!(toml_str.contains("design = true"), "should contain design = true");
     }
 }

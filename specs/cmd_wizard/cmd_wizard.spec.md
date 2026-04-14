@@ -32,7 +32,7 @@ Implements the `specsync wizard` command — an interactive TUI wizard for creat
 3. Refuses to overwrite existing spec (exits 1 if spec dir already exists)
 4. Source file auto-detection scans `source_dirs` for files matching the module name/directory
 5. Template types: Generic, API Endpoint, Data Model, Utility, UI Component — each adds template-specific sections
-6. Companion files (tasks.md, context.md, requirements.md) are always generated
+6. Companion files (tasks.md, context.md, requirements.md, testing.md) are always generated; design.md is generated only when `companions.design` is enabled in config
 7. Shows a full preview of the spec before asking for write confirmation
 
 ## Behavioral Examples
@@ -79,3 +79,4 @@ Implements the `specsync wizard` command — an interactive TUI wizard for creat
 | Date | Change |
 |------|--------|
 | 2026-04-09 | Initial spec |
+| 2026-04-13 | Document testing.md and conditional design.md in companion generation |

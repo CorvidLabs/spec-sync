@@ -31,7 +31,7 @@ Implements the `specsync import` command. Imports specs from external systems (G
 
 1. Supported sources: `github`, `jira`, `confluence`
 2. GitHub import resolves repo from config, CLI flag, or git remote
-3. Creates spec and companion files
+3. Creates spec and companion files (tasks.md, context.md, requirements.md, testing.md); design.md is generated only when `companions.design` is enabled in config
 4. Will not overwrite existing spec
 
 ## Behavioral Examples
@@ -72,3 +72,4 @@ Implements the `specsync import` command. Imports specs from external systems (G
 | Date | Change |
 |------|--------|
 | 2026-04-09 | Initial spec |
+| 2026-04-13 | Document testing.md and conditional design.md in companion generation |

@@ -489,7 +489,7 @@ spec: auth.spec.md
 spec: auth.spec.md
 ---
 
-## Automated Tests
+## Automated Testing
 <!-- Test file locations and what they cover -->
 
 ## Manual QA Checklist
@@ -520,6 +520,42 @@ spec: auth.spec.md
 ```
 
 These files are designed for team coordination and AI agent context — they give any contributor (human or AI) the full picture of where a module stands.
+
+---
+
+## YAML Source Files
+
+SpecSync extracts symbols from YAML files (`.yml`, `.yaml`) including GitHub Actions workflows, Docker Compose files, and Kubernetes manifests.
+
+**What gets extracted:**
+- **Top-level keys** — any key at column 0 (e.g., `name`, `on`, `jobs`)
+- **Nested children of well-known parents** — `jobs.test`, `services.web`, `volumes.pgdata`, etc. Parents: `jobs`, `services`, `volumes`, `networks`, `secrets`, `stages`, `steps`, `targets`, `outputs`, `inputs`, `permissions`, `deployments`
+- **YAML anchors** — `&anchor-name` definitions
+
+**Indentation:** Any consistent indentation (2-space, 4-space, or tabs) is supported for nested key extraction.
+
+### Document Separator Edge Cases
+
+YAML supports multi-document files separated by `---` (common in Kubernetes manifests). SpecSync handles these correctly:
+
+```yaml
+# Multi-document YAML (e.g., k8s manifests)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-svc
+```
+
+- Top-level keys from **all documents** are extracted (`apiVersion`, `kind`, `metadata` from both)
+- The `---` separator is not confused with spec frontmatter delimiters — frontmatter parsing only applies to `.spec.md` files
+- Duplicate keys across documents are deduplicated in the symbol list
+
+> **Note:** SpecSync's YAML extractor uses regex-based parsing, not a full YAML parser. This means it works without any YAML library dependency but does not interpret YAML semantics like merge keys (`<<: *alias`) beyond anchor extraction.
 
 ---
 

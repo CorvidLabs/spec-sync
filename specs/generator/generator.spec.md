@@ -30,7 +30,7 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 | `find_files_for_module` | `root, module_name, config` | `Vec<String>` | Find source files for a module by checking config definitions, subdirectories, then flat files |
 | `generate_spec` | `module_name, source_files, root, specs_dir` | `String` | Generate a spec from a template (custom or language-aware default) |
 | `generate_spec_from_custom_template` | `template_dir, module_name, source_files, root` | `String` | Generate a spec using files from a custom template directory |
-| `generate_companion_files_from_template` | `spec_dir, module_name, template_dir` | `()` | Generate companion files from a custom template directory with fallback to defaults |
+| `generate_companion_files_from_template` | `spec_dir, module_name, template_dir, design_enabled` | `()` | Generate companion files from a custom template directory with fallback to defaults; creates design.md only when `design_enabled` is true |
 
 ## Invariants
 
@@ -39,9 +39,10 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 3. Template generation fills in module name, version (1), status (draft), and discovered source files
 4. Module title is derived from the module name with dashes converted to title case (e.g. "api-gateway" -> "Api Gateway")
 5. Companion files (tasks.md, context.md, requirements.md, testing.md, and design.md when enabled) are only created if they don't already exist
-6. AI generation falls back to template on failure (with a warning to stderr)
-7. Source file paths in frontmatter are relative to the project root
-8. Module source files are discovered by checking subdirectory-based modules first, then flat files
+6. The design.md template includes its own YAML frontmatter with `spec:` (back-reference to the parent spec) and `sources:` (list of design asset references — Figma URLs, image paths, etc.). This frontmatter is companion-level metadata, not parsed by the spec validation pipeline
+7. AI generation falls back to template on failure (with a warning to stderr)
+8. Source file paths in frontmatter are relative to the project root
+9. Module source files are discovered by checking subdirectory-based modules first, then flat files
 
 ## Behavioral Examples
 
@@ -49,13 +50,25 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 
 - **Given** a module "auth" with source files in `src/auth/` and no existing spec
 - **When** `generate_specs_for_unspecced_modules` is called
-- **Then** creates `specs/auth/auth.spec.md`, `specs/auth/tasks.md`, `specs/auth/context.md`, `specs/auth/requirements.md`, and `specs/auth/testing.md`
+- **Then** creates `specs/auth/auth.spec.md`, `specs/auth/tasks.md`, `specs/auth/context.md`, `specs/auth/requirements.md`, `specs/auth/testing.md`, and `specs/auth/design.md` if `companions.design` is enabled in config
 
 ### Scenario: Skip existing spec
 
 - **Given** a module "auth" that already has `specs/auth/auth.spec.md`
 - **When** `generate_specs_for_unspecced_modules` is called
 - **Then** skips the module, returns 0
+
+### Scenario: Design companion opt-in
+
+- **Given** `companions.design` is enabled in config
+- **When** `generate_companion_files_for_spec` is called for module "dashboard"
+- **Then** creates design.md with YAML frontmatter (`spec: dashboard.spec.md`, `sources: []`) and sections for Layout, Components, Tokens, Assets
+
+### Scenario: Design companion disabled by default
+
+- **Given** no `companions.design` config (default: false)
+- **When** `generate_companion_files_for_spec` is called
+- **Then** creates tasks.md, context.md, requirements.md, testing.md but NOT design.md
 
 ### Scenario: AI generation fallback
 
@@ -96,3 +109,4 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 | 2026-03-25 | Initial spec |
 | 2026-04-07 | Document find_files_for_module, generate_spec, generate_spec_from_custom_template, generate_companion_files_from_template |
 | 2026-04-12 | Update companion files list to include requirements.md, testing.md, and opt-in design.md; add design_enabled parameter |
+| 2026-04-13 | Fix generate_companion_files_from_template signature to include design_enabled; update scenario for conditional design.md |

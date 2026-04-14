@@ -82,10 +82,13 @@ pub fn extract_exports(content: &str) -> Vec<String> {
                             }
                             // Only match lines at the exact child indent level
                             if Some(indent) == child_indent {
-                                let key_re = Regex::new(r"^([a-zA-Z_][a-zA-Z0-9_-]*):").unwrap();
-                                if let Some(child_caps) = key_re.captures(trimmed) {
+                                if let Some(child_caps) = top_level_line.captures(trimmed) {
                                     if let Some(child_match) = child_caps.get(1) {
-                                        symbols.push(format!("{}.{}", parent, child_match.as_str()));
+                                        symbols.push(format!(
+                                            "{}.{}",
+                                            parent,
+                                            child_match.as_str()
+                                        ));
                                     }
                                 }
                             }

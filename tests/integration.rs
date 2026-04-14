@@ -4032,9 +4032,7 @@ fn migrate_partial_recovery() {
 /// Write a v4 TOML config under .specsync/config.toml.
 fn write_toml_config(root: &std::path::Path, extra: &str) {
     fs::create_dir_all(root.join(".specsync")).unwrap();
-    let config = format!(
-        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n{extra}"
-    );
+    let config = format!("specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n{extra}");
     fs::write(root.join(".specsync/config.toml"), config).unwrap();
     fs::write(root.join(".specsync/version"), "4.0.0").unwrap();
 }
@@ -4066,13 +4064,28 @@ fn generate_creates_companion_files() {
         .stdout(predicate::str::contains("Generated"));
 
     let spec_dir = root.join("specs/billing");
-    assert!(spec_dir.join("billing.spec.md").exists(), "spec should exist");
+    assert!(
+        spec_dir.join("billing.spec.md").exists(),
+        "spec should exist"
+    );
     assert!(spec_dir.join("tasks.md").exists(), "tasks.md should exist");
-    assert!(spec_dir.join("context.md").exists(), "context.md should exist");
-    assert!(spec_dir.join("requirements.md").exists(), "requirements.md should exist");
-    assert!(spec_dir.join("testing.md").exists(), "testing.md should exist");
+    assert!(
+        spec_dir.join("context.md").exists(),
+        "context.md should exist"
+    );
+    assert!(
+        spec_dir.join("requirements.md").exists(),
+        "requirements.md should exist"
+    );
+    assert!(
+        spec_dir.join("testing.md").exists(),
+        "testing.md should exist"
+    );
     // design.md should NOT be created by default
-    assert!(!spec_dir.join("design.md").exists(), "design.md should NOT exist by default");
+    assert!(
+        !spec_dir.join("design.md").exists(),
+        "design.md should NOT exist by default"
+    );
 }
 
 #[test]
@@ -4088,13 +4101,25 @@ fn generate_creates_design_md_when_enabled() {
         .stdout(predicate::str::contains("Generated"));
 
     let spec_dir = root.join("specs/billing");
-    assert!(spec_dir.join("billing.spec.md").exists(), "spec should exist");
-    assert!(spec_dir.join("testing.md").exists(), "testing.md should exist");
-    assert!(spec_dir.join("design.md").exists(), "design.md should exist when companions.design = true");
+    assert!(
+        spec_dir.join("billing.spec.md").exists(),
+        "spec should exist"
+    );
+    assert!(
+        spec_dir.join("testing.md").exists(),
+        "testing.md should exist"
+    );
+    assert!(
+        spec_dir.join("design.md").exists(),
+        "design.md should exist when companions.design = true"
+    );
 
     // Verify design.md has correct frontmatter
     let design_content = fs::read_to_string(spec_dir.join("design.md")).unwrap();
-    assert!(design_content.contains("spec: billing.spec.md"), "design.md should reference spec");
+    assert!(
+        design_content.contains("spec: billing.spec.md"),
+        "design.md should reference spec"
+    );
 }
 
 #[test]
@@ -4109,9 +4134,14 @@ fn companion_testing_md_has_correct_structure() {
         .success();
 
     let testing_content = fs::read_to_string(root.join("specs/billing/testing.md")).unwrap();
-    assert!(testing_content.contains("spec: billing.spec.md"), "testing.md should reference spec");
-    assert!(testing_content.contains("## Automated Testing") || testing_content.contains("## Test"),
-            "testing.md should have test-related sections");
+    assert!(
+        testing_content.contains("spec: billing.spec.md"),
+        "testing.md should reference spec"
+    );
+    assert!(
+        testing_content.contains("## Automated Testing") || testing_content.contains("## Test"),
+        "testing.md should have test-related sections"
+    );
 }
 
 #[test]
@@ -4128,7 +4158,11 @@ fn companion_files_not_overwritten_on_regenerate() {
 
     // Modify a companion
     let tasks_path = root.join("specs/billing/tasks.md");
-    fs::write(&tasks_path, "---\nspec: billing.spec.md\n---\n\n## Custom Content\n").unwrap();
+    fs::write(
+        &tasks_path,
+        "---\nspec: billing.spec.md\n---\n\n## Custom Content\n",
+    )
+    .unwrap();
 
     // Add a new unspecced module to trigger another generate
     fs::create_dir_all(root.join("src/shipping")).unwrap();
@@ -4146,7 +4180,10 @@ fn companion_files_not_overwritten_on_regenerate() {
 
     // Original companion should be untouched
     let tasks_content = fs::read_to_string(&tasks_path).unwrap();
-    assert!(tasks_content.contains("## Custom Content"), "existing companion files should not be overwritten");
+    assert!(
+        tasks_content.contains("## Custom Content"),
+        "existing companion files should not be overwritten"
+    );
 }
 
 // ─── YAML extraction integration tests ──────────────────────────────────

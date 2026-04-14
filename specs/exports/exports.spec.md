@@ -80,7 +80,7 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 | C# | `csharp.rs` | `public class/struct/interface/enum/record/delegate` types and `public` members; handles `static`, `partial`, `sealed`, `abstract`, `virtual`, `override`, `async` modifiers |
 | PHP | `php.rs` | `class/interface/trait/enum` types (always public); `public`/unqualified `function` and `const` declarations; skips `private`/`protected` members and `__` magic methods; handles `abstract`, `final`, `readonly`, `static` modifiers; strips `//`, `/* */`, and `#` comments |
 | Ruby | `ruby.rs` | `class`/`module` declarations; top-level `def` (always public); class methods with visibility tracking (`public`→`private`→`protected`→`public` toggles); `CONSTANT` assignments; `attr_accessor`/`attr_reader`/`attr_writer` symbols; skips `_`-prefixed names and `initialize`; strips `#` and `=begin/=end` comments |
-| YAML | `yaml.rs` | Top-level mapping keys from `.yaml`/`.yml` files; supports anchors and aliases |
+| YAML | `yaml.rs` | Top-level mapping keys from `.yaml`/`.yml` files; named entries under well-known parent keys (e.g., `jobs.test`, `services.web`); YAML anchors (`&name`) |
 
 ## Invariants
 
@@ -106,7 +106,7 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 16. Go backend deduplicates methods that might also match top-level declarations
 17. PHP backend treats types (class/interface/trait/enum) as always public; methods and constants require `public` or unqualified visibility; `private`/`protected` are excluded; magic methods (`__construct`, `__toString`, etc.) are excluded
 18. Ruby backend tracks visibility state via `public`/`private`/`protected` toggle statements; defaults to public; `initialize` is excluded; `_`-prefixed names are excluded; `attr_accessor`/`attr_reader`/`attr_writer` emit attribute names as symbols
-19. YAML backend extracts top-level mapping keys; no test file patterns (YAML files are not test files)
+19. YAML backend extracts top-level mapping keys, named entries under well-known parent keys (any indentation level), and anchors; no test file patterns (YAML files are not test files)
 
 ## Behavioral Examples
 

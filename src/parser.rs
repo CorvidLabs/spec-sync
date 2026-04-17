@@ -153,11 +153,14 @@ fn set_field(fm: &mut Frontmatter, key: &str, values: &[String]) {
 ///   "### Internal Functions", "### Route Handlers"
 pub fn is_export_header(header: &str) -> bool {
     let lower = header.to_ascii_lowercase();
-    lower.contains("exported")
-        || lower.contains("exports")
-        || lower.contains("export ")
-        || lower.contains("public ")
+    EXPORT_HEADER_RE.is_match(&lower)
 }
+
+/// Matches export-describing headers using word boundaries.
+/// Catches "Exported", "Exports", "Export", "Public" but NOT "Unexported".
+static EXPORT_HEADER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\bexport(?:ed|s)?\b|\bpublic\b").unwrap()
+});
 
 static TABLE_ROW_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\|\s*`(\w+)`").unwrap());
 
@@ -170,8 +173,9 @@ static METHOD_HEADER_RE: LazyLock<Regex> =
 pub fn get_spec_symbols(body: &str) -> Vec<String> {
     let mut symbols = Vec::new();
 
-    // Find the Public API section manually (no lookahead in Rust regex)
-    let api_start = match body.find("## Public API") {
+    // Find the Public API section manually (no lookahead in Rust regex).
+    // Use regex for exact line match — avoids false positives like "## Public API Overview".
+    let api_start = match find_section_offset(body, "Public API") {
         Some(pos) => pos,
         None => return symbols,
     };
@@ -262,7 +266,7 @@ pub fn get_missing_sections(body: &str, required_sections: &[String]) -> Vec<Str
     let mut missing = Vec::new();
     for section in required_sections {
         let escaped = regex::escape(section);
-        let pattern = format!(r"(?m)^## {escaped}");
+        let pattern = format!(r"(?m)^## {escaped}\s*$");
         let re = Regex::new(&pattern).unwrap();
         if !re.is_match(body) {
             missing.push(section.clone());
@@ -306,10 +310,25 @@ fn is_stub_line(line: &str) -> bool {
     STUB_PHRASES.contains(&lower.as_str())
 }
 
+/// Find the byte offset of an exact `## Section` heading line.
+/// Anchored to start-of-line, tolerates trailing whitespace.
+/// Returns `None` if not found.
+pub fn find_section_offset(body: &str, section: &str) -> Option<usize> {
+    let escaped = regex::escape(section);
+    let pattern = format!(r"(?m)^## {escaped}\s*$");
+    let re = Regex::new(&pattern).unwrap();
+    re.find(body).map(|m| m.start())
+}
+
+/// Return true iff `body` contains an exact `## Section` heading line.
+pub fn body_has_section(body: &str, section: &str) -> bool {
+    find_section_offset(body, section).is_some()
+}
+
 /// Check if a specific section has meaningful (non-stub) content.
 pub fn section_has_content(body: &str, section: &str) -> bool {
     let header = format!("## {section}");
-    let start = match body.find(&header) {
+    let start = match find_section_offset(body, section) {
         Some(s) => s,
         None => return false,
     };
@@ -371,8 +390,7 @@ pub fn section_has_content(body: &str, section: &str) -> bool {
 pub fn find_stub_sections(body: &str, required_sections: &[String]) -> Vec<String> {
     let mut stubs = Vec::new();
     for section in required_sections {
-        let header = format!("## {section}");
-        if body.contains(&header) && !section_has_content(body, section) {
+        if body_has_section(body, section) && !section_has_content(body, section) {
             stubs.push(section.clone());
         }
     }
@@ -583,6 +601,44 @@ Something
         assert!(!is_export_header("### Route Handlers"));
         assert!(!is_export_header("### Configuration"));
         assert!(!is_export_header("### Internal Functions"));
+        // Should NOT match — "unexported" contains "exported" as a substring
+        assert!(!is_export_header("### Unexported Functions"));
+        assert!(!is_export_header("### Unexported Types"));
+    }
+
+    #[test]
+    fn test_body_has_section_exact_match() {
+        let body = "## Purpose\nSome text\n\n## PurposeFoo\nOther text\n";
+        assert!(body_has_section(body, "Purpose"));
+        assert!(body_has_section(body, "PurposeFoo"));
+        // "Purpose" should NOT match "PurposeFoo" and vice versa
+        assert!(!body_has_section(body, "PurposeF"));
+    }
+
+    #[test]
+    fn test_body_has_section_trailing_whitespace() {
+        // Header with trailing whitespace in body should still match
+        let body = "## Purpose   \nSome text\n";
+        assert!(body_has_section(body, "Purpose"));
+    }
+
+    #[test]
+    fn test_get_missing_sections_no_false_positives() {
+        // "## Purpose" should not satisfy a requirement for "## PurposeFoo"
+        let body = "## Purpose\nContent\n\n## Design\nContent\n";
+        let missing = get_missing_sections(body, &["PurposeFoo".to_string()]);
+        assert_eq!(missing, vec!["PurposeFoo"]);
+        // But "Purpose" itself is present
+        let missing = get_missing_sections(body, &["Purpose".to_string()]);
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn test_section_has_content_no_false_positives() {
+        // "## Purpose" should not be used to satisfy "## PurposeFoo"
+        let body = "## Purpose\nReal content here.\n\n## PurposeFoo\n\n";
+        assert!(section_has_content(body, "Purpose"));
+        assert!(!section_has_content(body, "PurposeFoo"));
     }
 
     #[test]

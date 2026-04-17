@@ -1,7 +1,8 @@
 use crate::config::{default_schema_pattern, discover_manifest_modules};
 use crate::exports::{get_exported_symbols_full, has_extension, is_test_file};
 use crate::parser::{
-    find_stub_sections, get_missing_sections, get_spec_symbols, parse_frontmatter,
+    body_has_section, find_section_offset, find_stub_sections, get_missing_sections,
+    get_spec_symbols, parse_frontmatter,
 };
 use crate::schema::{self, SchemaTable};
 use crate::types::{
@@ -626,8 +627,7 @@ fn evaluate_custom_rule(rule: &crate::types::CustomRule, body: &str) -> Option<S
     match rule.rule_type {
         CustomRuleType::RequireSection => {
             let section = rule.section.as_deref()?;
-            let header = format!("## {section}");
-            if !body.contains(&header) {
+            if !body_has_section(body, section) {
                 let msg = rule
                     .message
                     .clone()
@@ -640,7 +640,7 @@ fn evaluate_custom_rule(rule: &crate::types::CustomRule, body: &str) -> Option<S
             let section = rule.section.as_deref()?;
             let min = rule.min_words.unwrap_or(1);
             let header = format!("## {section}");
-            let section_start = body.find(&header)?;
+            let section_start = find_section_offset(body, section)?;
             let after_header = &body[section_start + header.len()..];
             // Bound section to next ## heading
             let section_end = after_header.find("\n## ").unwrap_or(after_header.len());
@@ -683,7 +683,7 @@ fn evaluate_custom_rule(rule: &crate::types::CustomRule, body: &str) -> Option<S
 
 /// Count data rows in the Change Log table (excluding header and separator).
 fn count_changelog_entries(body: &str) -> usize {
-    let changelog_start = match body.find("## Change Log") {
+    let changelog_start = match find_section_offset(body, "Change Log") {
         Some(pos) => pos,
         None => return 0,
     };

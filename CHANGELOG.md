@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.2.1] - 2026-04-17
+
+### Fixed
+
+- **Hardened section header matching** — regex anchors, whitespace tolerance, and word boundaries prevent false positives and mismatched headers on sections with leading/trailing spaces or similar names (#232).
+- **`--fix` insertion point corrected** — new rows no longer append after non-export subsections on repeated runs; near-miss header detection broadened to catch more variants (#231).
+
+### Security
+
+- **Redact API keys in `Debug` output** — sensitive keys are now masked in debug/trace logs (#230).
+- **Bumped `time` and `rustls-webpki`** — addresses upstream advisories in both crates (#230).
+
 ## [4.2.0] - 2026-04-12
 
 ### Added

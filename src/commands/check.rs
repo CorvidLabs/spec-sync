@@ -680,10 +680,8 @@ fn auto_fix_specs(root: &Path, spec_files: &[PathBuf], config: &types::SpecSyncC
             let api_section = &content[api_start..api_end];
 
             // Collect start offsets (relative to api_section) of every ### subsection
-            let sub_positions: Vec<usize> = sub_re
-                .find_iter(api_section)
-                .map(|m| m.start())
-                .collect();
+            let sub_positions: Vec<usize> =
+                sub_re.find_iter(api_section).map(|m| m.start()).collect();
 
             // Find the absolute end of the last recognized export subsection
             let export_insert = sub_positions

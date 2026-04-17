@@ -47,13 +47,17 @@ impl std::fmt::Debug for ResolvedProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ResolvedProvider::Cli(cmd) => f.debug_tuple("Cli").field(cmd).finish(),
-            ResolvedProvider::AnthropicApi { model, base_url, .. } => f
+            ResolvedProvider::AnthropicApi {
+                model, base_url, ..
+            } => f
                 .debug_struct("AnthropicApi")
                 .field("api_key", &"[REDACTED]")
                 .field("model", model)
                 .field("base_url", base_url)
                 .finish(),
-            ResolvedProvider::OpenAiApi { model, base_url, .. } => f
+            ResolvedProvider::OpenAiApi {
+                model, base_url, ..
+            } => f
                 .debug_struct("OpenAiApi")
                 .field("api_key", &"[REDACTED]")
                 .field("model", model)

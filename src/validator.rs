@@ -1225,7 +1225,7 @@ pub fn compute_coverage(
         .iter()
         .map(|f| (f.clone(), file_loc.get(f.as_str()).copied().unwrap_or(0)))
         .collect();
-    unspecced_file_loc.sort_by(|a, b| b.1.cmp(&a.1));
+    unspecced_file_loc.sort_by_key(|b| std::cmp::Reverse(b.1));
 
     // Module coverage
     let specs_dir = root.join(&config.specs_dir);
@@ -1297,11 +1297,7 @@ pub fn compute_coverage(
         (specced_count * 100) / all_source_files.len()
     };
 
-    let loc_coverage_percent = if total_loc == 0 {
-        100
-    } else {
-        (specced_loc * 100) / total_loc
-    };
+    let loc_coverage_percent = (specced_loc * 100).checked_div(total_loc).unwrap_or(100);
 
     CoverageReport {
         total_source_files: all_source_files.len(),

@@ -107,7 +107,7 @@ pub fn cmd_stale(
     }
 
     // Sort by most stale first
-    stale_specs.sort_by(|a, b| b.max_commits_behind.cmp(&a.max_commits_behind));
+    stale_specs.sort_by_key(|b| std::cmp::Reverse(b.max_commits_behind));
 
     let total = spec_files.len();
     let stale_count = stale_specs.len();

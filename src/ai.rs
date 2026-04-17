@@ -23,7 +23,7 @@ fn safe_truncate(s: &str, max_bytes: usize) -> &str {
 }
 
 /// A resolved provider ready to execute — either a CLI command or a direct API call.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum ResolvedProvider {
     /// Shell out to a CLI tool (e.g. `claude -p --output-format text`).
     Cli(String),
@@ -41,6 +41,35 @@ pub enum ResolvedProvider {
     },
     /// Call the Google Gemini API directly.
     GeminiApi { api_key: String, model: String },
+}
+
+impl std::fmt::Debug for ResolvedProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ResolvedProvider::Cli(cmd) => f.debug_tuple("Cli").field(cmd).finish(),
+            ResolvedProvider::AnthropicApi {
+                model, base_url, ..
+            } => f
+                .debug_struct("AnthropicApi")
+                .field("api_key", &"[REDACTED]")
+                .field("model", model)
+                .field("base_url", base_url)
+                .finish(),
+            ResolvedProvider::OpenAiApi {
+                model, base_url, ..
+            } => f
+                .debug_struct("OpenAiApi")
+                .field("api_key", &"[REDACTED]")
+                .field("model", model)
+                .field("base_url", base_url)
+                .finish(),
+            ResolvedProvider::GeminiApi { model, .. } => f
+                .debug_struct("GeminiApi")
+                .field("api_key", &"[REDACTED]")
+                .field("model", model)
+                .finish(),
+        }
+    }
 }
 
 impl std::fmt::Display for ResolvedProvider {

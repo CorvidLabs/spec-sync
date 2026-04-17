@@ -2437,6 +2437,165 @@ fn fix_with_json_output() {
     assert!(json["specs_checked"].is_number());
 }
 
+// Regression: --fix used to insert new rows at the end of ## Public API, which put
+// them inside non-export subsections (e.g. ### API Endpoints). get_spec_symbols skips
+// non-export subsections, so the symbol remained "undocumented" and --fix would append
+// it again on every run, producing duplicates.
+#[test]
+fn fix_does_not_duplicate_when_non_export_subsections_present() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\nexport function logout() {}\n",
+    )
+    .unwrap();
+
+    // Spec has login documented under a recognized export header, plus a
+    // non-export ### API Endpoints subsection that would previously swallow new rows.
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = r#"---
+module: auth
+version: 1
+status: active
+files:
+  - src/auth/service.ts
+db_tables: []
+depends_on: []
+---
+
+# Auth
+
+## Purpose
+
+Auth module.
+
+## Public API
+
+### Exported Functions
+
+| Export | Description |
+|--------|-------------|
+| `login` | Authenticates a user |
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/login` | POST | Login endpoint |
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+"#;
+    fs::write(root.join("specs/auth/auth.spec.md"), spec).unwrap();
+
+    // First --fix run: should add logout
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let after_first = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(
+        after_first.contains("`logout`"),
+        "logout should be added after first --fix"
+    );
+
+    // Second --fix run: logout must not be duplicated
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let after_second = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    let logout_count = after_second.matches("`logout`").count();
+    assert_eq!(
+        logout_count, 1,
+        "logout should not be duplicated after second --fix; found {logout_count}"
+    );
+
+    // login must also remain unduplicated
+    let login_count = after_second.matches("`login`").count();
+    assert_eq!(
+        login_count, 1,
+        "login should not be duplicated; found {login_count}"
+    );
+}
+
+// Regression: fix_near_miss_headers used a small hardcoded pattern list and missed
+// many real-world typos (singular forms, uncommon letter transpositions, etc.).
+// Now uses Levenshtein distance ≤ 2 against a canonical list.
+#[test]
+fn fix_near_miss_handles_levenshtein_typos() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/utils")).unwrap();
+    fs::write(
+        root.join("src/utils/helpers.ts"),
+        "export function doStuff() {}\n",
+    )
+    .unwrap();
+
+    // Spec with a near-miss header that the old code didn't cover:
+    // "### Exporteed Functions" has edit distance 1 from "Exported Functions"
+    // (extra 'e'), but didn't match any old hardcoded pattern.
+    fs::create_dir_all(root.join("specs/utils")).unwrap();
+    let spec = r#"---
+module: utils
+version: 1
+status: active
+files:
+  - src/utils/helpers.ts
+db_tables: []
+depends_on: []
+---
+
+# Utils
+
+## Purpose
+
+Utility helpers.
+
+## Public API
+
+### Exporteed Functions
+
+| Export | Description |
+|--------|-------------|
+| `doStuff` | does stuff |
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+"#;
+    fs::write(root.join("specs/utils/utils.spec.md"), spec).unwrap();
+
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(root.join("specs/utils/utils.spec.md")).unwrap();
+    assert!(
+        updated.contains("### Exported Functions"),
+        "near-miss header should have been renamed to '### Exported Functions'"
+    );
+    assert!(
+        !updated.contains("### Exporteed Functions"),
+        "original near-miss header should be gone"
+    );
+}
+
 // ─── Diff Command Tests ─────────────────────────────────────────────────
 
 #[test]

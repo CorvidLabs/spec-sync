@@ -488,8 +488,31 @@ fn auto_regen_stale_specs(
 
 // ─── Auto-fix: add undocumented exports to spec ─────────────────────────
 
+/// Compute the Levenshtein edit distance between two strings.
+fn levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let (m, n) = (a.len(), b.len());
+    let mut prev: Vec<usize> = (0..=n).collect();
+    let mut curr = vec![0usize; n + 1];
+    for i in 1..=m {
+        curr[0] = i;
+        for j in 1..=n {
+            curr[j] = if a[i - 1] == b[j - 1] {
+                prev[j - 1]
+            } else {
+                1 + prev[j - 1].min(prev[j]).min(curr[j - 1])
+            };
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[n]
+}
+
 /// Normalize near-miss export headers within ## Public API.
 /// E.g., "### Exportd Functions" → "### Exported Functions"
+/// Uses Levenshtein distance ≤ 2 against a canonical list to catch typos,
+/// singular/plural mismatches, and uncommon variations.
 /// Returns true if the content was modified.
 fn fix_near_miss_headers(content: &mut String) -> bool {
     use regex::Regex;
@@ -509,26 +532,16 @@ fn fix_near_miss_headers(content: &mut String) -> bool {
     let api_section = content[api_start..api_end].to_string();
     let mut modified = false;
 
-    // Known canonical headers and their near-miss patterns
-    let canonical_map: &[(&[&str], &str)] = &[
-        (
-            &[
-                "exportd function",
-                "exportd func",
-                "exproted function",
-                "expported function",
-            ],
-            "Exported Functions",
-        ),
-        (
-            &["exportd type", "exproted type", "expported type"],
-            "Exported Types",
-        ),
-        (&["exportd class", "exproted class"], "Exported Classes"),
-        (
-            &["exportd constant", "exportd const", "exproted constant"],
-            "Exported Constants",
-        ),
+    // Canonical export subsection names. Levenshtein distance ≤ 2 triggers a rename.
+    let canonicals: &[&str] = &[
+        "Exported Functions",
+        "Exported Types",
+        "Exported Classes",
+        "Exported Constants",
+        "Exported Components",
+        "Exported Hooks",
+        "Exported Interfaces",
+        "Exported Enums",
     ];
 
     let mut new_section = api_section.clone();
@@ -536,22 +549,22 @@ fn fix_near_miss_headers(content: &mut String) -> bool {
         let header_text = cap.get(2).unwrap().as_str();
         let lower = header_text.to_ascii_lowercase();
 
-        // Skip headers that already match via is_export_header
+        // Skip headers that already pass is_export_header
         if crate::parser::is_export_header(&format!("### {header_text}")) {
             continue;
         }
 
-        // Check for near-miss (Levenshtein distance ≤ 2 from any canonical)
-        for (patterns, canonical) in canonical_map {
-            for pattern in *patterns {
-                if lower.contains(pattern) {
-                    let old = format!("### {header_text}");
-                    let new = format!("### {canonical}");
-                    new_section = new_section.replacen(&old, &new, 1);
-                    modified = true;
-                    break;
-                }
-            }
+        // Find closest canonical by edit distance; fix if within 2 edits
+        if let Some((&canonical, _)) = canonicals
+            .iter()
+            .map(|c| (c, levenshtein(&lower, &c.to_ascii_lowercase())))
+            .min_by_key(|(_, d)| *d)
+            .filter(|(_, d)| *d > 0 && *d <= 2)
+        {
+            let old = format!("### {header_text}");
+            let new = format!("### {canonical}");
+            new_section = new_section.replacen(&old, &new, 1);
+            modified = true;
         }
     }
 
@@ -567,6 +580,7 @@ fn auto_fix_specs(root: &Path, spec_files: &[PathBuf], config: &types::SpecSyncC
     use crate::parser::{get_spec_symbols, parse_frontmatter};
 
     let mut fixed_count = 0;
+    let sub_re = regex::Regex::new(r"(?m)^### ").unwrap();
 
     for spec_file in spec_files {
         let content = match fs::read_to_string(spec_file) {
@@ -652,29 +666,82 @@ fn auto_fix_specs(root: &Path, spec_files: &[PathBuf], config: &types::SpecSyncC
             .collect::<Vec<_>>()
             .join("\n");
 
-        // Find insertion point: end of "## Public API" section, before next "## " heading
+        // Find insertion point: end of the last recognized export subsection within
+        // ## Public API, so new rows land where get_spec_symbols will find them.
+        // Inserting at the end of the whole section causes duplicates when non-export
+        // subsections (e.g. ### API Endpoints) come after the export table.
         let mut new_content = content.clone();
         if let Some(api_start) = content.find("## Public API") {
             let after = &content[api_start..];
-            // Find the next ## heading after Public API
-            let next_section = after[1..].find("\n## ").map(|pos| api_start + 1 + pos);
+            let api_end = after[1..]
+                .find("\n## ")
+                .map(|p| api_start + 1 + p)
+                .unwrap_or(content.len());
+            let api_section = &content[api_start..api_end];
 
-            let insert_pos = match next_section {
-                Some(pos) => pos,
-                None => content.len(),
-            };
+            // Collect start offsets (relative to api_section) of every ### subsection
+            let sub_positions: Vec<usize> = sub_re
+                .find_iter(api_section)
+                .map(|m| m.start())
+                .collect();
 
-            // Insert new rows before the next section
-            new_content = format!(
-                "{}\n{}\n{}",
-                content[..insert_pos].trim_end(),
-                new_rows,
-                &content[insert_pos..]
-            );
+            // Find the absolute end of the last recognized export subsection
+            let export_insert = sub_positions
+                .iter()
+                .enumerate()
+                .rev()
+                .find_map(|(i, &rel_pos)| {
+                    let header_line = api_section[rel_pos..].lines().next().unwrap_or("");
+                    if crate::parser::is_export_header(header_line) {
+                        let rel_end = sub_positions
+                            .get(i + 1)
+                            .copied()
+                            .unwrap_or(api_section.len());
+                        Some(api_start + rel_end)
+                    } else {
+                        None
+                    }
+                });
+
+            match export_insert {
+                Some(pos) => {
+                    // Append rows at end of last recognized export subsection
+                    new_content = format!(
+                        "{}\n{}\n{}",
+                        content[..pos].trim_end(),
+                        new_rows,
+                        &content[pos..]
+                    );
+                }
+                None if sub_positions.is_empty() => {
+                    // No ### subsections — flat table or empty body; insert at section end
+                    new_content = format!(
+                        "{}\n{}\n{}",
+                        content[..api_end].trim_end(),
+                        new_rows,
+                        &content[api_end..]
+                    );
+                }
+                None => {
+                    // Has subsections but none are recognized export headers;
+                    // create a new ### Exported Functions subsection at the top of the section
+                    let api_header_end =
+                        api_start + api_section.find('\n').unwrap_or(api_section.len());
+                    let header_block = format!(
+                        "\n\n### Exported Functions\n\n| Export | Description |\n|--------|-------------|\n{new_rows}"
+                    );
+                    new_content = format!(
+                        "{}{}{}",
+                        &content[..api_header_end],
+                        header_block,
+                        &content[api_header_end..]
+                    );
+                }
+            }
         } else {
             // No Public API section — append one
             let section = format!(
-                "\n## Public API\n\n| Export | Description |\n|--------|-------------|\n{new_rows}\n"
+                "\n## Public API\n\n### Exported Functions\n\n| Export | Description |\n|--------|-------------|\n{new_rows}\n"
             );
             new_content.push_str(&section);
         }

@@ -31,9 +31,11 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 | `parse_frontmatter` | `content: &str` | `Option<ParsedSpec>` | Parse YAML frontmatter delimited by `---` from a spec file |
 | `get_spec_symbols` | `body: &str` | `Vec<String>` | Extract backtick-quoted symbol names from the `## Public API` section tables |
 | `get_missing_sections` | `body: &str, required_sections: &[String]` | `Vec<String>` | Check which required `##` sections are missing from the spec body |
-| `is_export_header` | <!-- TODO: describe --> |
-| `section_has_content` | <!-- TODO: describe --> |
-| `find_stub_sections` | <!-- TODO: describe --> |
+| `is_export_header` | `header: &str` | `bool` | Returns true if a `###` header denotes an exported-symbols subsection (e.g. `### Exported Functions`) |
+| `section_has_content` | `body: &str, section: &str` | `bool` | Returns true if the `## Section` block contains non-whitespace content beyond the header line |
+| `find_stub_sections` | `body: &str` | `Vec<String>` | Returns section names whose `## Section` blocks are present but contain no substantive content |
+| `find_section_offset` | `body: &str, section: &str` | `Option<usize>` | Returns byte offset of the `## Section` heading line, using anchored regex with trailing-whitespace tolerance |
+| `body_has_section` | `body: &str, section: &str` | `bool` | Returns true if the spec body contains an exact `## Section` heading (delegates to `find_section_offset`) |
 
 ## Invariants
 

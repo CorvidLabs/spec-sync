@@ -158,9 +158,8 @@ pub fn is_export_header(header: &str) -> bool {
 
 /// Matches export-describing headers using word boundaries.
 /// Catches "Exported", "Exports", "Export", "Public" but NOT "Unexported".
-static EXPORT_HEADER_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\bexport(?:ed|s)?\b|\bpublic\b").unwrap()
-});
+static EXPORT_HEADER_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\bexport(?:ed|s)?\b|\bpublic\b").unwrap());
 
 static TABLE_ROW_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\|\s*`(\w+)`").unwrap());
 

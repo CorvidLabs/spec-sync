@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.3.0] - 2026-04-18
+
+### Added
+
+- **`--explain` per-criterion breakdown** — `specsync score --explain` now prints a per-criterion table showing the score, weight, and a one-line rationale for every dimension. Makes it easy to see exactly why a spec lands at a given grade (#234).
+- **Stub/TBD depth penalty** — sections whose content is `TBD`, `Coming soon`, or equivalent placeholders are now penalized in the depth score. A spec filled with stubs can no longer score A (#235).
+
+### Fixed
+
+- **Near-miss required headers** — `specsync check` now reports near-miss section headers (e.g. `Overviews` instead of `Overview`) as actionable errors rather than silently missing them (#236).
+- **A-grade stub cap** — specs with a high ratio of stub sections are capped below A regardless of other scores (#236).
+
 ## [4.2.1] - 2026-04-17
 
 ### Fixed

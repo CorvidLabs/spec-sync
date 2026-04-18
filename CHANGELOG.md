@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.3.1] - 2026-04-18
+
+### Added
+
+- **`--fix` dry-run and backup mode** — `specsync check --fix --dry-run` previews changes without writing; `--fix` now creates timestamped backups before modifying specs (#243, #248).
+- **Config path in error messages** — validation errors now show which `.specsync/config.toml` is in effect (#244, #248).
+- **Large file warnings** — configurable size threshold (default 512 KB) warns when spec files are unusually large (#245, #248).
+
+### Fixed
+
+- **ReDoS protection on custom regex rules** — user-supplied patterns are now checked for catastrophic backtracking before compilation (#240, #247).
+- **Deduplicated Levenshtein implementation** — single shared function replaces two near-identical copies (#241, #247).
+- **Scoring weight constants** — magic numbers replaced with named constants (#242, #247).
+- **Backup error propagation** — `--fix` now aborts if backup creation fails instead of silently continuing (#249, #252).
+- **Duplicate size warnings** — single configurable check replaces redundant size validation (#250, #252).
+- **`--dry-run` without `--fix` warning** — emits a helpful warning instead of silently doing nothing (#251, #252).
+- **Production unwrap elimination** — all `.unwrap()` calls in production code replaced with proper error propagation (#253).
+- **Collapsible-if clippy warnings** — resolved across the entire codebase (#253).
+
+### Security
+
+- **Cleartext logging remediation** — sensitive information no longer appears in log output (#238, #239).
+- **`time` crate bumped to 0.3.47** — addresses CVE in time crate (#253).
+
+### Changed
+
+- **CI: cargo-audit job** — new CI step using `rustsec/audit-check` catches dependency CVEs on every PR (#253).
+- **CI: coverage threshold** — `cargo-tarpaulin` with 40% minimum coverage enforced in CI (#253).
+
 ## [4.3.0] - 2026-04-18
 
 ### Added

@@ -186,6 +186,18 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     // Check each required section has meaningful content (stubs don't count)
     let sections_with_content = count_sections_with_content(body, &config.required_sections);
     let stub_sections = find_stub_sections(body, &config.required_sections);
+    let stub_ratio = if !config.required_sections.is_empty() {
+        stub_sections.len() as f64 / config.required_sections.len() as f64
+    } else {
+        0.0
+    };
+    let stub_penalty = if stub_ratio >= 0.5 {
+        10
+    } else if stub_ratio >= 0.33 {
+        5
+    } else {
+        0
+    };
     let content_ratio = if config.required_sections.is_empty() {
         1.0
     } else {
@@ -203,6 +215,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             "Content depth: fill in {todo_count} TODO placeholder(s) with real content"
         ));
     }
+    depth_points = depth_points.saturating_sub(stub_penalty);
     score.depth_score = depth_points.min(20);
     if score.depth_score < 20 {
         let lost = 20 - score.depth_score;
@@ -231,6 +244,11 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         score.suggestions.push(format!(
             "Stub sections: ## {names}{suffix} — replace placeholder text (TBD, N/A, TODO, etc.) with real content"
         ));
+        if stub_penalty > 0 {
+            score.suggestions.push(
+                "Stub ratio is high — fill in TBD sections to improve depth score.".to_string(),
+            );
+        }
     }
 
     // ─── Freshness (0-20) ────────────────────────────────────────────
@@ -630,9 +648,9 @@ None.
         let config = SpecSyncConfig::default();
         let score = score_spec(&spec_file, tmp.path(), &config);
 
-        // Depth score should be penalized because most sections are stubs
+        // Depth score should be penalized because most sections are stubs (>=50% → -10pts ceiling)
         assert!(
-            score.depth_score < 14,
+            score.depth_score <= 10,
             "Expected low depth score for stub sections, got {}",
             score.depth_score
         );

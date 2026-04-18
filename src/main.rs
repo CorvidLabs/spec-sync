@@ -72,6 +72,8 @@ fn run() {
 
     let command = cli.command.unwrap_or(Command::Check {
         fix: false,
+        dry_run: false,
+        backup: false,
         force: false,
         create_issues: false,
         explain: false,
@@ -83,6 +85,8 @@ fn run() {
         Command::Init => commands::init::cmd_init(&root),
         Command::Check {
             fix,
+            dry_run,
+            backup,
             force,
             create_issues,
             explain,
@@ -95,6 +99,8 @@ fn run() {
             cli.require_coverage,
             format,
             fix,
+            dry_run,
+            backup,
             force,
             create_issues,
             explain,

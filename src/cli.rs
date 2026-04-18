@@ -54,6 +54,12 @@ pub enum Command {
         /// Auto-add undocumented exports to spec Public API tables
         #[arg(long)]
         fix: bool,
+        /// Preview --fix changes without writing files
+        #[arg(long)]
+        dry_run: bool,
+        /// Create .bak backup files before --fix modifies specs
+        #[arg(long)]
+        backup: bool,
         /// Skip hash cache and re-validate all specs
         #[arg(long, visible_alias = "no-cache")]
         force: bool,

@@ -181,11 +181,28 @@ pub fn validate_spec(
     let fm = &parsed.frontmatter;
     let body = &parsed.body;
 
+    // File size guard: warn early if the spec is unusually large
+    if let Ok(meta) = std::fs::metadata(spec_path) {
+        let size_kb = meta.len() / 1024;
+        if size_kb > 512 {
+            result.warnings.push(format!(
+                "Spec file is {} KB — consider splitting into smaller specs for maintainability",
+                size_kb
+            ));
+        }
+    }
+
     // Archived specs: skip all validation with zero diagnostics.
     // Must be invisible to --strict mode.
     if fm.parsed_status() == Some(crate::types::SpecStatus::Archived) {
         return result;
     }
+
+    let config_hint = config
+        .config_path
+        .as_deref()
+        .map(|p| format!(" (check config: {})", p.display()))
+        .unwrap_or_default();
 
     // ─── Level 1: Structural ──────────────────────────────────────────
 
@@ -362,9 +379,9 @@ pub fn validate_spec(
                     "Run `spec-sync check --fix` to rename `## {found}` → `## {section}`"
                 ));
             } else {
-                result
-                    .errors
-                    .push(format!("Missing required section: ## {section}"));
+                result.errors.push(format!(
+                    "Missing required section: ## {section}{config_hint}"
+                ));
                 result
                     .fixes
                     .push(format!("Add `## {section}` heading to the spec body"));
@@ -525,7 +542,7 @@ pub fn validate_spec(
     }
 
     // ─── Custom Validation Rules ─────────────────────────────────────
-    apply_custom_rules(spec_path, body, fm, config, &mut result);
+    apply_custom_rules(spec_path, body, fm, config, &config_hint, &mut result);
 
     result
 }
@@ -536,6 +553,7 @@ fn apply_custom_rules(
     body: &str,
     fm: &Frontmatter,
     config: &SpecSyncConfig,
+    config_hint: &str,
     result: &mut ValidationResult,
 ) {
     let rules = &config.rules;
@@ -546,7 +564,7 @@ fn apply_custom_rules(
             let size_kb = meta.len() as usize / 1024;
             if size_kb > max_kb {
                 result.warnings.push(format!(
-                    "Spec file is {size_kb} KB — exceeds limit of {max_kb} KB"
+                    "Spec file is {size_kb} KB — exceeds limit of {max_kb} KB{config_hint}"
                 ));
             }
         }
@@ -598,7 +616,7 @@ fn apply_custom_rules(
             continue;
         }
         if let Some(msg) = evaluate_custom_rule(rule, body) {
-            let tagged = format!("{msg} (rule: {})", rule.name);
+            let tagged = format!("{msg} (rule: {}){config_hint}", rule.name);
             match rule.severity {
                 RuleSeverity::Error => result.errors.push(tagged),
                 RuleSeverity::Warning => result.warnings.push(tagged),

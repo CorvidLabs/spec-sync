@@ -4503,3 +4503,128 @@ fn custom_rule_applies_to_filter_skips_non_matching_modules() {
         "Module filter ^auth should skip utils module. Got:\n{stdout}"
     );
 }
+
+// ─── #244: --fix --dry-run does not modify files ────────────────────────
+
+#[test]
+fn fix_dry_run_does_not_write_files() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config(&root, "specs", &["src"]);
+    fs::create_dir_all(root.join("specs/mymod")).unwrap();
+    fs::create_dir_all(root.join("src/mymod")).unwrap();
+    fs::write(
+        root.join("src/mymod/index.ts"),
+        "export function hello() {}\nexport function world() {}\n",
+    )
+    .unwrap();
+    // Spec only documents 'hello', so --fix would add 'world'
+    let spec_content = valid_spec("mymod", &["src/mymod/index.ts"]);
+    let spec_with_hello = spec_content.replace(
+        "| Function | Parameters | Returns | Description |",
+        "| Function | Parameters | Returns | Description |\n| `hello` | | void | Says hello |",
+    );
+    fs::write(root.join("specs/mymod/mymod.spec.md"), &spec_with_hello).unwrap();
+    // Also create companion requirements.md to suppress warning
+    fs::write(root.join("specs/mymod/requirements.md"), "# Requirements\n").unwrap();
+
+    let original = fs::read_to_string(root.join("specs/mymod/mymod.spec.md")).unwrap();
+
+    specsync()
+        .args([
+            "check",
+            "--fix",
+            "--dry-run",
+            "--root",
+            root.to_str().unwrap(),
+            "--force",
+        ])
+        .assert()
+        .success();
+
+    let after = fs::read_to_string(root.join("specs/mymod/mymod.spec.md")).unwrap();
+    assert_eq!(original, after, "--dry-run should not modify spec files");
+}
+
+// ─── #244: --fix --backup creates backup files ────────���─────────────────
+
+#[test]
+fn fix_backup_creates_backup_dir() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config(&root, "specs", &["src"]);
+    fs::create_dir_all(root.join("specs/bmod")).unwrap();
+    fs::create_dir_all(root.join("src/bmod")).unwrap();
+    fs::write(
+        root.join("src/bmod/index.ts"),
+        "export function alpha() {}\nexport function beta() {}\n",
+    )
+    .unwrap();
+    let spec_content = valid_spec("bmod", &["src/bmod/index.ts"]);
+    let spec_with_alpha = spec_content.replace(
+        "| Function | Parameters | Returns | Description |",
+        "| Function | Parameters | Returns | Description |\n| `alpha` | | void | Alpha |",
+    );
+    fs::write(root.join("specs/bmod/bmod.spec.md"), &spec_with_alpha).unwrap();
+    fs::write(root.join("specs/bmod/requirements.md"), "# Requirements\n").unwrap();
+
+    specsync()
+        .args([
+            "check",
+            "--fix",
+            "--backup",
+            "--root",
+            root.to_str().unwrap(),
+            "--force",
+        ])
+        .assert()
+        .success();
+
+    let backup_dir = root.join(".specsync/backup-fix");
+    assert!(
+        backup_dir.exists(),
+        "--backup should create .specsync/backup-fix/"
+    );
+    assert!(
+        backup_dir.join("specs/bmod/bmod.spec.md").exists(),
+        "Backup should contain the original spec file"
+    );
+}
+
+// ─── #245: Error messages include config file location ──────────────────
+
+#[test]
+fn error_messages_include_config_path() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config(&root, "specs", &["src"]);
+    fs::create_dir_all(root.join("specs/cfgmod")).unwrap();
+    fs::create_dir_all(root.join("src/cfgmod")).unwrap();
+    fs::write(root.join("src/cfgmod/index.ts"), "export function f() {}").unwrap();
+    // Spec missing required sections — errors should mention config location
+    let spec = r#"---
+module: cfgmod
+version: 1
+status: active
+files:
+  - src/cfgmod/index.ts
+---
+
+## Purpose
+Test module
+"#;
+    fs::write(root.join("specs/cfgmod/cfgmod.spec.md"), spec).unwrap();
+
+    let output = specsync()
+        .args(["check", "--root", root.to_str().unwrap(), "--force"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("check config:") || stdout.contains("specsync.json"),
+        "Missing section errors should reference config file. Got:\n{stdout}"
+    );
+}

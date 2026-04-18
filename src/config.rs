@@ -173,20 +173,25 @@ pub fn load_config(root: &Path) -> SpecSyncConfig {
     let legacy_toml = root.join(".specsync.toml");
     let legacy_json = root.join("specsync.json");
 
-    let mut config = if v4_toml.exists() {
-        load_toml_config(&v4_toml, root)
+    let (mut config, config_path) = if v4_toml.exists() {
+        (load_toml_config(&v4_toml, root), Some(v4_toml))
     } else if v4_json.exists() {
-        load_json_config(&v4_json, root)
+        (load_json_config(&v4_json, root), Some(v4_json))
     } else if legacy_toml.exists() {
-        load_toml_config(&legacy_toml, root)
+        (load_toml_config(&legacy_toml, root), Some(legacy_toml))
     } else if legacy_json.exists() {
-        load_json_config(&legacy_json, root)
+        (load_json_config(&legacy_json, root), Some(legacy_json))
     } else {
-        SpecSyncConfig {
-            source_dirs: detect_source_dirs(root),
-            ..Default::default()
-        }
+        (
+            SpecSyncConfig {
+                source_dirs: detect_source_dirs(root),
+                ..Default::default()
+            },
+            None,
+        )
     };
+
+    config.config_path = config_path;
 
     // Merge local overrides (gitignored, per-developer config)
     let local_toml = root.join(".specsync/config.local.toml");

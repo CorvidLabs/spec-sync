@@ -153,7 +153,9 @@ fn resolve_api_provider(
     provider: &AiProvider,
     config: &SpecSyncConfig,
 ) -> Result<ResolvedProvider, String> {
-    let env_var = provider.api_key_env_var().unwrap();
+    let env_var = provider.api_key_env_var().ok_or_else(|| {
+        format!("Provider \"{provider}\" does not support API key authentication")
+    })?;
     let api_key = config
         .ai_api_key
         .clone()
@@ -165,10 +167,17 @@ fn resolve_api_provider(
             )
         })?;
 
-    let model = config
-        .ai_model
-        .clone()
-        .unwrap_or_else(|| provider.default_model().unwrap().to_string());
+    let model = config.ai_model.clone().map_or_else(
+        || {
+            provider
+                .default_model()
+                .map(|m| m.to_string())
+                .ok_or_else(|| {
+                    format!("Provider \"{provider}\" has no default model — set \"aiModel\" in specsync.json")
+                })
+        },
+        Ok,
+    )?;
 
     match provider {
         AiProvider::Anthropic => Ok(ResolvedProvider::AnthropicApi {

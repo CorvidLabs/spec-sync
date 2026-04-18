@@ -132,13 +132,11 @@ fn steps() -> Vec<MigrationStep> {
 
 fn check_detect_version(ctx: &MigrationContext) -> StepStatus {
     let version_file = ctx.root.join(".specsync/version");
-    if version_file.exists() {
-        if let Ok(v) = fs::read_to_string(&version_file) {
-            if v.trim() == V4_VERSION {
+    if version_file.exists()
+        && let Ok(v) = fs::read_to_string(&version_file)
+            && v.trim() == V4_VERSION {
                 return StepStatus::Done;
             }
-        }
-    }
     // Check if there's a 3.x project to migrate
     let has_root_config = ctx.root.join("specsync.json").exists();
     let has_new_config = ctx.root.join(".specsync/config.json").exists();
@@ -155,13 +153,11 @@ fn apply_detect_version(
     report: &mut MigrationReport,
 ) -> Result<(), String> {
     let version_file = ctx.root.join(".specsync/version");
-    if version_file.exists() {
-        if let Ok(v) = fs::read_to_string(&version_file) {
-            if v.trim() == V4_VERSION {
+    if version_file.exists()
+        && let Ok(v) = fs::read_to_string(&version_file)
+            && v.trim() == V4_VERSION {
                 return Ok(());
             }
-        }
-    }
     let has_root_config = ctx.root.join("specsync.json").exists();
     let has_new_config = ctx.root.join(".specsync/config.json").exists();
     let has_legacy_toml = ctx.root.join(".specsync.toml").exists();
@@ -237,8 +233,8 @@ fn apply_create_backup(ctx: &MigrationContext, report: &mut MigrationReport) -> 
     // Back up spec files (only those with lifecycle_log)
     let specs_backup_dir = backup_dir.join("specs");
     for spec_file in &ctx.spec_files {
-        if let Ok(content) = fs::read_to_string(spec_file) {
-            if content.contains("lifecycle_log:") {
+        if let Ok(content) = fs::read_to_string(spec_file)
+            && content.contains("lifecycle_log:") {
                 let rel = spec_file.strip_prefix(&ctx.root).unwrap_or(spec_file);
                 let dst = specs_backup_dir.join(rel);
                 if let Some(parent) = dst.parent() {
@@ -253,7 +249,6 @@ fn apply_create_backup(ctx: &MigrationContext, report: &mut MigrationReport) -> 
                     "backed_up_at": timestamp,
                 }));
             }
-        }
     }
 
     // Write manifest
@@ -784,8 +779,8 @@ fn apply_scan_cross_project(
         });
 
         for dep in &parsed.frontmatter.depends_on {
-            if validator::is_cross_project_ref(dep) {
-                if let Some((repo, remote_module)) = validator::parse_cross_project_ref(dep) {
+            if validator::is_cross_project_ref(dep)
+                && let Some((repo, remote_module)) = validator::parse_cross_project_ref(dep) {
                     refs.push(serde_json::json!({
                         "local_module": module,
                         "remote_repo": repo,
@@ -795,7 +790,6 @@ fn apply_scan_cross_project(
                             .unwrap_or(spec_file).display().to_string(),
                     }));
                 }
-            }
         }
     }
 
@@ -829,13 +823,11 @@ fn apply_scan_cross_project(
 
 fn check_stamp_version(ctx: &MigrationContext) -> StepStatus {
     let version_file = ctx.root.join(".specsync/version");
-    if version_file.exists() {
-        if let Ok(v) = fs::read_to_string(&version_file) {
-            if v.trim() == V4_VERSION {
+    if version_file.exists()
+        && let Ok(v) = fs::read_to_string(&version_file)
+            && v.trim() == V4_VERSION {
                 return StepStatus::Done;
             }
-        }
-    }
     StepStatus::Pending
 }
 
@@ -870,9 +862,9 @@ pub fn cmd_migrate(root: &Path, format: OutputFormat, dry_run: bool, no_backup: 
 
     // Pre-flight: check if already migrated
     let version_file = root.join(".specsync/version");
-    if version_file.exists() {
-        if let Ok(v) = fs::read_to_string(&version_file) {
-            if v.trim() == V4_VERSION {
+    if version_file.exists()
+        && let Ok(v) = fs::read_to_string(&version_file)
+            && v.trim() == V4_VERSION {
                 match format {
                     OutputFormat::Json => {
                         let output = serde_json::json!({
@@ -891,8 +883,6 @@ pub fn cmd_migrate(root: &Path, format: OutputFormat, dry_run: bool, no_backup: 
                 }
                 return;
             }
-        }
-    }
 
     if dry_run {
         match format {

@@ -233,8 +233,8 @@ pub fn cmd_check(
                     }
                 };
                 let dest = backup_dir.join(rel);
-                if let Some(parent) = dest.parent() {
-                    if let Err(e) = fs::create_dir_all(parent) {
+                if let Some(parent) = dest.parent()
+                    && let Err(e) = fs::create_dir_all(parent) {
                         eprintln!(
                             "{} Failed to create backup subdirectory {}: {e}",
                             "✗".red(),
@@ -242,7 +242,6 @@ pub fn cmd_check(
                         );
                         process::exit(1);
                     }
-                }
                 if let Err(e) = fs::copy(spec_file, &dest) {
                     eprintln!(
                         "{} Failed to backup {}: {e}",
@@ -303,8 +302,8 @@ pub fn cmd_check(
     let mut git_stale_warnings: usize = 0;
     let mut git_stale_entries: Vec<serde_json::Value> = Vec::new();
 
-    if let Some(threshold) = stale_threshold {
-        if git_utils::is_git_repo(root) {
+    if let Some(threshold) = stale_threshold
+        && git_utils::is_git_repo(root) {
             for spec_file in &spec_files {
                 let content = match fs::read_to_string(spec_file) {
                     Ok(c) => c.replace("\r\n", "\n"),
@@ -376,7 +375,6 @@ pub fn cmd_check(
                 println!();
             }
         }
-    }
     stale_entries.extend(git_stale_entries);
 
     // Include staleness warnings in total when --strict

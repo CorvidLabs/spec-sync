@@ -180,12 +180,11 @@ fn handle_export_statement(
             symbols.push(ns);
         } else if let Some(path) = &from_path {
             // export * from '...' — resolve if we have a resolver
-            if let Some(resolver) = resolver {
-                if let Some(target_content) = resolver(path) {
+            if let Some(resolver) = resolver
+                && let Some(target_content) = resolver(path) {
                     let target_symbols = extract_exports(&target_content);
                     symbols.extend(target_symbols);
                 }
-            }
         }
     }
 }
@@ -218,8 +217,8 @@ fn extract_export_clause(node: &tree_sitter::Node, src: &[u8], symbols: &mut Vec
 fn extract_variable_names(node: &tree_sitter::Node, src: &[u8], symbols: &mut Vec<String>) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        if child.kind() == "variable_declarator" {
-            if let Some(name_node) = child.child_by_field_name("name") {
+        if child.kind() == "variable_declarator"
+            && let Some(name_node) = child.child_by_field_name("name") {
                 match name_node.kind() {
                     "identifier" => {
                         let name = name_node.utf8_text(src).unwrap_or_default();
@@ -235,7 +234,6 @@ fn extract_variable_names(node: &tree_sitter::Node, src: &[u8], symbols: &mut Ve
                     _ => {}
                 }
             }
-        }
     }
 }
 

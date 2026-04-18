@@ -232,14 +232,13 @@ pub fn validate_spec(
             "Add `status: active` (or draft/review/stable/deprecated/archived) to the frontmatter"
                 .to_string(),
         );
-    } else if let Some(status_str) = &fm.status {
-        if fm.parsed_status().is_none() {
+    } else if let Some(status_str) = &fm.status
+        && fm.parsed_status().is_none() {
             result.warnings.push(format!(
                 "Unknown status '{}' — expected one of: draft, review, active, stable, deprecated, archived",
                 status_str
             ));
         }
-    }
 
     // Status lifecycle warnings
     let spec_status = fm.parsed_status();
@@ -633,11 +632,10 @@ fn custom_rule_applies(rule: &crate::types::CustomRule, fm: &Frontmatter) -> boo
 
     if let Some(ref module_pattern) = filter.module {
         let spec_module = fm.module.as_deref().unwrap_or("");
-        if let Some(re) = safe_regex(module_pattern) {
-            if !re.is_match(spec_module) {
+        if let Some(re) = safe_regex(module_pattern)
+            && !re.is_match(spec_module) {
                 return false;
             }
-        }
     }
 
     true

@@ -64,9 +64,9 @@ pub fn merge_specs(
 
         let (resolved, result) = resolve_spec_conflicts(&content, &rel_path(root, spec_path));
 
-        if !dry_run {
-            if let MergeStatus::Resolved = &result.status {
-                if let Err(e) = fs::write(spec_path, &resolved) {
+        if !dry_run
+            && let MergeStatus::Resolved = &result.status
+                && let Err(e) = fs::write(spec_path, &resolved) {
                     results.push(MergeResult {
                         spec_path: rel_path(root, spec_path),
                         status: MergeStatus::Manual,
@@ -74,8 +74,6 @@ pub fn merge_specs(
                     });
                     continue;
                 }
-            }
-        }
 
         results.push(result);
     }

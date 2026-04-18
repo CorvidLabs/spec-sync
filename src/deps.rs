@@ -128,11 +128,10 @@ fn extract_module_from_dep_path(dep: &str) -> Option<String> {
     let path = Path::new(dep);
 
     // If it ends with .spec.md, extract the stem
-    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-        if let Some(stem) = name.strip_suffix(".spec.md") {
+    if let Some(name) = path.file_name().and_then(|n| n.to_str())
+        && let Some(stem) = name.strip_suffix(".spec.md") {
             return Some(stem.to_string());
         }
-    }
 
     // Bare module name (no path separators, no extension)
     if !dep.contains('/') && !dep.contains('.') {

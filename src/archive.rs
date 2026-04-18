@@ -38,10 +38,10 @@ pub fn archive_tasks(root: &Path, specs_dir: &Path, dry_run: bool) -> Vec<Archiv
             .to_string_lossy()
             .to_string();
 
-        if let Some((new_content, count)) = archive_completed_tasks(&content) {
-            if count > 0 {
-                if !dry_run {
-                    if let Err(e) = fs::write(&tasks_path, &new_content) {
+        if let Some((new_content, count)) = archive_completed_tasks(&content)
+            && count > 0 {
+                if !dry_run
+                    && let Err(e) = fs::write(&tasks_path, &new_content) {
                         eprintln!(
                             "{} Failed to write {}: {e}",
                             "error:".red().bold(),
@@ -49,13 +49,11 @@ pub fn archive_tasks(root: &Path, specs_dir: &Path, dry_run: bool) -> Vec<Archiv
                         );
                         continue;
                     }
-                }
                 results.push(ArchiveResult {
                     tasks_path: rel_path,
                     archived_count: count,
                 });
             }
-        }
     }
 
     results

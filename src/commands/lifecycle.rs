@@ -921,8 +921,8 @@ pub fn cmd_enforce(
             }
 
             // Check: max age
-            if check_max_age {
-                if let Some(max_days) = config.lifecycle.max_age.get(status.as_str()) {
+            if check_max_age
+                && let Some(max_days) = config.lifecycle.max_age.get(status.as_str()) {
                     // Look at lifecycle_log (frontmatter or external JSON) for the most recent transition
                     let lifecycle_log = if parsed.frontmatter.lifecycle_log.is_empty() {
                         let module = parsed
@@ -935,8 +935,8 @@ pub fn cmd_enforce(
                         parsed.frontmatter.lifecycle_log.clone()
                     };
                     let age_days = estimate_status_age(root, &rel, &lifecycle_log, status);
-                    if let Some(age) = age_days {
-                        if age > *max_days {
+                    if let Some(age) = age_days
+                        && age > *max_days {
                             violations.push((
                                 rel.clone(),
                                 format!(
@@ -947,9 +947,7 @@ pub fn cmd_enforce(
                                 ),
                             ));
                         }
-                    }
                 }
-            }
         }
     }
 

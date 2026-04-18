@@ -55,8 +55,8 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     while i < lines.len() {
         let line = lines[i];
         // Check if this is a top-level key that's a well-known parent
-        if let Some(caps) = top_level_line.captures(line) {
-            if let Some(key_match) = caps.get(1) {
+        if let Some(caps) = top_level_line.captures(line)
+            && let Some(key_match) = caps.get(1) {
                 let parent = key_match.as_str();
                 if NESTED_SYMBOL_PARENTS.contains(&parent) {
                     // Scan subsequent lines for second-level keys under this parent
@@ -81,23 +81,20 @@ pub fn extract_exports(content: &str) -> Vec<String> {
                                 child_indent = Some(indent);
                             }
                             // Only match lines at the exact child indent level
-                            if Some(indent) == child_indent {
-                                if let Some(child_caps) = top_level_line.captures(trimmed) {
-                                    if let Some(child_match) = child_caps.get(1) {
+                            if Some(indent) == child_indent
+                                && let Some(child_caps) = top_level_line.captures(trimmed)
+                                    && let Some(child_match) = child_caps.get(1) {
                                         symbols.push(format!(
                                             "{}.{}",
                                             parent,
                                             child_match.as_str()
                                         ));
                                     }
-                                }
-                            }
                         }
                         j += 1;
                     }
                 }
             }
-        }
         i += 1;
     }
 

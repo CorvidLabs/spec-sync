@@ -237,11 +237,10 @@ pub fn register_module(root: &Path, module_name: &str, spec_rel_path: &str) -> b
     };
 
     // Check if module already registered
-    if let Some(entry) = parse_registry(&content) {
-        if entry.specs.iter().any(|(m, _)| m == module_name) {
+    if let Some(entry) = parse_registry(&content)
+        && entry.specs.iter().any(|(m, _)| m == module_name) {
             return false;
         }
-    }
 
     // Append to the [specs] section
     let new_line = format!("{module_name} = \"{spec_rel_path}\"\n");

@@ -54,14 +54,13 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             "decorated_definition" => {
                 let mut inner_cursor = child.walk();
                 for inner in child.children(&mut inner_cursor) {
-                    if inner.kind() == "function_definition" || inner.kind() == "class_definition" {
-                        if let Some(name) = inner.child_by_field_name("name") {
+                    if (inner.kind() == "function_definition" || inner.kind() == "class_definition")
+                        && let Some(name) = inner.child_by_field_name("name") {
                             let n = name.utf8_text(src).unwrap_or_default();
                             if !n.starts_with('_') {
                                 symbols.push(n.to_string());
                             }
                         }
-                    }
                 }
             }
             // Conditional imports: `if TYPE_CHECKING:` blocks at top level

@@ -36,6 +36,7 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 | `find_stub_sections` | `body: &str` | `Vec<String>` | Returns section names whose `## Section` blocks are present but contain no substantive content |
 | `find_section_offset` | `body: &str, section: &str` | `Option<usize>` | Returns byte offset of the `## Section` heading line, using anchored regex with trailing-whitespace tolerance |
 | `body_has_section` | `body: &str, section: &str` | `bool` | Returns true if the spec body contains an exact `## Section` heading (delegates to `find_section_offset`) |
+| `get_near_miss_sections` | `body: &str, required_sections: &[String]` | `Vec<(String, String)>` | For each missing required section, returns `(canonical_name, found_heading)` pairs where a `## Heading` exists within Levenshtein distance ≤ 2 — used to detect typos and suggest `--fix` |
 
 ## Invariants
 
@@ -44,6 +45,7 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 3. `get_spec_symbols` only extracts from `### Exported ...` subsections (allowlist) and top-level tables; skips non-export subsections (e.g., `### API Endpoints`, `### Route Handlers`, `### Configuration`) and `####` method/constructor/properties sub-tables
 4. Symbols are deduplicated while preserving order
 5. `get_missing_sections` uses regex matching for `## SectionName` headings — case-sensitive
+8. `get_near_miss_sections` only reports sections that are already in `get_missing_sections` — it does not flag sections that are present but close to another required name
 6. Frontmatter parsing handles both scalar fields (module, version, status) and list fields (files, db_tables, depends_on)
 7. Empty list syntax `[]` is handled correctly, producing an empty Vec
 
@@ -89,8 +91,9 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 
 | Module | What is used |
 |--------|-------------|
-| validator | `parse_frontmatter`, `get_spec_symbols`, `get_missing_sections` |
+| validator | `parse_frontmatter`, `get_spec_symbols`, `get_missing_sections`, `get_near_miss_sections` |
 | scoring | `parse_frontmatter`, `get_spec_symbols`, `get_missing_sections` |
+| commands/check | `get_near_miss_sections` (via `fix_near_miss_required_headers`) |
 | mcp | `parse_frontmatter` (for listing specs) |
 
 ## Change Log

@@ -181,14 +181,16 @@ pub fn validate_spec(
     let fm = &parsed.frontmatter;
     let body = &parsed.body;
 
-    // File size guard: warn early if the spec is unusually large
-    if let Ok(meta) = std::fs::metadata(spec_path) {
-        let size_kb = meta.len() / 1024;
-        if size_kb > 512 {
-            result.warnings.push(format!(
-                "Spec file is {} KB — consider splitting into smaller specs for maintainability",
-                size_kb
-            ));
+    // File size guard: warn if the spec exceeds the configurable limit (default 512 KB)
+    {
+        let limit_kb = config.rules.max_spec_size_kb.unwrap_or(512) as u64;
+        if let Ok(meta) = std::fs::metadata(spec_path) {
+            let size_kb = meta.len() / 1024;
+            if size_kb > limit_kb {
+                result.warnings.push(format!(
+                    "Spec file is {size_kb} KB — exceeds limit of {limit_kb} KB, consider splitting into smaller specs"
+                ));
+            }
         }
     }
 
@@ -549,7 +551,7 @@ pub fn validate_spec(
 
 /// Apply project-specific custom validation rules from config.
 fn apply_custom_rules(
-    spec_path: &Path,
+    _spec_path: &Path,
     body: &str,
     fm: &Frontmatter,
     config: &SpecSyncConfig,
@@ -558,17 +560,7 @@ fn apply_custom_rules(
 ) {
     let rules = &config.rules;
 
-    // max_spec_size_kb: warn if spec file is too large
-    if let Some(max_kb) = rules.max_spec_size_kb {
-        if let Ok(meta) = fs::metadata(spec_path) {
-            let size_kb = meta.len() as usize / 1024;
-            if size_kb > max_kb {
-                result.warnings.push(format!(
-                    "Spec file is {size_kb} KB — exceeds limit of {max_kb} KB{config_hint}"
-                ));
-            }
-        }
-    }
+    // max_spec_size_kb check is now handled in validate_spec() to avoid duplicate warnings
 
     // max_changelog_entries: warn if Change Log has too many rows
     if let Some(max_entries) = rules.max_changelog_entries {

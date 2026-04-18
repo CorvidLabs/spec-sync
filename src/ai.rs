@@ -669,7 +669,7 @@ fn call_openai_api(
         base_url.unwrap_or("https://api.openai.com")
     );
 
-    eprintln!("    Calling OpenAI API ({model})...");
+    eprintln!("    Calling OpenAI API...");
     let _ = std::io::stderr().flush();
 
     let body = serde_json::json!({

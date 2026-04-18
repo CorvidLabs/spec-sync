@@ -24,6 +24,7 @@ mod registry;
 mod schema;
 mod scoring;
 mod types;
+mod util;
 mod validator;
 mod view;
 mod watch;

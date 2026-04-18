@@ -4426,3 +4426,80 @@ fn check_yaml_with_anchors_and_nested_keys() {
         .success()
         .stdout(predicate::str::contains("0 failed"));
 }
+
+// ─── Additional Custom Rules Tests ──────────────────────────────────────
+
+#[test]
+fn custom_rule_require_pattern_passes_when_present() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config_with_custom_rules(
+        &root,
+        r#"[{
+            "name": "require-version-table",
+            "type": "require_pattern",
+            "pattern": "\\| Date .* Change \\|",
+            "severity": "error",
+            "message": "Specs must have a changelog table"
+        }]"#,
+    );
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--root", root.to_str().unwrap(), "--force"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn custom_rule_applies_to_filter_skips_non_matching_modules() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config_with_custom_rules(
+        &root,
+        r#"[{
+            "name": "auth-security",
+            "type": "require_section",
+            "section": "Security Review",
+            "severity": "error",
+            "appliesTo": { "module": "^auth" }
+        }]"#,
+    );
+
+    fs::create_dir_all(root.join("src/utils")).unwrap();
+    fs::write(
+        root.join("src/utils/helpers.ts"),
+        "export function helper() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/utils")).unwrap();
+    fs::write(
+        root.join("specs/utils/utils.spec.md"),
+        valid_spec("utils", &["src/utils/helpers.ts"]),
+    )
+    .unwrap();
+
+    let output = specsync()
+        .args(["check", "--root", root.to_str().unwrap(), "--force"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains("auth-security"),
+        "Module filter ^auth should skip utils module. Got:\n{stdout}"
+    );
+}

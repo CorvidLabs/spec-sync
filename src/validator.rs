@@ -8,6 +8,7 @@ use crate::schema::{self, SchemaTable};
 use crate::types::{
     CoverageReport, CustomRuleType, Frontmatter, RuleSeverity, SpecSyncConfig, ValidationResult,
 };
+use crate::util::{levenshtein, safe_regex};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -61,9 +62,9 @@ pub fn get_schema_table_names(root: &Path, config: &SpecSyncConfig) -> HashSet<S
         .as_deref()
         .unwrap_or_else(|| default_schema_pattern());
 
-    let re = match Regex::new(pattern_str) {
-        Ok(r) => r,
-        Err(_) => return tables,
+    let re = match safe_regex(pattern_str) {
+        Some(r) => r,
+        None => return tables,
     };
 
     if let Ok(entries) = fs::read_dir(&schema_dir) {
@@ -622,7 +623,7 @@ fn custom_rule_applies(rule: &crate::types::CustomRule, fm: &Frontmatter) -> boo
 
     if let Some(ref module_pattern) = filter.module {
         let spec_module = fm.module.as_deref().unwrap_or("");
-        if let Ok(re) = Regex::new(module_pattern) {
+        if let Some(re) = safe_regex(module_pattern) {
             if !re.is_match(spec_module) {
                 return false;
             }
@@ -667,7 +668,7 @@ fn evaluate_custom_rule(rule: &crate::types::CustomRule, body: &str) -> Option<S
         }
         CustomRuleType::RequirePattern => {
             let pattern = rule.pattern.as_deref()?;
-            let re = Regex::new(pattern).ok()?;
+            let re = safe_regex(pattern)?;
             if !re.is_match(body) {
                 let msg = rule
                     .message
@@ -679,7 +680,7 @@ fn evaluate_custom_rule(rule: &crate::types::CustomRule, body: &str) -> Option<S
         }
         CustomRuleType::ForbidPattern => {
             let pattern = rule.pattern.as_deref()?;
-            let re = Regex::new(pattern).ok()?;
+            let re = safe_regex(pattern)?;
             if re.is_match(body) {
                 let msg = rule
                     .message
@@ -765,29 +766,6 @@ fn suggest_similar_file(root: &Path, missing_file: &str) -> Option<String> {
     best.map(|(s, _)| s)
 }
 
-/// Simple Levenshtein distance for file name suggestions.
-fn levenshtein(a: &str, b: &str) -> usize {
-    let a: Vec<char> = a.chars().collect();
-    let b: Vec<char> = b.chars().collect();
-    let mut dp = vec![vec![0usize; b.len() + 1]; a.len() + 1];
-
-    for (i, row) in dp.iter_mut().enumerate().take(a.len() + 1) {
-        row[0] = i;
-    }
-    for (j, val) in dp[0].iter_mut().enumerate().take(b.len() + 1) {
-        *val = j;
-    }
-    for i in 1..=a.len() {
-        for j in 1..=b.len() {
-            let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
-            dp[i][j] = (dp[i - 1][j] + 1)
-                .min(dp[i][j - 1] + 1)
-                .min(dp[i - 1][j - 1] + cost);
-        }
-    }
-    dp[a.len()][b.len()]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -810,15 +788,6 @@ mod tests {
 
         assert!(parse_cross_project_ref("not-a-ref").is_none());
         assert!(parse_cross_project_ref("/@").is_none()); // empty parts
-    }
-
-    #[test]
-    fn test_levenshtein() {
-        assert_eq!(levenshtein("kitten", "sitting"), 3);
-        assert_eq!(levenshtein("abc", "abc"), 0);
-        assert_eq!(levenshtein("", "abc"), 3);
-        assert_eq!(levenshtein("abc", ""), 3);
-        assert_eq!(levenshtein("config.ts", "confg.ts"), 1);
     }
 
     #[test]

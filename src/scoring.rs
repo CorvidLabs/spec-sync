@@ -29,6 +29,31 @@ pub struct ExplainDetail {
     pub criteria: Vec<CriterionResult>,
 }
 
+// Scoring dimension weights (each out of 20, total = 100)
+const DIMENSION_MAX: u32 = 20;
+
+// Frontmatter field weights (sum = DIMENSION_MAX)
+const FM_MODULE_POINTS: u32 = 5;
+const FM_VERSION_POINTS: u32 = 5;
+const FM_STATUS_POINTS: u32 = 4;
+const FM_FILES_POINTS: u32 = 6;
+
+// Depth sub-weights (sum = DIMENSION_MAX)
+const DEPTH_CONTENT_POINTS: u32 = 14;
+const DEPTH_PLACEHOLDER_POINTS: u32 = 6;
+
+// Freshness sub-weights
+const FRESH_FILES_MAX: u32 = 15;
+const FRESH_GIT_MAX: u32 = 5;
+const FRESH_FILE_PENALTY_PER: u32 = 5;
+const FRESH_DEP_PENALTY_PER: u32 = 3;
+
+// Grade thresholds
+const GRADE_A_MIN: u32 = 90;
+const GRADE_B_MIN: u32 = 80;
+const GRADE_C_MIN: u32 = 70;
+const GRADE_D_MIN: u32 = 60;
+
 /// Quality score for a single spec file.
 #[derive(Debug)]
 pub struct SpecScore {
@@ -99,28 +124,28 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     let mut fm_points = 0u32;
     let mut fm_missing: Vec<&str> = Vec::new();
     if fm.module.is_some() {
-        fm_points += 5;
+        fm_points += FM_MODULE_POINTS;
     } else {
         fm_missing.push("module (-5pts)");
     }
     if fm.version.is_some() {
-        fm_points += 5;
+        fm_points += FM_VERSION_POINTS;
     } else {
         fm_missing.push("version (-5pts)");
     }
     if fm.status.is_some() {
-        fm_points += 4;
+        fm_points += FM_STATUS_POINTS;
     } else {
         fm_missing.push("status (-4pts)");
     }
     if !fm.files.is_empty() {
-        fm_points += 6;
+        fm_points += FM_FILES_POINTS;
     } else {
         fm_missing.push("files (-6pts)");
     }
     score.frontmatter_score = fm_points;
     if !fm_missing.is_empty() {
-        let lost = 20 - fm_points;
+        let lost = DIMENSION_MAX - fm_points;
         score.suggestions.push(format!(
             "Frontmatter (-{lost}pts): missing {}",
             fm_missing.join(", ")
@@ -129,13 +154,17 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     score.explain.push(ExplainDetail {
         dimension: "Frontmatter".to_string(),
         score: fm_points,
-        max_score: 20,
+        max_score: DIMENSION_MAX,
         criteria: vec![
             CriterionResult {
                 name: "has_module".to_string(),
                 passed: fm.module.is_some(),
-                points: if fm.module.is_some() { 5 } else { 0 },
-                max_points: 5,
+                points: if fm.module.is_some() {
+                    FM_MODULE_POINTS
+                } else {
+                    0
+                },
+                max_points: FM_MODULE_POINTS,
                 detail: if fm.module.is_none() {
                     Some("add `module:` field".to_string())
                 } else {
@@ -145,8 +174,12 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             CriterionResult {
                 name: "has_version".to_string(),
                 passed: fm.version.is_some(),
-                points: if fm.version.is_some() { 5 } else { 0 },
-                max_points: 5,
+                points: if fm.version.is_some() {
+                    FM_VERSION_POINTS
+                } else {
+                    0
+                },
+                max_points: FM_VERSION_POINTS,
                 detail: if fm.version.is_none() {
                     Some("add `version:` field".to_string())
                 } else {
@@ -156,8 +189,12 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             CriterionResult {
                 name: "has_status".to_string(),
                 passed: fm.status.is_some(),
-                points: if fm.status.is_some() { 4 } else { 0 },
-                max_points: 4,
+                points: if fm.status.is_some() {
+                    FM_STATUS_POINTS
+                } else {
+                    0
+                },
+                max_points: FM_STATUS_POINTS,
                 detail: if fm.status.is_none() {
                     Some("add `status:` field".to_string())
                 } else {
@@ -167,8 +204,12 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             CriterionResult {
                 name: "has_files".to_string(),
                 passed: !fm.files.is_empty(),
-                points: if !fm.files.is_empty() { 6 } else { 0 },
-                max_points: 6,
+                points: if !fm.files.is_empty() {
+                    FM_FILES_POINTS
+                } else {
+                    0
+                },
+                max_points: FM_FILES_POINTS,
                 detail: if fm.files.is_empty() {
                     Some("add `files:` list".to_string())
                 } else {
@@ -183,12 +224,12 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     let present = config.required_sections.len() - missing.len();
     let total_sections = config.required_sections.len();
     score.sections_score = if total_sections == 0 {
-        20
+        DIMENSION_MAX
     } else {
-        ((present as f64 / total_sections as f64) * 20.0).round() as u32
+        ((present as f64 / total_sections as f64) * DIMENSION_MAX as f64).round() as u32
     };
     if !missing.is_empty() {
-        let lost = 20 - score.sections_score;
+        let lost = DIMENSION_MAX - score.sections_score;
         let names = missing
             .iter()
             .take(3)
@@ -207,7 +248,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     {
         let missing_set: HashSet<&str> = missing.iter().map(|s| s.as_str()).collect();
         let per_section_max = if total_sections > 0 {
-            ((20.0 / total_sections as f64).round() as u32).max(1)
+            ((DIMENSION_MAX as f64 / total_sections as f64).round() as u32).max(1)
         } else {
             0
         };
@@ -232,7 +273,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         score.explain.push(ExplainDetail {
             dimension: "Sections".to_string(),
             score: score.sections_score,
-            max_score: 20,
+            max_score: DIMENSION_MAX,
             criteria: section_criteria,
         });
     }
@@ -256,25 +297,26 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             .count();
 
         if all_exports.is_empty() {
-            score.api_score = 20; // No exports to document
+            score.api_score = DIMENSION_MAX;
             score.explain.push(ExplainDetail {
                 dimension: "API".to_string(),
-                score: 20,
-                max_score: 20,
+                score: DIMENSION_MAX,
+                max_score: DIMENSION_MAX,
                 criteria: vec![CriterionResult {
                     name: "documented_exports".to_string(),
                     passed: true,
-                    points: 20,
-                    max_points: 20,
+                    points: DIMENSION_MAX,
+                    max_points: DIMENSION_MAX,
                     detail: Some("no exports to document".to_string()),
                 }],
             });
         } else {
-            score.api_score =
-                ((documented as f64 / all_exports.len() as f64) * 20.0).round() as u32;
+            score.api_score = ((documented as f64 / all_exports.len() as f64)
+                * DIMENSION_MAX as f64)
+                .round() as u32;
             let undocumented = all_exports.len() - documented;
             if undocumented > 0 {
-                let lost = 20 - score.api_score;
+                let lost = DIMENSION_MAX - score.api_score;
                 let undoc_names: Vec<&str> = all_exports
                     .iter()
                     .filter(|s| !spec_symbols.iter().any(|ss| ss == *s))
@@ -302,12 +344,12 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             score.explain.push(ExplainDetail {
                 dimension: "API".to_string(),
                 score: score.api_score,
-                max_score: 20,
+                max_score: DIMENSION_MAX,
                 criteria: vec![CriterionResult {
                     name: "documented_exports".to_string(),
                     passed: undocumented == 0,
                     points: score.api_score,
-                    max_points: 20,
+                    max_points: DIMENSION_MAX,
                     detail: api_detail,
                 }],
             });
@@ -317,12 +359,12 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         score.explain.push(ExplainDetail {
             dimension: "API".to_string(),
             score: 0,
-            max_score: 20,
+            max_score: DIMENSION_MAX,
             criteria: vec![CriterionResult {
                 name: "documented_exports".to_string(),
                 passed: false,
                 points: 0,
-                max_points: 20,
+                max_points: DIMENSION_MAX,
                 detail: Some("no files listed in frontmatter".to_string()),
             }],
         });
@@ -353,22 +395,22 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     } else {
         sections_with_content as f64 / config.required_sections.len() as f64
     };
-    depth_points += (content_ratio * 14.0).round() as u32;
+    depth_points += (content_ratio * DEPTH_CONTENT_POINTS as f64).round() as u32;
 
     // Penalize TODOs
     if todo_count == 0 && placeholder_count == 0 {
-        depth_points += 6;
+        depth_points += DEPTH_PLACEHOLDER_POINTS;
     } else if todo_count <= 2 {
-        depth_points += 3;
+        depth_points += DEPTH_PLACEHOLDER_POINTS / 2;
     } else {
         score.suggestions.push(format!(
             "Content depth: fill in {todo_count} TODO placeholder(s) with real content"
         ));
     }
     depth_points = depth_points.saturating_sub(stub_penalty);
-    score.depth_score = depth_points.min(20);
-    if score.depth_score < 20 {
-        let lost = 20 - score.depth_score;
+    score.depth_score = depth_points.min(DIMENSION_MAX);
+    if score.depth_score < DIMENSION_MAX {
+        let lost = DIMENSION_MAX - score.depth_score;
         let filled = sections_with_content;
         let total_req = config.required_sections.len();
         if filled < total_req {
@@ -400,11 +442,11 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             );
         }
     }
-    let content_points = (content_ratio * 14.0).round() as u32;
+    let content_points = (content_ratio * DEPTH_CONTENT_POINTS as f64).round() as u32;
     let todo_points = if todo_count == 0 && placeholder_count == 0 {
-        6u32
+        DEPTH_PLACEHOLDER_POINTS
     } else if todo_count <= 2 {
-        3u32
+        DEPTH_PLACEHOLDER_POINTS / 2
     } else {
         0u32
     };
@@ -430,27 +472,27 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     score.explain.push(ExplainDetail {
         dimension: "Depth".to_string(),
         score: score.depth_score,
-        max_score: 20,
+        max_score: DIMENSION_MAX,
         criteria: vec![
             CriterionResult {
                 name: "sections_with_content".to_string(),
-                passed: content_points >= 14,
+                passed: content_points >= DEPTH_CONTENT_POINTS,
                 points: content_points,
-                max_points: 14,
+                max_points: DEPTH_CONTENT_POINTS,
                 detail: stub_detail,
             },
             CriterionResult {
                 name: "placeholder_free".to_string(),
-                passed: todo_points == 6,
+                passed: todo_points == DEPTH_PLACEHOLDER_POINTS,
                 points: todo_points,
-                max_points: 6,
+                max_points: DEPTH_PLACEHOLDER_POINTS,
                 detail: todo_detail,
             },
         ],
     });
 
     // ─── Freshness (0-20) ────────────────────────────────────────────
-    let mut fresh_points = 20u32;
+    let mut fresh_points = DIMENSION_MAX;
     let mut stale_files = 0u32;
     for file in &fm.files {
         if !root.join(file).exists() {
@@ -458,7 +500,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         }
     }
     let file_penalty = if stale_files > 0 {
-        let penalty = (stale_files * 5).min(15);
+        let penalty = (stale_files * FRESH_FILE_PENALTY_PER).min(FRESH_FILES_MAX);
         fresh_points = fresh_points.saturating_sub(penalty);
         score.suggestions.push(format!(
             "Freshness (-{penalty}pts): {stale_files} file(s) in frontmatter don't exist"
@@ -476,7 +518,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         }
     }
     let dep_penalty = if stale_deps > 0 {
-        let penalty = stale_deps * 3;
+        let penalty = stale_deps * FRESH_DEP_PENALTY_PER;
         fresh_points = fresh_points.saturating_sub(penalty);
         score.suggestions.push(format!(
             "Freshness (-{penalty}pts): {stale_deps} depends_on path(s) don't exist"
@@ -505,18 +547,16 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             }
             git_behind = max_behind;
             if max_behind >= 10 {
-                let penalty = 5u32;
-                git_penalty = penalty;
-                fresh_points = fresh_points.saturating_sub(penalty);
+                git_penalty = FRESH_GIT_MAX;
+                fresh_points = fresh_points.saturating_sub(git_penalty);
                 score.suggestions.push(format!(
-                    "Freshness (-{penalty}pts): spec is {max_behind} commits behind source files"
+                    "Freshness (-{git_penalty}pts): spec is {max_behind} commits behind source files"
                 ));
             } else if max_behind >= 5 {
-                let penalty = 3u32;
-                git_penalty = penalty;
-                fresh_points = fresh_points.saturating_sub(penalty);
+                git_penalty = FRESH_GIT_MAX - 2;
+                fresh_points = fresh_points.saturating_sub(git_penalty);
                 score.suggestions.push(format!(
-                    "Freshness (-{penalty}pts): spec is {max_behind} commits behind source files"
+                    "Freshness (-{git_penalty}pts): spec is {max_behind} commits behind source files"
                 ));
             }
         }
@@ -526,13 +566,13 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     score.explain.push(ExplainDetail {
         dimension: "Freshness".to_string(),
         score: fresh_points,
-        max_score: 20,
+        max_score: DIMENSION_MAX,
         criteria: vec![
             CriterionResult {
                 name: "files_exist".to_string(),
                 passed: stale_files == 0,
-                points: 15u32.saturating_sub(file_penalty),
-                max_points: 15,
+                points: FRESH_FILES_MAX.saturating_sub(file_penalty),
+                max_points: FRESH_FILES_MAX,
                 detail: if stale_files > 0 {
                     Some(format!("{stale_files} file(s) missing"))
                 } else {
@@ -542,14 +582,15 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             CriterionResult {
                 name: "deps_exist".to_string(),
                 passed: stale_deps == 0,
-                points: (stale_deps * 3).saturating_sub(dep_penalty).min(
-                    if fm.depends_on.is_empty() {
+                points: (stale_deps * FRESH_DEP_PENALTY_PER)
+                    .saturating_sub(dep_penalty)
+                    .min(if fm.depends_on.is_empty() {
                         0
                     } else {
-                        stale_deps * 3
-                    },
-                ),
-                max_points: (fm.depends_on.len() as u32 * 3).min(6),
+                        stale_deps * FRESH_DEP_PENALTY_PER
+                    }),
+                max_points: (fm.depends_on.len() as u32 * FRESH_DEP_PENALTY_PER)
+                    .min(FRESH_DEP_PENALTY_PER * 2),
                 detail: if stale_deps > 0 {
                     Some(format!("{stale_deps} depends_on path(s) missing"))
                 } else {
@@ -559,8 +600,8 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             CriterionResult {
                 name: "git_freshness".to_string(),
                 passed: git_penalty == 0,
-                points: 5u32.saturating_sub(git_penalty),
-                max_points: 5,
+                points: FRESH_GIT_MAX.saturating_sub(git_penalty),
+                max_points: FRESH_GIT_MAX,
                 detail: if git_behind >= 5 {
                     Some(format!("{git_behind} commits behind source files"))
                 } else {
@@ -577,20 +618,14 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         + score.depth_score
         + score.freshness_score;
 
-    score.grade = match score.total {
-        90..=100 => "A",
-        80..=89 => "B",
-        70..=79 => "C",
-        60..=69 => "D",
-        _ => "F",
-    };
+    score.grade = letter_grade(score.total);
 
     // A-grade requires real content — specs with ≥50% stub sections are capped at B.
     // This prevents fully-stubbed specs with clean metadata from reaching an A.
     let total_req = config.required_sections.len();
     if score.grade == "A" && total_req > 0 && stub_sections.len() * 2 >= total_req {
         score.grade = "B";
-        score.total = score.total.min(89);
+        score.total = score.total.min(GRADE_A_MIN - 1);
         score.suggestions.push(format!(
             "Grade capped at B: {}/{} required sections contain only stub/placeholder content — replace TBD/N/A/TODO with real documentation",
             stub_sections.len(),
@@ -639,6 +674,16 @@ fn count_sections_with_content(body: &str, required_sections: &[String]) -> usiz
     count
 }
 
+fn letter_grade(score: u32) -> &'static str {
+    match score {
+        s if s >= GRADE_A_MIN => "A",
+        s if s >= GRADE_B_MIN => "B",
+        s if s >= GRADE_C_MIN => "C",
+        s if s >= GRADE_D_MIN => "D",
+        _ => "F",
+    }
+}
+
 /// Aggregate scores for a project.
 pub struct ProjectScore {
     pub spec_scores: Vec<SpecScore>,
@@ -667,13 +712,7 @@ pub fn compute_project_score(spec_scores: Vec<SpecScore>) -> ProjectScore {
         }
     }
 
-    let grade = match average_score.round() as u32 {
-        90..=100 => "A",
-        80..=89 => "B",
-        70..=79 => "C",
-        60..=69 => "D",
-        _ => "F",
-    };
+    let grade = letter_grade(average_score.round() as u32);
 
     ProjectScore {
         spec_scores,

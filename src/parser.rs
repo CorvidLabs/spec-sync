@@ -1,4 +1,5 @@
 use crate::types::Frontmatter;
+use crate::util::levenshtein;
 use regex::Regex;
 use std::collections::HashSet;
 use std::sync::LazyLock;
@@ -272,27 +273,6 @@ pub fn get_missing_sections(body: &str, required_sections: &[String]) -> Vec<Str
         }
     }
     missing
-}
-
-/// Levenshtein edit distance between two strings.
-fn levenshtein(a: &str, b: &str) -> usize {
-    let a: Vec<char> = a.chars().collect();
-    let b: Vec<char> = b.chars().collect();
-    let (m, n) = (a.len(), b.len());
-    let mut prev: Vec<usize> = (0..=n).collect();
-    let mut curr = vec![0usize; n + 1];
-    for i in 1..=m {
-        curr[0] = i;
-        for j in 1..=n {
-            curr[j] = if a[i - 1] == b[j - 1] {
-                prev[j - 1]
-            } else {
-                1 + prev[j - 1].min(prev[j]).min(curr[j - 1])
-            };
-        }
-        std::mem::swap(&mut prev, &mut curr);
-    }
-    prev[n]
 }
 
 /// For each required section that is missing an exact heading, check whether

@@ -2,7 +2,7 @@
 name = "specsync"
 version = "4.3.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Bidirectional spec-to-code validation with schema column checking — 11 languages, single binary"
 license = "MIT"
 readme = "README.md"

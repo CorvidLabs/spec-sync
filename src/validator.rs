@@ -551,7 +551,7 @@ pub fn validate_spec(
 
 /// Apply project-specific custom validation rules from config.
 fn apply_custom_rules(
-    spec_path: &Path,
+    _spec_path: &Path,
     body: &str,
     fm: &Frontmatter,
     config: &SpecSyncConfig,

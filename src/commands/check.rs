@@ -30,6 +30,8 @@ pub fn cmd_check(
     require_coverage: Option<usize>,
     format: types::OutputFormat,
     fix: bool,
+    dry_run: bool,
+    backup: bool,
     force: bool,
     create_issues: bool,
     explain: bool,
@@ -199,13 +201,39 @@ pub fn cmd_check(
 
     // If --fix is requested, auto-add undocumented exports to specs
     if fix {
-        let fixed = auto_fix_specs(root, &specs_to_validate, &config);
+        if backup && !dry_run {
+            let backup_dir = root.join(".specsync/backup-fix");
+            let _ = fs::create_dir_all(&backup_dir);
+            for spec_file in &specs_to_validate {
+                let rel = spec_file.strip_prefix(root).unwrap_or(spec_file);
+                let dest = backup_dir.join(rel);
+                if let Some(parent) = dest.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                let _ = fs::copy(spec_file, &dest);
+            }
+            if matches!(format, Text) {
+                println!(
+                    "{} Backed up {} spec(s) to {}\n",
+                    "✓".green(),
+                    specs_to_validate.len(),
+                    backup_dir.display()
+                );
+            }
+        }
+
+        let fixed = auto_fix_specs(root, &specs_to_validate, &config, dry_run);
         if fixed > 0 && matches!(format, Text) {
-            println!("{} Auto-added exports to {fixed} spec(s)\n", "✓".green());
+            let verb = if dry_run {
+                "Would auto-add"
+            } else {
+                "Auto-added"
+            };
+            println!("{} {verb} exports to {fixed} spec(s)\n", "✓".green());
         }
 
         // --fix + requirements changed: regenerate spec via AI
-        if !requirements_stale_specs.is_empty() {
+        if !dry_run && !requirements_stale_specs.is_empty() {
             let regen_count =
                 auto_regen_stale_specs(root, &requirements_stale_specs, &config, format);
             if regen_count > 0 && matches!(format, Text) {
@@ -577,7 +605,12 @@ fn fix_near_miss_required_headers(content: &mut String, required_sections: &[Str
     modified
 }
 
-fn auto_fix_specs(root: &Path, spec_files: &[PathBuf], config: &types::SpecSyncConfig) -> usize {
+fn auto_fix_specs(
+    root: &Path,
+    spec_files: &[PathBuf],
+    config: &types::SpecSyncConfig,
+    dry_run: bool,
+) -> usize {
     use crate::exports::get_exported_symbols_full;
     use crate::parser::{get_spec_symbols, parse_frontmatter};
 
@@ -594,21 +627,27 @@ fn auto_fix_specs(root: &Path, spec_files: &[PathBuf], config: &types::SpecSyncC
         let mut content = content;
         if fix_near_miss_required_headers(&mut content, &config.required_sections) {
             let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
+            let verb = if dry_run { "would rename" } else { "renamed" };
             println!(
-                "  {} {rel}: renamed near-miss required section header(s) to canonical form",
+                "  {} {rel}: {verb} near-miss required section header(s) to canonical form",
                 "✓".green()
             );
-            let _ = fs::write(spec_file, &content);
+            if !dry_run {
+                let _ = fs::write(spec_file, &content);
+            }
         }
 
         // Second pass: fix near-miss export subsection headers (### level)
         if fix_near_miss_headers(&mut content) {
             let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
+            let verb = if dry_run { "would rename" } else { "renamed" };
             println!(
-                "  {} {rel}: renamed near-miss export header(s) to canonical form",
+                "  {} {rel}: {verb} near-miss export header(s) to canonical form",
                 "✓".green()
             );
-            let _ = fs::write(spec_file, &content);
+            if !dry_run {
+                let _ = fs::write(spec_file, &content);
+            }
         }
 
         let parsed = match parse_frontmatter(&content) {
@@ -756,7 +795,15 @@ fn auto_fix_specs(root: &Path, spec_files: &[PathBuf], config: &types::SpecSyncC
             new_content.push_str(&section);
         }
 
-        if let Ok(()) = fs::write(spec_file, &new_content) {
+        if dry_run {
+            fixed_count += 1;
+            let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
+            println!(
+                "  {} {rel}: would add {} export(s)",
+                "✓".green(),
+                undocumented.len()
+            );
+        } else if let Ok(()) = fs::write(spec_file, &new_content) {
             fixed_count += 1;
             let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
             println!(

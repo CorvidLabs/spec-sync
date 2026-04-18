@@ -521,6 +521,10 @@ pub struct SpecSyncConfig {
     /// Companion file settings.
     #[serde(default)]
     pub companions: CompanionConfig,
+
+    /// Path to the config file that was loaded (not serialized — set at runtime).
+    #[serde(skip)]
+    pub config_path: Option<std::path::PathBuf>,
 }
 
 /// Configuration for companion file generation.
@@ -870,6 +874,7 @@ impl Default for SpecSyncConfig {
             enforcement: EnforcementMode::default(),
             lifecycle: LifecycleConfig::default(),
             companions: CompanionConfig::default(),
+            config_path: None,
         }
     }
 }

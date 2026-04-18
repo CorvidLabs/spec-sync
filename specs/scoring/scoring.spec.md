@@ -27,6 +27,8 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 |------|-------------|
 | `SpecScore` | Quality score for a single spec: component scores, total, grade, and suggestions |
 | `ProjectScore` | Aggregate scores for the project: average, grade, distribution, and per-spec scores |
+| `CriterionResult` | Pass/fail result for a single scoring criterion within a dimension |
+| `ExplainDetail` | Per-dimension breakdown (criteria list, score, max) used by `--explain` |
 
 ### Exported Functions
 
@@ -45,7 +47,8 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 6. Content depth checks that sections have meaningful content beyond headings, comments, and separator rows
 7. Freshness penalizes stale file references (5pts each, max 15pt penalty) and stale dependency refs (3pts each)
 8. Suggestions are always actionable — each corresponds to a specific improvement the user can make
-9. No exports to document = full API score (20/20) — specs for config-only modules aren't penalized
+9. No exports to document = full API score (20/20) — specs for config-only modules are not penalized
+10. `SpecScore.explain` is always populated during `score_spec` — one `ExplainDetail` per dimension, each containing one or more `CriterionResult` entries
 
 ## Behavioral Examples
 
@@ -66,6 +69,12 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 - **Given** 3 specs scoring 95, 80, 65
 - **When** `compute_project_score` is called
 - **Then** average_score=80.0, grade="B", distribution shows 1 A, 1 B, 0 C, 1 D, 0 F
+
+### Scenario: --explain breakdown
+
+- **Given** a spec scoring 11/20 on Depth
+- **When** `score_spec` is called
+- **Then** `explain` contains a Depth entry with `CriterionResult` items showing which checks passed/failed
 
 ## Error Cases
 
@@ -96,4 +105,5 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 
 | Date | Change |
 |------|--------|
+| 2026-04-18 | Add `CriterionResult` and `ExplainDetail` structs; add `explain` field to `SpecScore` for `--explain` breakdown |
 | 2026-03-25 | Initial spec |

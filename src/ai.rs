@@ -581,7 +581,7 @@ fn call_anthropic_api(
         base_url.unwrap_or("https://api.anthropic.com")
     );
 
-    eprintln!("    Calling Anthropic API ({model})...");
+    eprintln!("    Calling Anthropic API...");
     let _ = std::io::stderr().flush();
 
     let body = serde_json::json!({

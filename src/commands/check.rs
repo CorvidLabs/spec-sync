@@ -234,14 +234,15 @@ pub fn cmd_check(
                 };
                 let dest = backup_dir.join(rel);
                 if let Some(parent) = dest.parent()
-                    && let Err(e) = fs::create_dir_all(parent) {
-                        eprintln!(
-                            "{} Failed to create backup subdirectory {}: {e}",
-                            "✗".red(),
-                            parent.display()
-                        );
-                        process::exit(1);
-                    }
+                    && let Err(e) = fs::create_dir_all(parent)
+                {
+                    eprintln!(
+                        "{} Failed to create backup subdirectory {}: {e}",
+                        "✗".red(),
+                        parent.display()
+                    );
+                    process::exit(1);
+                }
                 if let Err(e) = fs::copy(spec_file, &dest) {
                     eprintln!(
                         "{} Failed to backup {}: {e}",
@@ -303,78 +304,79 @@ pub fn cmd_check(
     let mut git_stale_entries: Vec<serde_json::Value> = Vec::new();
 
     if let Some(threshold) = stale_threshold
-        && git_utils::is_git_repo(root) {
-            for spec_file in &spec_files {
-                let content = match fs::read_to_string(spec_file) {
-                    Ok(c) => c.replace("\r\n", "\n"),
-                    Err(_) => continue,
-                };
-                let parsed = match parser::parse_frontmatter(&content) {
-                    Some(p) => p,
-                    None => continue,
-                };
-                let fm = &parsed.frontmatter;
-                if fm.files.is_empty() {
-                    continue;
-                }
-
-                let rel_spec = spec_file
-                    .strip_prefix(root)
-                    .unwrap_or(spec_file)
-                    .to_string_lossy()
-                    .to_string();
-
-                let spec_commit = git_utils::git_last_commit_hash(root, &rel_spec);
-                if spec_commit.is_none() {
-                    continue;
-                }
-
-                let mut max_behind: usize = 0;
-                let mut drifted_files: Vec<(String, usize)> = Vec::new();
-                for source_file in &fm.files {
-                    if !root.join(source_file).exists() {
-                        continue;
-                    }
-                    let behind = git_utils::git_commits_between(root, &rel_spec, source_file);
-                    if behind >= threshold {
-                        drifted_files.push((source_file.clone(), behind));
-                    }
-                    max_behind = max_behind.max(behind);
-                }
-
-                if max_behind >= threshold {
-                    git_stale_warnings += 1;
-                    if matches!(format, types::OutputFormat::Text) {
-                        let module = fm.module.as_deref().unwrap_or(&rel_spec);
-                        println!(
-                            "  {} {module}: spec is {max_behind} commits behind source files",
-                            "⚠".yellow()
-                        );
-                        for (file, behind) in &drifted_files {
-                            println!(
-                                "      {} {file} ({behind} commit{})",
-                                "→".dimmed(),
-                                if *behind == 1 { "" } else { "s" },
-                            );
-                        }
-                    }
-                    let details: Vec<serde_json::Value> = drifted_files
-                        .iter()
-                        .map(|(f, n)| serde_json::json!({"file": f, "commits_behind": n}))
-                        .collect();
-                    git_stale_entries.push(serde_json::json!({
-                        "spec": rel_spec,
-                        "reason": "git_drift",
-                        "commits_behind": max_behind,
-                        "drifted_files": details,
-                    }));
-                }
+        && git_utils::is_git_repo(root)
+    {
+        for spec_file in &spec_files {
+            let content = match fs::read_to_string(spec_file) {
+                Ok(c) => c.replace("\r\n", "\n"),
+                Err(_) => continue,
+            };
+            let parsed = match parser::parse_frontmatter(&content) {
+                Some(p) => p,
+                None => continue,
+            };
+            let fm = &parsed.frontmatter;
+            if fm.files.is_empty() {
+                continue;
             }
 
-            if git_stale_warnings > 0 && matches!(format, types::OutputFormat::Text) {
-                println!();
+            let rel_spec = spec_file
+                .strip_prefix(root)
+                .unwrap_or(spec_file)
+                .to_string_lossy()
+                .to_string();
+
+            let spec_commit = git_utils::git_last_commit_hash(root, &rel_spec);
+            if spec_commit.is_none() {
+                continue;
+            }
+
+            let mut max_behind: usize = 0;
+            let mut drifted_files: Vec<(String, usize)> = Vec::new();
+            for source_file in &fm.files {
+                if !root.join(source_file).exists() {
+                    continue;
+                }
+                let behind = git_utils::git_commits_between(root, &rel_spec, source_file);
+                if behind >= threshold {
+                    drifted_files.push((source_file.clone(), behind));
+                }
+                max_behind = max_behind.max(behind);
+            }
+
+            if max_behind >= threshold {
+                git_stale_warnings += 1;
+                if matches!(format, types::OutputFormat::Text) {
+                    let module = fm.module.as_deref().unwrap_or(&rel_spec);
+                    println!(
+                        "  {} {module}: spec is {max_behind} commits behind source files",
+                        "⚠".yellow()
+                    );
+                    for (file, behind) in &drifted_files {
+                        println!(
+                            "      {} {file} ({behind} commit{})",
+                            "→".dimmed(),
+                            if *behind == 1 { "" } else { "s" },
+                        );
+                    }
+                }
+                let details: Vec<serde_json::Value> = drifted_files
+                    .iter()
+                    .map(|(f, n)| serde_json::json!({"file": f, "commits_behind": n}))
+                    .collect();
+                git_stale_entries.push(serde_json::json!({
+                    "spec": rel_spec,
+                    "reason": "git_drift",
+                    "commits_behind": max_behind,
+                    "drifted_files": details,
+                }));
             }
         }
+
+        if git_stale_warnings > 0 && matches!(format, types::OutputFormat::Text) {
+            println!();
+        }
+    }
     stale_entries.extend(git_stale_entries);
 
     // Include staleness warnings in total when --strict

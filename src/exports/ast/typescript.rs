@@ -181,10 +181,11 @@ fn handle_export_statement(
         } else if let Some(path) = &from_path {
             // export * from '...' — resolve if we have a resolver
             if let Some(resolver) = resolver
-                && let Some(target_content) = resolver(path) {
-                    let target_symbols = extract_exports(&target_content);
-                    symbols.extend(target_symbols);
-                }
+                && let Some(target_content) = resolver(path)
+            {
+                let target_symbols = extract_exports(&target_content);
+                symbols.extend(target_symbols);
+            }
         }
     }
 }
@@ -218,22 +219,23 @@ fn extract_variable_names(node: &tree_sitter::Node, src: &[u8], symbols: &mut Ve
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "variable_declarator"
-            && let Some(name_node) = child.child_by_field_name("name") {
-                match name_node.kind() {
-                    "identifier" => {
-                        let name = name_node.utf8_text(src).unwrap_or_default();
-                        symbols.push(name.to_string());
-                    }
-                    // Destructuring: export const { a, b } = ...
-                    "object_pattern" => {
-                        extract_pattern_names(&name_node, src, symbols);
-                    }
-                    "array_pattern" => {
-                        extract_pattern_names(&name_node, src, symbols);
-                    }
-                    _ => {}
+            && let Some(name_node) = child.child_by_field_name("name")
+        {
+            match name_node.kind() {
+                "identifier" => {
+                    let name = name_node.utf8_text(src).unwrap_or_default();
+                    symbols.push(name.to_string());
                 }
+                // Destructuring: export const { a, b } = ...
+                "object_pattern" => {
+                    extract_pattern_names(&name_node, src, symbols);
+                }
+                "array_pattern" => {
+                    extract_pattern_names(&name_node, src, symbols);
+                }
+                _ => {}
             }
+        }
     }
 }
 

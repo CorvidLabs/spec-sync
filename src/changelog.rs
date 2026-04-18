@@ -329,9 +329,10 @@ pub fn generate_changelog(
     for path in &new_specs {
         if !old_set.contains(path.as_str())
             && let Some(content) = read_file_at_ref(root, to_ref, path)
-                && let Some(entry) = spec_entry_from_content(path, &content) {
-                    added.push(entry);
-                }
+            && let Some(entry) = spec_entry_from_content(path, &content)
+        {
+            added.push(entry);
+        }
     }
 
     // Removed specs: in old but not in new
@@ -339,9 +340,10 @@ pub fn generate_changelog(
     for path in &old_specs {
         if !new_set.contains(path.as_str())
             && let Some(content) = read_file_at_ref(root, from_ref, path)
-                && let Some(entry) = spec_entry_from_content(path, &content) {
-                    removed.push(entry);
-                }
+            && let Some(entry) = spec_entry_from_content(path, &content)
+        {
+            removed.push(entry);
+        }
     }
 
     // Modified specs: in both, but content changed

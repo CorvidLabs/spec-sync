@@ -921,33 +921,33 @@ pub fn cmd_enforce(
             }
 
             // Check: max age
-            if check_max_age
-                && let Some(max_days) = config.lifecycle.max_age.get(status.as_str()) {
-                    // Look at lifecycle_log (frontmatter or external JSON) for the most recent transition
-                    let lifecycle_log = if parsed.frontmatter.lifecycle_log.is_empty() {
-                        let module = parsed
-                            .frontmatter
-                            .module
-                            .clone()
-                            .unwrap_or_else(|| derive_module_from_path(spec_path));
-                        load_lifecycle_json(root, &module)
-                    } else {
-                        parsed.frontmatter.lifecycle_log.clone()
-                    };
-                    let age_days = estimate_status_age(root, &rel, &lifecycle_log, status);
-                    if let Some(age) = age_days
-                        && age > *max_days {
-                            violations.push((
-                                rel.clone(),
-                                format!(
-                                    "stuck in '{}' for ~{} days (max: {} days)",
-                                    status.as_str(),
-                                    age,
-                                    max_days
-                                ),
-                            ));
-                        }
+            if check_max_age && let Some(max_days) = config.lifecycle.max_age.get(status.as_str()) {
+                // Look at lifecycle_log (frontmatter or external JSON) for the most recent transition
+                let lifecycle_log = if parsed.frontmatter.lifecycle_log.is_empty() {
+                    let module = parsed
+                        .frontmatter
+                        .module
+                        .clone()
+                        .unwrap_or_else(|| derive_module_from_path(spec_path));
+                    load_lifecycle_json(root, &module)
+                } else {
+                    parsed.frontmatter.lifecycle_log.clone()
+                };
+                let age_days = estimate_status_age(root, &rel, &lifecycle_log, status);
+                if let Some(age) = age_days
+                    && age > *max_days
+                {
+                    violations.push((
+                        rel.clone(),
+                        format!(
+                            "stuck in '{}' for ~{} days (max: {} days)",
+                            status.as_str(),
+                            age,
+                            max_days
+                        ),
+                    ));
                 }
+            }
         }
     }
 

@@ -400,11 +400,12 @@ fn verify_remote_specs(
             None => {
                 // Could not fetch or parse — only flag if registry said it existed
                 if let Some(Some(reg)) = repos.get(repo)
-                    && reg.has_spec(module) {
-                        issues.push(DriftIssue::FetchFailed {
-                            reason: "spec listed in registry but content unavailable".to_string(),
-                        });
-                    }
+                    && reg.has_spec(module)
+                {
+                    issues.push(DriftIssue::FetchFailed {
+                        reason: "spec listed in registry but content unavailable".to_string(),
+                    });
+                }
             }
         }
 
@@ -461,12 +462,13 @@ fn find_consumed_exports(root: &Path, spec_path: &str, remote_module: &str) -> V
                         let part = part.trim();
                         // Extract backtick-wrapped identifiers
                         if let Some(start) = part.find('`')
-                            && let Some(end) = part[start + 1..].find('`') {
-                                let name = &part[start + 1..start + 1 + end];
-                                if !name.is_empty() {
-                                    exports.push(name.to_string());
-                                }
+                            && let Some(end) = part[start + 1..].find('`')
+                        {
+                            let name = &part[start + 1..start + 1 + end];
+                            if !name.is_empty() {
+                                exports.push(name.to_string());
                             }
+                        }
                     }
                 }
             }

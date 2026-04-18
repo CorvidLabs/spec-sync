@@ -56,45 +56,43 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         let line = lines[i];
         // Check if this is a top-level key that's a well-known parent
         if let Some(caps) = top_level_line.captures(line)
-            && let Some(key_match) = caps.get(1) {
-                let parent = key_match.as_str();
-                if NESTED_SYMBOL_PARENTS.contains(&parent) {
-                    // Scan subsequent lines for second-level keys under this parent
-                    let mut j = i + 1;
-                    let mut child_indent: Option<usize> = None;
-                    while j < lines.len() {
-                        let child_line = lines[j];
-                        // Stop if we hit another top-level key or end of file
-                        if !child_line.is_empty()
-                            && !child_line.starts_with(' ')
-                            && !child_line.starts_with('\t')
-                            && !child_line.starts_with('#')
-                        {
-                            break;
-                        }
-                        // Measure leading whitespace
-                        let indent = child_line.len() - child_line.trim_start().len();
-                        let trimmed = child_line.trim_start();
-                        if indent > 0 && !trimmed.is_empty() && !trimmed.starts_with('#') {
-                            // Detect indent of first child
-                            if child_indent.is_none() {
-                                child_indent = Some(indent);
-                            }
-                            // Only match lines at the exact child indent level
-                            if Some(indent) == child_indent
-                                && let Some(child_caps) = top_level_line.captures(trimmed)
-                                    && let Some(child_match) = child_caps.get(1) {
-                                        symbols.push(format!(
-                                            "{}.{}",
-                                            parent,
-                                            child_match.as_str()
-                                        ));
-                                    }
-                        }
-                        j += 1;
+            && let Some(key_match) = caps.get(1)
+        {
+            let parent = key_match.as_str();
+            if NESTED_SYMBOL_PARENTS.contains(&parent) {
+                // Scan subsequent lines for second-level keys under this parent
+                let mut j = i + 1;
+                let mut child_indent: Option<usize> = None;
+                while j < lines.len() {
+                    let child_line = lines[j];
+                    // Stop if we hit another top-level key or end of file
+                    if !child_line.is_empty()
+                        && !child_line.starts_with(' ')
+                        && !child_line.starts_with('\t')
+                        && !child_line.starts_with('#')
+                    {
+                        break;
                     }
+                    // Measure leading whitespace
+                    let indent = child_line.len() - child_line.trim_start().len();
+                    let trimmed = child_line.trim_start();
+                    if indent > 0 && !trimmed.is_empty() && !trimmed.starts_with('#') {
+                        // Detect indent of first child
+                        if child_indent.is_none() {
+                            child_indent = Some(indent);
+                        }
+                        // Only match lines at the exact child indent level
+                        if Some(indent) == child_indent
+                            && let Some(child_caps) = top_level_line.captures(trimmed)
+                            && let Some(child_match) = child_caps.get(1)
+                        {
+                            symbols.push(format!("{}.{}", parent, child_match.as_str()));
+                        }
+                    }
+                    j += 1;
                 }
             }
+        }
         i += 1;
     }
 

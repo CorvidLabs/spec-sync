@@ -37,18 +37,18 @@ pub fn compact_changelogs(
             .to_string();
 
         if let Some((new_content, result)) = compact_spec_changelog(&content, &rel_path, keep)
-            && result.removed > 0 {
-                if !dry_run
-                    && let Err(e) = fs::write(spec_path, &new_content) {
-                        eprintln!(
-                            "{} Failed to write {}: {e}",
-                            "error:".red().bold(),
-                            rel_path
-                        );
-                        continue;
-                    }
-                results.push(result);
+            && result.removed > 0
+        {
+            if !dry_run && let Err(e) = fs::write(spec_path, &new_content) {
+                eprintln!(
+                    "{} Failed to write {}: {e}",
+                    "error:".red().bold(),
+                    rel_path
+                );
+                continue;
             }
+            results.push(result);
+        }
     }
 
     results

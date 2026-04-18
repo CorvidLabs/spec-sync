@@ -134,9 +134,10 @@ fn check_detect_version(ctx: &MigrationContext) -> StepStatus {
     let version_file = ctx.root.join(".specsync/version");
     if version_file.exists()
         && let Ok(v) = fs::read_to_string(&version_file)
-            && v.trim() == V4_VERSION {
-                return StepStatus::Done;
-            }
+        && v.trim() == V4_VERSION
+    {
+        return StepStatus::Done;
+    }
     // Check if there's a 3.x project to migrate
     let has_root_config = ctx.root.join("specsync.json").exists();
     let has_new_config = ctx.root.join(".specsync/config.json").exists();
@@ -155,9 +156,10 @@ fn apply_detect_version(
     let version_file = ctx.root.join(".specsync/version");
     if version_file.exists()
         && let Ok(v) = fs::read_to_string(&version_file)
-            && v.trim() == V4_VERSION {
-                return Ok(());
-            }
+        && v.trim() == V4_VERSION
+    {
+        return Ok(());
+    }
     let has_root_config = ctx.root.join("specsync.json").exists();
     let has_new_config = ctx.root.join(".specsync/config.json").exists();
     let has_legacy_toml = ctx.root.join(".specsync.toml").exists();
@@ -234,21 +236,22 @@ fn apply_create_backup(ctx: &MigrationContext, report: &mut MigrationReport) -> 
     let specs_backup_dir = backup_dir.join("specs");
     for spec_file in &ctx.spec_files {
         if let Ok(content) = fs::read_to_string(spec_file)
-            && content.contains("lifecycle_log:") {
-                let rel = spec_file.strip_prefix(&ctx.root).unwrap_or(spec_file);
-                let dst = specs_backup_dir.join(rel);
-                if let Some(parent) = dst.parent() {
-                    fs::create_dir_all(parent)
-                        .map_err(|e| format!("Failed to create backup subdir: {e}"))?;
-                }
-                fs::copy(spec_file, &dst)
-                    .map_err(|e| format!("Failed to backup {}: {e}", rel.display()))?;
-                manifest_entries.push(serde_json::json!({
-                    "file": rel.display().to_string(),
-                    "type": "spec_with_lifecycle_log",
-                    "backed_up_at": timestamp,
-                }));
+            && content.contains("lifecycle_log:")
+        {
+            let rel = spec_file.strip_prefix(&ctx.root).unwrap_or(spec_file);
+            let dst = specs_backup_dir.join(rel);
+            if let Some(parent) = dst.parent() {
+                fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to create backup subdir: {e}"))?;
             }
+            fs::copy(spec_file, &dst)
+                .map_err(|e| format!("Failed to backup {}: {e}", rel.display()))?;
+            manifest_entries.push(serde_json::json!({
+                "file": rel.display().to_string(),
+                "type": "spec_with_lifecycle_log",
+                "backed_up_at": timestamp,
+            }));
+        }
     }
 
     // Write manifest
@@ -780,16 +783,17 @@ fn apply_scan_cross_project(
 
         for dep in &parsed.frontmatter.depends_on {
             if validator::is_cross_project_ref(dep)
-                && let Some((repo, remote_module)) = validator::parse_cross_project_ref(dep) {
-                    refs.push(serde_json::json!({
-                        "local_module": module,
-                        "remote_repo": repo,
-                        "remote_module": remote_module,
-                        "raw": dep,
-                        "spec_file": spec_file.strip_prefix(&ctx.root)
-                            .unwrap_or(spec_file).display().to_string(),
-                    }));
-                }
+                && let Some((repo, remote_module)) = validator::parse_cross_project_ref(dep)
+            {
+                refs.push(serde_json::json!({
+                    "local_module": module,
+                    "remote_repo": repo,
+                    "remote_module": remote_module,
+                    "raw": dep,
+                    "spec_file": spec_file.strip_prefix(&ctx.root)
+                        .unwrap_or(spec_file).display().to_string(),
+                }));
+            }
         }
     }
 
@@ -825,9 +829,10 @@ fn check_stamp_version(ctx: &MigrationContext) -> StepStatus {
     let version_file = ctx.root.join(".specsync/version");
     if version_file.exists()
         && let Ok(v) = fs::read_to_string(&version_file)
-            && v.trim() == V4_VERSION {
-                return StepStatus::Done;
-            }
+        && v.trim() == V4_VERSION
+    {
+        return StepStatus::Done;
+    }
     StepStatus::Pending
 }
 
@@ -864,25 +869,26 @@ pub fn cmd_migrate(root: &Path, format: OutputFormat, dry_run: bool, no_backup: 
     let version_file = root.join(".specsync/version");
     if version_file.exists()
         && let Ok(v) = fs::read_to_string(&version_file)
-            && v.trim() == V4_VERSION {
-                match format {
-                    OutputFormat::Json => {
-                        let output = serde_json::json!({
-                            "status": "already_migrated",
-                            "version": V4_VERSION,
-                            "message": "Already at v4.0.0 — nothing to migrate",
-                        });
-                        println!("{}", serde_json::to_string_pretty(&output).unwrap());
-                    }
-                    _ => {
-                        println!(
-                            "{} Already at v{V4_VERSION} — nothing to migrate.",
-                            "✓".green()
-                        );
-                    }
-                }
-                return;
+        && v.trim() == V4_VERSION
+    {
+        match format {
+            OutputFormat::Json => {
+                let output = serde_json::json!({
+                    "status": "already_migrated",
+                    "version": V4_VERSION,
+                    "message": "Already at v4.0.0 — nothing to migrate",
+                });
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
             }
+            _ => {
+                println!(
+                    "{} Already at v{V4_VERSION} — nothing to migrate.",
+                    "✓".green()
+                );
+            }
+        }
+        return;
+    }
 
     if dry_run {
         match format {

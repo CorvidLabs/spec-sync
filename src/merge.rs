@@ -66,14 +66,15 @@ pub fn merge_specs(
 
         if !dry_run
             && let MergeStatus::Resolved = &result.status
-                && let Err(e) = fs::write(spec_path, &resolved) {
-                    results.push(MergeResult {
-                        spec_path: rel_path(root, spec_path),
-                        status: MergeStatus::Manual,
-                        details: vec![format!("Cannot write file: {e}")],
-                    });
-                    continue;
-                }
+            && let Err(e) = fs::write(spec_path, &resolved)
+        {
+            results.push(MergeResult {
+                spec_path: rel_path(root, spec_path),
+                status: MergeStatus::Manual,
+                details: vec![format!("Cannot write file: {e}")],
+            });
+            continue;
+        }
 
         results.push(result);
     }

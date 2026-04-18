@@ -146,13 +146,14 @@ impl IgnoreRules {
         for line in body.lines() {
             let trimmed = line.trim();
             if let Some(rest) = trimmed.strip_prefix("<!-- specsync-ignore:")
-                && let Some(content) = rest.strip_suffix("-->") {
-                    for part in content.split(',') {
-                        if let Some(cat) = WarningCategory::from_str(part.trim()) {
-                            categories.insert(cat);
-                        }
+                && let Some(content) = rest.strip_suffix("-->")
+            {
+                for part in content.split(',') {
+                    if let Some(cat) = WarningCategory::from_str(part.trim()) {
+                        categories.insert(cat);
                     }
                 }
+            }
         }
         categories
     }

@@ -357,9 +357,9 @@ pub fn validate_spec(
                 result.errors.push(format!(
                     "Missing required section: ## {section} (found '## {found}' — typo? Run --fix to rename)"
                 ));
-                result
-                    .fixes
-                    .push(format!("Run `spec-sync check --fix` to rename `## {found}` → `## {section}`"));
+                result.fixes.push(format!(
+                    "Run `spec-sync check --fix` to rename `## {found}` → `## {section}`"
+                ));
             } else {
                 result
                     .errors

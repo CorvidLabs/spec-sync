@@ -579,10 +579,7 @@ fn fix_near_miss_headers(content: &mut String) -> bool {
 /// Uses the same Levenshtein ≤ 2 approach as export-subsection fixing,
 /// applied to the top-level required sections from config.
 /// Returns true if the content was modified.
-fn fix_near_miss_required_headers(
-    content: &mut String,
-    required_sections: &[String],
-) -> bool {
+fn fix_near_miss_required_headers(content: &mut String, required_sections: &[String]) -> bool {
     let near_misses = crate::parser::get_near_miss_sections(content, required_sections);
     if near_misses.is_empty() {
         return false;

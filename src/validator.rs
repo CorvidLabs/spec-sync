@@ -2,7 +2,7 @@ use crate::config::{default_schema_pattern, discover_manifest_modules};
 use crate::exports::{get_exported_symbols_full, has_extension, is_test_file};
 use crate::parser::{
     body_has_section, find_section_offset, find_stub_sections, get_missing_sections,
-    get_spec_symbols, parse_frontmatter,
+    get_near_miss_sections, get_spec_symbols, parse_frontmatter,
 };
 use crate::schema::{self, SchemaTable};
 use crate::types::{
@@ -347,16 +347,27 @@ pub fn validate_spec(
 
     if !is_draft {
         let missing = get_missing_sections(body, &config.required_sections);
+        let near_misses = get_near_miss_sections(body, &config.required_sections);
         for section in &missing {
             if is_review && section == "Public API" {
                 continue; // review specs can skip Public API
             }
-            result
-                .errors
-                .push(format!("Missing required section: ## {section}"));
-            result
-                .fixes
-                .push(format!("Add `## {section}` heading to the spec body"));
+            // Check if a near-miss heading exists — give a targeted hint
+            if let Some((_, found)) = near_misses.iter().find(|(req, _)| req == section) {
+                result.errors.push(format!(
+                    "Missing required section: ## {section} (found '## {found}' — typo? Run --fix to rename)"
+                ));
+                result.fixes.push(format!(
+                    "Run `spec-sync check --fix` to rename `## {found}` → `## {section}`"
+                ));
+            } else {
+                result
+                    .errors
+                    .push(format!("Missing required section: ## {section}"));
+                result
+                    .fixes
+                    .push(format!("Add `## {section}` heading to the spec body"));
+            }
         }
     }
 

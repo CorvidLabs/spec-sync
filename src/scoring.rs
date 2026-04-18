@@ -585,6 +585,19 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         _ => "F",
     };
 
+    // A-grade requires real content — specs with ≥50% stub sections are capped at B.
+    // This prevents fully-stubbed specs with clean metadata from reaching an A.
+    let total_req = config.required_sections.len();
+    if score.grade == "A" && total_req > 0 && stub_sections.len() * 2 >= total_req {
+        score.grade = "B";
+        score.total = score.total.min(89);
+        score.suggestions.push(format!(
+            "Grade capped at B: {}/{} required sections contain only stub/placeholder content — replace TBD/N/A/TODO with real documentation",
+            stub_sections.len(),
+            total_req
+        ));
+    }
+
     score
 }
 

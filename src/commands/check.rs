@@ -575,6 +575,27 @@ fn fix_near_miss_headers(content: &mut String) -> bool {
     modified
 }
 
+/// Rename near-miss `## Required Section` headings in the spec body.
+/// Uses the same Levenshtein ≤ 2 approach as export-subsection fixing,
+/// applied to the top-level required sections from config.
+/// Returns true if the content was modified.
+fn fix_near_miss_required_headers(content: &mut String, required_sections: &[String]) -> bool {
+    let near_misses = crate::parser::get_near_miss_sections(content, required_sections);
+    if near_misses.is_empty() {
+        return false;
+    }
+    let mut modified = false;
+    for (canonical, found) in &near_misses {
+        let old = format!("## {found}");
+        let new = format!("## {canonical}");
+        if content.contains(&old) {
+            *content = content.replacen(&old, &new, 1);
+            modified = true;
+        }
+    }
+    modified
+}
+
 fn auto_fix_specs(root: &Path, spec_files: &[PathBuf], config: &types::SpecSyncConfig) -> usize {
     use crate::exports::get_exported_symbols_full;
     use crate::parser::{get_spec_symbols, parse_frontmatter};
@@ -588,12 +609,22 @@ fn auto_fix_specs(root: &Path, spec_files: &[PathBuf], config: &types::SpecSyncC
             Err(_) => continue,
         };
 
-        // First pass: fix near-miss headers
+        // First pass: fix near-miss required section headers (## level)
         let mut content = content;
+        if fix_near_miss_required_headers(&mut content, &config.required_sections) {
+            let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
+            println!(
+                "  {} {rel}: renamed near-miss required section header(s) to canonical form",
+                "✓".green()
+            );
+            let _ = fs::write(spec_file, &content);
+        }
+
+        // Second pass: fix near-miss export subsection headers (### level)
         if fix_near_miss_headers(&mut content) {
             let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
             println!(
-                "  {} {rel}: renamed near-miss header(s) to canonical form",
+                "  {} {rel}: renamed near-miss export header(s) to canonical form",
                 "✓".green()
             );
             let _ = fs::write(spec_file, &content);

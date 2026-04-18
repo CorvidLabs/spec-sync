@@ -3,3 +3,7 @@
 
 # spec-sync hash cache (regenerated locally)
 .specsync/hashes.json
+
+# spec-sync backup directories (created by --fix --backup)
+.specsync/backup-fix/
+.specsync/backup-3x/

@@ -4628,3 +4628,133 @@ Test module
         "Missing section errors should reference config file. Got:\n{stdout}"
     );
 }
+
+// ─── #249: File size warning uses configurable limit, no duplicate ──────
+
+#[test]
+fn file_size_warning_respects_max_spec_size_kb() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    let toml_config = r#"specs_dir = "specs"
+source_dirs = ["src"]
+required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
+exclude_dirs = ["__tests__"]
+exclude_patterns = ["**/__tests__/**"]
+
+[rules]
+max_spec_size_kb = 1
+"#;
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/config.toml"), toml_config).unwrap();
+    fs::create_dir_all(root.join("specs/bigmod")).unwrap();
+    fs::create_dir_all(root.join("src/bigmod")).unwrap();
+    fs::write(root.join("src/bigmod/index.ts"), "export function f() {}").unwrap();
+
+    let mut big_spec = valid_spec("bigmod", &["src/bigmod/index.ts"]);
+    while big_spec.len() < 2048 {
+        big_spec.push_str("<!-- padding to exceed 1 KB -->\n");
+    }
+    fs::write(root.join("specs/bigmod/bigmod.spec.md"), &big_spec).unwrap();
+    fs::write(
+        root.join("specs/bigmod/requirements.md"),
+        "# Requirements\n",
+    )
+    .unwrap();
+
+    let output = specsync()
+        .args(["check", "--root", root.to_str().unwrap(), "--force"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("exceeds limit of 1 KB"),
+        "Should warn at configured 1 KB limit. Got:\n{stdout}"
+    );
+    let count = stdout.matches("exceeds limit").count();
+    assert_eq!(
+        count, 1,
+        "Should produce exactly one size warning, got {count}"
+    );
+}
+
+// ─── #250: --dry-run without --fix warns ────────────────────────────────
+
+#[test]
+fn dry_run_without_fix_warns() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config(&root, "specs", &["src"]);
+    fs::create_dir_all(root.join("specs/dmod")).unwrap();
+    fs::create_dir_all(root.join("src/dmod")).unwrap();
+    fs::write(root.join("src/dmod/index.ts"), "export function f() {}").unwrap();
+    fs::write(
+        root.join("specs/dmod/dmod.spec.md"),
+        valid_spec("dmod", &["src/dmod/index.ts"]),
+    )
+    .unwrap();
+    fs::write(root.join("specs/dmod/requirements.md"), "# Requirements\n").unwrap();
+
+    let output = specsync()
+        .args([
+            "check",
+            "--dry-run",
+            "--root",
+            root.to_str().unwrap(),
+            "--force",
+        ])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("--dry-run has no effect without --fix"),
+        "Should warn about --dry-run without --fix. Got stderr:\n{stderr}"
+    );
+}
+
+// ─── #251: --fix --backup preserves original content ────────────────────
+
+#[test]
+fn fix_backup_preserves_original_on_success() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config(&root, "specs", &["src"]);
+    fs::create_dir_all(root.join("specs/bkmod")).unwrap();
+    fs::create_dir_all(root.join("src/bkmod")).unwrap();
+    fs::write(
+        root.join("src/bkmod/index.ts"),
+        "export function alpha() {}\nexport function beta() {}\n",
+    )
+    .unwrap();
+    let spec_content = valid_spec("bkmod", &["src/bkmod/index.ts"]);
+    let spec_with_alpha = spec_content.replace(
+        "| Function | Parameters | Returns | Description |",
+        "| Function | Parameters | Returns | Description |\n| `alpha` | | void | Alpha |",
+    );
+    let original = spec_with_alpha.clone();
+    fs::write(root.join("specs/bkmod/bkmod.spec.md"), &spec_with_alpha).unwrap();
+    fs::write(root.join("specs/bkmod/requirements.md"), "# Requirements\n").unwrap();
+
+    specsync()
+        .args([
+            "check",
+            "--fix",
+            "--backup",
+            "--root",
+            root.to_str().unwrap(),
+            "--force",
+        ])
+        .assert()
+        .success();
+
+    let backup_content =
+        fs::read_to_string(root.join(".specsync/backup-fix/specs/bkmod/bkmod.spec.md"))
+            .expect("backup file should exist");
+    assert_eq!(
+        backup_content, original,
+        "Backup should contain the original spec content before --fix modifications"
+    );
+}

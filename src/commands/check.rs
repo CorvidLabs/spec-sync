@@ -199,24 +199,66 @@ pub fn cmd_check(
     let schema_columns = build_schema_columns(root, &config);
     let ignore_rules = IgnoreRules::load(root);
 
+    if dry_run && !fix {
+        eprintln!(
+            "{} --dry-run has no effect without --fix (nothing to preview)",
+            "⚠".yellow()
+        );
+    }
+
     // If --fix is requested, auto-add undocumented exports to specs
     if fix {
         if backup && !dry_run {
             let backup_dir = root.join(".specsync/backup-fix");
-            let _ = fs::create_dir_all(&backup_dir);
+            if let Err(e) = fs::create_dir_all(&backup_dir) {
+                eprintln!(
+                    "{} Failed to create backup directory {}: {e}",
+                    "✗".red(),
+                    backup_dir.display()
+                );
+                eprintln!("  Aborting --fix to avoid data loss. Fix the backup path and retry.");
+                process::exit(1);
+            }
+            let mut backed_up = 0usize;
             for spec_file in &specs_to_validate {
-                let rel = spec_file.strip_prefix(root).unwrap_or(spec_file);
+                let rel = match spec_file.strip_prefix(root) {
+                    Ok(r) => r,
+                    Err(_) => {
+                        eprintln!(
+                            "{} Cannot backup {}: path is not under project root",
+                            "✗".red(),
+                            spec_file.display()
+                        );
+                        process::exit(1);
+                    }
+                };
                 let dest = backup_dir.join(rel);
                 if let Some(parent) = dest.parent() {
-                    let _ = fs::create_dir_all(parent);
+                    if let Err(e) = fs::create_dir_all(parent) {
+                        eprintln!(
+                            "{} Failed to create backup subdirectory {}: {e}",
+                            "✗".red(),
+                            parent.display()
+                        );
+                        process::exit(1);
+                    }
                 }
-                let _ = fs::copy(spec_file, &dest);
+                if let Err(e) = fs::copy(spec_file, &dest) {
+                    eprintln!(
+                        "{} Failed to backup {}: {e}",
+                        "✗".red(),
+                        spec_file.display()
+                    );
+                    eprintln!("  Aborting --fix to avoid data loss.");
+                    process::exit(1);
+                }
+                backed_up += 1;
             }
             if matches!(format, Text) {
                 println!(
                     "{} Backed up {} spec(s) to {}\n",
                     "✓".green(),
-                    specs_to_validate.len(),
+                    backed_up,
                     backup_dir.display()
                 );
             }

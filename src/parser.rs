@@ -274,6 +274,54 @@ pub fn get_missing_sections(body: &str, required_sections: &[String]) -> Vec<Str
     missing
 }
 
+/// Levenshtein edit distance between two strings.
+fn levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let (m, n) = (a.len(), b.len());
+    let mut prev: Vec<usize> = (0..=n).collect();
+    let mut curr = vec![0usize; n + 1];
+    for i in 1..=m {
+        curr[0] = i;
+        for j in 1..=n {
+            curr[j] = if a[i - 1] == b[j - 1] {
+                prev[j - 1]
+            } else {
+                1 + prev[j - 1].min(prev[j]).min(curr[j - 1])
+            };
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[n]
+}
+
+/// For each required section that is missing an exact heading, check whether
+/// a near-miss `## Heading` exists (edit distance ≤ 2, case-insensitive).
+/// Returns `(required_name, actual_heading_in_body)` pairs.
+pub fn get_near_miss_sections(body: &str, required_sections: &[String]) -> Vec<(String, String)> {
+    let heading_re = Regex::new(r"(?m)^## (.+?)\s*$").unwrap();
+    let headings: Vec<String> = heading_re
+        .captures_iter(body)
+        .map(|cap| cap.get(1).unwrap().as_str().to_string())
+        .collect();
+
+    let missing = get_missing_sections(body, required_sections);
+    let mut near_misses = Vec::new();
+    for section in &missing {
+        let section_lower = section.to_ascii_lowercase();
+        if let Some(nearest) = headings
+            .iter()
+            .map(|h| (h, levenshtein(&h.to_ascii_lowercase(), &section_lower)))
+            .filter(|(_, d)| *d > 0 && *d <= 2)
+            .min_by_key(|(_, d)| *d)
+            .map(|(h, _)| h.clone())
+        {
+            near_misses.push((section.clone(), nearest));
+        }
+    }
+    near_misses
+}
+
 // ─── Stub/Placeholder Detection ─────────────────────────────────────────
 
 /// Common stub phrases that indicate a section has no real content.

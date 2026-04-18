@@ -41,7 +41,7 @@ pub fn cmd_score(
                 .spec_scores
                 .iter()
                 .map(|s| {
-                    serde_json::json!({
+                    let mut entry = serde_json::json!({
                         "spec": s.spec_path,
                         "total": s.total,
                         "grade": s.grade,
@@ -51,7 +51,11 @@ pub fn cmd_score(
                         "depth": s.depth_score,
                         "freshness": s.freshness_score,
                         "suggestions": s.suggestions,
-                    })
+                    });
+                    if explain {
+                        entry["explain"] = serde_json::to_value(&s.explain).unwrap_or_default();
+                    }
+                    entry
                 })
                 .collect();
             let output = serde_json::json!({
@@ -98,20 +102,38 @@ fn print_text_output(project: &scoring::ProjectScore, explain: bool) {
         );
 
         if explain {
-            // Show color-coded per-category bars
-            println!(
-                "    {} {}/20  {} {}/20  {} {}/20  {} {}/20  {} {}/20",
-                "Frontmatter:".dimmed(),
-                colorize_subscore(s.frontmatter_score),
-                "Sections:".dimmed(),
-                colorize_subscore(s.sections_score),
-                "API:".dimmed(),
-                colorize_subscore(s.api_score),
-                "Depth:".dimmed(),
-                colorize_subscore(s.depth_score),
-                "Fresh:".dimmed(),
-                colorize_subscore(s.freshness_score),
-            );
+            // Per-dimension breakdown with per-criterion lines
+            for dim in &s.explain {
+                let dim_score_str = colorize_subscore(dim.score);
+                println!(
+                    "    {:<14} {}/{} ",
+                    dim.dimension.bold(),
+                    dim_score_str,
+                    dim.max_score
+                );
+                for crit in &dim.criteria {
+                    let check = if crit.passed {
+                        "✓".green().to_string()
+                    } else {
+                        "✗".red().to_string()
+                    };
+                    let pts = format!("{}/{}", crit.points, crit.max_points);
+                    let pts_colored = if crit.passed {
+                        pts.green().to_string()
+                    } else {
+                        pts.red().to_string()
+                    };
+                    let detail_str = crit
+                        .detail
+                        .as_deref()
+                        .map(|d| format!("  — {d}"))
+                        .unwrap_or_default();
+                    println!(
+                        "      {check} {:<26} ({pts_colored}){detail_str}",
+                        crit.name,
+                    );
+                }
+            }
         } else {
             println!(
                 "    Frontmatter: {}/20  Sections: {}/20  API: {}/20  Depth: {}/20  Fresh: {}/20",

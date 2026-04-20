@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.3.2] - 2026-04-20
+
+### Fixed
+
+- **Bare `depends_on` module names now resolve correctly** — entries like `run` (no path separator) are resolved under `specs/` instead of the project root, matching the behavior of `deps.rs` (#257, #258).
+
 ## [4.3.1] - 2026-04-18
 
 ### Added

@@ -489,7 +489,13 @@ pub fn validate_spec(
                 // by `specsync resolve`, not during local checks.
                 continue;
             }
-            let full_path = root.join(dep);
+            // Bare module names (no path separators or extension) resolve
+            // against the specs directory, not the project root.
+            let full_path = if !dep.contains('/') && !dep.contains('.') {
+                root.join(&config.specs_dir).join(dep)
+            } else {
+                root.join(dep)
+            };
             if !full_path.exists() {
                 result
                     .errors
@@ -1054,6 +1060,35 @@ Test
                 .warnings
                 .iter()
                 .any(|w| w.contains("type mismatch") && w.contains("price"))
+        );
+    }
+
+    #[test]
+    fn test_validate_spec_bare_dep_name_resolves_via_specs_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        // Create the dependency module directory
+        let dep_dir = tmp.path().join("specs").join("run");
+        fs::create_dir_all(&dep_dir).unwrap();
+        fs::write(dep_dir.join("run.spec.md"), "# placeholder").unwrap();
+
+        let spec = tmp.path().join("deps.spec.md");
+        fs::write(
+            &spec,
+            "---\nmodule: deps\nversion: 1\nstatus: active\nfiles: []\ndepends_on:\n  - run\n---\n\n## Purpose\nTest\n## Requirements\n## Public API\n## Invariants\n## Behavioral Examples\n## Error Cases\n## Dependencies\n## Change Log\n",
+        )
+        .unwrap();
+
+        let tables = HashSet::new();
+        let schema_cols = HashMap::new();
+        let config = SpecSyncConfig::default(); // specs_dir = "specs"
+        let result = validate_spec(&spec, tmp.path(), &tables, &schema_cols, &config);
+
+        // Bare module name "run" should resolve to specs/run — no dep error
+        assert!(
+            !result.errors.iter().any(|e| e.contains("Dependency spec not found")),
+            "bare dep name should resolve via specs dir: {:?}",
+            result.errors
         );
     }
 }

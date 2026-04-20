@@ -1086,7 +1086,10 @@ Test
 
         // Bare module name "run" should resolve to specs/run — no dep error
         assert!(
-            !result.errors.iter().any(|e| e.contains("Dependency spec not found")),
+            !result
+                .errors
+                .iter()
+                .any(|e| e.contains("Dependency spec not found")),
             "bare dep name should resolve via specs dir: {:?}",
             result.errors
         );

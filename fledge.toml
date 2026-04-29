@@ -16,14 +16,14 @@ cmd = "cargo audit"
 [tasks.check-types]
 cmd = "cargo check"
 
-[flows.check]
+[lanes.check]
 description = "Quick pre-commit check"
 steps = [{ parallel = ["fmt", "lint"] }, "test"]
 
-[flows.ci]
+[lanes.ci]
 description = "Full CI pipeline"
 steps = ["fmt", "lint", "test", "build"]
 
-[flows.pre-commit]
+[lanes.pre-commit]
 description = "Fast gate before committing"
 steps = [{ parallel = ["fmt", "lint"] }, "check-types"]

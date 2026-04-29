@@ -1,0 +1,29 @@
+[tasks.build]
+cmd = "cargo build --release"
+
+[tasks.test]
+cmd = "cargo test"
+
+[tasks.lint]
+cmd = "cargo clippy -- -D warnings"
+
+[tasks.fmt]
+cmd = "cargo fmt --check"
+
+[tasks.audit]
+cmd = "cargo audit"
+
+[tasks.check-types]
+cmd = "cargo check"
+
+[lanes.check]
+description = "Quick pre-commit check"
+steps = [{ parallel = ["fmt", "lint"] }, "test"]
+
+[lanes.ci]
+description = "Full CI pipeline"
+steps = ["fmt", "lint", "test", "build"]
+
+[lanes.pre-commit]
+description = "Fast gate before committing"
+steps = [{ parallel = ["fmt", "lint"] }, "check-types"]

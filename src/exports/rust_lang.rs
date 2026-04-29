@@ -8,10 +8,11 @@ static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?
 /// Raw string literals: r###"..."###, r##"..."##, r#"..."#, r"..."
 /// Processed from most hashes to fewest so inner patterns don't match prematurely.
 static RAW_STR_3: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?s)r\#\#\#".*?"\#\#\#"#).unwrap());
-static RAW_STR_2: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)r\#\#".*?"\#\#"#).unwrap());
-static RAW_STR_1: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)r\#".*?"\#"#).unwrap());
-static RAW_STR_0: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)r"[^"]*""#).unwrap());
+    LazyLock::new(|| Regex::new(r#"(?s)\br\#\#\#".*?"\#\#\#"#).unwrap());
+static RAW_STR_2: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?s)\br\#\#".*?"\#\#"#).unwrap());
+static RAW_STR_1: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)\br\#".*?"\#"#).unwrap());
+static RAW_STR_0: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)\br"[^"]*""#).unwrap());
 
 /// Char literals that contain a double quote: '"' or '\"'
 static CHAR_DQUOTE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"'(?:\\.|")'"#).unwrap());
@@ -160,6 +161,28 @@ pub fn after_char_lit() {}
 "#;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["after_char_lit"]);
+    }
+
+    #[test]
+    fn test_identifier_trailing_r_not_raw_string() {
+        let src = r#"
+pub fn setup_hooks() {
+    hooks.push(("pre_pr", c.as_str()));
+}
+
+pub struct PluginEntry {
+    name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pinned_ref: Option<String>,
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"PluginEntry".to_string()),
+            "PluginEntry should not be eaten by false raw-string match: {:?}",
+            symbols
+        );
+        assert_eq!(symbols, vec!["setup_hooks", "PluginEntry"]);
     }
 
     #[test]

@@ -11,10 +11,8 @@ static RAW_STR_3: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(?s)\br\#\#\#".*?"\#\#\#"#).unwrap());
 static RAW_STR_2: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(?s)\br\#\#".*?"\#\#"#).unwrap());
-static RAW_STR_1: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?s)\br\#".*?"\#"#).unwrap());
-static RAW_STR_0: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?s)\br"[^"]*""#).unwrap());
+static RAW_STR_1: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)\br\#".*?"\#"#).unwrap());
+static RAW_STR_0: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)\br"[^"]*""#).unwrap());
 
 /// Char literals that contain a double quote: '"' or '\"'
 static CHAR_DQUOTE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"'(?:\\.|")'"#).unwrap());

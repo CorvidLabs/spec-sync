@@ -11,3 +11,6 @@
 site/node_modules
 site/dist
 site/.astro
+# Generated doc-redirect files (produced by generate-doc-redirects.ts prebuild)
+site/public/*.html
+site/public/integrations/

@@ -1,0 +1,47 @@
+---
+import { getCollection } from 'astro:content'
+const base = import.meta.env.BASE_URL
+const all = await getCollection('docs')
+const sectionOrder = ['Getting started', 'Spec format', 'Reference', 'Integrations'] as const
+const grouped = sectionOrder.map(name => ({
+  name,
+  items: all
+    .filter(d => d.data.section === name)
+    .sort((a, b) => a.data.order - b.data.order),
+}))
+const current = Astro.url.pathname.replace(/\/$/, '')
+const linkFor = (slug: string) => {
+  const clean = slug === 'index' ? '' : `/${slug}`
+  return `${base}docs${clean}`.replace(/\/+/g, '/')
+}
+---
+<aside class="sidebar" aria-label="Documentation navigation">
+  {grouped.map(group => (
+    <>
+      <h2 class="section-title">{group.name}</h2>
+      <ul>
+        {group.items.map(item => {
+          const href = linkFor(item.slug)
+          const active = href.replace(/\/$/, '') === current
+          return <li><a href={href} class={active ? 'active' : ''} aria-current={active ? 'page' : undefined}>{item.data.title}</a></li>
+        })}
+      </ul>
+    </>
+  ))}
+</aside>
+
+<style is:global>
+  .sidebar { padding: 32px 24px; border-right: 1px solid var(--border); }
+  .sidebar h2.section-title { color: var(--text-dim); font-size: 0.75rem;
+    font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+    margin-bottom: 10px; margin-top: 24px; }
+  .sidebar h2.section-title:first-of-type { margin-top: 0; }
+  .sidebar ul { padding: 0; }
+  .sidebar li { margin-bottom: 2px; }
+  .sidebar a { display: block; padding: 7px 12px; color: var(--text-muted);
+    font-size: 0.9375rem; border-radius: 6px; border-left: 2px solid transparent;
+    line-height: 1.45; }
+  .sidebar a:hover { color: var(--text); background: var(--bg-raised); }
+  .sidebar a.active { color: var(--accent-bright); background: var(--accent-muted);
+    border-left-color: var(--accent); }
+</style>

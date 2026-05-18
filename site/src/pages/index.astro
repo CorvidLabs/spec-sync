@@ -71,6 +71,51 @@ const base = import.meta.env.BASE_URL
   </div>
 </section>
 
+<section class="examples-teaser" aria-labelledby="ex-h">
+  <div class="container">
+    <header class="section-head">
+      <p class="section-eyebrow">Walkthroughs</p>
+      <h2 id="ex-h">See it on a <em>real</em> project.</h2>
+      <p>End-to-end examples — every command, every file, every output.</p>
+    </header>
+    <ul class="ex-grid">
+      <li><a href={`${base}examples/rust-workspace`} class="ex-card">
+        <span class="ex-tag">Rust workspace</span>
+        <h3>Sync a Rust workspace end-to-end</h3>
+        <p>Full spec-sync setup for a multi-crate Rust workspace with CI enforcement.</p>
+        <div class="ex-meta">rust-workspace</div>
+      </a></li>
+      <li><a href={`${base}examples/polyglot`} class="ex-card">
+        <span class="ex-tag">Polyglot</span>
+        <h3>Multi-language repo: TS + Python + Rust</h3>
+        <p>Configure spec-sync across three runtimes in one repository.</p>
+        <div class="ex-meta">polyglot</div>
+      </a></li>
+      <li><a href={`${base}examples/ci-gate`} class="ex-card">
+        <span class="ex-tag">CI / CD</span>
+        <h3>CI gate with the GitHub Action</h3>
+        <p>Enforce spec sync on every pull request with the official GitHub Action.</p>
+        <div class="ex-meta">ci-gate</div>
+      </a></li>
+    </ul>
+  </div>
+</section>
+
+<section class="cta-banner" aria-labelledby="cta-h">
+  <div class="container">
+    <h2 id="cta-h">Stop documenting in <em>fiction.</em><br>Sync up.</h2>
+    <p>Install spec-sync and run your first check in under a minute.</p>
+    <div class="cta-install">
+      <span aria-hidden="true" style="color: var(--accent-bright);">$</span>
+      <code>cargo install specsync</code>
+    </div>
+    <div class="cta-actions">
+      <Button href={`${base}docs`} variant="primary">Read the docs</Button>
+      <Button href={`${base}languages`} variant="secondary">Browse languages</Button>
+    </div>
+  </div>
+</section>
+
 </main>
 </BaseLayout>
 
@@ -108,5 +153,37 @@ const base = import.meta.env.BASE_URL
   .pillars-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
     background: var(--border); border: 1px solid var(--border);
     border-radius: var(--radius); overflow: hidden; }
-  @media (max-width: 900px) { .hero-grid, .stats-grid, .pillars-grid { grid-template-columns: 1fr; } }
+  .examples-teaser { padding: 80px 0; background: linear-gradient(180deg, transparent, rgba(14,165,233,0.03)); }
+  .ex-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 32px; }
+  .ex-card { display: block; padding: 26px; background: var(--bg-raised);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    transition: border-color .15s; }
+  @media (prefers-reduced-motion: no-preference) {
+    .ex-card { transition: border-color .15s, transform .15s; }
+    .ex-card:hover { transform: translateY(-2px); }
+  }
+  .ex-card:hover { border-color: var(--accent); }
+  .ex-tag { display: inline-block; padding: 4px 10px; border-radius: 4px;
+    background: var(--accent-muted); color: var(--accent-bright);
+    font-size: 0.8125rem; font-weight: 600;
+    margin-bottom: 14px; letter-spacing: 0.05em; text-transform: uppercase; }
+  .ex-card h3 { font-size: 1.125rem; margin-bottom: 8px; }
+  .ex-card p { color: var(--text-muted); font-size: 0.9375rem; margin-bottom: 12px; line-height: 1.55; }
+  .ex-card .ex-meta { color: var(--text-dim); font-size: 0.875rem; font-family: var(--mono); }
+
+  .cta-banner { padding: 120px 0 100px; text-align: center; position: relative; overflow: hidden; }
+  .cta-banner::before { content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse 800px 400px at center, var(--accent-glow), transparent 70%);
+    pointer-events: none; }
+  .cta-banner > * { position: relative; }
+  .cta-banner h2 { font-size: clamp(2rem, 4vw, 2.8rem); max-width: 640px;
+    margin: 0 auto 16px; letter-spacing: -0.02em; line-height: 1.15; }
+  .cta-banner h2 em { font-family: var(--serif); font-style: italic;
+    color: var(--accent-bright); font-weight: 400; }
+  .cta-banner p { color: var(--text-muted); margin: 0 auto 28px; max-width: 460px; font-size: 1.0625rem; }
+  .cta-install { display: inline-flex; align-items: center; gap: 14px;
+    padding: 16px 22px; background: var(--bg-raised); border: 1px solid var(--border-strong);
+    border-radius: 10px; font-family: var(--mono); font-size: 1rem; }
+  .cta-actions { display: flex; gap: 12px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
+  @media (max-width: 900px) { .hero-grid, .stats-grid, .pillars-grid, .ex-grid { grid-template-columns: 1fr; } }
 </style>

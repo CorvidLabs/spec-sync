@@ -58,3 +58,13 @@ select:focus-visible, [tabindex]:focus-visible {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
 }
+
+/* Touch / coarse pointer: enforce minimum 44px tap targets */
+@media (pointer: coarse) {
+  a, button {
+    min-height: 44px;
+  }
+  a.skip-link {
+    min-height: auto;
+  }
+}

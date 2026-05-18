@@ -4,6 +4,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro'
 import LanguageCard from '../../components/LanguageCard.astro'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { base } from '../../lib/path'
 
 export async function getStaticPaths() {
   const dir = join(process.cwd(), 'src/data/languages')
@@ -19,7 +20,6 @@ export async function getStaticPaths() {
 }
 
 const { lang } = Astro.props
-const base = import.meta.env.BASE_URL
 
 // Render example_spec_md as HTML
 const specHtml = await marked.parse(lang.example_spec_md ?? '', { async: true })

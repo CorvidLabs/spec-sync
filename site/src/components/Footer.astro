@@ -1,5 +1,5 @@
 ---
-const base = import.meta.env.BASE_URL
+import { base } from '../lib/path'
 ---
 <footer role="contentinfo">
   <div class="container">
@@ -13,7 +13,7 @@ const base = import.meta.env.BASE_URL
         <h3>Product</h3>
         <a href={`${base}languages`}>Languages</a>
         <a href={`${base}examples`}>Examples</a>
-        <a href={`${base}docs/changelog`}>Changelog</a>
+        <a href="https://github.com/CorvidLabs/spec-sync/blob/main/CHANGELOG.md">Changelog</a>
       </div>
       <div class="foot-col">
         <h3>Resources</h3>

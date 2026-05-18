@@ -1,13 +1,13 @@
 ---
 import BaseLayout from './BaseLayout.astro'
 import Sidebar from '../components/Sidebar.astro'
+import { base } from '../lib/path'
 interface Props {
   title: string
   description?: string
   section: string
 }
 const { title, description, section } = Astro.props
-const base = import.meta.env.BASE_URL
 ---
 <BaseLayout title={`${title} — spec-sync docs`} description={description}>
 <div class="docs-grid">

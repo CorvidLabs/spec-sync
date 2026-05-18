@@ -3,7 +3,7 @@ import { getCollection } from 'astro:content'
 import BaseLayout from '../../layouts/BaseLayout.astro'
 import PostCard from '../../components/PostCard.astro'
 import CategoryTag from '../../components/CategoryTag.astro'
-const base = import.meta.env.BASE_URL
+import { base } from '../../lib/path'
 const posts = (await getCollection('blog', p => !p.data.draft))
   .sort((a, b) => +b.data.date - +a.data.date)
 const featured = posts.find(p => p.data.featured)

@@ -8,7 +8,7 @@ interface Props {
   description: string
 }
 const { slug, name, family, detection_style, test_patterns, description } = Astro.props
-const base = import.meta.env.BASE_URL
+import { base } from '../lib/path'
 
 const familyLabel: Record<string, string> = {
   native: 'Native',

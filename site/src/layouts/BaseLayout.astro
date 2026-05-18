@@ -1,0 +1,28 @@
+---
+import '../styles/globals.css'
+interface Props {
+  title: string
+  description?: string
+}
+const { title, description = "Bidirectional spec-to-code validation. Keep your docs honest." } = Astro.props
+const base = import.meta.env.BASE_URL
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title}</title>
+  <meta name="description" content={description} />
+  <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+  <meta property="og:title" content={title} />
+  <meta property="og:description" content={description} />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content={Astro.url.href} />
+  <meta property="og:image" content={`${base}og-default.png`} />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <slot />
+</body>
+</html>

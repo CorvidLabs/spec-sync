@@ -9,7 +9,7 @@
     "Uppercase func / type / var / const identifiers",
     "Exported method receivers (func (r *T) Name(...))"
   ],
-  "description": "Go's export convention: any top-level identifier starting with an uppercase letter is exported. Detects functions, methods, types, variables, and constants. Strips single-line and block comments.",
+  "description": "🐹 Uppercase = exported. Catches functions, methods, types, vars, and consts at the top level.",
   "since_version": "v1.0",
   "detection_rules": [
     {

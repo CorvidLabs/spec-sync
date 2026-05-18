@@ -10,7 +10,7 @@
     "public / open var, let, typealias",
     "public init(...) (tracked as 'init')"
   ],
-  "description": "Detects public and open declarations. Strips single-line and block comments before matching. public init is collapsed to a single 'init' symbol per type.",
+  "description": "🦅 Catches public and open declarations. Collapses multiple public inits into a single init symbol per type.",
   "since_version": "v1.0",
   "detection_rules": [
     {

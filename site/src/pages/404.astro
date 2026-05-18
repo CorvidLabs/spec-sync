@@ -1,0 +1,18 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+import Button from '../components/Button.astro'
+const base = import.meta.env.BASE_URL
+---
+<BaseLayout title="404 — spec-sync">
+  <main id="main" class="container" style="padding: 120px 0 80px; text-align: center;">
+    <p style="color: var(--accent-bright); font-family: var(--serif); font-style: italic; font-size: 1.25rem; margin-bottom: 8px;">404</p>
+    <h1 style="font-size: 2.4rem; letter-spacing: -0.02em; margin-bottom: 12px;">This page took flight without us.</h1>
+    <p style="color: var(--text-muted); font-size: 1.05rem; margin: 0 auto 28px; max-width: 480px;">
+      The page you're looking for doesn't exist (any more). Try the docs or the language registry.
+    </p>
+    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+      <Button href={`${base}docs`} variant="primary">Read the docs</Button>
+      <Button href={`${base}languages`} variant="secondary">Browse 12 languages</Button>
+    </div>
+  </main>
+</BaseLayout>

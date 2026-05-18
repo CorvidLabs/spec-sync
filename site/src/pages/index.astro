@@ -1,10 +1,80 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro'
+import Badge from '../components/Badge.astro'
+import Button from '../components/Button.astro'
+import Terminal from '../components/Terminal.astro'
 const base = import.meta.env.BASE_URL
 ---
 <BaseLayout title="spec-sync — keep your docs honest">
-  <main id="main" class="container" style="padding-top: 80px;">
-    <h1>spec-sync</h1>
-    <p>Marketing site under construction. <a href={`${base}docs`}>Docs →</a></p>
-  </main>
+<main id="main">
+
+<section class="hero" aria-labelledby="hero-h">
+  <div class="container">
+    <div class="hero-grid">
+      <div>
+        <Badge dot>12 languages · GitHub Marketplace</Badge>
+        <h1 class="hero-h1" id="hero-h">Keep your docs<br>ready to <span class="honest">be honest.</span></h1>
+        <p class="hero-sub">Bidirectional spec-to-code validation. Cross-project refs. AI generation. CI-enforced contract checking — in any language.</p>
+        <div class="hero-actions">
+          <Button href={`${base}docs/quickstart`} variant="primary">Get started <span aria-hidden="true">→</span></Button>
+          <Button href={`${base}languages`} variant="secondary">Browse 12 languages</Button>
+        </div>
+        <p class="hero-fineprint">Install in a single command: <code>cargo install specsync</code></p>
+      </div>
+      <div>
+        <Terminal title="~/myproject — spec-sync">
+          <div class="term-line term-comment"># spec-sync: keep your docs honest</div>
+          <div class="term-line"><span class="term-prompt">$ </span>spec-sync check</div>
+          <div class="term-line term-out">  Reading 12 *.spec.md files...</div>
+          <div class="term-line term-bad">  ✗ src/api/users.rs: undocumented export `delete_user`</div>
+          <div class="term-line term-bad">  ✗ specs/auth.spec.md: phantom entry `validateToken` (not in code)</div>
+          <div class="term-line"><span class="term-prompt">$ </span>spec-sync generate --module auth</div>
+          <div class="term-line term-good">  ★ Generated specs/auth.spec.md</div>
+          <div class="term-line term-good">  ★ Drafted 8 missing entries</div>
+          <div class="term-line"><span class="term-prompt">$ </span>spec-sync check</div>
+          <div class="term-line term-good">  ✓ all 12 specs in sync</div>
+          <div class="term-line"><span class="term-prompt">$ </span><span class="blink" aria-hidden="true" /></div>
+        </Terminal>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="stats" aria-label="Key numbers">
+  <div class="container">
+    <ul class="stats-grid">
+      <li class="stat"><div class="num">12</div><div class="lbl">languages</div><div class="sub">supported</div></li>
+      <li class="stat"><div class="num">6</div><div class="lbl">powers</div><div class="sub">validate · generate · integrate · cross-refs · extend</div></li>
+      <li class="stat"><div class="num">1</div><div class="lbl">spec format</div><div class="sub">open, portable, language-agnostic</div></li>
+      <li class="stat"><div class="num">1</div><div class="lbl">binary</div><div class="sub">install, done</div></li>
+    </ul>
+  </div>
+</section>
+
+</main>
 </BaseLayout>
+
+<style>
+  main { background-image: radial-gradient(ellipse 1200px 600px at 50% -200px, rgba(14,165,233,0.12), transparent 70%); }
+  .hero { padding: 80px 0 60px; }
+  .hero-grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
+  .hero-h1 { font-size: clamp(2.4rem, 5vw, 3.6rem); line-height: 1.05; letter-spacing: -0.025em; margin: 22px 0; }
+  .hero-h1 .honest { background: linear-gradient(120deg, var(--accent-bright) 0%, var(--accent) 60%, var(--accent-deep) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    font-style: italic; font-family: var(--serif); font-weight: 500; }
+  .hero-sub { color: var(--text-muted); font-size: 1.125rem; max-width: 480px; margin-bottom: 28px; line-height: 1.6; }
+  .hero-actions { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+  .hero-fineprint { color: var(--text-muted); font-size: 0.9375rem; }
+  .hero-fineprint code { background: var(--bg-raised); padding: 4px 8px; border-radius: 4px;
+    border: 1px solid var(--border); color: var(--accent-bright);
+    font-family: var(--mono); font-size: 0.875rem; }
+  .stats { padding: 60px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    margin-top: 40px; background: linear-gradient(180deg, transparent, rgba(14,165,233,0.025), transparent); }
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; }
+  .stat .num { font-size: 2.5rem; font-weight: 700; letter-spacing: -0.02em;
+    color: var(--accent-bright); font-family: var(--serif); line-height: 1; }
+  .stat .lbl { color: var(--text); font-size: 1rem; margin-top: 8px; font-weight: 500; }
+  .stat .sub { color: var(--text-muted); font-size: 0.875rem; margin-top: 4px; }
+  .term-bad { color: #f87171; }
+  @media (max-width: 900px) { .hero-grid, .stats-grid { grid-template-columns: 1fr; } }
+</style>

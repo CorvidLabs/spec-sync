@@ -8,6 +8,10 @@ interface Props {
   description?: string
 }
 const { title, description = "Bidirectional spec-to-code validation. Keep your docs honest." } = Astro.props
+// Canonical: prefer the site origin + the current pathname so crawlers don't
+// treat trailing-slash/no-slash or query-string variants as duplicates.
+const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin).toString()
+const ogImage = new URL(`${base}og-default.png`, Astro.site ?? Astro.url.origin).toString()
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -17,11 +21,16 @@ const { title, description = "Bidirectional spec-to-code validation. Keep your d
   <title>{title}</title>
   <meta name="description" content={description} />
   <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+  <link rel="canonical" href={canonical} />
   <meta property="og:title" content={title} />
   <meta property="og:description" content={description} />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content={Astro.url.href} />
-  <meta property="og:image" content={`${base}og-default.png`} />
+  <meta property="og:url" content={canonical} />
+  <meta property="og:image" content={ogImage} />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content={title} />
+  <meta name="twitter:description" content={description} />
+  <meta name="twitter:image" content={ogImage} />
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>

@@ -1,12 +1,12 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro'
 import LanguageCard from '../../components/LanguageCard.astro'
-import languages from '../../data/languages.json'
+import languages from '../../data/languages.json' with { type: 'json' }
 ---
 
 <BaseLayout
   title="Languages — spec-sync"
-  description="12 supported languages with auto-detection. One spec format, any stack."
+  description={`${languages.length} supported languages with auto-detection. One spec format, any stack.`}
 >
 <main id="main">
 
@@ -14,10 +14,10 @@ import languages from '../../data/languages.json'
   <div class="container">
     <p class="eyebrow">Languages</p>
     <h1 id="langs-h">Spec-sync speaks <em>your stack.</em></h1>
-    <p class="lede">12 languages, auto-detected, one spec format. Drop <code>spec-sync check</code> into any CI and it figures out the rest.</p>
+    <p class="lede">{languages.length} languages, auto-detected, one spec format. Drop <code>spec-sync check</code> into any CI and it figures out the rest.</p>
 
     <ul class="stats-strip" aria-label="Registry stats">
-      <li><strong>12</strong> languages</li>
+      <li><strong>{languages.length}</strong> languages</li>
       <li aria-hidden="true">·</li>
       <li>auto-detected</li>
       <li aria-hidden="true">·</li>

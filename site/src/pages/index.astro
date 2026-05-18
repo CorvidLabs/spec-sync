@@ -5,8 +5,9 @@ import Button from '../components/Button.astro'
 import SpecCodeDiff from '../components/SpecCodeDiff.astro'
 import BigPillar from '../components/BigPillar.astro'
 import Callout from '../components/Callout.astro'
+import languages from '../data/languages.json' with { type: 'json' }
 import { base } from '../lib/path'
-const languageCount = 12
+const languageCount = languages.length
 ---
 <BaseLayout title="spec-sync — keep your docs honest">
 <main id="main">
@@ -66,7 +67,7 @@ const languageCount = 12
         command="$ spec-sync check"
         driftLabel="catches drift"
         subItems={[
-          { label: "12 languages", description: "TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML", driftAccent: true },
+          { label: `${languageCount} languages`, description: "TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML", driftAccent: true },
           { label: "Cross-refs", description: "dependency graph across crates and repos" }
         ]}
       >

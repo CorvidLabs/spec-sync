@@ -1,0 +1,39 @@
+---
+import BaseLayout from './BaseLayout.astro'
+interface Props {
+  title: string
+  description?: string
+  eyebrow?: string
+  meta?: string
+}
+const { title, description, eyebrow, meta } = Astro.props
+---
+<BaseLayout title={title} description={description}>
+<main id="main" class="article-main">
+  <article class="container article">
+    {eyebrow && <p class="art-eyebrow">{eyebrow}</p>}
+    <h1>{title}</h1>
+    {meta && <p class="art-meta">{meta}</p>}
+    <div class="art-body">
+      <slot />
+    </div>
+  </article>
+</main>
+</BaseLayout>
+
+<style>
+  .article-main { padding: 48px 0 80px; }
+  .article { max-width: 800px; }
+  .art-eyebrow { color: var(--accent-bright); font-size: 0.875rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px; }
+  .article h1 { font-size: clamp(2rem, 4vw, 2.6rem); letter-spacing: -0.02em; margin-bottom: 12px; line-height: 1.15; }
+  .art-meta { color: var(--text-dim); font-size: 0.9375rem; margin-bottom: 32px; font-family: var(--mono); }
+  .art-body :global(h2) { font-size: 1.625rem; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .art-body :global(h3) { font-size: 1.25rem; margin: 32px 0 12px; }
+  .art-body :global(p) { margin-bottom: 16px; color: var(--text); line-height: 1.7; }
+  .art-body :global(ul), .art-body :global(ol) { margin-bottom: 16px; padding-left: 24px; }
+  .art-body :global(li) { margin-bottom: 6px; line-height: 1.7; }
+  .art-body :global(a) { color: var(--accent-bright); text-decoration: underline; text-underline-offset: 3px; }
+  .art-body :global(code) { font-family: var(--mono); font-size: 0.875em; padding: 2px 6px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: 4px; color: var(--accent-bright); }
+  .art-body :global(pre) { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; overflow-x: auto; margin-bottom: 20px; }
+  .art-body :global(pre code) { background: transparent; border: 0; padding: 0; color: var(--text); }
+</style>

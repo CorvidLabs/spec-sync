@@ -1,0 +1,21 @@
+---
+import { getCollection } from 'astro:content'
+import ArticleLayout from '../../layouts/ArticleLayout.astro'
+
+export async function getStaticPaths() {
+  const entries = await getCollection('examples', e => !e.data.draft)
+  return entries.map(entry => ({ params: { slug: entry.slug }, props: { entry } }))
+}
+
+const { entry } = Astro.props
+const { Content } = await entry.render()
+const meta = `${entry.data.steps} steps · ${entry.data.minutes} min · ${entry.data.pillars.join(' · ')}`
+---
+<ArticleLayout
+  title={entry.data.title}
+  description={entry.data.description}
+  eyebrow={entry.data.tag}
+  meta={meta}
+>
+  <Content />
+</ArticleLayout>

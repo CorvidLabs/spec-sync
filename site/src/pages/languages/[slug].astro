@@ -202,7 +202,7 @@ const styleLabel: Record<string, string> = {
 
 <style>
   .container { max-width: var(--max-w); margin: 0 auto; padding: 0 var(--container-pad);
-    box-sizing: border-box; }
+    box-sizing: border-box; width: 100%; overflow-x: hidden; }
 
   @media (max-width: 600px) {
     .container { padding: 0 16px; }
@@ -271,7 +271,8 @@ const styleLabel: Record<string, string> = {
   /* Example split */
   .example-split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   @media (max-width: 800px) { .example-split { grid-template-columns: 1fr; } }
-  .example-pane { display: flex; flex-direction: column; gap: 10px; }
+  @media (max-width: 768px) { .example-split { grid-template-columns: 1fr; } }
+  .example-pane { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
   .pane-label { color: var(--text-dim); font-size: 0.875rem; font-weight: 600;
     letter-spacing: 0.06em; text-transform: uppercase; }
   .source-block { height: 100%; }
@@ -279,7 +280,7 @@ const styleLabel: Record<string, string> = {
   /* Spec-rendered prose */
   .spec-rendered { background: var(--bg-raised); border: 1px solid var(--border);
     border-radius: 8px; padding: 20px 24px; font-size: 0.9375rem;
-    overflow-x: auto; min-height: 120px; }
+    overflow-x: hidden; min-height: 120px; max-width: 100%; box-sizing: border-box; }
   .spec-rendered :global(h2) { font-size: 1.0625rem; margin: 16px 0 8px; color: var(--text); }
   .spec-rendered :global(p) { color: var(--text-muted); line-height: 1.6; margin-bottom: 10px; }
   .spec-rendered :global(table) { width: 100%; border-collapse: collapse; font-size: 0.875rem; margin: 12px 0; }
@@ -289,8 +290,11 @@ const styleLabel: Record<string, string> = {
   .spec-rendered :global(code) { font-family: var(--mono); font-size: 0.875em; color: var(--accent-bright);
     background: var(--bg); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; }
   .spec-rendered :global(pre) { background: var(--bg); border: 1px solid var(--border);
-    border-radius: 6px; padding: 12px 14px; overflow-x: auto; margin: 8px 0; }
-  .spec-rendered :global(pre code) { background: none; border: none; padding: 0; }
+    border-radius: 6px; padding: 12px 14px; overflow-x: auto; margin: 8px 0;
+    max-width: 100%; box-sizing: border-box; white-space: pre; }
+  .spec-rendered :global(pre code) { background: none; border: none; padding: 0;
+    white-space: pre; word-break: normal; }
+  .spec-rendered :global(table) { display: block; overflow-x: auto; max-width: 100%; box-sizing: border-box; }
   .spec-rendered :global(ul), .spec-rendered :global(ol) { list-style: disc; padding-left: 20px; color: var(--text-muted); margin-bottom: 10px; }
   .spec-rendered :global(hr) { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 

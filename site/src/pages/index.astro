@@ -3,6 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro'
 import Badge from '../components/Badge.astro'
 import Button from '../components/Button.astro'
 import Terminal from '../components/Terminal.astro'
+import Pillar from '../components/Pillar.astro'
 const base = import.meta.env.BASE_URL
 ---
 <BaseLayout title="spec-sync — keep your docs honest">
@@ -51,6 +52,25 @@ const base = import.meta.env.BASE_URL
   </div>
 </section>
 
+
+<section class="pillars" aria-labelledby="pillars-h">
+  <div class="container">
+    <header class="section-head">
+      <p class="section-eyebrow">Six powers</p>
+      <h2 id="pillars-h">Everything you need to keep your <em>docs</em><br>and <em>code</em> in sync.</h2>
+      <p>Each power is a focused subcommand. Wire any combination into your CI. Pick what you need.</p>
+    </header>
+    <ul class="pillars-grid">
+      <Pillar numeral="i."   title="Validate"   command="$ spec-sync check">Bidirectional. Code → spec and spec → code. Errors on drift.</Pillar>
+      <Pillar numeral="ii."  title="Languages"  command="12 detected">TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML.</Pillar>
+      <Pillar numeral="iii." title="Generate"   command="$ spec-sync generate">AI-assisted spec generation from existing code. Any provider.</Pillar>
+      <Pillar numeral="iv."  title="Integrate"  command="vscode | gh actions">VS Code extension + GitHub Action + CLI. Drop into any CI.</Pillar>
+      <Pillar numeral="v."   title="Cross-refs" command="$ spec-sync graph">Reference exports across repos. Dependency graph included.</Pillar>
+      <Pillar numeral="vi."  title="Extend"     command="$ spec-sync --config">Custom validators, hooks, output formats. Open file formats.</Pillar>
+    </ul>
+  </div>
+</section>
+
 </main>
 </BaseLayout>
 
@@ -76,5 +96,17 @@ const base = import.meta.env.BASE_URL
   .stat .lbl { color: var(--text); font-size: 1rem; margin-top: 8px; font-weight: 500; }
   .stat .sub { color: var(--text-muted); font-size: 0.875rem; margin-top: 4px; }
   .term-bad { color: #f87171; }
-  @media (max-width: 900px) { .hero-grid, .stats-grid { grid-template-columns: 1fr; } }
+  .pillars { padding: 100px 0 40px; }
+  .section-head { margin-bottom: 48px; }
+  .section-eyebrow { color: var(--accent-bright); font-size: 0.875rem; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px; }
+  .section-head h2 { font-size: clamp(1.85rem, 3.5vw, 2.6rem); letter-spacing: -0.02em;
+    max-width: 580px; line-height: 1.15; margin-bottom: 14px; }
+  .section-head h2 em { font-style: italic; font-family: var(--serif);
+    color: var(--accent-bright); font-weight: 400; }
+  .section-head p { color: var(--text-muted); font-size: 1.0625rem; max-width: 580px; }
+  .pillars-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+    background: var(--border); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; }
+  @media (max-width: 900px) { .hero-grid, .stats-grid, .pillars-grid { grid-template-columns: 1fr; } }
 </style>

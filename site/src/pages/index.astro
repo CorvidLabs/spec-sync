@@ -4,7 +4,9 @@ import Badge from '../components/Badge.astro'
 import Button from '../components/Button.astro'
 import SpecCodeDiff from '../components/SpecCodeDiff.astro'
 import Pillar from '../components/Pillar.astro'
+import languages from '../data/languages.json' with { type: 'json' }
 import { base } from '../lib/path'
+const languageCount = languages.length
 ---
 <BaseLayout title="spec-sync — keep your docs honest">
 <main id="main">
@@ -13,12 +15,12 @@ import { base } from '../lib/path'
   <div class="container">
     <div class="hero-grid">
       <div>
-        <Badge dot>12 languages · GitHub Marketplace</Badge>
+        <Badge dot>{languageCount} languages · GitHub Marketplace</Badge>
         <h1 class="hero-h1" id="hero-h">Keep your docs<br>ready to <span class="honest">be honest.</span></h1>
         <p class="hero-sub">Bidirectional spec-to-code validation. Cross-project refs. AI generation. CI-enforced contract checking — in any language.</p>
         <div class="hero-actions">
           <Button href={`${base}docs/quickstart`} variant="primary">Get started <span aria-hidden="true">→</span></Button>
-          <Button href={`${base}languages`} variant="secondary">Browse 12 languages</Button>
+          <Button href={`${base}languages`} variant="secondary">Browse {languageCount} languages</Button>
         </div>
         <p class="hero-fineprint">Install in a single command: <code>cargo install specsync</code></p>
       </div>
@@ -32,7 +34,7 @@ import { base } from '../lib/path'
 <section class="stats" aria-label="Key numbers">
   <div class="container">
     <ul class="stats-grid">
-      <li class="stat"><div class="num">12</div><div class="lbl">languages</div><div class="sub">supported</div></li>
+      <li class="stat"><div class="num">{languageCount}</div><div class="lbl">languages</div><div class="sub">supported</div></li>
       <li class="stat"><div class="num">6</div><div class="lbl">powers</div><div class="sub">validate · languages · generate · integrate · cross-refs · extend</div></li>
       <li class="stat"><div class="num">1</div><div class="lbl">spec format</div><div class="sub">open, portable, language-agnostic</div></li>
       <li class="stat"><div class="num">1</div><div class="lbl">binary</div><div class="sub">install, done</div></li>
@@ -50,7 +52,7 @@ import { base } from '../lib/path'
     </header>
     <ul class="pillars-grid">
       <Pillar numeral="i."   title="Validate"   command="$ spec-sync check">Bidirectional. Code → spec and spec → code. Errors on drift.</Pillar>
-      <Pillar numeral="ii."  title="Languages"  command="12 detected">TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML.</Pillar>
+      <Pillar numeral="ii."  title="Languages"  command={`${languageCount} detected`}>TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML.</Pillar>
       <Pillar numeral="iii." title="Generate"   command="$ spec-sync generate">AI-assisted spec generation from existing code. Any provider.</Pillar>
       <Pillar numeral="iv."  title="Integrate"  command="vscode | gh actions">VS Code extension + GitHub Action + CLI. Drop into any CI.</Pillar>
       <Pillar numeral="v."   title="Cross-refs" command="$ spec-sync graph">Reference exports across repos. Dependency graph included.</Pillar>
@@ -63,7 +65,7 @@ import { base } from '../lib/path'
 <section class="langs-strip" aria-labelledby="langs-h">
   <div class="container">
     <div class="strip-head">
-      <h2 id="langs-h">12 languages <em>and counting.</em></h2>
+      <h2 id="langs-h">{languageCount} languages <em>and counting.</em></h2>
       <a href={`${base}languages`} class="link">Browse all languages <span aria-hidden="true">→</span></a>
     </div>
     <ul class="lang-grid">

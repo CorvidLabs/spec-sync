@@ -29,7 +29,7 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 | Catches renamed exports | **Yes** | No | No | No | No |
 | Schema/DB drift detection | **Yes** | No | No | No | No |
 | Cross-project references | **Yes** | Via `$ref` | No | No | No |
-| Works with any language | **11 languages** | Language-specific | JS/TS only | N/A | N/A |
+| Works with any language | **12 languages** | Language-specific | JS/TS only | N/A | N/A |
 | AI agent integration (MCP) | **Yes** | Via plugins | No | No | No |
 | CI/CD integration | **GitHub Action** | Various | Various | Manual | No |
 | Spec lifecycle management | **Yes** | No | No | No | Manual |
@@ -88,7 +88,7 @@ Most tools check in one direction — either "does the code match the docs?" or 
 
 ### Language Agnostic
 
-One tool, one format, 11 languages. Whether your project is TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, or Ruby — same `*.spec.md` format, same validation.
+One tool, one format, 12 languages. Whether your project is TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, or Ruby — same `*.spec.md` format, same validation.
 
 ### AI-Native
 

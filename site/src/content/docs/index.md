@@ -4,7 +4,7 @@ section: "Getting started"
 order: 0
 ---
 
-Bidirectional spec-to-code validation. Written in Rust. Single binary. 11 languages. VS Code extension.
+Bidirectional spec-to-code validation. Written in Rust. Single binary. 12 languages. VS Code extension.
 
 [Get Started](quickstart.md)
 [Why SpecSync?](why-specsync.md)

@@ -1,0 +1,62 @@
+---
+import Button from './Button.astro'
+const base = import.meta.env.BASE_URL
+const current = Astro.url.pathname.replace(/\/$/, '') || base.replace(/\/$/, '')
+const VERSION = 'v4.1'
+const links = [
+  { href: `${base}languages`, label: 'Languages' },
+  { href: `${base}examples`, label: 'Examples' },
+  { href: `${base}docs`, label: 'Docs' },
+  { href: `${base}blog`, label: 'Blog' },
+]
+const isActive = (href: string) => current === href.replace(/\/$/, '')
+---
+<header class="site-header" role="banner">
+  <div class="nav-inner">
+    <a href={base} class="nav-logo" aria-label="spec-sync home">
+      <span class="glyph" aria-hidden="true">s</span>
+      <span>spec-sync</span>
+      <span class="nav-version">{VERSION}</span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="nav-links">
+        {links.map(l => (
+          <li>
+            <a href={l.href} class={isActive(l.href) ? 'active' : ''}
+               aria-current={isActive(l.href) ? 'page' : undefined}>{l.label}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+    <div class="nav-cta">
+      <a href="https://github.com/CorvidLabs/spec-sync" class="btn btn-ghost"
+         aria-label="View on GitHub (opens in new tab)" target="_blank" rel="noopener noreferrer">
+        GitHub <span aria-hidden="true">↗</span>
+      </a>
+      <Button href={`${base}docs/quickstart`} variant="primary">Install</Button>
+    </div>
+  </div>
+</header>
+
+<style is:global>
+  .site-header { border-bottom: 1px solid var(--border); position: sticky; top: 0;
+    background: rgba(10,16,24,.85); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); z-index: 10; }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 32px; max-width: 1180px; margin: 0 auto; gap: 16px; }
+  .nav-logo { display: flex; align-items: center; gap: 10px;
+    font-weight: 600; font-size: 1.0625rem; text-decoration: none;
+    color: var(--text); letter-spacing: -0.01em; min-height: 44px; }
+  .nav-logo .glyph { width: 28px; height: 28px; border-radius: 7px;
+    background: linear-gradient(135deg, var(--accent-bright), var(--accent) 60%, var(--accent-deep));
+    display: grid; place-items: center; color: #08141d; font-weight: 800;
+    font-size: 0.875rem; box-shadow: 0 0 20px var(--accent-glow); }
+  .nav-version { color: var(--text-dim); font-size: 0.875rem; font-family: var(--mono); }
+  .nav-links { display: flex; gap: 4px; }
+  .nav-links a { color: var(--text-muted); text-decoration: none;
+    font-size: 0.9375rem; padding: 10px 14px; border-radius: 6px;
+    min-height: 44px; display: inline-flex; align-items: center; }
+  .nav-links a:hover { color: var(--accent-bright); background: rgba(255,255,255,0.03); }
+  .nav-links a.active { color: var(--accent-bright); background: var(--accent-muted); }
+  .nav-cta { display: flex; gap: 8px; align-items: center; }
+  @media (max-width: 760px) { .nav-links { display: none; } }
+</style>

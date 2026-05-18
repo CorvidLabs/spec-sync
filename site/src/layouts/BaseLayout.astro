@@ -1,5 +1,7 @@
 ---
 import '../styles/globals.css'
+import Header from '../components/Header.astro'
+import Footer from '../components/Footer.astro'
 interface Props {
   title: string
   description?: string
@@ -23,6 +25,8 @@ const base = import.meta.env.BASE_URL
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
+  <Header />
   <slot />
+  <Footer />
 </body>
 </html>

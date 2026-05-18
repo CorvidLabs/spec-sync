@@ -1,0 +1,32 @@
+---
+title: "spec-sync v4.3.2 — depends_on resolution fix"
+description: "A point release that fixes bare module-name resolution in depends_on entries, matching the existing deps.rs behavior."
+category: release
+date: 2026-04-20
+author: Leif
+readTime: 3
+---
+
+A small point release with a single user-visible fix that resolves a long-running paper cut in cross-module references.
+
+## What changed
+
+**Bare `depends_on` module names now resolve correctly.** A `depends_on: [run]` entry (no path separator, just a name) is now resolved under `specs/` instead of the project root — matching the behavior of `deps.rs` and the rest of the resolver. ([#257](https://github.com/CorvidLabs/spec-sync/issues/257), [#258](https://github.com/CorvidLabs/spec-sync/pull/258))
+
+If you were working around this by writing `depends_on: [specs/run]` everywhere, you can drop the prefix and let resolution Just Work.
+
+## Why this took so long to fix
+
+The asymmetry was an honest bug. `depends_on` was resolved by a different code path than the deps graph used internally, and the two paths drifted on which root they took for bare names. We caught it during a tracing audit for the v4.3 changelog work — turns out the test suite was always using path-separated names, so the bug never tripped a fixture.
+
+The fix is a five-line change and a fresh test fixture that uses bare names exclusively.
+
+## Upgrade
+
+```bash
+cargo install specsync --version 4.3.2
+```
+
+No breaking changes. No migration. The previous path-separated form still works.
+
+If you're on v4.2.x or earlier, the v4.3.0 release notes cover the bigger items (`--explain` per-criterion breakdown, stub/TBD depth penalty, near-miss required headers).

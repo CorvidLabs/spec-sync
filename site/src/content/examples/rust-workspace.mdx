@@ -80,4 +80,6 @@ spec-sync check
 # 0 errors, 0 warnings — workspace in sync
 ```
 
-(...rest of walkthrough — placeholder content acceptable for v1...)
+That's the eight-command path from "spec drift everywhere" to a clean workspace, end to end. From here you do what you'd do in any Cargo workspace: bump the version, run the release lane, push the tag. The spec is part of the source tree, so it shipped with the commit you tagged — no separate docs-deploy step, no out-of-band sync.
+
+Once you're past the initial cleanup, the rhythm is much shorter: `spec-sync check` runs in your normal pre-push hook (or in CI via the [GitHub Action walkthrough](/spec-sync/examples/ci-gate)), `spec-sync generate --fix` drafts any new entries from your latest commit, and the deps graph (`spec-sync graph`) catches cross-crate type ripples before they bite a downstream caller.

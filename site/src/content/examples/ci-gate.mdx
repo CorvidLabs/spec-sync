@@ -27,4 +27,48 @@ jobs:
 
 The action installs `spec-sync`, runs `spec-sync check --strict`, and annotates any drift directly in the PR diff view.
 
-(Walkthrough stub — fill in before launch.)
+## 2. Pin the spec-sync version
+
+Floating to `@v1` is convenient for early adoption but pins to a release once you're stable so an unintended upstream change doesn't break a Friday-afternoon merge:
+
+```yaml
+- uses: CorvidLabs/specsync-action@v4.3.2
+```
+
+The Action follows the spec-sync release cadence — match the version you `cargo install` locally.
+
+## 3. Tune the failure threshold
+
+By default, `--strict` fails on any warning. For teams onboarding spec-sync incrementally, you can start with errors-only:
+
+```yaml
+- uses: CorvidLabs/specsync-action@v4.3.2
+  with:
+    strict: false        # warnings allowed; errors still fail
+    score_threshold: 60  # also fail if any spec scores below 60
+```
+
+Drop `strict: false` once your team is happy with the warning count, and tighten `score_threshold` as your spec quality improves.
+
+## 4. Surface drift as PR review comments
+
+Add `annotations: true` so drift errors render as inline GitHub PR review comments on the source line, not just in the Action log:
+
+```yaml
+- uses: CorvidLabs/specsync-action@v4.3.2
+  with:
+    annotations: true
+```
+
+A PR that adds an undocumented export now shows the comment "undocumented export `delete_user` — add to `specs/api/users.spec.md` or run `spec-sync generate --fix`" pointing at the relevant line. No need to dig through Action logs.
+
+## 5. Bypass for emergency hotfixes
+
+When you genuinely need to ship a fix without updating the spec (and you're not lying to yourself), opt out per-PR with a label:
+
+```yaml
+- uses: CorvidLabs/specsync-action@v4.3.2
+  if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-specsync') }}
+```
+
+The label adds friction (you have to consciously apply it) without being a hard block. Track the labels — if `skip-specsync` shows up more than twice a month, the team probably wants a real workflow change, not an escape hatch.

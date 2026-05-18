@@ -45,7 +45,7 @@ jobs:
         working-directory: site
         run: bun test
 
-      - name: Build site (runs prebuild: validate + redirects)
+      - name: "Build site (runs prebuild: validate + redirects)"
         working-directory: site
         run: bun run build
 

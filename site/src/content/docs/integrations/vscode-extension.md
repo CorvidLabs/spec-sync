@@ -16,7 +16,7 @@ Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/item
 code --install-extension corvidlabs.specsync
 ```
 
-The extension requires the `specsync` CLI binary to be installed and on your PATH. See the [CLI Reference](cli.html) for installation instructions.
+The extension requires the `specsync` CLI binary to be installed and on your PATH. See the [CLI Reference](../cli.md) for installation instructions.
 
 ---
 

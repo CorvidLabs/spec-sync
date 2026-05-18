@@ -17,6 +17,8 @@
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   --serif: "Iowan Old Style", "Apple Garamond", "Baskerville", Georgia, serif;
   --mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  --drift: #fbbf24;
+  --drift-muted: rgba(251, 191, 36, 0.10);
   --tap: 44px;
   --max-w: 1180px;
   --container-pad: 32px;

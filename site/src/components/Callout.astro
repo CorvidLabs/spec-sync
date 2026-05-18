@@ -1,8 +1,9 @@
 ---
-interface Props { type?: 'note' | 'warn' | 'tip' }
+interface Props { type?: 'note' | 'warn' | 'tip' | 'drift' }
 const { type = 'note' } = Astro.props
 ---
 <aside class={`callout callout-${type}`}>
+  {type === 'drift' && <span class="callout-drift-icon" aria-hidden="true">⚠</span>}
   <slot />
 </aside>
 
@@ -15,4 +16,8 @@ const { type = 'note' } = Astro.props
   .callout-warn strong { color: #fca5a5; }
   .callout-tip { border-left-color: #34d399; background: rgba(52,211,153,0.08); }
   .callout-tip strong { color: #6ee7b7; }
+  .callout-drift { border-left-color: var(--drift); background: var(--drift-muted);
+    display: flex; gap: 12px; align-items: flex-start; }
+  .callout-drift strong { color: var(--drift); }
+  .callout-drift-icon { font-size: 1.1rem; color: var(--drift); flex-shrink: 0; margin-top: 1px; }
 </style>

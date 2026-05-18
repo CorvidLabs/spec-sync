@@ -1,0 +1,123 @@
+---
+interface SubItem { label: string; description: string; driftAccent?: boolean }
+interface Props {
+  step: string
+  title: string
+  command: string
+  subItems: SubItem[]
+  driftLabel?: string
+}
+const { step, title, command, subItems, driftLabel } = Astro.props
+---
+<li class="big-pillar">
+  <div class="bp-top">
+    <span class="bp-step">{step}</span>
+    {driftLabel && (
+      <span class="bp-drift-badge" aria-label={driftLabel}>
+        <span aria-hidden="true">⚠</span> {driftLabel}
+      </span>
+    )}
+  </div>
+  <h3 class="bp-title">{title}</h3>
+  <p class="bp-desc"><slot /></p>
+  <code class="bp-cmd">{command}</code>
+  <ul class="bp-sub">
+    {subItems.map(item => (
+      <li class={`bp-sub-item${item.driftAccent ? ' bp-sub-drift' : ''}`}>
+        {item.driftAccent && <span aria-hidden="true" class="bp-sub-icon">⚠</span>}
+        <span class="bp-sub-label">{item.label}</span>
+        <span class="bp-sub-text">{item.description}</span>
+      </li>
+    ))}
+  </ul>
+</li>
+
+<style is:global>
+  .big-pillar {
+    padding: 32px 28px 28px;
+    background: var(--bg);
+    border-left: 3px solid var(--drift);
+    position: relative;
+    transition: background .15s;
+  }
+  .big-pillar:hover { background: var(--bg-raised); }
+
+  .bp-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .bp-step {
+    font-family: var(--serif);
+    font-size: 0.875rem;
+    color: var(--text-dim);
+    font-style: italic;
+    letter-spacing: 0.04em;
+  }
+  .bp-drift-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--drift);
+    background: var(--drift-muted);
+    border: 1px solid rgba(251,191,36,0.25);
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .bp-title {
+    font-size: 1.5rem;
+    letter-spacing: -0.015em;
+    margin-bottom: 10px;
+    line-height: 1.2;
+  }
+  .bp-desc {
+    color: var(--text-muted);
+    font-size: 0.9375rem;
+    line-height: 1.65;
+    margin-bottom: 18px;
+  }
+  .bp-cmd {
+    font-family: var(--mono);
+    font-size: 0.875rem;
+    color: var(--accent-bright);
+    display: block;
+    padding: 10px 12px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 22px;
+  }
+  .bp-sub {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .bp-sub-item {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 0.875rem;
+    line-height: 1.45;
+  }
+  .bp-sub-icon {
+    color: var(--drift);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+  }
+  .bp-sub-label {
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .bp-sub-text {
+    color: var(--text-muted);
+  }
+  .bp-sub-drift .bp-sub-label {
+    color: var(--drift);
+  }
+</style>

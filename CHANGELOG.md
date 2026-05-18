@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v4.3.3] - 2026-05-18
+
+### Fixed
+
+- **Word boundary added to RAW_STR regexes** — prevents false matches where raw string patterns were incorrectly matching substrings of longer tokens (#262).
+
+### Site
+
+- New Astro-based marketing site at corvidlabs.github.io/spec-sync — replaces the prior mdBook. Includes a Languages registry, examples, blog, and migrated docs.
+
 ## [4.3.2] - 2026-04-20
 
 ### Fixed

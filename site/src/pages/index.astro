@@ -3,8 +3,10 @@ import BaseLayout from '../layouts/BaseLayout.astro'
 import Badge from '../components/Badge.astro'
 import Button from '../components/Button.astro'
 import SpecCodeDiff from '../components/SpecCodeDiff.astro'
-import Pillar from '../components/Pillar.astro'
+import BigPillar from '../components/BigPillar.astro'
+import Callout from '../components/Callout.astro'
 import { base } from '../lib/path'
+const languageCount = 12
 ---
 <BaseLayout title="spec-sync — keep your docs honest">
 <main id="main">
@@ -13,12 +15,12 @@ import { base } from '../lib/path'
   <div class="container">
     <div class="hero-grid">
       <div>
-        <Badge dot>12 languages · GitHub Marketplace</Badge>
+        <Badge dot>{languageCount} languages · GitHub Marketplace</Badge>
         <h1 class="hero-h1" id="hero-h">Keep your docs<br>ready to <span class="honest">be honest.</span></h1>
         <p class="hero-sub">Bidirectional spec-to-code validation. Cross-project refs. AI generation. CI-enforced contract checking — in any language.</p>
         <div class="hero-actions">
           <Button href={`${base}docs/quickstart`} variant="primary">Get started <span aria-hidden="true">→</span></Button>
-          <Button href={`${base}languages`} variant="secondary">Browse 12 languages</Button>
+          <Button href={`${base}languages`} variant="secondary">Browse {languageCount} languages</Button>
         </div>
         <p class="hero-fineprint">Install in a single command: <code>cargo install specsync</code></p>
       </div>
@@ -32,8 +34,12 @@ import { base } from '../lib/path'
 <section class="stats" aria-label="Key numbers">
   <div class="container">
     <ul class="stats-grid">
-      <li class="stat"><div class="num">12</div><div class="lbl">languages</div><div class="sub">supported</div></li>
-      <li class="stat"><div class="num">6</div><div class="lbl">powers</div><div class="sub">validate · languages · generate · integrate · cross-refs · extend</div></li>
+      <li class="stat stat-drift">
+        <div class="num"><span aria-hidden="true" class="stat-drift-icon">⚠</span>{languageCount}</div>
+        <div class="lbl">languages</div>
+        <div class="sub drift-sub">places drift can hide — we catch them all</div>
+      </li>
+      <li class="stat"><div class="num">3</div><div class="lbl">powers</div><div class="sub">detect · fix · prevent</div></li>
       <li class="stat"><div class="num">1</div><div class="lbl">spec format</div><div class="sub">open, portable, language-agnostic</div></li>
       <li class="stat"><div class="num">1</div><div class="lbl">binary</div><div class="sub">install, done</div></li>
     </ul>
@@ -44,17 +50,55 @@ import { base } from '../lib/path'
 <section class="pillars" aria-labelledby="pillars-h">
   <div class="container">
     <header class="section-head">
-      <p class="section-eyebrow">Six powers</p>
-      <h2 id="pillars-h">Everything you need to keep your <em>docs</em><br>and <em>code</em> in sync.</h2>
-      <p>Each power is a focused subcommand. Wire any combination into your CI. Pick what you need.</p>
+      <p class="section-eyebrow">Three powers</p>
+      <h2 id="pillars-h">Detect, fix, and <em>prevent</em><br>spec drift.</h2>
+      <p>A narrative arc from discovery to enforcement. Each power is a focused subcommand you can wire into any CI.</p>
     </header>
+
+    <Callout type="drift">
+      <p><strong>What is drift?</strong> Drift is the gap between what your specs say and what your code actually does — undocumented exports, stale entries, broken cross-references. spec-sync finds it, fixes it, and blocks it from merging.</p>
+    </Callout>
+
     <ul class="pillars-grid">
-      <Pillar numeral="i."   title="Validate"   command="$ spec-sync check">Bidirectional. Code → spec and spec → code. Errors on drift.</Pillar>
-      <Pillar numeral="ii."  title="Languages"  command="12 detected">TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML.</Pillar>
-      <Pillar numeral="iii." title="Generate"   command="$ spec-sync generate">AI-assisted spec generation from existing code. Any provider.</Pillar>
-      <Pillar numeral="iv."  title="Integrate"  command="vscode | gh actions">VS Code extension + GitHub Action + CLI. Drop into any CI.</Pillar>
-      <Pillar numeral="v."   title="Cross-refs" command="$ spec-sync graph">Reference exports across repos. Dependency graph included.</Pillar>
-      <Pillar numeral="vi."  title="Extend"     command="$ spec-sync --config">Custom validators, hooks, output formats. Open file formats.</Pillar>
+      <BigPillar
+        step="Step 1"
+        title="Detect drift"
+        command="$ spec-sync check"
+        driftLabel="catches drift"
+        subItems={[
+          { label: "12 languages", description: "TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML", driftAccent: true },
+          { label: "Cross-refs", description: "dependency graph across crates and repos" }
+        ]}
+      >
+        Find the gap between what your specs say and what your code does.
+      </BigPillar>
+
+      <BigPillar
+        step="Step 2"
+        title="Fix drift"
+        command="$ spec-sync generate --fix"
+        driftLabel="closes the gap"
+        subItems={[
+          { label: "Bidirectional", description: "code→spec and spec→code, both directions" },
+          { label: "Any AI provider", description: "Claude, GPT, Ollama, and more" }
+        ]}
+      >
+        Patch undocumented exports and stale spec entries with AI-assisted generation.
+      </BigPillar>
+
+      <BigPillar
+        step="Step 3"
+        title="Prevent drift"
+        command="vscode | gh actions"
+        driftLabel="blocks drift"
+        subItems={[
+          { label: "VS Code extension", description: "inline drift squiggles, quick-fix codegen" },
+          { label: "GitHub Action", description: "--strict gate on every PR", driftAccent: true },
+          { label: "Extend", description: "custom validators, hooks, output formats" }
+        ]}
+      >
+        Make drift impossible to merge. Block on CI, surface in your editor.
+      </BigPillar>
     </ul>
   </div>
 </section>
@@ -63,7 +107,7 @@ import { base } from '../lib/path'
 <section class="langs-strip" aria-labelledby="langs-h">
   <div class="container">
     <div class="strip-head">
-      <h2 id="langs-h">12 languages <em>and counting.</em></h2>
+      <h2 id="langs-h">{languageCount} languages <em>and counting.</em></h2>
       <a href={`${base}languages`} class="link">Browse all languages <span aria-hidden="true">→</span></a>
     </div>
     <ul class="lang-grid">
@@ -156,8 +200,11 @@ import { base } from '../lib/path'
     color: var(--accent-bright); font-family: var(--serif); line-height: 1; }
   .stat .lbl { color: var(--text); font-size: 1rem; margin-top: 8px; font-weight: 500; }
   .stat .sub { color: var(--text-muted); font-size: 0.875rem; margin-top: 4px; }
-  .pillars { padding: 100px 0 40px; }
-  .section-head { margin-bottom: 48px; }
+  .stat-drift .num { color: var(--drift); }
+  .stat-drift-icon { font-size: 1.5rem; margin-right: 2px; vertical-align: baseline; }
+  .drift-sub { color: var(--drift) !important; opacity: 0.85; }
+  .pillars { padding: 100px 0 60px; }
+  .section-head { margin-bottom: 32px; }
   .section-eyebrow { color: var(--accent-bright); font-size: 0.875rem; font-weight: 600;
     letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px; }
   .section-head h2 { font-size: clamp(1.85rem, 3.5vw, 2.6rem); letter-spacing: -0.02em;
@@ -165,9 +212,9 @@ import { base } from '../lib/path'
   .section-head h2 em { font-style: italic; font-family: var(--serif);
     color: var(--accent-bright); font-weight: 400; }
   .section-head p { color: var(--text-muted); font-size: 1.0625rem; max-width: 580px; }
-  .pillars-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
-    background: var(--border); border: 1px solid var(--border);
-    border-radius: var(--radius); overflow: hidden; }
+  /* Three Powers grid — deliberately different from fledge's hairline-divided 2×3 */
+  .pillars-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    margin-top: 28px; }
   .langs-strip { padding: 80px 0; }
   .strip-head { display: flex; justify-content: space-between; align-items: end;
     margin-bottom: 32px; gap: 16px; flex-wrap: wrap; }

@@ -71,6 +71,34 @@ const base = import.meta.env.BASE_URL
   </div>
 </section>
 
+{/* TODO(Phase 4): replace hardcoded list with getCollection or import from languages.json */}
+<section class="langs-strip" aria-labelledby="langs-h">
+  <div class="container">
+    <div class="strip-head">
+      <h2 id="langs-h">12 languages <em>and counting.</em></h2>
+      <a href={`${base}languages`} class="link">Browse all languages <span aria-hidden="true">→</span></a>
+    </div>
+    <ul class="lang-grid">
+      <li><a href={`${base}languages/typescript`} class="lang-card">
+        <div class="lang-head"><span class="lang-name">TypeScript</span><span class="lang-tag">managed</span></div>
+        <p>Full AST-based detection. Tracks exports, types, and interfaces.</p>
+      </a></li>
+      <li><a href={`${base}languages/rust`} class="lang-card">
+        <div class="lang-head"><span class="lang-name">Rust</span><span class="lang-tag">native</span></div>
+        <p>pub items, traits, and modules. Workspace-aware.</p>
+      </a></li>
+      <li><a href={`${base}languages/go`} class="lang-card">
+        <div class="lang-head"><span class="lang-name">Go</span><span class="lang-tag">native</span></div>
+        <p>Exported identifiers by convention. Package-level scoping.</p>
+      </a></li>
+      <li><a href={`${base}languages/python`} class="lang-card">
+        <div class="lang-head"><span class="lang-name">Python</span><span class="lang-tag">dynamic</span></div>
+        <p>__all__, class definitions, and public function detection.</p>
+      </a></li>
+    </ul>
+  </div>
+</section>
+
 <section class="examples-teaser" aria-labelledby="ex-h">
   <div class="container">
     <header class="section-head">
@@ -153,6 +181,24 @@ const base = import.meta.env.BASE_URL
   .pillars-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
     background: var(--border); border: 1px solid var(--border);
     border-radius: var(--radius); overflow: hidden; }
+  .langs-strip { padding: 80px 0; }
+  .strip-head { display: flex; justify-content: space-between; align-items: end;
+    margin-bottom: 32px; gap: 16px; flex-wrap: wrap; }
+  .strip-head h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -0.015em; }
+  .strip-head h2 em { font-family: var(--serif); font-style: italic; color: var(--accent-bright); font-weight: 400; }
+  .strip-head .link { color: var(--accent-bright); font-size: 0.9375rem; padding: 8px 0; }
+  .strip-head .link:hover { text-decoration: underline; }
+  .lang-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .lang-card { display: block; padding: 20px; background: var(--bg-raised);
+    border: 1px solid var(--border); border-radius: 8px;
+    transition: border-color .15s; color: inherit; text-decoration: none; }
+  .lang-card:hover { border-color: var(--accent); }
+  .lang-head { display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px; gap: 8px; }
+  .lang-name { font-family: var(--mono); font-size: 0.9375rem; color: var(--text); }
+  .lang-tag { font-size: 0.8125rem; padding: 3px 8px; border-radius: 4px;
+    background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+  .lang-card p { color: var(--text-muted); font-size: 0.9375rem; line-height: 1.5; }
   .examples-teaser { padding: 80px 0; background: linear-gradient(180deg, transparent, rgba(14,165,233,0.03)); }
   .ex-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 32px; }
   .ex-card { display: block; padding: 26px; background: var(--bg-raised);
@@ -185,5 +231,5 @@ const base = import.meta.env.BASE_URL
     padding: 16px 22px; background: var(--bg-raised); border: 1px solid var(--border-strong);
     border-radius: 10px; font-family: var(--mono); font-size: 1rem; }
   .cta-actions { display: flex; gap: 12px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
-  @media (max-width: 900px) { .hero-grid, .stats-grid, .pillars-grid, .ex-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 900px) { .hero-grid, .stats-grid, .pillars-grid, .lang-grid, .ex-grid { grid-template-columns: 1fr; } }
 </style>

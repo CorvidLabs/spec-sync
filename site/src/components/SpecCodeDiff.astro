@@ -1,0 +1,223 @@
+---
+interface Props {
+  ariaLabel?: string
+}
+const { ariaLabel = 'Spec to code drift example' } = Astro.props
+---
+<figure class="diff-visual" aria-label={ariaLabel}>
+  <div class="diff-panels">
+    <!-- Spec panel -->
+    <div class="diff-panel" role="img" aria-label="Spec file with phantom entry highlighted">
+      <div class="diff-panel-header">
+        <span class="diff-icon" aria-hidden="true">▣</span>
+        <span class="diff-filename">specs/auth.spec.md</span>
+      </div>
+      <div class="diff-panel-body">
+        <div class="diff-line diff-section">## Exports</div>
+        <div class="diff-line diff-blank"></div>
+        <div class="diff-line diff-entry">- <code>login(creds) -&gt; Token</code></div>
+        <div class="diff-line diff-blank"></div>
+        <div class="diff-line diff-entry diff-drift-line">- <code>validateToken(t) -&gt; bool</code></div>
+        <div class="diff-line diff-drift-marker">
+          <span class="drift-icon" aria-label="Phantom entry warning">⚠</span>
+          <span class="drift-label">phantom — not in code</span>
+        </div>
+        <div class="diff-line diff-blank"></div>
+        <div class="diff-line diff-entry">- <code>logout(token)</code></div>
+      </div>
+    </div>
+
+    <!-- Code panel -->
+    <div class="diff-panel" role="img" aria-label="Source code with undocumented export highlighted">
+      <div class="diff-panel-header">
+        <span class="diff-icon" aria-hidden="true">⌥</span>
+        <span class="diff-filename">src/auth.rs</span>
+      </div>
+      <div class="diff-panel-body">
+        <div class="diff-line"><span class="kw">pub fn</span> <span class="fn-name">login</span><span class="dim">(creds) -&gt; Token &#123;</span></div>
+        <div class="diff-line diff-indent dim">// ...</div>
+        <div class="diff-line dim">&#125;</div>
+        <div class="diff-line diff-blank"></div>
+        <div class="diff-line"><span class="kw">pub fn</span> <span class="fn-name">logout</span><span class="dim">(token: &amp;Token) &#123;</span></div>
+        <div class="diff-line diff-indent dim">// ...</div>
+        <div class="diff-line dim">&#125;</div>
+        <div class="diff-line diff-blank"></div>
+        <div class="diff-line diff-drift-line"><span class="kw">pub fn</span> <span class="fn-name">delete_user</span><span class="dim">(id: UserId) &#123;</span></div>
+        <div class="diff-line diff-drift-marker">
+          <span class="drift-icon" aria-label="Undocumented export warning">⚠</span>
+          <span class="drift-label">undocumented export</span>
+        </div>
+        <div class="diff-line dim">&#125;</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="diff-footer" aria-live="polite">
+    <span class="drift-count">✗ 2 drifts detected</span>
+    <span class="drift-hint"> — run <code>spec-sync generate --fix</code></span>
+  </div>
+</figure>
+
+<style>
+  .diff-visual {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    font-family: var(--mono);
+    font-size: 0.875rem;
+    line-height: 1.75;
+  }
+
+  .diff-panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .diff-panel {
+    background: var(--bg-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), 0 0 40px var(--accent-glow);
+  }
+
+  .diff-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .diff-icon {
+    color: var(--accent-bright);
+    font-size: 0.9375rem;
+    line-height: 1;
+  }
+
+  .diff-filename {
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    letter-spacing: 0.01em;
+  }
+
+  .diff-panel-body {
+    padding: 16px 18px;
+  }
+
+  .diff-line {
+    white-space: pre;
+    color: var(--text);
+    min-height: 1.75em;
+  }
+
+  .diff-blank {
+    min-height: 0.75em;
+  }
+
+  .diff-indent {
+    padding-left: 1.5em;
+  }
+
+  .diff-section {
+    color: var(--accent-bright);
+    font-weight: 600;
+  }
+
+  .diff-entry {
+    color: var(--text-muted);
+  }
+
+  .diff-entry code {
+    color: var(--text);
+    font-family: var(--mono);
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: inherit;
+  }
+
+  .dim {
+    color: var(--text-dim);
+  }
+
+  .kw {
+    color: var(--accent-bright);
+  }
+
+  .fn-name {
+    color: var(--text);
+  }
+
+  /* Drift highlighting */
+  .diff-drift-line {
+    background: rgba(251, 191, 36, 0.08);
+    border-left: 2px solid #fbbf24;
+    margin-left: -18px;
+    padding-left: 16px;
+    margin-right: -18px;
+    padding-right: 18px;
+  }
+
+  .diff-drift-marker {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0 2px 2px;
+    color: #fbbf24;
+    font-size: 0.8125rem;
+    background: rgba(251, 191, 36, 0.06);
+    margin-left: -18px;
+    padding-left: 18px;
+    margin-right: -18px;
+    padding-right: 18px;
+    border-left: 2px solid #fbbf24;
+    margin-bottom: 2px;
+  }
+
+  .drift-icon {
+    font-size: 0.875rem;
+    line-height: 1;
+  }
+
+  .drift-label {
+    font-style: italic;
+    letter-spacing: 0.01em;
+    opacity: 0.9;
+  }
+
+  /* Footer drift count */
+  .diff-footer {
+    margin-top: 14px;
+    text-align: center;
+    font-size: 0.875rem;
+    color: var(--text-dim);
+  }
+
+  .drift-count {
+    color: #fbbf24;
+    font-weight: 600;
+  }
+
+  .drift-hint {
+    color: var(--text-dim);
+  }
+
+  .drift-hint code {
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+  }
+
+  /* Narrow viewports: stack panels */
+  @media (max-width: 600px) {
+    .diff-panels {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

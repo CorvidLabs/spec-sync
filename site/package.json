@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "astro dev",
-    "prebuild": "bun scripts/validate-languages.ts",
+    "prebuild": "bun scripts/validate-languages.ts && bun scripts/generate-doc-redirects.ts",
     "build": "astro build",
     "preview": "astro preview",
     "test": "bun test",

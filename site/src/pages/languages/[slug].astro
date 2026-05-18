@@ -52,7 +52,7 @@ const styleLabel: Record<string, string> = {
   title={`${lang.name} — spec-sync`}
   description={lang.description}
 >
-<main id="main">
+<main id="main" style="overflow-x: hidden; width: 100%;">
 
 <div class="container">
 
@@ -201,10 +201,15 @@ const styleLabel: Record<string, string> = {
 </BaseLayout>
 
 <style>
-  .container { max-width: var(--max-w); margin: 0 auto; padding: 0 var(--container-pad); }
+  .container { max-width: var(--max-w); margin: 0 auto; padding: 0 var(--container-pad);
+    box-sizing: border-box; }
+
+  @media (max-width: 600px) {
+    .container { padding: 0 16px; }
+  }
 
   .breadcrumb { padding: 32px 0 0; }
-  .breadcrumb a { color: var(--accent-bright); font-size: 0.9375rem; }
+  .breadcrumb a { color: var(--accent-bright); font-size: 0.9375rem; display: inline-flex; align-items: center; min-height: 44px; }
   .breadcrumb a:hover { text-decoration: underline; }
 
   .lang-header { padding: 32px 0 0; border-bottom: 1px solid var(--border); margin-bottom: 48px; padding-bottom: 40px; }
@@ -305,6 +310,7 @@ const styleLabel: Record<string, string> = {
   .footer-cta { border-top: 1px solid var(--border); padding: 48px 0 72px;
     display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
   .footer-cta p { color: var(--text-muted); font-size: 1.0625rem; }
-  .cta-link { color: var(--accent-bright); font-weight: 500; font-size: 0.9375rem; }
+  .cta-link { color: var(--accent-bright); font-weight: 500; font-size: 0.9375rem;
+    display: inline-flex; align-items: center; min-height: 44px; }
   .cta-link:hover { text-decoration: underline; }
 </style>

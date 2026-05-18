@@ -32,7 +32,8 @@ const { title, description, eyebrow, meta } = Astro.props
   .art-body :global(p) { margin-bottom: 16px; color: var(--text); line-height: 1.7; }
   .art-body :global(ul), .art-body :global(ol) { margin-bottom: 16px; padding-left: 24px; }
   .art-body :global(li) { margin-bottom: 6px; line-height: 1.7; }
-  .art-body :global(a) { color: var(--accent-bright); text-decoration: underline; text-underline-offset: 3px; }
+  .art-body :global(a) { color: var(--accent-bright); text-decoration: underline; text-underline-offset: 3px;
+    display: inline-block; padding: 2px 0; }
   .art-body :global(code) { font-family: var(--mono); font-size: 0.875em; padding: 2px 6px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: 4px; color: var(--accent-bright); }
   .art-body :global(pre) { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; overflow-x: auto; margin-bottom: 20px; }
   .art-body :global(pre code) { background: transparent; border: 0; padding: 0; color: var(--text); }

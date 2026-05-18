@@ -38,7 +38,11 @@ button { font-family: inherit; cursor: pointer; }
 pre, code { max-width: 100%; }
 pre { overflow-x: auto; }
 
-.container { max-width: var(--max-w); margin: 0 auto; padding: 0 var(--container-pad); }
+.container { max-width: var(--max-w); margin: 0 auto; padding: 0 var(--container-pad); box-sizing: border-box; }
+
+@media (max-width: 480px) {
+  :root { --container-pad: 16px; }
+}
 
 a:focus-visible, button:focus-visible, input:focus-visible,
 select:focus-visible, [tabindex]:focus-visible {

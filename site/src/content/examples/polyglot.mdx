@@ -18,4 +18,88 @@ spec-sync check
 
 `spec-sync` walks the repo, detects TypeScript (via `tsconfig.json`), Python (via `pyproject.toml`), and Rust (via `Cargo.toml`) automatically. All three are validated in a single pass.
 
-(Walkthrough stub — fill in before launch.)
+## 2. Inspect the per-language detection
+
+Add `--explain` to see which language each spec was checked against:
+
+```bash
+spec-sync check --explain
+```
+
+```
+specs/web/api.spec.md          → typescript (apps/web/src/api.ts)
+specs/ml/predict.spec.md       → python     (services/ml/predict.py)
+specs/server/handlers.spec.md  → rust       (crates/server/src/handlers.rs)
+```
+
+If detection picks the wrong language for a directory you can pin it in `.specsync/config.toml`:
+
+```toml
+[[language_overrides]]
+path = "experiments/notebook-export/**/*.ts"
+language = "typescript"
+```
+
+## 3. Add a polyglot ignore for shared types
+
+A shared `types/` directory that's imported by all three services doesn't need a spec — exclude it:
+
+```toml
+# .specsync/config.toml
+[ignore]
+paths = ["types/**", "**/*.test.*"]
+```
+
+## 4. Define cross-language references
+
+The TypeScript API spec references a type owned by the Rust server. Use a cross-project reference:
+
+```markdown
+<!-- specs/web/api.spec.md -->
+
+## Returns
+
+The endpoint returns a [`HandlerResponse`](crates/server/specs/handlers.spec.md#handlerresponse)
+serialized as JSON.
+```
+
+`spec-sync graph` resolves the cross-link at check time and fails the build if `HandlerResponse` no longer exists in the Rust spec.
+
+## 5. Generate missing entries per language
+
+For undocumented exports across all three languages in one shot:
+
+```bash
+spec-sync generate --fix
+```
+
+The AI provider drafts spec entries using the right idioms per language (Markdown table for TS types, signature-first for Python, `pub fn` blocks for Rust). Review before committing.
+
+## 6. Wire the CI gate
+
+```yaml
+# .github/workflows/spec-sync.yml
+name: spec-sync
+on: [pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: CorvidLabs/specsync-action@v1
+        with:
+          strict: true
+```
+
+The Action runs `spec-sync check --strict` against every PR. Drift in any of the three languages blocks the merge.
+
+## 7. Add the VS Code extension
+
+Install [spec-sync for VS Code](https://github.com/CorvidLabs/spec-sync/tree/main/vscode-extension) on every developer machine. Spec drift surfaces inline in the editor — no `cargo install`, no terminal, no excuse.
+
+```
+# in any of the spec files, undocumented exports appear with a yellow squiggle
+# and a quick-fix offers "Generate spec entry"
+```
+
+Now you have one spec format, three languages, one CI gate, and an editor that nudges before drift ever lands in a PR.

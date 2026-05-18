@@ -1,6 +1,6 @@
 ---
 title: "Marketing site rebuild — what's coming and why"
-description: "Why we're moving off mdBook for the home page, what the new languages registry looks like, what's in the v4.2 milestone."
+description: "Why we're moving off mdBook for the home page, what the new languages registry looks like, what's in the v4.4 milestone."
 category: announce
 date: 2026-05-17
 author: Leif
@@ -8,4 +8,34 @@ readTime: 6
 featured: true
 ---
 
-(Post body — placeholder. Replace with real announcement before launch.)
+Welcome to the new home of spec-sync.
+
+The old `mdBook` site served its purpose — it gave us a reasonable place to dump the docs. But spec-sync isn't just a CLI any more. There's the VS Code extension, the GitHub Action, twelve language detectors, the cross-project reference graph, the AI-generation pipeline. None of that surfaced on the old site. Visitors landed on a table of contents.
+
+So we rebuilt.
+
+## What's new
+
+- **A real landing page.** A hero that actually says what spec-sync does ("keep your docs honest") and a terminal demo of `spec-sync check` finding drift in three lines. If you've sent the link to a teammate before and watched them try to figure out the value prop from the README, this is for them.
+- **The Languages registry at `/languages`.** All twelve supported languages — TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML — with their detection rules, test-file patterns, and an example spec/source pair per language. Searchable. Filterable by family and detection style.
+- **Walkthroughs at `/examples`.** End-to-end recipes: syncing a Rust workspace, the polyglot monorepo case, the CI gate setup. Every command, every output, every file.
+- **The docs are still here.** The mdBook content moved over wholesale — same content, new shell. Sidebar nav, breadcrumbs, prev/next pager. Old URLs redirect to the new docs paths so existing links keep working.
+- **A blog.** This. For release notes, language additions, and the occasional design rant.
+
+## Why Astro
+
+We picked Astro for two reasons: zero JavaScript by default (the marketing pages are static HTML — fast and accessible-friendly), and excellent MDX support (so docs and walkthroughs can interleave prose, code, and components without a separate authoring tool).
+
+The CSS palette shifted from mdBook's neutral grey to a cool sky-blue that pairs with the family-resemblance design we've been building across CorvidLabs projects. Same component vocabulary as the new [fledge site](https://corvidlabs.github.io/fledge), different temperature.
+
+Accessibility was a non-negotiable from day one: focus rings on every interactive element, semantic landmarks, `prefers-reduced-motion` respected, 4.5:1 contrast minimum across body text. The whole site passes axe-core with zero violations.
+
+## What's next
+
+The v4.4 milestone is in progress and the headline feature is **cross-organization spec references**. Today you can reference exports across crates in the same workspace; soon you'll be able to reference exports from another GitHub org's spec-sync'd repo by URL. This unlocks the "team has 30 microservices across 10 repos and the public API of one is the input contract for another" case — the most common reason people email asking if spec-sync supports it (it doesn't yet, but it will).
+
+After that: a per-language deep-dive section on each `/languages/{slug}` page, populated by hand-authored MDX. We've seeded the structure; the deep-dives land incrementally.
+
+If you find bugs in the new site, [file an issue](https://github.com/CorvidLabs/spec-sync/issues/new). If you build something cool on top of spec-sync, the blog has room for guest posts.
+
+Sync responsibly.

@@ -1,0 +1,96 @@
+---
+import { getCollection } from 'astro:content'
+import BaseLayout from '../../layouts/BaseLayout.astro'
+import PostCard from '../../components/PostCard.astro'
+import CategoryTag from '../../components/CategoryTag.astro'
+const base = import.meta.env.BASE_URL
+const posts = (await getCollection('blog', p => !p.data.draft))
+  .sort((a, b) => +b.data.date - +a.data.date)
+const featured = posts.find(p => p.data.featured)
+const rest = posts.filter(p => p !== featured)
+const fmt = (d: Date) => d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+---
+<BaseLayout title="spec-sync blog">
+<main id="main">
+
+<section class="page-head">
+  <div class="container head-row">
+    <div>
+      <p class="eyebrow">The spec-sync blog</p>
+      <h1>Updates, languages, and <em>field notes.</em></h1>
+      <p class="lede">Release notes, language additions, integration deep-dives, and the occasional design rant.</p>
+    </div>
+    <div class="rss-row">
+      <a href={`${base}rss.xml`} class="rss"><span aria-hidden="true">⌗</span> RSS</a>
+    </div>
+  </div>
+</section>
+
+{featured && (
+  <section class="featured">
+    <div class="container">
+      <a href={`${base}blog/${featured.slug}`} class="feat-card">
+        <div class="feat-meta">
+          <CategoryTag category={featured.data.category} />
+          <span class="feat-date">{fmt(featured.data.date)} · {featured.data.readTime} min read</span>
+        </div>
+        <h2>{featured.data.title}</h2>
+        <p class="dek">{featured.data.description}</p>
+        <p class="byline">by {featured.data.author}</p>
+      </a>
+    </div>
+  </section>
+)}
+
+<section class="post-list">
+  <div class="container">
+    <div class="list-head">
+      <h2>All posts</h2>
+      <span class="count">{posts.length} posts</span>
+    </div>
+    <ul class="post-grid">
+      {rest.map(p => <PostCard post={p} />)}
+    </ul>
+  </div>
+</section>
+
+<section class="read-more">
+  <div class="container">
+    <a href={`${base}languages`} class="rm-card">Browse 12 languages <span aria-hidden="true">→</span></a>
+    <a href={`${base}docs`} class="rm-card">Read the docs <span aria-hidden="true">→</span></a>
+    <a href="https://github.com/CorvidLabs/spec-sync" class="rm-card">Star on GitHub <span aria-hidden="true">↗</span></a>
+  </div>
+</section>
+
+</main>
+</BaseLayout>
+
+<style>
+  .page-head { padding: 60px 0 36px; background-image: radial-gradient(ellipse 1200px 400px at 50% -100px, rgba(14,165,233,0.10), transparent 70%); border-bottom: 1px solid var(--border); }
+  .head-row { display: flex; align-items: end; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  .eyebrow { color: var(--accent-bright); font-size: 0.875rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px; }
+  .page-head h1 { font-size: clamp(2.2rem, 4vw, 3rem); letter-spacing: -0.025em; line-height: 1.1; margin-bottom: 10px; }
+  .page-head h1 em { font-style: italic; font-family: var(--serif); color: var(--accent-bright); font-weight: 400; }
+  .lede { color: var(--text-muted); font-size: 1.125rem; max-width: 580px; }
+  .rss { padding: 10px 14px; background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text-muted); font-size: 0.875rem; display: inline-flex; gap: 6px; align-items: center; }
+  .rss:hover { color: var(--accent-bright); border-color: var(--accent); }
+  .featured { padding: 40px 0 20px; }
+  .feat-card { display: block; padding: 40px; background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius); color: inherit; text-decoration: none; }
+  .feat-card:hover { border-color: var(--accent); }
+  .feat-meta { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .feat-date { color: var(--text-dim); font-size: 0.875rem; font-family: var(--mono); }
+  .feat-card h2 { font-size: clamp(1.6rem, 3vw, 2.1rem); line-height: 1.15; margin-bottom: 14px; }
+  .feat-card .dek { color: var(--text-muted); font-size: 1.0625rem; line-height: 1.55; margin-bottom: 12px; }
+  .feat-card .byline { color: var(--text-dim); font-size: 0.9375rem; }
+  .post-list { padding: 40px 0 60px; }
+  .list-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .list-head h2 { font-size: 1.5rem; }
+  .list-head .count { color: var(--text-dim); font-size: 0.9375rem; }
+  .post-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .read-more { padding: 40px 0 80px; }
+  .read-more .container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .rm-card { display: block; padding: 22px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-weight: 500; text-decoration: none; transition: border-color .15s; }
+  .rm-card:hover { border-color: var(--accent); color: var(--accent-bright); }
+  @media (max-width: 1024px) { .post-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 760px) { .post-grid, .read-more .container { grid-template-columns: 1fr; } }
+</style>

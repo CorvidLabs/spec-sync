@@ -1,0 +1,41 @@
+---
+import CategoryTag from './CategoryTag.astro'
+import type { CollectionEntry } from 'astro:content'
+interface Props { post: CollectionEntry<'blog'> }
+const { post } = Astro.props
+const base = import.meta.env.BASE_URL
+const date = post.data.date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+const initial = post.data.author.charAt(0)
+---
+<li><a href={`${base}blog/${post.slug}`} class="post">
+  <div class="post-top">
+    <CategoryTag category={post.data.category} />
+    <span class="post-date">{date}</span>
+  </div>
+  <h3>{post.data.title}</h3>
+  <p>{post.data.description}</p>
+  <div class="post-foot">
+    <span class="avatar-sm" aria-hidden="true">{initial}</span> {post.data.author}
+    <span class="read">{post.data.readTime} min read</span>
+  </div>
+</a></li>
+
+<style is:global>
+  .post { display: flex; flex-direction: column; gap: 14px;
+    padding: 24px; background: var(--bg-raised);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: inherit; text-decoration: none; transition: all .15s; }
+  .post:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .post-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+  .post-date { color: var(--text-dim); font-size: 0.8125rem; font-family: var(--mono); }
+  .post h3 { font-size: 1.125rem; letter-spacing: -0.005em; line-height: 1.3; flex: 1; }
+  .post p { color: var(--text-muted); font-size: 0.9375rem; line-height: 1.55; flex: 1; }
+  .post-foot { display: flex; align-items: center; gap: 10px;
+    padding-top: 12px; border-top: 1px dashed var(--border-strong);
+    color: var(--text-dim); font-size: 0.8125rem; }
+  .post-foot .avatar-sm { width: 24px; height: 24px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-bright), var(--accent));
+    display: inline-grid; place-items: center; color: #1a0f08;
+    font-size: 0.7rem; font-weight: 700; }
+  .post-foot .read { margin-left: auto; }
+</style>

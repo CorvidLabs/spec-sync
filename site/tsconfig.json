@@ -1,0 +1,8 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "include": ["src", "scripts", "**/*.astro"],
+  "compilerOptions": {
+    "jsx": "preserve",
+    "types": ["astro/client", "bun-types"]
+  }
+}

@@ -7,3 +7,7 @@
 # spec-sync backup directories (created by --fix --backup)
 .specsync/backup-fix/
 .specsync/backup-3x/
+
+site/node_modules
+site/dist
+site/.astro

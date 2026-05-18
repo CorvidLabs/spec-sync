@@ -7,3 +7,10 @@
 # spec-sync backup directories (created by --fix --backup)
 .specsync/backup-fix/
 .specsync/backup-3x/
+
+site/node_modules
+site/dist
+site/.astro
+# Generated doc-redirect files (produced by generate-doc-redirects.ts prebuild)
+site/public/*.html
+site/public/integrations/

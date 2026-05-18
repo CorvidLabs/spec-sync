@@ -1,0 +1,51 @@
+{
+  "slug": "php",
+  "name": "PHP",
+  "family": "dynamic",
+  "detection_style": "regex",
+  "extensions": [".php"],
+  "test_patterns": ["*Test.php"],
+  "exports_detected": [
+    "class / abstract class / final class / readonly class",
+    "interface / trait / enum",
+    "public function / public static function (skips private/protected and __ magic methods)",
+    "public const / const at top level"
+  ],
+  "description": "Types (class, interface, trait, enum) are always included. Functions and constants are included unless marked private or protected. Magic methods (__construct, __toString, etc.) are always skipped. Strips //, /* */, and # comments.",
+  "since_version": "v1.0",
+  "detection_rules": [
+    {
+      "title": "Type declarations (always public)",
+      "description": "PHP types are always publicly accessible. Matches class (abstract, final, readonly), interface, trait, and enum.",
+      "example_code": "class AuthService {}\nabstract class BaseController {}\nfinal class Config {}\nreadonly class ValueObject {}\ninterface Authenticator {}\ntrait Loggable {}\nenum Status { case Active; case Expired; }"
+    },
+    {
+      "title": "Public functions",
+      "description": "Top-level functions and class methods marked public (or with no explicit visibility, defaulting to public) are captured. private and protected are excluded.",
+      "example_code": "function standalone_helper(): void {}\n\nclass Service {\n    public function validate(string $token): bool {}\n    public static function create(): self {}\n    private function internalCheck(): void {}  // excluded\n    protected function helper(): void {}       // excluded\n}"
+    },
+    {
+      "title": "Magic method exclusion",
+      "description": "Methods whose names start with __ (double underscore) are always excluded: __construct, __toString, __get, etc.",
+      "example_code": "public function __construct() {}  // excluded\npublic function __toString(): string {}  // excluded\npublic function getName(): string {}     // included"
+    },
+    {
+      "title": "Constants",
+      "description": "public const and top-level const are captured. private const is excluded.",
+      "example_code": "public const DEFAULT_TTL = 3600;   // included\nprivate const INTERNAL_KEY = 'x';  // excluded\nconst GLOBAL_CONST = 'y';          // included"
+    }
+  ],
+  "test_pattern_examples": [
+    { "pattern": "**/*Test.php", "explanation": "PHPUnit test classes — auto-excluded" }
+  ],
+  "example_spec_md": "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/Auth/AuthService.php\n---\n\n## Purpose\n\nPHP auth service using JWT validation.\n\n## Public API\n\n| Symbol | Kind | Description |\n|--------|------|-------------|\n| `AuthService` | class | Main auth class |\n| `Authenticator` | interface | Auth contract |\n| `validate` | method | Validates a JWT token |\n| `DEFAULT_TTL` | const | Default TTL in seconds |\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |",
+  "example_source": "<?php\n\nnamespace App\\Auth;\n\nclass AuthService {\n    public const DEFAULT_TTL = 3600;\n    private const INTERNAL_KEY = 'secret';\n\n    public function validate(string $token): bool {\n        return !empty($token);\n    }\n\n    public static function create(): self {\n        return new self();\n    }\n\n    private function internalCheck(): void {}\n}\n\ninterface Authenticator {\n    public function authenticate(): bool;\n}\n\ntrait Loggable {\n    public function log(): void {}\n}",
+  "caveats": [
+    "PHP does not have true module-level visibility — class types are always globally accessible.",
+    "Namespaces are detected but not used to filter exports; all types in all namespaces are included.",
+    "Dynamic class definitions (class_alias(), eval()) are not detected.",
+    "Attributes (#[Attribute]) are captured as class declarations if public."
+  ],
+  "related_slugs": ["python", "ruby"],
+  "since_version": "v1.0"
+}

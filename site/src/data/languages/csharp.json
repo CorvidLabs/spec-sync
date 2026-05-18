@@ -1,0 +1,46 @@
+{
+  "slug": "csharp",
+  "name": "C#",
+  "family": "managed",
+  "detection_style": "regex",
+  "extensions": [".cs"],
+  "test_patterns": ["*Test.cs", "*Tests.cs"],
+  "exports_detected": [
+    "public class / struct / interface / enum / record / delegate",
+    "public sealed / partial / abstract / static types",
+    "public methods, properties, fields (including async, virtual, override)"
+  ],
+  "description": "Detects public types and public members. Strips single-line, block, and XML doc comments. Handles nullable types (string?), arrays (int[]), and async Task<T> return types.",
+  "since_version": "v1.0",
+  "detection_rules": [
+    {
+      "title": "Public type declarations",
+      "description": "Matches public followed by any of class, struct, interface, enum, record, delegate. Handles sealed, partial, abstract, and static modifiers.",
+      "example_code": "public class AuthService {}\npublic struct Config {}\npublic interface IAuthenticator {}\npublic enum AuthStatus { Active, Expired }\npublic record UserProfile(string Name, int Age);\npublic sealed class Singleton {}\npublic partial class UserService {}"
+    },
+    {
+      "title": "Public members",
+      "description": "Matches public methods, properties, and fields. Handles async, virtual, override, abstract, and new modifiers. Supports nullable and array return types.",
+      "example_code": "public string Validate(string token) {}\npublic async Task<string> FetchData() {}\npublic virtual void OnUpdate() {}\npublic string? FindById(int id) {}\npublic int[] GetIds() {}"
+    },
+    {
+      "title": "XML doc comment stripping",
+      "description": "/// XML doc comments are stripped to prevent false positives from inline documentation examples.",
+      "example_code": "/// <summary>Validates a token</summary>\n/// <param name=\"token\">The bearer token</param>\npublic bool Validate(string token) {}"
+    }
+  ],
+  "test_pattern_examples": [
+    { "pattern": "**/*Test.cs", "explanation": "xUnit / NUnit / MSTest test classes — auto-excluded" },
+    { "pattern": "**/*Tests.cs", "explanation": "Alternate test naming — auto-excluded" }
+  ],
+  "example_spec_md": "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/Auth/AuthService.cs\n---\n\n## Purpose\n\n.NET auth service for the C# platform.\n\n## Public API\n\n| Symbol | Kind | Description |\n|--------|------|-------------|\n| `AuthService` | class | Main auth class |\n| `IAuthenticator` | interface | Auth contract |\n| `Validate` | method | Validates a JWT token |\n| `AuthStatus` | enum | Active or Expired states |\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |",
+  "example_source": "namespace Example.Auth;\n\npublic class AuthService {\n    public string Validate(string token) =>\n        string.IsNullOrEmpty(token) ? null : token;\n\n    private void InternalCheck() {}\n}\n\npublic interface IAuthenticator {\n    bool Authenticate(string token);\n}\n\npublic enum AuthStatus { Active, Expired }\npublic record UserProfile(string Name, int Age);",
+  "caveats": [
+    "internal, private, and protected members are excluded.",
+    "Source generators and Roslyn analyzers that emit public code are not detected.",
+    "Extension methods are captured under their method name.",
+    "C# 9+ top-level statements are not captured as named symbols."
+  ],
+  "related_slugs": ["java", "kotlin"],
+  "since_version": "v1.0"
+}

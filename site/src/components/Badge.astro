@@ -1,0 +1,24 @@
+---
+interface Props { dot?: boolean }
+const { dot = false } = Astro.props
+---
+<span class="badge">
+  {dot && <span class="dot" aria-hidden="true" />}
+  <slot />
+</span>
+
+<style is:global>
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 999px;
+    background: var(--accent-muted); color: var(--accent-bright);
+    font-size: 0.875rem; font-weight: 500;
+    border: 1px solid rgba(234,88,12,0.25);
+  }
+  .badge .dot { width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent-bright); box-shadow: 0 0 8px var(--accent-bright); }
+  @media (prefers-reduced-motion: no-preference) {
+    .badge .dot { animation: badge-pulse 2s infinite ease-in-out; }
+    @keyframes badge-pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+  }
+</style>

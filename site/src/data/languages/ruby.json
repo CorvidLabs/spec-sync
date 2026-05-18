@@ -1,0 +1,53 @@
+{
+  "slug": "ruby",
+  "name": "Ruby",
+  "family": "dynamic",
+  "detection_style": "regex",
+  "extensions": [".rb"],
+  "test_patterns": ["*_test.rb", "*_spec.rb"],
+  "exports_detected": [
+    "class and module declarations (always public at namespace level)",
+    "Top-level def (zero indentation, no _ prefix)",
+    "Indented def (respects private/protected visibility markers)",
+    "Constants (UPPERCASE_NAME = ...)",
+    "attr_accessor / attr_reader / attr_writer symbols"
+  ],
+  "description": "Tracks visibility state (public/private/protected) as a line scanner. Methods before a private marker are public. Strips # comments and =begin/=end block comments. initialize is excluded.",
+  "since_version": "v1.0",
+  "detection_rules": [
+    {
+      "title": "Class and module declarations",
+      "description": "class and module names starting with an uppercase letter are always captured as public namespace-level exports.",
+      "example_code": "module Authentication\n  class AuthService\n  end\nend\n\nclass _InternalHelper  # still captured: class names start with uppercase"
+    },
+    {
+      "title": "Visibility-tracked methods",
+      "description": "Methods after a bare private or protected keyword are excluded. Methods before, or after a bare public keyword, are included. initialize is always excluded.",
+      "example_code": "class Foo\n  def public_one; end   # included\n  def public_two; end   # included\n\n  private\n\n  def secret_one; end   # excluded\n\n  public\n\n  def public_again; end # included\n\n  protected\n\n  def also_hidden; end  # excluded\nend"
+    },
+    {
+      "title": "Constants",
+      "description": "Any uppercase-only constant assignment (NAME = value) is captured.",
+      "example_code": "DEFAULT_TTL = 3600\nAPI_VERSION = '1.0'"
+    },
+    {
+      "title": "attr_accessor / attr_reader / attr_writer",
+      "description": "Attribute declarations extract the symbol names as separate exports.",
+      "example_code": "attr_reader :token, :expires_at\nattr_accessor :name, :email"
+    }
+  ],
+  "test_pattern_examples": [
+    { "pattern": "**/*_test.rb", "explanation": "minitest-style test files — auto-excluded" },
+    { "pattern": "**/*_spec.rb", "explanation": "RSpec spec files — auto-excluded" }
+  ],
+  "example_spec_md": "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - lib/auth/service.rb\n---\n\n## Purpose\n\nRuby auth service with JWT validation.\n\n## Public API\n\n| Symbol | Kind | Description |\n|--------|------|-------------|\n| `Authentication` | module | Auth namespace |\n| `AuthService` | class | Auth service class |\n| `validate` | method | Validates a JWT token |\n| `DEFAULT_TTL` | constant | Default TTL in seconds |\n| `token` | attr_reader | Token accessor |\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |",
+  "example_source": "module Authentication\n  class AuthService\n    DEFAULT_TTL = 3600\n\n    attr_reader :token, :expires_at\n\n    def validate(token)\n      !token.nil? && !token.empty?\n    end\n\n    def self.create(config)\n      new(config)\n    end\n\n    private\n\n    def internal_check\n      # internal\n    end\n  end\nend",
+  "caveats": [
+    "Visibility tracking resets at the start of each class/module scope; nested classes start as public again.",
+    "Method aliases (alias_method :new_name, :old_name) are not captured as additional exports.",
+    "Dynamic method definitions (define_method :name do ... end) are not detected.",
+    "Rails-specific DSL exports (has_many, belongs_to, scope, etc.) are not captured."
+  ],
+  "related_slugs": ["python", "php"],
+  "since_version": "v1.0"
+}

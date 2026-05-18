@@ -1,0 +1,92 @@
+---
+interface Props {
+  slug: string
+  name: string
+  family: 'native' | 'managed' | 'dynamic' | 'markup'
+  detection_style: 'ast' | 'regex' | 'hybrid'
+  test_patterns: string[]
+  description: string
+}
+const { slug, name, family, detection_style, test_patterns, description } = Astro.props
+import { base } from '../lib/path'
+
+const familyLabel: Record<string, string> = {
+  native: 'Native',
+  managed: 'Managed',
+  dynamic: 'Dynamic',
+  markup: 'Markup',
+}
+const styleLabel: Record<string, string> = {
+  ast: 'AST',
+  regex: 'Regex',
+  hybrid: 'Hybrid',
+}
+
+const previewPattern = test_patterns[0] ?? ''
+---
+
+<article class="lang-card" data-name={name.toLowerCase()} data-family={family} data-style={detection_style} data-desc={description.toLowerCase()}>
+  <div class="card-inner">
+    <header class="card-head">
+      <span class="lang-name">{name}</span>
+      <div class="tag-row">
+        <span class={`tag tag-family tag-family-${family}`}>{familyLabel[family]}</span>
+        <span class={`tag tag-style tag-style-${detection_style}`}>{styleLabel[detection_style]}</span>
+      </div>
+    </header>
+
+    {previewPattern && (
+      <div class="card-pattern">
+        <code>{previewPattern}</code>
+      </div>
+    )}
+
+    <p class="card-desc">{description}</p>
+
+    <a href={`${base}languages/${slug}`} class="card-link">
+      Read detection rules <span aria-hidden="true">→</span>
+    </a>
+  </div>
+</article>
+
+<style is:global>
+  .lang-card {
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: border-color .15s;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .lang-card { transition: border-color .15s, transform .15s; }
+    .lang-card:hover { transform: translateY(-2px); }
+  }
+  .lang-card:hover { border-color: var(--accent); }
+  .card-inner { padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; height: 100%; }
+
+  .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .lang-card .lang-name { font-size: 1.0625rem; font-weight: 600; color: var(--text); line-height: 1.3; }
+
+  .tag-row { display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
+  .tag { display: inline-block; padding: 3px 9px; border-radius: 4px; font-size: 0.8rem; font-weight: 600;
+    letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid transparent; }
+
+  /* Family tags */
+  .tag-family-native  { color: #34d399; background: rgba(52,211,153,0.10); border-color: rgba(52,211,153,0.25); }
+  .tag-family-managed { color: #60a5fa; background: rgba(96,165,250,0.10); border-color: rgba(96,165,250,0.25); }
+  .tag-family-dynamic { color: #fbbf24; background: rgba(251,191,36,0.10); border-color: rgba(251,191,36,0.25); }
+  .tag-family-markup  { color: #c084fc; background: rgba(192,132,252,0.10); border-color: rgba(192,132,252,0.25); }
+
+  /* Detection-style tags */
+  .tag-style-ast    { color: var(--accent-bright); background: rgba(125,211,252,0.10); border-color: rgba(125,211,252,0.25); }
+  .tag-style-regex  { color: var(--text-muted);    background: rgba(148,163,184,0.08); border-color: rgba(148,163,184,0.20); }
+  .tag-style-hybrid { color: var(--accent);        background: rgba(14,165,233,0.10);  border-color: rgba(14,165,233,0.25); }
+
+  .card-pattern { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; }
+  .card-pattern code { font-family: var(--mono); font-size: 0.875rem; color: var(--accent-bright); }
+
+  .card-desc { color: var(--text-muted); font-size: 0.9375rem; line-height: 1.55; flex: 1; }
+
+  .card-link { color: var(--accent-bright); font-size: 0.9375rem; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 4px; margin-top: auto; }
+  .card-link:hover { text-decoration: underline; }
+</style>

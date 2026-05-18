@@ -1,5 +1,7 @@
 # Agent Instructions — spec-sync
 
+> **Documentation site:** The project documentation lives at `site/` (Astro + MDX). Run `cd site && bun install && bun run build` to build locally. Content is in `site/src/content/docs/`. Do **not** modify `docs/src/` — that mdBook tree has been removed.
+
 This project uses **spec-sync** to keep module specs (`*.spec.md`) aligned with source code.
 Enforcement is **strict** — CI and pre-commit hooks will block on any spec violation.
 

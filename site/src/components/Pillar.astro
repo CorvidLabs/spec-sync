@@ -1,0 +1,23 @@
+---
+interface Props { numeral: string; title: string; command: string }
+const { numeral, title, command } = Astro.props
+---
+<li class="pillar">
+  <p class="num">{numeral}</p>
+  <h3>{title}</h3>
+  <p><slot /></p>
+  <code>{command}</code>
+</li>
+
+<style is:global>
+  .pillar { padding: 28px 24px; background: var(--bg); transition: background .15s; }
+  .pillar:hover { background: var(--bg-raised); }
+  .pillar .num { font-family: var(--serif); font-size: 1rem;
+    color: var(--accent-bright); margin-bottom: 14px; font-style: italic; }
+  .pillar h3 { font-size: 1.25rem; margin-bottom: 8px; letter-spacing: -0.005em; }
+  .pillar p { color: var(--text-muted); font-size: 0.9375rem;
+    line-height: 1.6; margin-bottom: 14px; }
+  .pillar code { font-family: var(--mono); font-size: 0.875rem;
+    color: var(--accent-bright); display: block; padding-top: 10px;
+    border-top: 1px dashed var(--border-strong); }
+</style>

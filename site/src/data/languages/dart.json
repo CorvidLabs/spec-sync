@@ -1,0 +1,45 @@
+{
+  "slug": "dart",
+  "name": "Dart",
+  "family": "native",
+  "detection_style": "regex",
+  "extensions": [".dart"],
+  "test_patterns": ["*_test.dart"],
+  "exports_detected": [
+    "Top-level class / abstract class / mixin / enum / extension / typedef",
+    "Top-level functions and return-typed variables (no _ prefix)",
+    "const / final declarations (no _ prefix)"
+  ],
+  "description": "In Dart, identifiers starting with _ are private; everything else is public. Detects classes, mixins, enums, typedefs, top-level functions, and const/final declarations. Strips comments before matching.",
+  "since_version": "v1.0",
+  "detection_rules": [
+    {
+      "title": "Public types (no _ prefix)",
+      "description": "Matches class, abstract class, mixin, enum, extension, typedef declarations whose name starts with an uppercase letter (Dart convention for types).",
+      "example_code": "class AuthService {}\nabstract class BaseController {}\nmixin LoggerMixin {}\nenum AuthStatus { active, expired }\nextension StringExt on String {}\ntypedef AuthCallback = void Function(String);"
+    },
+    {
+      "title": "const and final declarations",
+      "description": "Top-level const and final declarations without _ prefix are captured.",
+      "example_code": "const defaultTtl = 3600;\nfinal String apiVersion = '1.0';\nconst int maxRetries = 3;"
+    },
+    {
+      "title": "Top-level functions and typed variables",
+      "description": "Functions with explicit return types (Future, Stream, void, int, etc.) are captured. Identifiers starting with _ are private and excluded.",
+      "example_code": "Future<String> fetchData() async {}\nStream<int> countUp() async* {}\nvoid doNothing() {}\n\nvoid _privateHelper() {}  // excluded\nconst _secret = 'hidden'; // excluded"
+    }
+  ],
+  "test_pattern_examples": [
+    { "pattern": "**/*_test.dart", "explanation": "Dart test files — auto-excluded" }
+  ],
+  "example_spec_md": "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - lib/src/auth_service.dart\n---\n\n## Purpose\n\nFlutter/Dart auth service.\n\n## Public API\n\n| Symbol | Kind | Description |\n|--------|------|-------------|\n| `AuthService` | class | Main auth class |\n| `AuthCallback` | typedef | Auth callback type |\n| `defaultTtl` | const | Default TTL in seconds |\n| `fetchData` | Future<String> | Fetches auth data |\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |",
+  "example_source": "class AuthService {\n  final String apiKey;\n  AuthService(this.apiKey);\n\n  Future<bool> validate(String token) async {\n    return token.isNotEmpty;\n  }\n}\n\ntypedef AuthCallback = void Function(String token);\nconst defaultTtl = 3600;\nfinal String apiVersion = '1.0';\n\nFuture<String> fetchData() async => 'data';\n\nvoid _internalHelper() {}  // private, excluded",
+  "caveats": [
+    "Library-level directives (export 'file.dart') are not parsed — only in-file declarations are captured.",
+    "Late variables (late final ...) may not be captured depending on the return-type regex match.",
+    "Dart extension names are captured, but extension members are not individually listed.",
+    "Generated code (*.g.dart files from build_runner) are included if present in source directories."
+  ],
+  "related_slugs": ["swift", "kotlin"],
+  "since_version": "v1.0"
+}

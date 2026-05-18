@@ -1,0 +1,21 @@
+---
+title: "Multi-language repo: TS + Python + Rust"
+tag: "Polyglot"
+steps: 7
+minutes: 10
+pillars: ["validate", "languages"]
+description: "One spec format, three languages, one CI gate."
+order: 2
+---
+
+A monorepo with a TypeScript frontend, a Python ML service, and a Rust binary can share a single spec format. `spec-sync` detects each language automatically and applies the right validation rules per crate or package.
+
+## 1. Check the whole repo at once
+
+```bash
+spec-sync check
+```
+
+`spec-sync` walks the repo, detects TypeScript (via `tsconfig.json`), Python (via `pyproject.toml`), and Rust (via `Cargo.toml`) automatically. All three are validated in a single pass.
+
+(Walkthrough stub — fill in before launch.)

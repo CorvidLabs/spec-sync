@@ -1,0 +1,48 @@
+{
+  "slug": "yaml",
+  "name": "YAML",
+  "family": "markup",
+  "detection_style": "hybrid",
+  "extensions": [".yml", ".yaml"],
+  "test_patterns": [],
+  "exports_detected": [
+    "Top-level mapping keys (any key at column 0)",
+    "Named children of well-known parents: jobs, services, volumes, networks, secrets, stages, steps, targets, outputs, inputs, permissions, deployments",
+    "YAML anchors (&anchor-name)"
+  ],
+  "description": "Regex-based key extraction with anchor/alias awareness. Extracts top-level keys and named sub-entries under well-known structural parents (e.g. jobs.test, services.web). Does not interpret YAML semantics beyond this.",
+  "since_version": "v1.0",
+  "detection_rules": [
+    {
+      "title": "Top-level mapping keys",
+      "description": "Any key at column 0 (no leading whitespace) followed by a colon is a top-level symbol. Pattern: ^(key): with no indentation.",
+      "example_code": "name: CI\non: push\njobs:\n  # ...\nservices:\n  # ..."
+    },
+    {
+      "title": "Named children of well-known parents",
+      "description": "For a fixed set of well-known structural parents (jobs, services, volumes, networks, secrets, stages, steps, targets, outputs, inputs, permissions, deployments), immediate children are extracted as parent.child symbols.",
+      "example_code": "jobs:\n  test:\n    runs-on: ubuntu-latest\n  lint:\n    runs-on: ubuntu-latest\n# Extracted: jobs.test, jobs.lint\n\nservices:\n  web:\n    image: nginx\n  db:\n    image: postgres\n# Extracted: services.web, services.db"
+    },
+    {
+      "title": "YAML anchors",
+      "description": "YAML anchor definitions (&anchor-name) are extracted as named symbols. Aliases (*alias) are not separately captured.",
+      "example_code": "defaults: &defaults\n  timeout: 30\n  retries: 3\n# Extracted anchor: defaults"
+    },
+    {
+      "title": "Multi-document YAML",
+      "description": "Files with --- separators (Kubernetes manifests, etc.) are handled correctly. Top-level keys from all documents are extracted.",
+      "example_code": "apiVersion: apps/v1\nkind: Deployment\n---\napiVersion: v1\nkind: Service\n# Extracts: apiVersion, kind from both documents"
+    }
+  ],
+  "test_pattern_examples": [],
+  "example_spec_md": "---\nmodule: ci-workflow\nversion: 1\nstatus: stable\nfiles:\n  - .github/workflows/ci.yml\n---\n\n## Purpose\n\nCI/CD workflow configuration.\n\n## Public API\n\n| Symbol | Kind | Description |\n|--------|------|-------------|\n| `jobs` | mapping | CI job definitions |\n| `jobs.test` | job | Run test suite |\n| `jobs.lint` | job | Run linters |\n| `jobs.build` | job | Build artifacts |\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |",
+  "example_source": "name: CI\non:\n  push:\n    branches: [main]\n  pull_request:\n\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: cargo test\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - run: cargo clippy\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: cargo build --release",
+  "caveats": [
+    "Regex-based parsing; does not interpret full YAML semantics (merge keys, complex scalars, etc.).",
+    "Multi-document YAML (---) is supported for top-level keys but nested children are only extracted from the first occurrence of a well-known parent.",
+    "Flow-style YAML ({key: value}) is not parsed for top-level keys.",
+    "Only the fixed list of well-known parent keys produces dotted child symbols; arbitrary nested keys are not extracted."
+  ],
+  "related_slugs": ["typescript", "python"],
+  "since_version": "v1.0"
+}

@@ -1,0 +1,30 @@
+---
+title: "CI gate with the GitHub Action"
+tag: "CI / CD"
+steps: 5
+minutes: 7
+pillars: ["integrate"]
+description: "Block merges when specs drift from code."
+order: 3
+---
+
+Add the `specsync` GitHub Action to your workflow and any pull request that introduces spec drift will fail the check — before it merges.
+
+## 1. Add the action
+
+```yaml
+# .github/workflows/spec-sync.yml
+name: spec-sync check
+on: [pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: CorvidLabs/specsync-action@v1
+```
+
+The action installs `spec-sync`, runs `spec-sync check --strict`, and annotates any drift directly in the PR diff view.
+
+(Walkthrough stub — fill in before launch.)

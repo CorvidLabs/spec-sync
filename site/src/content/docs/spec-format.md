@@ -1,0 +1,245 @@
+---
+title: "Spec Format"
+section: "Spec format"
+order: 0
+---
+
+Specs are markdown files (`*.spec.md`) with YAML frontmatter, placed in your specs directory (default: `specs/`).
+
+---
+
+## Frontmatter
+
+```yaml
+---
+module: auth
+version: 3
+status: stable
+files:
+  - src/auth/service.ts
+  - src/auth/middleware.ts
+db_tables:
+  - users
+  - sessions
+depends_on:
+  - specs/database/database.spec.md
+---
+```
+
+### Required Fields
+
+| Field | Type | Description |
+|:------|:-----|:------------|
+| `module` | `string` | Module name for display and identification |
+| `version` | `number` | Increment when the spec changes |
+| `status` | `enum` | `draft`, `review`, `stable`, or `deprecated` |
+| `files` | `string[]` | Source files this spec covers (must be non-empty) |
+
+### Optional Fields
+
+| Field | Type | Description |
+|:------|:-----|:------------|
+| `db_tables` | `string[]` | Validated against `CREATE TABLE` statements in your `schemaDir` |
+| `depends_on` | `string[]` | Local paths or cross-project refs — validated for existence |
+
+`depends_on` supports two formats:
+
+```yaml
+depends_on:
+  - specs/database/database.spec.md          # Local path (validated by check + resolve)
+  - corvid-labs/algochat@messaging           # Cross-project ref (validated by resolve --remote)
+```
+
+Cross-project refs use the `owner/repo@module` syntax. Local refs are verified by `specsync check` and `specsync resolve`. Cross-project refs require `specsync resolve --remote` which fetches the target repo's `.specsync/registry.toml` from GitHub. See [Cross-Project References](cross-project-refs.md) for the full workflow.
+
+---
+
+## Required Sections
+
+Every spec must include these `## Heading` sections (configurable via `required_sections` in `.specsync/config.toml`):
+
+| Section | What SpecSync checks |
+|:--------|:---------------------|
+| `## Purpose` | Presence only |
+| `## Public API` | Backtick-quoted symbols cross-referenced against code exports |
+| `## Invariants` | Presence only |
+| `## Behavioral Examples` | Presence only |
+| `## Error Cases` | Presence only |
+| `## Dependencies` | Presence only |
+| `## Change Log` | Presence only |
+
+Override the list in config:
+
+```toml
+# .specsync/config.toml
+required_sections = ["Purpose", "Public API"]
+```
+
+---
+
+## Public API Tables
+
+The core of what SpecSync validates. Use markdown tables with **backtick-quoted symbol names** — SpecSync extracts the first backtick-quoted identifier per row and cross-references it against code exports.
+
+```markdown
+## Public API
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `authenticate` | `(token: string)` | `User \| null` | Validates bearer token |
+```
+
+> Column headers don't matter. SpecSync only reads backtick-quoted names in the first column. Structure the table however suits your team.
+
+### Validated vs Informational Subsections
+
+Only `### Exported ...` subsections trigger export validation. Use other heading names to document non-export API surface without triggering validation errors:
+
+```markdown
+## Public API
+
+### Exported Functions              ← validated against code exports
+| Function | Description |
+|----------|-------------|
+| `authenticate` | Validates token |
+
+### API Endpoints                   ← informational, NOT validated
+| Endpoint | Method | Handler | Description |
+|----------|--------|---------|-------------|
+| `/login` | POST | `login` | Login route |
+
+### Component API                   ← informational, NOT validated
+| Signal | Type | Description |
+|--------|------|-------------|
+| `activeTab` | string | Current tab |
+
+### Configuration                   ← informational, NOT validated
+| Key | Type | Default |
+|-----|------|---------|
+| `timeout` | number | 30 |
+```
+
+This lets specs document the full API surface — HTTP endpoints, component signals, route handlers, config options — alongside validated exports, all in one place.
+
+> Tables placed directly under `## Public API` (without a `###` subsection) are always validated.
+
+---
+
+## Consumed By Section
+
+Track reverse dependencies under `## Dependencies`. SpecSync validates that referenced files exist:
+
+```markdown
+## Dependencies
+
+### Consumed By
+
+| Module | Usage |
+|--------|-------|
+| api-gateway | Uses `authenticate()` middleware |
+```
+
+---
+
+## Custom Templates
+
+`specsync generate` uses `specs/_template.spec.md` if present, otherwise a built-in default. The generator auto-fills:
+- `module:` — directory name
+- `version:` — `1`
+- `status:` — `draft`
+- `files:` — discovered source files
+
+---
+
+## Full Example
+
+<details markdown="block">
+<summary>Complete spec file</summary>
+
+```markdown
+---
+module: auth
+version: 3
+status: stable
+files:
+  - src/auth/service.ts
+  - src/auth/middleware.ts
+db_tables:
+  - users
+  - sessions
+depends_on:
+  - specs/database/database.spec.md
+---
+
+# Auth
+
+## Purpose
+
+Handles authentication and session management. Validates bearer tokens,
+manages session lifecycle, provides middleware for route protection.
+
+## Public API
+
+### Exported Functions
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `authenticate` | `(token: string)` | `User \| null` | Validates a token |
+| `refreshSession` | `(sessionId: string)` | `Session` | Extends session TTL |
+
+### Exported Types
+
+| Type | Description |
+|------|-------------|
+| `User` | Authenticated user object |
+| `Session` | Active session record |
+
+## Invariants
+
+1. Sessions expire after 24 hours
+2. Failed auth attempts rate-limited to 5/minute
+3. Tokens validated cryptographically, never by string comparison
+
+## Behavioral Examples
+
+### Scenario: Valid token
+
+- **Given** a valid JWT token
+- **When** `authenticate()` is called
+- **Then** returns the corresponding User object
+
+### Scenario: Expired token
+
+- **Given** an expired JWT token
+- **When** `authenticate()` is called
+- **Then** returns null and logs a warning
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+| Expired token | Returns null, logs warning |
+| Malformed token | Returns null |
+| DB unavailable | Throws `ServiceUnavailableError` |
+
+## Dependencies
+
+| Module | Usage |
+|--------|-------|
+| database | `query()` for user lookups |
+| crypto | `verifyJwt()` for token validation |
+
+### Consumed By
+
+| Module | Usage |
+|--------|-------|
+| api-gateway | Uses `authenticate()` middleware |
+
+## Change Log
+
+| Date | Change |
+|------|--------|
+| 2026-03-18 | Initial spec |
+```
+
+</details>

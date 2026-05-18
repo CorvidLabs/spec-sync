@@ -1,0 +1,235 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+import Badge from '../components/Badge.astro'
+import Button from '../components/Button.astro'
+import Terminal from '../components/Terminal.astro'
+import Pillar from '../components/Pillar.astro'
+import { base } from '../lib/path'
+---
+<BaseLayout title="spec-sync — keep your docs honest">
+<main id="main">
+
+<section class="hero" aria-labelledby="hero-h">
+  <div class="container">
+    <div class="hero-grid">
+      <div>
+        <Badge dot>12 languages · GitHub Marketplace</Badge>
+        <h1 class="hero-h1" id="hero-h">Keep your docs<br>ready to <span class="honest">be honest.</span></h1>
+        <p class="hero-sub">Bidirectional spec-to-code validation. Cross-project refs. AI generation. CI-enforced contract checking — in any language.</p>
+        <div class="hero-actions">
+          <Button href={`${base}docs/quickstart`} variant="primary">Get started <span aria-hidden="true">→</span></Button>
+          <Button href={`${base}languages`} variant="secondary">Browse 12 languages</Button>
+        </div>
+        <p class="hero-fineprint">Install in a single command: <code>cargo install specsync</code></p>
+      </div>
+      <div>
+        <Terminal title="~/myproject — spec-sync">
+          <div class="term-line term-comment"># spec-sync: keep your docs honest</div>
+          <div class="term-line"><span class="term-prompt">$ </span>spec-sync check</div>
+          <div class="term-line term-out">  Reading 12 *.spec.md files...</div>
+          <div class="term-line term-bad">  ✗ src/api/users.rs: undocumented export `delete_user`</div>
+          <div class="term-line term-bad">  ✗ specs/auth.spec.md: phantom entry `validateToken` (not in code)</div>
+          <div class="term-line"><span class="term-prompt">$ </span>spec-sync generate --module auth</div>
+          <div class="term-line term-good">  ★ Generated specs/auth.spec.md</div>
+          <div class="term-line term-good">  ★ Drafted 8 missing entries</div>
+          <div class="term-line"><span class="term-prompt">$ </span>spec-sync check</div>
+          <div class="term-line term-good">  ✓ all 12 specs in sync</div>
+          <div class="term-line"><span class="term-prompt">$ </span><span class="blink" aria-hidden="true" /></div>
+        </Terminal>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="stats" aria-label="Key numbers">
+  <div class="container">
+    <ul class="stats-grid">
+      <li class="stat"><div class="num">12</div><div class="lbl">languages</div><div class="sub">supported</div></li>
+      <li class="stat"><div class="num">6</div><div class="lbl">powers</div><div class="sub">validate · generate · integrate · cross-refs · extend</div></li>
+      <li class="stat"><div class="num">1</div><div class="lbl">spec format</div><div class="sub">open, portable, language-agnostic</div></li>
+      <li class="stat"><div class="num">1</div><div class="lbl">binary</div><div class="sub">install, done</div></li>
+    </ul>
+  </div>
+</section>
+
+
+<section class="pillars" aria-labelledby="pillars-h">
+  <div class="container">
+    <header class="section-head">
+      <p class="section-eyebrow">Six powers</p>
+      <h2 id="pillars-h">Everything you need to keep your <em>docs</em><br>and <em>code</em> in sync.</h2>
+      <p>Each power is a focused subcommand. Wire any combination into your CI. Pick what you need.</p>
+    </header>
+    <ul class="pillars-grid">
+      <Pillar numeral="i."   title="Validate"   command="$ spec-sync check">Bidirectional. Code → spec and spec → code. Errors on drift.</Pillar>
+      <Pillar numeral="ii."  title="Languages"  command="12 detected">TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML.</Pillar>
+      <Pillar numeral="iii." title="Generate"   command="$ spec-sync generate">AI-assisted spec generation from existing code. Any provider.</Pillar>
+      <Pillar numeral="iv."  title="Integrate"  command="vscode | gh actions">VS Code extension + GitHub Action + CLI. Drop into any CI.</Pillar>
+      <Pillar numeral="v."   title="Cross-refs" command="$ spec-sync graph">Reference exports across repos. Dependency graph included.</Pillar>
+      <Pillar numeral="vi."  title="Extend"     command="$ spec-sync --config">Custom validators, hooks, output formats. Open file formats.</Pillar>
+    </ul>
+  </div>
+</section>
+
+{/* TODO(Phase 4): replace hardcoded list with getCollection or import from languages.json */}
+<section class="langs-strip" aria-labelledby="langs-h">
+  <div class="container">
+    <div class="strip-head">
+      <h2 id="langs-h">12 languages <em>and counting.</em></h2>
+      <a href={`${base}languages`} class="link">Browse all languages <span aria-hidden="true">→</span></a>
+    </div>
+    <ul class="lang-grid">
+      <li><a href={`${base}languages/typescript`} class="lang-card">
+        <div class="lang-head"><span class="lang-name">TypeScript</span><span class="lang-tag">managed</span></div>
+        <p>Full AST-based detection. Tracks exports, types, and interfaces.</p>
+      </a></li>
+      <li><a href={`${base}languages/rust`} class="lang-card">
+        <div class="lang-head"><span class="lang-name">Rust</span><span class="lang-tag">native</span></div>
+        <p>pub items, traits, and modules. Workspace-aware.</p>
+      </a></li>
+      <li><a href={`${base}languages/go`} class="lang-card">
+        <div class="lang-head"><span class="lang-name">Go</span><span class="lang-tag">native</span></div>
+        <p>Exported identifiers by convention. Package-level scoping.</p>
+      </a></li>
+      <li><a href={`${base}languages/python`} class="lang-card">
+        <div class="lang-head"><span class="lang-name">Python</span><span class="lang-tag">dynamic</span></div>
+        <p>__all__, class definitions, and public function detection.</p>
+      </a></li>
+    </ul>
+  </div>
+</section>
+
+<section class="examples-teaser" aria-labelledby="ex-h">
+  <div class="container">
+    <header class="section-head">
+      <p class="section-eyebrow">Walkthroughs</p>
+      <h2 id="ex-h">See it on a <em>real</em> project.</h2>
+      <p>End-to-end examples — every command, every file, every output.</p>
+    </header>
+    <ul class="ex-grid">
+      <li><a href={`${base}examples/rust-workspace`} class="ex-card">
+        <span class="ex-tag">Rust workspace</span>
+        <h3>Sync a Rust workspace end-to-end</h3>
+        <p>Full spec-sync setup for a multi-crate Rust workspace with CI enforcement.</p>
+        <div class="ex-meta">rust-workspace</div>
+      </a></li>
+      <li><a href={`${base}examples/polyglot`} class="ex-card">
+        <span class="ex-tag">Polyglot</span>
+        <h3>Multi-language repo: TS + Python + Rust</h3>
+        <p>Configure spec-sync across three runtimes in one repository.</p>
+        <div class="ex-meta">polyglot</div>
+      </a></li>
+      <li><a href={`${base}examples/ci-gate`} class="ex-card">
+        <span class="ex-tag">CI / CD</span>
+        <h3>CI gate with the GitHub Action</h3>
+        <p>Enforce spec sync on every pull request with the official GitHub Action.</p>
+        <div class="ex-meta">ci-gate</div>
+      </a></li>
+    </ul>
+  </div>
+</section>
+
+<section class="cta-banner" aria-labelledby="cta-h">
+  <div class="container">
+    <h2 id="cta-h">Stop documenting in <em>fiction.</em><br>Sync up.</h2>
+    <p>Install spec-sync and run your first check in under a minute.</p>
+    <div class="cta-install">
+      <span aria-hidden="true" style="color: var(--accent-bright);">$</span>
+      <code>cargo install specsync</code>
+    </div>
+    <div class="cta-actions">
+      <Button href={`${base}docs`} variant="primary">Read the docs</Button>
+      <Button href={`${base}languages`} variant="secondary">Browse languages</Button>
+    </div>
+  </div>
+</section>
+
+</main>
+</BaseLayout>
+
+<style>
+  main { background-image: radial-gradient(ellipse 1200px 600px at 50% -200px, rgba(14,165,233,0.12), transparent 70%); }
+  .hero { padding: 80px 0 60px; }
+  .hero-grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
+  .hero-h1 { font-size: clamp(2.4rem, 5vw, 3.6rem); line-height: 1.05; letter-spacing: -0.025em; margin: 22px 0; }
+  .hero-h1 .honest { background: linear-gradient(120deg, var(--accent-bright) 0%, var(--accent) 60%, var(--accent-deep) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    font-style: italic; font-family: var(--serif); font-weight: 500; }
+  .hero-sub { color: var(--text-muted); font-size: 1.125rem; max-width: 480px; margin-bottom: 28px; line-height: 1.6; }
+  .hero-actions { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+  .hero-fineprint { color: var(--text-muted); font-size: 0.9375rem; }
+  .hero-fineprint code { background: var(--bg-raised); padding: 4px 8px; border-radius: 4px;
+    border: 1px solid var(--border); color: var(--accent-bright);
+    font-family: var(--mono); font-size: 0.875rem; }
+  .stats { padding: 60px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    margin-top: 40px; background: linear-gradient(180deg, transparent, rgba(14,165,233,0.025), transparent); }
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; }
+  .stat .num { font-size: 2.5rem; font-weight: 700; letter-spacing: -0.02em;
+    color: var(--accent-bright); font-family: var(--serif); line-height: 1; }
+  .stat .lbl { color: var(--text); font-size: 1rem; margin-top: 8px; font-weight: 500; }
+  .stat .sub { color: var(--text-muted); font-size: 0.875rem; margin-top: 4px; }
+  .term-bad { color: #f87171; }
+  .pillars { padding: 100px 0 40px; }
+  .section-head { margin-bottom: 48px; }
+  .section-eyebrow { color: var(--accent-bright); font-size: 0.875rem; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px; }
+  .section-head h2 { font-size: clamp(1.85rem, 3.5vw, 2.6rem); letter-spacing: -0.02em;
+    max-width: 580px; line-height: 1.15; margin-bottom: 14px; }
+  .section-head h2 em { font-style: italic; font-family: var(--serif);
+    color: var(--accent-bright); font-weight: 400; }
+  .section-head p { color: var(--text-muted); font-size: 1.0625rem; max-width: 580px; }
+  .pillars-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+    background: var(--border); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; }
+  .langs-strip { padding: 80px 0; }
+  .strip-head { display: flex; justify-content: space-between; align-items: end;
+    margin-bottom: 32px; gap: 16px; flex-wrap: wrap; }
+  .strip-head h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -0.015em; }
+  .strip-head h2 em { font-family: var(--serif); font-style: italic; color: var(--accent-bright); font-weight: 400; }
+  .strip-head .link { color: var(--accent-bright); font-size: 0.9375rem; padding: 8px 0; }
+  .strip-head .link:hover { text-decoration: underline; }
+  .lang-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .lang-card { display: block; padding: 20px; background: var(--bg-raised);
+    border: 1px solid var(--border); border-radius: 8px;
+    transition: border-color .15s; color: inherit; text-decoration: none; }
+  .lang-card:hover { border-color: var(--accent); }
+  .lang-head { display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px; gap: 8px; }
+  .lang-name { font-family: var(--mono); font-size: 0.9375rem; color: var(--text); }
+  .lang-tag { font-size: 0.8125rem; padding: 3px 8px; border-radius: 4px;
+    background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+  .lang-card p { color: var(--text-muted); font-size: 0.9375rem; line-height: 1.5; }
+  .examples-teaser { padding: 80px 0; background: linear-gradient(180deg, transparent, rgba(14,165,233,0.03)); }
+  .ex-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 32px; }
+  .ex-card { display: block; padding: 26px; background: var(--bg-raised);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    transition: border-color .15s; }
+  @media (prefers-reduced-motion: no-preference) {
+    .ex-card { transition: border-color .15s, transform .15s; }
+    .ex-card:hover { transform: translateY(-2px); }
+  }
+  .ex-card:hover { border-color: var(--accent); }
+  .ex-tag { display: inline-block; padding: 4px 10px; border-radius: 4px;
+    background: var(--accent-muted); color: var(--accent-bright);
+    font-size: 0.8125rem; font-weight: 600;
+    margin-bottom: 14px; letter-spacing: 0.05em; text-transform: uppercase; }
+  .ex-card h3 { font-size: 1.125rem; margin-bottom: 8px; }
+  .ex-card p { color: var(--text-muted); font-size: 0.9375rem; margin-bottom: 12px; line-height: 1.55; }
+  .ex-card .ex-meta { color: var(--text-dim); font-size: 0.875rem; font-family: var(--mono); }
+
+  .cta-banner { padding: 120px 0 100px; text-align: center; position: relative; overflow: hidden; }
+  .cta-banner::before { content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse 800px 400px at center, var(--accent-glow), transparent 70%);
+    pointer-events: none; }
+  .cta-banner > * { position: relative; }
+  .cta-banner h2 { font-size: clamp(2rem, 4vw, 2.8rem); max-width: 640px;
+    margin: 0 auto 16px; letter-spacing: -0.02em; line-height: 1.15; }
+  .cta-banner h2 em { font-family: var(--serif); font-style: italic;
+    color: var(--accent-bright); font-weight: 400; }
+  .cta-banner p { color: var(--text-muted); margin: 0 auto 28px; max-width: 460px; font-size: 1.0625rem; }
+  .cta-install { display: inline-flex; align-items: center; gap: 14px;
+    padding: 16px 22px; background: var(--bg-raised); border: 1px solid var(--border-strong);
+    border-radius: 10px; font-family: var(--mono); font-size: 1rem; }
+  .cta-actions { display: flex; gap: 12px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
+  @media (max-width: 900px) { .hero-grid, .stats-grid, .pillars-grid, .lang-grid, .ex-grid { grid-template-columns: 1fr; } }
+</style>

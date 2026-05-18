@@ -61,13 +61,27 @@ Use the [Feature Request](https://github.com/CorvidLabs/spec-sync/issues/new?tem
 - Your proposed solution
 - Alternatives you've considered
 
+### Documentation
+
+The documentation marketing site lives in `site/` (Astro + MDX). To work on docs locally:
+
+```bash
+cd site
+bun install
+bun run dev       # dev server at localhost:4321
+bun run build     # production build → site/dist/
+bun test          # run all site tests
+```
+
+Docs content lives in `site/src/content/docs/`. The site is deployed automatically to GitHub Pages on every push to `main` via `.github/workflows/pages.yml`.
+
 ### Pull Requests
 
 1. Fork the repo and create a branch from `main`
 2. Make your changes
 3. Add or update tests as needed
 4. Run `cargo test` and `cargo clippy` — everything must pass
-5. Update documentation if you changed behavior
+5. Update documentation if you changed behavior (`site/src/content/docs/`)
 6. Open a PR using the [PR template](.github/PULL_REQUEST_TEMPLATE.md)
 
 ### Adding a Language Parser
@@ -82,7 +96,7 @@ SpecSync supports 11 languages via parsers in `src/parser/`. To add a new one:
    - Visibility filtering (skip private/internal items)
    - Test file exclusion patterns
 5. Update `README.md` with the language in the supported languages table
-6. Update `docs/spec-format.md` if the language has any special behaviors
+6. Update `site/src/content/docs/spec-format.md` if the language has any special behaviors
 
 ### Commit Messages
 
@@ -112,7 +126,7 @@ src/
 tests/
   fixtures/     # Test fixture files per language
   integration/  # Integration tests
-docs/           # Documentation site (Jekyll)
+site/           # Documentation marketing site (Astro + MDX)
 ```
 
 ## License

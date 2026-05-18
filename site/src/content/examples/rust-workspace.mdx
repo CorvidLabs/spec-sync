@@ -1,0 +1,83 @@
+---
+title: "Sync a Rust workspace end-to-end"
+tag: "Rust workspace"
+steps: 8
+minutes: 12
+pillars: ["validate", "generate"]
+description: "From `spec-sync check` to a tagged release, with cross-crate references."
+featured: true
+order: 1
+---
+
+import Callout from '../../components/Callout.astro'
+
+This walkthrough takes a Cargo workspace from drift to in-sync in eight commands.
+
+## 1. Check what's drifted
+
+```bash
+spec-sync check
+```
+
+Running `spec-sync check` from the workspace root reads every `*.spec.md` file and validates it against the source code in each crate. Any export that's documented but missing from the code — or present in the code but absent from the spec — is reported as an error.
+
+## 2. Inspect the drift report
+
+```
+  Reading 14 *.spec.md files across 3 crates...
+  ✗ crates/api/src/lib.rs: undocumented export `delete_user`
+  ✗ crates/core/src/config.rs: spec references `Config::merge` but no such method exists
+  2 errors — run `spec-sync generate --fix` to auto-patch
+```
+
+Each error tells you exactly which file, which export, and which direction the drift goes.
+
+## 3. Auto-generate missing spec entries
+
+```bash
+spec-sync generate --fix
+```
+
+`spec-sync generate` uses your configured AI provider to draft spec entries for any undocumented exports. With `--fix` it writes those drafts directly into the relevant `*.spec.md` files. Review the diff before committing.
+
+## 4. Resolve phantom references
+
+For `Config::merge` — a method referenced in the spec but removed from the code — you need to decide: restore the method or update the spec. Editing the spec directly is fine:
+
+```bash
+# Remove the stale section from crates/core/specs/config.spec.md
+spec-sync check   # should now show 0 errors for that crate
+```
+
+## 5. Validate cross-crate references
+
+```bash
+spec-sync graph
+```
+
+`spec-sync graph` renders the dependency graph between your spec files across crates. This is especially useful when one crate's spec references types or traits exported by another.
+
+<Callout type="tip">
+  **Tip:** `spec-sync graph` shows you which crates depend on which spec files, so you know what to update first when a shared type changes.
+</Callout>
+
+## 6. Run CI-clean check
+
+```bash
+spec-sync check --strict
+```
+
+`--strict` exits non-zero on any warning, not just errors. Use this in CI so drift never reaches `main`.
+
+## 7. Tag the release
+
+Once everything is clean, your normal release flow applies. The spec is already committed alongside the code — no separate docs-deploy step needed.
+
+## 8. Verify the final state
+
+```bash
+spec-sync check
+# 0 errors, 0 warnings — workspace in sync
+```
+
+(...rest of walkthrough — placeholder content acceptable for v1...)

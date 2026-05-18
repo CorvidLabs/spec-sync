@@ -198,31 +198,31 @@ import languages from '../../data/languages.json' with { type: 'json' }
 
   .search-wrap { display: flex; align-items: center; gap: 10px;
     background: var(--bg-raised); border: 1px solid var(--border);
-    border-radius: 8px; padding: 0 14px; max-width: 520px; }
+    border-radius: 8px; padding: 0 14px; max-width: 520px; width: 100%;
+    box-sizing: border-box; }
   .search-wrap:focus-within { border-color: var(--accent); }
   .search-icon { color: var(--text-dim); flex-shrink: 0; }
   .search-wrap input { flex: 1; background: none; border: none; outline: none;
     color: var(--text); font-size: 0.9375rem; padding: 12px 0;
-    font-family: var(--font); min-height: var(--tap); }
+    font-family: var(--font); min-height: var(--tap); min-width: 0; }
   .search-wrap input::placeholder { color: var(--text-dim); }
 
   .filter-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .filter-label { color: var(--text-dim); font-size: 0.875rem; font-weight: 500;
-    min-width: 72px; }
+  .filter-label { color: var(--text-dim); font-size: 0.875rem; font-weight: 500; }
   .chip { background: var(--bg-raised); border: 1px solid var(--border);
     color: var(--text-muted); font-size: 0.875rem; font-weight: 500;
-    padding: 6px 14px; border-radius: 999px; cursor: pointer;
+    padding: 10px 14px; border-radius: 999px; cursor: pointer;
     transition: border-color .12s, color .12s, background .12s;
-    min-height: 36px; }
+    min-height: 44px; }
   .chip:hover { border-color: var(--accent); color: var(--accent-bright); }
   .chip.active { border-color: var(--accent); color: var(--accent-bright);
     background: var(--accent-muted); }
 
   .results-count { color: var(--text-dim); font-size: 0.9375rem; margin-bottom: 20px; }
 
-  .lang-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-  @media (max-width: 960px) { .lang-grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 600px) { .lang-grid { grid-template-columns: 1fr; } }
+  .lang-grid { display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+    gap: 16px; }
 
   .lang-item[hidden] { display: none; }
 

@@ -10,7 +10,7 @@
     "public abstract class / sealed class",
     "public methods and fields (including static, final, synchronized, generic)"
   ],
-  "description": "Detects top-level public types and public class members. Strips single-line and block comments (including Javadoc). Handles generics in method signatures.",
+  "description": "☕ Detects public types and members across classes, interfaces, enums, and records. Generics included.",
   "since_version": "v1.0",
   "detection_rules": [
     {

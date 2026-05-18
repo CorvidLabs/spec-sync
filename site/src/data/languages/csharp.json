@@ -10,7 +10,7 @@
     "public sealed / partial / abstract / static types",
     "public methods, properties, fields (including async, virtual, override)"
   ],
-  "description": "Detects public types and public members. Strips single-line, block, and XML doc comments. Handles nullable types (string?), arrays (int[]), and async Task<T> return types.",
+  "description": "💎 Detects public types and members including nullable, async, and array signatures. XML doc-safe.",
   "since_version": "v1.0",
   "detection_rules": [
     {

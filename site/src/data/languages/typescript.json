@@ -12,7 +12,7 @@
     "export * as Namespace from '...' wildcard namespace",
     "export * from '...' wildcard resolution (with resolver)"
   ],
-  "description": "Regex-based export detection that strips comments and handles re-exports. Resolves barrel files and wildcard re-exports when a file resolver is provided. Skips .d.ts and test files.",
+  "description": "📘 Catches every TS/JS export including re-exports and barrel files. Skips .d.ts and tests automatically.",
   "since_version": "v1.0",
   "detection_rules": [
     {

@@ -10,7 +10,7 @@
     "data class / sealed class / enum class / annotation class",
     "suspend fun / inline fun"
   ],
-  "description": "In Kotlin, declarations are public by default. Skips lines with private, internal, or protected modifiers. Companion objects are excluded as standalone exports.",
+  "description": "🟪 Everything public by default — skips private, internal, and protected. Companion objects stay out.",
   "since_version": "v1.0",
   "detection_rules": [
     {

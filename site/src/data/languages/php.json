@@ -11,7 +11,7 @@
     "public function / public static function (skips private/protected and __ magic methods)",
     "public const / const at top level"
   ],
-  "description": "Types (class, interface, trait, enum) are always included. Functions and constants are included unless marked private or protected. Magic methods (__construct, __toString, etc.) are always skipped. Strips //, /* */, and # comments.",
+  "description": "🐘 Types always in; functions and constants unless private or protected. Magic methods always out.",
   "since_version": "v1.0",
   "detection_rules": [
     {

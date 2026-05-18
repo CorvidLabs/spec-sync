@@ -12,7 +12,7 @@
     "Constants (UPPERCASE_NAME = ...)",
     "attr_accessor / attr_reader / attr_writer symbols"
   ],
-  "description": "Tracks visibility state (public/private/protected) as a line scanner. Methods before a private marker are public. Strips # comments and =begin/=end block comments. initialize is excluded.",
+  "description": "🔴 Tracks public/private visibility as it scans. Methods before a private marker are public. initialize excluded.",
   "since_version": "v1.0",
   "detection_rules": [
     {

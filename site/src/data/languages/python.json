@@ -10,7 +10,7 @@
     "Top-level def / async def without _ prefix (fallback)",
     "Top-level class without _ prefix (fallback)"
   ],
-  "description": "Respects __all__ as the authoritative export list. Without __all__, detects top-level functions and classes whose names don't start with an underscore. Private dunder methods (__init__ etc.) are excluded.",
+  "description": "🐍 Respects __all__ when present; falls back to top-level defs and classes without underscore prefixes.",
   "since_version": "v1.0",
   "detection_rules": [
     {

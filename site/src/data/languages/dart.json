@@ -10,7 +10,7 @@
     "Top-level functions and return-typed variables (no _ prefix)",
     "const / final declarations (no _ prefix)"
   ],
-  "description": "In Dart, identifiers starting with _ are private; everything else is public. Detects classes, mixins, enums, typedefs, top-level functions, and const/final declarations. Strips comments before matching.",
+  "description": "🎯 Leading underscore = private; everything else is fair game. Catches classes, mixins, enums, and top-level fns.",
   "since_version": "v1.0",
   "detection_rules": [
     {

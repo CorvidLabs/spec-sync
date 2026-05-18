@@ -13,6 +13,10 @@ const { title, description, section } = Astro.props
 <div class="docs-grid">
   <Sidebar />
   <main id="main" class="article">
+    <button class="contents-toggle" id="contents-toggle" aria-expanded="false" aria-controls="docs-sidebar">
+      Contents
+      <span class="contents-chevron" aria-hidden="true">▾</span>
+    </button>
     <nav class="breadcrumb" aria-label="Breadcrumb">
       <a href={`${base}docs`}>Docs</a>
       <span class="sep" aria-hidden="true">/</span>
@@ -28,9 +32,23 @@ const { title, description, section } = Astro.props
 </div>
 </BaseLayout>
 
+<script>
+  const toggle = document.getElementById('contents-toggle')
+  const sidebar = document.querySelector('.sidebar') as HTMLElement | null
+  if (toggle && sidebar) {
+    sidebar.id = 'docs-sidebar'
+    toggle.addEventListener('click', () => {
+      const expanded = toggle.getAttribute('aria-expanded') === 'true'
+      toggle.setAttribute('aria-expanded', String(!expanded))
+      sidebar.classList.toggle('sidebar-open', !expanded)
+    })
+  }
+</script>
+
 <style>
   .docs-grid { display: grid; grid-template-columns: 260px 1fr; max-width: 1400px; margin: 0 auto; }
   .article { padding: 48px 56px; max-width: 800px; }
+  .contents-toggle { display: none; }
   .breadcrumb { display: flex; gap: 8px; align-items: center; color: var(--text-dim); font-size: 0.875rem; margin-bottom: 20px; flex-wrap: wrap; }
   .breadcrumb a { color: var(--text-muted); }
   .breadcrumb a:hover { color: var(--accent-bright); }
@@ -47,7 +65,33 @@ const { title, description, section } = Astro.props
   .doc-body :global(pre code) { background: transparent; border: 0; padding: 0; color: var(--text); }
   @media (max-width: 900px) {
     .docs-grid { grid-template-columns: 1fr; }
-    .sidebar { display: none; }
+    :global(.sidebar) { display: none; }
+    :global(.sidebar.sidebar-open) {
+      display: block;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      padding: 16px 20px;
+      background: var(--bg-raised);
+    }
     .article { padding: 28px 20px; }
+    .contents-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--accent-bright);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      padding: 10px 16px;
+      min-height: 44px;
+      margin-bottom: 20px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .contents-toggle:hover { border-color: var(--accent-bright); }
+    .contents-chevron { margin-left: auto; transition: transform .15s; }
+    .contents-toggle[aria-expanded="true"] .contents-chevron { transform: rotate(180deg); }
   }
 </style>

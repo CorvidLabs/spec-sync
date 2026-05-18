@@ -19,7 +19,7 @@ const isActive = (href: string) => current === href.replace(/\/$/, '')
       <span class="nav-version">{VERSION}</span>
     </a>
     <nav aria-label="Primary">
-      <ul class="nav-links">
+      <ul class="nav-links" id="nav-links">
         {links.map(l => (
           <li>
             <a href={l.href} class={isActive(l.href) ? 'active' : ''}
@@ -35,8 +35,32 @@ const isActive = (href: string) => current === href.replace(/\/$/, '')
       </a>
       <Button href={`${base}docs/quickstart`} variant="primary">Install</Button>
     </div>
+    <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav-links">
+      <span class="ham-bar"></span>
+      <span class="ham-bar"></span>
+      <span class="ham-bar"></span>
+    </button>
   </div>
 </header>
+
+<script>
+  const btn = document.getElementById('nav-hamburger')
+  const nav = document.getElementById('nav-links')
+  if (btn && nav) {
+    btn.addEventListener('click', () => {
+      const expanded = btn.getAttribute('aria-expanded') === 'true'
+      btn.setAttribute('aria-expanded', String(!expanded))
+      nav.classList.toggle('nav-open', !expanded)
+    })
+    // Close menu when a link is tapped
+    nav.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).tagName === 'A') {
+        btn.setAttribute('aria-expanded', 'false')
+        nav.classList.remove('nav-open')
+      }
+    })
+  }
+</script>
 
 <style is:global>
   .site-header { border-bottom: 1px solid var(--border); position: sticky; top: 0;
@@ -58,5 +82,38 @@ const isActive = (href: string) => current === href.replace(/\/$/, '')
   .nav-links a:hover { color: var(--accent-bright); background: rgba(255,255,255,0.03); }
   .nav-links a.active { color: var(--accent-bright); background: var(--accent-muted); }
   .nav-cta { display: flex; gap: 8px; align-items: center; }
-  @media (max-width: 760px) { .nav-links { display: none; } }
+
+  /* Hamburger button — hidden on desktop */
+  .nav-hamburger { display: none; flex-direction: column; justify-content: center;
+    gap: 5px; background: none; border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; cursor: pointer; min-height: 44px; min-width: 44px;
+    color: var(--accent-bright); }
+  .nav-hamburger:hover { border-color: var(--accent-bright); background: var(--accent-muted); }
+  .ham-bar { display: block; width: 18px; height: 2px; background: var(--accent-bright);
+    border-radius: 2px; transition: opacity .15s, transform .15s; }
+
+  @media (max-width: 760px) {
+    .nav-hamburger { display: flex; }
+    .nav-links { display: none; }
+    .nav-links.nav-open {
+      display: flex;
+      flex-direction: column;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: rgba(10,16,24,.97);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px 20px;
+      gap: 2px;
+      z-index: 9;
+    }
+    .nav-links.nav-open a {
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+    .nav-inner { padding: 12px 16px; }
+    .nav-cta { display: none; }
+  }
 </style>

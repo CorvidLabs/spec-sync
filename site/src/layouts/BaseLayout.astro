@@ -7,7 +7,7 @@ interface Props {
   title: string
   description?: string
 }
-const { title, description = "Bidirectional spec-to-code validation. Keep your docs honest." } = Astro.props
+const { title, description = "📐 Bidirectional spec ↔ code validation. Keep your docs honest, in any language." } = Astro.props
 // Canonical: prefer the site origin + the current pathname so crawlers don't
 // treat trailing-slash/no-slash or query-string variants as duplicates.
 const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin).toString()

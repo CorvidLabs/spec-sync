@@ -13,7 +13,7 @@
       "export * as Namespace from '...' wildcard namespace",
       "export * from '...' wildcard resolution (with resolver)"
     ],
-    "description": "Regex-based export detection that strips comments and handles re-exports. Resolves barrel files and wildcard re-exports when a file resolver is provided. Skips .d.ts and test files.",
+    "description": "📘 Catches every TS/JS export including re-exports and barrel files. Skips .d.ts and tests automatically.",
     "since_version": "v1.0"
   },
   {
@@ -29,7 +29,7 @@
       "pub type / pub const / pub static / pub mod",
       "pub(crate) items"
     ],
-    "description": "Detects all pub and pub(crate) declarations. Strips raw string literals, regular strings, and comments before matching to avoid false positives inside string data.",
+    "description": "🦀 Tracks every pub and pub(crate) declaration. Strips strings and comments first to kill false positives.",
     "since_version": "v1.0"
   },
   {
@@ -43,7 +43,7 @@
       "Uppercase func / type / var / const identifiers",
       "Exported method receivers (func (r *T) Name(...))"
     ],
-    "description": "Go's export convention: any top-level identifier starting with an uppercase letter is exported. Detects functions, methods, types, variables, and constants. Strips single-line and block comments.",
+    "description": "🐹 Uppercase = exported. Catches functions, methods, types, vars, and consts at the top level.",
     "since_version": "v1.0"
   },
   {
@@ -58,7 +58,7 @@
       "Top-level def / async def without _ prefix (fallback)",
       "Top-level class without _ prefix (fallback)"
     ],
-    "description": "Respects __all__ as the authoritative export list. Without __all__, detects top-level functions and classes whose names don't start with an underscore. Private dunder methods (__init__ etc.) are excluded.",
+    "description": "🐍 Respects __all__ when present; falls back to top-level defs and classes without underscore prefixes.",
     "since_version": "v1.0"
   },
   {
@@ -73,7 +73,7 @@
       "public / open var, let, typealias",
       "public init(...) (tracked as 'init')"
     ],
-    "description": "Detects public and open declarations. Strips single-line and block comments before matching. public init is collapsed to a single 'init' symbol per type.",
+    "description": "🦅 Catches public and open declarations. Collapses multiple public inits into a single init symbol per type.",
     "since_version": "v1.0"
   },
   {
@@ -88,7 +88,7 @@
       "data class / sealed class / enum class / annotation class",
       "suspend fun / inline fun"
     ],
-    "description": "In Kotlin, declarations are public by default. Skips lines with private, internal, or protected modifiers. Companion objects are excluded as standalone exports.",
+    "description": "🟪 Everything public by default — skips private, internal, and protected. Companion objects stay out.",
     "since_version": "v1.0"
   },
   {
@@ -103,7 +103,7 @@
       "public abstract class / sealed class",
       "public methods and fields (including static, final, synchronized, generic)"
     ],
-    "description": "Detects top-level public types and public class members. Strips single-line and block comments (including Javadoc). Handles generics in method signatures.",
+    "description": "☕ Detects public types and members across classes, interfaces, enums, and records. Generics included.",
     "since_version": "v1.0"
   },
   {
@@ -118,7 +118,7 @@
       "public sealed / partial / abstract / static types",
       "public methods, properties, fields (including async, virtual, override)"
     ],
-    "description": "Detects public types and public members. Strips single-line, block, and XML doc comments. Handles nullable types (string?), arrays (int[]), and async Task<T> return types.",
+    "description": "💎 Detects public types and members including nullable, async, and array signatures. XML doc-safe.",
     "since_version": "v1.0"
   },
   {
@@ -133,7 +133,7 @@
       "Top-level functions and return-typed variables (no _ prefix)",
       "const / final declarations (no _ prefix)"
     ],
-    "description": "In Dart, identifiers starting with _ are private; everything else is public. Detects classes, mixins, enums, typedefs, top-level functions, and const/final declarations. Strips comments before matching.",
+    "description": "🎯 Leading underscore = private; everything else is fair game. Catches classes, mixins, enums, and top-level fns.",
     "since_version": "v1.0"
   },
   {
@@ -149,7 +149,7 @@
       "public function / public static function (skips private/protected and __ magic methods)",
       "public const / const at top level"
     ],
-    "description": "Types (class, interface, trait, enum) are always included. Functions and constants are included unless marked private or protected. Magic methods (__construct, __toString, etc.) are always skipped. Strips //, /* */, and # comments.",
+    "description": "🐘 Types always in; functions and constants unless private or protected. Magic methods always out.",
     "since_version": "v1.0"
   },
   {
@@ -166,7 +166,7 @@
       "Constants (UPPERCASE_NAME = ...)",
       "attr_accessor / attr_reader / attr_writer symbols"
     ],
-    "description": "Tracks visibility state (public/private/protected) as a line scanner. Methods before a private marker are public. Strips # comments and =begin/=end block comments. initialize is excluded.",
+    "description": "🔴 Tracks public/private visibility as it scans. Methods before a private marker are public. initialize excluded.",
     "since_version": "v1.0"
   },
   {
@@ -181,7 +181,7 @@
       "Named children of well-known parents: jobs, services, volumes, networks, secrets, stages, steps, targets, outputs, inputs, permissions, deployments",
       "YAML anchors (&anchor-name)"
     ],
-    "description": "Regex-based key extraction with anchor/alias awareness. Extracts top-level keys and named sub-entries under well-known structural parents (e.g. jobs.test, services.web). Does not interpret YAML semantics beyond this.",
+    "description": "🗂️ Pulls top-level keys and named entries under well-known parents (jobs, services, volumes…). Anchor-aware.",
     "since_version": "v1.0"
   }
 ]

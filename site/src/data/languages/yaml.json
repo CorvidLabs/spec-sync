@@ -10,7 +10,7 @@
     "Named children of well-known parents: jobs, services, volumes, networks, secrets, stages, steps, targets, outputs, inputs, permissions, deployments",
     "YAML anchors (&anchor-name)"
   ],
-  "description": "Regex-based key extraction with anchor/alias awareness. Extracts top-level keys and named sub-entries under well-known structural parents (e.g. jobs.test, services.web). Does not interpret YAML semantics beyond this.",
+  "description": "🗂️ Pulls top-level keys and named entries under well-known parents (jobs, services, volumes…). Anchor-aware.",
   "since_version": "v1.0",
   "detection_rules": [
     {

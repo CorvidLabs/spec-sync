@@ -11,7 +11,7 @@
     "pub type / pub const / pub static / pub mod",
     "pub(crate) items"
   ],
-  "description": "Detects all pub and pub(crate) declarations. Strips raw string literals, regular strings, and comments before matching to avoid false positives inside string data.",
+  "description": "🦀 Tracks every pub and pub(crate) declaration. Strips strings and comments first to kill false positives.",
   "since_version": "v1.0",
   "detection_rules": [
     {

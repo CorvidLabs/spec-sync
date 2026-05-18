@@ -1,0 +1,66 @@
+name: Deploy Site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build Astro Site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Restore language data cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            site/src/data/languages.json
+            site/src/data/languages
+          key: language-data-${{ hashFiles('site/src/data/languages.json', 'site/src/data/languages/**') }}
+          restore-keys: |
+            language-data-
+
+      - name: Install dependencies
+        working-directory: site
+        run: bun install --frozen-lockfile
+
+      - name: Run unit tests
+        working-directory: site
+        run: bun test
+
+      - name: Build site (runs prebuild: validate + redirects)
+        working-directory: site
+        run: bun run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

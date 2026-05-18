@@ -88,7 +88,7 @@ Most tools check in one direction — either "does the code match the docs?" or 
 
 ### Language Agnostic
 
-One tool, one format, 12 languages. Whether your project is TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, or Ruby — same `*.spec.md` format, same validation.
+One tool, one format, 12 languages. Whether your project is TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, or YAML — same `*.spec.md` format, same validation.
 
 ### AI-Native
 

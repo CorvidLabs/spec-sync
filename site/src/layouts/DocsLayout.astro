@@ -46,23 +46,27 @@ const { title, description, section } = Astro.props
 </script>
 
 <style>
-  .docs-grid { display: grid; grid-template-columns: 260px 1fr; max-width: 1400px; margin: 0 auto; }
-  .article { padding: 48px 56px; max-width: 800px; }
+  .docs-grid { display: grid; grid-template-columns: 260px 1fr; max-width: 1400px; margin: 0 auto; overflow-x: hidden; }
+  .article { padding: 48px 56px; max-width: 800px; min-width: 0; overflow-x: hidden; width: 100%; box-sizing: border-box; }
   .contents-toggle { display: none; }
   .breadcrumb { display: flex; gap: 8px; align-items: center; color: var(--text-dim); font-size: 0.875rem; margin-bottom: 20px; flex-wrap: wrap; }
-  .breadcrumb a { color: var(--text-muted); }
+  .breadcrumb a { color: var(--text-muted); display: inline-flex; align-items: center; min-height: 44px; }
   .breadcrumb a:hover { color: var(--accent-bright); }
   .breadcrumb .sep { color: var(--border-strong); }
   .article h1 { font-size: clamp(2rem, 4vw, 2.6rem); letter-spacing: -0.02em; margin-bottom: 12px; line-height: 1.15; }
+  .doc-body { min-width: 0; max-width: 100%; overflow-x: hidden; box-sizing: border-box; }
   .doc-body :global(h2) { font-size: 1.625rem; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
   .doc-body :global(h3) { font-size: 1.25rem; margin: 32px 0 12px; }
   .doc-body :global(p) { margin-bottom: 16px; line-height: 1.7; }
   .doc-body :global(ul), .doc-body :global(ol) { margin-bottom: 16px; padding-left: 24px; }
   .doc-body :global(li) { margin-bottom: 6px; line-height: 1.7; }
-  .doc-body :global(a) { color: var(--accent-bright); text-decoration: underline; text-underline-offset: 3px; }
+  .doc-body :global(a) { color: var(--accent-bright); text-decoration: underline; text-underline-offset: 3px;
+    display: inline-block; padding: 2px 0; }
   .doc-body :global(code) { font-family: var(--mono); font-size: 0.875em; padding: 2px 6px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: 4px; color: var(--accent-bright); }
-  .doc-body :global(pre) { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; overflow-x: auto; margin-bottom: 20px; }
-  .doc-body :global(pre code) { background: transparent; border: 0; padding: 0; color: var(--text); }
+  .doc-body :global(pre) { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; overflow-x: auto; margin-bottom: 20px; max-width: 100%; box-sizing: border-box; white-space: pre; }
+  .doc-body :global(pre code) { background: transparent; border: 0; padding: 0; color: var(--text); white-space: pre; word-break: normal; }
+  .doc-body :global(table) { display: block; overflow-x: auto; max-width: 100%; box-sizing: border-box; width: 100%; border-collapse: collapse; }
+  .doc-body :global(thead), .doc-body :global(tbody), .doc-body :global(tr) { max-width: 100%; }
   @media (max-width: 900px) {
     .docs-grid { grid-template-columns: 1fr; }
     :global(.sidebar) { display: none; }

@@ -54,7 +54,7 @@ specsync watch                  # re-validate on file changes
 
 Auto-detected from file extensions. No per-language configuration.
 
-TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby.
+TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML.
 
 ## Learn More
 

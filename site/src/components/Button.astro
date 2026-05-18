@@ -1,0 +1,32 @@
+---
+interface Props {
+  href?: string
+  variant?: 'primary' | 'secondary' | 'ghost'
+  type?: 'button' | 'submit'
+  class?: string
+  ariaLabel?: string
+}
+const { href, variant = 'primary', type = 'button', class: extraClass = '', ariaLabel } = Astro.props
+const cls = `btn btn-${variant} ${extraClass}`.trim()
+const Tag = href ? 'a' : 'button'
+---
+<Tag class={cls} {...href ? { href } : { type }} aria-label={ariaLabel}>
+  <slot />
+</Tag>
+
+<style is:global>
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 20px; border-radius: 8px;
+    font-size: 0.9375rem; font-weight: 500; text-decoration: none;
+    border: 1px solid transparent; cursor: pointer;
+    min-height: 44px; font-family: inherit;
+    transition: all .15s ease;
+  }
+  .btn-primary { background: var(--accent); color: #1a0f08; font-weight: 600; }
+  .btn-primary:hover { background: var(--accent-bright); }
+  .btn-secondary { background: transparent; color: var(--text); border-color: var(--border-strong); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent-bright); background: var(--accent-muted); }
+  .btn-ghost { background: transparent; color: var(--text-muted); padding: 12px 14px; }
+  .btn-ghost:hover { color: var(--text); }
+</style>

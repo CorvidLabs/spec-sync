@@ -21,7 +21,7 @@ cargo install specsync
 # https://github.com/CorvidLabs/spec-sync/releases
 
 # Via GitHub Action (CI only)
-# See github-action.md
+# See integrations/github-action
 ```
 
 Verify the installation:
@@ -219,11 +219,11 @@ Once you're up and running, explore these features:
 |---------|---------|-------|
 | Quality scoring | `specsync score` | [CLI Reference](cli.md#score) |
 | Watch mode | `specsync watch` | [CLI Reference](cli.md#watch) |
-| AI generation | `specsync generate --ai` | [AI Agents](ai-agents.md) |
+| AI generation | `specsync generate --ai` | [AI Agents](integrations/ai-agents.md) |
 | Schema validation | Add `schemaDir` to config | [Configuration](configuration.md) |
 | Cross-project refs | `owner/repo@module` syntax | [Cross-Project Refs](cross-project-refs.md) |
-| MCP server | `specsync mcp` | [AI Agents](ai-agents.md) |
-| VS Code extension | Install from marketplace | [VS Code Extension](vscode-extension.md) |
+| MCP server | `specsync mcp` | [AI Agents](integrations/ai-agents.md) |
+| VS Code extension | Install from marketplace | [VS Code Extension](integrations/vscode-extension.md) |
 | Agent instructions | `specsync hooks` | [CLI Reference](cli.md#hooks) |
 | Merge conflicts | `specsync merge` | [CLI Reference](cli.md#merge) |
 

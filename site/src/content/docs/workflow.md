@@ -274,7 +274,7 @@ See [Cross-Project References](cross-project-refs.md) for the full setup.
   run: specsync check --strict --require-coverage 80
 ```
 
-See [GitHub Action](github-action.md) for the official action with caching and PR comments.
+See [GitHub Action](integrations/github-action.md) for the official action with caching and PR comments.
 
 ### Pre-commit hook
 
@@ -300,7 +300,7 @@ SpecSync is designed for AI-assisted development. Three integration modes:
 specsync mcp
 ```
 
-Exposes `specsync_check`, `specsync_generate`, `specsync_coverage`, `specsync_score` as native tools. Claude Code, Cursor, and Windsurf can call them directly. See [For AI Agents](ai-agents.md) for setup.
+Exposes `specsync_check`, `specsync_generate`, `specsync_coverage`, `specsync_score` as native tools. Claude Code, Cursor, and Windsurf can call them directly. See [For AI Agents](integrations/ai-agents.md) for setup.
 
 ### Agent instruction files
 

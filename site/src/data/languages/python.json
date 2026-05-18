@@ -1,0 +1,46 @@
+{
+  "slug": "python",
+  "name": "Python",
+  "family": "dynamic",
+  "detection_style": "regex",
+  "extensions": [".py"],
+  "test_patterns": ["test_*.py", "*_test.py"],
+  "exports_detected": [
+    "__all__ list (authoritative when present)",
+    "Top-level def / async def without _ prefix (fallback)",
+    "Top-level class without _ prefix (fallback)"
+  ],
+  "description": "Respects __all__ as the authoritative export list. Without __all__, detects top-level functions and classes whose names don't start with an underscore. Private dunder methods (__init__ etc.) are excluded.",
+  "since_version": "v1.0",
+  "detection_rules": [
+    {
+      "title": "__all__ list (authoritative)",
+      "description": "If __all__ is defined, it is the sole source of exported names. Both double-quoted and single-quoted strings in the list are captured.",
+      "example_code": "__all__ = [\"create_auth\", \"AuthService\", \"DEFAULT_TTL\"]\n\n# Even underscore names are exported if listed:\n__all__ = [\"_special\", \"Public\"]"
+    },
+    {
+      "title": "Top-level def / async def (fallback)",
+      "description": "When __all__ is absent, any top-level function whose name does not start with _ is captured. Includes async def.",
+      "example_code": "def create_auth(config):\n    pass\n\nasync def fetch_token():\n    pass\n\ndef _internal():  # excluded\n    pass"
+    },
+    {
+      "title": "Top-level class (fallback)",
+      "description": "Top-level class declarations without _ prefix are captured as exports.",
+      "example_code": "class AuthService:\n    pass\n\nclass _Hidden:  # excluded\n    pass"
+    }
+  ],
+  "test_pattern_examples": [
+    { "pattern": "test_*.py", "explanation": "pytest-style test files — auto-excluded" },
+    { "pattern": "*_test.py", "explanation": "Alternate test naming — auto-excluded" }
+  ],
+  "example_spec_md": "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/auth/service.py\n---\n\n## Purpose\n\nHandles authentication and session management.\n\n## Public API\n\n| Symbol | Kind | Description |\n|--------|------|-------------|\n| `create_auth` | function | Creates an auth context |\n| `AuthService` | class | Auth service class |\n| `DEFAULT_TTL` | constant | Default TTL in seconds |\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |",
+  "example_source": "__all__ = [\"create_auth\", \"AuthService\", \"DEFAULT_TTL\"]\n\nDEFAULT_TTL = 3600\n\ndef create_auth(config):\n    return AuthService(config)\n\nclass AuthService:\n    def __init__(self, config):\n        self.config = config\n\ndef _internal_helper():\n    pass",
+  "caveats": [
+    "Only the top-level __all__ assignment is captured; dynamic or conditional __all__ assignments may not be found.",
+    "Nested class definitions (inside another class or function) are not detected.",
+    "Decorator-only exports (e.g., Flask route functions registered via @app.route) are included as normal functions.",
+    "Type-alias assignments (MyType = Dict[str, Any]) are not captured — only def and class."
+  ],
+  "related_slugs": ["ruby", "php"],
+  "since_version": "v1.0"
+}

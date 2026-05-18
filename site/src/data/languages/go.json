@@ -1,0 +1,43 @@
+{
+  "slug": "go",
+  "name": "Go",
+  "family": "native",
+  "detection_style": "regex",
+  "extensions": [".go"],
+  "test_patterns": ["_test.go"],
+  "exports_detected": [
+    "Uppercase func / type / var / const identifiers",
+    "Exported method receivers (func (r *T) Name(...))"
+  ],
+  "description": "Go's export convention: any top-level identifier starting with an uppercase letter is exported. Detects functions, methods, types, variables, and constants. Strips single-line and block comments.",
+  "since_version": "v1.0",
+  "detection_rules": [
+    {
+      "title": "Uppercase top-level identifiers",
+      "description": "Go's visibility rule: any identifier starting with an uppercase letter is exported. Matches func, type, var, const at the top level.",
+      "example_code": "func CreateAuth(config Config) Auth {}\ntype AuthService struct{}\nconst DefaultTTL = 3600\nvar GlobalInstance *Auth"
+    },
+    {
+      "title": "Exported methods",
+      "description": "Method declarations (func (receiver) Name(...)) where Name starts with uppercase are also captured.",
+      "example_code": "func (a *Auth) Validate(token string) bool {}\nfunc (a Auth) String() string {}"
+    },
+    {
+      "title": "Lowercase = unexported",
+      "description": "Identifiers starting with a lowercase letter are package-private and are excluded.",
+      "example_code": "func privateFunc() {}        // excluded\ntype authInternal struct {}  // excluded\nvar debugMode = false        // excluded"
+    }
+  ],
+  "test_pattern_examples": [
+    { "pattern": "**/*_test.go", "explanation": "Go test files — auto-excluded by convention" }
+  ],
+  "example_spec_md": "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - auth/service.go\n---\n\n## Purpose\n\nProvides JWT-based auth utilities.\n\n## Public API\n\n| Symbol | Kind | Description |\n|--------|------|-------------|\n| `CreateAuth` | func | Creates an Auth instance |\n| `AuthService` | type | Auth service struct |\n| `DefaultTTL` | const | Default TTL in seconds |\n| `Validate` | method | Validates a JWT token |\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |",
+  "example_source": "package auth\n\nfunc CreateAuth(config Config) Auth {\n    return Auth{config: config}\n}\n\ntype AuthService struct {\n    db Database\n}\n\nconst DefaultTTL = 3600\n\nfunc (a *AuthService) Validate(token string) bool {\n    return a.verify(token)\n}",
+  "caveats": [
+    "Interface methods are not individually listed — only the interface type itself is captured.",
+    "Exported struct fields are not captured as separate symbols.",
+    "init() functions are always unexported by convention and are skipped."
+  ],
+  "related_slugs": ["rust", "swift"],
+  "since_version": "v1.0"
+}

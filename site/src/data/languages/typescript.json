@@ -1,0 +1,55 @@
+{
+  "slug": "typescript",
+  "name": "TypeScript / JS",
+  "family": "managed",
+  "detection_style": "ast",
+  "extensions": [".ts", ".tsx", ".js", ".jsx", ".mts", ".cts"],
+  "test_patterns": [".test.ts", ".spec.ts", ".d.ts", ".test.js", ".spec.js"],
+  "exports_detected": [
+    "export function/class/interface/type/const/enum",
+    "export default class/function",
+    "export { Name } and export type { Name } re-exports",
+    "export * as Namespace from '...' wildcard namespace",
+    "export * from '...' wildcard resolution (with resolver)"
+  ],
+  "description": "Regex-based export detection that strips comments and handles re-exports. Resolves barrel files and wildcard re-exports when a file resolver is provided. Skips .d.ts and test files.",
+  "since_version": "v1.0",
+  "detection_rules": [
+    {
+      "title": "Direct export declarations",
+      "description": "Matches export keyword followed by a declaration. Handles async, abstract modifiers.",
+      "example_code": "export function createAuth(config: Config): Auth {}\nexport class AuthService {}\nexport interface AuthConfig {}\nexport type TokenType = string;\nexport const DEFAULT_TTL = 3600;\nexport enum AuthStatus { Active, Expired }"
+    },
+    {
+      "title": "Default exports",
+      "description": "export default class/function with optional name. Keyword-like identifiers (new, true, null) are excluded.",
+      "example_code": "export default class MyApp {}\nexport default function handler() {}"
+    },
+    {
+      "title": "Named re-exports",
+      "description": "export { Name, OldName as NewName } and export type { MyType }. Aliases use the target name.",
+      "example_code": "export { Foo, Bar as Baz } from './module';\nexport type { MyType } from './types';"
+    },
+    {
+      "title": "Wildcard re-exports",
+      "description": "export * as Namespace captures the namespace name. export * from '...' resolves via file resolver if provided.",
+      "example_code": "export * as Utils from './utils';\nexport * from './helpers';"
+    }
+  ],
+  "test_pattern_examples": [
+    { "pattern": "**/*.test.ts", "explanation": "Unit test files — auto-excluded" },
+    { "pattern": "**/*.spec.ts", "explanation": "Spec test files — auto-excluded" },
+    { "pattern": "**/*.d.ts", "explanation": "Type declaration files — skipped (no runtime exports)" },
+    { "pattern": "**/*.test.js", "explanation": "JavaScript test files — auto-excluded" }
+  ],
+  "example_spec_md": "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/auth/service.ts\n---\n\n## Purpose\n\nHandles JWT authentication.\n\n## Public API\n\n| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n| `authenticate` | `(token: string)` | `User \\| null` | Validates bearer token |\n| `AuthService` | — | — | Auth service class |\n| `TokenType` | — | — | Token string type alias |\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |",
+  "example_source": "export async function authenticate(token: string): Promise<User | null> {\n  return verifyJwt(token);\n}\n\nexport class AuthService {\n  constructor(private db: Database) {}\n}\n\nexport type TokenType = string;",
+  "caveats": [
+    "Re-exports from external npm packages are not followed across package boundaries.",
+    "Conditional exports in package.json are not parsed.",
+    "Dynamic re-exports (export default computed) may not be captured.",
+    "Module augmentation (declare module '...') is not detected."
+  ],
+  "related_slugs": ["kotlin", "java"],
+  "since_version": "v1.0"
+}

@@ -1,0 +1,46 @@
+{
+  "slug": "java",
+  "name": "Java",
+  "family": "managed",
+  "detection_style": "regex",
+  "extensions": [".java"],
+  "test_patterns": ["*Test.java", "*Tests.java"],
+  "exports_detected": [
+    "public class / interface / enum / record / @interface (annotation)",
+    "public abstract class / sealed class",
+    "public methods and fields (including static, final, synchronized, generic)"
+  ],
+  "description": "Detects top-level public types and public class members. Strips single-line and block comments (including Javadoc). Handles generics in method signatures.",
+  "since_version": "v1.0",
+  "detection_rules": [
+    {
+      "title": "Public type declarations",
+      "description": "Matches public class, interface, enum, record, and annotation types. Handles abstract, final, sealed, and static modifiers.",
+      "example_code": "public class AuthService {}\npublic interface Authenticator {}\npublic enum AuthStatus { ACTIVE, EXPIRED }\npublic record UserProfile(String name, int age) {}\npublic @interface Cacheable {}"
+    },
+    {
+      "title": "Public methods and fields",
+      "description": "Matches public members including static, final, synchronized, abstract, and native modifiers. Generic return types are supported.",
+      "example_code": "public String validate(String token) {}\npublic static final String DEFAULT_TOKEN = \"abc\";\npublic <E> List<E> findAll() {}\npublic Map<String, Object> getMetadata() {}"
+    },
+    {
+      "title": "Javadoc stripping",
+      "description": "/** ... */ Javadoc blocks are stripped before matching to prevent false positives from documentation examples.",
+      "example_code": "/**\n * @param token the JWT token\n * public String example() — this is NOT captured\n */\npublic String validate(String token) {}  // this IS captured"
+    }
+  ],
+  "test_pattern_examples": [
+    { "pattern": "**/*Test.java", "explanation": "JUnit test classes — auto-excluded" },
+    { "pattern": "**/*Tests.java", "explanation": "Alternate test naming — auto-excluded" }
+  ],
+  "example_spec_md": "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/main/java/com/example/auth/AuthService.java\n---\n\n## Purpose\n\nJava auth service for the JVM platform.\n\n## Public API\n\n| Symbol | Kind | Description |\n|--------|------|-------------|\n| `AuthService` | class | Main auth class |\n| `Authenticator` | interface | Auth contract |\n| `validate` | method | Validates a JWT token |\n| `DEFAULT_TTL` | field | Default TTL in seconds |\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |",
+  "example_source": "package com.example.auth;\n\npublic class AuthService {\n    public static final int DEFAULT_TTL = 3600;\n\n    public String validate(String token) {\n        return token != null ? token : null;\n    }\n\n    private void internalCheck() {}\n}\n\npublic interface Authenticator {\n    boolean authenticate(String token);\n}\n\npublic enum AuthStatus { ACTIVE, EXPIRED }",
+  "caveats": [
+    "private, protected, and package-private (no modifier) members are excluded.",
+    "Annotation processors that generate public classes at compile time are not detected.",
+    "Inner classes are captured if they have the public modifier.",
+    "Lambda expressions and anonymous classes are not captured."
+  ],
+  "related_slugs": ["kotlin", "csharp"],
+  "since_version": "v1.0"
+}

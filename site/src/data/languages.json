@@ -1,0 +1,187 @@
+[
+  {
+    "slug": "typescript",
+    "name": "TypeScript / JS",
+    "family": "managed",
+    "detection_style": "ast",
+    "extensions": [".ts", ".tsx", ".js", ".jsx", ".mts", ".cts"],
+    "test_patterns": [".test.ts", ".spec.ts", ".d.ts", ".test.js", ".spec.js"],
+    "exports_detected": [
+      "export function/class/interface/type/const/enum",
+      "export default class/function",
+      "export { Name } and export type { Name } re-exports",
+      "export * as Namespace from '...' wildcard namespace",
+      "export * from '...' wildcard resolution (with resolver)"
+    ],
+    "description": "Regex-based export detection that strips comments and handles re-exports. Resolves barrel files and wildcard re-exports when a file resolver is provided. Skips .d.ts and test files.",
+    "since_version": "v1.0"
+  },
+  {
+    "slug": "rust",
+    "name": "Rust",
+    "family": "native",
+    "detection_style": "regex",
+    "extensions": [".rs"],
+    "test_patterns": ["_test.rs", "#[cfg(test)]"],
+    "exports_detected": [
+      "pub fn / pub async fn / pub unsafe fn",
+      "pub struct / pub enum / pub trait",
+      "pub type / pub const / pub static / pub mod",
+      "pub(crate) items"
+    ],
+    "description": "Detects all pub and pub(crate) declarations. Strips raw string literals, regular strings, and comments before matching to avoid false positives inside string data.",
+    "since_version": "v1.0"
+  },
+  {
+    "slug": "go",
+    "name": "Go",
+    "family": "native",
+    "detection_style": "regex",
+    "extensions": [".go"],
+    "test_patterns": ["_test.go"],
+    "exports_detected": [
+      "Uppercase func / type / var / const identifiers",
+      "Exported method receivers (func (r *T) Name(...))"
+    ],
+    "description": "Go's export convention: any top-level identifier starting with an uppercase letter is exported. Detects functions, methods, types, variables, and constants. Strips single-line and block comments.",
+    "since_version": "v1.0"
+  },
+  {
+    "slug": "python",
+    "name": "Python",
+    "family": "dynamic",
+    "detection_style": "regex",
+    "extensions": [".py"],
+    "test_patterns": ["test_*.py", "*_test.py"],
+    "exports_detected": [
+      "__all__ list (authoritative when present)",
+      "Top-level def / async def without _ prefix (fallback)",
+      "Top-level class without _ prefix (fallback)"
+    ],
+    "description": "Respects __all__ as the authoritative export list. Without __all__, detects top-level functions and classes whose names don't start with an underscore. Private dunder methods (__init__ etc.) are excluded.",
+    "since_version": "v1.0"
+  },
+  {
+    "slug": "swift",
+    "name": "Swift",
+    "family": "native",
+    "detection_style": "regex",
+    "extensions": [".swift"],
+    "test_patterns": ["*Tests.swift", "*Test.swift"],
+    "exports_detected": [
+      "public / open func, class, struct, enum, protocol, actor",
+      "public / open var, let, typealias",
+      "public init(...) (tracked as 'init')"
+    ],
+    "description": "Detects public and open declarations. Strips single-line and block comments before matching. public init is collapsed to a single 'init' symbol per type.",
+    "since_version": "v1.0"
+  },
+  {
+    "slug": "kotlin",
+    "name": "Kotlin",
+    "family": "managed",
+    "detection_style": "regex",
+    "extensions": [".kt", ".kts"],
+    "test_patterns": ["*Test.kt", "*Spec.kt"],
+    "exports_detected": [
+      "Top-level fun / class / object / interface / typealias / val / var",
+      "data class / sealed class / enum class / annotation class",
+      "suspend fun / inline fun"
+    ],
+    "description": "In Kotlin, declarations are public by default. Skips lines with private, internal, or protected modifiers. Companion objects are excluded as standalone exports.",
+    "since_version": "v1.0"
+  },
+  {
+    "slug": "java",
+    "name": "Java",
+    "family": "managed",
+    "detection_style": "regex",
+    "extensions": [".java"],
+    "test_patterns": ["*Test.java", "*Tests.java"],
+    "exports_detected": [
+      "public class / interface / enum / record / @interface (annotation)",
+      "public abstract class / sealed class",
+      "public methods and fields (including static, final, synchronized, generic)"
+    ],
+    "description": "Detects top-level public types and public class members. Strips single-line and block comments (including Javadoc). Handles generics in method signatures.",
+    "since_version": "v1.0"
+  },
+  {
+    "slug": "csharp",
+    "name": "C#",
+    "family": "managed",
+    "detection_style": "regex",
+    "extensions": [".cs"],
+    "test_patterns": ["*Test.cs", "*Tests.cs"],
+    "exports_detected": [
+      "public class / struct / interface / enum / record / delegate",
+      "public sealed / partial / abstract / static types",
+      "public methods, properties, fields (including async, virtual, override)"
+    ],
+    "description": "Detects public types and public members. Strips single-line, block, and XML doc comments. Handles nullable types (string?), arrays (int[]), and async Task<T> return types.",
+    "since_version": "v1.0"
+  },
+  {
+    "slug": "dart",
+    "name": "Dart",
+    "family": "native",
+    "detection_style": "regex",
+    "extensions": [".dart"],
+    "test_patterns": ["*_test.dart"],
+    "exports_detected": [
+      "Top-level class / abstract class / mixin / enum / extension / typedef",
+      "Top-level functions and return-typed variables (no _ prefix)",
+      "const / final declarations (no _ prefix)"
+    ],
+    "description": "In Dart, identifiers starting with _ are private; everything else is public. Detects classes, mixins, enums, typedefs, top-level functions, and const/final declarations. Strips comments before matching.",
+    "since_version": "v1.0"
+  },
+  {
+    "slug": "php",
+    "name": "PHP",
+    "family": "dynamic",
+    "detection_style": "regex",
+    "extensions": [".php"],
+    "test_patterns": ["*Test.php"],
+    "exports_detected": [
+      "class / abstract class / final class / readonly class",
+      "interface / trait / enum",
+      "public function / public static function (skips private/protected and __ magic methods)",
+      "public const / const at top level"
+    ],
+    "description": "Types (class, interface, trait, enum) are always included. Functions and constants are included unless marked private or protected. Magic methods (__construct, __toString, etc.) are always skipped. Strips //, /* */, and # comments.",
+    "since_version": "v1.0"
+  },
+  {
+    "slug": "ruby",
+    "name": "Ruby",
+    "family": "dynamic",
+    "detection_style": "regex",
+    "extensions": [".rb"],
+    "test_patterns": ["*_test.rb", "*_spec.rb"],
+    "exports_detected": [
+      "class and module declarations (always public at namespace level)",
+      "Top-level def (zero indentation, no _ prefix)",
+      "Indented def (respects private/protected visibility markers)",
+      "Constants (UPPERCASE_NAME = ...)",
+      "attr_accessor / attr_reader / attr_writer symbols"
+    ],
+    "description": "Tracks visibility state (public/private/protected) as a line scanner. Methods before a private marker are public. Strips # comments and =begin/=end block comments. initialize is excluded.",
+    "since_version": "v1.0"
+  },
+  {
+    "slug": "yaml",
+    "name": "YAML",
+    "family": "markup",
+    "detection_style": "hybrid",
+    "extensions": [".yml", ".yaml"],
+    "test_patterns": [],
+    "exports_detected": [
+      "Top-level mapping keys (any key at column 0)",
+      "Named children of well-known parents: jobs, services, volumes, networks, secrets, stages, steps, targets, outputs, inputs, permissions, deployments",
+      "YAML anchors (&anchor-name)"
+    ],
+    "description": "Regex-based key extraction with anchor/alias awareness. Extracts top-level keys and named sub-entries under well-known structural parents (e.g. jobs.test, services.web). Does not interpret YAML semantics beyond this.",
+    "since_version": "v1.0"
+  }
+]

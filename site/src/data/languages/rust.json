@@ -1,0 +1,46 @@
+{
+  "slug": "rust",
+  "name": "Rust",
+  "family": "native",
+  "detection_style": "regex",
+  "extensions": [".rs"],
+  "test_patterns": ["_test.rs", "#[cfg(test)]"],
+  "exports_detected": [
+    "pub fn / pub async fn / pub unsafe fn",
+    "pub struct / pub enum / pub trait",
+    "pub type / pub const / pub static / pub mod",
+    "pub(crate) items"
+  ],
+  "description": "Detects all pub and pub(crate) declarations. Strips raw string literals, regular strings, and comments before matching to avoid false positives inside string data.",
+  "since_version": "v1.0",
+  "detection_rules": [
+    {
+      "title": "Public item declarations",
+      "description": "Matches pub (or pub(crate)) followed by any of: fn, struct, enum, trait, type, const, static, mod. Handles async and unsafe modifiers.",
+      "example_code": "pub fn create_auth(config: Config) -> Auth {}\npub struct AuthService {}\npub enum AuthStatus { Active, Expired }\npub trait Authenticator {}\npub type Token = String;\npub const DEFAULT_TTL: u64 = 3600;\npub static INSTANCE: Lazy<Auth> = Lazy::new(|| Auth::new());\npub mod utils;"
+    },
+    {
+      "title": "pub(crate) items",
+      "description": "Crate-internal public items are also captured, since they represent the module's API surface within the crate.",
+      "example_code": "pub(crate) fn internal_fn() {}\npub(crate) struct InternalStruct {}"
+    },
+    {
+      "title": "String literal stripping",
+      "description": "Raw strings (r#\"...\"#), regular strings, and char literals are stripped before regex matching to prevent false positives from pub declarations inside string data.",
+      "example_code": "// This pub fn inside a string will NOT be captured:\nlet test_data = r#\"pub fn fake_fn() {}\"#;\n\n// This is the real export:\npub fn real_fn() {}"
+    }
+  ],
+  "test_pattern_examples": [
+    { "pattern": "**/*_test.rs", "explanation": "Test-only source files — auto-excluded" },
+    { "pattern": "#[cfg(test)] mod tests { ... }", "explanation": "Inline test modules — exports inside are excluded" }
+  ],
+  "example_spec_md": "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n## Purpose\n\nHandles JWT-based authentication.\n\n## Public API\n\n| Item | Kind | Description |\n|------|------|-------------|\n| `create_auth` | fn | Creates a new Auth instance |\n| `AuthService` | struct | Auth service type |\n| `AuthStatus` | enum | Active or Expired states |\n| `DEFAULT_TTL` | const | Default session TTL in seconds |\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |",
+  "example_source": "pub fn create_auth(config: Config) -> Auth {\n    Auth::new(config)\n}\n\npub struct AuthService {\n    db: Database,\n}\n\npub enum AuthStatus {\n    Active,\n    Expired,\n}\n\npub const DEFAULT_TTL: u64 = 3600;",
+  "caveats": [
+    "Procedural macros that generate pub items (e.g. #[derive], custom macros) are not detected.",
+    "Re-exports via pub use are not captured as distinct symbols.",
+    "Items inside conditional compilation blocks (#[cfg(...)]) are included unless the block is #[cfg(test)]."
+  ],
+  "related_slugs": ["go", "dart"],
+  "since_version": "v1.0"
+}

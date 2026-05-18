@@ -1,0 +1,46 @@
+{
+  "slug": "swift",
+  "name": "Swift",
+  "family": "native",
+  "detection_style": "regex",
+  "extensions": [".swift"],
+  "test_patterns": ["*Tests.swift", "*Test.swift"],
+  "exports_detected": [
+    "public / open func, class, struct, enum, protocol, actor",
+    "public / open var, let, typealias",
+    "public init(...) (tracked as 'init')"
+  ],
+  "description": "Detects public and open declarations. Strips single-line and block comments before matching. public init is collapsed to a single 'init' symbol per type.",
+  "since_version": "v1.0",
+  "detection_rules": [
+    {
+      "title": "public and open declarations",
+      "description": "Both public (accessible within the module and to importers) and open (subclassable/overridable) are captured. Handles static and class modifiers.",
+      "example_code": "public class AuthService {}\npublic struct Config {}\npublic enum AuthStatus { case active, expired }\npublic protocol Authenticator {}\npublic typealias Token = String\nopen class BaseController {}\npublic actor SessionManager {}"
+    },
+    {
+      "title": "Public properties and functions",
+      "description": "Matches public var/let and public func (including public static func).",
+      "example_code": "public var token: String\npublic let apiVersion: Int\npublic func validate() -> Bool {}\npublic static func shared() -> AuthService {}"
+    },
+    {
+      "title": "Public initializers",
+      "description": "public init and public convenience init are collapsed to a single 'init' symbol in the output.",
+      "example_code": "public init(name: String) {}\npublic convenience init() {}"
+    }
+  ],
+  "test_pattern_examples": [
+    { "pattern": "**/*Tests.swift", "explanation": "XCTest test class files — auto-excluded" },
+    { "pattern": "**/*Test.swift", "explanation": "Alternate test naming — auto-excluded" }
+  ],
+  "example_spec_md": "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - Sources/Auth/AuthService.swift\n---\n\n## Purpose\n\nProvides JWT authentication for the app layer.\n\n## Public API\n\n| Symbol | Kind | Description |\n|--------|------|-------------|\n| `AuthService` | class | Main auth service |\n| `validate` | func | Validates a token |\n| `AuthStatus` | enum | Active or expired states |\n| `Authenticator` | protocol | Auth contract |\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |",
+  "example_source": "public class AuthService {\n    public var token: String\n    public init(token: String) { self.token = token }\n    public func validate() -> Bool { return !token.isEmpty }\n}\n\npublic enum AuthStatus { case active, expired }\npublic protocol Authenticator { func authenticate() -> Bool }",
+  "caveats": [
+    "internal, fileprivate, and private declarations are excluded — only public and open are captured.",
+    "Swift property wrappers (@Published, @State, etc.) are captured by the underlying var/let declaration.",
+    "Extension members with public access are captured if the extension itself is in a public declaration context.",
+    "Macro-generated public symbols are not detected."
+  ],
+  "related_slugs": ["kotlin", "go"],
+  "since_version": "v1.0"
+}

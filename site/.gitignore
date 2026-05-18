@@ -1,6 +1,4 @@
 node_modules
 dist
 .astro
-src/data/languages.json
-src/data/languages/
 public/og-cards/

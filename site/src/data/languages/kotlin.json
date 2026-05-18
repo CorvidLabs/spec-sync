@@ -1,0 +1,50 @@
+{
+  "slug": "kotlin",
+  "name": "Kotlin",
+  "family": "managed",
+  "detection_style": "regex",
+  "extensions": [".kt", ".kts"],
+  "test_patterns": ["*Test.kt", "*Spec.kt"],
+  "exports_detected": [
+    "Top-level fun / class / object / interface / typealias / val / var",
+    "data class / sealed class / enum class / annotation class",
+    "suspend fun / inline fun"
+  ],
+  "description": "In Kotlin, declarations are public by default. Skips lines with private, internal, or protected modifiers. Companion objects are excluded as standalone exports.",
+  "since_version": "v1.0",
+  "detection_rules": [
+    {
+      "title": "Public by default",
+      "description": "Kotlin's visibility default is public. Any top-level declaration without private/internal/protected is captured.",
+      "example_code": "fun createAuth(config: Config): Auth {}\nclass AuthService {}\nobject AuthManager {}\ninterface Authenticator {}\ntypealias Token = String\nval DEFAULT_TTL = 3600"
+    },
+    {
+      "title": "Visibility exclusions",
+      "description": "Lines starting with private, internal, or protected are skipped regardless of the declaration type.",
+      "example_code": "private fun internalHelper() {}   // excluded\ninternal fun packageHelper() {}   // excluded\nprotected fun subclassHelper() {} // excluded\npublic fun explicitPublic() {}    // included"
+    },
+    {
+      "title": "Data, sealed, enum, annotation classes",
+      "description": "All class variants are captured. The class name is extracted regardless of modifier prefix.",
+      "example_code": "data class UserProfile(val name: String)\nsealed class AuthState {}\nenum class Status { ACTIVE, EXPIRED }\nannotation class Cacheable"
+    },
+    {
+      "title": "Suspend and inline functions",
+      "description": "Coroutine and inline functions are captured under their function name.",
+      "example_code": "suspend fun fetchData(): Data {}\npublic suspend fun loadProfile(): Profile {}\ninline fun <reified T> parse(json: String): T {}"
+    }
+  ],
+  "test_pattern_examples": [
+    { "pattern": "**/*Test.kt", "explanation": "JUnit test classes — auto-excluded" },
+    { "pattern": "**/*Spec.kt", "explanation": "Spec-style test files — auto-excluded" }
+  ],
+  "example_spec_md": "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/main/kotlin/com/example/auth/AuthService.kt\n---\n\n## Purpose\n\nKotlin auth service for the Android/JVM platform.\n\n## Public API\n\n| Symbol | Kind | Description |\n|--------|------|-------------|\n| `createAuth` | fun | Creates an Auth instance |\n| `AuthService` | class | Auth service class |\n| `AuthState` | sealed class | Auth state union type |\n| `DEFAULT_TTL` | val | Default TTL constant |\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |",
+  "example_source": "package com.example.auth\n\nfun createAuth(config: Config): Auth = Auth(config)\n\nclass AuthService {\n    fun validate(token: String): Boolean = token.isNotEmpty()\n}\n\nsealed class AuthState {\n    object Active : AuthState()\n    object Expired : AuthState()\n}\n\nval DEFAULT_TTL = 3600",
+  "caveats": [
+    "Companion objects (companion object { ... }) are skipped as standalone exports.",
+    "Extension functions are captured if they are top-level and public.",
+    "Operator overloads (operator fun ...) are included under their function name."
+  ],
+  "related_slugs": ["java", "swift"],
+  "since_version": "v1.0"
+}

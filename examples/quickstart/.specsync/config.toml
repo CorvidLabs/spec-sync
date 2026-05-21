@@ -1,0 +1,16 @@
+specs_dir = "specs"
+source_dirs = ["src"]
+exclude_dirs = ["target"]
+required_sections = [
+    "Purpose",
+    "Public API",
+    "Invariants",
+    "Behavioral Examples",
+    "Error Cases",
+    "Dependencies",
+    "Change Log",
+]
+enforcement = "strict"
+
+[lifecycle]
+track_history = false

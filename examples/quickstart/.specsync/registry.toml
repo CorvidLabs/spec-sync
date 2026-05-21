@@ -1,0 +1,5 @@
+[registry]
+name = "quickstart"
+
+[specs]
+greeter = "specs/greeter/greeter.spec.md"

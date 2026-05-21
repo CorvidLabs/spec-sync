@@ -1,0 +1,6 @@
+{
+  "hashes": {
+    "specs/greeter/greeter.spec.md": "6782ce4a0e61b63a86e4d5b7402222b5d0f3f652a0f0c79069d6f85e7b2b3502",
+    "src/lib.rs": "84c50c0e12e7547d0b60e0f7db578d105dc00f19be885be1ca8f760e53eda371"
+  }
+}

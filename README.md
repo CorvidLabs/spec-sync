@@ -10,7 +10,7 @@
 
 **Bidirectional spec-to-code validation with cross-project references, dependency graphs, and AI-powered generation.** Written in Rust. Single binary. 12 languages. VS Code extension.
 
-[Quick Start](#quick-start) &bull; [Spec Format](#spec-format) &bull; [CLI](#cli-reference) &bull; [VS Code Extension](#vs-code-extension) &bull; [Cross-Project Refs](#cross-project-references) &bull; [GitHub Action](#github-action) &bull; [Config](#configuration) &bull; [Docs Site](https://corvidlabs.github.io/spec-sync)
+[5-Minute Start](#get-started-in-5-minutes) &bull; [Spec Format](#spec-format) &bull; [CLI](#cli-reference) &bull; [VS Code Extension](#vs-code-extension) &bull; [Cross-Project Refs](#cross-project-references) &bull; [GitHub Action](#github-action) &bull; [Config](#configuration) &bull; [Docs Site](https://corvidlabs.github.io/spec-sync)
 
 </div>
 
@@ -101,7 +101,59 @@ cargo install --git https://github.com/CorvidLabs/spec-sync
 
 ---
 
-## Quick Start
+## Get Started in 5 Minutes
+
+Zero to a green spec check, on a fresh project. Copy-paste the whole block.
+
+```bash
+# 1. Install (one of the install methods above — we'll assume `cargo install specsync`)
+cargo install specsync
+
+# 2. Make a new project + a single Rust file
+mkdir hello-spec && cd hello-spec
+cargo init --lib --quiet
+cat > src/lib.rs <<'EOF'
+//! A trivial greeter.
+
+/// Returns a greeting for `name`.
+pub fn greet(name: &str) -> String {
+    format!("hello, {name}!")
+}
+EOF
+
+# 3. Initialize SpecSync (creates .specsync/config.toml + a registry)
+specsync init
+
+# 4. Scaffold a spec for the module. SpecSync auto-detects `src/lib.rs`
+#    and generates a stub spec for the `greet` function it found.
+specsync new greeter
+
+# 5. Run the validator. The new spec has all required sections + matches code.
+specsync check
+```
+
+Expected output:
+
+```text
+✓ greeter (v1, draft) — 1 source file, 7/7 sections
+1 spec checked, 0 errors, 0 warnings
+```
+
+That's it. The spec is the contract; if you remove `pub fn greet` from the source, `specsync check` will fail. If you add a new public function and don't list it in the spec, you get a warning. Drift gets caught at CI time, not in code review.
+
+**Next steps:**
+- Add a `CorvidLabs/spec-sync@v4` GitHub Action to your CI — it runs `specsync check` and posts results to PRs.
+- Use `specsync wizard` for an interactive spec-creation experience instead of `new`.
+- Use `specsync generate --provider auto` to AI-generate richer specs from existing code.
+- See [`examples/quickstart/`](./examples/quickstart) for the same flow as a committed reference.
+
+For the full list of commands, see [CLI Reference](#cli-reference) below.
+
+---
+
+## CLI Reference
+
+All commands at a glance. Run `specsync <command> --help` for details.
 
 ```bash
 specsync migrate                           # Upgrade from 3.x to 4.0.0 (.specsync/ layout)

@@ -6,15 +6,24 @@ use std::fmt;
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum AiProvider {
+    /// Deprecated CLI provider — the agentic `claude -p` shell-out. Prefer
+    /// `anthropic` (API). Kept working with a warning for now.
     Claude,
+    /// Deprecated CLI provider — no stdin/stdout pipe mode for spec generation.
     Cursor,
+    /// Deprecated CLI provider — `gh copilot`. Prefer an API provider.
     Copilot,
+    /// Ollama via its OpenAI-compatible HTTP API (`OLLAMA_API_KEY` for the
+    /// cloud; runs keyless against a local server). No CLI shell-out.
     Ollama,
     /// Direct Anthropic API (no CLI needed — uses ANTHROPIC_API_KEY).
     Anthropic,
     /// Direct OpenAI-compatible API (no CLI needed — uses OPENAI_API_KEY).
     #[serde(alias = "openai")]
     OpenAi,
+    /// OpenRouter API (OpenAI-compatible — uses OPENROUTER_API_KEY).
+    #[serde(alias = "openrouter")]
+    OpenRouter,
     /// Google Gemini API (no CLI needed — uses GEMINI_API_KEY).
     Gemini,
     /// DeepSeek API (OpenAI-compatible — uses DEEPSEEK_API_KEY).
@@ -38,12 +47,13 @@ impl AiProvider {
     pub fn default_command(&self) -> Option<&'static str> {
         match self {
             AiProvider::Claude => Some("claude -p --output-format text"),
-            AiProvider::Ollama => Some("ollama run llama3"),
             AiProvider::Copilot => Some("gh copilot suggest -t shell"),
             AiProvider::Cursor
+            | AiProvider::Ollama
             | AiProvider::Custom
             | AiProvider::Anthropic
             | AiProvider::OpenAi
+            | AiProvider::OpenRouter
             | AiProvider::Gemini
             | AiProvider::DeepSeek
             | AiProvider::Groq
@@ -53,15 +63,16 @@ impl AiProvider {
         }
     }
 
-    /// The binary name to check for availability (empty for API-only providers).
+    /// The binary name to check for availability (empty for API providers).
     pub fn binary_name(&self) -> &'static str {
         match self {
             AiProvider::Claude => "claude",
             AiProvider::Cursor => "cursor",
             AiProvider::Copilot => "gh",
-            AiProvider::Ollama => "ollama",
-            AiProvider::Anthropic
+            AiProvider::Ollama
+            | AiProvider::Anthropic
             | AiProvider::OpenAi
+            | AiProvider::OpenRouter
             | AiProvider::Gemini
             | AiProvider::DeepSeek
             | AiProvider::Groq
@@ -78,12 +89,14 @@ impl AiProvider {
             self,
             AiProvider::Anthropic
                 | AiProvider::OpenAi
+                | AiProvider::OpenRouter
                 | AiProvider::Gemini
                 | AiProvider::DeepSeek
                 | AiProvider::Groq
                 | AiProvider::Mistral
                 | AiProvider::XAi
                 | AiProvider::Together
+                | AiProvider::Ollama
         )
     }
 
@@ -92,39 +105,14 @@ impl AiProvider {
         match self {
             AiProvider::Anthropic => Some("ANTHROPIC_API_KEY"),
             AiProvider::OpenAi => Some("OPENAI_API_KEY"),
+            AiProvider::OpenRouter => Some("OPENROUTER_API_KEY"),
             AiProvider::Gemini => Some("GEMINI_API_KEY"),
             AiProvider::DeepSeek => Some("DEEPSEEK_API_KEY"),
             AiProvider::Groq => Some("GROQ_API_KEY"),
             AiProvider::Mistral => Some("MISTRAL_API_KEY"),
             AiProvider::XAi => Some("XAI_API_KEY"),
             AiProvider::Together => Some("TOGETHER_API_KEY"),
-            _ => None,
-        }
-    }
-
-    /// Default model for API providers.
-    pub fn default_model(&self) -> Option<&'static str> {
-        match self {
-            AiProvider::Anthropic => Some("claude-sonnet-4-20250514"),
-            AiProvider::OpenAi => Some("gpt-4o"),
-            AiProvider::Gemini => Some("gemini-2.5-flash"),
-            AiProvider::DeepSeek => Some("deepseek-chat"),
-            AiProvider::Groq => Some("llama-3.3-70b-versatile"),
-            AiProvider::Mistral => Some("mistral-large-latest"),
-            AiProvider::XAi => Some("grok-3-mini"),
-            AiProvider::Together => Some("meta-llama/Llama-3.3-70B-Instruct-Turbo"),
-            _ => None,
-        }
-    }
-
-    /// Default base URL for OpenAI-compatible providers (None = use OpenAI default).
-    pub fn default_base_url(&self) -> Option<&'static str> {
-        match self {
-            AiProvider::DeepSeek => Some("https://api.deepseek.com"),
-            AiProvider::Groq => Some("https://api.groq.com/openai"),
-            AiProvider::Mistral => Some("https://api.mistral.ai"),
-            AiProvider::XAi => Some("https://api.x.ai"),
-            AiProvider::Together => Some("https://api.together.xyz"),
+            AiProvider::Ollama => Some("OLLAMA_API_KEY"),
             _ => None,
         }
     }
@@ -138,6 +126,7 @@ impl AiProvider {
             "ollama" => Some(AiProvider::Ollama),
             "anthropic" | "anthropic-api" => Some(AiProvider::Anthropic),
             "openai" | "openai-api" => Some(AiProvider::OpenAi),
+            "openrouter" | "open-router" => Some(AiProvider::OpenRouter),
             "gemini" | "google" => Some(AiProvider::Gemini),
             "deepseek" => Some(AiProvider::DeepSeek),
             "groq" => Some(AiProvider::Groq),
@@ -148,24 +137,31 @@ impl AiProvider {
         }
     }
 
-    /// All providers that can be auto-detected, in alphabetical order within
-    /// each category. CLI providers are checked first (binary detection),
-    /// then API providers (env var detection). No vendor preference.
+    /// The providers tried during auto-detection, by `<PROVIDER>_API_KEY`
+    /// presence, in the deterministic preference order shared with fledge:
+    /// Ollama (cloud key) first, then Anthropic, OpenAI, OpenRouter, Gemini,
+    /// DeepSeek, Groq, Mistral, xAI, Together.
+    ///
+    /// This order is used both to pick the single configured provider and as
+    /// the non-interactive tie-break when several keys are present. Unkeyed
+    /// local Ollama is *not* detected here (no probe) — it's only the
+    /// zero-config fallback when nothing is configured (see `resolve_ai_provider`).
+    ///
+    /// Auto-detection is API-only — it never shells out to a CLI. The deprecated
+    /// `claude`/`copilot` providers are reachable only by explicit selection
+    /// (`--provider` / `aiProvider`), where `claude` routes to `anthropic`.
     pub fn detection_order() -> &'static [AiProvider] {
         &[
-            // CLI providers (binary detection) — alphabetical
-            AiProvider::Claude,
-            AiProvider::Copilot,
             AiProvider::Ollama,
-            // API providers (env var detection) — alphabetical
             AiProvider::Anthropic,
-            AiProvider::DeepSeek,
+            AiProvider::OpenAi,
+            AiProvider::OpenRouter,
             AiProvider::Gemini,
+            AiProvider::DeepSeek,
             AiProvider::Groq,
             AiProvider::Mistral,
-            AiProvider::OpenAi,
-            AiProvider::Together,
             AiProvider::XAi,
+            AiProvider::Together,
         ]
     }
 }
@@ -179,6 +175,7 @@ impl fmt::Display for AiProvider {
             AiProvider::Ollama => write!(f, "ollama"),
             AiProvider::Anthropic => write!(f, "anthropic"),
             AiProvider::OpenAi => write!(f, "openai"),
+            AiProvider::OpenRouter => write!(f, "openrouter"),
             AiProvider::Gemini => write!(f, "gemini"),
             AiProvider::DeepSeek => write!(f, "deepseek"),
             AiProvider::Groq => write!(f, "groq"),
@@ -422,7 +419,7 @@ pub enum EnforcementMode {
 }
 
 /// User-provided configuration (from specsync.json).
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpecSyncConfig {
     #[serde(default = "default_specs_dir")]

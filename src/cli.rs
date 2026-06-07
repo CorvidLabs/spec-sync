@@ -84,10 +84,14 @@ pub enum Command {
         /// AI provider to use for spec generation. Without this flag, specs are
         /// generated from templates only.
         ///
-        /// Use "auto" to auto-detect an installed provider, or specify one:
-        /// claude, anthropic, openai, ollama, copilot.
+        /// Use "auto" to auto-detect a provider, or specify one: anthropic,
+        /// openai, openrouter, gemini, deepseek, groq, mistral, xai, together,
+        /// ollama (+ deprecated claude, copilot).
         #[arg(long, value_name = "PROVIDER")]
         provider: Option<String>,
+        /// Model id to use (overrides SPECSYNC_AI_MODEL and aiModel in config).
+        #[arg(long, value_name = "MODEL")]
+        model: Option<String>,
         /// Generate specs for all unspecced modules (default behavior, made explicit)
         #[arg(long)]
         uncovered: bool,

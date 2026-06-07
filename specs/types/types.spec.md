@@ -21,7 +21,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 
 | Type | Description |
 |------|-------------|
-| `AiProvider` | Supported AI provider presets: Claude, Cursor, Copilot, Ollama, Anthropic, OpenAi, Custom |
+| `AiProvider` | Supported AI provider presets. API providers (via corvid-ai): Anthropic, OpenAi, OpenRouter, Gemini, DeepSeek, Groq, Mistral, XAi, Together, Ollama. Deprecated CLI: Claude (routes to Anthropic), Copilot, Cursor. Plus Custom (`aiCommand`) |
 | `Language` | Detected source language for export extraction: TypeScript, Rust, Go, Python, Swift, Kotlin, Java, CSharp, Dart, Php, Ruby, Yaml |
 | `OutputFormat` | CLI output format: Text (colored terminal, default), Json (machine-readable), Markdown (PR comments / agent consumption) |
 | `ExportLevel` | Export extraction granularity: Type (top-level declarations only) or Member (all public symbols, default) |
@@ -57,8 +57,6 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `binary_name` | `&self` | `&'static str` | Binary name to check availability (empty for API providers) |
 | `is_api_provider` | `&self` | `bool` | Whether this provider uses direct API calls |
 | `api_key_env_var` | `&self` | `Option<&'static str>` | Environment variable name for the API key |
-| `default_model` | `&self` | `Option<&'static str>` | Default model name for API providers |
-| `default_base_url` | `&self` | `Option<&'static str>` | Default API base URL for OpenAI-compatible providers with non-OpenAI endpoints; returns `None` for providers that use their SDK/default endpoint |
 | `from_str_loose` | `s: &str` | `Option<Self>` | Parse provider name from string (case-insensitive, aliases supported) |
 | `detection_order` | — | `&'static [AiProvider]` | All auto-detectable providers in preference order |
 
@@ -98,7 +96,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 ## Invariants
 
 1. `AiProvider::from_str_loose` is case-insensitive and accepts common aliases (e.g. "gh-copilot" -> Copilot)
-2. `AiProvider::detection_order` returns CLI providers before API providers
+2. `AiProvider::detection_order` returns API providers only (by `<PROVIDER>_API_KEY` presence) — auto-detection never shells out to a CLI
 3. `Language::from_extension` returns `None` for unsupported extensions — never panics
 4. `SpecSyncConfig::default()` always provides sensible defaults (specs_dir="specs", source_dirs=["src"], 7 required sections)
 5. `ValidationResult::new` initializes with empty error/warning/fix vectors
@@ -175,3 +173,5 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | 2026-04-11 | Document SpecStatus lifecycle methods (all, ordinal, next, prev, valid_transitions, can_transition_to) |
 | 2026-04-11 | Move parsed_status to Frontmatter section; fix next/prev descriptions to include deprecated/archived |
 | 2026-04-12 | Document CompanionConfig struct for opt-in companion file settings |
+| 2026-06-07 | Remove `AiProvider::default_model` / `default_base_url` — the `corvid-ai` crate now owns the API endpoint registry and default models |
+| 2026-06-07 | Add `OpenRouter`; reclassify `Ollama` as an API provider (HTTP via corvid-ai, `OLLAMA_API_KEY`); `detection_order` is now API-only; deprecate the `claude`/`copilot` CLI providers |

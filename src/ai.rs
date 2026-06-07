@@ -1,6 +1,6 @@
 use crate::types::{AiProvider, SpecSyncConfig};
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, IsTerminal, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
@@ -9,6 +9,41 @@ use std::time::{Duration, Instant};
 const MAX_FILE_CHARS: usize = 30_000;
 const MAX_PROMPT_CHARS: usize = 150_000;
 const DEFAULT_AI_TIMEOUT_SECS: u64 = 120;
+
+/// Default local Ollama host (native API; corvid-ai appends `/v1` for the
+/// OpenAI-compatible transport it uses).
+const OLLAMA_DEFAULT_HOST: &str = "http://localhost:11434";
+/// Ollama Cloud host, targeted for `-cloud` model tags when `OLLAMA_API_KEY`
+/// is set.
+const OLLAMA_CLOUD_HOST: &str = "https://ollama.com";
+
+/// Resolve the Ollama host (without a trailing `/v1`).
+///
+/// Precedence (matches fledge): `OLLAMA_HOST` env > `aiBaseUrl` config >
+/// `-cloud` auto-routing (model tag contains `-cloud` and `OLLAMA_API_KEY` set
+/// ⇒ Ollama Cloud) > default localhost.
+fn ollama_host(config: &SpecSyncConfig) -> String {
+    let strip = |h: &str| h.trim_end_matches('/').trim_end_matches("/v1").to_string();
+
+    if let Ok(host) = std::env::var("OLLAMA_HOST")
+        && !host.is_empty()
+    {
+        return strip(&host);
+    }
+    if let Some(base) = config.ai_base_url.as_deref()
+        && !base.is_empty()
+    {
+        return strip(base);
+    }
+    let is_cloud_model = config
+        .ai_model
+        .as_deref()
+        .is_some_and(|m| m.contains("-cloud"));
+    if is_cloud_model && std::env::var("OLLAMA_API_KEY").is_ok_and(|k| !k.is_empty()) {
+        return OLLAMA_CLOUD_HOST.to_string();
+    }
+    OLLAMA_DEFAULT_HOST.to_string()
+}
 
 /// Truncate a string to at most `max_bytes` bytes on a valid UTF-8 char boundary.
 fn safe_truncate(s: &str, max_bytes: usize) -> &str {
@@ -22,51 +57,31 @@ fn safe_truncate(s: &str, max_bytes: usize) -> &str {
     &s[..end]
 }
 
-/// A resolved provider ready to execute — either a CLI command or a direct API call.
+/// A resolved provider ready to execute — either a CLI command or a direct API
+/// call routed through [`corvid_ai`].
 #[derive(Clone)]
 pub enum ResolvedProvider {
     /// Shell out to a CLI tool (e.g. `claude -p --output-format text`).
     Cli(String),
-    /// Call the Anthropic Messages API directly.
-    AnthropicApi {
-        api_key: String,
-        model: String,
-        base_url: Option<String>,
-    },
-    /// Call an OpenAI-compatible Chat Completions API directly.
-    OpenAiApi {
-        api_key: String,
-        model: String,
-        base_url: Option<String>,
-    },
-    /// Call the Google Gemini API directly.
-    GeminiApi { api_key: String, model: String },
+    /// Call an LLM HTTP API via the shared `corvid-ai` client. The `Settings`
+    /// carry the provider name (registry key), plus any model/key/base-url/
+    /// timeout overrides; `corvid-ai` owns the registry of endpoints and
+    /// default models.
+    Api(corvid_ai::Settings),
 }
 
 impl std::fmt::Debug for ResolvedProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ResolvedProvider::Cli(cmd) => f.debug_tuple("Cli").field(cmd).finish(),
-            ResolvedProvider::AnthropicApi {
-                model, base_url, ..
-            } => f
-                .debug_struct("AnthropicApi")
-                .field("api_key", &"[REDACTED]")
-                .field("model", model)
-                .field("base_url", base_url)
-                .finish(),
-            ResolvedProvider::OpenAiApi {
-                model, base_url, ..
-            } => f
-                .debug_struct("OpenAiApi")
-                .field("api_key", &"[REDACTED]")
-                .field("model", model)
-                .field("base_url", base_url)
-                .finish(),
-            ResolvedProvider::GeminiApi { model, .. } => f
-                .debug_struct("GeminiApi")
-                .field("api_key", &"[REDACTED]")
-                .field("model", model)
+            // Custom impl rather than deriving: `corvid_ai::Settings`'s derived
+            // Debug would print the API key verbatim. Redact it here.
+            ResolvedProvider::Api(settings) => f
+                .debug_struct("Api")
+                .field("provider", &settings.provider)
+                .field("model", &settings.model)
+                .field("api_key", &settings.api_key.as_ref().map(|_| "[REDACTED]"))
+                .field("base_url", &settings.base_url)
                 .finish(),
         }
     }
@@ -76,20 +91,17 @@ impl std::fmt::Display for ResolvedProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ResolvedProvider::Cli(cmd) => write!(f, "CLI: {cmd}"),
-            ResolvedProvider::AnthropicApi { model, .. } => {
-                write!(f, "Anthropic API ({model})")
-            }
-            ResolvedProvider::OpenAiApi {
-                model, base_url, ..
-            } => {
-                if let Some(url) = base_url {
-                    write!(f, "OpenAI API ({model} @ {url})")
-                } else {
-                    write!(f, "OpenAI API ({model})")
+            ResolvedProvider::Api(settings) => {
+                let provider = settings
+                    .provider
+                    .as_deref()
+                    .unwrap_or(corvid_ai::DEFAULT_PROVIDER);
+                match (&settings.model, &settings.base_url) {
+                    (Some(model), Some(url)) => write!(f, "{provider} API ({model} @ {url})"),
+                    (Some(model), None) => write!(f, "{provider} API ({model})"),
+                    (None, Some(url)) => write!(f, "{provider} API (@ {url})"),
+                    (None, None) => write!(f, "{provider} API"),
                 }
-            }
-            ResolvedProvider::GeminiApi { model, .. } => {
-                write!(f, "Gemini API ({model})")
             }
         }
     }
@@ -115,12 +127,9 @@ fn is_binary_available(name: &str) -> bool {
 
 /// Build the CLI command string for a provider, optionally using a custom model.
 fn command_for_provider(provider: &AiProvider, model: Option<&str>) -> Result<String, String> {
+    let _ = model;
     match provider {
         AiProvider::Claude => Ok("claude -p --output-format text".to_string()),
-        AiProvider::Ollama => {
-            let model = model.unwrap_or("llama3");
-            Ok(format!("ollama run {model}"))
-        }
         AiProvider::Copilot => Ok("gh copilot suggest -t shell".to_string()),
         AiProvider::Cursor => Err(
             "Cursor does not have a CLI pipe mode (stdin→stdout) for spec generation.\n\
@@ -133,12 +142,14 @@ fn command_for_provider(provider: &AiProvider, model: Option<&str>) -> Result<St
         ),
         AiProvider::Anthropic
         | AiProvider::OpenAi
+        | AiProvider::OpenRouter
         | AiProvider::Gemini
         | AiProvider::DeepSeek
         | AiProvider::Groq
         | AiProvider::Mistral
         | AiProvider::XAi
-        | AiProvider::Together => Err(
+        | AiProvider::Together
+        | AiProvider::Ollama => Err(
             "API providers should use resolve_api_provider(), not command_for_provider()"
                 .to_string(),
         ),
@@ -148,74 +159,141 @@ fn command_for_provider(provider: &AiProvider, model: Option<&str>) -> Result<St
     }
 }
 
-/// Resolve an API provider to a ResolvedProvider.
+/// Map a spec-sync API provider to its `corvid-ai` registry name.
+///
+/// Returns `None` for providers that don't use API-key auth (CLI/custom).
+fn corvid_provider_name(provider: &AiProvider) -> Option<&'static str> {
+    match provider {
+        AiProvider::Anthropic => Some("anthropic"),
+        AiProvider::OpenAi => Some("openai"),
+        AiProvider::OpenRouter => Some("openrouter"),
+        AiProvider::Gemini => Some("gemini"),
+        AiProvider::DeepSeek => Some("deepseek"),
+        AiProvider::Groq => Some("groq"),
+        AiProvider::Mistral => Some("mistral"),
+        AiProvider::XAi => Some("xai"),
+        AiProvider::Together => Some("together"),
+        AiProvider::Ollama => Some("ollama"),
+        _ => None,
+    }
+}
+
+/// Resolve an API provider into [`corvid_ai::Settings`].
+///
+/// Only the user-supplied overrides (model/key/base-url/timeout) are carried
+/// here; `corvid-ai` owns the endpoint registry, default models, and the
+/// `<PROVIDER>_API_KEY` env-var fallback, which it resolves lazily when the
+/// request runs.
 fn resolve_api_provider(
     provider: &AiProvider,
     config: &SpecSyncConfig,
 ) -> Result<ResolvedProvider, String> {
-    let env_var = provider.api_key_env_var().ok_or_else(|| {
+    let name = corvid_provider_name(provider).ok_or_else(|| {
         format!("Provider \"{provider}\" does not support API key authentication")
     })?;
-    let api_key = config
-        .ai_api_key
-        .clone()
-        .or_else(|| std::env::var(env_var).ok())
-        .ok_or_else(|| {
-            format!(
-                "Provider \"{provider}\" requires an API key. Set {env_var} or \
-                 add \"aiApiKey\" to specsync.json"
-            )
-        })?;
 
-    let model = config.ai_model.clone().map_or_else(
-        || {
-            provider
-                .default_model()
-                .map(|m| m.to_string())
-                .ok_or_else(|| {
-                    format!("Provider \"{provider}\" has no default model — set \"aiModel\" in specsync.json")
-                })
-        },
-        Ok,
-    )?;
-
-    match provider {
-        AiProvider::Anthropic => Ok(ResolvedProvider::AnthropicApi {
-            api_key,
-            model,
-            base_url: config.ai_base_url.clone(),
-        }),
-        AiProvider::Gemini => Ok(ResolvedProvider::GeminiApi { api_key, model }),
-        // OpenAI and all OpenAI-compatible providers resolve to OpenAiApi
-        // with the appropriate base URL (config override > provider default > OpenAI default).
-        AiProvider::OpenAi
-        | AiProvider::DeepSeek
-        | AiProvider::Groq
-        | AiProvider::Mistral
-        | AiProvider::XAi
-        | AiProvider::Together => {
-            let base_url = config
-                .ai_base_url
-                .clone()
-                .or_else(|| provider.default_base_url().map(String::from));
-            Ok(ResolvedProvider::OpenAiApi {
-                api_key,
-                model,
-                base_url,
-            })
-        }
-        _ => unreachable!(),
+    // Fail fast with a clear, env-var-named message when a key is required but
+    // missing, rather than resolving lazily and only erroring after scanning the
+    // project. corvid-ai validates again at request time; this is purely for UX.
+    //
+    // Ollama runs keyless against a local server, and a custom `aiBaseUrl`
+    // signals a self-hosted/proxy gateway that may not need a key — skip the
+    // eager check in those cases and let the request surface any auth error.
+    let key_optional = matches!(provider, AiProvider::Ollama) || config.ai_base_url.is_some();
+    let has_key = config.ai_api_key.as_deref().is_some_and(|k| !k.is_empty())
+        || provider
+            .api_key_env_var()
+            .is_some_and(|env_var| std::env::var(env_var).is_ok());
+    if !key_optional && !has_key {
+        let env_var = provider.api_key_env_var().unwrap_or_default();
+        return Err(format!(
+            "Provider \"{provider}\" requires an API key. Set {env_var} or \
+             add \"aiApiKey\" to specsync.json"
+        ));
     }
+
+    let mut settings = corvid_ai::Settings::provider(name);
+    if let Some(model) = &config.ai_model {
+        settings = settings.model(model);
+    }
+    if let Some(key) = &config.ai_api_key {
+        settings = settings.api_key(key);
+    }
+    if matches!(provider, AiProvider::Ollama) {
+        // Ollama's host honors OLLAMA_HOST / config / -cloud routing; corvid-ai
+        // speaks to it over the OpenAI-compatible `/v1` endpoint.
+        settings = settings.base_url(format!("{}/v1", ollama_host(config)));
+    } else if let Some(base_url) = &config.ai_base_url {
+        settings = settings.base_url(base_url);
+    }
+    settings.timeout_secs = Some(config.ai_timeout.unwrap_or(DEFAULT_AI_TIMEOUT_SECS));
+
+    Ok(ResolvedProvider::Api(settings))
+}
+
+/// Emit a deprecation notice when a (still-functional) CLI provider is selected.
+///
+/// API providers are the supported path; these warnings steer users there
+/// before the CLI providers are removed in a future major release.
+fn warn_deprecated_cli(provider: &AiProvider) {
+    if let AiProvider::Copilot = provider {
+        eprintln!(
+            "  ⚠ The `copilot` CLI provider is deprecated. Prefer an API provider \
+             (anthropic / openai / gemini / ollama / …) with its API key."
+        );
+    }
+}
+
+/// Resolve an explicitly-named provider (from `--provider` or config).
+///
+/// The deprecated `claude` alias routes to the `anthropic` API with a warning —
+/// it no longer shells out to the agentic `claude -p`. API providers go to the
+/// shared client; the remaining deprecated CLI providers (`copilot`) and the
+/// no-pipe `cursor` use the legacy path. `selected_as` is "selected" or
+/// "configured" for the not-installed error message.
+fn resolve_named_provider(
+    provider: &AiProvider,
+    config: &SpecSyncConfig,
+    selected_as: &str,
+) -> Result<ResolvedProvider, String> {
+    if matches!(provider, AiProvider::Claude) {
+        // Shared deprecation message template (matches fledge).
+        eprintln!(
+            "  ⚠ provider 'claude' is deprecated and now uses anthropic. Set \
+             \"aiProvider\": \"anthropic\" (and ANTHROPIC_API_KEY). This alias is removed \
+             in spec-sync 5.0."
+        );
+        return resolve_api_provider(&AiProvider::Anthropic, config);
+    }
+
+    if provider.is_api_provider() {
+        return resolve_api_provider(provider, config);
+    }
+
+    // Deprecated CLI (copilot), no-pipe (cursor), or custom — legacy CLI path.
+    let cmd = command_for_provider(provider, config.ai_model.as_deref())?;
+    if !is_binary_available(provider.binary_name()) {
+        return Err(format!(
+            "Provider \"{provider}\" {selected_as} but `{}` is not installed or not on PATH",
+            provider.binary_name()
+        ));
+    }
+    warn_deprecated_cli(provider);
+    Ok(ResolvedProvider::Cli(cmd))
 }
 
 /// Resolve the AI provider to use.
 ///
-/// Resolution order:
-/// 1. `--provider` CLI flag (passed as `cli_provider`)
-/// 2. `aiCommand` in config — includes `.specsync/config.local.toml` overrides
-/// 3. `aiProvider` in config (resolved to CLI command or API)
-/// 4. `SPECSYNC_AI_COMMAND` env var
-/// 5. Auto-detect installed CLIs (alphabetical), then check for API keys
+/// Resolution order (shared mental model with fledge — `flag > env > config`,
+/// 12-factor; consistent with model precedence):
+/// 1. `--provider` CLI flag (explicit selection)
+/// 2. `SPECSYNC_AI_COMMAND` env — spec-sync-only explicit CLI hatch
+/// 3. `SPECSYNC_AI_PROVIDER` env (provider name)
+/// 4. `aiCommand` in config — spec-sync-only explicit, trusted CLI escape hatch
+/// 5. `aiProvider` in config (explicit selection)
+/// 6. Auto-detect: none configured → keyless local Ollama; one key → use it;
+///    multiple keys → prompt (interactive) or deterministic order. No CLI is
+///    ever auto-selected.
 pub fn resolve_ai_provider(
     config: &SpecSyncConfig,
     cli_provider: Option<&str>,
@@ -224,104 +302,119 @@ pub fn resolve_ai_provider(
     if let Some(name) = cli_provider {
         let provider = AiProvider::from_str_loose(name).ok_or_else(|| {
             format!(
-                "Unknown provider \"{name}\". Available: claude, anthropic, openai, gemini, \
-                 deepseek, groq, mistral, xai, together, ollama, copilot"
+                "Unknown provider \"{name}\". Available: anthropic, openai, openrouter, gemini, \
+                 deepseek, groq, mistral, xai, together, ollama (+ deprecated claude, copilot)"
             )
         })?;
 
-        if provider.is_api_provider() {
-            return resolve_api_provider(&provider, config);
-        }
+        return resolve_named_provider(&provider, config, "selected");
+    }
 
-        // Check command_for_provider first — some providers (e.g. Cursor) have
-        // no CLI pipe mode and should return their specific error message
-        // before we check binary availability.
-        let cmd = command_for_provider(&provider, config.ai_model.as_deref())?;
+    // Env above config (12-factor; consistent with model precedence and fledge).
+    // Within each tier the command hatch outranks the provider name.
 
-        if !is_binary_available(provider.binary_name()) {
-            return Err(format!(
-                "Provider \"{name}\" selected but `{}` is not installed or not on PATH",
-                provider.binary_name()
-            ));
-        }
+    // 2. SPECSYNC_AI_COMMAND env (explicit CLI hatch)
+    if let Ok(cmd) = std::env::var("SPECSYNC_AI_COMMAND")
+        && !cmd.is_empty()
+    {
         return Ok(ResolvedProvider::Cli(cmd));
     }
 
-    // 2. aiCommand in config (explicit override)
+    // 3. SPECSYNC_AI_PROVIDER env (provider name)
+    if let Ok(name) = std::env::var("SPECSYNC_AI_PROVIDER")
+        && !name.is_empty()
+    {
+        let provider = AiProvider::from_str_loose(&name)
+            .ok_or_else(|| format!("Unknown provider \"{name}\" from SPECSYNC_AI_PROVIDER"))?;
+        return resolve_named_provider(&provider, config, "selected via SPECSYNC_AI_PROVIDER");
+    }
+
+    // 4. aiCommand in config (the trusted CLI escape hatch)
     if let Some(cmd) = &config.ai_command {
         return Ok(ResolvedProvider::Cli(cmd.clone()));
     }
 
-    // 3. aiProvider in config
+    // 5. aiProvider in config
     if let Some(provider) = &config.ai_provider {
-        if provider.is_api_provider() {
-            return resolve_api_provider(provider, config);
-        }
-
-        let cmd = command_for_provider(provider, config.ai_model.as_deref())?;
-
-        if !is_binary_available(provider.binary_name()) {
-            return Err(format!(
-                "Provider \"{}\" configured but `{}` is not installed or not on PATH",
-                provider,
-                provider.binary_name()
-            ));
-        }
-        return Ok(ResolvedProvider::Cli(cmd));
+        return resolve_named_provider(provider, config, "configured");
     }
 
-    // 4. Environment variable
-    if let Ok(cmd) = std::env::var("SPECSYNC_AI_COMMAND") {
-        return Ok(ResolvedProvider::Cli(cmd));
-    }
+    // 6. Auto-detect by API-key presence (no CLI shell-out, no network probe).
+    //    Collect every provider with a key set, in deterministic order.
+    let configured: Vec<&AiProvider> = AiProvider::detection_order()
+        .iter()
+        .filter(|p| {
+            // Separate variable for the env-var name so CodeQL doesn't confuse
+            // the *name* with the *value* returned by std::env::var.
+            p.api_key_env_var()
+                .is_some_and(|v| std::env::var(v).is_ok_and(|k| !k.is_empty()))
+        })
+        .collect();
 
-    // 5. Auto-detect: check installed CLIs first, then API keys
-    for provider in AiProvider::detection_order() {
-        if provider.is_api_provider() {
-            // Check for API key in env — use a separate variable for the
-            // env-var name so CodeQL doesn't confuse the *name* with the
-            // *value* returned by std::env::var.
-            let has_key = provider
-                .api_key_env_var()
-                .is_some_and(|v| std::env::var(v).is_ok());
-            if has_key {
-                eprintln!("  Auto-detected AI provider: {provider} (API key found)");
-                return resolve_api_provider(provider, config);
-            }
-        } else if is_binary_available(provider.binary_name())
-            && let Ok(cmd) = command_for_provider(provider, config.ai_model.as_deref())
-        {
+    match configured.as_slice() {
+        // None configured → keyless local Ollama (the zero-config default).
+        [] => {
             eprintln!(
-                "  Auto-detected AI provider: {} ({})",
-                provider,
-                provider.binary_name()
+                "  No AI API key detected — defaulting to local Ollama ({}).\n  \
+                 Start a local Ollama server, set OLLAMA_API_KEY for the cloud, or set \
+                 another provider's key (ANTHROPIC_API_KEY, OPENAI_API_KEY, …).",
+                ollama_host(config)
             );
-            return Ok(ResolvedProvider::Cli(cmd));
+            resolve_api_provider(&AiProvider::Ollama, config)
+        }
+        // Exactly one configured → use it.
+        [provider] => {
+            eprintln!("  Auto-detected AI provider: {provider} (API key found)");
+            resolve_api_provider(provider, config)
+        }
+        // Several configured → prompt interactively, else deterministic order.
+        providers => {
+            if std::io::stdin().is_terminal() && std::io::stderr().is_terminal() {
+                prompt_provider_and_model(providers, config)
+            } else {
+                let provider = providers[0];
+                eprintln!(
+                    "  Multiple AI providers configured ({}); using {provider} (first in \
+                     order). Set \"aiProvider\" or --provider to choose explicitly.",
+                    providers
+                        .iter()
+                        .map(|p| p.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                resolve_api_provider(provider, config)
+            }
         }
     }
+}
 
-    Err("No AI provider found. Options:\n\n\
-         CLI providers (install a tool):\n  \
-         claude     — Claude Code CLI (npm i -g @anthropic-ai/claude-code)\n  \
-         copilot    — GitHub Copilot (gh extension install github/gh-copilot)\n  \
-         ollama     — Local models (ollama.com)\n\n\
-         API providers (just set a key — no CLI needed):\n  \
-         anthropic  — set ANTHROPIC_API_KEY env var\n  \
-         openai     — set OPENAI_API_KEY env var\n  \
-         gemini     — set GEMINI_API_KEY env var\n  \
-         deepseek   — set DEEPSEEK_API_KEY env var\n  \
-         groq       — set GROQ_API_KEY env var\n  \
-         mistral    — set MISTRAL_API_KEY env var\n  \
-         xai        — set XAI_API_KEY env var\n  \
-         together   — set TOGETHER_API_KEY env var\n\n\
-         Or configure in specsync.json:\n  \
-         \"aiProvider\": \"anthropic\"    + ANTHROPIC_API_KEY\n  \
-         \"aiProvider\": \"openai\"       + OPENAI_API_KEY\n  \
-         \"aiProvider\": \"gemini\"       + GEMINI_API_KEY\n  \
-         \"aiProvider\": \"deepseek\"     + DEEPSEEK_API_KEY\n  \
-         \"aiCommand\":  \"any-cli\"      (custom command)\n\n\
-         Use --provider <name> to select one, or --provider auto to auto-detect."
-        .to_string())
+/// Interactively choose a provider (and optional model) when several have keys.
+fn prompt_provider_and_model(
+    providers: &[&AiProvider],
+    config: &SpecSyncConfig,
+) -> Result<ResolvedProvider, String> {
+    use dialoguer::{Input, Select};
+
+    let labels: Vec<String> = providers.iter().map(|p| p.to_string()).collect();
+    let idx = Select::new()
+        .with_prompt("Multiple AI providers configured — pick one")
+        .items(&labels)
+        .default(0)
+        .interact()
+        .map_err(|e| format!("provider selection cancelled: {e}"))?;
+    let provider = providers[idx];
+
+    let model: String = Input::new()
+        .with_prompt(format!("Model for {provider} (blank = provider default)"))
+        .allow_empty(true)
+        .interact_text()
+        .map_err(|e| format!("model entry cancelled: {e}"))?;
+
+    let mut chosen = config.clone();
+    if !model.trim().is_empty() {
+        chosen.ai_model = Some(model.trim().to_string());
+    }
+    resolve_api_provider(provider, &chosen)
 }
 
 // Keep the old name as an alias for compatibility with tests
@@ -577,249 +670,12 @@ fn run_cli_command(ai_command: &str, prompt: &str, timeout_secs: u64) -> Result<
     Ok(stdout)
 }
 
-/// Call the Anthropic Messages API directly.
-fn call_anthropic_api(
-    api_key: &str,
-    model: &str,
-    base_url: Option<&str>,
-    prompt: &str,
-    timeout_secs: u64,
-) -> Result<String, String> {
-    let url = format!(
-        "{}/v1/messages",
-        base_url.unwrap_or("https://api.anthropic.com")
-    );
-
-    eprintln!("    Calling Anthropic API...");
-    let _ = std::io::stderr().flush();
-
-    let body = serde_json::json!({
-        "model": model,
-        "max_tokens": 8192,
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-    });
-
-    let agent = ureq::Agent::new_with_config(
-        ureq::config::Config::builder()
-            .timeout_global(Some(Duration::from_secs(timeout_secs)))
-            .build(),
-    );
-
-    let mut response = agent
-        .post(&url)
-        .header("x-api-key", api_key)
-        .header("anthropic-version", "2023-06-01")
-        .header("content-type", "application/json")
-        .send_json(&body)
-        .map_err(|e| {
-            // Sanitize error to avoid leaking API key from request headers
-            let msg = e.to_string();
-            if msg.contains(api_key) {
-                "Anthropic API request failed: connection error".to_string()
-            } else {
-                format!("Anthropic API request failed: {msg}")
-            }
-        })?;
-
-    let status = response.status();
-    let response_body: serde_json::Value = response
-        .body_mut()
-        .read_json()
-        .map_err(|e| format!("Failed to parse Anthropic API response: {e}"))?;
-
-    if status != 200 {
-        let error_msg = response_body["error"]["message"]
-            .as_str()
-            .unwrap_or("unknown error");
-        return Err(format!("Anthropic API error (HTTP {status}): {error_msg}"));
-    }
-
-    // Extract text from the response content blocks
-    let content = response_body["content"]
-        .as_array()
-        .ok_or("Anthropic API response missing 'content' array")?;
-
-    let mut text = String::new();
-    for block in content {
-        if block["type"].as_str() == Some("text")
-            && let Some(t) = block["text"].as_str()
-        {
-            text.push_str(t);
-        }
-    }
-
-    if text.trim().is_empty() {
-        return Err("Anthropic API returned empty response".to_string());
-    }
-
-    let usage = &response_body["usage"];
-    let input_tokens = usage["input_tokens"].as_u64().unwrap_or(0);
-    let output_tokens = usage["output_tokens"].as_u64().unwrap_or(0);
-    eprintln!("    ✓ Anthropic API: {input_tokens} input + {output_tokens} output tokens");
-
-    Ok(text)
-}
-
-/// Call an OpenAI-compatible Chat Completions API directly.
-fn call_openai_api(
-    api_key: &str,
-    model: &str,
-    base_url: Option<&str>,
-    prompt: &str,
-    timeout_secs: u64,
-) -> Result<String, String> {
-    let url = format!(
-        "{}/v1/chat/completions",
-        base_url.unwrap_or("https://api.openai.com")
-    );
-
-    eprintln!("    Calling OpenAI API...");
-    let _ = std::io::stderr().flush();
-
-    let body = serde_json::json!({
-        "model": model,
-        "max_tokens": 8192,
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-    });
-
-    let agent = ureq::Agent::new_with_config(
-        ureq::config::Config::builder()
-            .timeout_global(Some(Duration::from_secs(timeout_secs)))
-            .build(),
-    );
-
-    let mut response = agent
-        .post(&url)
-        .header("Authorization", &format!("Bearer {api_key}"))
-        .header("content-type", "application/json")
-        .send_json(&body)
-        .map_err(|e| {
-            // Sanitize error to avoid leaking API key from request headers
-            let msg = e.to_string();
-            if msg.contains(api_key) {
-                "OpenAI API request failed: connection error".to_string()
-            } else {
-                format!("OpenAI API request failed: {msg}")
-            }
-        })?;
-
-    let status = response.status();
-    let response_body: serde_json::Value = response
-        .body_mut()
-        .read_json()
-        .map_err(|e| format!("Failed to parse OpenAI API response: {e}"))?;
-
-    if status != 200 {
-        let error_msg = response_body["error"]["message"]
-            .as_str()
-            .unwrap_or("unknown error");
-        return Err(format!("OpenAI API error (HTTP {status}): {error_msg}"));
-    }
-
-    let text = response_body["choices"][0]["message"]["content"]
-        .as_str()
-        .ok_or("OpenAI API response missing choices[0].message.content")?
-        .to_string();
-
-    if text.trim().is_empty() {
-        return Err("OpenAI API returned empty response".to_string());
-    }
-
-    let usage = &response_body["usage"];
-    let prompt_tokens = usage["prompt_tokens"].as_u64().unwrap_or(0);
-    let completion_tokens = usage["completion_tokens"].as_u64().unwrap_or(0);
-    eprintln!("    ✓ OpenAI API: {prompt_tokens} input + {completion_tokens} output tokens");
-
-    Ok(text)
-}
-
-/// Call the Google Gemini API directly.
-fn call_gemini_api(
-    api_key: &str,
-    model: &str,
-    prompt: &str,
-    timeout_secs: u64,
-) -> Result<String, String> {
-    let url =
-        format!("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent");
-
-    eprintln!("    Calling Gemini API...");
-    let _ = std::io::stderr().flush();
-
-    let body = serde_json::json!({
-        "contents": [
-            {
-                "parts": [
-                    { "text": prompt }
-                ]
-            }
-        ],
-        "generationConfig": {
-            "maxOutputTokens": 8192
-        }
-    });
-
-    let agent = ureq::Agent::new_with_config(
-        ureq::config::Config::builder()
-            .timeout_global(Some(Duration::from_secs(timeout_secs)))
-            .build(),
-    );
-
-    let mut response = agent
-        .post(&url)
-        .header("content-type", "application/json")
-        .header("x-goog-api-key", api_key)
-        .send_json(&body)
-        .map_err(|e| {
-            let msg = e.to_string();
-            if msg.contains(api_key) {
-                "Gemini API request failed: connection error".to_string()
-            } else {
-                format!("Gemini API request failed: {msg}")
-            }
-        })?;
-
-    let status = response.status();
-    let response_body: serde_json::Value = response
-        .body_mut()
-        .read_json()
-        .map_err(|e| format!("Failed to parse Gemini API response: {e}"))?;
-
-    if status != 200 {
-        let error_msg = response_body["error"]["message"]
-            .as_str()
-            .unwrap_or("unknown error");
-        return Err(format!("Gemini API error (HTTP {status}): {error_msg}"));
-    }
-
-    let text = response_body["candidates"][0]["content"]["parts"][0]["text"]
-        .as_str()
-        .ok_or("Gemini API response missing candidates[0].content.parts[0].text")?
-        .to_string();
-
-    if text.trim().is_empty() {
-        return Err("Gemini API returned empty response".to_string());
-    }
-
-    let usage = &response_body["usageMetadata"];
-    let input_tokens = usage["promptTokenCount"].as_u64().unwrap_or(0);
-    let output_tokens = usage["candidatesTokenCount"].as_u64().unwrap_or(0);
-    eprintln!("    ✓ Gemini API: {input_tokens} input + {output_tokens} output tokens");
-
-    Ok(text)
-}
-
 /// Run the resolved provider with the given prompt.
+///
+/// CLI providers shell out (legacy path); API providers go through the shared
+/// `corvid-ai` client, which owns the three HTTP wire shapes (Anthropic /
+/// OpenAI-compatible / Gemini), endpoint registry, key resolution, and secret
+/// redaction in errors.
 fn run_provider(
     provider: &ResolvedProvider,
     prompt: &str,
@@ -827,18 +683,20 @@ fn run_provider(
 ) -> Result<String, String> {
     match provider {
         ResolvedProvider::Cli(cmd) => run_cli_command(cmd, prompt, timeout_secs),
-        ResolvedProvider::AnthropicApi {
-            api_key,
-            model,
-            base_url,
-        } => call_anthropic_api(api_key, model, base_url.as_deref(), prompt, timeout_secs),
-        ResolvedProvider::OpenAiApi {
-            api_key,
-            model,
-            base_url,
-        } => call_openai_api(api_key, model, base_url.as_deref(), prompt, timeout_secs),
-        ResolvedProvider::GeminiApi { api_key, model } => {
-            call_gemini_api(api_key, model, prompt, timeout_secs)
+        ResolvedProvider::Api(settings) => {
+            let mut settings = settings.clone();
+            // Fall back to the caller's timeout if Settings didn't carry one.
+            if settings.timeout_secs.is_none() {
+                settings.timeout_secs = Some(timeout_secs);
+            }
+            eprintln!(
+                "    Calling {} API...",
+                settings.provider.as_deref().unwrap_or("LLM")
+            );
+            let _ = std::io::stderr().flush();
+
+            let completion = corvid_ai::Completion::new(prompt).max_tokens(8192);
+            corvid_ai::complete(&settings, &completion).map_err(|e| e.to_string())
         }
     }
 }
@@ -1031,15 +889,93 @@ mod tests {
     }
 
     #[test]
-    fn command_for_ollama_default_model() {
-        let cmd = command_for_provider(&AiProvider::Ollama, None).unwrap();
-        assert_eq!(cmd, "ollama run llama3");
+    fn ollama_is_an_api_provider() {
+        // Ollama now routes through corvid-ai's OpenAI-compatible HTTP endpoint
+        // rather than shelling out to `ollama run`.
+        assert!(AiProvider::Ollama.is_api_provider());
+        assert_eq!(corvid_provider_name(&AiProvider::Ollama), Some("ollama"));
+        assert_eq!(AiProvider::Ollama.api_key_env_var(), Some("OLLAMA_API_KEY"));
     }
 
     #[test]
-    fn command_for_ollama_custom_model() {
-        let cmd = command_for_provider(&AiProvider::Ollama, Some("mistral")).unwrap();
-        assert_eq!(cmd, "ollama run mistral");
+    fn ollama_resolves_keyless() {
+        // No OLLAMA_API_KEY needed — a local Ollama server runs keyless, so the
+        // eager key check must not reject it.
+        let config = SpecSyncConfig::default();
+        let resolved = resolve_api_provider(&AiProvider::Ollama, &config).unwrap();
+        match resolved {
+            ResolvedProvider::Api(settings) => {
+                assert_eq!(settings.provider.as_deref(), Some("ollama"));
+            }
+            _ => panic!("expected an Api provider"),
+        }
+    }
+
+    #[test]
+    fn openrouter_maps_to_corvid_ai() {
+        assert!(AiProvider::OpenRouter.is_api_provider());
+        assert_eq!(
+            corvid_provider_name(&AiProvider::OpenRouter),
+            Some("openrouter")
+        );
+        assert_eq!(
+            AiProvider::from_str_loose("openrouter"),
+            Some(AiProvider::OpenRouter)
+        );
+    }
+
+    #[test]
+    fn claude_routes_to_anthropic_api_not_cli() {
+        // The deprecated `claude` alias must resolve to the anthropic API rather
+        // than shelling out to the agentic `claude -p`. Key supplied via config
+        // so the test is independent of the environment.
+        let config = SpecSyncConfig {
+            ai_api_key: Some("sk-test".to_string()),
+            ..SpecSyncConfig::default()
+        };
+        let resolved = resolve_named_provider(&AiProvider::Claude, &config, "selected").unwrap();
+        match resolved {
+            ResolvedProvider::Api(settings) => {
+                assert_eq!(settings.provider.as_deref(), Some("anthropic"));
+            }
+            ResolvedProvider::Cli(_) => panic!("claude must route to the anthropic API, not a CLI"),
+        }
+    }
+
+    #[test]
+    fn detection_order_is_api_only_and_ollama_first() {
+        // Auto-detection must never include a CLI shell-out provider.
+        for provider in AiProvider::detection_order() {
+            assert!(
+                provider.is_api_provider(),
+                "{provider} is in detection_order but is not an API provider"
+            );
+        }
+        // Ollama (cloud key) is the first preference in the shared order.
+        assert_eq!(
+            AiProvider::detection_order().first(),
+            Some(&AiProvider::Ollama)
+        );
+    }
+
+    #[test]
+    fn ollama_host_strips_v1_and_trailing_slash_from_config() {
+        // Guarded so a developer's OLLAMA_HOST doesn't fail the test.
+        if std::env::var("OLLAMA_HOST").is_err() {
+            let config = SpecSyncConfig {
+                ai_base_url: Some("http://example.com:1234/v1/".to_string()),
+                ..SpecSyncConfig::default()
+            };
+            assert_eq!(ollama_host(&config), "http://example.com:1234");
+        }
+    }
+
+    #[test]
+    fn ollama_host_defaults_to_localhost() {
+        if std::env::var("OLLAMA_HOST").is_err() {
+            let config = SpecSyncConfig::default();
+            assert_eq!(ollama_host(&config), "http://localhost:11434");
+        }
     }
 
     #[test]
@@ -1076,35 +1012,39 @@ mod tests {
 
     #[test]
     fn display_anthropic_provider() {
-        let p = ResolvedProvider::AnthropicApi {
-            api_key: "sk-test".to_string(),
-            model: "claude-sonnet-4-20250514".to_string(),
-            base_url: None,
-        };
-        assert_eq!(format!("{p}"), "Anthropic API (claude-sonnet-4-20250514)");
+        let p = ResolvedProvider::Api(
+            corvid_ai::Settings::provider("anthropic").model("claude-sonnet-4-6"),
+        );
+        assert_eq!(format!("{p}"), "anthropic API (claude-sonnet-4-6)");
     }
 
     #[test]
     fn display_openai_provider_no_base_url() {
-        let p = ResolvedProvider::OpenAiApi {
-            api_key: "sk-test".to_string(),
-            model: "gpt-4o".to_string(),
-            base_url: None,
-        };
-        assert_eq!(format!("{p}"), "OpenAI API (gpt-4o)");
+        let p = ResolvedProvider::Api(corvid_ai::Settings::provider("openai").model("gpt-4o"));
+        assert_eq!(format!("{p}"), "openai API (gpt-4o)");
     }
 
     #[test]
     fn display_openai_provider_with_base_url() {
-        let p = ResolvedProvider::OpenAiApi {
-            api_key: "sk-test".to_string(),
-            model: "gpt-4o".to_string(),
-            base_url: Some("https://custom.api.com".to_string()),
-        };
+        let p = ResolvedProvider::Api(
+            corvid_ai::Settings::provider("openai")
+                .model("gpt-4o")
+                .base_url("https://custom.api.com"),
+        );
         assert_eq!(
             format!("{p}"),
-            "OpenAI API (gpt-4o @ https://custom.api.com)"
+            "openai API (gpt-4o @ https://custom.api.com)"
         );
+    }
+
+    #[test]
+    fn debug_api_provider_redacts_key() {
+        let p = ResolvedProvider::Api(
+            corvid_ai::Settings::provider("anthropic").api_key("sk-secret-value"),
+        );
+        let debug = format!("{p:?}");
+        assert!(debug.contains("[REDACTED]"));
+        assert!(!debug.contains("sk-secret-value"));
     }
 
     // ── postprocess_spec ───────────────────────────────────────────

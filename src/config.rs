@@ -380,22 +380,8 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
 
     // AI settings
     if let Some(ref provider) = config.ai_provider {
-        let name = match provider {
-            crate::types::AiProvider::Claude => "claude",
-            crate::types::AiProvider::Cursor => "cursor",
-            crate::types::AiProvider::Copilot => "copilot",
-            crate::types::AiProvider::Ollama => "ollama",
-            crate::types::AiProvider::Anthropic => "anthropic",
-            crate::types::AiProvider::OpenAi => "openai",
-            crate::types::AiProvider::Gemini => "gemini",
-            crate::types::AiProvider::DeepSeek => "deepseek",
-            crate::types::AiProvider::Groq => "groq",
-            crate::types::AiProvider::Mistral => "mistral",
-            crate::types::AiProvider::XAi => "xai",
-            crate::types::AiProvider::Together => "together",
-            crate::types::AiProvider::Custom => "custom",
-        };
-        lines.push(format!("ai_provider = \"{name}\""));
+        // `Display` is the canonical lowercase provider name.
+        lines.push(format!("ai_provider = \"{provider}\""));
     }
     if let Some(ref model) = config.ai_model {
         lines.push(format!("ai_model = \"{}\"", toml_escape(model)));
@@ -609,8 +595,8 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
 /// schema_dir = "db/migrations"
 /// exclude_dirs = ["__tests__"]
 /// exclude_patterns = ["**/*.test.ts"]
-/// ai_provider = "claude"
-/// ai_model = "claude-sonnet-4-20250514"
+/// ai_provider = "anthropic"
+/// ai_model = "claude-sonnet-4-6"
 /// ai_timeout = 120
 /// required_sections = ["Purpose", "Public API"]
 /// ```

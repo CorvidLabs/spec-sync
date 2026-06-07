@@ -35,14 +35,15 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 
 ## Invariants
 
-1. Provider resolution order: CLI `--provider` flag > `aiCommand` config > `aiProvider` config > `SPECSYNC_AI_COMMAND` env var > auto-detect
-2. Auto-detection is API-only: it checks `<PROVIDER>_API_KEY` presence in `detection_order` (Ollama first); it never shells out to a CLI
-3. When no provider key is set and nothing is configured, resolution defaults to keyless **local Ollama** (`http://localhost:11434`) — the most useful zero-config option
-4. The deprecated `claude` provider routes to the `anthropic` API (with a warning); it no longer shells out to `claude -p`. `copilot`/`cursor` are deprecated; `aiCommand` remains the explicit, trusted shell escape hatch
-5. Source code is capped at 150K characters total and 30K per file to avoid exceeding context windows
-6. AI response is post-processed: code fences are stripped, frontmatter delimiters are validated
-7. Default timeout is 120 seconds, configurable via `aiTimeout` in config
-8. API providers do not require a CLI binary — they use direct HTTP calls via the `corvid-ai` client, which owns the endpoint registry, default models, and `<PROVIDER>_API_KEY` resolution
+1. Provider resolution order: `--provider` flag > `aiCommand` config > `aiProvider` config > `SPECSYNC_AI_PROVIDER` env > `SPECSYNC_AI_COMMAND` env > auto-detect
+2. Auto-detect tries **Ollama first when usable** — `OLLAMA_API_KEY` set (cloud) or a local daemon answering `GET {host}/api/tags` within a 2s probe — so a running Ollama wins over a present API key. The Ollama host is `OLLAMA_HOST` env > `aiBaseUrl` config > `-cloud`-routing > `http://localhost:11434`
+3. Otherwise auto-detect is **API-first**: the first provider in `detection_order` with a `<PROVIDER>_API_KEY` set wins. It never shells out to a CLI
+4. When nothing is usable, resolution still defaults to Ollama (so the failure is a clear "couldn't reach Ollama" rather than "no provider")
+5. The deprecated `claude` provider routes to the `anthropic` API (with a warning); it no longer shells out to `claude -p`. `copilot`/`cursor` are deprecated; `aiCommand` remains the explicit, trusted shell escape hatch
+6. Source code is capped at 150K characters total and 30K per file to avoid exceeding context windows
+7. AI response is post-processed: code fences are stripped, frontmatter delimiters are validated
+8. Default timeout is 120 seconds, configurable via `aiTimeout` in config
+9. API providers do not require a CLI binary — they use direct HTTP calls via the `corvid-ai` client, which owns the endpoint registry, default models, and `<PROVIDER>_API_KEY` resolution
 
 ## Behavioral Examples
 
@@ -113,3 +114,4 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 | 2026-03-25 | Initial spec |
 | 2026-06-07 | Route API providers through the shared `corvid-ai` client; `ResolvedProvider` API variants collapse to `Api(corvid_ai::Settings)` and the per-provider `call_*_api` HTTP code is removed |
 | 2026-06-07 | API-first/API-only auto-detection (no CLI shell-out); default to keyless local Ollama when no key is set; `claude` routes to the `anthropic` API; add `openrouter` + `ollama` (HTTP) providers |
+| 2026-06-07 | Ollama-first auto-detect via a 2s `/api/tags` reachability probe (a running Ollama wins over a present API key); `OLLAMA_HOST` + `-cloud` host routing; add `SPECSYNC_AI_PROVIDER` env. Aligns with fledge's resolution ladder |

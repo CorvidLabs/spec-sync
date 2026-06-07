@@ -164,3 +164,33 @@ The migration is designed to handle partial state. Re-run `specsync migrate` and
 
 **Q: Do I need to migrate all projects at once?**
 No. Cross-project references (`depends_on: "owner/repo@module"`) work across v3 and v4 projects. But `specsync resolve --remote --verify` works best when all referenced projects are on v4.
+
+---
+
+# AI providers (4.4.0)
+
+SpecSync's AI generation moved off the agentic `claude` CLI onto plain HTTP through the shared [`corvid-ai`](https://crates.io/crates/corvid-ai) crate. This aligns spec-sync with fledge's provider model.
+
+## What changed
+
+- **Default provider is now Ollama, not the `claude` CLI.** With no key and nothing configured, spec-sync uses Ollama — a local daemon (keyless) when one is reachable, or Ollama Cloud when `OLLAMA_API_KEY` is set.
+- **`claude` is deprecated and routes to the `anthropic` API.** `aiProvider: claude` (or `--provider claude`) now warns and uses the Anthropic Messages API — it no longer shells out to `claude -p`. Set `aiProvider: anthropic` (+ `ANTHROPIC_API_KEY`) to silence the warning. The `claude` alias is removed in **5.0**.
+- **Auto-detection is API-first and never auto-selects a CLI.** Order: a usable Ollama (reachable local daemon or `OLLAMA_API_KEY`) → first provider with a `<PROVIDER>_API_KEY` → Ollama as the final fallback.
+- **`openai` and `together` now require an explicit `aiModel`** (corvid-ai has no default model for them).
+- **`copilot`/`cursor` are deprecated** and work only when explicitly selected. `aiCommand` remains the explicit, trusted shell escape hatch (also slated for removal in 5.0 — agentic work belongs in Merlin).
+- New providers: `openrouter`, and `ollama` over HTTP.
+
+## What you may need to do
+
+| If you used… | Do this |
+|---|---|
+| `aiProvider: claude` | Set `aiProvider: anthropic` and export `ANTHROPIC_API_KEY` |
+| the `claude` CLI implicitly (auto-detect) | Export an API key (`ANTHROPIC_API_KEY`, …) or run a local Ollama |
+| `aiProvider: openai` without a model | Add `aiModel` (e.g. a current GPT id) |
+| `aiProvider: copilot` | Switch to an API provider — copilot is deprecated |
+
+## New config / env
+
+- `SPECSYNC_AI_PROVIDER` — pick a provider by name via env (below `aiProvider` config in precedence).
+- `OLLAMA_HOST` — Ollama host for the reachability probe and requests (default `http://localhost:11434`).
+- A `-cloud` model tag with `OLLAMA_API_KEY` set routes to Ollama Cloud.

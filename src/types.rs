@@ -137,20 +137,19 @@ impl AiProvider {
         }
     }
 
-    /// All providers that can be auto-detected, by `<PROVIDER>_API_KEY`
-    /// presence, in preference order.
+    /// The API-keyed providers tried during auto-detection, by
+    /// `<PROVIDER>_API_KEY` presence, in alphabetical order.
     ///
-    /// `Ollama` is checked first: it's the most broadly useful default since it
-    /// works either against a local server (keyless) or Ollama Cloud
-    /// (`OLLAMA_API_KEY`). When no provider key at all is set, resolution falls
-    /// back to keyless local Ollama (see `resolve_ai_provider`).
+    /// `Ollama` is intentionally absent: it is the preferred default and is
+    /// resolved *before* this list via a reachability probe (or `OLLAMA_API_KEY`),
+    /// and is also the final fallback — see `resolve_ai_provider`. This list is
+    /// the "API-first otherwise" tier.
     ///
     /// Auto-detection is API-only — it never shells out to a CLI. The deprecated
     /// `claude`/`copilot` providers are reachable only by explicit selection
     /// (`--provider` / `aiProvider`), where `claude` routes to `anthropic`.
     pub fn detection_order() -> &'static [AiProvider] {
         &[
-            AiProvider::Ollama,
             AiProvider::Anthropic,
             AiProvider::DeepSeek,
             AiProvider::Gemini,

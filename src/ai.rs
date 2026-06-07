@@ -10,6 +10,59 @@ const MAX_FILE_CHARS: usize = 30_000;
 const MAX_PROMPT_CHARS: usize = 150_000;
 const DEFAULT_AI_TIMEOUT_SECS: u64 = 120;
 
+/// Default local Ollama host (native API; corvid-ai appends `/v1` for the
+/// OpenAI-compatible transport it uses).
+const OLLAMA_DEFAULT_HOST: &str = "http://localhost:11434";
+/// Ollama Cloud host, targeted for `-cloud` model tags when `OLLAMA_API_KEY`
+/// is set.
+const OLLAMA_CLOUD_HOST: &str = "https://ollama.com";
+/// Timeout for the Ollama reachability probe. Kept short because it runs on the
+/// hot path of every keyless auto-detect. Shared with fledge.
+const OLLAMA_PROBE_TIMEOUT_SECS: u64 = 2;
+
+/// Resolve the Ollama host (without a trailing `/v1`).
+///
+/// Precedence (matches fledge): `OLLAMA_HOST` env > `aiBaseUrl` config >
+/// `-cloud` auto-routing (model tag contains `-cloud` and `OLLAMA_API_KEY` set
+/// ⇒ Ollama Cloud) > default localhost.
+fn ollama_host(config: &SpecSyncConfig) -> String {
+    let strip = |h: &str| h.trim_end_matches('/').trim_end_matches("/v1").to_string();
+
+    if let Ok(host) = std::env::var("OLLAMA_HOST")
+        && !host.is_empty()
+    {
+        return strip(&host);
+    }
+    if let Some(base) = config.ai_base_url.as_deref()
+        && !base.is_empty()
+    {
+        return strip(base);
+    }
+    let is_cloud_model = config
+        .ai_model
+        .as_deref()
+        .is_some_and(|m| m.contains("-cloud"));
+    if is_cloud_model && std::env::var("OLLAMA_API_KEY").is_ok_and(|k| !k.is_empty()) {
+        return OLLAMA_CLOUD_HOST.to_string();
+    }
+    OLLAMA_DEFAULT_HOST.to_string()
+}
+
+/// Whether Ollama is usable for auto-detection: a configured cloud key, or a
+/// reachable local daemon (`GET {host}/api/tags` within the probe timeout).
+fn ollama_usable(config: &SpecSyncConfig) -> bool {
+    if std::env::var("OLLAMA_API_KEY").is_ok_and(|k| !k.is_empty()) {
+        return true;
+    }
+    let url = format!("{}/api/tags", ollama_host(config));
+    let agent = ureq::Agent::new_with_config(
+        ureq::config::Config::builder()
+            .timeout_global(Some(Duration::from_secs(OLLAMA_PROBE_TIMEOUT_SECS)))
+            .build(),
+    );
+    agent.get(&url).call().is_ok()
+}
+
 /// Truncate a string to at most `max_bytes` bytes on a valid UTF-8 char boundary.
 fn safe_truncate(s: &str, max_bytes: usize) -> &str {
     if s.len() <= max_bytes {
@@ -184,7 +237,11 @@ fn resolve_api_provider(
     if let Some(key) = &config.ai_api_key {
         settings = settings.api_key(key);
     }
-    if let Some(base_url) = &config.ai_base_url {
+    if matches!(provider, AiProvider::Ollama) {
+        // Ollama's host honors OLLAMA_HOST / config / -cloud routing; corvid-ai
+        // speaks to it over the OpenAI-compatible `/v1` endpoint.
+        settings = settings.base_url(format!("{}/v1", ollama_host(config)));
+    } else if let Some(base_url) = &config.ai_base_url {
         settings = settings.base_url(base_url);
     }
     settings.timeout_secs = Some(config.ai_timeout.unwrap_or(DEFAULT_AI_TIMEOUT_SECS));
@@ -218,10 +275,11 @@ fn resolve_named_provider(
     selected_as: &str,
 ) -> Result<ResolvedProvider, String> {
     if matches!(provider, AiProvider::Claude) {
+        // Shared deprecation message template (matches fledge).
         eprintln!(
-            "  ⚠ The `claude` provider is deprecated and now routes to the `anthropic` API \
-             (set ANTHROPIC_API_KEY); it no longer shells out to `claude -p`. \
-             Use \"aiProvider\": \"anthropic\" to silence this warning."
+            "  ⚠ provider 'claude' is deprecated and now uses anthropic. Set \
+             \"aiProvider\": \"anthropic\" (and ANTHROPIC_API_KEY). This alias is removed \
+             in spec-sync 5.0."
         );
         return resolve_api_provider(&AiProvider::Anthropic, config);
     }
@@ -244,12 +302,15 @@ fn resolve_named_provider(
 
 /// Resolve the AI provider to use.
 ///
-/// Resolution order:
-/// 1. `--provider` CLI flag (passed as `cli_provider`)
-/// 2. `aiCommand` in config — includes `.specsync/config.local.toml` overrides
-/// 3. `aiProvider` in config (resolved to an API client or deprecated CLI)
-/// 4. `SPECSYNC_AI_COMMAND` env var
-/// 5. Auto-detect: API keys first, deprecated CLI binaries as last resort
+/// Resolution order (shared mental model with fledge):
+/// 1. `--provider` CLI flag (explicit selection)
+/// 2. `aiCommand` in config — spec-sync-only explicit, trusted CLI escape hatch
+/// 3. `aiProvider` in config (explicit selection)
+/// 4. `SPECSYNC_AI_PROVIDER` env (provider name)
+/// 5. `SPECSYNC_AI_COMMAND` env — spec-sync-only explicit CLI hatch
+/// 6. Auto-detect: **Ollama if usable** (local daemon reachable or
+///    `OLLAMA_API_KEY`) → otherwise **API-first** by key → otherwise default to
+///    local Ollama. No CLI is ever auto-selected.
 pub fn resolve_ai_provider(
     config: &SpecSyncConfig,
     cli_provider: Option<&str>,
@@ -258,8 +319,8 @@ pub fn resolve_ai_provider(
     if let Some(name) = cli_provider {
         let provider = AiProvider::from_str_loose(name).ok_or_else(|| {
             format!(
-                "Unknown provider \"{name}\". Available: claude, anthropic, openai, gemini, \
-                 deepseek, groq, mistral, xai, together, ollama, copilot"
+                "Unknown provider \"{name}\". Available: anthropic, openai, openrouter, gemini, \
+                 deepseek, groq, mistral, xai, together, ollama (+ deprecated claude, copilot)"
             )
         })?;
 
@@ -276,12 +337,28 @@ pub fn resolve_ai_provider(
         return resolve_named_provider(provider, config, "configured");
     }
 
-    // 4. Environment variable
+    // 4. SPECSYNC_AI_PROVIDER env (provider name) — below config to match fledge.
+    if let Ok(name) = std::env::var("SPECSYNC_AI_PROVIDER")
+        && !name.is_empty()
+    {
+        let provider = AiProvider::from_str_loose(&name)
+            .ok_or_else(|| format!("Unknown provider \"{name}\" from SPECSYNC_AI_PROVIDER"))?;
+        return resolve_named_provider(&provider, config, "selected via SPECSYNC_AI_PROVIDER");
+    }
+
+    // 5. SPECSYNC_AI_COMMAND env (explicit CLI hatch)
     if let Ok(cmd) = std::env::var("SPECSYNC_AI_COMMAND") {
         return Ok(ResolvedProvider::Cli(cmd));
     }
 
-    // 5. Auto-detect by API-key presence — API providers only, no CLI shell-out.
+    // 6a. Ollama first when usable — local daemon reachable or OLLAMA_API_KEY.
+    //     A usable Ollama beats a present API key (Ollama is the default).
+    if ollama_usable(config) {
+        eprintln!("  Auto-detected AI provider: ollama (local daemon or OLLAMA_API_KEY)");
+        return resolve_api_provider(&AiProvider::Ollama, config);
+    }
+
+    // 6b. API-first by key presence — no CLI shell-out.
     for provider in AiProvider::detection_order() {
         // Use a separate variable for the env-var name so CodeQL doesn't
         // confuse the *name* with the *value* returned by std::env::var.
@@ -294,13 +371,13 @@ pub fn resolve_ai_provider(
         }
     }
 
-    // 6. No key configured — default to local Ollama. It's the most useful
-    // zero-config option: it runs against a local server with no key, and the
-    // same provider upgrades to Ollama Cloud once OLLAMA_API_KEY is set.
+    // 6c. Nothing usable — default to local Ollama anyway so the failure is a
+    // clear "couldn't reach Ollama" rather than "no provider".
     eprintln!(
-        "  No AI API key detected — defaulting to local Ollama (http://localhost:11434).\n  \
-         Set OLLAMA_API_KEY for Ollama Cloud, or another provider's key \
-         (ANTHROPIC_API_KEY, OPENAI_API_KEY, …), or \"aiProvider\" in specsync.json."
+        "  No local Ollama reachable and no API key detected — defaulting to Ollama ({}).\n  \
+         Start a local Ollama server, set OLLAMA_API_KEY for the cloud, or set another \
+         provider's key (ANTHROPIC_API_KEY, OPENAI_API_KEY, …).",
+        ollama_host(config)
     );
     resolve_api_provider(&AiProvider::Ollama, config)
 }
@@ -832,12 +909,34 @@ mod tests {
 
     #[test]
     fn detection_order_is_api_only() {
-        // Auto-detection must never include a CLI shell-out provider.
+        // Auto-detection must never include a CLI shell-out provider, and Ollama
+        // is resolved separately (probe/default), so it's not in this list.
         for provider in AiProvider::detection_order() {
             assert!(
                 provider.is_api_provider(),
                 "{provider} is in detection_order but is not an API provider"
             );
+        }
+        assert!(!AiProvider::detection_order().contains(&AiProvider::Ollama));
+    }
+
+    #[test]
+    fn ollama_host_strips_v1_and_trailing_slash_from_config() {
+        // Guarded so a developer's OLLAMA_HOST doesn't fail the test.
+        if std::env::var("OLLAMA_HOST").is_err() {
+            let config = SpecSyncConfig {
+                ai_base_url: Some("http://example.com:1234/v1/".to_string()),
+                ..SpecSyncConfig::default()
+            };
+            assert_eq!(ollama_host(&config), "http://example.com:1234");
+        }
+    }
+
+    #[test]
+    fn ollama_host_defaults_to_localhost() {
+        if std::env::var("OLLAMA_HOST").is_err() {
+            let config = SpecSyncConfig::default();
+            assert_eq!(ollama_host(&config), "http://localhost:11434");
         }
     }
 

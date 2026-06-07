@@ -7,9 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`openrouter` and `ollama` API providers.** OpenRouter joins the OpenAI-compatible family; Ollama now runs over its OpenAI-compatible HTTP endpoint (local server keyless, or Ollama Cloud via `OLLAMA_API_KEY`) instead of shelling out to `ollama run`.
+- **`SPECSYNC_AI_PROVIDER` env var** to pick a provider by name (env outranks config — `flag > env > config`, 12-factor), plus `OLLAMA_HOST` support and `-cloud` model routing to Ollama Cloud.
+- **`generate --model <id>` flag** and `SPECSYNC_AI_MODEL` env to choose the model (precedence: `--model` > `SPECSYNC_AI_MODEL` > `aiModel` config > provider default), matching fledge.
+
+### Fixed
+
+- **`generate` now uses AI when a provider is configured** — a `aiProvider`/`aiCommand` in config (or `SPECSYNC_AI_PROVIDER`/`SPECSYNC_AI_COMMAND` env) invokes AI without having to repeat `--provider`. The `--provider` flag still overrides config. With nothing configured, `generate` stays template-only.
+
 ### Changed
 
-- **AI API calls now go through the shared [`corvid-ai`](https://crates.io/crates/corvid-ai) client.** spec-sync's three hand-rolled HTTP paths (`call_anthropic_api` / `call_openai_api` / `call_gemini_api`, ~250 lines) are replaced by `corvid_ai::complete`. corvid-ai owns the provider registry — endpoints, default models, `<PROVIDER>_API_KEY` resolution, and secret redaction in errors — so the Anthropic default model is now the current `claude-sonnet-4-6` (was `claude-sonnet-4-20250514`). CLI providers (`claude`, `copilot`, `ollama`, custom `aiCommand`) are unchanged. Minimum supported Rust version is now **1.89**.
+- **AI API calls now go through the shared [`corvid-ai`](https://crates.io/crates/corvid-ai) client.** spec-sync's three hand-rolled HTTP paths (`call_anthropic_api` / `call_openai_api` / `call_gemini_api`, ~250 lines) are replaced by `corvid_ai::complete`. corvid-ai owns the provider registry — endpoints, default models, `<PROVIDER>_API_KEY` resolution, and secret redaction in errors — so the Anthropic default model is now the current `claude-sonnet-4-6` (was `claude-sonnet-4-20250514`). Minimum supported Rust version is now **1.89**.
+- **New auto-detect ladder (never auto-selects a CLI), shared with fledge.** With no explicit selection: **none configured → keyless local Ollama** (`http://localhost:11434`) — the most useful zero-config default; **exactly one key → use it**; **multiple keys → prompt** for provider + model when interactive, otherwise the deterministic order (Ollama, Anthropic, OpenAI, OpenRouter, Gemini, DeepSeek, Groq, Mistral, xAI, Together). A set API key beats unkeyed local Ollama (no network probe). Ollama requests honor `OLLAMA_HOST` and `-cloud` routing to Ollama Cloud.
+
+### Deprecated
+
+- **The agentic CLI providers.** `claude` now routes to the `anthropic` API (with a warning) and no longer shells out to `claude -p` — removing the prompt-injection→tool-execution surface; `copilot`/`cursor` warn and are slated for removal in the next major. The `aiCommand` config remains the explicit, trusted shell escape hatch.
 
 ### Removed
 

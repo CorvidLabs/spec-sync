@@ -1,6 +1,6 @@
 use crate::types::{AiProvider, SpecSyncConfig};
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, IsTerminal, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
@@ -9,6 +9,41 @@ use std::time::{Duration, Instant};
 const MAX_FILE_CHARS: usize = 30_000;
 const MAX_PROMPT_CHARS: usize = 150_000;
 const DEFAULT_AI_TIMEOUT_SECS: u64 = 120;
+
+/// Default local Ollama host (native API; corvid-ai appends `/v1` for the
+/// OpenAI-compatible transport it uses).
+const OLLAMA_DEFAULT_HOST: &str = "http://localhost:11434";
+/// Ollama Cloud host, targeted for `-cloud` model tags when `OLLAMA_API_KEY`
+/// is set.
+const OLLAMA_CLOUD_HOST: &str = "https://ollama.com";
+
+/// Resolve the Ollama host (without a trailing `/v1`).
+///
+/// Precedence (matches fledge): `OLLAMA_HOST` env > `aiBaseUrl` config >
+/// `-cloud` auto-routing (model tag contains `-cloud` and `OLLAMA_API_KEY` set
+/// ⇒ Ollama Cloud) > default localhost.
+fn ollama_host(config: &SpecSyncConfig) -> String {
+    let strip = |h: &str| h.trim_end_matches('/').trim_end_matches("/v1").to_string();
+
+    if let Ok(host) = std::env::var("OLLAMA_HOST")
+        && !host.is_empty()
+    {
+        return strip(&host);
+    }
+    if let Some(base) = config.ai_base_url.as_deref()
+        && !base.is_empty()
+    {
+        return strip(base);
+    }
+    let is_cloud_model = config
+        .ai_model
+        .as_deref()
+        .is_some_and(|m| m.contains("-cloud"));
+    if is_cloud_model && std::env::var("OLLAMA_API_KEY").is_ok_and(|k| !k.is_empty()) {
+        return OLLAMA_CLOUD_HOST.to_string();
+    }
+    OLLAMA_DEFAULT_HOST.to_string()
+}
 
 /// Truncate a string to at most `max_bytes` bytes on a valid UTF-8 char boundary.
 fn safe_truncate(s: &str, max_bytes: usize) -> &str {
@@ -92,12 +127,9 @@ fn is_binary_available(name: &str) -> bool {
 
 /// Build the CLI command string for a provider, optionally using a custom model.
 fn command_for_provider(provider: &AiProvider, model: Option<&str>) -> Result<String, String> {
+    let _ = model;
     match provider {
         AiProvider::Claude => Ok("claude -p --output-format text".to_string()),
-        AiProvider::Ollama => {
-            let model = model.unwrap_or("llama3");
-            Ok(format!("ollama run {model}"))
-        }
         AiProvider::Copilot => Ok("gh copilot suggest -t shell".to_string()),
         AiProvider::Cursor => Err(
             "Cursor does not have a CLI pipe mode (stdin→stdout) for spec generation.\n\
@@ -110,12 +142,14 @@ fn command_for_provider(provider: &AiProvider, model: Option<&str>) -> Result<St
         ),
         AiProvider::Anthropic
         | AiProvider::OpenAi
+        | AiProvider::OpenRouter
         | AiProvider::Gemini
         | AiProvider::DeepSeek
         | AiProvider::Groq
         | AiProvider::Mistral
         | AiProvider::XAi
-        | AiProvider::Together => Err(
+        | AiProvider::Together
+        | AiProvider::Ollama => Err(
             "API providers should use resolve_api_provider(), not command_for_provider()"
                 .to_string(),
         ),
@@ -132,12 +166,14 @@ fn corvid_provider_name(provider: &AiProvider) -> Option<&'static str> {
     match provider {
         AiProvider::Anthropic => Some("anthropic"),
         AiProvider::OpenAi => Some("openai"),
+        AiProvider::OpenRouter => Some("openrouter"),
         AiProvider::Gemini => Some("gemini"),
         AiProvider::DeepSeek => Some("deepseek"),
         AiProvider::Groq => Some("groq"),
         AiProvider::Mistral => Some("mistral"),
         AiProvider::XAi => Some("xai"),
         AiProvider::Together => Some("together"),
+        AiProvider::Ollama => Some("ollama"),
         _ => None,
     }
 }
@@ -156,14 +192,19 @@ fn resolve_api_provider(
         format!("Provider \"{provider}\" does not support API key authentication")
     })?;
 
-    // Fail fast with a clear, env-var-named message when no key is available,
-    // rather than resolving lazily and only erroring after scanning the project.
-    // corvid-ai validates again at request time; this is purely for UX.
+    // Fail fast with a clear, env-var-named message when a key is required but
+    // missing, rather than resolving lazily and only erroring after scanning the
+    // project. corvid-ai validates again at request time; this is purely for UX.
+    //
+    // Ollama runs keyless against a local server, and a custom `aiBaseUrl`
+    // signals a self-hosted/proxy gateway that may not need a key — skip the
+    // eager check in those cases and let the request surface any auth error.
+    let key_optional = matches!(provider, AiProvider::Ollama) || config.ai_base_url.is_some();
     let has_key = config.ai_api_key.as_deref().is_some_and(|k| !k.is_empty())
         || provider
             .api_key_env_var()
             .is_some_and(|env_var| std::env::var(env_var).is_ok());
-    if !has_key {
+    if !key_optional && !has_key {
         let env_var = provider.api_key_env_var().unwrap_or_default();
         return Err(format!(
             "Provider \"{provider}\" requires an API key. Set {env_var} or \
@@ -178,7 +219,11 @@ fn resolve_api_provider(
     if let Some(key) = &config.ai_api_key {
         settings = settings.api_key(key);
     }
-    if let Some(base_url) = &config.ai_base_url {
+    if matches!(provider, AiProvider::Ollama) {
+        // Ollama's host honors OLLAMA_HOST / config / -cloud routing; corvid-ai
+        // speaks to it over the OpenAI-compatible `/v1` endpoint.
+        settings = settings.base_url(format!("{}/v1", ollama_host(config)));
+    } else if let Some(base_url) = &config.ai_base_url {
         settings = settings.base_url(base_url);
     }
     settings.timeout_secs = Some(config.ai_timeout.unwrap_or(DEFAULT_AI_TIMEOUT_SECS));
@@ -186,14 +231,69 @@ fn resolve_api_provider(
     Ok(ResolvedProvider::Api(settings))
 }
 
+/// Emit a deprecation notice when a (still-functional) CLI provider is selected.
+///
+/// API providers are the supported path; these warnings steer users there
+/// before the CLI providers are removed in a future major release.
+fn warn_deprecated_cli(provider: &AiProvider) {
+    if let AiProvider::Copilot = provider {
+        eprintln!(
+            "  ⚠ The `copilot` CLI provider is deprecated. Prefer an API provider \
+             (anthropic / openai / gemini / ollama / …) with its API key."
+        );
+    }
+}
+
+/// Resolve an explicitly-named provider (from `--provider` or config).
+///
+/// The deprecated `claude` alias routes to the `anthropic` API with a warning —
+/// it no longer shells out to the agentic `claude -p`. API providers go to the
+/// shared client; the remaining deprecated CLI providers (`copilot`) and the
+/// no-pipe `cursor` use the legacy path. `selected_as` is "selected" or
+/// "configured" for the not-installed error message.
+fn resolve_named_provider(
+    provider: &AiProvider,
+    config: &SpecSyncConfig,
+    selected_as: &str,
+) -> Result<ResolvedProvider, String> {
+    if matches!(provider, AiProvider::Claude) {
+        // Shared deprecation message template (matches fledge).
+        eprintln!(
+            "  ⚠ provider 'claude' is deprecated and now uses anthropic. Set \
+             \"aiProvider\": \"anthropic\" (and ANTHROPIC_API_KEY). This alias is removed \
+             in spec-sync 5.0."
+        );
+        return resolve_api_provider(&AiProvider::Anthropic, config);
+    }
+
+    if provider.is_api_provider() {
+        return resolve_api_provider(provider, config);
+    }
+
+    // Deprecated CLI (copilot), no-pipe (cursor), or custom — legacy CLI path.
+    let cmd = command_for_provider(provider, config.ai_model.as_deref())?;
+    if !is_binary_available(provider.binary_name()) {
+        return Err(format!(
+            "Provider \"{provider}\" {selected_as} but `{}` is not installed or not on PATH",
+            provider.binary_name()
+        ));
+    }
+    warn_deprecated_cli(provider);
+    Ok(ResolvedProvider::Cli(cmd))
+}
+
 /// Resolve the AI provider to use.
 ///
-/// Resolution order:
-/// 1. `--provider` CLI flag (passed as `cli_provider`)
-/// 2. `aiCommand` in config — includes `.specsync/config.local.toml` overrides
-/// 3. `aiProvider` in config (resolved to CLI command or API)
-/// 4. `SPECSYNC_AI_COMMAND` env var
-/// 5. Auto-detect installed CLIs (alphabetical), then check for API keys
+/// Resolution order (shared mental model with fledge — `flag > env > config`,
+/// 12-factor; consistent with model precedence):
+/// 1. `--provider` CLI flag (explicit selection)
+/// 2. `SPECSYNC_AI_COMMAND` env — spec-sync-only explicit CLI hatch
+/// 3. `SPECSYNC_AI_PROVIDER` env (provider name)
+/// 4. `aiCommand` in config — spec-sync-only explicit, trusted CLI escape hatch
+/// 5. `aiProvider` in config (explicit selection)
+/// 6. Auto-detect: none configured → keyless local Ollama; one key → use it;
+///    multiple keys → prompt (interactive) or deterministic order. No CLI is
+///    ever auto-selected.
 pub fn resolve_ai_provider(
     config: &SpecSyncConfig,
     cli_provider: Option<&str>,
@@ -202,104 +302,119 @@ pub fn resolve_ai_provider(
     if let Some(name) = cli_provider {
         let provider = AiProvider::from_str_loose(name).ok_or_else(|| {
             format!(
-                "Unknown provider \"{name}\". Available: claude, anthropic, openai, gemini, \
-                 deepseek, groq, mistral, xai, together, ollama, copilot"
+                "Unknown provider \"{name}\". Available: anthropic, openai, openrouter, gemini, \
+                 deepseek, groq, mistral, xai, together, ollama (+ deprecated claude, copilot)"
             )
         })?;
 
-        if provider.is_api_provider() {
-            return resolve_api_provider(&provider, config);
-        }
+        return resolve_named_provider(&provider, config, "selected");
+    }
 
-        // Check command_for_provider first — some providers (e.g. Cursor) have
-        // no CLI pipe mode and should return their specific error message
-        // before we check binary availability.
-        let cmd = command_for_provider(&provider, config.ai_model.as_deref())?;
+    // Env above config (12-factor; consistent with model precedence and fledge).
+    // Within each tier the command hatch outranks the provider name.
 
-        if !is_binary_available(provider.binary_name()) {
-            return Err(format!(
-                "Provider \"{name}\" selected but `{}` is not installed or not on PATH",
-                provider.binary_name()
-            ));
-        }
+    // 2. SPECSYNC_AI_COMMAND env (explicit CLI hatch)
+    if let Ok(cmd) = std::env::var("SPECSYNC_AI_COMMAND")
+        && !cmd.is_empty()
+    {
         return Ok(ResolvedProvider::Cli(cmd));
     }
 
-    // 2. aiCommand in config (explicit override)
+    // 3. SPECSYNC_AI_PROVIDER env (provider name)
+    if let Ok(name) = std::env::var("SPECSYNC_AI_PROVIDER")
+        && !name.is_empty()
+    {
+        let provider = AiProvider::from_str_loose(&name)
+            .ok_or_else(|| format!("Unknown provider \"{name}\" from SPECSYNC_AI_PROVIDER"))?;
+        return resolve_named_provider(&provider, config, "selected via SPECSYNC_AI_PROVIDER");
+    }
+
+    // 4. aiCommand in config (the trusted CLI escape hatch)
     if let Some(cmd) = &config.ai_command {
         return Ok(ResolvedProvider::Cli(cmd.clone()));
     }
 
-    // 3. aiProvider in config
+    // 5. aiProvider in config
     if let Some(provider) = &config.ai_provider {
-        if provider.is_api_provider() {
-            return resolve_api_provider(provider, config);
-        }
-
-        let cmd = command_for_provider(provider, config.ai_model.as_deref())?;
-
-        if !is_binary_available(provider.binary_name()) {
-            return Err(format!(
-                "Provider \"{}\" configured but `{}` is not installed or not on PATH",
-                provider,
-                provider.binary_name()
-            ));
-        }
-        return Ok(ResolvedProvider::Cli(cmd));
+        return resolve_named_provider(provider, config, "configured");
     }
 
-    // 4. Environment variable
-    if let Ok(cmd) = std::env::var("SPECSYNC_AI_COMMAND") {
-        return Ok(ResolvedProvider::Cli(cmd));
-    }
+    // 6. Auto-detect by API-key presence (no CLI shell-out, no network probe).
+    //    Collect every provider with a key set, in deterministic order.
+    let configured: Vec<&AiProvider> = AiProvider::detection_order()
+        .iter()
+        .filter(|p| {
+            // Separate variable for the env-var name so CodeQL doesn't confuse
+            // the *name* with the *value* returned by std::env::var.
+            p.api_key_env_var()
+                .is_some_and(|v| std::env::var(v).is_ok_and(|k| !k.is_empty()))
+        })
+        .collect();
 
-    // 5. Auto-detect: check installed CLIs first, then API keys
-    for provider in AiProvider::detection_order() {
-        if provider.is_api_provider() {
-            // Check for API key in env — use a separate variable for the
-            // env-var name so CodeQL doesn't confuse the *name* with the
-            // *value* returned by std::env::var.
-            let has_key = provider
-                .api_key_env_var()
-                .is_some_and(|v| std::env::var(v).is_ok());
-            if has_key {
-                eprintln!("  Auto-detected AI provider: {provider} (API key found)");
-                return resolve_api_provider(provider, config);
-            }
-        } else if is_binary_available(provider.binary_name())
-            && let Ok(cmd) = command_for_provider(provider, config.ai_model.as_deref())
-        {
+    match configured.as_slice() {
+        // None configured → keyless local Ollama (the zero-config default).
+        [] => {
             eprintln!(
-                "  Auto-detected AI provider: {} ({})",
-                provider,
-                provider.binary_name()
+                "  No AI API key detected — defaulting to local Ollama ({}).\n  \
+                 Start a local Ollama server, set OLLAMA_API_KEY for the cloud, or set \
+                 another provider's key (ANTHROPIC_API_KEY, OPENAI_API_KEY, …).",
+                ollama_host(config)
             );
-            return Ok(ResolvedProvider::Cli(cmd));
+            resolve_api_provider(&AiProvider::Ollama, config)
+        }
+        // Exactly one configured → use it.
+        [provider] => {
+            eprintln!("  Auto-detected AI provider: {provider} (API key found)");
+            resolve_api_provider(provider, config)
+        }
+        // Several configured → prompt interactively, else deterministic order.
+        providers => {
+            if std::io::stdin().is_terminal() && std::io::stderr().is_terminal() {
+                prompt_provider_and_model(providers, config)
+            } else {
+                let provider = providers[0];
+                eprintln!(
+                    "  Multiple AI providers configured ({}); using {provider} (first in \
+                     order). Set \"aiProvider\" or --provider to choose explicitly.",
+                    providers
+                        .iter()
+                        .map(|p| p.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                resolve_api_provider(provider, config)
+            }
         }
     }
+}
 
-    Err("No AI provider found. Options:\n\n\
-         CLI providers (install a tool):\n  \
-         claude     — Claude Code CLI (npm i -g @anthropic-ai/claude-code)\n  \
-         copilot    — GitHub Copilot (gh extension install github/gh-copilot)\n  \
-         ollama     — Local models (ollama.com)\n\n\
-         API providers (just set a key — no CLI needed):\n  \
-         anthropic  — set ANTHROPIC_API_KEY env var\n  \
-         openai     — set OPENAI_API_KEY env var\n  \
-         gemini     — set GEMINI_API_KEY env var\n  \
-         deepseek   — set DEEPSEEK_API_KEY env var\n  \
-         groq       — set GROQ_API_KEY env var\n  \
-         mistral    — set MISTRAL_API_KEY env var\n  \
-         xai        — set XAI_API_KEY env var\n  \
-         together   — set TOGETHER_API_KEY env var\n\n\
-         Or configure in specsync.json:\n  \
-         \"aiProvider\": \"anthropic\"    + ANTHROPIC_API_KEY\n  \
-         \"aiProvider\": \"openai\"       + OPENAI_API_KEY\n  \
-         \"aiProvider\": \"gemini\"       + GEMINI_API_KEY\n  \
-         \"aiProvider\": \"deepseek\"     + DEEPSEEK_API_KEY\n  \
-         \"aiCommand\":  \"any-cli\"      (custom command)\n\n\
-         Use --provider <name> to select one, or --provider auto to auto-detect."
-        .to_string())
+/// Interactively choose a provider (and optional model) when several have keys.
+fn prompt_provider_and_model(
+    providers: &[&AiProvider],
+    config: &SpecSyncConfig,
+) -> Result<ResolvedProvider, String> {
+    use dialoguer::{Input, Select};
+
+    let labels: Vec<String> = providers.iter().map(|p| p.to_string()).collect();
+    let idx = Select::new()
+        .with_prompt("Multiple AI providers configured — pick one")
+        .items(&labels)
+        .default(0)
+        .interact()
+        .map_err(|e| format!("provider selection cancelled: {e}"))?;
+    let provider = providers[idx];
+
+    let model: String = Input::new()
+        .with_prompt(format!("Model for {provider} (blank = provider default)"))
+        .allow_empty(true)
+        .interact_text()
+        .map_err(|e| format!("model entry cancelled: {e}"))?;
+
+    let mut chosen = config.clone();
+    if !model.trim().is_empty() {
+        chosen.ai_model = Some(model.trim().to_string());
+    }
+    resolve_api_provider(provider, &chosen)
 }
 
 // Keep the old name as an alias for compatibility with tests
@@ -774,15 +889,93 @@ mod tests {
     }
 
     #[test]
-    fn command_for_ollama_default_model() {
-        let cmd = command_for_provider(&AiProvider::Ollama, None).unwrap();
-        assert_eq!(cmd, "ollama run llama3");
+    fn ollama_is_an_api_provider() {
+        // Ollama now routes through corvid-ai's OpenAI-compatible HTTP endpoint
+        // rather than shelling out to `ollama run`.
+        assert!(AiProvider::Ollama.is_api_provider());
+        assert_eq!(corvid_provider_name(&AiProvider::Ollama), Some("ollama"));
+        assert_eq!(AiProvider::Ollama.api_key_env_var(), Some("OLLAMA_API_KEY"));
     }
 
     #[test]
-    fn command_for_ollama_custom_model() {
-        let cmd = command_for_provider(&AiProvider::Ollama, Some("mistral")).unwrap();
-        assert_eq!(cmd, "ollama run mistral");
+    fn ollama_resolves_keyless() {
+        // No OLLAMA_API_KEY needed — a local Ollama server runs keyless, so the
+        // eager key check must not reject it.
+        let config = SpecSyncConfig::default();
+        let resolved = resolve_api_provider(&AiProvider::Ollama, &config).unwrap();
+        match resolved {
+            ResolvedProvider::Api(settings) => {
+                assert_eq!(settings.provider.as_deref(), Some("ollama"));
+            }
+            _ => panic!("expected an Api provider"),
+        }
+    }
+
+    #[test]
+    fn openrouter_maps_to_corvid_ai() {
+        assert!(AiProvider::OpenRouter.is_api_provider());
+        assert_eq!(
+            corvid_provider_name(&AiProvider::OpenRouter),
+            Some("openrouter")
+        );
+        assert_eq!(
+            AiProvider::from_str_loose("openrouter"),
+            Some(AiProvider::OpenRouter)
+        );
+    }
+
+    #[test]
+    fn claude_routes_to_anthropic_api_not_cli() {
+        // The deprecated `claude` alias must resolve to the anthropic API rather
+        // than shelling out to the agentic `claude -p`. Key supplied via config
+        // so the test is independent of the environment.
+        let config = SpecSyncConfig {
+            ai_api_key: Some("sk-test".to_string()),
+            ..SpecSyncConfig::default()
+        };
+        let resolved = resolve_named_provider(&AiProvider::Claude, &config, "selected").unwrap();
+        match resolved {
+            ResolvedProvider::Api(settings) => {
+                assert_eq!(settings.provider.as_deref(), Some("anthropic"));
+            }
+            ResolvedProvider::Cli(_) => panic!("claude must route to the anthropic API, not a CLI"),
+        }
+    }
+
+    #[test]
+    fn detection_order_is_api_only_and_ollama_first() {
+        // Auto-detection must never include a CLI shell-out provider.
+        for provider in AiProvider::detection_order() {
+            assert!(
+                provider.is_api_provider(),
+                "{provider} is in detection_order but is not an API provider"
+            );
+        }
+        // Ollama (cloud key) is the first preference in the shared order.
+        assert_eq!(
+            AiProvider::detection_order().first(),
+            Some(&AiProvider::Ollama)
+        );
+    }
+
+    #[test]
+    fn ollama_host_strips_v1_and_trailing_slash_from_config() {
+        // Guarded so a developer's OLLAMA_HOST doesn't fail the test.
+        if std::env::var("OLLAMA_HOST").is_err() {
+            let config = SpecSyncConfig {
+                ai_base_url: Some("http://example.com:1234/v1/".to_string()),
+                ..SpecSyncConfig::default()
+            };
+            assert_eq!(ollama_host(&config), "http://example.com:1234");
+        }
+    }
+
+    #[test]
+    fn ollama_host_defaults_to_localhost() {
+        if std::env::var("OLLAMA_HOST").is_err() {
+            let config = SpecSyncConfig::default();
+            assert_eq!(ollama_host(&config), "http://localhost:11434");
+        }
     }
 
     #[test]

@@ -1415,26 +1415,25 @@ fn cli_provider_overrides_config_provider() {
         .stderr(predicate::str::contains("cursor").or(predicate::str::contains("Cursor")));
 }
 
+// Note: `ollama` is now an API provider (corvid-ai, OpenAI-compatible HTTP),
+// not a CLI shell-out. Its reclassification is covered by deterministic unit
+// tests in `src/ai.rs` (`ollama_is_an_api_provider`, `ollama_resolves_keyless`)
+// rather than a network-dependent integration test.
+
 #[test]
-fn ai_model_config_used_with_ollama_provider() {
+fn auto_detect_defaults_to_local_ollama_without_keys() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);
 
-    // Add an uncovered source file so `generate` actually attempts AI generation
-    fs::create_dir_all(root.join("src/billing")).unwrap();
-    fs::write(
-        root.join("src/billing/invoice.ts"),
-        "export function createInvoice() {}\n",
-    )
-    .unwrap();
+    // Uncovered module so `generate` actually attempts AI resolution.
+    fs::create_dir_all(root.join("src/widget")).unwrap();
+    fs::write(root.join("src/widget/lib.rs"), "pub fn widget() {}").unwrap();
 
-    // aiProvider=ollama with custom model — should mention ollama in error.
-    // Use an empty PATH so ollama binary is not found, even if installed locally.
+    // Low timeout bounds the test if a local Ollama happens to be running.
     let config = serde_json::json!({
         "specsDir": "specs",
         "sourceDirs": ["src"],
-        "aiProvider": "ollama",
-        "aiModel": "codellama",
+        "aiTimeout": 3,
         "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
@@ -1445,16 +1444,100 @@ fn ai_model_config_used_with_ollama_provider() {
     )
     .unwrap();
 
-    specsync()
-        .arg("generate")
+    // With every provider key cleared and no aiProvider configured, auto-detect
+    // must fall back to local Ollama rather than erroring.
+    let mut cmd = specsync();
+    for key in [
+        "OLLAMA_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "OPENROUTER_API_KEY",
+        "GEMINI_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "GROQ_API_KEY",
+        "MISTRAL_API_KEY",
+        "XAI_API_KEY",
+        "TOGETHER_API_KEY",
+    ] {
+        cmd.env_remove(key);
+    }
+    cmd.arg("generate")
         .arg("--provider")
         .arg("auto")
-        .env("PATH", "")
         .arg("--root")
         .arg(&root)
         .assert()
+        // Robust whether or not a local Ollama daemon is reachable on the test
+        // host: either "Auto-detected ... ollama" (probe hit) or "defaulting to
+        // Ollama" (probe miss) — both resolve to Ollama, never an error/CLI.
+        .stderr(predicate::str::contains("ollama").or(predicate::str::contains("Ollama")));
+}
+
+#[test]
+fn config_ai_provider_triggers_ai_without_provider_flag() {
+    // Regression: a configured `aiProvider` must invoke AI even without the
+    // `--provider` flag (previously this silently fell back to templates).
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    let config = serde_json::json!({
+        "specsDir": "specs",
+        "sourceDirs": ["src"],
+        "aiProvider": "anthropic",
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "excludeDirs": ["__tests__"],
+        "excludePatterns": ["**/__tests__/**"]
+    });
+    fs::write(
+        root.join("specsync.json"),
+        serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .unwrap();
+
+    // No --provider flag — AI mode comes from config. With no key it fails fast
+    // on the key check, proving AI (not template-only) was selected.
+    specsync()
+        .arg("generate")
+        .arg("--root")
+        .arg(&root)
+        .env_remove("ANTHROPIC_API_KEY")
+        .assert()
         .failure()
-        .stderr(predicate::str::contains("ollama"));
+        .stderr(predicate::str::contains("ANTHROPIC_API_KEY"));
+}
+
+#[test]
+fn env_provider_overrides_config_provider() {
+    // 12-factor `flag > env > config`: SPECSYNC_AI_PROVIDER must outrank the
+    // `aiProvider` config value.
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    let config = serde_json::json!({
+        "specsDir": "specs",
+        "sourceDirs": ["src"],
+        "aiProvider": "ollama",
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "excludeDirs": ["__tests__"],
+        "excludePatterns": ["**/__tests__/**"]
+    });
+    fs::write(
+        root.join("specsync.json"),
+        serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .unwrap();
+
+    // Config says ollama, env says anthropic → env wins → fails on the missing
+    // Anthropic key (proving it did NOT use the configured ollama).
+    specsync()
+        .arg("generate")
+        .arg("--root")
+        .arg(&root)
+        .env("SPECSYNC_AI_PROVIDER", "anthropic")
+        .env_remove("ANTHROPIC_API_KEY")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("ANTHROPIC_API_KEY"));
 }
 
 // ─── 8. Direct API provider tests ───────────────────────────────────────

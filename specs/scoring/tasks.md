@@ -13,7 +13,7 @@ spec: scoring.spec.md
 
 - [x] 5-component scoring rubric (frontmatter, sections, API, content, freshness)
 - [x] Letter grade calculation (A-F)
-- [x] TODO/placeholder detection with code block exclusion
+- [x] Unfinished-work marker detection with code block exclusion
 - [x] Stale file and dependency reference penalties
 - [x] Actionable improvement suggestions
 - [x] Project-level score aggregation with grade distribution

@@ -1,6 +1,6 @@
 ---
 module: cmd_scaffold
-version: 1
+version: 2
 status: stable
 files:
   - src/commands/scaffold.rs
@@ -33,7 +33,7 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 1. Both scan source dirs for module name matches
 2. `cmd_scaffold` supports custom templates and auto-appends to registry
 3. Neither overwrites existing specs
-4. Companion files (tasks.md, context.md, requirements.md, testing.md) are always generated; design.md is generated only when `companions.design` is enabled in config
+4. Companion files (tasks.md, context.md, requirements.md, testing.md) are always generated with guided starter content; design.md is generated only when `companions.design` is enabled in config
 
 ## Behavioral Examples
 
@@ -72,5 +72,6 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 
 | Date | Change |
 |------|--------|
+| 2026-06-07 | Document guided starter content in generated companions |
 | 2026-04-09 | Initial spec |
 | 2026-04-13 | Document companions.design flag for conditional design.md generation |

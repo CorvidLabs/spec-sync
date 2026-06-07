@@ -2231,8 +2231,8 @@ fn fix_adds_undocumented_exports_to_spec() {
         "Expected spec to contain `TOKEN_TTL` after --fix"
     );
     assert!(
-        updated.contains("<!-- TODO: describe -->"),
-        "Expected stub descriptions"
+        updated.contains("Document caller-visible behavior and constraints."),
+        "Expected generated descriptions to guide follow-up review"
     );
 }
 

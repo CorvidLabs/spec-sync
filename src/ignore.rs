@@ -46,7 +46,9 @@ impl WarningCategory {
         if warning.contains("requirements") {
             return Some(Self::RequirementsCompanion);
         }
-        if warning.contains("stub") && warning.starts_with("Section ##") {
+        if warning.starts_with("Section ##")
+            && (warning.contains("stub") || warning.contains("unfinished draft"))
+        {
             return Some(Self::StubSection);
         }
         if warning.starts_with("Undocumented export '") || warning.starts_with("Export '") {
@@ -214,9 +216,7 @@ mod tests {
     #[test]
     fn test_classify_stub_section() {
         assert_eq!(
-            WarningCategory::classify(
-                "Section ## Purpose contains only stub/placeholder text (TBD, N/A, TODO, etc.)"
-            ),
+            WarningCategory::classify("Section ## Purpose contains only unfinished draft text"),
             Some(WarningCategory::StubSection)
         );
     }
@@ -291,7 +291,7 @@ mod tests {
             &inline,
         ));
         assert!(!rules.is_suppressed(
-            "Section ## Purpose contains only stub/placeholder text",
+            "Section ## Purpose contains only unfinished draft text",
             "specs/auth/auth.spec.md",
             &inline,
         ));
@@ -304,7 +304,7 @@ mod tests {
         inline.insert(WarningCategory::StubSection);
 
         assert!(rules.is_suppressed(
-            "Section ## Purpose contains only stub/placeholder text (TBD, N/A, TODO, etc.)",
+            "Section ## Purpose contains only unfinished draft text",
             "specs/auth/auth.spec.md",
             &inline,
         ));

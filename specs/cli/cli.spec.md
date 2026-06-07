@@ -71,7 +71,7 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 | view | Filter spec content by stakeholder role | --role (dev\|qa\|product\|agent), --spec PATH |
 | merge | Auto-resolve git merge conflicts in spec files | --dry-run, --all, --json |
 | issues | Verify GitHub issue references in spec frontmatter | --create (create drift issues for failures) |
-| wizard | Interactive step-by-step spec creation with prompts and preview | — |
+| wizard | Interactive guided spec creation with prompts and preview | — |
 | import | Import specs from external systems (GitHub Issues, Jira, Confluence) | SOURCE, ID, --repo |
 | new | Quick-create a minimal spec with auto-detected source files | name, --full |
 | deps | Validate cross-module dependency graph | --mermaid, --dot, --json |
@@ -111,13 +111,13 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 - **cmd_view** — Filter and display spec content for a specific role
 - **cmd_merge** — Auto-resolve git merge conflicts in spec files
 - **cmd_issues** — Verify GitHub issue references in spec frontmatter
-- **cmd_wizard** — Interactive wizard for step-by-step spec creation with template selection and preview
+- **cmd_wizard** — Interactive wizard for guided spec creation with template selection and preview
 - **cmd_import** — Import specs from external systems (GitHub Issues, Jira, Confluence) using `importer` module
 - **cmd_report** — Per-module coverage report with stale detection (modules N+ commits behind source)
 - **cmd_comment** — Post spec-check summary as a PR comment via `gh`, or print the comment body
 - **cmd_changelog** — Generate a changelog of spec changes between two git refs
 - **cmd_scaffold** — Full module scaffold: spec + companion files + source detection + registry entry
-- **auto_fix_specs** — Scan source files for undocumented exports and auto-add stubs to spec Public API tables
+- **auto_fix_specs** — Scan source files for undocumented exports and auto-add skeleton rows to spec Public API tables
 - **collect_hook_targets** — Convert boolean flags to Vec of HookTarget
 - **load_and_discover** — Load config and find all spec files (filtering _-prefixed templates)
 - **run_validation** — Validate all specs, return counts and collected error/warning strings
@@ -201,7 +201,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 
 - **Given** a spec's source files have exports not documented in the Public API section
 - **When** `specsync check --fix` is run
-- **Then** stub rows (`| \`name\` | <!-- TODO: describe --> |`) are appended to the Public API section and the spec file is written to disk
+- **Then** skeleton rows for the missing exports are appended to the Public API section and the spec file is written to disk
 
 ### Scenario: Fix does not duplicate already-documented exports
 
@@ -213,7 +213,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 
 - **Given** a spec has no `## Public API` section
 - **When** `specsync check --fix` is run
-- **Then** a new `## Public API` section with a table header and stub rows is appended to the spec
+- **Then** a new `## Public API` section with a table header and skeleton export rows is appended to the spec
 
 ### Scenario: Diff shows new exports
 

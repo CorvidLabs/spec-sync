@@ -48,7 +48,7 @@ specsync coverage --json
 Scaffold spec files for modules that don't have one. Uses `specs/_template.spec.md` if present.
 
 ```bash
-specsync generate                       # template mode — stubs with TODOs
+specsync generate                       # template mode — guided starter specs
 specsync generate --provider auto       # AI mode — auto-detect provider, writes real content
 specsync generate --provider anthropic  # AI mode — use Anthropic API directly
 ```
@@ -265,7 +265,7 @@ specsync import --from-dir ./docs/specs    # import from local directory
 
 ### `wizard`
 
-Interactive step-by-step guided spec creation. Prompts for module name, source files, dependencies, and fills in sections interactively.
+Interactive guided spec creation. Prompts for module name, source files, dependencies, and completes sections interactively.
 
 ```bash
 specsync wizard

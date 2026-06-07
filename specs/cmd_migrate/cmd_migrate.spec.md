@@ -85,7 +85,7 @@ Migration uses a step-based pipeline:
 
 - **Given** a 3.x project
 - **When** `specsync migrate --dry-run` runs
-- **Then** outputs a step-by-step plan showing what would change (files moved, frontmatter fields removed, directories created) without modifying any files
+- **Then** outputs an ordered migration plan showing what would change (files moved, frontmatter fields removed, directories created) without modifying any files
 
 ### Scenario: Partial migration recovery
 

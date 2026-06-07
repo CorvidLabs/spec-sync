@@ -6,7 +6,7 @@ spec: generator.spec.md
 
 - [ ] Add `--force` flag to overwrite existing specs (with confirmation prompt)
 - [ ] Support interactive mode that asks the user to confirm/edit each generated spec before writing
-- [ ] Populate companion files with real content from AI instead of empty templates
+- [ ] Populate companion files with source-specific content from AI instead of bare scaffolds
 - [ ] Add `--dry-run` flag to preview what would be generated without writing files
 
 ## Done
@@ -20,7 +20,7 @@ spec: generator.spec.md
 
 ## Gaps
 
-- Generated specs from templates have placeholder content that scores low on the quality rubric
+- Generated specs from templates still need source-specific expansion to score well on the quality rubric
 - No way to regenerate a single spec without deleting the existing one first
 
 ## Review Sign-offs

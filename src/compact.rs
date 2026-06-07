@@ -240,7 +240,7 @@ Test module.
 
         let (new_content, result) = compact_spec_changelog(content, "test.spec.md", 1).unwrap();
         assert_eq!(result.removed, 2);
-        assert!(new_content.contains("| — |")); // author placeholder
+        assert!(new_content.contains("| — |")); // compacted author column
         assert!(new_content.contains("Compacted: 2 entries"));
     }
 }

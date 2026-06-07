@@ -13,11 +13,11 @@ spec: {module}.spec.md
 
 ## Tasks
 
-- [ ] <!-- Add tasks for this spec -->
+- [ ] Add implementation, validation, or release tasks that belong to this spec.
 
 ## Gaps
 
-<!-- Uncovered areas, missing edge cases, or incomplete coverage -->
+Record concrete coverage gaps or edge cases that still need tests.
 
 ## Review Sign-offs
 
@@ -33,19 +33,19 @@ spec: {module}.spec.md
 
 ## User Stories
 
-- As a [role], I want [feature] so that [benefit]
+- As a maintainer, I want this module's contract captured clearly so changes can be reviewed against stable behavior.
 
 ## Acceptance Criteria
 
-- <!-- TODO: define acceptance criteria -->
+- Define acceptance criteria from the module's source behavior and user-facing responsibilities.
 
 ## Constraints
 
-<!-- Non-functional requirements, performance targets, compliance needs -->
+- Capture performance, compatibility, security, and compliance constraints that apply to this module.
 
 ## Out of Scope
 
-<!-- Explicitly excluded from this module's requirements -->
+- List behaviors or responsibilities intentionally handled by other modules.
 "#;
 
 const CONTEXT_TEMPLATE: &str = r#"---
@@ -54,19 +54,19 @@ spec: {module}.spec.md
 
 ## Key Decisions
 
-<!-- Record architectural or design decisions relevant to this spec -->
+- Record architectural or design decisions relevant to this spec.
 
 ## Files to Read First
 
-<!-- List the most important files an agent or new developer should read -->
+- List the most important files an agent or new developer should read.
 
 ## Current Status
 
-<!-- What's done, what's in progress, what's blocked -->
+- Summarize implemented behavior, active work, and known blockers.
 
 ## Notes
 
-<!-- Free-form notes, links, or context -->
+- Capture useful links, investigation notes, and operational context.
 "#;
 
 const TESTING_TEMPLATE: &str = r#"---
@@ -75,20 +75,20 @@ spec: {module}.spec.md
 
 ## Automated Testing
 
-<!-- Expected test file locations, coverage targets, fixture descriptions -->
+List the automated tests and fixtures that protect this module.
 
 | Test File | Type | What It Covers |
 |-----------|------|----------------|
 
 ## Manual Testing
 
-<!-- Step-by-step QA checklists, device/browser matrices, user flow walkthroughs -->
+List manual QA flows, platform checks, and review notes for this module.
 
-- [ ] <!-- Add manual test steps -->
+- [ ] Run the module's primary workflow and compare behavior against this spec.
 
 ## Edge Cases & Boundary Conditions
 
-<!-- Boundary values, race conditions, permission matrices, error paths -->
+List boundary conditions, race risks, permission cases, and error paths.
 
 | Scenario | Expected Behavior |
 |----------|-------------------|
@@ -101,19 +101,19 @@ sources: []
 
 ## Layout
 
-<!-- Page/component layout, responsive breakpoints, positioning -->
+- Document layout structure, responsive breakpoints, and positioning rules.
 
 ## Components
 
-<!-- Component tree, props, slots -->
+- Document component tree, inputs, outputs, and slots.
 
 ## Tokens
 
-<!-- Design token overrides from global design system -->
+- Document color, spacing, typography, and state token overrides.
 
 ## Assets
 
-<!-- Icons, images, illustrations needed -->
+- List icons, images, illustrations, and asset ownership.
 "#;
 
 const DEFAULT_TEMPLATE: &str = r#"---
@@ -129,7 +129,7 @@ depends_on: []
 
 ## Purpose
 
-<!-- TODO: describe what this module does -->
+Document this module's responsibility, inputs, outputs, and ownership boundaries.
 
 ## Public API
 
@@ -145,11 +145,11 @@ depends_on: []
 
 ## Invariants
 
-1. <!-- TODO -->
+1. Define an invariant that must remain true for supported inputs.
 
 ## Behavioral Examples
 
-### Scenario: TODO
+### Scenario: Core behavior
 
 - **Given** precondition
 - **When** action
@@ -210,7 +210,7 @@ depends_on: []
 
 ## Purpose
 
-<!-- TODO: describe what this module does -->
+Document this module's responsibility, inputs, outputs, and ownership boundaries.
 
 ## Public API
 
@@ -226,11 +226,11 @@ depends_on: []
 
 ## Invariants
 
-1. <!-- TODO -->
+1. Define an invariant that must remain true for supported inputs.
 
 ## Behavioral Examples
 
-### Scenario: TODO
+### Scenario: Core behavior
 
 - **Given** precondition
 - **When** action
@@ -273,7 +273,7 @@ depends_on: []
 
 ## Purpose
 
-<!-- TODO: describe what this module does -->
+Document this module's responsibility, inputs, outputs, and ownership boundaries.
 
 ## Public API
 
@@ -294,11 +294,11 @@ depends_on: []
 
 ## Invariants
 
-1. <!-- TODO -->
+1. Define an invariant that must remain true for supported inputs.
 
 ## Behavioral Examples
 
-### Scenario: TODO
+### Scenario: Core behavior
 
 - **Given** precondition
 - **When** action
@@ -341,7 +341,7 @@ depends_on: []
 
 ## Purpose
 
-<!-- TODO: describe what this module does -->
+Document this module's responsibility, inputs, outputs, and ownership boundaries.
 
 ## Public API
 
@@ -357,11 +357,11 @@ depends_on: []
 
 ## Invariants
 
-1. <!-- TODO -->
+1. Define an invariant that must remain true for supported inputs.
 
 ## Behavioral Examples
 
-### Scenario: TODO
+### Scenario: Core behavior
 
 - **Given** precondition
 - **When** action
@@ -404,7 +404,7 @@ depends_on: []
 
 ## Purpose
 
-<!-- TODO: describe what this package does -->
+Document this package's responsibility, inputs, outputs, and ownership boundaries.
 
 ## Public API
 
@@ -420,11 +420,11 @@ depends_on: []
 
 ## Invariants
 
-1. <!-- TODO -->
+1. Define an invariant that must remain true for supported inputs.
 
 ## Behavioral Examples
 
-### Scenario: TODO
+### Scenario: Core behavior
 
 - **Given** precondition
 - **When** action
@@ -467,7 +467,7 @@ depends_on: []
 
 ## Purpose
 
-<!-- TODO: describe what this module does -->
+Document this module's responsibility, inputs, outputs, and ownership boundaries.
 
 ## Public API
 
@@ -483,11 +483,11 @@ depends_on: []
 
 ## Invariants
 
-1. <!-- TODO -->
+1. Define an invariant that must remain true for supported inputs.
 
 ## Behavioral Examples
 
-### Scenario: TODO
+### Scenario: Core behavior
 
 - **Given** precondition
 - **When** action

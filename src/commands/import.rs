@@ -152,7 +152,7 @@ fn cmd_import_single(root: &Path, source: &str, id: &str, repo_override: Option<
                 config.companions.design,
             );
             println!(
-                "\n{} Run {} to validate and fill in the details.",
+                "\n{} Run {} to validate and complete the imported details.",
                 "Tip:".cyan().bold(),
                 "specsync check".bold()
             );

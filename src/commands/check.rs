@@ -749,12 +749,12 @@ fn auto_fix_specs(
                 Some(types::Language::Swift)
                 | Some(types::Language::Kotlin)
                 | Some(types::Language::Java) => {
-                    format!("| `{name}` | <!-- kind --> | <!-- TODO: describe --> |")
+                    format!("| `{name}` | Type or member kind | Document caller-visible behavior and constraints. |")
                 }
                 Some(types::Language::Rust) => {
-                    format!("| `{name}` | <!-- TODO: describe --> |")
+                    format!("| `{name}` | Document caller-visible behavior and constraints. |")
                 }
-                _ => format!("| `{name}` | <!-- TODO: describe --> |"),
+                _ => format!("| `{name}` | Document caller-visible behavior and constraints. |"),
             })
             .collect::<Vec<_>>()
             .join("\n");

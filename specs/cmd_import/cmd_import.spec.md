@@ -1,6 +1,6 @@
 ---
 module: cmd_import
-version: 1
+version: 2
 status: stable
 files:
   - src/commands/import.rs
@@ -33,6 +33,7 @@ Implements the `specsync import` command. Imports specs from external systems (G
 2. GitHub import resolves repo from config, CLI flag, or git remote
 3. Creates spec and companion files (tasks.md, context.md, requirements.md, testing.md); design.md is generated only when `companions.design` is enabled in config
 4. Will not overwrite existing spec
+5. Success guidance tells users to validate and complete imported details, not to fill template markers
 
 ## Behavioral Examples
 
@@ -71,5 +72,6 @@ Implements the `specsync import` command. Imports specs from external systems (G
 
 | Date | Change |
 |------|--------|
+| 2026-06-07 | Update import success guidance for guided imported specs |
 | 2026-04-09 | Initial spec |
 | 2026-04-13 | Document testing.md and conditional design.md in companion generation |

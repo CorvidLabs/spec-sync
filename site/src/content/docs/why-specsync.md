@@ -144,4 +144,4 @@ specsync generate
 specsync check
 ```
 
-Or see the [full workflow guide](workflow.md) for a step-by-step walkthrough.
+Or see the [full workflow guide](workflow.md) for a guided walkthrough.

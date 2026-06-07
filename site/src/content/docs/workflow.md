@@ -78,11 +78,11 @@ The spec file is the only one SpecSync validates against code. The companion fil
 ### Option B: Scaffold all unspecced modules
 
 ```bash
-specsync generate                       # template stubs with TODOs
+specsync generate                       # guided starter specs
 specsync generate --provider auto       # AI reads code, writes real content
 ```
 
-Template mode creates stubs you fill in. AI mode (`--provider`) sends source code to an LLM and generates filled-in specs — Purpose, Public API tables, Invariants, Error Cases, everything.
+Template mode creates guided starter specs for review. AI mode (`--provider`) sends source code to an LLM and generates source-aware specs — Purpose, Public API tables, Invariants, Error Cases, everything.
 
 > AI-generated specs are a starting point, not a finished product. Always review and refine them. Run `specsync check` immediately after to catch any drift.
 
@@ -114,7 +114,7 @@ Errors mean the spec references something that doesn't exist in code. Warnings m
 specsync check --fix
 ```
 
-Adds stub rows to your Public API tables for any undocumented exports. You still need to fill in descriptions, but the symbol names are correct.
+Adds review rows to your Public API tables for any undocumented exports. You still need to replace the generated description prompts, but the symbol names are correct.
 
 ### Strict mode (for CI)
 
@@ -214,7 +214,7 @@ When you add new source files:
 When you create a new module:
 
 1. `specsync add-spec <name>` or `specsync generate` to scaffold
-2. Fill in the spec content
+2. Complete the spec content
 3. Run `specsync check` to validate
 
 ---
@@ -348,7 +348,7 @@ Design decisions, constraints, key files to read first, current status notes. Th
 
 ```bash
 specsync add-spec payments             # scaffold spec + companions
-# Edit specs/payments/payments.spec.md — fill in Purpose, Public API, etc.
+# Edit specs/payments/payments.spec.md — complete Purpose, Public API, etc.
 specsync check                          # validate
 specsync coverage                       # confirm it shows up
 ```
@@ -359,7 +359,7 @@ specsync coverage                       # confirm it shows up
 specsync diff main                      # what changed since main
 specsync check                          # any drift?
 specsync check --fix                    # auto-stub new exports
-# Review and fill in stubs
+# Review generated rows and finalize descriptions
 ```
 
 ### Bootstrapping specs for an existing project

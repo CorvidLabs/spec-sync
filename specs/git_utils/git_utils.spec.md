@@ -13,7 +13,7 @@ depends_on: []
 
 ## Purpose
 
-Shared git utility functions for querying repository history. Provides commit hash lookup, commit distance counting, and git repository detection. Used by the `stale`, `report`, and `scoring` modules to determine spec freshness relative to source file changes.
+Shared git utility functions for querying repository history. Provides commit hash lookup, commit distance counting, and git repository detection. Used by the `stale`, `report`, `check`, `lifecycle`, and `scoring` modules to determine spec freshness relative to source file changes. Callers resolve a spec's commit hash once via `git_last_commit_hash`, then count divergence per source file via `git_commits_since` to avoid redundant `git log` invocations.
 
 ## Public API
 
@@ -22,7 +22,7 @@ Shared git utility functions for querying repository history. Provides commit ha
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `git_last_commit_hash` | `root: &Path, file: &str` | `Option<String>` | Get the SHA hash of the last commit that touched a file |
-| `git_commits_between` | `root: &Path, spec_file: &str, source_file: &str` | `usize` | Count commits to source_file since spec_file was last modified |
+| `git_commits_since` | `root: &Path, spec_commit: &str, source_file: &str` | `usize` | Count commits to source_file since a precomputed spec commit hash |
 | `is_git_repo` | `root: &Path` | `bool` | Check if a directory is inside a git work tree |
 
 ### Exported Types
@@ -35,7 +35,7 @@ Shared git utility functions for querying repository history. Provides commit ha
 
 1. All git commands execute with `current_dir(root)` to ensure correct repository context
 2. Functions return safe defaults (None, 0, false) when git is unavailable or commands fail
-3. `git_commits_between` uses `git rev-list --count {spec_commit}..HEAD -- {source_file}` to count divergence
+3. `git_commits_since` uses `git rev-list --count {spec_commit}..HEAD -- {source_file}` to count divergence, taking the spec commit hash as a parameter so it is resolved once per spec rather than once per source file
 4. `StaleInfo.source_details` only includes files with commits_behind > 0
 
 ## Behavioral Examples
@@ -49,7 +49,7 @@ Shared git utility functions for querying repository history. Provides commit ha
 ### Scenario: Source file changed after spec
 
 - **Given** a spec last committed at commit A, and a source file with 3 commits after A
-- **When** `git_commits_between` is called
+- **When** `git_commits_since` is called with commit A's hash
 - **Then** returns `3`
 
 ## Error Cases
@@ -69,3 +69,4 @@ None (only uses `std::process::Command` for git CLI calls).
 | Date | Change |
 |------|--------|
 | 2026-04-10 | Initial — extracted from cmd_report for shared use by stale, report, and scoring |
+| 2026-06-07 | Replaced `git_commits_between` with `git_commits_since`, which takes a precomputed spec commit hash so callers resolve it once per spec instead of once per source file (eliminates N+1 `git log` calls) |

@@ -1152,3 +1152,53 @@ fn discover_specs(root: &Path) -> Vec<PathBuf> {
 
     crate::validator::find_spec_files(&specs_dir)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn ctx(root: &Path) -> MigrationContext {
+        MigrationContext {
+            root: root.to_path_buf(),
+            dry_run: false,
+            no_backup: false,
+            format: OutputFormat::Json,
+            spec_files: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn apply_create_directories_creates_v4_layout() {
+        let tmp = TempDir::new().unwrap();
+        let mut report = MigrationReport::default();
+
+        apply_create_directories(&ctx(tmp.path()), &mut report).unwrap();
+
+        for dir in [
+            ".specsync",
+            ".specsync/lifecycle",
+            ".specsync/changes",
+            ".specsync/archive",
+        ] {
+            assert!(tmp.path().join(dir).is_dir(), "{dir} should exist");
+        }
+        assert_eq!(report.dirs_created.len(), 4);
+        assert_eq!(report.steps_completed.len(), 1);
+    }
+
+    #[test]
+    fn apply_create_directories_is_idempotent() {
+        let tmp = TempDir::new().unwrap();
+
+        // First run creates everything.
+        let mut first = MigrationReport::default();
+        apply_create_directories(&ctx(tmp.path()), &mut first).unwrap();
+        assert_eq!(first.dirs_created.len(), 4);
+
+        // Second run finds them already present and creates nothing new.
+        let mut second = MigrationReport::default();
+        apply_create_directories(&ctx(tmp.path()), &mut second).unwrap();
+        assert!(second.dirs_created.is_empty());
+    }
+}

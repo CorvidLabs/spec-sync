@@ -212,13 +212,21 @@ pub fn evaluate_guards(
                     let parsed = parser::parse_frontmatter(&content.replace("\r\n", "\n"));
                     match parsed {
                         Some(parsed) => {
-                            for source_file in &parsed.frontmatter.files {
-                                let commits =
-                                    git_utils::git_commits_between(root, &rel, source_file);
-                                if commits >= threshold {
-                                    failures.push(format!(
-                                        "guard: stale — {source_file} has {commits} commits since spec was last updated (threshold: {threshold})"
-                                    ));
+                            // Resolve the spec commit once, then count per source
+                            // file — avoids re-running `git log` for the spec on
+                            // every file.
+                            if let Some(spec_commit) = git_utils::git_last_commit_hash(root, &rel) {
+                                for source_file in &parsed.frontmatter.files {
+                                    let commits = git_utils::git_commits_since(
+                                        root,
+                                        &spec_commit,
+                                        source_file,
+                                    );
+                                    if commits >= threshold {
+                                        failures.push(format!(
+                                            "guard: stale — {source_file} has {commits} commits since spec was last updated (threshold: {threshold})"
+                                        ));
+                                    }
                                 }
                             }
                         }

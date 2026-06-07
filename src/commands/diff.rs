@@ -22,9 +22,11 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
     };
     let base = effective_base.as_str();
 
-    // Get list of files changed since base ref
+    // Get list of files changed since base ref.
+    // `--end-of-options` ensures `base` is always parsed as a revision, never as
+    // a git flag — even if it's user-supplied and starts with `-`.
     let output = match std::process::Command::new("git")
-        .args(["diff", "--name-only", base])
+        .args(["diff", "--name-only", "--end-of-options", base])
         .current_dir(root)
         .output()
     {

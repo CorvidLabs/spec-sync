@@ -2,7 +2,7 @@ use colored::Colorize;
 use std::fs;
 use std::path::Path;
 
-use crate::git_utils::{git_commits_between, git_last_commit_hash};
+use crate::git_utils::{git_commits_since, git_last_commit_hash};
 use crate::parser;
 use crate::types;
 use crate::validator::compute_coverage;
@@ -73,20 +73,19 @@ pub fn cmd_report(
         let mut stale = false;
         let mut max_behind: usize = 0;
         if !fm.files.is_empty() {
-            let spec_commit = git_last_commit_hash(root, &rel_spec);
-            for source_file in &fm.files {
-                if !root.join(source_file).exists() {
-                    continue;
+            // Resolve the spec commit once; if git has no record of the spec we
+            // can't determine staleness, so leave `stale` false.
+            if let Some(spec_commit) = git_last_commit_hash(root, &rel_spec) {
+                for source_file in &fm.files {
+                    if !root.join(source_file).exists() {
+                        continue;
+                    }
+                    let behind = git_commits_since(root, &spec_commit, source_file);
+                    if behind >= stale_threshold {
+                        stale = true;
+                        max_behind = max_behind.max(behind);
+                    }
                 }
-                let behind = git_commits_between(root, &rel_spec, source_file);
-                if behind >= stale_threshold {
-                    stale = true;
-                    max_behind = max_behind.max(behind);
-                }
-            }
-            // If we couldn't get git info, skip stale
-            if spec_commit.is_none() {
-                stale = false;
             }
         }
 

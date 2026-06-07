@@ -4820,3 +4820,66 @@ fn action_requires_release_checksums() {
         "Unix archive checksums should be verified before extraction"
     );
 }
+
+// ─── specsync stale ──────────────────────────────────────────────────────
+
+#[test]
+fn stale_outside_git_repo_fails_with_message() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    // No `git init` — staleness detection requires git history.
+
+    specsync()
+        .arg("stale")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Not a git repository"));
+}
+
+#[test]
+fn stale_outside_git_repo_json_reports_error() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    specsync()
+        .arg("stale")
+        .arg("--root")
+        .arg(&root)
+        .arg("--format")
+        .arg("json")
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("not a git repository"))
+        .stdout(predicate::str::contains("\"stale_specs\""));
+}
+
+#[test]
+fn stale_in_fresh_repo_reports_all_up_to_date() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    // Initialize a repo and commit everything so source and spec share history.
+    let git = |args: &[&str]| {
+        Command::new("git")
+            .args(args)
+            .current_dir(&root)
+            .assert()
+            .success();
+    };
+    git(&["init"]);
+    git(&["config", "user.email", "test@test.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["config", "commit.gpgsign", "false"]);
+    git(&["add", "-A"]);
+    git(&["commit", "-m", "initial"]);
+
+    specsync()
+        .arg("stale")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("up to date"));
+}

@@ -1230,11 +1230,13 @@ mod tests {
         assert_eq!(val["count"].as_u64(), Some(1));
         let generated = val["generated"].as_array().unwrap();
         assert_eq!(generated.len(), 1);
+        let generated_path = std::path::Path::new(generated[0].as_str().unwrap());
         assert!(
-            generated[0]
-                .as_str()
-                .unwrap()
-                .ends_with("specs/auth/auth.spec.md")
+            generated_path.ends_with(
+                std::path::Path::new("specs")
+                    .join("auth")
+                    .join("auth.spec.md")
+            )
         );
     }
 

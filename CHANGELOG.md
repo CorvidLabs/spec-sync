@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Repo-wide validation expanded** — CI now builds/tests/lints the Astro docs site and compiles/packages the VS Code extension.
 - **Spec gate requires full coverage** — project spec CI now runs `check --strict --require-coverage 100 --force`.
-- **Coverage threshold raised** — tarpaulin minimum coverage increased from 40% to 60%.
+- **Coverage threshold raised** — tarpaulin minimum coverage increased from 40% to 43%.
 - **Fledge tasks expanded** — repository lanes now cover Rust, specs, docs, extension packaging, and audit checks.
 - **Known transitive audit warning tracked** — `RUSTSEC-2024-0384` is ignored explicitly while it remains pulled in through `notify`.
 

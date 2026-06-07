@@ -152,9 +152,12 @@ runs:
         fi
 
         if [ -n "$INPUT_ARGS" ]; then
-          # INPUT_ARGS is intentionally split on whitespace only. Shell quoting,
-          # substitutions, pipes, and other shell syntax are not evaluated.
-          read -r -a EXTRA_ARGS <<< "$INPUT_ARGS"
+          # INPUT_ARGS is intentionally split on whitespace only across all lines.
+          # Shell quoting, substitutions, pipes, and other shell syntax are not evaluated.
+          NORMALIZED_ARGS="${INPUT_ARGS//$'\r'/ }"
+          NORMALIZED_ARGS="${NORMALIZED_ARGS//$'\n'/ }"
+          NORMALIZED_ARGS="${NORMALIZED_ARGS//$'\t'/ }"
+          read -r -a EXTRA_ARGS <<< "$NORMALIZED_ARGS"
           CMD+=("${EXTRA_ARGS[@]}")
         fi
 

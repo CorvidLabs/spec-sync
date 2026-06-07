@@ -4778,6 +4778,12 @@ fn action_does_not_use_eval_for_user_arguments() {
         "check command should execute the argv array directly"
     );
     assert!(
+        action.contains(r#"NORMALIZED_ARGS="${INPUT_ARGS//$'\r'/ }""#)
+            && action.contains(r#"NORMALIZED_ARGS="${NORMALIZED_ARGS//$'\n'/ }""#)
+            && action.contains(r#"NORMALIZED_ARGS="${NORMALIZED_ARGS//$'\t'/ }""#),
+        "action should normalize multiline args before simple whitespace splitting"
+    );
+    assert!(
         action.contains("COMMENT_CMD=(specsync comment)"),
         "comment command should be assembled as a bash argv array"
     );

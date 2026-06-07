@@ -36,14 +36,13 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 ## Invariants
 
 1. Provider resolution order: `--provider` flag > `aiCommand` config > `aiProvider` config > `SPECSYNC_AI_PROVIDER` env > `SPECSYNC_AI_COMMAND` env > auto-detect
-2. Auto-detect tries **Ollama first when usable** — `OLLAMA_API_KEY` set (cloud) or a local daemon answering `GET {host}/api/tags` within a 2s probe — so a running Ollama wins over a present API key. The Ollama host is `OLLAMA_HOST` env > `aiBaseUrl` config > `-cloud`-routing > `http://localhost:11434`
-3. Otherwise auto-detect is **API-first**: the first provider in `detection_order` with a `<PROVIDER>_API_KEY` set wins. It never shells out to a CLI
-4. When nothing is usable, resolution still defaults to Ollama (so the failure is a clear "couldn't reach Ollama" rather than "no provider")
-5. The deprecated `claude` provider routes to the `anthropic` API (with a warning); it no longer shells out to `claude -p`. `copilot`/`cursor` are deprecated; `aiCommand` remains the explicit, trusted shell escape hatch
-6. Source code is capped at 150K characters total and 30K per file to avoid exceeding context windows
-7. AI response is post-processed: code fences are stripped, frontmatter delimiters are validated
-8. Default timeout is 120 seconds, configurable via `aiTimeout` in config
-9. API providers do not require a CLI binary — they use direct HTTP calls via the `corvid-ai` client, which owns the endpoint registry, default models, and `<PROVIDER>_API_KEY` resolution
+2. Auto-detect ladder (shared with fledge), by `<PROVIDER>_API_KEY` presence (no network probe): **none configured → keyless local Ollama** (`http://localhost:11434`); **exactly one configured → use it**; **multiple configured → prompt** for provider + model when interactive (stdin & stderr are TTYs), else fall back to the deterministic order (Ollama, Anthropic, OpenAI, OpenRouter, Gemini, DeepSeek, Groq, Mistral, xAI, Together). A set API key beats unkeyed local Ollama; auto-detect never shells out to a CLI
+3. Ollama host for requests: `OLLAMA_HOST` env > `aiBaseUrl` config > `-cloud` routing (model tag contains `-cloud` and `OLLAMA_API_KEY` set ⇒ Ollama Cloud) > `http://localhost:11434`; corvid-ai speaks to it over `/v1`
+4. The deprecated `claude` provider routes to the `anthropic` API (with a warning); it no longer shells out to `claude -p`. `copilot`/`cursor` are deprecated; `aiCommand` remains the explicit, trusted shell escape hatch (also slated for removal in 5.0)
+5. Source code is capped at 150K characters total and 30K per file to avoid exceeding context windows
+6. AI response is post-processed: code fences are stripped, frontmatter delimiters are validated
+7. Default timeout is 120 seconds, configurable via `aiTimeout` in config
+8. API providers do not require a CLI binary — they use direct HTTP calls via the `corvid-ai` client, which owns the endpoint registry, default models, and `<PROVIDER>_API_KEY` resolution
 
 ## Behavioral Examples
 
@@ -70,6 +69,12 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 - **Given** user passes `--provider openai`
 - **When** `resolve_ai_provider(config, Some("openai"))` is called
 - **Then** returns `ResolvedProvider::Api` with the `openai` provider name (resolved against `OPENAI_API_KEY`)
+
+### Scenario: Multiple keys, non-interactive
+
+- **Given** both `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` are set, no explicit selection, and stdin/stderr are not TTYs
+- **When** `resolve_ai_provider(config, None)` is called
+- **Then** uses the first match in deterministic order (`anthropic`) without prompting
 
 ### Scenario: Generate spec with AI
 
@@ -114,4 +119,4 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 | 2026-03-25 | Initial spec |
 | 2026-06-07 | Route API providers through the shared `corvid-ai` client; `ResolvedProvider` API variants collapse to `Api(corvid_ai::Settings)` and the per-provider `call_*_api` HTTP code is removed |
 | 2026-06-07 | API-first/API-only auto-detection (no CLI shell-out); default to keyless local Ollama when no key is set; `claude` routes to the `anthropic` API; add `openrouter` + `ollama` (HTTP) providers |
-| 2026-06-07 | Ollama-first auto-detect via a 2s `/api/tags` reachability probe (a running Ollama wins over a present API key); `OLLAMA_HOST` + `-cloud` host routing; add `SPECSYNC_AI_PROVIDER` env. Aligns with fledge's resolution ladder |
+| 2026-06-07 | Final resolution ladder (shared with fledge): key-based detection (no probe) — none→keyless local Ollama, one→use it, multiple→prompt (interactive) or deterministic order; Ollama first in that order. `OLLAMA_HOST` + `-cloud` host routing for requests; add `SPECSYNC_AI_PROVIDER` env |

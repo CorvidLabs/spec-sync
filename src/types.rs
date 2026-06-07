@@ -137,28 +137,31 @@ impl AiProvider {
         }
     }
 
-    /// The API-keyed providers tried during auto-detection, by
-    /// `<PROVIDER>_API_KEY` presence, in alphabetical order.
+    /// The providers tried during auto-detection, by `<PROVIDER>_API_KEY`
+    /// presence, in the deterministic preference order shared with fledge:
+    /// Ollama (cloud key) first, then Anthropic, OpenAI, OpenRouter, Gemini,
+    /// DeepSeek, Groq, Mistral, xAI, Together.
     ///
-    /// `Ollama` is intentionally absent: it is the preferred default and is
-    /// resolved *before* this list via a reachability probe (or `OLLAMA_API_KEY`),
-    /// and is also the final fallback — see `resolve_ai_provider`. This list is
-    /// the "API-first otherwise" tier.
+    /// This order is used both to pick the single configured provider and as
+    /// the non-interactive tie-break when several keys are present. Unkeyed
+    /// local Ollama is *not* detected here (no probe) — it's only the
+    /// zero-config fallback when nothing is configured (see `resolve_ai_provider`).
     ///
     /// Auto-detection is API-only — it never shells out to a CLI. The deprecated
     /// `claude`/`copilot` providers are reachable only by explicit selection
     /// (`--provider` / `aiProvider`), where `claude` routes to `anthropic`.
     pub fn detection_order() -> &'static [AiProvider] {
         &[
+            AiProvider::Ollama,
             AiProvider::Anthropic,
-            AiProvider::DeepSeek,
-            AiProvider::Gemini,
-            AiProvider::Groq,
-            AiProvider::Mistral,
             AiProvider::OpenAi,
             AiProvider::OpenRouter,
-            AiProvider::Together,
+            AiProvider::Gemini,
+            AiProvider::DeepSeek,
+            AiProvider::Groq,
+            AiProvider::Mistral,
             AiProvider::XAi,
+            AiProvider::Together,
         ]
     }
 }
@@ -416,7 +419,7 @@ pub enum EnforcementMode {
 }
 
 /// User-provided configuration (from specsync.json).
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpecSyncConfig {
     #[serde(default = "default_specs_dir")]

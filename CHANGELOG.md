@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **AI API calls now go through the shared [`corvid-ai`](https://crates.io/crates/corvid-ai) client.** spec-sync's three hand-rolled HTTP paths (`call_anthropic_api` / `call_openai_api` / `call_gemini_api`, ~250 lines) are replaced by `corvid_ai::complete`. corvid-ai owns the provider registry — endpoints, default models, `<PROVIDER>_API_KEY` resolution, and secret redaction in errors — so the Anthropic default model is now the current `claude-sonnet-4-6` (was `claude-sonnet-4-20250514`). Minimum supported Rust version is now **1.89**.
-- **Ollama-first, API-first auto-detection (never auto-selects a CLI).** With no explicit selection, spec-sync uses **Ollama when usable** — a local daemon answering a 2-second `GET {host}/api/tags` probe, or `OLLAMA_API_KEY` for the cloud — so a running Ollama wins over a present API key. Otherwise it picks the first provider with a `<PROVIDER>_API_KEY` set, and falls back to Ollama when nothing is reachable. This makes Ollama the most useful zero-config default (local *or* cloud). Matches fledge's resolution ladder.
+- **New auto-detect ladder (never auto-selects a CLI), shared with fledge.** With no explicit selection: **none configured → keyless local Ollama** (`http://localhost:11434`) — the most useful zero-config default; **exactly one key → use it**; **multiple keys → prompt** for provider + model when interactive, otherwise the deterministic order (Ollama, Anthropic, OpenAI, OpenRouter, Gemini, DeepSeek, Groq, Mistral, xAI, Together). A set API key beats unkeyed local Ollama (no network probe). Ollama requests honor `OLLAMA_HOST` and `-cloud` routing to Ollama Cloud.
 
 ### Deprecated
 

@@ -173,9 +173,9 @@ SpecSync's AI generation moved off the agentic `claude` CLI onto plain HTTP thro
 
 ## What changed
 
-- **Default provider is now Ollama, not the `claude` CLI.** With no key and nothing configured, spec-sync uses Ollama — a local daemon (keyless) when one is reachable, or Ollama Cloud when `OLLAMA_API_KEY` is set.
+- **Default provider is now Ollama, not the `claude` CLI.** With no key and nothing configured, spec-sync uses keyless local Ollama (`http://localhost:11434`), or Ollama Cloud when `OLLAMA_API_KEY` is set.
 - **`claude` is deprecated and routes to the `anthropic` API.** `aiProvider: claude` (or `--provider claude`) now warns and uses the Anthropic Messages API — it no longer shells out to `claude -p`. Set `aiProvider: anthropic` (+ `ANTHROPIC_API_KEY`) to silence the warning. The `claude` alias is removed in **5.0**.
-- **Auto-detection is API-first and never auto-selects a CLI.** Order: a usable Ollama (reachable local daemon or `OLLAMA_API_KEY`) → first provider with a `<PROVIDER>_API_KEY` → Ollama as the final fallback.
+- **Auto-detection never auto-selects a CLI.** By `<PROVIDER>_API_KEY` presence (no network probe): **none set → keyless local Ollama**; **exactly one → use it**; **multiple → prompt** for provider + model when interactive, else the deterministic order (Ollama, Anthropic, OpenAI, OpenRouter, Gemini, DeepSeek, Groq, Mistral, xAI, Together).
 - **`openai` and `together` now require an explicit `aiModel`** (corvid-ai has no default model for them).
 - **`copilot`/`cursor` are deprecated** and work only when explicitly selected. `aiCommand` remains the explicit, trusted shell escape hatch (also slated for removal in 5.0 — agentic work belongs in Merlin).
 - New providers: `openrouter`, and `ollama` over HTTP.

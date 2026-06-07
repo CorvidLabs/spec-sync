@@ -1,6 +1,6 @@
 use crate::types::{AiProvider, SpecSyncConfig};
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, IsTerminal, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
@@ -16,9 +16,6 @@ const OLLAMA_DEFAULT_HOST: &str = "http://localhost:11434";
 /// Ollama Cloud host, targeted for `-cloud` model tags when `OLLAMA_API_KEY`
 /// is set.
 const OLLAMA_CLOUD_HOST: &str = "https://ollama.com";
-/// Timeout for the Ollama reachability probe. Kept short because it runs on the
-/// hot path of every keyless auto-detect. Shared with fledge.
-const OLLAMA_PROBE_TIMEOUT_SECS: u64 = 2;
 
 /// Resolve the Ollama host (without a trailing `/v1`).
 ///
@@ -46,21 +43,6 @@ fn ollama_host(config: &SpecSyncConfig) -> String {
         return OLLAMA_CLOUD_HOST.to_string();
     }
     OLLAMA_DEFAULT_HOST.to_string()
-}
-
-/// Whether Ollama is usable for auto-detection: a configured cloud key, or a
-/// reachable local daemon (`GET {host}/api/tags` within the probe timeout).
-fn ollama_usable(config: &SpecSyncConfig) -> bool {
-    if std::env::var("OLLAMA_API_KEY").is_ok_and(|k| !k.is_empty()) {
-        return true;
-    }
-    let url = format!("{}/api/tags", ollama_host(config));
-    let agent = ureq::Agent::new_with_config(
-        ureq::config::Config::builder()
-            .timeout_global(Some(Duration::from_secs(OLLAMA_PROBE_TIMEOUT_SECS)))
-            .build(),
-    );
-    agent.get(&url).call().is_ok()
 }
 
 /// Truncate a string to at most `max_bytes` bytes on a valid UTF-8 char boundary.
@@ -351,35 +333,82 @@ pub fn resolve_ai_provider(
         return Ok(ResolvedProvider::Cli(cmd));
     }
 
-    // 6a. Ollama first when usable — local daemon reachable or OLLAMA_API_KEY.
-    //     A usable Ollama beats a present API key (Ollama is the default).
-    if ollama_usable(config) {
-        eprintln!("  Auto-detected AI provider: ollama (local daemon or OLLAMA_API_KEY)");
-        return resolve_api_provider(&AiProvider::Ollama, config);
-    }
+    // 6. Auto-detect by API-key presence (no CLI shell-out, no network probe).
+    //    Collect every provider with a key set, in deterministic order.
+    let configured: Vec<&AiProvider> = AiProvider::detection_order()
+        .iter()
+        .filter(|p| {
+            // Separate variable for the env-var name so CodeQL doesn't confuse
+            // the *name* with the *value* returned by std::env::var.
+            p.api_key_env_var()
+                .is_some_and(|v| std::env::var(v).is_ok_and(|k| !k.is_empty()))
+        })
+        .collect();
 
-    // 6b. API-first by key presence — no CLI shell-out.
-    for provider in AiProvider::detection_order() {
-        // Use a separate variable for the env-var name so CodeQL doesn't
-        // confuse the *name* with the *value* returned by std::env::var.
-        let has_key = provider
-            .api_key_env_var()
-            .is_some_and(|v| std::env::var(v).is_ok());
-        if has_key {
+    match configured.as_slice() {
+        // None configured → keyless local Ollama (the zero-config default).
+        [] => {
+            eprintln!(
+                "  No AI API key detected — defaulting to local Ollama ({}).\n  \
+                 Start a local Ollama server, set OLLAMA_API_KEY for the cloud, or set \
+                 another provider's key (ANTHROPIC_API_KEY, OPENAI_API_KEY, …).",
+                ollama_host(config)
+            );
+            resolve_api_provider(&AiProvider::Ollama, config)
+        }
+        // Exactly one configured → use it.
+        [provider] => {
             eprintln!("  Auto-detected AI provider: {provider} (API key found)");
-            return resolve_api_provider(provider, config);
+            resolve_api_provider(provider, config)
+        }
+        // Several configured → prompt interactively, else deterministic order.
+        providers => {
+            if std::io::stdin().is_terminal() && std::io::stderr().is_terminal() {
+                prompt_provider_and_model(providers, config)
+            } else {
+                let provider = providers[0];
+                eprintln!(
+                    "  Multiple AI providers configured ({}); using {provider} (first in \
+                     order). Set \"aiProvider\" or --provider to choose explicitly.",
+                    providers
+                        .iter()
+                        .map(|p| p.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                resolve_api_provider(provider, config)
+            }
         }
     }
+}
 
-    // 6c. Nothing usable — default to local Ollama anyway so the failure is a
-    // clear "couldn't reach Ollama" rather than "no provider".
-    eprintln!(
-        "  No local Ollama reachable and no API key detected — defaulting to Ollama ({}).\n  \
-         Start a local Ollama server, set OLLAMA_API_KEY for the cloud, or set another \
-         provider's key (ANTHROPIC_API_KEY, OPENAI_API_KEY, …).",
-        ollama_host(config)
-    );
-    resolve_api_provider(&AiProvider::Ollama, config)
+/// Interactively choose a provider (and optional model) when several have keys.
+fn prompt_provider_and_model(
+    providers: &[&AiProvider],
+    config: &SpecSyncConfig,
+) -> Result<ResolvedProvider, String> {
+    use dialoguer::{Input, Select};
+
+    let labels: Vec<String> = providers.iter().map(|p| p.to_string()).collect();
+    let idx = Select::new()
+        .with_prompt("Multiple AI providers configured — pick one")
+        .items(&labels)
+        .default(0)
+        .interact()
+        .map_err(|e| format!("provider selection cancelled: {e}"))?;
+    let provider = providers[idx];
+
+    let model: String = Input::new()
+        .with_prompt(format!("Model for {provider} (blank = provider default)"))
+        .allow_empty(true)
+        .interact_text()
+        .map_err(|e| format!("model entry cancelled: {e}"))?;
+
+    let mut chosen = config.clone();
+    if !model.trim().is_empty() {
+        chosen.ai_model = Some(model.trim().to_string());
+    }
+    resolve_api_provider(provider, &chosen)
 }
 
 // Keep the old name as an alias for compatibility with tests
@@ -908,16 +937,19 @@ mod tests {
     }
 
     #[test]
-    fn detection_order_is_api_only() {
-        // Auto-detection must never include a CLI shell-out provider, and Ollama
-        // is resolved separately (probe/default), so it's not in this list.
+    fn detection_order_is_api_only_and_ollama_first() {
+        // Auto-detection must never include a CLI shell-out provider.
         for provider in AiProvider::detection_order() {
             assert!(
                 provider.is_api_provider(),
                 "{provider} is in detection_order but is not an API provider"
             );
         }
-        assert!(!AiProvider::detection_order().contains(&AiProvider::Ollama));
+        // Ollama (cloud key) is the first preference in the shared order.
+        assert_eq!(
+            AiProvider::detection_order().first(),
+            Some(&AiProvider::Ollama)
+        );
     }
 
     #[test]

@@ -1473,6 +1473,39 @@ fn auto_detect_defaults_to_local_ollama_without_keys() {
         .stderr(predicate::str::contains("ollama").or(predicate::str::contains("Ollama")));
 }
 
+#[test]
+fn config_ai_provider_triggers_ai_without_provider_flag() {
+    // Regression: a configured `aiProvider` must invoke AI even without the
+    // `--provider` flag (previously this silently fell back to templates).
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    let config = serde_json::json!({
+        "specsDir": "specs",
+        "sourceDirs": ["src"],
+        "aiProvider": "anthropic",
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "excludeDirs": ["__tests__"],
+        "excludePatterns": ["**/__tests__/**"]
+    });
+    fs::write(
+        root.join("specsync.json"),
+        serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .unwrap();
+
+    // No --provider flag — AI mode comes from config. With no key it fails fast
+    // on the key check, proving AI (not template-only) was selected.
+    specsync()
+        .arg("generate")
+        .arg("--root")
+        .arg(&root)
+        .env_remove("ANTHROPIC_API_KEY")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("ANTHROPIC_API_KEY"));
+}
+
 // ─── 8. Direct API provider tests ───────────────────────────────────────
 
 #[test]

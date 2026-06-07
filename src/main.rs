@@ -118,6 +118,7 @@ fn run() {
         ),
         Command::Generate {
             provider,
+            model,
             uncovered,
             batch,
         } => commands::generate::cmd_generate(
@@ -127,6 +128,7 @@ fn run() {
             cli.require_coverage,
             format,
             provider,
+            model,
             uncovered,
             batch,
         ),

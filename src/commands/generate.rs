@@ -12,6 +12,54 @@ use crate::validator::{compute_coverage, get_schema_table_names};
 
 use super::{build_schema_columns, exit_with_status, load_and_discover, run_validation};
 
+/// Resolve the AI provider for `generate`, or `None` for template-only mode.
+///
+/// AI is used when a provider is configured anywhere — the `--provider` flag,
+/// `aiProvider`/`aiCommand` in config, or the `SPECSYNC_AI_PROVIDER` /
+/// `SPECSYNC_AI_COMMAND` env vars — so a configured provider "just works"
+/// without repeating `--provider`. The `--provider` flag overrides config.
+/// Model precedence: `--model` > `SPECSYNC_AI_MODEL` env > `aiModel` config.
+fn resolve_provider_for_generate(
+    config: &types::SpecSyncConfig,
+    provider_flag: Option<&str>,
+    model_flag: Option<&str>,
+) -> Option<ai::ResolvedProvider> {
+    let ai_requested = provider_flag.is_some()
+        || config.ai_provider.is_some()
+        || config.ai_command.is_some()
+        || std::env::var("SPECSYNC_AI_PROVIDER").is_ok_and(|v| !v.is_empty())
+        || std::env::var("SPECSYNC_AI_COMMAND").is_ok_and(|v| !v.is_empty());
+    if !ai_requested {
+        return None;
+    }
+
+    // "auto" forces auto-detect (ignore a configured provider); an explicit
+    // name overrides config; an absent flag falls through to config/env/auto.
+    let cli_provider = match provider_flag {
+        Some("auto") => None,
+        other => other,
+    };
+
+    // Effective model: --model > SPECSYNC_AI_MODEL env > aiModel config.
+    let mut cfg = config.clone();
+    cfg.ai_model = model_flag
+        .map(str::to_string)
+        .or_else(|| {
+            std::env::var("SPECSYNC_AI_MODEL")
+                .ok()
+                .filter(|m| !m.is_empty())
+        })
+        .or_else(|| config.ai_model.clone());
+
+    match ai::resolve_ai_provider(&cfg, cli_provider) {
+        Ok(p) => Some(p),
+        Err(e) => {
+            eprintln!("{e}");
+            process::exit(1);
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn cmd_generate(
     root: &Path,
@@ -20,6 +68,7 @@ pub fn cmd_generate(
     require_coverage: Option<usize>,
     format: types::OutputFormat,
     provider: Option<String>,
+    model: Option<String>,
     uncovered: bool,
     batch: Vec<String>,
 ) {
@@ -34,6 +83,7 @@ pub fn cmd_generate(
             require_coverage,
             format,
             provider,
+            model,
             batch,
         );
         return;
@@ -48,11 +98,13 @@ pub fn cmd_generate(
         require_coverage,
         format,
         provider,
+        model,
         json,
     );
 }
 
 /// Generate specs for all unspecced modules (default behavior, also triggered by --uncovered).
+#[allow(clippy::too_many_arguments)]
 fn cmd_generate_all(
     root: &Path,
     strict: bool,
@@ -60,6 +112,7 @@ fn cmd_generate_all(
     require_coverage: Option<usize>,
     _format: types::OutputFormat,
     provider: Option<String>,
+    model: Option<String>,
     json: bool,
 ) {
     let (config, spec_files) = load_and_discover(root, true);
@@ -91,25 +144,10 @@ fn cmd_generate_all(
 
     let mut coverage = compute_coverage(root, &spec_files, &config);
 
-    // --provider enables AI mode. "auto" means auto-detect.
-    let ai = provider.is_some();
-
-    let resolved_provider = if let Some(ref prov) = provider {
-        let cli_provider = if prov == "auto" {
-            None
-        } else {
-            Some(prov.as_str())
-        };
-        match ai::resolve_ai_provider(&config, cli_provider) {
-            Ok(p) => Some(p),
-            Err(e) => {
-                eprintln!("{e}");
-                process::exit(1);
-            }
-        }
-    } else {
-        None
-    };
+    // AI mode is enabled by --provider, a configured provider, or env.
+    let resolved_provider =
+        resolve_provider_for_generate(&config, provider.as_deref(), model.as_deref());
+    let ai = resolved_provider.is_some();
 
     if json {
         let generated_paths = generate_specs_for_unspecced_modules_paths(
@@ -195,6 +233,7 @@ fn cmd_generate_all(
 
 /// Generate specs for a specific batch of module names.
 /// Parses comma-separated values within each entry (e.g. "foo,bar" or ["foo", "bar"]).
+#[allow(clippy::too_many_arguments)]
 fn cmd_generate_batch(
     root: &Path,
     strict: bool,
@@ -202,6 +241,7 @@ fn cmd_generate_batch(
     require_coverage: Option<usize>,
     format: types::OutputFormat,
     provider: Option<String>,
+    model: Option<String>,
     batch: Vec<String>,
 ) {
     let json = matches!(format, types::OutputFormat::Json);
@@ -223,23 +263,9 @@ fn cmd_generate_batch(
 
     let coverage = compute_coverage(root, &spec_files, &config);
 
-    // Resolve AI provider if requested
-    let resolved_provider = if let Some(ref prov) = provider {
-        let cli_provider = if prov == "auto" {
-            None
-        } else {
-            Some(prov.as_str())
-        };
-        match ai::resolve_ai_provider(&config, cli_provider) {
-            Ok(p) => Some(p),
-            Err(e) => {
-                eprintln!("{e}");
-                process::exit(1);
-            }
-        }
-    } else {
-        None
-    };
+    // Resolve AI provider (flag, configured provider, or env).
+    let resolved_provider =
+        resolve_provider_for_generate(&config, provider.as_deref(), model.as_deref());
 
     // Filter the coverage report to only the requested modules
     let unspecced_set: std::collections::HashSet<&str> = coverage

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.4.0] - 2026-06-07
+
 ### Added
 
 - **`openrouter` and `ollama` API providers.** OpenRouter joins the OpenAI-compatible family; Ollama now runs over its OpenAI-compatible HTTP endpoint (local server keyless, or Ollama Cloud via `OLLAMA_API_KEY`) instead of shelling out to `ollama run`.

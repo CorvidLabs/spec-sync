@@ -391,15 +391,15 @@ pub fn validate_spec(
         }
     }
 
-    // ─── Level 1.7: Stub/Placeholder Detection ──────────────────────
+    // ─── Level 1.7: Empty-Draft Section Detection ───────────────────
     let stub_sections = find_stub_sections(body, &config.required_sections);
     if !stub_sections.is_empty() {
         for section in &stub_sections {
             result.warnings.push(format!(
-                "Section ## {section} contains only stub/placeholder text (TBD, N/A, TODO, etc.)"
+                "Section ## {section} contains only unfinished draft text"
             ));
             result.fixes.push(format!(
-                "Replace placeholder content in ## {section} with real documentation"
+                "Replace draft content in ## {section} with real documentation"
             ));
         }
     }
@@ -1070,7 +1070,7 @@ Test
         // Create the dependency module directory
         let dep_dir = tmp.path().join("specs").join("run");
         fs::create_dir_all(&dep_dir).unwrap();
-        fs::write(dep_dir.join("run.spec.md"), "# placeholder").unwrap();
+        fs::write(dep_dir.join("run.spec.md"), "# fixture content").unwrap();
 
         let spec = tmp.path().join("deps.spec.md");
         fs::write(

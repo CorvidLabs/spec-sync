@@ -1,6 +1,6 @@
 ---
 module: ignore
-version: 1
+version: 2
 status: stable
 files:
   - src/ignore.rs
@@ -50,9 +50,10 @@ Provides a warning suppression system for spec-sync validation. Supports three l
 2. `.specsyncignore` uses `#` for comments (line and inline) and `:` to separate category from path
 3. Per-spec rules match by path prefix — `stub-section:specs/legacy/` suppresses for all specs under that directory
 4. `classify()` checks `SchemaTypeMismatch` before `SchemaColumn` to prevent the more general pattern from shadowing the specific one
-5. `from_str()` normalizes underscores to hyphens and lowercases before matching, supporting both `requirements_companion` and `requirements-companion`
-6. Missing `.specsyncignore` file is not an error — returns empty rules
-7. Unrecognized category names in `.specsyncignore` are silently ignored (no error)
+5. `classify()` maps both legacy section-stub wording and current unfinished-draft wording to `StubSection`
+6. `from_str()` normalizes underscores to hyphens and lowercases before matching, supporting both `requirements_companion` and `requirements-companion`
+7. Missing `.specsyncignore` file is not an error — returns empty rules
+8. Unrecognized category names in `.specsyncignore` are silently ignored (no error)
 
 ## Behavioral Examples
 
@@ -65,9 +66,9 @@ Provides a warning suppression system for spec-sync validation. Supports three l
 ### Scenario: Per-spec path suppression
 
 - **Given** `.specsyncignore` contains `stub-section:specs/legacy/`
-- **When** spec `specs/legacy/api.spec.md` has a stub Purpose section
+- **When** spec `specs/legacy/api.spec.md` has a Purpose section with no substantive content
 - **Then** warning is suppressed
-- **But** spec `specs/core/core.spec.md` with stub Purpose is NOT suppressed
+- **But** spec `specs/core/core.spec.md` with an empty Purpose section is NOT suppressed
 
 ### Scenario: Inline directive
 
@@ -107,4 +108,5 @@ Provides a warning suppression system for spec-sync validation. Supports three l
 
 | Date | Change |
 |------|--------|
+| 2026-06-07 | Teach warning classification about unfinished-draft section wording |
 | 2026-04-09 | Initial spec |

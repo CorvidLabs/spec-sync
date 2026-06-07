@@ -1,6 +1,6 @@
 ---
 module: generator
-version: 1
+version: 2
 status: stable
 files:
   - src/generator.rs
@@ -36,9 +36,9 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 
 1. Specs are never overwritten — if a `module.spec.md` already exists, it is skipped
 2. Custom templates at `specs/_template.spec.md` take precedence over the built-in default
-3. Template generation fills in module name, version (1), status (draft), and discovered source files
+3. Template generation fills in module name, version (1), status (draft), discovered source files, and guided starter content without unfinished-work comments
 4. Module title is derived from the module name with dashes converted to title case (e.g. "api-gateway" -> "Api Gateway")
-5. Companion files (tasks.md, context.md, requirements.md, testing.md, and design.md when enabled) are only created if they don't already exist
+5. Companion files (tasks.md, context.md, requirements.md, testing.md, and design.md when enabled) are only created if they don't already exist and use guidance text instead of empty template comments
 6. The design.md template includes its own YAML frontmatter with `spec:` (back-reference to the parent spec) and `sources:` (list of design asset references — Figma URLs, image paths, etc.). This frontmatter is companion-level metadata, not parsed by the spec validation pipeline
 7. AI generation falls back to template on failure (with a warning to stderr)
 8. Source file paths in frontmatter are relative to the project root
@@ -110,3 +110,4 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 | 2026-04-07 | Document find_files_for_module, generate_spec, generate_spec_from_custom_template, generate_companion_files_from_template |
 | 2026-04-12 | Update companion files list to include requirements.md, testing.md, and opt-in design.md; add design_enabled parameter |
 | 2026-04-13 | Fix generate_companion_files_from_template signature to include design_enabled; update scenario for conditional design.md |
+| 2026-06-07 | Replace unfinished-marker built-in template content with guided starter content |

@@ -351,7 +351,7 @@ specsync [command] [flags]
 | `changelog <range>` | Generate changelog of spec changes between two git refs |
 | `comment` | Post spec-sync check summary as a PR comment (same validation pipeline as `check`). `--pr N` to post, omit to print |
 | `import <source> <id>` | Import specs from GitHub Issues, Jira, or Confluence |
-| `wizard` | Interactive step-by-step guided spec creation |
+| `wizard` | Interactive guided spec creation |
 | `resolve` | Verify `depends_on` references exist. `--remote` fetches registries from GitHub |
 | `init-registry` | Generate `specsync-registry.toml` from existing specs |
 | `score` | Quality-score spec files (0–100) with improvement suggestions |
@@ -482,10 +482,10 @@ spec: auth.spec.md
 ---
 
 ## User Stories
-- As a [role], I want [feature] so that [benefit]
+- As a maintainer, I want this module's contract captured clearly so changes can be reviewed against stable behavior.
 
 ## Acceptance Criteria
-- [ ] <!-- TODO: define acceptance criteria -->
+- Define acceptance criteria from the module's source behavior and user-facing responsibilities.
 
 ## Constraints
 <!-- Non-functional requirements, performance targets, compliance needs -->
@@ -505,7 +505,7 @@ spec: auth.spec.md
 - [ ] <!-- Implementation checklist -->
 
 ## Gaps
-<!-- Uncovered areas, missing edge cases -->
+Record concrete coverage gaps or edge cases that still need tests.
 
 ## Review Sign-offs
 - **Product**: pending
@@ -662,7 +662,7 @@ Available on the [GitHub Marketplace](https://github.com/marketplace/actions/spe
 | `strict` | `false` | Treat warnings as errors |
 | `require-coverage` | `0` | Minimum file coverage % |
 | `root` | `.` | Project root directory |
-| `args` | `''` | Extra CLI arguments |
+| `args` | `''` | Extra whitespace-separated CLI arguments; shell quoting is not supported |
 | `comment` | `false` | Post spec drift results as a PR comment (requires `pull_request` event) |
 | `token` | `${{ github.token }}` | GitHub token for posting PR comments (needs write permissions) |
 
@@ -871,7 +871,7 @@ specsync coverage                         # See what's still missing
 
 ### Template mode (default)
 
-Uses your custom template (`specs/_template.spec.md`) or the built-in default. Generates frontmatter + stubbed sections with TODOs.
+Uses your custom template (`specs/_template.spec.md`) or the built-in default. Generates frontmatter plus guided starter sections for review.
 
 ### AI mode (`--provider`)
 
@@ -933,9 +933,9 @@ specsync check --fix              # Add undocumented exports as stub rows
 specsync check --fix --json       # Same, with structured JSON output
 ```
 
-When `--fix` is used, any export found in code but missing from the spec gets appended as a stub row (`| \`name\` | | | *TODO* |`) to the Public API table. If no `## Public API` section exists, one is created. Already-documented exports are never duplicated.
+When `--fix` is used, any export found in code but missing from the spec gets appended as a review row with the symbol name and a description prompt. If no `## Public API` section exists, one is created. Already-documented exports are never duplicated.
 
-This turns spec maintenance from manual table editing into a review-and-refine workflow — run `--fix`, then fill in the descriptions.
+This turns spec maintenance from manual table editing into a review-and-refine workflow — run `--fix`, then replace the generated prompts with final descriptions.
 
 ### `diff`: Track API changes across commits
 

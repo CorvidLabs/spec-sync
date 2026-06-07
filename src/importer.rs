@@ -1,7 +1,7 @@
 //! External importers — generate spec files from GitHub Issues, Jira, and Confluence.
 //!
 //! Each importer fetches structured data from an external system and converts it
-//! into a spec file with frontmatter, purpose, requirements, and placeholder sections.
+//! into a spec file with frontmatter, purpose, requirements, and starter sections.
 
 use std::time::Duration;
 
@@ -64,7 +64,7 @@ pub fn render_spec(item: &ImportedItem) -> String {
         .join(" ");
 
     let requirements_section = if item.requirements.is_empty() {
-        "- <!-- TODO: define requirements -->".to_string()
+        "- Define requirements from the imported source before promoting this spec.".to_string()
     } else {
         item.requirements
             .iter()
@@ -109,7 +109,7 @@ implements: {implements}
 
 ## Behavioral Examples
 
-### Scenario: TODO
+### Scenario: Imported behavior
 
 - **Given** precondition
 - **When** action
@@ -746,7 +746,7 @@ mod tests {
         let spec = render_spec(&item);
         assert!(spec.contains("module: data-pipeline"));
         assert!(spec.contains("implements: []"));
-        assert!(spec.contains("<!-- TODO: define requirements -->"));
+        assert!(spec.contains("Define requirements from the imported source"));
         assert!(spec.contains("Imported from Confluence"));
     }
 

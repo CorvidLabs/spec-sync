@@ -60,10 +60,43 @@ jobs:
           echo "$OUTPUT"
           COVERAGE=$(echo "$OUTPUT" | grep -oP '[\d.]+% coverage' | grep -oP '[\d.]+')
           echo "Coverage: ${COVERAGE}%"
-          if (( $(echo "$COVERAGE < 40" | bc -l) )); then
-            echo "::error::Coverage ${COVERAGE}% is below 40% threshold"
+          if (( $(echo "$COVERAGE < 43" | bc -l) )); then
+            echo "::error::Coverage ${COVERAGE}% is below 43% threshold"
             exit 1
           fi
+
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        working-directory: site
+        run: bun install --frozen-lockfile
+      - name: Run site tests
+        working-directory: site
+        run: bun test
+      - name: Lint site
+        working-directory: site
+        run: bun run lint
+      - name: Build site
+        working-directory: site
+        run: bun run build
+
+  vscode-extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        working-directory: vscode-extension
+        run: bun install --frozen-lockfile
+      - name: Compile extension
+        working-directory: vscode-extension
+        run: bun run compile
+      - name: Package extension
+        working-directory: vscode-extension
+        run: bun run package
 
   validate-action:
     runs-on: ubuntu-latest
@@ -94,12 +127,12 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
           # Fail the step if check fails
-          cargo run -- check --strict
+          cargo run -- check --strict --require-coverage 100 --force
 
   corvid-pet:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && always()
-    needs: [test, fmt, validate-action, spec-check, audit, coverage]
+    needs: [test, fmt, validate-action, spec-check, audit, coverage, site, vscode-extension]
     steps:
       - uses: actions/checkout@v4
 
@@ -112,6 +145,8 @@ jobs:
           CHECK_SPEC: "Spec Validation=${{ needs.spec-check.result }}"
           CHECK_AUDIT: "Dependency Audit=${{ needs.audit.result }}"
           CHECK_COVERAGE: "Code Coverage=${{ needs.coverage.result }}"
+          CHECK_SITE: "Docs Site=${{ needs.site.result }}"
+          CHECK_VSCODE: "VS Code Extension=${{ needs.vscode-extension.result }}"
           REPORT_SPEC: ${{ needs.spec-check.outputs.body }}
         run: |
           OVERALL="success"

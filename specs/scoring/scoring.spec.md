@@ -1,6 +1,6 @@
 ---
 module: scoring
-version: 1
+version: 2
 status: stable
 files:
   - src/scoring.rs
@@ -42,8 +42,8 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 1. Total score is always 0-100, composed of 5 components each worth 0-20 points
 2. Grade scale: A (90-100), B (80-89), C (70-79), D (60-69), F (<60)
 3. Frontmatter scoring: module (5pts), version (5pts), status (4pts), files non-empty (6pts)
-4. TODO counting ignores occurrences inside fenced code blocks
-5. TODO counting only counts actual placeholder TODOs — not compound terms like "TODO-marker" or descriptive prose
+4. Unfinished-work marker counting ignores occurrences inside fenced code blocks
+5. Unfinished-work marker counting only counts standalone markers — not compound terms or descriptive prose
 6. Content depth checks that sections have meaningful content beyond headings, comments, and separator rows
 7. Freshness penalizes stale file references (5pts each, max 15pt penalty) and stale dependency refs (3pts each)
 8. Suggestions are always actionable — each corresponds to a specific improvement the user can make
@@ -54,15 +54,15 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 
 ### Scenario: Perfect spec
 
-- **Given** a spec with complete frontmatter, all sections present, 100% API coverage, no TODOs, all files exist
+- **Given** a spec with complete frontmatter, all sections present, 100% API coverage, no unfinished-work markers, all files exist
 - **When** `score_spec` is called
 - **Then** returns total=100, grade="A", empty suggestions
 
-### Scenario: Skeleton spec with TODOs
+### Scenario: Skeleton spec with unfinished markers
 
-- **Given** a spec with all sections but only TODO placeholders in content
+- **Given** a spec with all sections but only unfinished-work markers in content
 - **When** `score_spec` is called
-- **Then** depth_score is low, suggestions include "Fill in N TODO placeholder(s)"
+- **Then** depth_score is low and suggestions identify the sections that need substantive content
 
 ### Scenario: Project score aggregation
 
@@ -105,5 +105,6 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 
 | Date | Change |
 |------|--------|
+| 2026-06-07 | Replace template-marker suggestion wording with unfinished draft marker wording |
 | 2026-04-18 | Add `CriterionResult` and `ExplainDetail` structs; add `explain` field to `SpecScore` for `--explain` breakdown |
 | 2026-03-25 | Initial spec |

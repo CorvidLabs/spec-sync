@@ -1,6 +1,6 @@
 ---
 module: importer
-version: 1
+version: 2
 status: active
 files:
   - src/importer.rs
@@ -14,7 +14,7 @@ depends_on:
 
 ## Purpose
 
-Generates spec files from external project management systems. Supports importing from GitHub Issues, Jira issues/epics, and Confluence pages, converting them into spec-format markdown with frontmatter, requirements, and traceability links.
+Generates spec files from external project management systems. Supports importing from GitHub Issues, Jira issues/epics, and Confluence pages, converting them into spec-format markdown with frontmatter, requirements or guided requirement prompts, starter sections, and traceability links.
 
 ## Public API
 
@@ -48,6 +48,7 @@ Generates spec files from external project management systems. Supports importin
 8. Confluence auth supports both Cloud (email:token basic auth) and Server/DC (bearer token)
 9. HTTP timeouts are 10s for GitHub, 15s for Jira and Confluence
 10. Generated specs always have `status: draft` and `version: 1`
+11. Imported specs without extracted requirements include a concrete follow-up prompt instead of an HTML unfinished-work marker
 
 ## Behavioral Examples
 
@@ -115,4 +116,5 @@ Generates spec files from external project management systems. Supports importin
 
 | Date | Change |
 |------|--------|
+| 2026-06-07 | Replace imported-spec unfinished-work markers with guided requirement prompts |
 | 2026-04-07 | Initial implementation — GitHub, Jira, Confluence importers (#97) |

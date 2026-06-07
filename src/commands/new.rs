@@ -53,7 +53,11 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
         let header = "| Export | Description |\n|--------|-------------|";
         let rows: String = all_exports
             .iter()
-            .map(|e| format!("| `{e}` | <!-- TODO: describe --> |"))
+            .map(|e| {
+                format!(
+                    "| `{e}` | Document the export's responsibility and caller-visible behavior. |"
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
         format!("{header}\n{rows}")
@@ -66,11 +70,11 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
         "---\nmodule: {module_name}\nversion: 1\nstatus: draft\n{files_yaml}db_tables: []\n{deps_yaml}\n---\n\n\
          # {module_name}\n\n\
          ## Purpose\n\n\
-         <!-- TODO: describe what this module does -->\n\n\
+         Document this module's responsibility, inputs, outputs, and ownership boundaries.\n\n\
          ## Public API\n\n\
          {api_table}\n\n\
          ## Dependencies\n\n\
-         <!-- TODO: list runtime dependencies -->\n\n\
+         List runtime dependencies and the specific symbols, services, or data they provide.\n\n\
          ## Change Log\n\n\
          | Change | Date | Version |\n\
          |--------|------|---------|\n\

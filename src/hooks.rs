@@ -38,7 +38,7 @@ Run `specsync check --strict` — all specs must pass with zero warnings.
 
 ## When adding new modules
 
-Run `specsync add-spec <module-name>` to scaffold the spec and companion files, then fill in the spec before writing code.
+Run `specsync add-spec <module-name>` to scaffold the spec and companion files, then complete the spec before writing code.
 
 ## Key commands
 
@@ -133,7 +133,7 @@ Run `specsync check --strict` — all specs must pass with zero warnings.
 
 ## When adding new modules
 
-Run `specsync add-spec <module-name>` to scaffold the spec and companion files, then fill in the spec before writing code.
+Run `specsync add-spec <module-name>` to scaffold the spec and companion files, then complete the spec before writing code.
 
 ## Key commands
 

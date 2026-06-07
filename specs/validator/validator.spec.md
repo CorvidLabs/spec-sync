@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 1
+version: 2
 status: stable
 files:
   - src/validator.rs
@@ -44,6 +44,7 @@ Core validation engine for spec-sync. Validates individual spec files against so
 7. Schema table extraction supports configurable regex patterns via `schema_pattern` config
 8. File suggestions use Levenshtein distance (max 3) when a referenced source file is missing
 9. Flat source files (e.g. `src/config.rs`) are detected as modules, excluding common entry points (main, lib, mod, index, app, `__init__`)
+10. Sections with no substantive content are reported as unfinished draft text rather than as template markers
 
 ## Behavioral Examples
 
@@ -107,5 +108,6 @@ Core validation engine for spec-sync. Validates individual spec files against so
 
 | Date | Change |
 |------|--------|
+| 2026-06-07 | Update draft-only section warning wording |
 | 2026-03-25 | Initial spec |
 | 2026-04-06 | Document archive, compact, merge as consumers of find_spec_files; note hash_cache integration for incremental validation |

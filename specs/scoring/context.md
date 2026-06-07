@@ -6,7 +6,7 @@ spec: scoring.spec.md
 
 - **5 equal components**: Each dimension (frontmatter, sections, API coverage, content depth, freshness) is worth exactly 20 points for a total of 100. Equal weighting keeps the rubric simple and predictable.
 - **Letter grades**: A (90+), B (80-89), C (70-79), D (60-69), F (<60). These map to intuitive quality tiers.
-- **TODO counting ignores code blocks**: Placeholders like `TODO` and `<!-- ... -->` are only counted outside fenced code blocks, preventing code examples from penalizing the score.
+- **Unfinished-work marker counting ignores code blocks**: Incomplete-content markers and HTML-only notes are counted only outside fenced code blocks, preventing code examples from penalizing the score.
 - **No-exports = full API score**: Modules with no extractable exports (e.g., config-only, types-only) receive full API coverage points rather than being penalized for having nothing to document.
 - **Stale reference penalties**: Missing source files cost 5 points each (max 15), missing dependency specs cost 3 points each. This encourages keeping specs in sync with code changes.
 - **Actionable suggestions**: Each score includes specific improvement suggestions (e.g., "Add version field to frontmatter") so users know exactly what to fix.

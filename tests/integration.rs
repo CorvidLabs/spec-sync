@@ -2231,8 +2231,8 @@ fn fix_adds_undocumented_exports_to_spec() {
         "Expected spec to contain `TOKEN_TTL` after --fix"
     );
     assert!(
-        updated.contains("<!-- TODO: describe -->"),
-        "Expected stub descriptions"
+        updated.contains("Document caller-visible behavior and constraints."),
+        "Expected generated descriptions to guide follow-up review"
     );
 }
 
@@ -4756,5 +4756,67 @@ fn fix_backup_preserves_original_on_success() {
     assert_eq!(
         backup_content, original,
         "Backup should contain the original spec content before --fix modifications"
+    );
+}
+
+// ─── Marketplace action hardening ───────────────────────────────────────
+
+#[test]
+fn action_does_not_use_eval_for_user_arguments() {
+    let action = fs::read_to_string("action.yml").expect("action.yml should be readable");
+
+    assert!(
+        !action.contains("eval "),
+        "action.yml must not use eval for user-controlled inputs"
+    );
+    assert!(
+        action.contains("CMD=(specsync check --force)"),
+        "check command should be assembled as a bash argv array"
+    );
+    assert!(
+        action.contains("\"${CMD[@]}\""),
+        "check command should execute the argv array directly"
+    );
+    assert!(
+        action.contains(r#"NORMALIZED_ARGS="${INPUT_ARGS//$'\r'/ }""#)
+            && action.contains(r#"NORMALIZED_ARGS="${NORMALIZED_ARGS//$'\n'/ }""#)
+            && action.contains(r#"NORMALIZED_ARGS="${NORMALIZED_ARGS//$'\t'/ }""#),
+        "action should normalize multiline args before simple whitespace splitting"
+    );
+    assert!(
+        action.contains("COMMENT_CMD=(specsync comment)"),
+        "comment command should be assembled as a bash argv array"
+    );
+}
+
+#[test]
+fn action_validates_require_coverage_input() {
+    let action = fs::read_to_string("action.yml").expect("action.yml should be readable");
+
+    assert!(
+        action.contains("require-coverage must be an integer from 0 to 100"),
+        "action should reject invalid require-coverage values before command execution"
+    );
+    assert!(
+        action.contains("[ \"$INPUT_REQUIRE_COVERAGE\" -gt 100 ]"),
+        "action should enforce an upper coverage bound of 100"
+    );
+}
+
+#[test]
+fn action_requires_release_checksums() {
+    let action = fs::read_to_string("action.yml").expect("action.yml should be readable");
+
+    assert!(
+        !action.contains("Verify checksum if available"),
+        "checksums should not be optional for downloaded release binaries"
+    );
+    assert!(
+        action.contains("curl -fsSL \"${BASE_URL}/${ARCHIVE}.sha256\""),
+        "action should download release checksum files with fail-closed curl flags"
+    );
+    assert!(
+        action.contains("shasum -a 256 -c \"${ARCHIVE}.sha256\""),
+        "Unix archive checksums should be verified before extraction"
     );
 }

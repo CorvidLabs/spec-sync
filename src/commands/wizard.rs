@@ -200,7 +200,10 @@ pub fn cmd_wizard(root: &Path) {
             "1. Component renders without crashing given any valid props\n2. Accessibility requirements are met (ARIA labels, keyboard nav)",
             "### Props\n\n| Prop | Type | Default | Description |\n|------|------|---------|-------------|\n",
         ),
-        _ => ("1. <!-- TODO -->", ""),
+        _ => (
+            "1. Define an invariant that must remain true for supported inputs.",
+            "",
+        ),
     };
 
     let spec_content = format!(
@@ -239,7 +242,7 @@ depends_on: {depends_yaml}
 
 ## Behavioral Examples
 
-### Scenario: TODO
+### Scenario: Core behavior
 
 - **Given** precondition
 - **When** action

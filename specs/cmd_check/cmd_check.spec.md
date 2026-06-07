@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 1
+version: 2
 status: stable
 files:
   - src/commands/check.rs
@@ -35,7 +35,7 @@ Implements the `specsync check` command — the primary validation entry point. 
 
 ## Invariants
 
-1. When `--fix` is passed, auto-fix runs in two phases: (a) add undocumented exports to spec markdown tables, (b) AI-regenerate specs whose requirements have drifted
+1. When `--fix` is passed, auto-fix runs in two phases: (a) add undocumented exports to spec markdown tables with generated review prompts, (b) AI-regenerate specs whose requirements have drifted
 2. Near-miss header correction (e.g., "Exported Functions" → "### Exported Functions") runs as part of auto-fix
 3. Hash cache is consulted before validation unless `--force` is set — unchanged specs are skipped
 4. After auto-fix, validation is re-run to verify fixes resolved the issues
@@ -56,7 +56,7 @@ Implements the `specsync check` command — the primary validation entry point. 
 
 - **Given** spec is missing export `pub fn new_function()`
 - **When** `cmd_check` runs with `--fix`
-- **Then** the export is appended to the spec's Public API table and the file is rewritten
+- **Then** the export is appended to the spec's Public API table with a generated description prompt and the file is rewritten
 
 ### Scenario: JSON output format
 
@@ -99,4 +99,5 @@ Implements the `specsync check` command — the primary validation entry point. 
 
 | Date | Change |
 |------|--------|
+| 2026-06-07 | Document generated review prompts for `--fix` export rows |
 | 2026-04-09 | Initial spec |

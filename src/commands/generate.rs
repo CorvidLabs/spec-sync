@@ -154,7 +154,7 @@ fn cmd_generate_all(
         );
     } else if generated > 0 {
         println!(
-            "\n  Generated {} spec file(s) — edit them to fill in details",
+            "\n  Generated {} spec file(s) — review and complete the guided sections",
             generated
         );
 

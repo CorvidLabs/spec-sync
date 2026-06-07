@@ -13,7 +13,10 @@ spec: importer.spec.md
 
 ## Gaps
 
-<!-- Uncovered areas, missing edge cases, or incomplete coverage -->
+- [ ] Add fixture coverage for large imported issue bodies that approach spec generation limits.
+- [ ] Add parser tests for Jira ADF documents with nested lists, code blocks, and unsupported node types.
+- [ ] Add Confluence fixtures with malformed HTML and links that should be stripped without losing visible text.
+- [ ] Add GitHub fallback tests for non-JSON `gh` failures and API rate-limit responses.
 
 ## Review Sign-offs
 

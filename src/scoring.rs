@@ -64,7 +64,7 @@ pub struct SpecScore {
     pub sections_score: u32,
     /// API documentation coverage (0-20).
     pub api_score: u32,
-    /// Content depth — sections have real content, not just TODOs (0-20).
+    /// Content depth — sections have real content, not just unfinished markers (0-20).
     pub depth_score: u32,
     /// Freshness — files exist, no stale references (0-20).
     pub freshness_score: u32,
@@ -397,14 +397,14 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     };
     depth_points += (content_ratio * DEPTH_CONTENT_POINTS as f64).round() as u32;
 
-    // Penalize TODOs
+    // Penalize unfinished draft markers.
     if todo_count == 0 && placeholder_count == 0 {
         depth_points += DEPTH_PLACEHOLDER_POINTS;
     } else if todo_count <= 2 {
         depth_points += DEPTH_PLACEHOLDER_POINTS / 2;
     } else {
         score.suggestions.push(format!(
-            "Content depth: fill in {todo_count} TODO placeholder(s) with real content"
+            "Content depth: replace {todo_count} unfinished draft marker(s) with real content"
         ));
     }
     depth_points = depth_points.saturating_sub(stub_penalty);
@@ -434,11 +434,11 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             String::new()
         };
         score.suggestions.push(format!(
-            "Stub sections: ## {names}{suffix} — replace placeholder text (TBD, N/A, TODO, etc.) with real content"
+            "Draft-only sections: ## {names}{suffix} — replace unfinished text with real content"
         ));
         if stub_penalty > 0 {
             score.suggestions.push(
-                "Stub ratio is high — fill in TBD sections to improve depth score.".to_string(),
+                "Draft-only section ratio is high — complete those sections to improve depth score.".to_string(),
             );
         }
     }
@@ -465,7 +465,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         None
     };
     let todo_detail = if todo_count > 0 {
-        Some(format!("{todo_count} TODO placeholder(s)"))
+        Some(format!("{todo_count} unfinished draft marker(s)"))
     } else {
         None
     };
@@ -627,7 +627,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         score.grade = "B";
         score.total = score.total.min(GRADE_A_MIN - 1);
         score.suggestions.push(format!(
-            "Grade capped at B: {}/{} required sections contain only stub/placeholder content — replace TBD/N/A/TODO with real documentation",
+            "Grade capped at B: {}/{} required sections contain only unfinished draft content — replace it with real documentation",
             stub_sections.len(),
             total_req
         ));
@@ -957,19 +957,19 @@ None.
         let config = SpecSyncConfig::default();
         let score = score_spec(&spec_file, tmp.path(), &config);
 
-        // Depth score should be penalized because most sections are stubs (>=50% → -10pts ceiling)
+        // Depth score should be penalized because most sections are draft-only (>=50% -> -10pts ceiling)
         assert!(
             score.depth_score <= 10,
-            "Expected low depth score for stub sections, got {}",
+            "Expected low depth score for draft-only sections, got {}",
             score.depth_score
         );
-        // Should have a suggestion about stub sections
+        // Should have a suggestion about draft-only sections.
         assert!(
             score
                 .suggestions
                 .iter()
-                .any(|s| s.contains("Stub sections")),
-            "Expected stub section suggestion, got: {:?}",
+                .any(|s| s.contains("Draft-only sections")),
+            "Expected draft-only section suggestion, got: {:?}",
             score.suggestions
         );
     }

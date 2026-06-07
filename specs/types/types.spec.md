@@ -58,6 +58,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `is_api_provider` | `&self` | `bool` | Whether this provider uses direct API calls |
 | `api_key_env_var` | `&self` | `Option<&'static str>` | Environment variable name for the API key |
 | `default_model` | `&self` | `Option<&'static str>` | Default model name for API providers |
+| `default_base_url` | `&self` | `Option<&'static str>` | Default API base URL for OpenAI-compatible providers with non-OpenAI endpoints; returns `None` for providers that use their SDK/default endpoint |
 | `from_str_loose` | `s: &str` | `Option<Self>` | Parse provider name from string (case-insensitive, aliases supported) |
 | `detection_order` | — | `&'static [AiProvider]` | All auto-detectable providers in preference order |
 
@@ -93,7 +94,6 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `from_extension` | `ext: &str` | `Option<Self>` | Detect language from file extension |
 | `extensions` | `&self` | `&[&str]` | Default source file extensions for this language |
 | `test_patterns` | `&self` | `&[&str]` | File patterns to exclude (test files) |
-| `default_base_url` | <!-- TODO: describe --> |
 
 ## Invariants
 

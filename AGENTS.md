@@ -33,7 +33,7 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 Specs follow a lifecycle from creation through archival:
 
 1. **Requirements** — Create `requirements.md` in the spec directory. These are high-level acceptance criteria and user stories. They are permanent invariants, not tasks.
-2. **Spec creation** — Run `specsync scaffold <name>` or `specsync new <name>` to create the spec, companion files, and detect source files. Fill in the spec before writing code.
+2. **Spec creation** — Run `specsync scaffold <name>` or `specsync new <name>` to create the spec, companion files, and detect source files. Complete the spec before writing code.
 3. **Active development** — The spec (`*.spec.md`) is the detailed contract. Keep it in sync with code changes. Use `tasks.md` for work items, `context.md` for architectural decisions.
 4. **Working specs** — Specs with `status: draft` are in-progress. Promote to `status: stable` once the module's API is settled.
 5. **Maintenance** — Run `specsync check --strict` to catch drift. Use `specsync compact` to keep changelogs manageable.

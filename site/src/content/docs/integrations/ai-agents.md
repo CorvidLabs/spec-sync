@@ -63,7 +63,7 @@ Scores are based on completeness, detail, API coverage, behavioral examples, and
 
 ## AI-Powered Generation (`--provider`)
 
-`specsync generate --provider auto` reads your source code, sends it to an LLM, and generates specs with real content — not just templates with TODOs. Purpose, Public API tables, Invariants, Error Cases — all filled in from the code.
+`specsync generate --provider auto` reads your source code, sends it to an LLM, and generates source-aware specs. Purpose, Public API tables, Invariants, Error Cases — all derived from the code.
 
 ```bash
 specsync generate --provider auto
@@ -98,7 +98,7 @@ If AI generation fails for a module, it falls back to template generation automa
 
 ### Template mode (no `--provider`)
 
-Without `--provider`, `specsync generate` scaffolds template specs — frontmatter populated, required sections stubbed with TODOs. Place `_template.spec.md` in your specs directory to control the generated structure.
+Without `--provider`, `specsync generate` scaffolds template specs with frontmatter populated and guided starter sections. Place `_template.spec.md` in your specs directory to control the generated structure.
 
 ---
 
@@ -192,7 +192,7 @@ files:
 # MyModule
 
 ## Purpose
-TODO
+Describe the module responsibility and caller-visible behavior.
 
 ## Public API
 
@@ -201,13 +201,13 @@ TODO
 | `myFunction` | Does something |
 
 ## Invariants
-TODO
+Document guarantees that must remain true.
 
 ## Behavioral Examples
-TODO
+Show the primary workflow with Given/When/Then examples.
 
 ## Error Cases
-TODO
+Document invalid input and failure handling.
 
 ## Dependencies
 None

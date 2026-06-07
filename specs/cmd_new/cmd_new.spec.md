@@ -1,6 +1,6 @@
 ---
 module: cmd_new
-version: 1
+version: 2
 status: stable
 files:
   - src/commands/new.rs
@@ -16,7 +16,7 @@ depends_on:
 
 ## Purpose
 
-Implements the `specsync new` command. Quick-creates a minimal spec with auto-detected source files and pre-populated exports. `--full` also generates companion files.
+Implements the `specsync new` command. Quick-creates a minimal spec with auto-detected source files and pre-populated exports that include generated review prompts. `--full` also generates companion files.
 
 ## Public API
 
@@ -76,5 +76,6 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 
 | Date | Change |
 |------|--------|
+| 2026-06-07 | Replace unfinished-marker generated rows with review prompts |
 | 2026-04-09 | Initial spec |
 | 2026-04-13 | Document testing.md and conditional design.md in companion generation |

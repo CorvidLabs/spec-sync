@@ -110,7 +110,7 @@ depends_on: []
 
 ## Purpose
 
-<!-- TODO: describe what this module does -->
+Document this module's responsibility, inputs, outputs, and ownership boundaries.
 
 ## Public API
 
@@ -126,11 +126,11 @@ depends_on: []
 
 ## Invariants
 
-1. <!-- TODO -->
+1. Define an invariant that must remain true for supported inputs.
 
 ## Behavioral Examples
 
-### Scenario: TODO
+### Scenario: Core behavior
 
 - **Given** precondition
 - **When** action

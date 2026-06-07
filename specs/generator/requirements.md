@@ -32,5 +32,5 @@ spec: generator.spec.md
 
 - Regenerating or updating existing specs based on code changes
 - Generating specs for individual files (only module-level)
-- Interactive prompts asking the developer to fill in sections
+- Interactive prompts asking the developer to complete sections
 - Generating specs from external documentation or API schemas

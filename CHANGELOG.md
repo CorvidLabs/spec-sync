@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.3.5] - 2026-06-07
+
+### Security
+
+- **Auth tokens redacted from import/GitHub error messages** — Jira, Confluence, and GitHub API request failures now strip any verbatim token from the surfaced error as defense-in-depth, mirroring the AI client's sanitization. Tokens travel in `Authorization` headers (not URLs), so this guards against a misbehaving proxy or redirect echoing them back.
+- **`git diff` hardened against argument injection** — the drift command passes `--end-of-options` so a user-supplied base ref starting with `-` is always parsed as a revision, never as a git flag.
+
+### Performance
+
+- **Eliminated N+1 git subprocess spawns in staleness checks** — `git_commits_between` re-ran `git log` to resolve the spec's commit for *every* source file. Replaced with `git_commits_since`, which takes a precomputed spec commit so callers (`stale`, `check`, `report`, `scoring`, `lifecycle`) spawn one `git rev-list` per source file instead of an extra `git log` each. For a spec with N source files this drops N+1 `git log` calls to 1.
+- **Cached spec-scoring regexes** — `count_placeholder_todos` no longer recompiles its two regexes on every spec scored; they are built once via `LazyLock`.
+
+### Fixed
+
+- **`print_summary` integer underflow** — `total - passed` could panic on `usize` underflow in debug builds when `passed` exceeded `total`; now uses `saturating_sub`.
+
+### Tests
+
+- Added 25 tests covering git utilities (commit resolution and counting edge cases), CLI argument parsing, `ensure_hashes_gitignored` (including the write-failure error path), migration step application, output boundary cases, and the `stale` command outside a git repository.
+
 ## [4.3.4] - 2026-06-07
 
 ### Security

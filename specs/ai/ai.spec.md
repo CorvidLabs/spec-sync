@@ -36,27 +36,33 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 ## Invariants
 
 1. Provider resolution order: CLI `--provider` flag > `aiCommand` config > `aiProvider` config > `SPECSYNC_AI_COMMAND` env var > auto-detect
-2. Auto-detection checks CLI providers first (by attempting to run `<binary> --version` via OS-level execvp), then API providers (by env var presence)
-3. Source code is capped at 150K characters total and 30K per file to avoid exceeding context windows
-4. AI response is post-processed: code fences are stripped, frontmatter delimiters are validated
-5. Default timeout is 120 seconds, configurable via `aiTimeout` in config
-6. Cursor provider explicitly errors — it has no stdin/stdout pipe mode
-7. API providers do not require a CLI binary — they use direct HTTP calls via the `corvid-ai` client, which owns the endpoint registry, default models, and `<PROVIDER>_API_KEY` resolution
-8. CLI execution streams stdout lines to stderr in real time for live progress feedback
+2. Auto-detection is API-only: it checks `<PROVIDER>_API_KEY` presence in `detection_order` (Ollama first); it never shells out to a CLI
+3. When no provider key is set and nothing is configured, resolution defaults to keyless **local Ollama** (`http://localhost:11434`) — the most useful zero-config option
+4. The deprecated `claude` provider routes to the `anthropic` API (with a warning); it no longer shells out to `claude -p`. `copilot`/`cursor` are deprecated; `aiCommand` remains the explicit, trusted shell escape hatch
+5. Source code is capped at 150K characters total and 30K per file to avoid exceeding context windows
+6. AI response is post-processed: code fences are stripped, frontmatter delimiters are validated
+7. Default timeout is 120 seconds, configurable via `aiTimeout` in config
+8. API providers do not require a CLI binary — they use direct HTTP calls via the `corvid-ai` client, which owns the endpoint registry, default models, and `<PROVIDER>_API_KEY` resolution
 
 ## Behavioral Examples
 
-### Scenario: Auto-detect Claude CLI
+### Scenario: Default to local Ollama with no key
 
-- **Given** `claude` binary is on PATH and no config overrides
+- **Given** no provider API key is set and no `aiProvider`/`aiCommand` is configured
 - **When** `resolve_ai_provider(config, None)` is called
-- **Then** returns `ResolvedProvider::Cli("claude -p --output-format text")`
+- **Then** returns `ResolvedProvider::Api` with the `ollama` provider name (keyless, `http://localhost:11434`)
 
 ### Scenario: Use Anthropic API key
 
-- **Given** `ANTHROPIC_API_KEY` is set in environment, no CLI providers installed
+- **Given** `ANTHROPIC_API_KEY` is set in environment (and no `OLLAMA_API_KEY`)
 - **When** `resolve_ai_provider(config, None)` is called
 - **Then** returns `ResolvedProvider::Api` with the `anthropic` provider name
+
+### Scenario: Deprecated `claude` routes to Anthropic
+
+- **Given** user passes `--provider claude`
+- **When** `resolve_ai_provider(config, Some("claude"))` is called
+- **Then** prints a deprecation warning and returns `ResolvedProvider::Api` with the `anthropic` provider name (never shells out to `claude -p`)
 
 ### Scenario: Explicit provider override
 
@@ -106,3 +112,4 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 |------|--------|
 | 2026-03-25 | Initial spec |
 | 2026-06-07 | Route API providers through the shared `corvid-ai` client; `ResolvedProvider` API variants collapse to `Api(corvid_ai::Settings)` and the per-provider `call_*_api` HTTP code is removed |
+| 2026-06-07 | API-first/API-only auto-detection (no CLI shell-out); default to keyless local Ollama when no key is set; `claude` routes to the `anthropic` API; add `openrouter` + `ollama` (HTTP) providers |

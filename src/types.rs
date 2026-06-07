@@ -6,15 +6,24 @@ use std::fmt;
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum AiProvider {
+    /// Deprecated CLI provider — the agentic `claude -p` shell-out. Prefer
+    /// `anthropic` (API). Kept working with a warning for now.
     Claude,
+    /// Deprecated CLI provider — no stdin/stdout pipe mode for spec generation.
     Cursor,
+    /// Deprecated CLI provider — `gh copilot`. Prefer an API provider.
     Copilot,
+    /// Ollama via its OpenAI-compatible HTTP API (`OLLAMA_API_KEY` for the
+    /// cloud; runs keyless against a local server). No CLI shell-out.
     Ollama,
     /// Direct Anthropic API (no CLI needed — uses ANTHROPIC_API_KEY).
     Anthropic,
     /// Direct OpenAI-compatible API (no CLI needed — uses OPENAI_API_KEY).
     #[serde(alias = "openai")]
     OpenAi,
+    /// OpenRouter API (OpenAI-compatible — uses OPENROUTER_API_KEY).
+    #[serde(alias = "openrouter")]
+    OpenRouter,
     /// Google Gemini API (no CLI needed — uses GEMINI_API_KEY).
     Gemini,
     /// DeepSeek API (OpenAI-compatible — uses DEEPSEEK_API_KEY).
@@ -38,12 +47,13 @@ impl AiProvider {
     pub fn default_command(&self) -> Option<&'static str> {
         match self {
             AiProvider::Claude => Some("claude -p --output-format text"),
-            AiProvider::Ollama => Some("ollama run llama3"),
             AiProvider::Copilot => Some("gh copilot suggest -t shell"),
             AiProvider::Cursor
+            | AiProvider::Ollama
             | AiProvider::Custom
             | AiProvider::Anthropic
             | AiProvider::OpenAi
+            | AiProvider::OpenRouter
             | AiProvider::Gemini
             | AiProvider::DeepSeek
             | AiProvider::Groq
@@ -53,15 +63,16 @@ impl AiProvider {
         }
     }
 
-    /// The binary name to check for availability (empty for API-only providers).
+    /// The binary name to check for availability (empty for API providers).
     pub fn binary_name(&self) -> &'static str {
         match self {
             AiProvider::Claude => "claude",
             AiProvider::Cursor => "cursor",
             AiProvider::Copilot => "gh",
-            AiProvider::Ollama => "ollama",
-            AiProvider::Anthropic
+            AiProvider::Ollama
+            | AiProvider::Anthropic
             | AiProvider::OpenAi
+            | AiProvider::OpenRouter
             | AiProvider::Gemini
             | AiProvider::DeepSeek
             | AiProvider::Groq
@@ -78,12 +89,14 @@ impl AiProvider {
             self,
             AiProvider::Anthropic
                 | AiProvider::OpenAi
+                | AiProvider::OpenRouter
                 | AiProvider::Gemini
                 | AiProvider::DeepSeek
                 | AiProvider::Groq
                 | AiProvider::Mistral
                 | AiProvider::XAi
                 | AiProvider::Together
+                | AiProvider::Ollama
         )
     }
 
@@ -92,12 +105,14 @@ impl AiProvider {
         match self {
             AiProvider::Anthropic => Some("ANTHROPIC_API_KEY"),
             AiProvider::OpenAi => Some("OPENAI_API_KEY"),
+            AiProvider::OpenRouter => Some("OPENROUTER_API_KEY"),
             AiProvider::Gemini => Some("GEMINI_API_KEY"),
             AiProvider::DeepSeek => Some("DEEPSEEK_API_KEY"),
             AiProvider::Groq => Some("GROQ_API_KEY"),
             AiProvider::Mistral => Some("MISTRAL_API_KEY"),
             AiProvider::XAi => Some("XAI_API_KEY"),
             AiProvider::Together => Some("TOGETHER_API_KEY"),
+            AiProvider::Ollama => Some("OLLAMA_API_KEY"),
             _ => None,
         }
     }
@@ -111,6 +126,7 @@ impl AiProvider {
             "ollama" => Some(AiProvider::Ollama),
             "anthropic" | "anthropic-api" => Some(AiProvider::Anthropic),
             "openai" | "openai-api" => Some(AiProvider::OpenAi),
+            "openrouter" | "open-router" => Some(AiProvider::OpenRouter),
             "gemini" | "google" => Some(AiProvider::Gemini),
             "deepseek" => Some(AiProvider::DeepSeek),
             "groq" => Some(AiProvider::Groq),
@@ -121,22 +137,27 @@ impl AiProvider {
         }
     }
 
-    /// All providers that can be auto-detected, in alphabetical order within
-    /// each category. CLI providers are checked first (binary detection),
-    /// then API providers (env var detection). No vendor preference.
+    /// All providers that can be auto-detected, by `<PROVIDER>_API_KEY`
+    /// presence, in preference order.
+    ///
+    /// `Ollama` is checked first: it's the most broadly useful default since it
+    /// works either against a local server (keyless) or Ollama Cloud
+    /// (`OLLAMA_API_KEY`). When no provider key at all is set, resolution falls
+    /// back to keyless local Ollama (see `resolve_ai_provider`).
+    ///
+    /// Auto-detection is API-only — it never shells out to a CLI. The deprecated
+    /// `claude`/`copilot` providers are reachable only by explicit selection
+    /// (`--provider` / `aiProvider`), where `claude` routes to `anthropic`.
     pub fn detection_order() -> &'static [AiProvider] {
         &[
-            // CLI providers (binary detection) — alphabetical
-            AiProvider::Claude,
-            AiProvider::Copilot,
             AiProvider::Ollama,
-            // API providers (env var detection) — alphabetical
             AiProvider::Anthropic,
             AiProvider::DeepSeek,
             AiProvider::Gemini,
             AiProvider::Groq,
             AiProvider::Mistral,
             AiProvider::OpenAi,
+            AiProvider::OpenRouter,
             AiProvider::Together,
             AiProvider::XAi,
         ]
@@ -152,6 +173,7 @@ impl fmt::Display for AiProvider {
             AiProvider::Ollama => write!(f, "ollama"),
             AiProvider::Anthropic => write!(f, "anthropic"),
             AiProvider::OpenAi => write!(f, "openai"),
+            AiProvider::OpenRouter => write!(f, "openrouter"),
             AiProvider::Gemini => write!(f, "gemini"),
             AiProvider::DeepSeek => write!(f, "deepseek"),
             AiProvider::Groq => write!(f, "groq"),

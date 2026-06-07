@@ -7,9 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`openrouter` and `ollama` API providers.** OpenRouter joins the OpenAI-compatible family; Ollama now runs over its OpenAI-compatible HTTP endpoint (local server keyless, or Ollama Cloud via `OLLAMA_API_KEY`) instead of shelling out to `ollama run`.
+
 ### Changed
 
-- **AI API calls now go through the shared [`corvid-ai`](https://crates.io/crates/corvid-ai) client.** spec-sync's three hand-rolled HTTP paths (`call_anthropic_api` / `call_openai_api` / `call_gemini_api`, ~250 lines) are replaced by `corvid_ai::complete`. corvid-ai owns the provider registry — endpoints, default models, `<PROVIDER>_API_KEY` resolution, and secret redaction in errors — so the Anthropic default model is now the current `claude-sonnet-4-6` (was `claude-sonnet-4-20250514`). CLI providers (`claude`, `copilot`, `ollama`, custom `aiCommand`) are unchanged. Minimum supported Rust version is now **1.89**.
+- **AI API calls now go through the shared [`corvid-ai`](https://crates.io/crates/corvid-ai) client.** spec-sync's three hand-rolled HTTP paths (`call_anthropic_api` / `call_openai_api` / `call_gemini_api`, ~250 lines) are replaced by `corvid_ai::complete`. corvid-ai owns the provider registry — endpoints, default models, `<PROVIDER>_API_KEY` resolution, and secret redaction in errors — so the Anthropic default model is now the current `claude-sonnet-4-6` (was `claude-sonnet-4-20250514`). Minimum supported Rust version is now **1.89**.
+- **API-first, API-only auto-detection.** Provider auto-detection checks `<PROVIDER>_API_KEY` presence (Ollama first) and never shells out to a CLI. When no key is set and nothing is configured, spec-sync defaults to **keyless local Ollama** (`http://localhost:11434`) — the most useful zero-config option.
+
+### Deprecated
+
+- **The agentic CLI providers.** `claude` now routes to the `anthropic` API (with a warning) and no longer shells out to `claude -p` — removing the prompt-injection→tool-execution surface; `copilot`/`cursor` warn and are slated for removal in the next major. The `aiCommand` config remains the explicit, trusted shell escape hatch.
 
 ### Removed
 

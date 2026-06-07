@@ -1415,26 +1415,25 @@ fn cli_provider_overrides_config_provider() {
         .stderr(predicate::str::contains("cursor").or(predicate::str::contains("Cursor")));
 }
 
+// Note: `ollama` is now an API provider (corvid-ai, OpenAI-compatible HTTP),
+// not a CLI shell-out. Its reclassification is covered by deterministic unit
+// tests in `src/ai.rs` (`ollama_is_an_api_provider`, `ollama_resolves_keyless`)
+// rather than a network-dependent integration test.
+
 #[test]
-fn ai_model_config_used_with_ollama_provider() {
+fn auto_detect_defaults_to_local_ollama_without_keys() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);
 
-    // Add an uncovered source file so `generate` actually attempts AI generation
-    fs::create_dir_all(root.join("src/billing")).unwrap();
-    fs::write(
-        root.join("src/billing/invoice.ts"),
-        "export function createInvoice() {}\n",
-    )
-    .unwrap();
+    // Uncovered module so `generate` actually attempts AI resolution.
+    fs::create_dir_all(root.join("src/widget")).unwrap();
+    fs::write(root.join("src/widget/lib.rs"), "pub fn widget() {}").unwrap();
 
-    // aiProvider=ollama with custom model — should mention ollama in error.
-    // Use an empty PATH so ollama binary is not found, even if installed locally.
+    // Low timeout bounds the test if a local Ollama happens to be running.
     let config = serde_json::json!({
         "specsDir": "specs",
         "sourceDirs": ["src"],
-        "aiProvider": "ollama",
-        "aiModel": "codellama",
+        "aiTimeout": 3,
         "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
@@ -1445,16 +1444,30 @@ fn ai_model_config_used_with_ollama_provider() {
     )
     .unwrap();
 
-    specsync()
-        .arg("generate")
+    // With every provider key cleared and no aiProvider configured, auto-detect
+    // must fall back to local Ollama rather than erroring.
+    let mut cmd = specsync();
+    for key in [
+        "OLLAMA_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "OPENROUTER_API_KEY",
+        "GEMINI_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "GROQ_API_KEY",
+        "MISTRAL_API_KEY",
+        "XAI_API_KEY",
+        "TOGETHER_API_KEY",
+    ] {
+        cmd.env_remove(key);
+    }
+    cmd.arg("generate")
         .arg("--provider")
         .arg("auto")
-        .env("PATH", "")
         .arg("--root")
         .arg(&root)
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("ollama"));
+        .stderr(predicate::str::contains("defaulting to local Ollama"));
 }
 
 // ─── 8. Direct API provider tests ───────────────────────────────────────

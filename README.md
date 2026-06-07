@@ -610,7 +610,7 @@ Available on the [GitHub Marketplace](https://github.com/marketplace/actions/spe
 | `strict` | `false` | Treat warnings as errors |
 | `require-coverage` | `0` | Minimum file coverage % |
 | `root` | `.` | Project root directory |
-| `args` | `''` | Extra CLI arguments |
+| `args` | `''` | Extra whitespace-separated CLI arguments; shell quoting is not supported |
 | `comment` | `false` | Post spec drift results as a PR comment (requires `pull_request` event) |
 | `token` | `${{ github.token }}` | GitHub token for posting PR comments (needs write permissions) |
 

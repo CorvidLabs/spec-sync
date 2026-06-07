@@ -1222,12 +1222,20 @@ mod tests {
     #[test]
     fn test_tool_generate_creates_spec() {
         let tmp = setup_project();
-        std::fs::write(tmp.path().join("src").join("main.rs"), "fn main() {}").unwrap();
+        std::fs::write(tmp.path().join("src").join("auth.rs"), "pub fn login() {}").unwrap();
 
         let result = tool_generate(tmp.path(), &json!({}));
         assert!(result.is_ok());
         let val = result.unwrap();
-        assert!(val["count"].as_u64().unwrap() >= 0);
+        assert_eq!(val["count"].as_u64(), Some(1));
+        let generated = val["generated"].as_array().unwrap();
+        assert_eq!(generated.len(), 1);
+        assert!(
+            generated[0]
+                .as_str()
+                .unwrap()
+                .ends_with("specs/auth/auth.spec.md")
+        );
     }
 
     // --- JSONRPC response structure ---

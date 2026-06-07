@@ -11,10 +11,28 @@ cmd = "cargo clippy -- -D warnings"
 cmd = "cargo fmt --check"
 
 [tasks.audit]
-cmd = "cargo audit"
+cmd = "cargo audit --ignore RUSTSEC-2024-0384"
 
 [tasks.check-types]
 cmd = "cargo check"
+
+[tasks.spec-check]
+cmd = "cargo run -- check --strict --require-coverage 100 --force"
+
+[tasks.docs-test]
+cmd = "cd site && bun test"
+
+[tasks.docs-lint]
+cmd = "cd site && bun run lint"
+
+[tasks.docs-build]
+cmd = "cd site && bun run build"
+
+[tasks.vscode-compile]
+cmd = "cd vscode-extension && bun run compile"
+
+[tasks.vscode-package]
+cmd = "cd vscode-extension && bun run package"
 
 [lanes.check]
 description = "Quick pre-commit check"
@@ -22,8 +40,27 @@ steps = [{ parallel = ["fmt", "lint"] }, "test"]
 
 [lanes.ci]
 description = "Full CI pipeline"
-steps = ["fmt", "lint", "test", "build"]
+steps = [
+  "fmt",
+  "lint",
+  "test",
+  "build",
+  "audit",
+  "spec-check",
+  { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
+]
 
 [lanes.pre-commit]
 description = "Fast gate before committing"
 steps = [{ parallel = ["fmt", "lint"] }, "check-types"]
+
+[lanes.repo]
+description = "Full repository validation, including docs and editor extension"
+steps = [
+  { parallel = ["fmt", "lint", "check-types"] },
+  "test",
+  "build",
+  "audit",
+  "spec-check",
+  { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
+]

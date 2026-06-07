@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.3.4] - 2026-06-07
+
+### Security
+
+- **GitHub Action command execution hardened** — marketplace action now builds `specsync` invocations as bash argv arrays instead of shell strings, eliminating `eval` around user-provided `args`.
+- **Release checksum verification fails closed** — downloaded release archives now require matching `.sha256` files before extraction.
+
+### Fixed
+
+- **Action input validation** — `require-coverage` is validated as an integer from 0 to 100 before command execution.
+- **MCP generated-spec test assertion** — replaced a tautological unsigned comparison with a meaningful generated-spec count assertion.
+- **VS Code extension license packaging** — extension package includes the MIT license file so VSIX builds are complete.
+
+### CI
+
+- **Repo-wide validation expanded** — CI now builds/tests/lints the Astro docs site and compiles/packages the VS Code extension.
+- **Spec gate requires full coverage** — project spec CI now runs `check --strict --require-coverage 100 --force`.
+- **Coverage threshold raised** — tarpaulin minimum coverage increased from 40% to 60%.
+- **Fledge tasks expanded** — repository lanes now cover Rust, specs, docs, extension packaging, and audit checks.
+- **Known transitive audit warning tracked** — `RUSTSEC-2024-0384` is ignored explicitly while it remains pulled in through `notify`.
+
+### Specs
+
+- **Utility helpers specced** — added a dedicated spec for `src/util.rs`.
+- **Companion files completed** — backfilled `testing.md` companions and missing `tasks.md`/`context.md` files for legacy specs.
+
 ## [v4.3.3] - 2026-05-18
 
 ### Fixed

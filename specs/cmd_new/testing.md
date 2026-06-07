@@ -2,23 +2,35 @@
 spec: cmd_new.spec.md
 ---
 
-## Automated Testing
+## Automated Coverage
 
-| Test File | Type | What It Covers |
-|-----------|------|----------------|
-| `src/commands/new.rs` inline tests | Unit | Validate Cmd New behavior close to implementation, especially `cmd_new`, `()`, `load_config`, `generate_companion_files` |
-| `tests/integration.rs` | Integration | Exercise Cmd New through project workflows and spec validation fixtures |
+| Area | Command | Assertions To Watch |
+|------|---------|---------------------|
+| `src/commands/new.rs` | cargo test commands::new | No inline tests found; add focused coverage for `cmd_new`, `load_config`, `generate_companion_files` before risky changes |
 
-## Manual Testing
+## Coverage Gaps
 
-- [ ] Run `fledge spec check --strict` after changing Cmd New contracts or source files.
-- [ ] Run `fledge run test` and confirm Cmd New unit/integration coverage still passes.
-- [ ] Smoke-test `cargo run -- new --help` or the nearest CLI path that routes through this module.
+- Integration gap: add a fixture for "Quick spec" before changing user-visible CLI output, generated files, or error handling in cmd_new.
 
-## Edge Cases & Boundary Conditions
+## Behavioral Verification
 
-| Scenario | Expected Behavior |
-|----------|-------------------|
-| Spec already exists | Exits 1 |
-| No source files found | Creates spec with empty `files:` |
-| Dir creation fails | Exits 1 |
+| Flow | Fixture / Setup | Action | Expected Result |
+|------|-----------------|--------|-----------------|
+| Quick spec | `src/auth.rs` exists | `cmd_new(root, "auth", false)` runs | creates `specs/auth/auth.spec.md` with detected source and exports |
+| Full with companions | `--full` flag | `cmd_new` runs | creates spec.md, tasks.md, context.md, requirements.md, testing.md (and design.md if `companions.design` is enabled) |
+
+## Regression Matrix
+
+| Case | Required Behavior | Test Obligation |
+|------|-------------------|-----------------|
+| Spec already exists | Exits 1 | Keep or add a focused assertion before changing this behavior |
+| No source files found | Creates spec with empty `files:` | Keep or add a focused assertion before changing this behavior |
+| Dir creation fails | Exits 1 | Keep or add a focused assertion before changing this behavior |
+
+## Reviewer Checklist
+
+- Run `cargo run -- new --help` and confirm the help text still names the documented flags and behavior.
+- Run the narrow source command above before the full suite when changing `src/commands/new.rs`.
+- Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
+- If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
+- Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.

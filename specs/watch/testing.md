@@ -2,24 +2,36 @@
 spec: watch.spec.md
 ---
 
-## Automated Testing
+## Automated Coverage
 
-| Test File | Type | What It Covers |
-|-----------|------|----------------|
-| `src/watch.rs` inline tests | Unit | Validate Watch behavior close to implementation, especially `run_watch`, `()`, `load_config` |
-| `tests/integration.rs` | Integration | Exercise Watch through project workflows and spec validation fixtures |
+| Area | Command | Assertions To Watch |
+|------|---------|---------------------|
+| `src/watch.rs` | cargo test watch:: | `test_is_relevant_event_create`, `test_is_relevant_event_modify`, `test_is_relevant_event_remove`, `test_is_relevant_event_rejects_access`, `test_is_relevant_event_rejects_other`, `test_is_relevant_event_create_any` |
 
-## Manual Testing
+## Coverage Gaps
 
-- [ ] Run `fledge spec check --strict` after changing Watch contracts or source files.
-- [ ] Run `fledge run test` and confirm Watch unit/integration coverage still passes.
-- [ ] Review examples in `watch.spec.md` against observed behavior when touching src/watch.rs.
+- Integration gap: add a fixture for "Initial run" before changing user-visible CLI output, generated files, or error handling in watch.
 
-## Edge Cases & Boundary Conditions
+## Behavioral Verification
 
-| Scenario | Expected Behavior |
-|----------|-------------------|
-| No directories to watch | Prints error, exits with code 1 |
-| Watcher creation fails | Panics with "Failed to create file watcher" |
-| Individual dir watch fails | Prints warning, continues watching other dirs |
-| Check command fails | Prints "Some checks failed", continues watching |
+| Flow | Fixture / Setup | Action | Expected Result |
+|------|-----------------|--------|-----------------|
+| Initial run | a project with specs and source directories | `run_watch` is called | runs `specsync check` immediately, then watches for changes |
+| File modification triggers re-check | watch mode is running | a `.spec.md` file is modified | re-runs check after 500ms debounce, showing the changed file path |
+| Rapid saves | watch mode is running | multiple files are saved within 500ms | only one check run is triggered (debounced) |
+
+## Regression Matrix
+
+| Case | Required Behavior | Test Obligation |
+|------|-------------------|-----------------|
+| No directories to watch | Prints error, exits with code 1 | Keep or add a focused assertion before changing this behavior |
+| Watcher creation fails | Panics with "Failed to create file watcher" | Keep or add a focused assertion before changing this behavior |
+| Individual dir watch fails | Prints warning, continues watching other dirs | Keep or add a focused assertion before changing this behavior |
+| Check command fails | Prints "Some checks failed", continues watching | Keep or add a focused assertion before changing this behavior |
+
+## Reviewer Checklist
+
+- Run the narrow source command above before the full suite when changing `src/watch.rs`.
+- Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
+- If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
+- Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.

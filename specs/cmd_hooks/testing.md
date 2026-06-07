@@ -2,21 +2,32 @@
 spec: cmd_hooks.spec.md
 ---
 
-## Automated Testing
+## Automated Coverage
 
-| Test File | Type | What It Covers |
-|-----------|------|----------------|
-| `src/commands/hooks.rs` inline tests | Unit | Validate Cmd Hooks behavior close to implementation, especially `cmd_hooks`, `()` |
-| `tests/integration.rs` | Integration | Exercise Cmd Hooks through project workflows and spec validation fixtures |
+| Area | Command | Assertions To Watch |
+|------|---------|---------------------|
+| `src/commands/hooks.rs` | cargo test commands::hooks | No inline tests found; add focused coverage for `cmd_hooks` before risky changes |
 
-## Manual Testing
+## Coverage Gaps
 
-- [ ] Run `fledge spec check --strict` after changing Cmd Hooks contracts or source files.
-- [ ] Run `fledge run test` and confirm Cmd Hooks unit/integration coverage still passes.
-- [ ] Smoke-test `cargo run -- hooks --help` or the nearest CLI path that routes through this module.
+- Integration gap: add a fixture for "Install specific hooks" before changing user-visible CLI output, generated files, or error handling in cmd_hooks.
 
-## Edge Cases & Boundary Conditions
+## Behavioral Verification
 
-| Scenario | Expected Behavior |
-|----------|-------------------|
-| Hook write fails | Delegated to hooks module |
+| Flow | Fixture / Setup | Action | Expected Result |
+|------|-----------------|--------|-----------------|
+| Install specific hooks | `specsync hooks install --claude --precommit` | `cmd_hooks` runs | installs only CLAUDE.md and pre-commit hook |
+
+## Regression Matrix
+
+| Case | Required Behavior | Test Obligation |
+|------|-------------------|-----------------|
+| Hook write fails | Delegated to hooks module | Keep or add a focused assertion before changing this behavior |
+
+## Reviewer Checklist
+
+- Run `cargo run -- hooks --help` and confirm the help text still names the documented flags and behavior.
+- Run the narrow source command above before the full suite when changing `src/commands/hooks.rs`.
+- Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
+- If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
+- Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.

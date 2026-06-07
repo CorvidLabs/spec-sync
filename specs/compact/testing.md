@@ -2,22 +2,34 @@
 spec: compact.spec.md
 ---
 
-## Automated Testing
+## Automated Coverage
 
-| Test File | Type | What It Covers |
-|-----------|------|----------------|
-| `src/compact.rs` inline tests | Unit | Validate Compact behavior close to implementation, especially `compact_changelogs`, `Vec<CompactResult>`, `CompactResult` |
-| `tests/integration.rs` | Integration | Exercise Compact through project workflows and spec validation fixtures |
+| Area | Command | Assertions To Watch |
+|------|---------|---------------------|
+| `src/compact.rs` | cargo test compact:: | `test_compact_changelog`, `test_compact_no_change_needed`, `test_compact_three_column_table` |
 
-## Manual Testing
+## Coverage Gaps
 
-- [ ] Run `fledge spec check --strict` after changing Compact contracts or source files.
-- [ ] Run `fledge run test` and confirm Compact unit/integration coverage still passes.
-- [ ] Review examples in `compact.spec.md` against observed behavior when touching src/compact.rs.
+- Integration gap: add a fixture for "Short changelog (no compaction needed)" before changing user-visible CLI output, generated files, or error handling in compact.
 
-## Edge Cases & Boundary Conditions
+## Behavioral Verification
 
-| Scenario | Expected Behavior |
-|----------|-------------------|
-| Spec file unreadable | Prints error in bold red, continues processing other files |
-| No changelog section found | Spec is silently skipped |
+| Flow | Fixture / Setup | Action | Expected Result |
+|------|-----------------|--------|-----------------|
+| Compact a long changelog | a spec with 20 changelog entries and `keep = 5` | `compact_changelogs` is called | the first 15 entries are replaced with a single summary row like `\| 2025-01-01 — 2026-03-15 \| 15 entries compacted \|` |
+| Short changelog (no compaction needed) | a spec with 3 changelog entries and `keep = 5` | `compact_changelogs` is called | the spec is skipped (not included in results) |
+| Dry run | specs with long changelogs | `compact_changelogs(root, specs_dir, 5, true)` is called | returns `CompactResult` entries but does not modify any files |
+
+## Regression Matrix
+
+| Case | Required Behavior | Test Obligation |
+|------|-------------------|-----------------|
+| Spec file unreadable | Prints error in bold red, continues processing other files | Keep or add a focused assertion before changing this behavior |
+| No changelog section found | Spec is silently skipped | Keep or add a focused assertion before changing this behavior |
+
+## Reviewer Checklist
+
+- Run the narrow source command above before the full suite when changing `src/compact.rs`.
+- Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
+- If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
+- Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.

@@ -2,22 +2,33 @@
 spec: cmd_changelog.spec.md
 ---
 
-## Automated Testing
+## Automated Coverage
 
-| Test File | Type | What It Covers |
-|-----------|------|----------------|
-| `src/commands/changelog.rs` inline tests | Unit | Validate Cmd Changelog behavior close to implementation, especially `cmd_changelog`, `()`, `generate_changelog`, `load_config`, `OutputFormat` |
-| `tests/integration.rs` | Integration | Exercise Cmd Changelog through project workflows and spec validation fixtures |
+| Area | Command | Assertions To Watch |
+|------|---------|---------------------|
+| `src/commands/changelog.rs` | cargo test commands::changelog | No inline tests found; add focused coverage for `cmd_changelog`, `generate_changelog`, `load_config`, `OutputFormat` before risky changes |
 
-## Manual Testing
+## Coverage Gaps
 
-- [ ] Run `fledge spec check --strict` after changing Cmd Changelog contracts or source files.
-- [ ] Run `fledge run test` and confirm Cmd Changelog unit/integration coverage still passes.
-- [ ] Smoke-test `cargo run -- changelog --help` or the nearest CLI path that routes through this module.
+- Integration gap: add a fixture for "Valid range with changes" before changing user-visible CLI output, generated files, or error handling in cmd_changelog.
 
-## Edge Cases & Boundary Conditions
+## Behavioral Verification
 
-| Scenario | Expected Behavior |
-|----------|-------------------|
-| Range missing `..` | Prints error and exits 1 |
-| Invalid git refs | Git command fails, error propagated |
+| Flow | Fixture / Setup | Action | Expected Result |
+|------|-----------------|--------|-----------------|
+| Valid range with changes | specs changed between `v3.5.0` and `v3.6.0` | `cmd_changelog(root, "v3.5.0..v3.6.0", Text)` is called | prints list of added, modified, and removed specs |
+
+## Regression Matrix
+
+| Case | Required Behavior | Test Obligation |
+|------|-------------------|-----------------|
+| Range missing `..` | Prints error and exits 1 | Keep or add a focused assertion before changing this behavior |
+| Invalid git refs | Git command fails, error propagated | Keep or add a focused assertion before changing this behavior |
+
+## Reviewer Checklist
+
+- Run `cargo run -- changelog --help` and confirm the help text still names the documented flags and behavior.
+- Run the narrow source command above before the full suite when changing `src/commands/changelog.rs`.
+- Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
+- If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
+- Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.

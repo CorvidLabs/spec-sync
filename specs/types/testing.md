@@ -2,23 +2,33 @@
 spec: types.spec.md
 ---
 
-## Automated Testing
+## Automated Coverage
 
-| Test File | Type | What It Covers |
-|-----------|------|----------------|
-| `src/types.rs` inline tests | Unit | Validate Types behavior close to implementation, especially `AiProvider`, `Language`, `OutputFormat`, `ExportLevel`, `SpecStatus`, `EnforcementMode`, `CustomRuleType`, `RuleSeverity` |
-| `tests/integration.rs` | Integration | Exercise Types through project workflows and spec validation fixtures |
+| Area | Command | Assertions To Watch |
+|------|---------|---------------------|
+| `src/types.rs` | cargo test types | No inline tests found; add focused coverage for `AiProvider`, `Language`, `OutputFormat`, `ExportLevel` before risky changes |
+| `tests/integration.rs` | cargo test --test integration multi_lang_typescript | End-to-end fixture: `multi_lang_typescript` |
 
-## Manual Testing
+## Behavioral Verification
 
-- [ ] Run `fledge spec check --strict` after changing Types contracts or source files.
-- [ ] Run `fledge run test` and confirm Types unit/integration coverage still passes.
-- [ ] Review examples in `types.spec.md` against observed behavior when touching src/types.rs.
+| Flow | Fixture / Setup | Action | Expected Result |
+|------|-----------------|--------|-----------------|
+| Parse AI provider from string | the string "anthropic-api" | `AiProvider::from_str_loose("anthropic-api")` is called | returns `Some(AiProvider::Anthropic)` |
+| Detect language from file extension | a file with extension "tsx" | `Language::from_extension("tsx")` is called | returns `Some(Language::TypeScript)` |
+| Detect Ruby from file extension | a file with extension "rb" | `Language::from_extension("rb")` is called | returns `Some(Language::Ruby)` |
+| Unknown file extension | a file with extension "haskell" | `Language::from_extension("haskell")` is called | returns `None` |
 
-## Edge Cases & Boundary Conditions
+## Regression Matrix
 
-| Scenario | Expected Behavior |
-|----------|-------------------|
-| Unknown provider string | `AiProvider::from_str_loose` returns `None` |
-| Unsupported file extension | `Language::from_extension` returns `None` |
-| Invalid JSON config | `SpecSyncConfig` deserialization fails at the caller level |
+| Case | Required Behavior | Test Obligation |
+|------|-------------------|-----------------|
+| Unknown provider string | `AiProvider::from_str_loose` returns `None` | Keep or add a focused assertion before changing this behavior |
+| Unsupported file extension | `Language::from_extension` returns `None` | Keep or add a focused assertion before changing this behavior |
+| Invalid JSON config | `SpecSyncConfig` deserialization fails at the caller level | Keep or add a focused assertion before changing this behavior |
+
+## Reviewer Checklist
+
+- Run the narrow source command above before the full suite when changing `src/types.rs`.
+- Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
+- If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
+- Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `./target/release/specsync score --all`.

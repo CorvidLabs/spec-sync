@@ -2,24 +2,35 @@
 spec: hash_cache.spec.md
 ---
 
-## Automated Testing
+## Automated Coverage
 
-| Test File | Type | What It Covers |
-|-----------|------|----------------|
-| `src/hash_cache.rs` inline tests | Unit | Validate Hash Cache behavior close to implementation, especially `HashCache`, `ChangeKind`, `ChangeClassification`, `load`, `Self`, `save`, `io::Result<()>`, `hash_file` |
-| `tests/integration.rs` | Integration | Exercise Hash Cache through project workflows and spec validation fixtures |
+| Area | Command | Assertions To Watch |
+|------|---------|---------------------|
+| `src/hash_cache.rs` | cargo test hash_cache:: | `cache_round_trip`, `is_changed_detects_new_file`, `is_changed_detects_modification`, `extract_files_from_frontmatter`, `prune_removes_missing`, `classify_detects_spec_change` |
+| `tests/integration.rs` | cargo test --test integration check_creates_hash_cache | End-to-end fixture: `check_creates_hash_cache` |
 
-## Manual Testing
+## Behavioral Verification
 
-- [ ] Run `fledge spec check --strict` after changing Hash Cache contracts or source files.
-- [ ] Run `fledge run test` and confirm Hash Cache unit/integration coverage still passes.
-- [ ] Review examples in `hash_cache.spec.md` against observed behavior when touching src/hash_cache.rs.
+| Flow | Fixture / Setup | Action | Expected Result |
+|------|-----------------|--------|-----------------|
+| Incremental validation | 50 specs, only 3 have changed since last run | `classify_all_changes` is called | returns 3 `ChangeClassification` entries; 47 specs are skipped |
+| Source file change triggers re-validation | a spec lists `src/auth.rs` in frontmatter `files:`; that file has been modified | `classify_changes` is called for the spec | returns `ChangeClassification` with `ChangeKind::Source` in changes |
+| First run (no cache) | `.specsync/hashes.json` does not exist | `HashCache::load` is called | returns empty cache; all files will be classified as changed |
+| Requirements change triggers staleness | `requirements.md` companion has been updated | `classify_changes` is called for the parent spec | returns `ChangeClassification` with `ChangeKind::Requirements` |
+| Design or testing companion change detected | `testing.md` or `design.md` has been modified | `classify_changes` is called for the parent spec | returns `ChangeClassification` with `ChangeKind::Companion` |
 
-## Edge Cases & Boundary Conditions
+## Regression Matrix
 
-| Scenario | Expected Behavior |
-|----------|-------------------|
-| Cache file missing | Returns empty cache (all files treated as changed) |
-| Cache file has invalid JSON | Returns empty cache silently |
-| File unreadable during hashing | `hash_file` returns `None`; file treated as changed |
-| Cannot create `.specsync/` directory | `save` returns `io::Error` |
+| Case | Required Behavior | Test Obligation |
+|------|-------------------|-----------------|
+| Cache file missing | Returns empty cache (all files treated as changed) | Keep or add a focused assertion before changing this behavior |
+| Cache file has invalid JSON | Returns empty cache silently | Keep or add a focused assertion before changing this behavior |
+| File unreadable during hashing | `hash_file` returns `None`; file treated as changed | Keep or add a focused assertion before changing this behavior |
+| Cannot create `.specsync/` directory | `save` returns `io::Error` | Keep or add a focused assertion before changing this behavior |
+
+## Reviewer Checklist
+
+- Run the narrow source command above before the full suite when changing `src/hash_cache.rs`.
+- Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
+- If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
+- Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.

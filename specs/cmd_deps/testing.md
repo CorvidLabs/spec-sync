@@ -2,23 +2,35 @@
 spec: cmd_deps.spec.md
 ---
 
-## Automated Testing
+## Automated Coverage
 
-| Test File | Type | What It Covers |
-|-----------|------|----------------|
-| `src/commands/deps.rs` inline tests | Unit | Validate Cmd Deps behavior close to implementation, especially `cmd_deps`, `()`, `validate_deps`, `load_config`, `OutputFormat` |
-| `tests/integration.rs` | Integration | Exercise Cmd Deps through project workflows and spec validation fixtures |
+| Area | Command | Assertions To Watch |
+|------|---------|---------------------|
+| `src/commands/deps.rs` | cargo test commands::deps | No inline tests found; add focused coverage for `cmd_deps`, `validate_deps`, `load_config`, `OutputFormat` before risky changes |
 
-## Manual Testing
+## Coverage Gaps
 
-- [ ] Run `fledge spec check --strict` after changing Cmd Deps contracts or source files.
-- [ ] Run `fledge run test` and confirm Cmd Deps unit/integration coverage still passes.
-- [ ] Smoke-test `cargo run -- deps --help` or the nearest CLI path that routes through this module.
+- Integration gap: add a fixture for "Mermaid output" before changing user-visible CLI output, generated files, or error handling in cmd_deps.
 
-## Edge Cases & Boundary Conditions
+## Behavioral Verification
 
-| Scenario | Expected Behavior |
-|----------|-------------------|
-| Circular dependency | Error printed, exits 1 |
-| Missing dependency spec | Error printed, exits 1 |
-| Empty dep graph | Prints hint about `depends_on` |
+| Flow | Fixture / Setup | Action | Expected Result |
+|------|-----------------|--------|-----------------|
+| Mermaid output | `--mermaid` flag set, clean dep graph | `cmd_deps` runs | outputs valid Mermaid flowchart syntax |
+| Cycle detected | A depends on B, B depends on A | `cmd_deps` runs | prints cycle error and exits 1 |
+
+## Regression Matrix
+
+| Case | Required Behavior | Test Obligation |
+|------|-------------------|-----------------|
+| Circular dependency | Error printed, exits 1 | Keep or add a focused assertion before changing this behavior |
+| Missing dependency spec | Error printed, exits 1 | Keep or add a focused assertion before changing this behavior |
+| Empty dep graph | Prints hint about `depends_on` | Keep or add a focused assertion before changing this behavior |
+
+## Reviewer Checklist
+
+- Run `cargo run -- deps --help` and confirm the help text still names the documented flags and behavior.
+- Run the narrow source command above before the full suite when changing `src/commands/deps.rs`.
+- Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
+- If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
+- Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.

@@ -2,24 +2,36 @@
 spec: cmd_wizard.spec.md
 ---
 
-## Automated Testing
+## Automated Coverage
 
-| Test File | Type | What It Covers |
-|-----------|------|----------------|
-| `src/commands/wizard.rs` inline tests | Unit | Validate Cmd Wizard behavior close to implementation, especially `cmd_wizard`, `()`, `load_config` |
-| `tests/integration.rs` | Integration | Exercise Cmd Wizard through project workflows and spec validation fixtures |
+| Area | Command | Assertions To Watch |
+|------|---------|---------------------|
+| `src/commands/wizard.rs` | cargo test commands::wizard | No inline tests found; add focused coverage for `cmd_wizard`, `load_config` before risky changes |
 
-## Manual Testing
+## Coverage Gaps
 
-- [ ] Run `fledge spec check --strict` after changing Cmd Wizard contracts or source files.
-- [ ] Run `fledge run test` and confirm Cmd Wizard unit/integration coverage still passes.
-- [ ] Smoke-test `cargo run -- wizard --help` or the nearest CLI path that routes through this module.
+- Integration gap: add a fixture for "Create API endpoint spec" before changing user-visible CLI output, generated files, or error handling in cmd_wizard.
 
-## Edge Cases & Boundary Conditions
+## Behavioral Verification
 
-| Scenario | Expected Behavior |
-|----------|-------------------|
-| Empty module name entered | Exits with code 1 |
-| Spec directory already exists | Prints error and exits 1 |
-| User cancels at confirmation | Exits cleanly with code 0 |
-| Directory creation fails | Exits with code 1 |
+| Flow | Fixture / Setup | Action | Expected Result |
+|------|-----------------|--------|-----------------|
+| Create API endpoint spec | user selects "API Endpoint" template | wizard generates spec content | includes Endpoints table section with Method, Path, Description columns |
+| Auto-detect source files | module name "auth", `src/auth.rs` exists | wizard runs source detection | pre-fills source files with `src/auth.rs` |
+
+## Regression Matrix
+
+| Case | Required Behavior | Test Obligation |
+|------|-------------------|-----------------|
+| Empty module name entered | Exits with code 1 | Keep or add a focused assertion before changing this behavior |
+| Spec directory already exists | Prints error and exits 1 | Keep or add a focused assertion before changing this behavior |
+| User cancels at confirmation | Exits cleanly with code 0 | Keep or add a focused assertion before changing this behavior |
+| Directory creation fails | Exits with code 1 | Keep or add a focused assertion before changing this behavior |
+
+## Reviewer Checklist
+
+- Run `cargo run -- wizard --help` and confirm the help text still names the documented flags and behavior.
+- Run the narrow source command above before the full suite when changing `src/commands/wizard.rs`.
+- Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
+- If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
+- Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.

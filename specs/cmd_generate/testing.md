@@ -2,23 +2,37 @@
 spec: cmd_generate.spec.md
 ---
 
-## Automated Testing
+## Automated Coverage
 
-| Test File | Type | What It Covers |
-|-----------|------|----------------|
-| `src/commands/generate.rs` inline tests | Unit | Validate Cmd Generate behavior close to implementation, especially `cmd_generate`, `()`, `generate_spec_template`, `IgnoreRules::load`, `compute_coverage` |
-| `tests/integration.rs` | Integration | Exercise Cmd Generate through project workflows and spec validation fixtures |
+| Area | Command | Assertions To Watch |
+|------|---------|---------------------|
+| `src/commands/generate.rs` | cargo test commands::generate | No inline tests found; add focused coverage for `cmd_generate`, `generate_spec_template`, `IgnoreRules::load`, `compute_coverage` before risky changes |
+| `tests/integration.rs` | cargo test --test integration generate_creates_spec_for_unspecced_module | End-to-end fixture: `generate_creates_spec_for_unspecced_module` |
+| `tests/integration.rs` | cargo test --test integration generate_no_op_when_fully_covered | End-to-end fixture: `generate_no_op_when_fully_covered` |
+| `tests/integration.rs` | cargo test --test integration generate_with_multiple_languages | End-to-end fixture: `generate_with_multiple_languages` |
+| `tests/integration.rs` | cargo test --test integration generate_uncovered_flag_accepted | End-to-end fixture: `generate_uncovered_flag_accepted` |
+| `tests/integration.rs` | cargo test --test integration generate_batch_empty_list_skips_gracefully | End-to-end fixture: `generate_batch_empty_list_skips_gracefully` |
+| `tests/integration.rs` | cargo test --test integration generate_creates_companion_files | End-to-end fixture: `generate_creates_companion_files` |
+| `tests/integration.rs` | cargo test --test integration generate_creates_design_md_when_enabled | End-to-end fixture: `generate_creates_design_md_when_enabled` |
 
-## Manual Testing
+## Behavioral Verification
 
-- [ ] Run `fledge spec check --strict` after changing Cmd Generate contracts or source files.
-- [ ] Run `fledge run test` and confirm Cmd Generate unit/integration coverage still passes.
-- [ ] Smoke-test `cargo run -- generate --help` or the nearest CLI path that routes through this module.
+| Flow | Fixture / Setup | Action | Expected Result |
+|------|-----------------|--------|-----------------|
+| AI-assisted generation | `--provider claude` set, 3 unspecced modules | `cmd_generate` runs | generates 3 AI-populated specs |
 
-## Edge Cases & Boundary Conditions
+## Regression Matrix
 
-| Scenario | Expected Behavior |
-|----------|-------------------|
-| AI provider not found | Exits 1 |
-| AI fails for one module | Error printed, continues |
-| All modules already specced | Prints "all covered" |
+| Case | Required Behavior | Test Obligation |
+|------|-------------------|-----------------|
+| AI provider not found | Exits 1 | Keep or add a focused assertion before changing this behavior |
+| AI fails for one module | Error printed, continues | Keep or add a focused assertion before changing this behavior |
+| All modules already specced | Prints "all covered" | Keep or add a focused assertion before changing this behavior |
+
+## Reviewer Checklist
+
+- Run `cargo run -- generate --help` and confirm the help text still names the documented flags and behavior.
+- Run the narrow source command above before the full suite when changing `src/commands/generate.rs`.
+- Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
+- If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
+- Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.

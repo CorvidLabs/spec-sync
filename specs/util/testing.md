@@ -2,22 +2,34 @@
 spec: util.spec.md
 ---
 
-## Automated Testing
+## Automated Coverage
 
-| Test File | Type | What It Covers |
-|-----------|------|----------------|
-| `src/util.rs` | Unit | Levenshtein distance basics and safe regex compilation for valid/invalid patterns |
+| Area | Command | Assertions To Watch |
+|------|---------|---------------------|
+| `src/util.rs` | cargo test util:: | `test_levenshtein`, `test_safe_regex_valid`, `test_safe_regex_invalid` |
 
-## Manual Testing
+## Coverage Gaps
 
-- [ ] Run `cargo test util::tests`.
-- [ ] Run `specsync check --strict --require-coverage 100 --force` to confirm the helper remains covered by a spec.
+- Integration gap: add a fixture for "Suggest nearby filenames" before changing user-visible CLI output, generated files, or error handling in util.
 
-## Edge Cases & Boundary Conditions
+## Behavioral Verification
 
-| Scenario | Expected Behavior |
-|----------|-------------------|
-| Equal strings | `levenshtein` returns `0` |
-| Empty left or right input | `levenshtein` returns the other side's character length |
-| Invalid regex syntax | `safe_regex` returns `None` |
-| Valid anchored or word-boundary regex | `safe_regex` returns `Some(Regex)` |
+| Flow | Fixture / Setup | Action | Expected Result |
+|------|-----------------|--------|-----------------|
+| Suggest nearby filenames | the strings `config.ts` and `confg.ts` | `levenshtein` compares them | it returns `1`, allowing validation to suggest the near miss |
+| Reject invalid regex | an invalid pattern such as `[invalid` | `safe_regex` tries to compile it | it returns `None` instead of propagating a regex parser error |
+
+## Regression Matrix
+
+| Case | Required Behavior | Test Obligation |
+|------|-------------------|-----------------|
+| Empty string passed to `levenshtein` | Returns the character length of the other string | Keep or add a focused assertion before changing this behavior |
+| Invalid regex syntax | `safe_regex` returns `None` | Keep or add a focused assertion before changing this behavior |
+| Pattern exceeds configured regex size limits | `safe_regex` returns `None` | Keep or add a focused assertion before changing this behavior |
+
+## Reviewer Checklist
+
+- Run the narrow source command above before the full suite when changing `src/util.rs`.
+- Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
+- If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
+- Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.

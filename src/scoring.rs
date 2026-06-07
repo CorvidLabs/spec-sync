@@ -373,7 +373,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     // ─── Content Depth (0-20) ────────────────────────────────────────
     let mut depth_points = 0u32;
     let todo_count = count_placeholder_todos(body);
-    let placeholder_count = body.matches("<!-- ").count();
+    let placeholder_count = count_placeholder_comments(body);
 
     // Check each required section has meaningful content (stubs don't count)
     let sections_with_content = count_sections_with_content(body, &config.required_sections);
@@ -667,6 +667,26 @@ fn count_placeholder_todos(body: &str) -> usize {
     count
 }
 
+/// Count unfilled HTML-comment placeholders (`<!-- ... -->`) in prose.
+///
+/// Fenced code blocks and inline code spans are stripped first, so a spec that
+/// *documents* an HTML-comment directive (e.g. ``a `<!-- specsync-ignore -->`
+/// directive``) isn't penalized for showing real syntax. Mirrors the
+/// code-stripping that [`count_placeholder_todos`] already does for TODOs.
+fn count_placeholder_comments(body: &str) -> usize {
+    use regex::Regex;
+    use std::sync::LazyLock;
+
+    static CODE_BLOCK_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?s)```[^\n]*\n.*?```").expect("valid code-block regex"));
+    static INLINE_CODE_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"`[^`]*`").expect("valid inline-code regex"));
+
+    let no_fenced = CODE_BLOCK_RE.replace_all(body, "");
+    let stripped = INLINE_CODE_RE.replace_all(&no_fenced, "");
+    stripped.matches("<!-- ").count()
+}
+
 /// Count how many required sections have meaningful content (more than just a heading).
 fn count_sections_with_content(body: &str, required_sections: &[String]) -> usize {
     let mut count = 0;
@@ -747,6 +767,22 @@ mod tests {
     fn test_count_placeholder_todos_zero() {
         let body = "## Purpose\nAll sections filled in with real content.\n";
         assert_eq!(count_placeholder_todos(body), 0);
+    }
+
+    #[test]
+    fn test_placeholder_comments_count_prose_only() {
+        // A real un-filled HTML comment in prose counts.
+        assert_eq!(count_placeholder_comments("Body with <!-- fill me --> here"), 1);
+        // The same syntax shown as documentation in inline code or a fenced
+        // block does NOT count — it's real content, not a placeholder.
+        assert_eq!(
+            count_placeholder_comments("Use a `<!-- specsync-ignore: x -->` directive"),
+            0
+        );
+        assert_eq!(
+            count_placeholder_comments("```\n<!-- specsync-ignore: x -->\n```\n"),
+            0
+        );
     }
 
     #[test]

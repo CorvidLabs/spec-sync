@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`openrouter` and `ollama` API providers.** OpenRouter joins the OpenAI-compatible family; Ollama now runs over its OpenAI-compatible HTTP endpoint (local server keyless, or Ollama Cloud via `OLLAMA_API_KEY`) instead of shelling out to `ollama run`.
-- **`SPECSYNC_AI_PROVIDER` env var** to pick a provider by name (below `aiProvider` config in precedence), plus `OLLAMA_HOST` support and `-cloud` model routing to Ollama Cloud.
+- **`SPECSYNC_AI_PROVIDER` env var** to pick a provider by name (env outranks config — `flag > env > config`, 12-factor), plus `OLLAMA_HOST` support and `-cloud` model routing to Ollama Cloud.
 - **`generate --model <id>` flag** and `SPECSYNC_AI_MODEL` env to choose the model (precedence: `--model` > `SPECSYNC_AI_MODEL` > `aiModel` config > provider default), matching fledge.
 
 ### Fixed

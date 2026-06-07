@@ -284,15 +284,16 @@ fn resolve_named_provider(
 
 /// Resolve the AI provider to use.
 ///
-/// Resolution order (shared mental model with fledge):
+/// Resolution order (shared mental model with fledge — `flag > env > config`,
+/// 12-factor; consistent with model precedence):
 /// 1. `--provider` CLI flag (explicit selection)
-/// 2. `aiCommand` in config — spec-sync-only explicit, trusted CLI escape hatch
-/// 3. `aiProvider` in config (explicit selection)
-/// 4. `SPECSYNC_AI_PROVIDER` env (provider name)
-/// 5. `SPECSYNC_AI_COMMAND` env — spec-sync-only explicit CLI hatch
-/// 6. Auto-detect: **Ollama if usable** (local daemon reachable or
-///    `OLLAMA_API_KEY`) → otherwise **API-first** by key → otherwise default to
-///    local Ollama. No CLI is ever auto-selected.
+/// 2. `SPECSYNC_AI_COMMAND` env — spec-sync-only explicit CLI hatch
+/// 3. `SPECSYNC_AI_PROVIDER` env (provider name)
+/// 4. `aiCommand` in config — spec-sync-only explicit, trusted CLI escape hatch
+/// 5. `aiProvider` in config (explicit selection)
+/// 6. Auto-detect: none configured → keyless local Ollama; one key → use it;
+///    multiple keys → prompt (interactive) or deterministic order. No CLI is
+///    ever auto-selected.
 pub fn resolve_ai_provider(
     config: &SpecSyncConfig,
     cli_provider: Option<&str>,
@@ -309,17 +310,17 @@ pub fn resolve_ai_provider(
         return resolve_named_provider(&provider, config, "selected");
     }
 
-    // 2. aiCommand in config (explicit override — the trusted CLI escape hatch)
-    if let Some(cmd) = &config.ai_command {
-        return Ok(ResolvedProvider::Cli(cmd.clone()));
+    // Env above config (12-factor; consistent with model precedence and fledge).
+    // Within each tier the command hatch outranks the provider name.
+
+    // 2. SPECSYNC_AI_COMMAND env (explicit CLI hatch)
+    if let Ok(cmd) = std::env::var("SPECSYNC_AI_COMMAND")
+        && !cmd.is_empty()
+    {
+        return Ok(ResolvedProvider::Cli(cmd));
     }
 
-    // 3. aiProvider in config
-    if let Some(provider) = &config.ai_provider {
-        return resolve_named_provider(provider, config, "configured");
-    }
-
-    // 4. SPECSYNC_AI_PROVIDER env (provider name) — below config to match fledge.
+    // 3. SPECSYNC_AI_PROVIDER env (provider name)
     if let Ok(name) = std::env::var("SPECSYNC_AI_PROVIDER")
         && !name.is_empty()
     {
@@ -328,9 +329,14 @@ pub fn resolve_ai_provider(
         return resolve_named_provider(&provider, config, "selected via SPECSYNC_AI_PROVIDER");
     }
 
-    // 5. SPECSYNC_AI_COMMAND env (explicit CLI hatch)
-    if let Ok(cmd) = std::env::var("SPECSYNC_AI_COMMAND") {
-        return Ok(ResolvedProvider::Cli(cmd));
+    // 4. aiCommand in config (the trusted CLI escape hatch)
+    if let Some(cmd) = &config.ai_command {
+        return Ok(ResolvedProvider::Cli(cmd.clone()));
+    }
+
+    // 5. aiProvider in config
+    if let Some(provider) = &config.ai_provider {
+        return resolve_named_provider(provider, config, "configured");
     }
 
     // 6. Auto-detect by API-key presence (no CLI shell-out, no network probe).

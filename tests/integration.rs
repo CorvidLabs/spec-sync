@@ -1506,6 +1506,40 @@ fn config_ai_provider_triggers_ai_without_provider_flag() {
         .stderr(predicate::str::contains("ANTHROPIC_API_KEY"));
 }
 
+#[test]
+fn env_provider_overrides_config_provider() {
+    // 12-factor `flag > env > config`: SPECSYNC_AI_PROVIDER must outrank the
+    // `aiProvider` config value.
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    let config = serde_json::json!({
+        "specsDir": "specs",
+        "sourceDirs": ["src"],
+        "aiProvider": "ollama",
+        "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+        "excludeDirs": ["__tests__"],
+        "excludePatterns": ["**/__tests__/**"]
+    });
+    fs::write(
+        root.join("specsync.json"),
+        serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .unwrap();
+
+    // Config says ollama, env says anthropic → env wins → fails on the missing
+    // Anthropic key (proving it did NOT use the configured ollama).
+    specsync()
+        .arg("generate")
+        .arg("--root")
+        .arg(&root)
+        .env("SPECSYNC_AI_PROVIDER", "anthropic")
+        .env_remove("ANTHROPIC_API_KEY")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("ANTHROPIC_API_KEY"));
+}
+
 // ─── 8. Direct API provider tests ───────────────────────────────────────
 
 #[test]

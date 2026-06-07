@@ -191,6 +191,9 @@ SpecSync's AI generation moved off the agentic `claude` CLI onto plain HTTP thro
 
 ## New config / env
 
-- `SPECSYNC_AI_PROVIDER` — pick a provider by name via env (below `aiProvider` config in precedence).
-- `OLLAMA_HOST` — Ollama host for the reachability probe and requests (default `http://localhost:11434`).
+Precedence is `flag > env > config` (12-factor) for both provider and model:
+
+- `SPECSYNC_AI_PROVIDER` — pick a provider by name via env (outranks `aiProvider` config).
+- `SPECSYNC_AI_MODEL` — pick a model via env (outranks `aiModel` config); `--model` overrides both.
+- `OLLAMA_HOST` — Ollama host for requests (default `http://localhost:11434`).
 - A `-cloud` model tag with `OLLAMA_API_KEY` set routes to Ollama Cloud.

@@ -77,3 +77,48 @@ pub fn ensure_hashes_gitignored(root: &Path) -> Result<bool, String> {
     fs::write(&gitignore_path, content).map_err(|e| format!("Failed to update .gitignore: {e}"))?;
     Ok(true)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn adds_entry_to_missing_gitignore() {
+        let tmp = TempDir::new().unwrap();
+        let changed = ensure_hashes_gitignored(tmp.path()).unwrap();
+        assert!(changed, "should report it wrote the entry");
+
+        let content = fs::read_to_string(tmp.path().join(".gitignore")).unwrap();
+        assert!(content.contains(".specsync/hashes.json"));
+    }
+
+    #[test]
+    fn is_idempotent_when_entry_already_present() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".gitignore"),
+            "target/\n.specsync/hashes.json\n",
+        )
+        .unwrap();
+
+        let changed = ensure_hashes_gitignored(tmp.path()).unwrap();
+        assert!(!changed, "entry already present — nothing to add");
+
+        // Existing content is untouched (no duplicate entry appended).
+        let content = fs::read_to_string(tmp.path().join(".gitignore")).unwrap();
+        assert_eq!(content.matches(".specsync/hashes.json").count(), 1);
+    }
+
+    #[test]
+    fn errors_when_gitignore_path_is_unwritable() {
+        let tmp = TempDir::new().unwrap();
+        // Make `.gitignore` a directory so the write fails — exercises the
+        // error path that maps the io::Error into a String.
+        fs::create_dir(tmp.path().join(".gitignore")).unwrap();
+
+        let result = ensure_hashes_gitignored(tmp.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Failed to update .gitignore"));
+    }
+}

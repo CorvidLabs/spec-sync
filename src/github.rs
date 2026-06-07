@@ -7,6 +7,19 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
+/// Redact a token from an error message before surfacing it.
+///
+/// The token is sent in the `Authorization` header, not the URL, so HTTP errors
+/// should never contain it — this strips any verbatim occurrence as
+/// defense-in-depth in case a proxy or future change echoes it back.
+fn redact_token(message: String, token: &str) -> String {
+    if !token.is_empty() && message.contains(token) {
+        message.replace(token, "[REDACTED]")
+    } else {
+        message
+    }
+}
+
 /// A GitHub issue's relevant fields.
 #[derive(Debug, Clone)]
 pub struct GitHubIssue {
@@ -143,7 +156,7 @@ pub fn fetch_issue_api(repo: &str, number: u64) -> Result<GitHubIssue, String> {
         .header("Accept", "application/vnd.github+json")
         .header("User-Agent", "specsync")
         .call()
-        .map_err(|e| format!("GitHub API request failed: {e}"))?;
+        .map_err(|e| redact_token(format!("GitHub API request failed: {e}"), &token))?;
 
     if response.status() == 404 {
         return Err(format!("Issue #{number} not found in {repo}"));
@@ -309,7 +322,7 @@ fn list_issues_api(repo: &str, label: Option<&str>) -> Result<Vec<GitHubIssue>, 
         .header("Accept", "application/vnd.github+json")
         .header("User-Agent", "specsync")
         .call()
-        .map_err(|e| format!("GitHub API request failed: {e}"))?;
+        .map_err(|e| redact_token(format!("GitHub API request failed: {e}"), &token))?;
 
     if response.status() != 200 {
         return Err(format!("GitHub API returned HTTP {}", response.status()));

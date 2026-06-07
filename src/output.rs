@@ -3,7 +3,9 @@ use colored::Colorize;
 use crate::types;
 
 pub fn print_summary(total: usize, passed: usize, warnings: usize, _errors: usize) {
-    let failed = total - passed;
+    // saturating_sub guards against an underflow panic if `passed` is ever
+    // reported higher than `total`.
+    let failed = total.saturating_sub(passed);
     println!(
         "\n{total} specs checked: {} passed, {} warning(s), {} failed",
         passed.to_string().green(),
@@ -211,6 +213,45 @@ pub fn print_diff_markdown(
             println!();
         } else {
             println!("No drift — spec is up to date.\n");
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn coverage(file_pct: usize, loc_pct: usize) -> types::CoverageReport {
+        types::CoverageReport {
+            total_source_files: 1,
+            specced_file_count: 1,
+            unspecced_files: Vec::new(),
+            unspecced_modules: Vec::new(),
+            coverage_percent: file_pct,
+            total_loc: 1,
+            specced_loc: 1,
+            loc_coverage_percent: loc_pct,
+            unspecced_file_loc: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn print_summary_does_not_underflow_when_passed_exceeds_total() {
+        // Regression: `total - passed` used to panic on underflow in debug.
+        print_summary(2, 5, 0, 0);
+    }
+
+    #[test]
+    fn print_summary_handles_zero_and_all_passed() {
+        print_summary(0, 0, 0, 0);
+        print_summary(3, 3, 0, 0);
+    }
+
+    #[test]
+    fn print_coverage_line_handles_color_threshold_boundaries() {
+        // Exercises each color branch: <80 (red), ==80 (yellow), 100 (green).
+        for pct in [0usize, 79, 80, 99, 100] {
+            print_coverage_line(&coverage(pct, pct));
         }
     }
 }

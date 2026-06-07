@@ -160,6 +160,20 @@ fn today() -> String {
     }
 }
 
+/// Redact a secret from an error message before surfacing it to the user.
+///
+/// Auth tokens are sent in request headers, so well-behaved HTTP errors should
+/// never echo them back — but a misbehaving proxy, redirect, or future client
+/// change could. This strips any verbatim occurrence of the token as
+/// defense-in-depth, mirroring the sanitization used in the AI provider client.
+fn redact_secret(message: String, secret: &str) -> String {
+    if !secret.is_empty() && message.contains(secret) {
+        message.replace(secret, "[REDACTED]")
+    } else {
+        message
+    }
+}
+
 /// Slugify a title into a valid module name.
 pub fn slugify(title: &str) -> String {
     title
@@ -234,7 +248,7 @@ fn import_github_issue_api(repo: &str, number: u64) -> Result<ImportedItem, Stri
         .header("Accept", "application/vnd.github+json")
         .header("User-Agent", "specsync")
         .call()
-        .map_err(|e| format!("GitHub API request failed: {e}"))?;
+        .map_err(|e| redact_secret(format!("GitHub API request failed: {e}"), &token))?;
 
     if response.status() == 404 {
         return Err(format!("Issue #{number} not found in {repo}"));
@@ -325,7 +339,7 @@ pub fn import_jira_issue(issue_key: &str) -> Result<ImportedItem, String> {
 
     let mut response = req
         .call()
-        .map_err(|e| format!("Jira API request failed: {e}"))?;
+        .map_err(|e| redact_secret(format!("Jira API request failed: {e}"), &token))?;
 
     if response.status() == 404 {
         return Err(format!("Jira issue {issue_key} not found"));
@@ -449,7 +463,7 @@ pub fn import_confluence_page(page_id: &str) -> Result<ImportedItem, String> {
 
     let mut response = req
         .call()
-        .map_err(|e| format!("Confluence API request failed: {e}"))?;
+        .map_err(|e| redact_secret(format!("Confluence API request failed: {e}"), &token))?;
 
     if response.status() == 404 {
         return Err(format!("Confluence page {page_id} not found"));

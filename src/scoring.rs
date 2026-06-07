@@ -537,11 +537,11 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             .unwrap_or(spec_path)
             .to_string_lossy()
             .to_string();
-        if git_utils::git_last_commit_hash(root, &rel_path).is_some() {
+        if let Some(spec_commit) = git_utils::git_last_commit_hash(root, &rel_path) {
             let mut max_behind: usize = 0;
             for file in &fm.files {
                 if root.join(file).exists() {
-                    let behind = git_utils::git_commits_between(root, &rel_path, file);
+                    let behind = git_utils::git_commits_since(root, &spec_commit, file);
                     max_behind = max_behind.max(behind);
                 }
             }
@@ -642,13 +642,17 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
 /// - Descriptive prose where TODO is used as a concept (e.g., "TODO comments", "detect TODO")
 fn count_placeholder_todos(body: &str) -> usize {
     use regex::Regex;
+    use std::sync::LazyLock;
+
+    // Compiled once and reused across every spec scored in a run, rather than
+    // recompiling both patterns on each call.
+    static CODE_BLOCK_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?s)```[^\n]*\n.*?```").expect("valid code-block regex"));
+    static TODO_LINE_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?i)^TODO\s*(:.*)?$").expect("valid TODO-line regex"));
 
     // Strip fenced code blocks
-    let code_block_re = Regex::new(r"(?s)```[^\n]*\n.*?```").unwrap();
-    let stripped = code_block_re.replace_all(body, "");
-
-    // Placeholder pattern: line is just "TODO"/"todo", or starts with "TODO:"
-    let todo_line_re = Regex::new(r"(?i)^TODO\s*(:.*)?$").unwrap();
+    let stripped = CODE_BLOCK_RE.replace_all(body, "");
 
     let mut count = 0;
     for line in stripped.lines() {
@@ -656,7 +660,7 @@ fn count_placeholder_todos(body: &str) -> usize {
             .trim()
             .trim_start_matches("- ")
             .trim_start_matches("* ");
-        if todo_line_re.is_match(trimmed) {
+        if TODO_LINE_RE.is_match(trimmed) {
             count += 1;
         }
     }

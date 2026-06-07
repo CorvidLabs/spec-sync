@@ -2,7 +2,7 @@ use colored::Colorize;
 use std::fs;
 use std::path::Path;
 
-use crate::git_utils::{StaleInfo, git_commits_between, git_last_commit_hash, is_git_repo};
+use crate::git_utils::{StaleInfo, git_commits_since, git_last_commit_hash, is_git_repo};
 use crate::parser;
 use crate::types;
 
@@ -72,12 +72,14 @@ pub fn cmd_stale(
             continue;
         }
 
-        let spec_commit = git_last_commit_hash(root, &rel_spec);
-        if spec_commit.is_none() {
-            // Spec not yet tracked by git — skip
-            fresh_count += 1;
-            continue;
-        }
+        let spec_commit = match git_last_commit_hash(root, &rel_spec) {
+            Some(commit) => commit,
+            None => {
+                // Spec not yet tracked by git — skip
+                fresh_count += 1;
+                continue;
+            }
+        };
 
         let mut max_behind: usize = 0;
         let mut source_details: Vec<(String, usize)> = Vec::new();
@@ -86,7 +88,7 @@ pub fn cmd_stale(
             if !root.join(source_file).exists() {
                 continue;
             }
-            let behind = git_commits_between(root, &rel_spec, source_file);
+            let behind = git_commits_since(root, &spec_commit, source_file);
             if behind > 0 {
                 source_details.push((source_file.clone(), behind));
             }

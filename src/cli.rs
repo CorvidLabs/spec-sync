@@ -408,3 +408,94 @@ pub enum HooksAction {
     /// Show installation status of all hooks
     Status,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_subcommand_yields_none_and_text_default() {
+        let cli = Cli::try_parse_from(["specsync"]).unwrap();
+        assert!(cli.command.is_none());
+        assert!(!cli.strict);
+        assert_eq!(cli.format, types::OutputFormat::Text);
+        assert!(cli.require_coverage.is_none());
+    }
+
+    #[test]
+    fn global_flags_parse_before_subcommand() {
+        let cli = Cli::try_parse_from([
+            "specsync",
+            "--strict",
+            "--require-coverage",
+            "80",
+            "coverage",
+        ])
+        .unwrap();
+        assert!(cli.strict);
+        assert_eq!(cli.require_coverage, Some(80));
+        assert!(matches!(cli.command, Some(Command::Coverage)));
+    }
+
+    #[test]
+    fn json_format_value_enum_parses() {
+        let cli = Cli::try_parse_from(["specsync", "--format", "json", "check"]).unwrap();
+        assert_eq!(cli.format, types::OutputFormat::Json);
+    }
+
+    #[test]
+    fn check_collects_flags_and_positional_specs() {
+        let cli = Cli::try_parse_from(["specsync", "check", "--fix", "--dry-run", "cli", "parser"])
+            .unwrap();
+        match cli.command {
+            Some(Command::Check {
+                fix,
+                dry_run,
+                specs,
+                ..
+            }) => {
+                assert!(fix);
+                assert!(dry_run);
+                assert_eq!(specs, vec!["cli".to_string(), "parser".to_string()]);
+            }
+            _ => panic!("expected a Check command"),
+        }
+    }
+
+    #[test]
+    fn stale_threshold_defaults_and_overrides() {
+        let default = Cli::try_parse_from(["specsync", "stale"]).unwrap();
+        assert!(matches!(
+            default.command,
+            Some(Command::Stale { threshold: 5 })
+        ));
+
+        let overridden = Cli::try_parse_from(["specsync", "stale", "--threshold", "10"]).unwrap();
+        assert!(matches!(
+            overridden.command,
+            Some(Command::Stale { threshold: 10 })
+        ));
+    }
+
+    #[test]
+    fn exclude_status_splits_on_commas() {
+        let cli = Cli::try_parse_from([
+            "specsync",
+            "--exclude-status",
+            "deprecated,archived",
+            "check",
+        ])
+        .unwrap();
+        assert_eq!(cli.exclude_status, vec!["deprecated", "archived"]);
+    }
+
+    #[test]
+    fn unknown_subcommand_is_rejected() {
+        assert!(Cli::try_parse_from(["specsync", "definitely-not-a-command"]).is_err());
+    }
+
+    #[test]
+    fn non_numeric_threshold_is_rejected() {
+        assert!(Cli::try_parse_from(["specsync", "stale", "--threshold", "abc"]).is_err());
+    }
+}

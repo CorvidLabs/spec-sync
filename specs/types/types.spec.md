@@ -57,8 +57,6 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `binary_name` | `&self` | `&'static str` | Binary name to check availability (empty for API providers) |
 | `is_api_provider` | `&self` | `bool` | Whether this provider uses direct API calls |
 | `api_key_env_var` | `&self` | `Option<&'static str>` | Environment variable name for the API key |
-| `default_model` | `&self` | `Option<&'static str>` | Default model name for API providers |
-| `default_base_url` | `&self` | `Option<&'static str>` | Default API base URL for OpenAI-compatible providers with non-OpenAI endpoints; returns `None` for providers that use their SDK/default endpoint |
 | `from_str_loose` | `s: &str` | `Option<Self>` | Parse provider name from string (case-insensitive, aliases supported) |
 | `detection_order` | — | `&'static [AiProvider]` | All auto-detectable providers in preference order |
 
@@ -175,3 +173,4 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | 2026-04-11 | Document SpecStatus lifecycle methods (all, ordinal, next, prev, valid_transitions, can_transition_to) |
 | 2026-04-11 | Move parsed_status to Frontmatter section; fix next/prev descriptions to include deprecated/archived |
 | 2026-04-12 | Document CompanionConfig struct for opt-in companion file settings |
+| 2026-06-07 | Remove `AiProvider::default_model` / `default_base_url` — the `corvid-ai` crate now owns the API endpoint registry and default models |

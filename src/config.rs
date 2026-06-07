@@ -609,8 +609,8 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
 /// schema_dir = "db/migrations"
 /// exclude_dirs = ["__tests__"]
 /// exclude_patterns = ["**/*.test.ts"]
-/// ai_provider = "claude"
-/// ai_model = "claude-sonnet-4-20250514"
+/// ai_provider = "anthropic"
+/// ai_model = "claude-sonnet-4-6"
 /// ai_timeout = 120
 /// required_sections = ["Purpose", "Public API"]
 /// ```

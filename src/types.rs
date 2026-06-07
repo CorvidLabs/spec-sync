@@ -102,33 +102,6 @@ impl AiProvider {
         }
     }
 
-    /// Default model for API providers.
-    pub fn default_model(&self) -> Option<&'static str> {
-        match self {
-            AiProvider::Anthropic => Some("claude-sonnet-4-20250514"),
-            AiProvider::OpenAi => Some("gpt-4o"),
-            AiProvider::Gemini => Some("gemini-2.5-flash"),
-            AiProvider::DeepSeek => Some("deepseek-chat"),
-            AiProvider::Groq => Some("llama-3.3-70b-versatile"),
-            AiProvider::Mistral => Some("mistral-large-latest"),
-            AiProvider::XAi => Some("grok-3-mini"),
-            AiProvider::Together => Some("meta-llama/Llama-3.3-70B-Instruct-Turbo"),
-            _ => None,
-        }
-    }
-
-    /// Default base URL for OpenAI-compatible providers (None = use OpenAI default).
-    pub fn default_base_url(&self) -> Option<&'static str> {
-        match self {
-            AiProvider::DeepSeek => Some("https://api.deepseek.com"),
-            AiProvider::Groq => Some("https://api.groq.com/openai"),
-            AiProvider::Mistral => Some("https://api.mistral.ai"),
-            AiProvider::XAi => Some("https://api.x.ai"),
-            AiProvider::Together => Some("https://api.together.xyz"),
-            _ => None,
-        }
-    }
-
     /// Parse a provider name from a string (for CLI flag).
     pub fn from_str_loose(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {

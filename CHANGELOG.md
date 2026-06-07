@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **AI API calls now go through the shared [`corvid-ai`](https://crates.io/crates/corvid-ai) client.** spec-sync's three hand-rolled HTTP paths (`call_anthropic_api` / `call_openai_api` / `call_gemini_api`, ~250 lines) are replaced by `corvid_ai::complete`. corvid-ai owns the provider registry — endpoints, default models, `<PROVIDER>_API_KEY` resolution, and secret redaction in errors — so the Anthropic default model is now the current `claude-sonnet-4-6` (was `claude-sonnet-4-20250514`). CLI providers (`claude`, `copilot`, `ollama`, custom `aiCommand`) are unchanged. Minimum supported Rust version is now **1.89**.
+
+### Removed
+
+- `AiProvider::default_model` and `AiProvider::default_base_url` — corvid-ai is now the single source of truth for API endpoints and default models.
+
 ## [4.3.5] - 2026-06-07
 
 ### Security

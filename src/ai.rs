@@ -22,51 +22,31 @@ fn safe_truncate(s: &str, max_bytes: usize) -> &str {
     &s[..end]
 }
 
-/// A resolved provider ready to execute — either a CLI command or a direct API call.
+/// A resolved provider ready to execute — either a CLI command or a direct API
+/// call routed through [`corvid_ai`].
 #[derive(Clone)]
 pub enum ResolvedProvider {
     /// Shell out to a CLI tool (e.g. `claude -p --output-format text`).
     Cli(String),
-    /// Call the Anthropic Messages API directly.
-    AnthropicApi {
-        api_key: String,
-        model: String,
-        base_url: Option<String>,
-    },
-    /// Call an OpenAI-compatible Chat Completions API directly.
-    OpenAiApi {
-        api_key: String,
-        model: String,
-        base_url: Option<String>,
-    },
-    /// Call the Google Gemini API directly.
-    GeminiApi { api_key: String, model: String },
+    /// Call an LLM HTTP API via the shared `corvid-ai` client. The `Settings`
+    /// carry the provider name (registry key), plus any model/key/base-url/
+    /// timeout overrides; `corvid-ai` owns the registry of endpoints and
+    /// default models.
+    Api(corvid_ai::Settings),
 }
 
 impl std::fmt::Debug for ResolvedProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ResolvedProvider::Cli(cmd) => f.debug_tuple("Cli").field(cmd).finish(),
-            ResolvedProvider::AnthropicApi {
-                model, base_url, ..
-            } => f
-                .debug_struct("AnthropicApi")
-                .field("api_key", &"[REDACTED]")
-                .field("model", model)
-                .field("base_url", base_url)
-                .finish(),
-            ResolvedProvider::OpenAiApi {
-                model, base_url, ..
-            } => f
-                .debug_struct("OpenAiApi")
-                .field("api_key", &"[REDACTED]")
-                .field("model", model)
-                .field("base_url", base_url)
-                .finish(),
-            ResolvedProvider::GeminiApi { model, .. } => f
-                .debug_struct("GeminiApi")
-                .field("api_key", &"[REDACTED]")
-                .field("model", model)
+            // Custom impl rather than deriving: `corvid_ai::Settings`'s derived
+            // Debug would print the API key verbatim. Redact it here.
+            ResolvedProvider::Api(settings) => f
+                .debug_struct("Api")
+                .field("provider", &settings.provider)
+                .field("model", &settings.model)
+                .field("api_key", &settings.api_key.as_ref().map(|_| "[REDACTED]"))
+                .field("base_url", &settings.base_url)
                 .finish(),
         }
     }
@@ -76,20 +56,17 @@ impl std::fmt::Display for ResolvedProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ResolvedProvider::Cli(cmd) => write!(f, "CLI: {cmd}"),
-            ResolvedProvider::AnthropicApi { model, .. } => {
-                write!(f, "Anthropic API ({model})")
-            }
-            ResolvedProvider::OpenAiApi {
-                model, base_url, ..
-            } => {
-                if let Some(url) = base_url {
-                    write!(f, "OpenAI API ({model} @ {url})")
-                } else {
-                    write!(f, "OpenAI API ({model})")
+            ResolvedProvider::Api(settings) => {
+                let provider = settings
+                    .provider
+                    .as_deref()
+                    .unwrap_or(corvid_ai::DEFAULT_PROVIDER);
+                match (&settings.model, &settings.base_url) {
+                    (Some(model), Some(url)) => write!(f, "{provider} API ({model} @ {url})"),
+                    (Some(model), None) => write!(f, "{provider} API ({model})"),
+                    (None, Some(url)) => write!(f, "{provider} API (@ {url})"),
+                    (None, None) => write!(f, "{provider} API"),
                 }
-            }
-            ResolvedProvider::GeminiApi { model, .. } => {
-                write!(f, "Gemini API ({model})")
             }
         }
     }
@@ -148,64 +125,65 @@ fn command_for_provider(provider: &AiProvider, model: Option<&str>) -> Result<St
     }
 }
 
-/// Resolve an API provider to a ResolvedProvider.
+/// Map a spec-sync API provider to its `corvid-ai` registry name.
+///
+/// Returns `None` for providers that don't use API-key auth (CLI/custom).
+fn corvid_provider_name(provider: &AiProvider) -> Option<&'static str> {
+    match provider {
+        AiProvider::Anthropic => Some("anthropic"),
+        AiProvider::OpenAi => Some("openai"),
+        AiProvider::Gemini => Some("gemini"),
+        AiProvider::DeepSeek => Some("deepseek"),
+        AiProvider::Groq => Some("groq"),
+        AiProvider::Mistral => Some("mistral"),
+        AiProvider::XAi => Some("xai"),
+        AiProvider::Together => Some("together"),
+        _ => None,
+    }
+}
+
+/// Resolve an API provider into [`corvid_ai::Settings`].
+///
+/// Only the user-supplied overrides (model/key/base-url/timeout) are carried
+/// here; `corvid-ai` owns the endpoint registry, default models, and the
+/// `<PROVIDER>_API_KEY` env-var fallback, which it resolves lazily when the
+/// request runs.
 fn resolve_api_provider(
     provider: &AiProvider,
     config: &SpecSyncConfig,
 ) -> Result<ResolvedProvider, String> {
-    let env_var = provider.api_key_env_var().ok_or_else(|| {
+    let name = corvid_provider_name(provider).ok_or_else(|| {
         format!("Provider \"{provider}\" does not support API key authentication")
     })?;
-    let api_key = config
-        .ai_api_key
-        .clone()
-        .or_else(|| std::env::var(env_var).ok())
-        .ok_or_else(|| {
-            format!(
-                "Provider \"{provider}\" requires an API key. Set {env_var} or \
-                 add \"aiApiKey\" to specsync.json"
-            )
-        })?;
 
-    let model = config.ai_model.clone().map_or_else(
-        || {
-            provider
-                .default_model()
-                .map(|m| m.to_string())
-                .ok_or_else(|| {
-                    format!("Provider \"{provider}\" has no default model — set \"aiModel\" in specsync.json")
-                })
-        },
-        Ok,
-    )?;
-
-    match provider {
-        AiProvider::Anthropic => Ok(ResolvedProvider::AnthropicApi {
-            api_key,
-            model,
-            base_url: config.ai_base_url.clone(),
-        }),
-        AiProvider::Gemini => Ok(ResolvedProvider::GeminiApi { api_key, model }),
-        // OpenAI and all OpenAI-compatible providers resolve to OpenAiApi
-        // with the appropriate base URL (config override > provider default > OpenAI default).
-        AiProvider::OpenAi
-        | AiProvider::DeepSeek
-        | AiProvider::Groq
-        | AiProvider::Mistral
-        | AiProvider::XAi
-        | AiProvider::Together => {
-            let base_url = config
-                .ai_base_url
-                .clone()
-                .or_else(|| provider.default_base_url().map(String::from));
-            Ok(ResolvedProvider::OpenAiApi {
-                api_key,
-                model,
-                base_url,
-            })
-        }
-        _ => unreachable!(),
+    // Fail fast with a clear, env-var-named message when no key is available,
+    // rather than resolving lazily and only erroring after scanning the project.
+    // corvid-ai validates again at request time; this is purely for UX.
+    let has_key = config.ai_api_key.as_deref().is_some_and(|k| !k.is_empty())
+        || provider
+            .api_key_env_var()
+            .is_some_and(|env_var| std::env::var(env_var).is_ok());
+    if !has_key {
+        let env_var = provider.api_key_env_var().unwrap_or_default();
+        return Err(format!(
+            "Provider \"{provider}\" requires an API key. Set {env_var} or \
+             add \"aiApiKey\" to specsync.json"
+        ));
     }
+
+    let mut settings = corvid_ai::Settings::provider(name);
+    if let Some(model) = &config.ai_model {
+        settings = settings.model(model);
+    }
+    if let Some(key) = &config.ai_api_key {
+        settings = settings.api_key(key);
+    }
+    if let Some(base_url) = &config.ai_base_url {
+        settings = settings.base_url(base_url);
+    }
+    settings.timeout_secs = Some(config.ai_timeout.unwrap_or(DEFAULT_AI_TIMEOUT_SECS));
+
+    Ok(ResolvedProvider::Api(settings))
 }
 
 /// Resolve the AI provider to use.
@@ -577,249 +555,12 @@ fn run_cli_command(ai_command: &str, prompt: &str, timeout_secs: u64) -> Result<
     Ok(stdout)
 }
 
-/// Call the Anthropic Messages API directly.
-fn call_anthropic_api(
-    api_key: &str,
-    model: &str,
-    base_url: Option<&str>,
-    prompt: &str,
-    timeout_secs: u64,
-) -> Result<String, String> {
-    let url = format!(
-        "{}/v1/messages",
-        base_url.unwrap_or("https://api.anthropic.com")
-    );
-
-    eprintln!("    Calling Anthropic API...");
-    let _ = std::io::stderr().flush();
-
-    let body = serde_json::json!({
-        "model": model,
-        "max_tokens": 8192,
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-    });
-
-    let agent = ureq::Agent::new_with_config(
-        ureq::config::Config::builder()
-            .timeout_global(Some(Duration::from_secs(timeout_secs)))
-            .build(),
-    );
-
-    let mut response = agent
-        .post(&url)
-        .header("x-api-key", api_key)
-        .header("anthropic-version", "2023-06-01")
-        .header("content-type", "application/json")
-        .send_json(&body)
-        .map_err(|e| {
-            // Sanitize error to avoid leaking API key from request headers
-            let msg = e.to_string();
-            if msg.contains(api_key) {
-                "Anthropic API request failed: connection error".to_string()
-            } else {
-                format!("Anthropic API request failed: {msg}")
-            }
-        })?;
-
-    let status = response.status();
-    let response_body: serde_json::Value = response
-        .body_mut()
-        .read_json()
-        .map_err(|e| format!("Failed to parse Anthropic API response: {e}"))?;
-
-    if status != 200 {
-        let error_msg = response_body["error"]["message"]
-            .as_str()
-            .unwrap_or("unknown error");
-        return Err(format!("Anthropic API error (HTTP {status}): {error_msg}"));
-    }
-
-    // Extract text from the response content blocks
-    let content = response_body["content"]
-        .as_array()
-        .ok_or("Anthropic API response missing 'content' array")?;
-
-    let mut text = String::new();
-    for block in content {
-        if block["type"].as_str() == Some("text")
-            && let Some(t) = block["text"].as_str()
-        {
-            text.push_str(t);
-        }
-    }
-
-    if text.trim().is_empty() {
-        return Err("Anthropic API returned empty response".to_string());
-    }
-
-    let usage = &response_body["usage"];
-    let input_tokens = usage["input_tokens"].as_u64().unwrap_or(0);
-    let output_tokens = usage["output_tokens"].as_u64().unwrap_or(0);
-    eprintln!("    ✓ Anthropic API: {input_tokens} input + {output_tokens} output tokens");
-
-    Ok(text)
-}
-
-/// Call an OpenAI-compatible Chat Completions API directly.
-fn call_openai_api(
-    api_key: &str,
-    model: &str,
-    base_url: Option<&str>,
-    prompt: &str,
-    timeout_secs: u64,
-) -> Result<String, String> {
-    let url = format!(
-        "{}/v1/chat/completions",
-        base_url.unwrap_or("https://api.openai.com")
-    );
-
-    eprintln!("    Calling OpenAI API...");
-    let _ = std::io::stderr().flush();
-
-    let body = serde_json::json!({
-        "model": model,
-        "max_tokens": 8192,
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-    });
-
-    let agent = ureq::Agent::new_with_config(
-        ureq::config::Config::builder()
-            .timeout_global(Some(Duration::from_secs(timeout_secs)))
-            .build(),
-    );
-
-    let mut response = agent
-        .post(&url)
-        .header("Authorization", &format!("Bearer {api_key}"))
-        .header("content-type", "application/json")
-        .send_json(&body)
-        .map_err(|e| {
-            // Sanitize error to avoid leaking API key from request headers
-            let msg = e.to_string();
-            if msg.contains(api_key) {
-                "OpenAI API request failed: connection error".to_string()
-            } else {
-                format!("OpenAI API request failed: {msg}")
-            }
-        })?;
-
-    let status = response.status();
-    let response_body: serde_json::Value = response
-        .body_mut()
-        .read_json()
-        .map_err(|e| format!("Failed to parse OpenAI API response: {e}"))?;
-
-    if status != 200 {
-        let error_msg = response_body["error"]["message"]
-            .as_str()
-            .unwrap_or("unknown error");
-        return Err(format!("OpenAI API error (HTTP {status}): {error_msg}"));
-    }
-
-    let text = response_body["choices"][0]["message"]["content"]
-        .as_str()
-        .ok_or("OpenAI API response missing choices[0].message.content")?
-        .to_string();
-
-    if text.trim().is_empty() {
-        return Err("OpenAI API returned empty response".to_string());
-    }
-
-    let usage = &response_body["usage"];
-    let prompt_tokens = usage["prompt_tokens"].as_u64().unwrap_or(0);
-    let completion_tokens = usage["completion_tokens"].as_u64().unwrap_or(0);
-    eprintln!("    ✓ OpenAI API: {prompt_tokens} input + {completion_tokens} output tokens");
-
-    Ok(text)
-}
-
-/// Call the Google Gemini API directly.
-fn call_gemini_api(
-    api_key: &str,
-    model: &str,
-    prompt: &str,
-    timeout_secs: u64,
-) -> Result<String, String> {
-    let url =
-        format!("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent");
-
-    eprintln!("    Calling Gemini API...");
-    let _ = std::io::stderr().flush();
-
-    let body = serde_json::json!({
-        "contents": [
-            {
-                "parts": [
-                    { "text": prompt }
-                ]
-            }
-        ],
-        "generationConfig": {
-            "maxOutputTokens": 8192
-        }
-    });
-
-    let agent = ureq::Agent::new_with_config(
-        ureq::config::Config::builder()
-            .timeout_global(Some(Duration::from_secs(timeout_secs)))
-            .build(),
-    );
-
-    let mut response = agent
-        .post(&url)
-        .header("content-type", "application/json")
-        .header("x-goog-api-key", api_key)
-        .send_json(&body)
-        .map_err(|e| {
-            let msg = e.to_string();
-            if msg.contains(api_key) {
-                "Gemini API request failed: connection error".to_string()
-            } else {
-                format!("Gemini API request failed: {msg}")
-            }
-        })?;
-
-    let status = response.status();
-    let response_body: serde_json::Value = response
-        .body_mut()
-        .read_json()
-        .map_err(|e| format!("Failed to parse Gemini API response: {e}"))?;
-
-    if status != 200 {
-        let error_msg = response_body["error"]["message"]
-            .as_str()
-            .unwrap_or("unknown error");
-        return Err(format!("Gemini API error (HTTP {status}): {error_msg}"));
-    }
-
-    let text = response_body["candidates"][0]["content"]["parts"][0]["text"]
-        .as_str()
-        .ok_or("Gemini API response missing candidates[0].content.parts[0].text")?
-        .to_string();
-
-    if text.trim().is_empty() {
-        return Err("Gemini API returned empty response".to_string());
-    }
-
-    let usage = &response_body["usageMetadata"];
-    let input_tokens = usage["promptTokenCount"].as_u64().unwrap_or(0);
-    let output_tokens = usage["candidatesTokenCount"].as_u64().unwrap_or(0);
-    eprintln!("    ✓ Gemini API: {input_tokens} input + {output_tokens} output tokens");
-
-    Ok(text)
-}
-
 /// Run the resolved provider with the given prompt.
+///
+/// CLI providers shell out (legacy path); API providers go through the shared
+/// `corvid-ai` client, which owns the three HTTP wire shapes (Anthropic /
+/// OpenAI-compatible / Gemini), endpoint registry, key resolution, and secret
+/// redaction in errors.
 fn run_provider(
     provider: &ResolvedProvider,
     prompt: &str,
@@ -827,18 +568,20 @@ fn run_provider(
 ) -> Result<String, String> {
     match provider {
         ResolvedProvider::Cli(cmd) => run_cli_command(cmd, prompt, timeout_secs),
-        ResolvedProvider::AnthropicApi {
-            api_key,
-            model,
-            base_url,
-        } => call_anthropic_api(api_key, model, base_url.as_deref(), prompt, timeout_secs),
-        ResolvedProvider::OpenAiApi {
-            api_key,
-            model,
-            base_url,
-        } => call_openai_api(api_key, model, base_url.as_deref(), prompt, timeout_secs),
-        ResolvedProvider::GeminiApi { api_key, model } => {
-            call_gemini_api(api_key, model, prompt, timeout_secs)
+        ResolvedProvider::Api(settings) => {
+            let mut settings = settings.clone();
+            // Fall back to the caller's timeout if Settings didn't carry one.
+            if settings.timeout_secs.is_none() {
+                settings.timeout_secs = Some(timeout_secs);
+            }
+            eprintln!(
+                "    Calling {} API...",
+                settings.provider.as_deref().unwrap_or("LLM")
+            );
+            let _ = std::io::stderr().flush();
+
+            let completion = corvid_ai::Completion::new(prompt).max_tokens(8192);
+            corvid_ai::complete(&settings, &completion).map_err(|e| e.to_string())
         }
     }
 }
@@ -1076,35 +819,39 @@ mod tests {
 
     #[test]
     fn display_anthropic_provider() {
-        let p = ResolvedProvider::AnthropicApi {
-            api_key: "sk-test".to_string(),
-            model: "claude-sonnet-4-20250514".to_string(),
-            base_url: None,
-        };
-        assert_eq!(format!("{p}"), "Anthropic API (claude-sonnet-4-20250514)");
+        let p = ResolvedProvider::Api(
+            corvid_ai::Settings::provider("anthropic").model("claude-sonnet-4-6"),
+        );
+        assert_eq!(format!("{p}"), "anthropic API (claude-sonnet-4-6)");
     }
 
     #[test]
     fn display_openai_provider_no_base_url() {
-        let p = ResolvedProvider::OpenAiApi {
-            api_key: "sk-test".to_string(),
-            model: "gpt-4o".to_string(),
-            base_url: None,
-        };
-        assert_eq!(format!("{p}"), "OpenAI API (gpt-4o)");
+        let p = ResolvedProvider::Api(corvid_ai::Settings::provider("openai").model("gpt-4o"));
+        assert_eq!(format!("{p}"), "openai API (gpt-4o)");
     }
 
     #[test]
     fn display_openai_provider_with_base_url() {
-        let p = ResolvedProvider::OpenAiApi {
-            api_key: "sk-test".to_string(),
-            model: "gpt-4o".to_string(),
-            base_url: Some("https://custom.api.com".to_string()),
-        };
+        let p = ResolvedProvider::Api(
+            corvid_ai::Settings::provider("openai")
+                .model("gpt-4o")
+                .base_url("https://custom.api.com"),
+        );
         assert_eq!(
             format!("{p}"),
-            "OpenAI API (gpt-4o @ https://custom.api.com)"
+            "openai API (gpt-4o @ https://custom.api.com)"
         );
+    }
+
+    #[test]
+    fn debug_api_provider_redacts_key() {
+        let p = ResolvedProvider::Api(
+            corvid_ai::Settings::provider("anthropic").api_key("sk-secret-value"),
+        );
+        let debug = format!("{p:?}");
+        assert!(debug.contains("[REDACTED]"));
+        assert!(!debug.contains("sk-secret-value"));
     }
 
     // ── postprocess_spec ───────────────────────────────────────────

@@ -22,7 +22,7 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 
 | Type | Description |
 |------|-------------|
-| `ResolvedProvider` | A resolved provider ready to execute: `Cli(String)`, `AnthropicApi{...}`, or `OpenAiApi{...}` |
+| `ResolvedProvider` | A resolved provider ready to execute: `Cli(String)` (shell out) or `Api(corvid_ai::Settings)` (HTTP via the shared `corvid-ai` client) |
 
 ### Exported Functions
 
@@ -41,7 +41,7 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 4. AI response is post-processed: code fences are stripped, frontmatter delimiters are validated
 5. Default timeout is 120 seconds, configurable via `aiTimeout` in config
 6. Cursor provider explicitly errors — it has no stdin/stdout pipe mode
-7. API providers (Anthropic, OpenAI) do not require a CLI binary — they use direct HTTP calls via `ureq`
+7. API providers do not require a CLI binary — they use direct HTTP calls via the `corvid-ai` client, which owns the endpoint registry, default models, and `<PROVIDER>_API_KEY` resolution
 8. CLI execution streams stdout lines to stderr in real time for live progress feedback
 
 ## Behavioral Examples
@@ -56,13 +56,13 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 
 - **Given** `ANTHROPIC_API_KEY` is set in environment, no CLI providers installed
 - **When** `resolve_ai_provider(config, None)` is called
-- **Then** returns `ResolvedProvider::AnthropicApi` with the key and default model
+- **Then** returns `ResolvedProvider::Api` with the `anthropic` provider name
 
 ### Scenario: Explicit provider override
 
 - **Given** user passes `--provider openai`
 - **When** `resolve_ai_provider(config, Some("openai"))` is called
-- **Then** returns `ResolvedProvider::OpenAiApi` using OPENAI_API_KEY
+- **Then** returns `ResolvedProvider::Api` with the `openai` provider name (resolved against `OPENAI_API_KEY`)
 
 ### Scenario: Generate spec with AI
 
@@ -90,7 +90,7 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 | Module | What is used |
 |--------|-------------|
 | types | `AiProvider`, `SpecSyncConfig` |
-| ureq | HTTP client for Anthropic and OpenAI API calls |
+| corvid-ai | Shared multi-provider LLM client (`Settings`, `Completion`, `complete`) for all API calls |
 
 ### Consumed By
 
@@ -105,3 +105,4 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 | Date | Change |
 |------|--------|
 | 2026-03-25 | Initial spec |
+| 2026-06-07 | Route API providers through the shared `corvid-ai` client; `ResolvedProvider` API variants collapse to `Api(corvid_ai::Settings)` and the per-provider `call_*_api` HTTP code is removed |

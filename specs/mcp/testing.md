@@ -6,7 +6,9 @@ spec: mcp.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/mcp.rs` | cargo test mcp:: | `test_handle_initialize_response_format`, `test_handle_initialize_null_id`, `test_handle_initialize_string_id`, `test_handle_tools_list_returns_all_tools`, `test_handle_tools_list_tool_names`, `test_handle_tools_list_all_have_schemas` |
+| `src/mcp.rs` (protocol) | cargo test mcp:: | `test_handle_initialize_response_format`, `test_handle_tools_list_returns_all_tools` (asserts 7 tools), `test_handle_tools_list_tool_names`, `test_handle_tools_list_all_have_schemas` |
+| `src/mcp.rs` (tools) | cargo test mcp:: | `test_handle_tools_call_unknown_tool`, `test_tool_check_strict_mode`, `test_tool_score_with_spec`, `test_tool_generate_creates_spec`, `test_load_and_discover_filters_private_specs` |
+| `src/mcp.rs` (resources) | cargo test mcp:: | `test_handle_resources_list_returns_resources` (asserts 4 resources), `test_handle_resources_list_has_templates`, `test_resource_specs_list_with_spec`, `test_resource_spec_by_module`, `test_resource_graph_empty`, `test_resource_unknown_uri` |
 | `tests/integration.rs` | cargo test --test integration mcp_initialize_returns_capabilities | End-to-end fixture: `mcp_initialize_returns_capabilities` |
 | `tests/integration.rs` | cargo test --test integration mcp_tools_list_returns_all_tools | End-to-end fixture: `mcp_tools_list_returns_all_tools` |
 | `tests/integration.rs` | cargo test --test integration mcp_tool_check_validates_specs | End-to-end fixture: `mcp_tool_check_validates_specs` |

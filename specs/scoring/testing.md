@@ -6,7 +6,7 @@ spec: scoring.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/scoring.rs` | cargo test scoring:: | `test_count_placeholder_todos`, `test_count_placeholder_todos_in_code_blocks`, `test_count_placeholder_todos_zero`, `test_count_sections_with_content`, `test_count_sections_with_content_empty`, `test_compute_project_score_empty` |
+| `src/scoring.rs` | cargo test scoring:: | `test_count_placeholder_todos`, `test_count_placeholder_todos_in_code_blocks`, `test_count_placeholder_todos_zero`, `test_placeholder_comments_count_prose_only`, `test_count_sections_with_content`, `test_count_sections_with_content_stubs_not_counted`, `test_compute_project_score_distribution`, `test_score_spec_complete`, `test_score_spec_stub_sections_penalized`, `test_explain_has_all_dimensions` |
 
 ## Coverage Gaps
 

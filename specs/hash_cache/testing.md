@@ -6,7 +6,7 @@ spec: hash_cache.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/hash_cache.rs` | cargo test hash_cache:: | `cache_round_trip`, `is_changed_detects_new_file`, `is_changed_detects_modification`, `extract_files_from_frontmatter`, `prune_removes_missing`, `classify_detects_spec_change` |
+| `src/hash_cache.rs` | cargo test hash_cache:: | `cache_round_trip`, `is_changed_detects_new_file`, `is_changed_detects_modification`, `extract_files_from_frontmatter`, `prune_removes_missing`, `classify_detects_spec_change`, `classify_detects_requirements_change`, `classify_detects_companion_change`, `classify_detects_testing_companion_change`, `classify_detects_source_change`, `companion_files_found_with_plain_names`, `update_cache_tracks_plain_companion_files` |
 | `tests/integration.rs` | cargo test --test integration check_creates_hash_cache | End-to-end fixture: `check_creates_hash_cache` |
 
 ## Behavioral Verification

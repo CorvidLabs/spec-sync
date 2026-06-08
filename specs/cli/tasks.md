@@ -10,11 +10,13 @@ spec: cli.spec.md
 
 ## Done
 
-- [x] Implement all 12 subcommands (check, coverage, generate, init, score, watch, mcp, add-spec, init-registry, resolve, hooks install/uninstall/status)
-- [x] Add `--json` output mode for all reporting commands
-- [x] Add `--strict` and `--require-coverage` global flags
+- [x] Implement the full subcommand surface (check, coverage, generate, init, score, watch, mcp, add-spec, scaffold, init-registry, resolve, diff, hooks, compact, archive-tasks, view, merge, issues, new, wizard, deps, import, stale, report, comment, rules, changelog, rehash, migrate, lifecycle)
+- [x] Add `--json` output mode (shorthand for `--format json`) and `--format text/json/markdown`
+- [x] Add `--strict`, `--require-coverage`, `--enforcement`, `--exclude-status`, `--only-status` global flags
 - [x] Add `--root` flag for non-cwd project roots
 - [x] Make `check` the default subcommand when none is specified
+- [x] Add `generate --model` to pin a model id (overrides `SPECSYNC_AI_MODEL` / `aiModel`)
+- [x] Wrap `run()` in `catch_unwind` so panics surface a friendly bug-report message
 
 ## Gaps
 

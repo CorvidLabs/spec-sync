@@ -6,7 +6,8 @@ spec: cli.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/main.rs` | cargo test tests:: | `warn_mode_exits_0_with_no_errors`, `warn_mode_exits_0_even_with_errors`, `warn_mode_exits_0_even_with_strict_flag`, `warn_mode_respects_require_coverage`, `enforce_new_exits_0_when_all_files_specced`, `enforce_new_exits_0_with_errors_if_all_specced` |
+| `src/cli.rs` (clap grammar) | cargo test cli::tests | `no_subcommand_yields_none_and_text_default`, `global_flags_parse_before_subcommand`, `json_format_value_enum_parses`, `check_collects_flags_and_positional_specs`, `stale_threshold_defaults_and_overrides`, `exclude_status_splits_on_commas`, `unknown_subcommand_is_rejected`, `non_numeric_threshold_is_rejected` |
+| `src/main.rs` (exit codes) | cargo test --bin specsync tests:: | `warn_mode_exits_0_with_no_errors`, `warn_mode_exits_0_even_with_errors`, `warn_mode_exits_0_even_with_strict_flag`, `warn_mode_respects_require_coverage`, `enforce_new_exits_0_when_all_files_specced`, `enforce_new_exits_1_when_unspecced_files_exist`, `strict_mode_exits_1_with_warnings_and_strict_flag`, `strict_mode_respects_require_coverage` |
 | `tests/integration.rs` | cargo test --test integration strict_turns_warnings_into_errors | End-to-end fixture: `strict_turns_warnings_into_errors` |
 | `tests/integration.rs` | cargo test --test integration require_coverage_passes_when_met | End-to-end fixture: `require_coverage_passes_when_met` |
 | `tests/integration.rs` | cargo test --test integration require_coverage_fails_when_below_threshold | End-to-end fixture: `require_coverage_fails_when_below_threshold` |
@@ -26,6 +27,8 @@ spec: cli.spec.md
 | Init idempotency | `specsync.json` already exists in the project root | `specsync init` is run | prints "specsync.json already exists" and returns without modifying it |
 | Coverage threshold | file coverage is 80% | `specsync check --require-coverage 90` is run | the process exits with code 1 and prints the unspecced files |
 | Generate with AI | an AI provider is available | `specsync generate --provider auto` is run | auto-detects the provider and generates AI-enhanced specs |
+| Generate with pinned model | an AI provider is available | `specsync generate --provider anthropic --model claude-opus-4-8` is run | the `--model` value is passed through, overriding `SPECSYNC_AI_MODEL`/`aiModel` |
+| Panic is caught | a subcommand panics internally | the binary runs | a "specsync panicked … please report it" message is printed and the process exits 1 (no raw backtrace) |
 | Resolve without network | specs have cross-project `depends_on` refs | `specsync resolve` is run (without `--remote`) | lists the refs but does not verify them against remote registries |
 | Fix auto-adds undocumented exports | a spec's source files have exports not documented in the Public API section | `specsync check --fix` is run | skeleton rows for the missing exports are appended to the Public API section and the spec file is written to disk |
 

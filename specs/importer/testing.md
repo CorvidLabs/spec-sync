@@ -6,7 +6,10 @@ spec: importer.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/importer.rs` | cargo test importer:: | `test_slugify_simple`, `test_slugify_special_chars`, `test_slugify_already_slug`, `test_slugify_mixed_case_spaces`, `test_slugify_empty`, `test_extract_requirements_checkboxes` |
+| `src/importer.rs` (slugify) | cargo test importer:: | `test_slugify_simple`, `test_slugify_special_chars`, `test_slugify_already_slug`, `test_slugify_mixed_case_spaces`, `test_slugify_empty` |
+| `src/importer.rs` (requirement extraction) | cargo test importer:: | `test_extract_requirements_checkboxes`, `test_extract_requirements_criteria_section`, `test_extract_requirements_definition_of_done`, `test_extract_requirements_empty_body` |
+| `src/importer.rs` (parsers) | cargo test importer:: | `test_parse_github_json_full`, `test_parse_jira_json_plain_description`, `test_parse_jira_json_adf_description`, `test_parse_confluence_json` |
+| `src/importer.rs` (render/encode) | cargo test importer:: | `test_render_spec_with_issue_number`, `test_render_spec_without_issue_number`, `test_base64_encode`, `test_strip_html_nested` |
 
 ## Coverage Gaps
 
@@ -34,6 +37,7 @@ spec: importer.spec.md
 | Issue/page not found (404) | Each importer returns `Err("{type} not found")` | Keep or add a focused assertion before changing this behavior |
 | Network timeout | Returns `Err` with connection details | Keep or add a focused assertion before changing this behavior |
 | Invalid issue number for GitHub | CLI rejects before calling importer | Keep or add a focused assertion before changing this behavior |
+| Auth token echoed in a REST error | `redact_secret` replaces the verbatim token with `[REDACTED]` before the `Err` is surfaced | Keep or add a focused assertion before changing this behavior |
 
 ## Reviewer Checklist
 

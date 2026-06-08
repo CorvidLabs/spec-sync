@@ -6,7 +6,9 @@ spec: watch.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/watch.rs` | cargo test watch:: | `test_is_relevant_event_create`, `test_is_relevant_event_modify`, `test_is_relevant_event_remove`, `test_is_relevant_event_rejects_access`, `test_is_relevant_event_rejects_other`, `test_is_relevant_event_create_any` |
+| `src/watch.rs` (event filtering) | cargo test watch:: | `test_is_relevant_event_create`, `test_is_relevant_event_modify`, `test_is_relevant_event_remove`, `test_is_relevant_event_rejects_access`, `test_is_relevant_event_rejects_other`, `test_is_relevant_event_create_any` |
+| `src/watch.rs` (check args) | cargo test watch:: | `test_build_check_args_basic`, `test_build_check_args_strict`, `test_build_check_args_force`, `test_build_check_args_require_coverage`, `test_build_check_args_all_flags` |
+| `src/watch.rs` (watch dirs / event path) | cargo test watch:: | `test_run_watch_collects_watch_dirs`, `test_run_watch_empty_dirs_detected`, `test_event_path_extraction`, `test_event_path_extraction_no_paths` |
 
 ## Coverage Gaps
 

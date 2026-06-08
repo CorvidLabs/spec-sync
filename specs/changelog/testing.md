@@ -6,11 +6,15 @@ spec: changelog.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/changelog.rs` | cargo test changelog:: | `test_parse_range_valid`, `test_parse_range_head_tilde`, `test_parse_range_invalid_no_dots`, `test_parse_range_invalid_empty_from`, `test_parse_range_invalid_empty_to`, `test_parse_range_commit_hashes` |
+| `parse_range` | cargo test changelog::tests::test_parse_range | `test_parse_range_valid`, `test_parse_range_head_tilde`, `test_parse_range_invalid_no_dots`, `test_parse_range_invalid_empty_from`, `test_parse_range_invalid_empty_to`, `test_parse_range_commit_hashes` |
+| frontmatter diffing | cargo test changelog::tests::test_compare_frontmatter | `test_compare_frontmatter_no_changes`, `test_compare_frontmatter_status_change`, `test_compare_frontmatter_version_change`, `test_compare_frontmatter_files_change`, `test_compare_frontmatter_depends_on_change`, `test_compare_frontmatter_multiple_changes`, `test_compare_frontmatter_implements_change`, `test_compare_frontmatter_agent_policy_change` |
+| section diffing | cargo test changelog::tests::test_compare_sections | `test_compare_sections_no_changes`, `test_compare_sections_modified`, `test_compare_sections_added`, `test_compare_sections_removed`, `test_extract_sections_basic`, `test_extract_sections_ignores_subsections` |
+| git-backed generation | cargo test changelog::tests::test_generate_changelog | `test_generate_changelog_no_changes`, `test_generate_changelog_added_spec`, `test_generate_changelog_removed_spec`, `test_generate_changelog_modified_spec` (use a real temp git repo via `setup_git_repo`) |
+| formatters | cargo test changelog::tests::test_format | `test_format_text_empty`, `test_format_text_added`, `test_format_text_modified_with_section_changes`, `test_format_json_structure`, `test_format_markdown_empty`, `test_format_markdown_all_sections` |
 
 ## Coverage Gaps
 
-- Integration gap: add a fixture for "Generate changelog between two tags" before changing user-visible CLI output, generated files, or error handling in changelog.
+- No CLI-level (`tests/integration.rs`) coverage for `specsync changelog <range>`; the `generate_changelog` git path is covered by the in-module `setup_git_repo` tests. Add a CLI fixture before changing the changelog subcommand's terminal output.
 
 ## Behavioral Verification
 

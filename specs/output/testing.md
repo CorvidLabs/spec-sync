@@ -6,7 +6,7 @@ spec: output.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/output.rs` | cargo test output | No inline tests found; add focused coverage for `print_summary`, `print_coverage_line`, `print_coverage_report`, `print_check_markdown` before risky changes |
+| `src/output.rs` | cargo test output:: | `print_summary_does_not_underflow_when_passed_exceeds_total`, `print_summary_handles_zero_and_all_passed`, `print_coverage_line_handles_color_threshold_boundaries` |
 | `tests/integration.rs` | cargo test --test integration score_command_outputs_quality_grades | End-to-end fixture: `score_command_outputs_quality_grades` |
 | `tests/integration.rs` | cargo test --test integration score_json_output_has_grades | End-to-end fixture: `score_json_output_has_grades` |
 | `tests/integration.rs` | cargo test --test integration fix_with_json_output | End-to-end fixture: `fix_with_json_output` |
@@ -28,6 +28,7 @@ spec: output.spec.md
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
 | Empty spec list | `print_summary` shows "0 passed, 0 failed" | Keep or add a focused assertion before changing this behavior |
+| `passed` exceeds `total` | `print_summary` does not panic; `failed` is `saturating_sub` (0) | `print_summary_does_not_underflow_when_passed_exceeds_total` |
 | Coverage report with no unspecced files | Shows "✓ All source files referenced by specs" | Keep or add a focused assertion before changing this behavior |
 | Diff with changed files not in any spec | Lists them under "Changed files not covered by any spec" | Keep or add a focused assertion before changing this behavior |
 

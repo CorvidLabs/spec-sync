@@ -71,7 +71,7 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 | Module | What is used |
 |--------|-------------|
 | commands | `load_and_discover`, `build_schema_columns` |
-| comment | `build_comment_body` |
+| comment | `render_check_comment` |
 | github | `resolve_repo` |
 | validator | `validate_spec`, `compute_coverage` |
 

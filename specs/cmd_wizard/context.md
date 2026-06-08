@@ -4,17 +4,22 @@ spec: cmd_wizard.spec.md
 
 ## Key Decisions
 
-- Module follows the standard command pattern: load config, discover specs, delegate to library module, format output, exit
-- Spec was created during the 100% coverage push to dogfood spec-sync on its own codebase
+- Interactive-first: all input is gathered through `dialoguer` (`Input`, `Select`, `Confirm`). Interrupting any prompt maps to a clean `process::exit(0)`.
+- Safety before writing: nothing touches disk until the user confirms the preview; an existing spec aborts the wizard early.
+- Module-type presets are inlined as `(extra_invariants, extra_api_hint)` tuples keyed on the selected template index, so each type seeds appropriate invariants and an API table.
+- The spec body is built as one `format!` string here rather than via the generator, but companion files are still produced through `generator::generate_companion_files_for_spec` (so design.md respects `companions.design`).
 
 ## Files to Read First
 
-- `src/commands/wizard.rs` — primary source file
+- `src/commands/wizard.rs` — the full interactive flow and spec-body template
+- `src/generator.rs` — `generate_companion_files_for_spec` for the companion set
+- `src/config.rs` — `source_dirs`, `source_extensions`, `companions.design`
+- `src/exports.rs` — `has_extension` used during source auto-detection
 
 ## Current Status
 
-Fully implemented and stable. Spec created to achieve 100% file coverage.
+Fully implemented and stable. No automated tests cover the interactive flow (it requires a TTY); the spec-body shape mirrors the `scaffold`/`generate` templates.
 
 ## Notes
 
-- This module is part of the command layer — it orchestrates library modules rather than containing domain logic
+- Part of the command layer — orchestrates `config`, `generator`, and `exports`; the only command that depends on interactive prompts.

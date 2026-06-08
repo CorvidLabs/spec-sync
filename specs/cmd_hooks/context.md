@@ -4,17 +4,21 @@ spec: cmd_hooks.spec.md
 
 ## Key Decisions
 
-- Module follows the standard command pattern: load config, discover specs, delegate to library module, format output, exit
-- Spec was created during the 100% coverage push to dogfood spec-sync on its own codebase
+- The command is a pure dispatcher. Unlike most commands it does **not** load config or discover specs — it only translates CLI flags into `hooks::HookTarget` values and forwards to the `hooks` library module.
+- "No flags means all targets" is encoded by returning an empty `Vec<HookTarget>` from `collect_hook_targets`; the convention is interpreted downstream in the `hooks` module, not here.
+- Install and uninstall share the exact same flag-collection helper, guaranteeing symmetric target selection.
 
 ## Files to Read First
 
-- `src/commands/hooks.rs` — primary source file
+- `src/commands/hooks.rs` — the dispatcher and `collect_hook_targets`.
+- `src/hooks.rs` — `cmd_install`, `cmd_uninstall`, `cmd_status`, the `HookTarget` enum, and all file/IO logic.
+- `src/cli.rs` (`HooksAction`) — the flag definitions (`--claude`, `--cursor`, `--copilot`, `--agents`, `--precommit`, `--claude-code-hook`).
 
 ## Current Status
 
-Fully implemented and stable. Spec created to achieve 100% file coverage.
+Implemented and stable. No tests target this file directly; behavior is validated through the `hooks` module.
 
 ## Notes
 
-- This module is part of the command layer — it orchestrates library modules rather than containing domain logic
+- Targets map to: `Claude` (CLAUDE.md), `Cursor` (.cursorrules), `Copilot` (.github/copilot-instructions.md), `Agents` (AGENTS.md), `Precommit` (git pre-commit hook), `ClaudeCodeHook` (Claude Code settings.json hook).
+- Part of the command layer — orchestrates a library module rather than containing domain logic.

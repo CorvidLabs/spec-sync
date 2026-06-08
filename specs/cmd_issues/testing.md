@@ -6,32 +6,38 @@ spec: cmd_issues.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/issues.rs` | cargo test commands::issues | No inline tests found; add focused coverage for `cmd_issues`, `load_config`, `parse_frontmatter`, `OutputFormat` before risky changes |
+| `src/commands/issues.rs` | (none) | No inline `#[cfg(test)]` module and no integration fixtures — the command depends on the live GitHub API. |
+| `src/github.rs` | cargo test github | `verify_spec_issues`/`resolve_repo` classification and repo resolution are covered in the `github` module's tests. |
 
 ## Coverage Gaps
 
-- Integration gap: add a fixture for "All references valid" before changing user-visible CLI output, generated files, or error handling in cmd_issues.
+- No fixture exercises the verification flow. The most testable, network-free case is "no spec references": a project whose specs have neither `implements` nor `tracks` should print "No issue references found in spec frontmatter." and exit 0 — add that first.
+- Add recorded/mocked GitHub responses to cover the valid/closed/not-found/error classification and the non-zero exit on 404 or error.
 
 ## Behavioral Verification
 
 | Flow | Fixture / Setup | Action | Expected Result |
 |------|-----------------|--------|-----------------|
-| All references valid | specs reference issues #10, #15, #20 — all exist and are open | `cmd_issues` runs | prints "3 valid, 0 closed, 0 not found" and exits 0 |
-| Stale reference | spec references issue #5 which was deleted | `cmd_issues` runs | prints error for issue #5 and exits 1 |
+| No references | specs have no `implements`/`tracks` | `specsync issues` | Prints "No issue references found in spec frontmatter." and exits 0. |
+| All references valid | issues #10, #15, #20 open | `specsync issues` | Prints "3 valid, 0 closed, 0 not found" and exits 0. |
+| Closed reference | a referenced issue is closed | `specsync issues` | Warns "(closed — spec may need updating)"; still exits 0 if nothing is not-found/errored. |
+| Stale reference (404) | spec references a deleted issue | `specsync issues` | Reports it as not found and exits 1. |
+| `--create` with drift | specs that fail validation | `specsync issues --create` | Runs validation and opens drift issues for the failing specs. |
 
 ## Regression Matrix
 
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
-| GitHub repo unresolvable | Exits 1 with error message | Keep or add a focused assertion before changing this behavior |
-| `gh` CLI not available | API calls fail, counted as errors | Keep or add a focused assertion before changing this behavior |
-| Issue returns 404 | Counted as "not found", triggers non-zero exit | Keep or add a focused assertion before changing this behavior |
-| API rate limit | Counted as "error", reported but does not halt | Keep or add a focused assertion before changing this behavior |
+| GitHub repo unresolvable | Prints error, exits 1 | Add a focused assertion before changing repo resolution. |
+| Issue returns 404 (not found) | Counted as not-found; triggers exit 1 | Add a mocked fixture before changing exit logic. |
+| Verification error (e.g. API/auth failure) | Counted as error; **triggers exit 1** (`total_not_found > 0 || total_errors > 0`) | Add a mocked fixture before changing exit logic. |
+| Closed issue only | Warned but does **not** by itself force a non-zero exit | Add a mocked fixture before changing the exit condition. |
+| Spec without `implements`/`tracks` | Skipped (not verified) | Cover with the network-free "no references" fixture. |
 
 ## Reviewer Checklist
 
-- Run `cargo run -- issues --help` and confirm the help text still names the documented flags and behavior.
-- Run the narrow source command above before the full suite when changing `src/commands/issues.rs`.
-- Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
-- If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
+- Run `cargo run -- issues --help` and confirm `--create` and the format flags are present.
+- For changes to verification/classification, run the `github` module's tests — that is where the API logic lives.
+- Confirm the exit-code condition (`not_found > 0 || errors > 0`) still matches the documented Regression Matrix before changing it.
+- If an output or error message changes, update the matching Regression Matrix row and assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.

@@ -4,17 +4,21 @@ spec: cmd_compact.spec.md
 
 ## Key Decisions
 
-- Module follows the standard command pattern: load config, discover specs, delegate to library module, format output, exit
-- Spec was created during the 100% coverage push to dogfood spec-sync on its own codebase
+- Thin command wrapper: load config, resolve `specs_dir`, call `compact::compact_changelogs`, format output. No trimming logic here.
+- `--keep` is passed straight through; the wrapper only flips the printed verb ("would compact" vs "compacted") and prints the banner.
+- Empty result is a success case ("No changelogs need compaction (all within limit).") with an early return — not an error.
+- Per-spec output reports both `removed` and the surviving `compacted_entries` count so reviewers can sanity-check the keep limit.
 
 ## Files to Read First
 
-- `src/commands/compact.rs` — primary source file
+- `src/commands/compact.rs` — the command wrapper (this module)
+- `src/compact.rs` — `compact_changelogs` + `CompactResult { spec_path, compacted_entries, removed }`, where the changelog-table trimming lives
+- `src/config.rs` — `load_config` / `specs_dir` resolution
 
 ## Current Status
 
-Fully implemented and stable. Spec created to achieve 100% file coverage.
+Implemented and stable. The `compact` delegate is unit-tested (trim, no-op when under limit, three-column tables); the wrapper itself has no inline tests (output formatting only).
 
 ## Notes
 
-- This module is part of the command layer — it orchestrates library modules rather than containing domain logic
+- `CompactResult.spec_path` is already repo-relative; the wrapper prints it verbatim.

@@ -4,21 +4,31 @@ spec: cmd_new.spec.md
 
 ## User Stories
 
-- As a developer, I want the `cmd_new` module to work reliably so that spec-sync validation and tooling is trustworthy
-- As a CI operator, I want clear exit codes and error messages so that pipeline failures are actionable
+- As a developer starting a new module, I want `specsync new <module>` to scaffold a spec in one step so that I don't hand-write frontmatter and boilerplate sections.
+- As a developer, I want the new spec to auto-detect the module's source files (a matching `src/<module>/` directory or a `src/<module>.<ext>` file) so that the `files:` list is correct from the start.
+- As a developer, I want the Public API table pre-populated with the module's exported symbols so that I only have to fill in descriptions, not discover the surface area.
+- As a developer, I want `--full` to also create the companion files (tasks, context, requirements, testing — plus design when configured) so that a module's spec set is complete from creation.
+- As a careful user, I want the command to refuse to overwrite an existing spec so that I never lose hand-written content.
 
 ## Acceptance Criteria
 
-- All exported functions perform their documented purpose
-- Error conditions produce clear, actionable messages
-- Module follows the project's established patterns for config loading and output formatting
+- `specsync new <module>` creates `<specs_dir>/<module>/<module>.spec.md` with frontmatter (`module`, `version: 1`, `status: draft`, `files:`, `db_tables: []`, `depends_on: []`) and the standard section skeleton (Purpose, Public API, Dependencies, Change Log).
+- Source files are detected by scanning each configured `source_dirs` entry for a directory named `<module>` (recursively) and for a top-level file whose stem equals `<module>`, filtered by `source_extensions`; detected paths are relative, forward-slash, sorted, and de-duplicated.
+- When no source files are found, the spec is still created with `files: []`.
+- Exported symbols from the detected source files are collected via `exports::get_exported_symbols`, de-duplicated, and rendered as Public API rows; each row carries a review prompt to document the export rather than a placeholder marker.
+- `--full` invokes `generator::generate_companion_files_for_spec`, creating `tasks.md`, `context.md`, `requirements.md`, `testing.md`, and `design.md` only when `companions.design` is enabled in config.
+- An existing target spec file causes exit code 1 with an error message; the command never overwrites it.
 
 ## Constraints
 
-- Must not panic on expected error conditions — return Results or print and exit
-- Must work with the project's Clap-based CLI argument parsing
+- Must not panic on expected error conditions — print an error and exit non-zero.
+- Dates are produced by an in-module `chrono_lite_today()` helper (no `chrono` dependency) and must be cross-platform.
+- Path output is normalized to forward slashes so generated specs are stable across Windows and Unix.
+- Honors the project's `specs_dir`, `source_dirs`, `source_extensions`, and `companions.design` config values.
 
 ## Out of Scope
 
-- GUI or web interface
-- Interactive prompts (except wizard module)
+- Filling in section prose, invariants, or dependency descriptions (the command scaffolds; the author writes content).
+- Inferring `depends_on` from source imports (emitted as `depends_on: []`).
+- Interactive prompts (see the `wizard` command) and any GUI/web interface.
+- Updating the registry or running validation as part of creation.

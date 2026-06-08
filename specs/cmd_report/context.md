@@ -4,17 +4,24 @@ spec: cmd_report.spec.md
 
 ## Key Decisions
 
-- Module follows the standard command pattern: load config, discover specs, delegate to library module, format output, exit
-- Spec was created during the 100% coverage push to dogfood spec-sync on its own codebase
+- **Read-only health view**: `cmd_report` only reads specs, source files, and git history; it never mutates anything. Specs that fail to read or parse are skipped rather than aborting the run.
+- **Staleness via git, resolved once**: the spec's last commit is looked up once with `git_last_commit_hash`, then `git_commits_since(root, spec_commit, source_file)` is counted per declared source file. This replaced the earlier `git_commits_between` per-file call (an N+1 on `git log`).
+- **Graceful git absence**: outside a git repo, or when a spec has no commit history, the module is simply not flagged stale — no error is raised.
+- **Completeness heuristics**: missing `status`/`module`/`version` frontmatter, or a `Public API`/`Invariants` section that is absent/empty/`TODO`/`TBD`/`N/A`/HTML-comment-only, marks a module incomplete.
+- **Status scoping at the CLI layer**: `--only-status` / `--exclude-status` are global flags applied via `filter_by_status` before the report is built.
 
 ## Files to Read First
 
-- `src/commands/report.rs` — primary source file
+- `src/commands/report.rs` — the whole command, including the `ModuleInfo` aggregation and JSON/text rendering.
+- `src/git_utils.rs` — `git_last_commit_hash` and `git_commits_since`, the staleness primitives.
+- `src/validator.rs` — `compute_coverage`, the source of the overall coverage numbers.
+- `src/commands/mod.rs` — `load_and_discover` and `filter_by_status`.
 
 ## Current Status
 
-Fully implemented and stable. Spec created to achieve 100% file coverage.
+Stable and implemented. Behavior is verified only indirectly today — `src/commands/report.rs` has no `#[cfg(test)]` module and there are no `specsync report` integration tests; the underlying git and coverage helpers are tested in their own modules.
 
 ## Notes
 
-- This module is part of the command layer — it orchestrates library modules rather than containing domain logic
+- This is a command-layer module: it orchestrates `git_utils`, `parser`, and `validator` rather than holding domain logic.
+- Overall coverage comes from `compute_coverage` (project-wide), while per-module coverage is computed locally from each spec's `files:` list — the two can differ.

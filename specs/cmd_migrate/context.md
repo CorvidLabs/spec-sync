@@ -9,7 +9,7 @@ spec-sync v4.0.0 is a major version break that restructures how project metadata
 ## Key Terminology
 
 - **3.x layout**: Config at root (`specsync.json`, `specsync-registry.toml`), lifecycle history embedded in spec frontmatter as `lifecycle_log` YAML field
-- **4.0 layout**: All metadata under `.specsync/` directory — `config.json`, `registry.toml`, `lifecycle/{module}.json`, `changes/`, `archive/`
+- **4.0 layout**: All metadata under `.specsync/` directory — `config.toml`, `registry.toml`, `lifecycle/{module}.json`, `changes/`, `archive/`, plus a `version` stamp file and `.gitignore`
 - **Migration step**: An atomic unit of work with a check function (is this done?) and an apply function (do it)
 - **Step status**: `Done` (skip), `Pending` (needs work), `Partial` (previous run crashed mid-step — fix forward)
 
@@ -34,3 +34,13 @@ Frontmatter is for spec metadata (module, version, status, dependencies). Lifecy
 ### Modeled after `cargo fix --edition`
 
 Rust's edition migration is the gold standard: automatic, non-interactive, test-driven validation after migration, clear handling of edge cases that can't be auto-fixed. We adopt the same philosophy: migrate everything possible, flag what can't be migrated, validate the result.
+
+## Files to Read First
+
+- `src/commands/migrate.rs` — the step pipeline (`steps()`), each `check_*`/`apply_*` pair, `cmd_migrate`, and the inline unit tests.
+- `src/config.rs` — `load_config_from_path` and `config_to_toml`, used by the config-relocation step.
+- `tests/integration.rs` — the `specsync migrate` section (`migrate_full_v3_to_v4` and friends) for end-to-end expectations and the 3.x fixture builder.
+
+## Current Status
+
+Implemented and shipped (`status: draft` in the spec frontmatter is a maturity label, not project state). The full v3→v4 flow is covered by integration tests, and `apply_create_directories` now has dedicated unit tests. Remaining work is expanding unit coverage to the other `apply_*` steps.

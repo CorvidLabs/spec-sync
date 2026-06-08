@@ -4,21 +4,24 @@ spec: cmd_init_registry.spec.md
 
 ## User Stories
 
-- As a developer, I want the `cmd_init_registry` module to work reliably so that spec-sync validation and tooling is trustworthy
-- As a CI operator, I want clear exit codes and error messages so that pipeline failures are actionable
+- As a maintainer of a multi-project workspace, I want `specsync init-registry` to generate a `specsync-registry.toml` listing my specs so that other projects can reference them.
+- As a developer, I want the registry's project name to default to the directory name but be overridable with `--name` so that the registry reads naturally.
+- As a developer, I want init-registry to be safe to re-run so that it never overwrites an existing registry.
 
 ## Acceptance Criteria
 
-- All exported functions perform their documented purpose
-- Error conditions produce clear, actionable messages
-- Module follows the project's established patterns for config loading and output formatting
+- `cmd_init_registry` writes `specsync-registry.toml` at the project root using `registry::generate_registry(root, project_name, &config.specs_dir)`.
+- The project name is `name` when provided; otherwise the root directory's file name, falling back to `"project"` when that cannot be determined.
+- If `specsync-registry.toml` already exists, the command prints a message and returns without writing.
+- On success, prints "Created specsync-registry.toml".
 
 ## Constraints
 
-- Must not panic on expected error conditions — return Results or print and exit
-- Must work with the project's Clap-based CLI argument parsing
+- Reads configuration via `config::load_config` to obtain `specs_dir`; performs no spec validation itself.
+- Must not panic on expected error conditions; a write failure prints an error and exits 1.
 
 ## Out of Scope
 
-- GUI or web interface
-- Interactive prompts (except wizard module)
+- Discovering and rendering registry entries (owned by `registry::generate_registry`).
+- Updating or merging into an existing registry (existing file is left untouched).
+- Interactive prompts, GUI, or web output.

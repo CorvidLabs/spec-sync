@@ -6,7 +6,7 @@ spec: cmd_coverage.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/coverage.rs` | cargo test commands::coverage | No inline tests found; add focused coverage for `cmd_coverage`, `IgnoreRules::load`, `compute_coverage` before risky changes |
+| `src/commands/coverage.rs` | cargo test commands::coverage | Command wrapper has no inline tests; exercised end-to-end via the integration fixtures below. Note: this wrapper uses `IgnoreRules::default()`, not `IgnoreRules::load` |
 | `tests/integration.rs` | cargo test --test integration coverage_full_reports_100 | End-to-end fixture: `coverage_full_reports_100` |
 | `tests/integration.rs` | cargo test --test integration coverage_partial_lists_unspecced_files | End-to-end fixture: `coverage_partial_lists_unspecced_files` |
 | `tests/integration.rs` | cargo test --test integration coverage_shows_unspecced_modules | End-to-end fixture: `coverage_shows_unspecced_modules` |
@@ -21,7 +21,8 @@ spec: cmd_coverage.spec.md
 | Flow | Fixture / Setup | Action | Expected Result |
 |------|-----------------|--------|-----------------|
 | Full coverage | all source files claimed by specs | `cmd_coverage` runs | prints 100% with green check marks |
-| Below threshold | 58% coverage, `--require-coverage 80` | `cmd_coverage` runs | lists uncovered files and exits 1 |
+| Below threshold | partial coverage, `--require-coverage 80` | `cmd_coverage` runs | lists uncovered files and exits 1 |
+| JSON metrics dump | `--format json` | `cmd_coverage` runs | emits coverage keys (`file_coverage`, `loc_coverage`, `uncovered_files`, …) and exits 0 regardless of validation status |
 
 ## Regression Matrix
 

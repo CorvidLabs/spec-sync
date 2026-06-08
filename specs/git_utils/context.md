@@ -4,18 +4,26 @@ spec: git_utils.spec.md
 
 ## Key Decisions
 
-- **Git CLI wrapper**: The module shells out to `git` rather than linking a git library, keeping dependencies small.
-- **Safe defaults**: Git failures return `None`, `0`, or `false` so callers can decide whether to warn, skip, or fail.
-- **Repository-root execution**: Every command runs with `current_dir(root)` to preserve expected path resolution.
+- **Git CLI wrapper**: shells out to `git` via `std::process::Command` rather than linking libgit2, keeping the dependency tree small.
+- **Safe defaults**: git failures return `None` / `0` / `false` so callers decide whether to warn, skip, or fail.
+- **Repository-root execution**: every command runs with `current_dir(root)`.
+- **N+1 fix (2026-06-07)**: the old `git_commits_between` (which re-resolved the spec commit on every call) was removed. The current shape is: caller resolves the spec's commit once with `git_last_commit_hash`, then calls `git_commits_since(root, spec_commit, source_file)` per source file. `git_commits_since` runs `git rev-list --count {spec_commit}..HEAD -- {source_file}`.
+
+## Public Surface
+
+- `git_last_commit_hash(root, file) -> Option<String>`
+- `git_commits_since(root, spec_commit, source_file) -> usize`
+- `is_git_repo(root) -> bool`
+- `struct StaleInfo { spec_path, module_name, max_commits_behind, source_details }`
 
 ## Files to Read First
 
-- `src/git_utils.rs` — Shared git wrappers.
-- `src/commands/stale.rs` and `src/commands/report.rs` — Main callers.
+- `src/git_utils.rs` — the helpers, `StaleInfo`, and the inline `#[cfg(test)]` module.
+- `src/commands/stale.rs` — the primary caller demonstrating the resolve-once / count-per-file pattern.
 
 ## Current Status
 
-Stable. Used by staleness detection, reports, and spec scoring freshness.
+Stable. Used by staleness detection, reports, check, and scoring freshness. Covered by inline unit tests using `tempfile` + real `git` invocations.
 
 ## Notes
 

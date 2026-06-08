@@ -5,18 +5,28 @@ spec: cmd_stale.spec.md
 ## User Stories
 
 - As a developer, I want to know which specs have drifted from their source files so I can update them
-- As a CI operator, I want staleness checks integrated into the validation pipeline so drift is caught early
+- As a CI operator, I want `specsync stale` to fail the build (non-zero exit) when drift is detected so drift is caught early
+- As a maintainer, I want to scope the scan with `--only-status`/`--exclude-status` so I can ignore draft or archived specs
 
 ## Acceptance Criteria
 
-- `specsync stale` lists specs whose source files have changed since the spec was last modified
-- Reports include commit count, changed file list, and last commit details
-- JSON output mode (`--format json`) produces machine-readable staleness data
-- `specsync check --stale` integrates drift warnings into the standard check pipeline
-- Exit code is non-zero when stale specs are detected (for CI usage)
+- `specsync stale` lists specs whose source files have changed since the spec was last committed, sorted most-stale-first
+- A spec is stale when any of its source files has `>= threshold` commits since the spec's last commit (default threshold: 5)
+- Output reports per-spec commit count and the list of drifted source files (each with its own commit count)
+- Honors the global `--exclude-status` / `--only-status` filters when selecting which specs to scan
+- Supports `text`/`table`/`csv` (human), `json` (machine), and `markdown`/`github` output formats
+- Exit code is 1 when any stale specs are detected, 0 when all are fresh (for CI usage)
+- Requires a git repository: errors and exits 1 when `is_git_repo` returns false (JSON mode emits an error object instead of stderr text)
 
 ## Constraints
 
-- Must not panic on expected error conditions — return Results or print and exit
+- Must not panic on expected error conditions — print and exit
 - Must work with the project's Clap-based CLI argument parsing
-- Git operations must handle missing git repos gracefully (non-git directories)
+- Git operations must handle missing git repos gracefully (non-git directories error cleanly rather than crashing)
+- Staleness uses `git_commits_since` with one precomputed spec commit hash per spec (no N+1 `git log` calls)
+
+## Out of Scope
+
+- Auto-updating or regenerating stale specs (reporting only)
+- File modification-time heuristics (git history is the sole source of truth)
+- Combining staleness with coverage/validation status (that is the `report` command)

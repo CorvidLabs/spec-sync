@@ -6,7 +6,7 @@ spec: cmd_migrate.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/migrate.rs` | cargo test commands::migrate | No inline tests found; add focused coverage for `cmd_migrate`, `MigrationStep`, `StepStatus`, `MigrationContext` before risky changes |
+| `src/commands/migrate.rs` | cargo test commands::migrate | `apply_create_directories_creates_v4_layout`, `apply_create_directories_is_idempotent` (step-apply unit tests). Other `apply_*` steps are exercised only via the integration flow below |
 | `tests/integration.rs` | cargo test --test integration migrate_full_v3_to_v4 | End-to-end fixture: `migrate_full_v3_to_v4` |
 | `tests/integration.rs` | cargo test --test integration migrate_check_passes_after_migration | End-to-end fixture: `migrate_check_passes_after_migration` |
 | `tests/integration.rs` | cargo test --test integration migrate_idempotent_rerun_is_noop | End-to-end fixture: `migrate_idempotent_rerun_is_noop` |

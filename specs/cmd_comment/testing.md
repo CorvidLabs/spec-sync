@@ -6,31 +6,35 @@ spec: cmd_comment.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/comment.rs` | cargo test commands::comment | No inline tests found; add focused coverage for `cmd_comment`, `build_comment_body`, `resolve_repo` before risky changes |
+| `src/commands/comment.rs` | cargo test commands::comment | Command wrapper has no inline tests (pipeline reuse + gh shell-out branch); cover stdout mode end-to-end before risky changes |
+| `src/comment.rs` rendering | cargo test comment::tests::test_render_check_comment | `test_render_check_comment_passed`, `test_render_check_comment_failed_with_errors`, `test_render_check_comment_has_footer`, `test_render_check_comment_truncates_unspecced_files` |
+| `src/comment.rs` suggestions | cargo test comment::tests::test_suggestion | `test_suggestion_for_missing_section`, `test_suggestion_for_source_file_not_found`, `test_suggestion_for_db_table`, `test_suggestion_for_dependency`, … |
+| `src/comment.rs` grouping/links | cargo test comment::tests | `test_group_by_spec`, `test_split_spec_prefix`, `test_strip_spec_prefix`, `test_spec_link_with_repo`, `test_spec_link_without_repo` |
 
 ## Coverage Gaps
 
-- Integration gap: add a fixture for "Print to stdout" before changing user-visible CLI output, generated files, or error handling in cmd_comment.
+- No test drives `cmd_comment` directly, so stdout mode (body printed to stdout) and the `--pr` posting branch (resolve repo + `gh pr comment`) are unverified at the wrapper level. The body content is covered through `comment::render_check_comment`.
 
 ## Behavioral Verification
 
 | Flow | Fixture / Setup | Action | Expected Result |
 |------|-----------------|--------|-----------------|
-| Print to stdout | `--pr` is not set | `cmd_comment` runs | prints markdown summary to stdout |
-| Post to PR | `--pr 42` is set | `cmd_comment` runs | posts comment on PR #42 |
-| Marketplace action captures stdout | the marketplace action runs with `comment: true` | `specsync comment` is invoked without `--pr` | the stdout output is identical to what the CI workflow captures via `cargo run -- comment` |
+| Print to stdout | `--pr` is not set | `cmd_comment` runs | prints the `render_check_comment` markdown body to stdout, no `gh` invocation |
+| Post to PR | `--pr 42` is set, repo resolvable | `cmd_comment` runs | resolves repo and runs `gh pr comment 42 --repo … --body …`, prints "Posted spec-sync comment on PR #42" |
+| Status matches `check` | same project, same flags | `cmd_comment` vs `cmd_check` | the comment's pass/fail badge matches `check`'s exit code (both go through `compute_exit_code`) |
 
 ## Regression Matrix
 
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
-| `gh` CLI not installed | Command fails with error | Keep or add a focused assertion before changing this behavior |
-| GitHub repo unresolvable | Exits 1 | Keep or add a focused assertion before changing this behavior |
+| `gh` CLI not installed | Prints "Failed to run gh CLI" + install hint, exits 1 | Keep or add a focused assertion before changing this behavior |
+| `gh pr comment` exits non-zero | Prints the exit code and exits 1 | Keep or add a focused assertion before changing this behavior |
+| GitHub repo unresolvable (`--pr` set) | Prints resolver error and exits 1 | Keep or add a focused assertion before changing this behavior |
 
 ## Reviewer Checklist
 
-- Run `cargo run -- comment --help` and confirm the help text still names the documented flags and behavior.
-- Run the narrow source command above before the full suite when changing `src/commands/comment.rs`.
-- Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
+- Run `cargo run -- comment --help` and confirm the help text still names the documented flags (`--pr`, `--strict`, `--enforcement`, `--require-coverage`).
+- Run `cargo test comment` when changing the renderer; run `cargo test commands::comment` when changing the wrapper.
+- Reproduce the stdout-mode Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.

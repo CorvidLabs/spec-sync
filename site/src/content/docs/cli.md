@@ -48,23 +48,32 @@ specsync coverage --json
 Scaffold spec files for modules that don't have one. Uses `specs/_template.spec.md` if present.
 
 ```bash
-specsync generate                       # template mode — guided starter specs
-specsync generate --provider auto       # AI mode — auto-detect provider, writes real content
-specsync generate --provider anthropic  # AI mode — use Anthropic API directly
+specsync generate                          # template mode — guided starter specs
+specsync generate --provider anthropic     # AI mode — use the Anthropic API
+specsync generate --provider openai --model gpt-4o   # AI mode — pick provider + model
+specsync generate --provider ollama        # AI mode — keyless local Ollama
 ```
 
-With `--provider`, source code is sent to an LLM which generates filled-in specs (Purpose, Public API tables, Invariants, etc.). Use `--provider auto` to auto-detect an installed provider, or specify one by name:
+With a provider configured, source code is sent to an LLM which generates filled-in specs (Purpose, Public API tables, Invariants, etc.). AI calls go through the shared [`corvid-ai`](https://crates.io/crates/corvid-ai) crate over plain HTTP — no CLI tool required. Just set `<PROVIDER>_API_KEY` and name the provider:
 
 | Provider | How it works |
 |:---------|:-------------|
-| `auto` | Auto-detect: checks installed CLIs (`claude`, `ollama`, `copilot`), then API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) |
-| `claude` | Shells out to Claude Code CLI (`claude -p --output-format text`) |
-| `anthropic` | Calls Anthropic Messages API directly (requires `ANTHROPIC_API_KEY`) |
-| `openai` | Calls OpenAI Chat Completions API directly (requires `OPENAI_API_KEY`) |
-| `ollama` | Shells out to Ollama CLI (`ollama run <model>`) |
-| `copilot` | Shells out to GitHub Copilot CLI (`gh copilot suggest`) |
+| `anthropic` | Anthropic Messages API (`ANTHROPIC_API_KEY`). Default model `claude-sonnet-4-6` |
+| `openai` | OpenAI Chat Completions API (`OPENAI_API_KEY`). Requires an explicit `--model` |
+| `openrouter` | OpenRouter API (`OPENROUTER_API_KEY`) |
+| `gemini` | Google Gemini API (`GEMINI_API_KEY`) |
+| `deepseek` | DeepSeek API (`DEEPSEEK_API_KEY`) |
+| `groq` | Groq API (`GROQ_API_KEY`) |
+| `mistral` | Mistral API (`MISTRAL_API_KEY`) |
+| `xai` | xAI API (`XAI_API_KEY`) |
+| `together` | Together API (`TOGETHER_API_KEY`). Requires an explicit `--model` |
+| `ollama` | Local Ollama HTTP API (`http://localhost:11434`, keyless) or Ollama Cloud (`OLLAMA_API_KEY`). Default model `llama3.3` |
+| `claude` | **Deprecated** — warns and routes to the `anthropic` API |
+| `copilot`, `cursor` | **Deprecated** |
 
-See [Configuration](configuration.md) for `aiProvider`, `aiModel`, `aiApiKey`, `aiBaseUrl`, and `aiTimeout`.
+With no provider configured, `generate` auto-detects: no key anywhere falls back to keyless local Ollama; exactly one `<PROVIDER>_API_KEY` selects that provider; multiple keys prompt an interactive picker (TTY) or use a deterministic order. Add `--model <id>` to override the provider default.
+
+See [Configuration](configuration.md) for `aiProvider`, `aiModel`, `aiCommand`, `aiApiKey`, `aiBaseUrl`, and `aiTimeout`.
 
 ### `score`
 
@@ -396,7 +405,8 @@ specsync watch
 | `--strict` | Warnings become errors. Recommended for CI. |
 | `--require-coverage N` | Fail if file coverage < N%. |
 | `--root <path>` | Project root directory (default: cwd). |
-| `--provider <name>` | Enable AI-powered generation and select provider: `auto`, `claude`, `anthropic`, `openai`, `ollama`, or `copilot`. Without this flag, `generate` uses templates only. |
+| `--provider <name>` | Enable AI-powered generation and select provider: `anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, or `ollama` (deprecated: `claude`→`anthropic`, `copilot`, `cursor`). Without this flag (and no AI config/env), `generate` uses templates only. |
+| `--model <id>` | Override the provider's default model (e.g. `gpt-4o`, `claude-sonnet-4-6`). Resolution is `--model` > `SPECSYNC_AI_MODEL` > `aiModel` config > provider default. |
 | `--format <fmt>` | Output format: `text` (default), `json`, or `markdown`. Markdown produces clean tables suitable for PRs and docs. |
 | `--json` | Shorthand for `--format json`. Structured output, no color codes. |
 | `--fix` | Auto-add undocumented exports as stub rows in spec Public API tables (on `check`). |

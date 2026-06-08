@@ -26,7 +26,7 @@ spec: cmd_migrate.spec.md
 - Must work on macOS, Linux, and Windows (no symlinks, no Unix-specific operations)
 - Must handle large projects (100+ specs) without excessive memory usage
 - Backup should be opt-out (`--no-backup`) not opt-in
-- File permissions: directories 0755, files 0644 (explicit, not inherited)
+- Created files and directories use the platform default permissions (`fs::create_dir_all` / `fs::write`); no explicit mode is set
 
 ## Out of Scope
 

@@ -10,9 +10,12 @@ spec: comment.spec.md
 
 ## Acceptance Criteria
 
-- `render_check_comment` produces valid GitHub-flavored markdown with pass/fail header, summary table, coverage metrics, and actionable error suggestions
-- When repo and branch are provided, spec links are full GitHub URLs; otherwise relative markdown links
-- Errors are classified into actionable categories: missing sections, missing source files, DB table issues, frontmatter problems, dependency issues
+- `render_check_comment` produces valid GitHub-flavored markdown with pass/fail header (✅/❌), summary table (specs checked, passed, errors, warnings, file coverage, LOC coverage), grouped error/warning sections, an actionable checklist, an unspecced-files section, and a footer
+- When repo and branch are provided, spec links are full GitHub URLs; otherwise plain inline-code markdown
+- Errors are classified into actionable categories: missing sections, missing source files, DB table issues, frontmatter problems, dependency issues, schema column issues, and stale file references (with a generic "Review and fix" fallback)
+- Warnings are classified into: undocumented export, consumed-by, schema column (with a generic "Review" fallback)
+- Errors and warnings are grouped by spec path (`group_by_spec`), preserving insertion order; messages prefixed with `spec/path: ...` have the prefix stripped for the checklist
+- The unspecced-files list is truncated to 15 entries with an "...and N more" line
 - `detect_branch` returns `Some(branch)` inside a git repo, `None` otherwise
 - Both the marketplace GitHub Action (`action.yml`) and project CI workflow (`.github/workflows/ci.yml`) use `specsync comment` to generate identical PR comment output
 
@@ -24,6 +27,6 @@ spec: comment.spec.md
 
 ## Out of Scope
 
-- Posting comments (handled by `cmd_comment`)
+- Posting comments (handled by `cmd_comment` / the GitHub Action and CI workflow)
 - Interactive or terminal-formatted output
-- Violation-level rendering (`SpecViolation`, `render_comment_body` were removed in the unified pipeline refactor)
+- Public violation-level rendering: the public API is just `render_check_comment` and `detect_branch`. (`SpecViolation` and `render_comment_body` exist only as private test helpers in the `#[cfg(test)]` module, not as part of the module's API.)

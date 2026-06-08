@@ -16,7 +16,7 @@ spec: compact.spec.md
 
 | Flow | Fixture / Setup | Action | Expected Result |
 |------|-----------------|--------|-----------------|
-| Compact a long changelog | a spec with 20 changelog entries and `keep = 5` | `compact_changelogs` is called | the first 15 entries are replaced with a single summary row like `\| 2025-01-01 — 2026-03-15 \| 15 entries compacted \|` |
+| Compact a long changelog | a spec with 20 changelog entries and `keep = 5` | `compact_changelogs` is called | the first 15 entries are replaced with a single summary row of the form `\| <first_date> — <last_date> \| Compacted: 15 entries \|` |
 | Short changelog (no compaction needed) | a spec with 3 changelog entries and `keep = 5` | `compact_changelogs` is called | the spec is skipped (not included in results) |
 | Dry run | specs with long changelogs | `compact_changelogs(root, specs_dir, 5, true)` is called | returns `CompactResult` entries but does not modify any files |
 

@@ -6,7 +6,7 @@ spec: exports.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/exports/mod.rs` | cargo test exports::mod | No inline tests found; add focused coverage for `get_exported_symbols`, `get_exported_symbols_with_level`, `is_test_file`, `bool` before risky changes |
+| `src/exports/mod.rs` | cargo test exports:: | No inline tests in `mod.rs` itself; covered indirectly via the per-language backends and `tests/integration.rs`. Add focused coverage for `get_exported_symbols`, `get_exported_symbols_full`, `is_test_file`, `is_source_file`, `has_extension` before risky changes |
 | `src/exports/typescript.rs` | cargo test exports::typescript:: | `test_basic_exports`, `test_comments_stripped`, `test_re_exports`, `test_wildcard_namespace_export`, `test_wildcard_export_with_resolver`, `test_wildcard_export_without_resolver` |
 | `src/exports/python.rs` | cargo test exports::python:: | `test_python_all`, `test_python_no_all`, `test_python_all_single_quotes`, `test_python_all_overrides_conventions`, `test_python_decorators_ignored`, `test_python_nested_not_captured` |
 | `src/exports/rust_lang.rs` | cargo test exports::rust_lang:: | `test_rust_exports`, `test_pub_crate`, `test_ignores_pub_inside_string_literals`, `test_pub_after_raw_string_with_hash_in_content`, `test_real_ai_rs`, `test_real_registry_rs` |
@@ -19,9 +19,9 @@ spec: exports.spec.md
 | `src/exports/php.rs` | cargo test exports::php:: | `test_php_class_and_methods`, `test_php_final_readonly`, `test_php_skips_magic_methods` |
 | `src/exports/ruby.rs` | cargo test exports::ruby:: | `test_ruby_class_and_methods`, `test_ruby_top_level_functions`, `test_ruby_visibility_toggle`, `test_ruby_skips_initialize` |
 | `src/exports/yaml.rs` | cargo test exports::yaml:: | `test_github_actions_workflow`, `test_docker_compose`, `test_anchors`, `test_top_level_only`, `test_four_space_indentation`, `test_four_space_nested_not_extracted` |
-| `src/exports/ast/mod.rs` | cargo test exports::ast::mod | No inline tests found; add focused coverage for `get_exported_symbols`, `get_exported_symbols_with_level`, `is_test_file`, `bool` before risky changes |
-| `src/exports/ast/typescript.rs` | cargo test exports::ast::typescript:: | `test_basic_exports`, `test_re_exports_with_alias`, `test_wildcard_namespace`, `test_wildcard_with_resolver`, `test_default_export`, `test_async_abstract` |
-| `src/exports/ast/python.rs` | cargo test exports::ast::python:: | `test_python_all`, `test_python_no_all`, `test_python_nested_not_captured`, `test_python_dunder_excluded`, `test_python_all_overrides`, `test_decorated_functions` |
+| `src/exports/ast/mod.rs` | cargo test exports::ast::tests:: | Parity tests in `ast/tests.rs` cross-check AST vs regex output: `ts_basic_parity`, `ts_re_exports_with_alias`, `ts_wildcard_with_resolver`, `py_basic_parity`, `py_all_takes_precedence`, `rs_basic_parity`, `rs_pub_crate`, `rs_feature_gated`, `rs_pub_mod` |
+| `src/exports/ast/typescript.rs` | cargo test exports::ast::typescript:: | `test_basic_exports`, `test_re_exports_with_alias`, `test_wildcard_namespace`, `test_wildcard_with_resolver`, `test_default_export`, `test_async_abstract`, `test_conditional_export`, `test_export_type_clause`, `test_comments_not_exported` |
+| `src/exports/ast/python.rs` | cargo test exports::ast::python:: | `test_python_all`, `test_python_no_all`, `test_python_nested_not_captured`, `test_python_dunder_excluded`, `test_python_all_overrides`, `test_decorated_functions`, `test_conditional_import_init` |
 | `src/exports/ast/rust_lang.rs` | cargo test exports::ast::rust_lang:: | `test_rust_exports`, `test_pub_crate`, `test_async_unsafe`, `test_ignores_pub_in_strings`, `test_feature_gated`, `test_pub_mod` |
 | `tests/integration.rs` | cargo test --test integration fix_adds_undocumented_exports_to_spec | End-to-end fixture: `fix_adds_undocumented_exports_to_spec` |
 | `tests/integration.rs` | cargo test --test integration fix_does_not_duplicate_already_documented_exports | End-to-end fixture: `fix_does_not_duplicate_already_documented_exports` |

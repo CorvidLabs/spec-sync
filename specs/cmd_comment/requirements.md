@@ -10,10 +10,12 @@ spec: cmd_comment.spec.md
 
 ## Acceptance Criteria
 
-- `cmd_comment` runs full validation and renders the check summary as GitHub-flavored markdown
+- `cmd_comment` runs the same validation pipeline as `check` (`run_validation` in collect mode) and renders the summary via `comment::render_check_comment` as GitHub-flavored markdown
+- The pass/fail status embedded in the comment is derived from `compute_exit_code` using the same inputs as `check`, so the comment status matches CI exactly
+- `--strict`, `--enforcement`, and `--require-coverage` affect the computed status the same way they do for `check`; `--enforcement` overrides config, and `--strict` implies strict enforcement
 - When `--pr` is omitted, markdown is printed to stdout for piping (used by both the marketplace action and CI workflow)
-- When `--pr N` is set, the comment is posted directly to the specified PR via `gh pr comment`
-- Exits 1 if `gh` CLI fails or the GitHub repo cannot be resolved
+- When `--pr N` is set, the repo is resolved via `github::resolve_repo` and the comment is posted via `gh pr comment --repo <repo> --body <body>`
+- Exits 1 if `gh` CLI is missing, `gh pr comment` exits non-zero, or the GitHub repo cannot be resolved
 - The marketplace action (`action.yml`, `comment: true`) and CI workflow (`.github/workflows/ci.yml`) both invoke `specsync comment` in stdout mode — no alternative comment generation paths exist
 
 ## Constraints

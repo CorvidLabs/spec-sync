@@ -4,17 +4,20 @@ spec: cmd_init_registry.spec.md
 
 ## Key Decisions
 
-- Module follows the standard command pattern: load config, discover specs, delegate to library module, format output, exit
-- Spec was created during the 100% coverage push to dogfood spec-sync on its own codebase
+- The command is a thin wrapper around `registry::generate_registry`; all spec discovery and TOML rendering live in the `registry` module. This command only resolves the project name, guards against overwrite, and writes the file.
+- Project name defaults to the root directory's file name (`root.file_name()`), with `"project"` as a last-resort fallback, so the registry is usable even when run from an oddly-named or root path.
+- Like `init`, it refuses to overwrite an existing `specsync-registry.toml` and simply reports that it already exists.
 
 ## Files to Read First
 
-- `src/commands/init_registry.rs` — primary source file
+- `src/commands/init_registry.rs` — the whole command.
+- `src/registry.rs` — `generate_registry(root, project_name, specs_dir)`, which discovers specs and renders the TOML.
+- `src/config.rs` — `load_config` (provides `specs_dir`).
 
 ## Current Status
 
-Fully implemented and stable. Spec created to achieve 100% file coverage.
+Implemented and stable. No tests target this file directly; the registry-rendering logic is covered by the `registry` module's own tests.
 
 ## Notes
 
-- This module is part of the command layer — it orchestrates library modules rather than containing domain logic
+- Part of the command layer — orchestrates the `registry` module rather than containing domain logic.

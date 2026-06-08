@@ -6,11 +6,12 @@ spec: cmd_view.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/view.rs` | cargo test commands::view | No inline tests found; add focused coverage for `cmd_view`, `load_config`, `find_spec_files`, `view_spec` before risky changes |
+| `src/commands/view.rs` | cargo test commands::view | No inline `#[cfg(test)]` module in the command wrapper; add a CLI fixture before risky changes |
+| `src/view.rs` | cargo test view | Role/section logic is unit-tested here (`test_sections_for_role` covers dev/qa/product/agent and rejects unknown roles) |
 
 ## Coverage Gaps
 
-- Integration gap: add a fixture for "Dev view" before changing user-visible CLI output, generated files, or error handling in cmd_view.
+- Integration gap: no end-to-end CLI fixture asserts that `specsync view --role <r>` prints only the role's sections or that `--spec <module>` filters correctly. The section mapping itself is covered by `test_sections_for_role` in `src/view.rs`.
 
 ## Behavioral Verification
 

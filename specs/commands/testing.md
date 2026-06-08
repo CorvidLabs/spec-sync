@@ -6,7 +6,8 @@ spec: commands.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/mod.rs` | cargo test commands::mod | No inline tests found; add focused coverage for `load_and_discover`, `filter_specs`, `filter_by_status`, `build_schema_columns` before risky changes |
+| `src/commands/mod.rs` | cargo test commands::mod | No inline tests in mod.rs; add focused coverage for `load_and_discover`, `filter_specs`, `filter_by_status`, `build_schema_columns` before risky changes |
+| `compute_exit_code` | cargo test --bin specsync | Pure exit-code matrix tested in `src/main.rs`: `warn_mode_exits_0_with_no_errors`, `warn_mode_exits_0_even_with_errors`, `warn_mode_respects_require_coverage`, `enforce_new_exits_1_when_unspecced_files_exist`, `strict_mode_exits_1_with_errors`, `strict_mode_exits_1_with_warnings_and_strict_flag`, `strict_mode_respects_require_coverage`, `strict_mode_exits_0_when_coverage_meets_threshold` (12 cases total) |
 | `tests/integration.rs` | cargo test --test integration strict_turns_warnings_into_errors | End-to-end fixture: `strict_turns_warnings_into_errors` |
 | `tests/integration.rs` | cargo test --test integration require_coverage_passes_when_met | End-to-end fixture: `require_coverage_passes_when_met` |
 | `tests/integration.rs` | cargo test --test integration require_coverage_fails_when_below_threshold | End-to-end fixture: `require_coverage_fails_when_below_threshold` |

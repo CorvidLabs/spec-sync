@@ -11,6 +11,7 @@ spec: cli.spec.md
 - As a developer, I want `--fix` to auto-add undocumented exports to my specs so that keeping specs current is low-friction
 - As a developer, I want `specsync init` to scaffold a config with auto-detected settings so that getting started takes seconds
 - As a developer, I want `specsync generate` to create specs for all unspecced modules in one command so that I can bootstrap documentation for an existing project
+- As a developer, I want `specsync generate --provider <p> --model <m>` to pick an AI provider and pin a specific model so that I control which LLM writes my specs
 - As a developer, I want `specsync watch` to re-validate on file changes so that I get live feedback while editing
 - As a developer, I want `specsync score` to grade my spec quality so that I know where to focus improvement effort
 - As a team lead, I want `specsync hooks install` to set up agent instructions for Claude, Cursor, and Copilot so that AI assistants respect our specs automatically
@@ -23,16 +24,18 @@ spec: cli.spec.md
 - `--json` suppresses all ANSI color codes and outputs valid JSON
 - `--format markdown` produces output suitable for PR comments
 - `--root <path>` allows running against a different project directory
-- All domain logic is delegated to library modules — main.rs is purely a dispatcher
+- All domain logic is delegated to library modules — `main.rs` is purely a dispatcher and the clap grammar lives in `src/cli.rs`
 - `--fix` only modifies spec files, never source code
 - `init` auto-detects source directories, language, and creates a sensible default config
+- `generate --model <m>` overrides `SPECSYNC_AI_MODEL` and the `aiModel` config field for that run
+- A panic in any subcommand is caught and reported as a "please report it" bug message rather than a raw backtrace
 
 ## Constraints
 
 - Single binary with no runtime dependencies
 - Must work on Linux, macOS, and Windows
 - Colored output must respect `NO_COLOR` environment variable
-- CLI argument parsing via clap with derive macros
+- CLI argument parsing via clap with derive macros; grammar defined in `src/cli.rs`, dispatch in `src/main.rs`
 
 ## Out of Scope
 

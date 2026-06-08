@@ -4,17 +4,23 @@ spec: cmd_new.spec.md
 
 ## Key Decisions
 
-- Module follows the standard command pattern: load config, discover specs, delegate to library module, format output, exit
-- Spec was created during the 100% coverage push to dogfood spec-sync on its own codebase
+- **Scaffold, don't author**: `cmd_new` writes frontmatter and section skeletons but leaves prose, invariants, and dependency descriptions to the author. Public API rows are review prompts, not finished docs.
+- **Auto-detect sources two ways**: a `src/<module>/` directory (walked recursively) and a top-level `src/<module>.<ext>` file are both treated as the module's sources, filtered by configured `source_extensions`.
+- **Pre-populate exports**: exported symbols from detected sources are pulled via `exports::get_exported_symbols`, de-duplicated, and seeded into the Public API table so the author starts from the real surface area.
+- **Never clobber**: an existing target spec aborts with exit 1 — creation is non-destructive.
+- **No chrono dependency**: dates come from the in-module `chrono_lite_today()` helper to keep the binary dependency-light and cross-platform.
 
 ## Files to Read First
 
-- `| Dir creation fails | Exits 1 |` — primary source file
+- `src/commands/new.rs` — the command itself: `cmd_new`, `detect_module_sources`, and `chrono_lite_today`.
+- `src/generator.rs` — `generate_companion_files_for_spec`, invoked under `--full`.
+- `src/exports.rs` — `get_exported_symbols` and `has_extension`, used for source/export detection.
 
 ## Current Status
 
-Fully implemented and stable. Spec created to achieve 100% file coverage.
+Stable and implemented. Behavior is verified only indirectly (no `#[cfg(test)]` module in `new.rs` and no `specsync new` integration tests yet) — adding focused tests is the main open item.
 
 ## Notes
 
-- This module is part of the command layer — it orchestrates library modules rather than containing domain logic
+- This is a command-layer module: it orchestrates `config`, `exports`, and `generator` rather than holding domain logic.
+- `depends_on` is always emitted empty; imports are not analyzed to infer dependencies.

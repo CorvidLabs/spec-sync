@@ -23,8 +23,8 @@ spec: cmd_merge.spec.md
 
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
-| No conflicts | Prints "no conflicts" | Keep or add a focused assertion before changing this behavior |
-| Complex conflict | Exits 1 with file path | Keep or add a focused assertion before changing this behavior |
+| No conflicts | Prints "No spec files with merge conflicts found." | Keep or add a focused assertion before changing this behavior |
+| Complex conflict | Prints "needs manual merge: <path>" and exits 1 | Keep or add a focused assertion before changing this behavior |
 
 ## Reviewer Checklist
 

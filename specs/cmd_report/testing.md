@@ -6,11 +6,10 @@ spec: cmd_report.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/report.rs` | cargo test commands::report | No inline tests found; add focused coverage for `cmd_report`, `load_and_discover`, `parse_frontmatter`, `OutputFormat` before risky changes |
-| `tests/integration.rs` | cargo test --test integration coverage_full_reports_100 | End-to-end fixture: `coverage_full_reports_100` |
-| `tests/integration.rs` | cargo test --test integration invalid_frontmatter_reports_error | End-to-end fixture: `invalid_frontmatter_reports_error` |
-| `tests/integration.rs` | cargo test --test integration missing_required_sections_reports_error | End-to-end fixture: `missing_required_sections_reports_error` |
-| `tests/integration.rs` | cargo test --test integration missing_frontmatter_fields_reports_error | End-to-end fixture: `missing_frontmatter_fields_reports_error` |
+| `src/commands/report.rs` | cargo test commands::report | No inline tests and no `specsync report` integration tests exist. Add focused coverage for staleness flagging, incomplete detection, and JSON shape before risky changes |
+| `src/git_utils.rs` (indirect) | cargo test git_utils | Staleness primitives `git_last_commit_hash` / `git_commits_since` are tested here, not in `report` |
+
+> Note: `coverage_full_reports_100`, `invalid_frontmatter_reports_error`, `missing_required_sections_reports_error`, and `missing_frontmatter_fields_reports_error` exercise the `coverage` and `check` commands — **not** `report`. Do not rely on them as `cmd_report` coverage.
 
 ## Behavioral Verification
 
@@ -25,7 +24,7 @@ spec: cmd_report.spec.md
 |------|-------------------|-----------------|
 | Git not available or not a git repo | Staleness detection gracefully returns 0 (not stale) | Keep or add a focused assertion before changing this behavior |
 | Spec references a file that doesn't exist | File is skipped in staleness calculation | Keep or add a focused assertion before changing this behavior |
-| No spec files found | Prints "no specs found" and exits 0 | Keep or add a focused assertion before changing this behavior |
+| No spec files found | Renders an empty report (0/0 files, 100% overall, no module rows) and exits 0 | Keep or add a focused assertion before changing this behavior |
 
 ## Reviewer Checklist
 

@@ -6,11 +6,11 @@ spec: cmd_wizard.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/wizard.rs` | cargo test commands::wizard | No inline tests found; add focused coverage for `cmd_wizard`, `load_config` before risky changes |
+| `src/commands/wizard.rs` | cargo test commands::wizard | No inline `#[cfg(test)]` module; the flow is interactive (TTY-bound via `dialoguer`) so it is not exercised by automated tests |
 
 ## Coverage Gaps
 
-- Integration gap: add a fixture for "Create API endpoint spec" before changing user-visible CLI output, generated files, or error handling in cmd_wizard.
+- The interactive wizard cannot be driven by the standard CLI integration harness (it blocks on TTY prompts). The spec-body template and companion generation it relies on are covered indirectly by the `generate`/scaffold companion tests (`generate_creates_companion_files`, `generate_creates_design_md_when_enabled`). Verify the template-specific sections manually before changing them.
 
 ## Behavioral Verification
 

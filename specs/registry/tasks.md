@@ -17,7 +17,9 @@ spec: registry.spec.md
 - [x] Template file exclusion
 - [x] Module name extraction from frontmatter
 - [x] Alphabetically sorted output
-- [x] `RemoteRegistry` struct with `has_spec()` lookup
+- [x] `RemoteRegistry` struct with `has_spec()` and `spec_path()` lookup
+- [x] `register_module` — idempotent append of a module entry to an existing registry
+- [x] Cross-repo content verification: `fetch_remote_spec`, `parse_remote_spec`, `RemoteSpec`
 
 ## Gaps
 

@@ -21,9 +21,9 @@ spec: manifest.spec.md
 
 ## Gaps
 
-- Gradle settings.gradle `include` directives not parsed (only build.gradle itself)
 - No support for Bazel BUILD files or Meson build definitions
-- Workspace glob expansion not implemented for Cargo
+- Workspace glob expansion not implemented for Cargo `members` (literal paths only; `package.json` workspace globs like `packages/*` are supported, Cargo's are not)
+- Dependency extraction is only wired up for Cargo (`[dependencies]`) and Swift target `dependencies:`; other manifests leave `dependencies` empty
 
 ## Review Sign-offs
 

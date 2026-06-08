@@ -6,7 +6,10 @@ spec: cmd_lifecycle.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/lifecycle.rs` | cargo test commands::lifecycle:: | `update_status_in_content_replaces_status_line`, `update_status_preserves_rest_of_frontmatter`, `update_status_returns_none_when_no_status_line`, `spec_status_next`, `spec_status_prev`, `spec_status_valid_transitions` |
+| Status mutation | cargo test commands::lifecycle:: | `update_status_in_content_replaces_status_line`, `update_status_preserves_rest_of_frontmatter`, `update_status_returns_none_when_no_status_line` |
+| Lifecycle graph | cargo test commands::lifecycle:: | `spec_status_next`, `spec_status_prev`, `spec_status_valid_transitions`, `spec_status_can_transition_to` |
+| Guard matching | cargo test commands::lifecycle:: | `find_guards_specific_and_wildcard`, `find_guards_ascii_arrow` |
+| History log + age | cargo test commands::lifecycle:: | `append_lifecycle_log_new`, `append_lifecycle_log_existing`, `days_since_date_same_day_is_zero`, `days_since_date_invalid_format_returns_none`, `days_since_date_past_date_is_positive`, `estimate_status_age_from_lifecycle_log`, `estimate_status_age_picks_latest_entry` |
 
 ## Coverage Gaps
 

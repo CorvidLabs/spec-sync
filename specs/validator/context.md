@@ -23,5 +23,7 @@ Fully implemented. The validator is the heart of spec-sync — it powers `specsy
 
 ## Notes
 
-- SQL schema table extraction (`get_schema_table_names()`) supports `CREATE TABLE` statements for validating `db_tables` frontmatter fields.
+- SQL schema table extraction (`get_schema_table_names()`) supports `CREATE TABLE` statements for validating `db_tables` frontmatter fields. When `schema_columns` are supplied, `validate_spec` also cross-checks documented `### Schema:` column tables against migrations: a documented column absent from migrations is an ERROR, a migration column absent from the spec is a WARNING, and a type mismatch is a WARNING.
+- Status gates validation depth: `archived` specs skip all checks; `draft` specs check structure only; `review` specs check sections but skip Public API and API-surface validation; `active`/`stable`/`deprecated` get the full pass.
+- Non-draft, non-review specs also warn when inline `## Requirements`/`## Acceptance Criteria` appear in the spec body or when the companion `requirements.md` is missing.
 - Exclude patterns use a simplified glob syntax: `**/dir/**` for directory exclusion, `**/*.ext` for extension exclusion.

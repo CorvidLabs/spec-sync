@@ -17,7 +17,7 @@ spec: view.spec.md
 | Flow | Fixture / Setup | Action | Expected Result |
 |------|-----------------|--------|-----------------|
 | Dev view | a spec with all standard sections | `view_spec(path, "dev")` is called | returns Purpose, Public API, Invariants, Dependencies, and Change Log sections only |
-| Agent view with policy | a spec with `agent_policy: read-only` in frontmatter | `view_spec(path, "agent")` is called | output header includes `Status: stable` and `Agent Policy: read-only` |
+| Agent view with policy | a spec with `agent_policy: read-only` in frontmatter | `view_spec(path, "agent")` is called | output header includes `**Status:** stable` and `**Agent Policy:** read-only` lines |
 | Product view with requirements | a spec at `specs/auth/auth.spec.md` with a companion `specs/auth/requirements.md` | `view_spec(path, "product")` is called | returns Purpose, Change Log, and appended requirements.md content |
 | Invalid role | role string `"manager"` | `view_spec(path, "manager")` is called | returns `Err` with descriptive message listing valid roles |
 

@@ -20,12 +20,17 @@ spec: cmd_score.spec.md
 | Flow | Fixture / Setup | Action | Expected Result |
 |------|-----------------|--------|-----------------|
 | Score with explain | `--explain` set | `cmd_score` runs | each spec shows FM/Sec/API/Depth/Fresh subscores |
+| CSV format | `--format csv --all` | `specsync score` runs | a header row, one row per spec, and a final `SUMMARY` row are printed (`score_all_format_csv_outputs_header_row`, `score_all_format_csv_includes_summary_row`) |
+| Table format | `--format table --all` | `specsync score` runs | an aligned ASCII table with a Spec/Score/Grade header is printed (`score_all_format_table_outputs_headers`) |
+| JSON grades | `--format json` (or `--json`) | `specsync score` runs | JSON includes per-spec `grade`/`total` and a project `average_score`/`distribution` (`score_json_output_has_grades`) |
 
 ## Regression Matrix
 
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
-| No specs match filters | Warning printed | Keep or add a focused assertion before changing this behavior |
+| No specs match filters | Warning printed (via `filter_specs`) | Keep or add a focused assertion before changing this behavior |
+| `--format table` without `--all` | Still renders a valid table (single/filtered spec) | Covered by `score_format_table_without_all_flag_still_works` |
+| Any output format | `score` never sets a non-zero exit code (informational only) | Keep or add a focused assertion before changing this behavior |
 
 ## Reviewer Checklist
 

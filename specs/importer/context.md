@@ -7,13 +7,14 @@ spec: importer.spec.md
 - Reuses existing `github::gh_is_available()` for auth detection rather than duplicating
 - Uses simple regex-free HTML stripping for Confluence — no external HTML parser dependency
 - Base64 encoding is hand-rolled to avoid adding a dependency (only used for Jira/Confluence basic auth)
-- Requirements extraction is heuristic-based: looks for checkboxes, "Acceptance Criteria", and "Definition of Done" sections
+- Requirements extraction is heuristic-based: looks for checkboxes, "Acceptance Criteria"/"Requirements", and "Definition of Done" sections
 - Generated specs always start as `draft` status — user fills in details after import
+- `redact_secret` strips any verbatim auth token from REST error strings before surfacing them (added 4.3.5), mirroring the GitHub module's `redact_token` and the AI provider client's sanitization
 
 ## Files to Read First
 
 - `src/importer.rs` — all importer logic, parsers, and tests
-- `src/main.rs` — `cmd_import` function wires CLI to importers
+- `src/commands/import.rs` — wires the `specsync import` subcommand to the importer functions (dispatched from `src/main.rs`)
 
 ## Current Status
 

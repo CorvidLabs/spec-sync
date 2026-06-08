@@ -6,7 +6,7 @@ spec: merge.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/merge.rs` | cargo test merge:: | `test_has_conflict_markers`, `test_parse_conflict_regions`, `test_resolve_changelog_conflict`, `test_resolve_table_conflict`, `test_resolve_frontmatter_conflict`, `test_full_spec_conflict_resolution` |
+| `src/merge.rs` | cargo test merge:: | `test_has_conflict_markers`, `test_parse_conflict_regions`, `test_resolve_changelog_conflict`, `test_resolve_table_conflict`, `test_resolve_frontmatter_conflict`, `test_full_spec_conflict_resolution`, `test_manual_fallback_for_prose`, `test_parse_yaml_fields`, `test_is_pure_table_rows` |
 
 ## Coverage Gaps
 
@@ -26,8 +26,8 @@ spec: merge.spec.md
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
 | Spec file unreadable | Marked as `Manual` with read error in details | Keep or add a focused assertion before changing this behavior |
-| `git diff` command fails | Falls back to scanning all files for conflict markers | Keep or add a focused assertion before changing this behavior |
-| Post-resolution frontmatter invalid | Warning printed; file is still written with resolved content | Keep or add a focused assertion before changing this behavior |
+| `git diff` command fails (`all_files: false`) | `detect_conflicted_specs` returns an empty list — no specs are processed (no auto-fallback to scanning all files) | Keep or add a focused assertion before changing this behavior |
+| Post-resolution frontmatter invalid | `"Warning: resolved file has invalid frontmatter"` added to details; file is still written with resolved content | Keep or add a focused assertion before changing this behavior |
 
 ## Reviewer Checklist
 

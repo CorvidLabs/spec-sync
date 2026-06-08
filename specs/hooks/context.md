@@ -16,9 +16,11 @@ spec: hooks.spec.md
 
 ## Current Status
 
-Fully implemented. All 5 hook targets work: CLAUDE.md, .cursorrules, .github/copilot-instructions.md, .git/hooks/pre-commit, and .claude/settings.json.
+Fully implemented. All 6 hook targets work: CLAUDE.md (`Claude`), .cursorrules (`Cursor`), .github/copilot-instructions.md (`Copilot`), AGENTS.md (`Agents`), .git/hooks/pre-commit (`Precommit`), and .claude/settings.json (`ClaudeCodeHook`). `HookTarget::from_str` is case-insensitive and accepts aliases.
 
 ## Notes
 
 - The hook content includes spec-sync CLI commands and instructions for how AI agents should interact with specs.
 - `cmd_status()` reports installed/not-installed for each target, useful for CI verification.
+- `cmd_install` exits with code 1 if any single hook installation fails.
+- Uninstall removes the spec-sync section via `remove_section`, which deletes the file when nothing else remains.

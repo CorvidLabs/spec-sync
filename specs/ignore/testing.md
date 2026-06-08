@@ -6,8 +6,9 @@ spec: ignore.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/ignore.rs` | cargo test ignore:: | `test_classify_requirements_companion`, `test_classify_stub_section`, `test_classify_undocumented_export`, `test_classify_schema_type_before_column`, `test_from_str_aliases`, `test_parse_inline` |
-| `tests/integration.rs` | cargo test --test integration init_ignores_node_modules_and_hidden_dirs | End-to-end fixture: `init_ignores_node_modules_and_hidden_dirs` |
+| `src/ignore.rs` (classify) | cargo test ignore:: | `test_classify_requirements_companion`, `test_classify_stub_section`, `test_classify_undocumented_export`, `test_classify_schema_type_before_column` |
+| `src/ignore.rs` (parse/load) | cargo test ignore:: | `test_from_str_aliases`, `test_parse_inline`, `test_load_specsyncignore`, `test_load_no_file` |
+| `src/ignore.rs` (suppression) | cargo test ignore:: | `test_is_suppressed_global`, `test_is_suppressed_inline`, `test_is_suppressed_per_spec` |
 
 ## Behavioral Verification
 

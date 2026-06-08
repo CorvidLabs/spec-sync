@@ -6,7 +6,9 @@ spec: cmd_scaffold.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/scaffold.rs` | cargo test commands::scaffold | No inline tests found; add focused coverage for `cmd_add_spec`, `cmd_scaffold`, `load_config`, `get_exported_symbols` before risky changes |
+| `src/commands/scaffold.rs` | cargo test commands::scaffold | No inline `#[cfg(test)]` module; add focused coverage for `cmd_add_spec`, `cmd_scaffold`, source auto-detection, and registry auto-registration before risky changes |
+| `tests/integration.rs` | cargo test --test integration generate_creates_companion_files | Exercises the same `generator::generate_companion_files_for_spec` path scaffold uses to emit companions |
+| `tests/integration.rs` | cargo test --test integration companion_files_not_overwritten_on_regenerate | Confirms existing companions are not clobbered when re-running on an existing spec |
 
 ## Coverage Gaps
 

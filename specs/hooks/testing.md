@@ -6,7 +6,9 @@ spec: hooks.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/hooks.rs` | cargo test hooks:: | `hook_target_all_returns_six_targets`, `hook_target_all_contains_all_variants`, `hook_target_name_returns_expected_strings`, `hook_target_description_returns_human_readable`, `from_str_parses_all_targets`, `from_str_is_case_insensitive` |
+| `src/hooks.rs` (enum/parsing) | cargo test hooks:: | `hook_target_all_returns_six_targets`, `hook_target_all_contains_all_variants`, `hook_target_name_returns_expected_strings`, `hook_target_description_returns_human_readable`, `from_str_parses_all_targets`, `from_str_is_case_insensitive`, `from_str_accepts_aliases`, `from_str_returns_none_for_unknown` |
+| `src/hooks.rs` (install/idempotency) | cargo test hooks:: | `install_claude_creates_file`, `install_claude_is_idempotent`, `install_claude_appends_to_existing`, `install_cursor_creates_file`, `install_copilot_creates_github_dir`, `install_agents_creates_file`, `install_precommit_creates_hook_file`, `install_precommit_appends_to_existing_hook`, `install_precommit_sets_executable_permission`, `install_claude_code_hook_creates_settings`, `install_claude_code_hook_merges_into_existing`, `install_claude_code_hook_idempotent` |
+| `src/hooks.rs` (status/uninstall) | cargo test hooks:: | `is_installed_returns_false_for_empty_dir`, `is_installed_claude_detects_marker`, `uninstall_claude_removes_section`, `uninstall_claude_preserves_other_content`, `uninstall_precommit_removes_hook_file`, `uninstall_returns_false_when_not_installed`, `uninstall_claude_code_hook_is_refused`, `remove_section_deletes_file_if_empty_after`, `remove_section_stops_at_next_top_level_heading` |
 
 ## Coverage Gaps
 

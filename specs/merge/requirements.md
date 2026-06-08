@@ -24,7 +24,7 @@ spec: merge.spec.md
 - `all_files: true` scans all `.spec.md` files for conflict markers regardless of git state
 - `dry_run: true` returns resolution results without writing any changes to disk
 - Unreadable spec files are marked as `Manual` with the read error included in details
-- If `git diff` fails, the tool falls back to scanning all files for conflict markers
+- If `git diff` fails in git mode (`all_files: false`), `detect_conflicted_specs` returns no files (the run is a safe no-op); explicit `all_files: true` is the way to scan everything
 - Post-resolution frontmatter validation warnings are printed but don't prevent file writes
 - Results include `spec_path`, `status` (`Resolved` | `Manual` | `Clean`), and `details` for each file
 - Human-readable output uses colored formatting to distinguish status types

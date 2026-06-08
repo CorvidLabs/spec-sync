@@ -7,18 +7,22 @@ spec: mcp.spec.md
 - As a Claude Code user, I want spec-sync available as an MCP server so that I can check, generate, and score specs directly from my AI assistant
 - As a Cursor user, I want MCP tools for spec-sync so that spec validation is integrated into my AI-powered editing workflow
 - As an AI agent developer, I want programmatic access to spec-sync over JSON-RPC so that I can build spec validation into automated workflows
+- As an AI agent, I want to read specs, the dependency graph, config, and coverage as MCP resources so that I can inspect project state without invoking a tool
 - As a developer, I want the MCP server to run over stdio so that it works with any MCP-compatible client without network configuration
 
 ## Acceptance Criteria
 
 - Implements JSON-RPC 2.0 over stdio
-- Protocol version "2024-11-05" returned in initialize response
-- Six tools exposed: specsync_check, specsync_coverage, specsync_generate, specsync_list_specs, specsync_init, specsync_score
+- Protocol version "2024-11-05" returned in initialize response; `initialize` advertises both `tools` and `resources` capabilities
+- Seven tools exposed: `specsync_check`, `specsync_coverage`, `specsync_generate`, `specsync_list_specs`, `specsync_init`, `specsync_score`, `specsync_issues`
+- Four resources exposed (`specsync:///specs`, `specsync:///graph`, `specsync:///config`, `specsync:///coverage`) plus one resource template (`specsync:///specs/{module}`)
+- `specsync_generate` resolves the AI provider through `ai::resolve_ai_provider` (the corvid-ai-backed `ai` module) when `ai: true` or a `provider` is given; an unresolvable provider returns a tool error
 - Tool errors returned as `isError: true` in result content, not as JSON-RPC error objects (except parse/method-not-found)
+- Resource read errors return JSON-RPC error -32602 (unknown URI, module not found)
 - Malformed JSON returns JSON-RPC error -32700 "Parse error"
 - Unknown method returns JSON-RPC error -32601 "Method not found"
 - Unknown tool name returns tool-level error "Unknown tool: {name}"
-- Notifications (requests without id) receive no response
+- Notifications (requests without id, e.g. `notifications/initialized`) receive no response
 - `ping` method returns empty result
 - Each tool accepts optional `root` parameter to override project directory
 - stdin EOF triggers graceful exit
@@ -31,7 +35,8 @@ spec: mcp.spec.md
 
 ## Out of Scope
 
-- MCP resources or prompts (only tools are implemented)
+- MCP prompts (tools and resources are implemented; prompts are not)
 - HTTP/SSE transport (stdio only)
 - Authentication or authorization
 - Streaming partial results during long operations
+- Server-side state between calls (each invocation reloads config from scratch)

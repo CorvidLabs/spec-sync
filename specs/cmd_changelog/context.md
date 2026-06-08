@@ -4,17 +4,20 @@ spec: cmd_changelog.spec.md
 
 ## Key Decisions
 
-- Module follows the standard command pattern: load config, discover specs, delegate to library module, format output, exit
-- Spec was created during the 100% coverage push to dogfood spec-sync on its own codebase
+- Thin command wrapper: parse range, load config, call `changelog::generate_changelog`, then dispatch on `OutputFormat`. No domain logic here.
+- Range validation happens up front via `parse_range`; failure prints the expected `FROM..TO` format and exits 1 before any config is loaded.
+- Format dispatch collapses `Text`/`Github`/`Table`/`Csv` onto `format_text` — only Json and Markdown get dedicated renderers.
 
 ## Files to Read First
 
-- `src/commands/changelog.rs` — primary source file
+- `src/commands/changelog.rs` — the command wrapper (this module)
+- `src/changelog.rs` — `parse_range`, `generate_changelog`, `format_text`/`format_json`/`format_markdown`, and `ChangelogReport`
+- `src/types.rs` — `OutputFormat`
 
 ## Current Status
 
-Fully implemented and stable. Spec created to achieve 100% file coverage.
+Implemented and stable. The `changelog` delegate is heavily unit-tested (range parsing, frontmatter/section diffing, all three formatters, end-to-end generation). The wrapper itself has no inline tests.
 
 ## Notes
 
-- This module is part of the command layer — it orchestrates library modules rather than containing domain logic
+- Output is emitted with `print!` for text/markdown so the formatter controls trailing newlines; JSON uses `println!`.

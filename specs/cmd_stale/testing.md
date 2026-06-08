@@ -6,11 +6,15 @@ spec: cmd_stale.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/stale.rs` | cargo test commands::stale | No inline tests found; add focused coverage for `cmd_stale` before risky changes |
+| `src/commands/stale.rs` | cargo test commands::stale | No inline `#[cfg(test)]` module; CLI behavior is covered by the integration tests below |
+| `tests/integration.rs` | cargo test --test integration stale_outside_git_repo_fails_with_message | Non-git root: failure exit, stderr contains "Not a git repository" |
+| `tests/integration.rs` | cargo test --test integration stale_outside_git_repo_json_reports_error | Non-git root, `--format json`: failure exit, stdout has `"not a git repository"` and `"stale_specs"` |
+| `tests/integration.rs` | cargo test --test integration stale_in_fresh_repo_reports_all_up_to_date | Repo where spec and source share history: success exit, stdout contains "up to date" |
+| `src/git_utils.rs` | cargo test git_utils | Underlying commit-distance logic (`commits_since_counts_source_changes_after_spec`, etc.) lives in git_utils tests |
 
 ## Coverage Gaps
 
-- Integration gap: add a fixture for "All specs fresh" before changing user-visible CLI output, generated files, or error handling in cmd_stale.
+- No integration fixture yet exercises a *stale* spec end-to-end (a committed spec followed by N commits to its source). The git-distance counting is covered at the unit level in `src/git_utils.rs`.
 
 ## Behavioral Verification
 
@@ -24,7 +28,7 @@ spec: cmd_stale.spec.md
 
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
-| Not a git repository | Prints error, exits 1 | Keep or add a focused assertion before changing this behavior |
+| Not a git repository | Prints error, exits 1 | Covered by `stale_outside_git_repo_fails_with_message` / `stale_outside_git_repo_json_reports_error` |
 | Spec file unreadable | Skipped silently | Keep or add a focused assertion before changing this behavior |
 | No frontmatter | Skipped silently | Keep or add a focused assertion before changing this behavior |
 | Source file doesn't exist on disk | Skipped in commit distance check | Keep or add a focused assertion before changing this behavior |

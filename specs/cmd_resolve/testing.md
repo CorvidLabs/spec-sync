@@ -6,7 +6,9 @@ spec: cmd_resolve.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/resolve.rs` | cargo test commands::resolve:: | `test_find_consumed_exports_parses_table`, `test_find_consumed_exports_skips_header_row`, `test_spec_cache_roundtrip`, `test_spec_cache_miss`, `test_spec_cache_expired`, `test_verify_detects_deprecated_status` |
+| `src/commands/resolve.rs` | cargo test commands::resolve:: | `test_find_consumed_exports_parses_table`, `test_find_consumed_exports_skips_header_row`, `test_spec_cache_roundtrip`, `test_spec_cache_miss`, `test_spec_cache_expired`, `test_cache_path_sanitizes_slashes`, `test_verify_detects_deprecated_status` |
+
+> These are helper-level unit tests (`find_consumed_exports`, `SpecCache`, `RemoteSpec` status). The `cmd_resolve` / `verify_remote_specs` network orchestration has no automated coverage yet — verify Behavioral Verification rows manually.
 
 ## Coverage Gaps
 

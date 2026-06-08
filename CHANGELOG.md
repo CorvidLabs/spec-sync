@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Spec scoring no longer false-flags documented HTML-comment syntax** — the `placeholder_free` check strips fenced and inline code before counting `<!-- ... -->`, so a spec that *documents* an HTML-comment directive (e.g. ``a `<!-- specsync-ignore -->` directive``) isn't penalized for showing real syntax.
+
 ## [4.4.0] - 2026-06-07
 
 ### Added

@@ -384,7 +384,8 @@ specsync [command] [flags]
 | `--strict` | Warnings become errors (recommended for CI) |
 | `--require-coverage N` | Fail if file coverage < N% |
 | `--root <path>` | Project root (default: cwd) |
-| `--provider <name>` | AI provider: `auto`, `anthropic`, `openai`, or `command`. `auto` detects installed provider. Without `--provider`, generate uses templates only. |
+| `--provider <name>` | AI provider: `anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, `ollama` (or `auto`; deprecated `claude`/`copilot`). With nothing configured, `generate` is template-only. |
+| `--model <id>` | Model id for `generate` (overrides `SPECSYNC_AI_MODEL` and `aiModel` in config) |
 | `--fix` | Auto-add undocumented exports as stub rows in spec Public API tables |
 | `--force` | Skip hash cache and re-validate all specs |
 | `--create-issues` | Create GitHub issues for specs with validation errors (on `check`) |
@@ -737,9 +738,12 @@ Create `specsync.json` or `.specsync.toml` in your project root (or run `specsyn
 | `excludeDirs` | `string[]` | `["__tests__"]` | Directories excluded from coverage |
 | `excludePatterns` | `string[]` | Common test globs | File patterns excluded from coverage |
 | `sourceExtensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |
-| `aiCommand` | `string?` | — | Custom command for AI generation (reads stdin prompt, writes stdout markdown) |
-| `aiProvider` | `string?` | — | AI provider (`auto`, `claude`, `anthropic`, `openai`, `ollama`, `copilot`, etc.) |
-| `aiTimeout` | `number?` | `120` | Seconds before AI command times out per module |
+| `aiProvider` | `string?` | — | AI provider: `anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, `ollama` (deprecated: `claude`/`copilot`) |
+| `aiModel` | `string?` | provider default | Model id (e.g. `claude-sonnet-4-6`; `openai`/`together` require one) |
+| `aiApiKey` | `string?` | env | API key; falls back to `<PROVIDER>_API_KEY`. Never written back to config |
+| `aiBaseUrl` | `string?` | — | Override the provider endpoint (self-hosted / proxy gateways) |
+| `aiCommand` | `string?` | — | Deprecated, trusted shell escape hatch (reads stdin prompt, writes stdout markdown); never auto-selected |
+| `aiTimeout` | `number?` | `120` | Seconds before AI generation times out per module |
 
 ### TOML alternative
 
@@ -763,7 +767,7 @@ ai_provider = "ollama"
 ai_model = "llama3"
 ```
 
-This file is merged on top of the shared config and only supports `ai_*` keys. Alternatively, set the `SPECSYNC_AI_COMMAND` env var or pass `--provider` on the CLI.
+This file is merged on top of the shared config and only supports `ai_*` keys. Alternatively, set `SPECSYNC_AI_PROVIDER` / `SPECSYNC_AI_MODEL` (or `SPECSYNC_AI_COMMAND`) env vars, or pass `--provider` / `--model` on the CLI (`flag > env > config`).
 
 ### Lifecycle Guards
 
@@ -873,23 +877,28 @@ specsync coverage                         # See what's still missing
 
 Uses your custom template (`specs/_template.spec.md`) or the built-in default. Generates frontmatter plus guided starter sections for review.
 
-### AI mode (`--provider`)
+### AI mode (`--provider` or a configured provider)
 
-Reads your source code, sends it to an LLM, and generates specs with real content — Purpose, Public API tables, Invariants, Error Cases, all filled in from the code. No manual filling required.
+Reads your source code, sends it to an LLM, and generates specs with real content — Purpose, Public API tables, Invariants, Error Cases, all filled in from the code. No manual filling required. API calls go through the shared [`corvid-ai`](https://crates.io/crates/corvid-ai) client — plain HTTP, no CLI tool required.
 
-The AI command is resolved in order:
-1. `"aiCommand"` in `specsync.json`
-2. `SPECSYNC_AI_COMMAND` environment variable
-3. `claude -p --output-format text` (default, requires [Claude CLI](https://docs.anthropic.com/en/docs/claude-code))
+**Providers** — set the matching `<PROVIDER>_API_KEY`:
+`anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, and `ollama` (local & **keyless**, or Ollama Cloud via `OLLAMA_API_KEY`). The `claude` and `copilot` providers are **deprecated** — `claude` now warns and routes to the `anthropic` API (no more `claude -p` shell-out).
 
-Any command that reads a prompt from stdin and writes markdown to stdout works:
+**Provider resolution** (`flag > env > config`): `--provider` > `SPECSYNC_AI_PROVIDER` env > `aiProvider` in config. With nothing set, `generate` auto-detects:
 
-```json
-{ "aiCommand": "claude -p --output-format text" }
-{ "aiCommand": "ollama run llama3" }
+- **no key anywhere → local Ollama** (`http://localhost:11434`) — the zero-config default
+- exactly one `<PROVIDER>_API_KEY` set → that provider
+- several keys set → interactive picker (TTY), else a deterministic order
+
+**Model** (`flag > env > config`): `--model` > `SPECSYNC_AI_MODEL` env > `aiModel` in config > the provider's default (`anthropic` → `claude-sonnet-4-6`; `openai`/`together` require an explicit model).
+
+```bash
+specsync generate --model llama3.3                              # local Ollama, zero config
+ANTHROPIC_API_KEY=… specsync generate --provider anthropic     # API provider
+specsync generate --provider openrouter --model anthropic/claude-sonnet-4-6
 ```
 
-Set `"aiTimeout"` in `specsync.json` to control per-module timeout (default: 120 seconds).
+`aiCommand` (and `SPECSYNC_AI_COMMAND`) remain as an explicit, trusted shell escape hatch — any command that reads a prompt on stdin and writes markdown to stdout — but it is never auto-selected. Set `"aiTimeout"` in config to control the per-module timeout (default: 120 seconds).
 
 ### Designed for AI agents
 

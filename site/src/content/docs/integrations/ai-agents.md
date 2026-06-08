@@ -35,16 +35,20 @@ Add to your agent's MCP config (e.g., `claude_desktop_config.json`):
 
 ## AI Providers (`--provider`)
 
-The `--provider` flag enables AI-powered spec generation and selects which provider to use:
+AI calls go through the shared [`corvid-ai`](https://crates.io/crates/corvid-ai) crate — plain HTTP, no CLI tool required. Set `<PROVIDER>_API_KEY` and pick a provider:
 
 ```bash
-specsync generate --provider auto             # auto-detect an installed provider
 specsync generate --provider anthropic        # uses ANTHROPIC_API_KEY
-specsync generate --provider openai           # uses OPENAI_API_KEY
-specsync generate --provider command          # shells out to aiCommand config
+specsync generate --provider openai --model gpt-4o   # uses OPENAI_API_KEY
+specsync generate --provider ollama           # keyless local Ollama (http://localhost:11434)
+specsync generate                             # auto-detect (see resolution ladder below)
 ```
 
-Without `--provider`, `generate` uses templates only (no AI). Using `--provider auto` auto-detects an available provider. Specifying a provider name uses that provider directly — just set the API key.
+Supported providers: `anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, and `ollama` (local & keyless, or Ollama Cloud via `OLLAMA_API_KEY`).
+
+**Deprecated:** `claude` now warns and routes to the `anthropic` API (no more `claude -p` shell-out); `copilot` and `cursor` are deprecated too.
+
+`generate` enters AI mode when a provider is configured (`--provider`, `aiProvider`/`aiCommand` config, or any `SPECSYNC_AI_*` env var). With nothing configured it is template-only.
 
 ---
 
@@ -63,10 +67,10 @@ Scores are based on completeness, detail, API coverage, behavioral examples, and
 
 ## AI-Powered Generation (`--provider`)
 
-`specsync generate --provider auto` reads your source code, sends it to an LLM, and generates source-aware specs. Purpose, Public API tables, Invariants, Error Cases — all derived from the code.
+`specsync generate --provider anthropic` reads your source code, sends it to an LLM, and generates source-aware specs. Purpose, Public API tables, Invariants, Error Cases — all derived from the code.
 
 ```bash
-specsync generate --provider auto
+specsync generate --provider anthropic
 #   Generating specs/auth/auth.spec.md with AI...
 #     │ ---
 #     │ module: auth
@@ -74,27 +78,48 @@ specsync generate --provider auto
 #   ✓ Generated specs/auth/auth.spec.md (3 files)
 ```
 
-### Configuring the AI command
+### Choosing a provider and model
 
-The AI command is resolved in order:
-1. `ai_command` in `.specsync/config.toml` (or `.specsync/config.local.toml` for per-developer overrides)
-2. `SPECSYNC_AI_COMMAND` environment variable
-3. `claude -p --output-format text` (default, requires Claude CLI)
+The provider is resolved `flag > env > config`:
+1. `--provider <name>` flag
+2. `SPECSYNC_AI_PROVIDER` environment variable
+3. `aiProvider`/`ai_provider` in config (or `.specsync/config.local.toml` for per-developer overrides)
 
-Any command that reads a prompt from stdin and writes markdown to stdout works:
+With nothing set, `generate` **auto-detects**:
+- **No key anywhere → keyless local Ollama** (`http://localhost:11434`) — the zero-config default
+- Exactly one `<PROVIDER>_API_KEY` set → that provider
+- Several keys set → an interactive picker on a TTY, otherwise a deterministic order: Ollama, Anthropic, OpenAI, OpenRouter, Gemini, DeepSeek, Groq, Mistral, xAI, Together
+
+The model is resolved the same way (`flag > env > config`):
+1. `--model <id>` flag
+2. `SPECSYNC_AI_MODEL` environment variable
+3. `aiModel`/`ai_model` in config
+4. Provider default — `anthropic` → `claude-sonnet-4-6`, Ollama → `llama3.3`. `openai` and `together` require an explicit model.
 
 ```toml
 # .specsync/config.toml (or .specsync/config.local.toml for per-developer overrides)
-ai_command = "claude -p --output-format text"
-ai_timeout = 300
+ai_provider = "anthropic"
+ai_model = "claude-sonnet-4-6"
+ai_timeout = 120
 ```
 
-```toml
-ai_command = "ollama run llama3"
-ai_timeout = 60
+```bash
+export SPECSYNC_AI_PROVIDER=openrouter
+export SPECSYNC_AI_MODEL=anthropic/claude-sonnet-4
+specsync generate
 ```
 
 If AI generation fails for a module, it falls back to template generation automatically.
+
+### Shell escape hatch (`aiCommand`, deprecated)
+
+`aiCommand`/`SPECSYNC_AI_COMMAND` remain as an explicit, **trusted shell escape hatch** — any command that reads a prompt on stdin and writes markdown to stdout. It is **deprecated** and **never auto-selected**; the HTTP providers above are preferred.
+
+```toml
+# .specsync/config.toml — deprecated trusted hatch
+ai_command = "my-llm-wrapper --format markdown"
+ai_timeout = 300
+```
 
 ### Template mode (no `--provider`)
 
@@ -106,7 +131,7 @@ Without `--provider`, `specsync generate` scaffolds template specs with frontmat
 
 ```bash
 # One command: AI reads code, writes specs
-specsync generate --provider auto
+specsync generate --provider anthropic
 
 # Validate the generated specs against code
 specsync check --json
@@ -227,7 +252,7 @@ None
 |---------|---------|-----|
 | **Pre-commit hook** | `specsync check --strict` | Block commits with spec errors |
 | **PR review bot** | `specsync check --json` | Parse output, post as PR comment |
-| **Bootstrap coverage** | `specsync generate --provider auto` | AI writes specs from source code |
+| **Bootstrap coverage** | `specsync generate --provider anthropic` | AI writes specs from source code |
 | **Template scaffold** | `specsync generate` | Scaffold templates after adding new modules |
 | **AI code review** | `specsync check --json` | Feed errors to LLM for spec updates |
 | **Coverage gate** | `specsync check --strict --require-coverage 100` | CI enforces full coverage |

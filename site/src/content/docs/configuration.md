@@ -27,7 +27,7 @@ specs_dir = "specs"
 source_dirs = ["src"]
 schema_dir = "db/migrations"
 ai_provider = "anthropic"
-ai_model = "claude-sonnet-4-20250514"
+ai_model = "claude-sonnet-4-6"
 ai_timeout = 120
 export_level = "member"
 required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
@@ -63,7 +63,7 @@ Config resolution order: `.specsync/config.toml` → `.specsync/config.json` →
   "sourceExtensions": [],
   "exportLevel": "member",
   "aiProvider": "anthropic",
-  "aiModel": "claude-sonnet-4-20250514",
+  "aiModel": "claude-sonnet-4-6",
   "aiCommand": null,
   "aiApiKey": null,
   "aiBaseUrl": null,
@@ -99,11 +99,11 @@ Config resolution order: `.specsync/config.toml` → `.specsync/config.json` →
 | `excludeDirs` | `string[]` | `["__tests__"]` | Directory names skipped during coverage scanning |
 | `excludePatterns` | `string[]` | Common test globs | File patterns excluded from coverage (additive with language-specific test exclusions) |
 | `sourceExtensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |
-| `aiProvider` | `string?` | — | AI provider name: `claude`, `anthropic`, `openai`, `ollama`, `copilot`, or `custom` |
-| `aiModel` | `string?` | Provider default | Model name override (e.g., `"claude-sonnet-4-20250514"`, `"gpt-4o"`, `"mistral"`) |
-| `aiCommand` | `string?` | — | Custom CLI command for AI generation (reads stdin prompt, writes stdout markdown) |
-| `aiApiKey` | `string?` | — | API key for `anthropic` or `openai` providers (prefer env vars `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` instead) |
-| `aiBaseUrl` | `string?` | — | Custom base URL for API providers (e.g., for proxies or self-hosted endpoints) |
+| `aiProvider` | `string?` | — | AI provider: `anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, or `ollama`. Deprecated: `claude` (routes to `anthropic`), `copilot`, `cursor`. Overridable via `--provider` / `SPECSYNC_AI_PROVIDER` |
+| `aiModel` | `string?` | Provider default | Model name override (e.g., `"claude-sonnet-4-6"`, `"gpt-4o"`, `"llama3.3"`). Overridable via `--model` / `SPECSYNC_AI_MODEL`. `openai` and `together` require an explicit model |
+| `aiCommand` | `string?` | — | **Deprecated** trusted shell escape hatch — a command that reads a prompt on stdin and writes markdown to stdout. Never auto-selected; prefer the HTTP providers above. Overridable via `SPECSYNC_AI_COMMAND` |
+| `aiApiKey` | `string?` | — | API key for the selected provider (prefer the per-provider env var `<PROVIDER>_API_KEY`, e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_API_KEY`) |
+| `aiBaseUrl` | `string?` | — | Custom base URL for API providers (e.g., proxies, self-hosted endpoints, or a non-default Ollama host via `OLLAMA_HOST`) |
 | `aiTimeout` | `number?` | `120` | Seconds before AI command times out per module |
 | `exportLevel` | `string?` | `"member"` | Export validation depth: `"type"` (classes/structs only) or `"member"` (all public symbols) |
 | `modules` | `object?` | `{}` | Custom module definitions mapping module names to `{ files, depends_on }` |
@@ -115,19 +115,26 @@ Config resolution order: `.specsync/config.toml` → `.specsync/config.json` →
 
 ## AI Provider Resolution
 
-When you run `specsync generate --provider auto`, the provider is resolved in this order:
+AI calls go through the shared [`corvid-ai`](https://crates.io/crates/corvid-ai) crate over plain HTTP — no CLI tool required. The **provider** is resolved `flag > env > config`:
 
-1. `--provider` CLI flag (explicit)
-2. `aiCommand` in config — checked in shared config first, then `.specsync/config.local.toml` (gitignored, per-developer overrides)
-3. `aiProvider` in config (same merge order as above)
-4. `SPECSYNC_AI_COMMAND` env var
-5. Auto-detect: installed CLIs (`claude`, `copilot`, `ollama` — alphabetical), then API keys
+1. `--provider` CLI flag
+2. `SPECSYNC_AI_PROVIDER` env var
+3. `aiProvider`/`ai_provider` in config — shared `config.toml` first, then `.specsync/config.local.toml` (gitignored, per-developer overrides)
+
+With nothing set, `generate` auto-detects:
+- **No `<PROVIDER>_API_KEY` anywhere → keyless local Ollama** (`http://localhost:11434`) — the zero-config default
+- Exactly one `<PROVIDER>_API_KEY` set → that provider
+- Several keys set → an interactive picker on a TTY, otherwise a deterministic order: Ollama, Anthropic, OpenAI, OpenRouter, Gemini, DeepSeek, Groq, Mistral, xAI, Together
+
+The **model** follows the same `flag > env > config` precedence: `--model` > `SPECSYNC_AI_MODEL` > `aiModel`/`ai_model` config > provider default (`anthropic` → `claude-sonnet-4-6`, Ollama → `llama3.3`; `openai` and `together` require an explicit model).
+
+`aiTimeout` (default `120`s) controls the per-module AI timeout. `aiBaseUrl` (or `OLLAMA_HOST` for Ollama) points a provider at a custom endpoint.
 
 > **Multi-agent teams**: Don't put `ai_provider` or `ai_command` in the shared `config.toml`. Instead, each contributor creates `.specsync/config.local.toml` with their preferred AI settings. This file is automatically gitignored.
 
 ### API Providers
 
-The `anthropic` and `openai` providers call their respective APIs directly — no CLI tool needed. Just set the API key:
+Every provider calls its HTTP API directly — no CLI tool needed. Just set the provider and its key:
 
 ```json
 {
@@ -135,7 +142,11 @@ The `anthropic` and `openai` providers call their respective APIs directly — n
 }
 ```
 
-Then set `ANTHROPIC_API_KEY` in your environment (or use `aiApiKey` in config for local use — **not recommended for shared repos**).
+Then set `ANTHROPIC_API_KEY` (or the relevant `<PROVIDER>_API_KEY`) in your environment — or use `aiApiKey` in config for local use (**not recommended for shared repos**). Local Ollama needs no key at all.
+
+### Shell escape hatch (`aiCommand`)
+
+`aiCommand`/`SPECSYNC_AI_COMMAND` remain as an explicit, **trusted shell escape hatch** — a command that reads a prompt on stdin and writes markdown to stdout. It is **deprecated** and **never auto-selected**; prefer the HTTP providers above.
 
 ---
 

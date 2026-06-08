@@ -25,7 +25,7 @@ Implements the `specsync import` command. Imports specs from external systems (G
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `cmd_import` | `root: &Path, source: &str, id: &str, repo_override: Option<&str>` | `()` | Fetch external data and create a new spec from it |
+| `cmd_import` | `root: &Path, source: Option<&str>, id: Option<&str>, repo_override: Option<&str>, all_issues: bool, label: Option<&str>, from_dir: Option<&Path>` | `()` | Route external data into specs: a single GitHub/Jira/Confluence item, all open issues (`all_issues`/`label`), or a directory of files (`from_dir`) |
 
 ## Invariants
 

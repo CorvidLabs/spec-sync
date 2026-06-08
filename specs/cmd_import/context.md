@@ -24,5 +24,5 @@ Implemented and stable. Directory-import and the no-args error path are covered 
 
 ## Notes
 
-- Spec frontmatter in `cmd_import.spec.md` documents the original 4-argument single-import signature; the live signature is 7 arguments to accommodate the `--all-issues`/`--label`/`--from-dir` batch modes. The spec is the scored reference; this companion reflects the current code.
+- `cmd_import` routes over three modes from its 7-argument signature: a single GitHub/Jira/Confluence item, all open issues (`all_issues`/`label`), or a directory of files (`from_dir`); `source`/`id` are optional accordingly.
 - Part of the command layer — orchestrates importer/github/generator modules rather than containing domain logic.

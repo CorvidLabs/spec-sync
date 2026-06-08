@@ -1,8 +1,17 @@
 ---
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import Button from './Button.astro'
 import { base } from '../lib/path'
 const current = Astro.url.pathname.replace(/\/$/, '') || base.replace(/\/$/, '')
-const VERSION = 'v4.4.0'
+// Single source of truth: read the package version from the workspace Cargo.toml
+// at build time so the badge never drifts behind a release.
+const cargoToml = fs.readFileSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../Cargo.toml'),
+  'utf-8',
+)
+const VERSION = `v${cargoToml.match(/^version\s*=\s*"([^"]+)"/m)?.[1] ?? '0.0.0'}`
 const links = [
   { href: `${base}languages`, label: 'Languages' },
   { href: `${base}examples`, label: 'Examples' },

@@ -772,7 +772,10 @@ mod tests {
     #[test]
     fn test_placeholder_comments_count_prose_only() {
         // A real un-filled HTML comment in prose counts.
-        assert_eq!(count_placeholder_comments("Body with <!-- fill me --> here"), 1);
+        assert_eq!(
+            count_placeholder_comments("Body with <!-- fill me --> here"),
+            1
+        );
         // The same syntax shown as documentation in inline code or a fenced
         // block does NOT count — it's real content, not a placeholder.
         assert_eq!(

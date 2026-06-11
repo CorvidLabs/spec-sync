@@ -10,11 +10,13 @@ pub fn cmd_init_registry(root: &Path, name: Option<String>) {
     // Respect the project layout: v4 projects get .specsync/registry.toml,
     // un-migrated 3.x projects keep the legacy root-level file.
     let registry_path = registry::local_registry_path(root);
+    // Normalize to forward slashes so output matches the tool's path style on every platform.
     let rel_display = registry_path
         .strip_prefix(root)
         .unwrap_or(&registry_path)
         .display()
-        .to_string();
+        .to_string()
+        .replace('\\', "/");
     if registry_path.exists() {
         println!("{rel_display} already exists");
         return;

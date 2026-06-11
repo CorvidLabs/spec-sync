@@ -5285,3 +5285,303 @@ fn nonexistent_root_errors_with_nonzero_exit() {
         .code(2)
         .stderr(predicate::str::contains("does not exist"));
 }
+
+// ─── Hands-on findings round 2 ───────────────────────────────────────────
+
+/// `specsync new` in a single-source-file project (e.g. a fresh cargo crate
+/// with only src/lib.rs) must auto-detect that file even though its name
+/// doesn't match the module — the README quickstart promises exactly this.
+#[test]
+fn new_auto_detects_single_source_file() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/lib.rs"),
+        "/// Says hello.\npub fn greet(name: &str) -> String { format!(\"Hello, {name}!\") }\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args(["new", "greeter", "--root", root.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Auto-detected 1 source file(s)"));
+
+    let spec = fs::read_to_string(root.join("specs/greeter/greeter.spec.md")).unwrap();
+    assert!(
+        spec.contains("- src/lib.rs"),
+        "expected src/lib.rs in frontmatter files, got:\n{spec}"
+    );
+    assert!(
+        spec.contains("`greet`"),
+        "expected pre-populated `greet` export, got:\n{spec}"
+    );
+    assert!(
+        !spec.contains("files: []"),
+        "files must not be empty, got:\n{spec}"
+    );
+
+    // The quickstart flow: the generated spec must pass `specsync check`
+    specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+}
+
+/// When nothing can be auto-detected (multiple source files, none matching),
+/// `new` must say so instead of silently writing a spec that fails validation.
+#[test]
+fn new_warns_when_no_source_files_match() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/alpha.rs"), "pub fn a() {}").unwrap();
+    fs::write(root.join("src/beta.rs"), "pub fn b() {}").unwrap();
+
+    specsync()
+        .args(["new", "gamma", "--root", root.to_str().unwrap()])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("No source files matched"));
+}
+
+/// `scaffold` gets the same single-source-file fallback as `new`.
+#[test]
+fn scaffold_auto_detects_single_source_file() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn greet() {}").unwrap();
+
+    specsync()
+        .args(["scaffold", "greeter", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let spec = fs::read_to_string(root.join("specs/greeter/greeter.spec.md")).unwrap();
+    assert!(
+        spec.contains("src/lib.rs"),
+        "expected src/lib.rs in scaffolded spec, got:\n{spec}"
+    );
+}
+
+/// The original repro: a spec with a warning gets recorded in the hash cache,
+/// then `check --fix` (without --force) reports "All specs unchanged" and
+/// fixes nothing. An explicit --fix must never be a silent no-op.
+#[test]
+fn fix_runs_even_when_cache_marks_specs_unchanged() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src/utils")).unwrap();
+    fs::write(
+        root.join("src/utils/helpers.ts"),
+        "export function documented() {}\nexport function undocumented() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/utils")).unwrap();
+    let spec = valid_spec("utils", &["src/utils/helpers.ts"]).replace(
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|",
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n| `documented` | — | void | Documented helper |",
+    );
+    fs::write(root.join("specs/utils/utils.spec.md"), spec).unwrap();
+
+    // Failing strict run — this records the spec (and its sources) in the
+    // hash cache even though it produced a warning
+    specsync()
+        .args(["check", "--strict", "--root", root.to_str().unwrap()])
+        .assert()
+        .failure();
+
+    // Sanity: without --fix/--force/--strict the cache now skips the spec
+    let assert = specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
+    assert!(
+        stdout.contains("All specs unchanged"),
+        "expected the cache to skip the unchanged spec, got:\n{stdout}"
+    );
+
+    // --fix without --force must actually fix, not report "All specs unchanged"
+    let assert = specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
+    assert!(
+        !stdout.contains("All specs unchanged"),
+        "--fix must bypass the hash cache, got:\n{stdout}"
+    );
+
+    let updated = fs::read_to_string(root.join("specs/utils/utils.spec.md")).unwrap();
+    assert!(
+        updated.contains("`undocumented`"),
+        "--fix must add the undocumented export, got:\n{updated}"
+    );
+
+    // And all exports are documented on a forced re-check
+    let assert = specsync()
+        .args(["check", "--force", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
+    assert!(
+        stdout.contains("2/2 exports documented"),
+        "expected full export coverage after --fix, got:\n{stdout}"
+    );
+}
+
+/// A symbol documented in a hand-written table under a bare heading like
+/// "### Functions" (not on the export-header allowlist) must not be added a
+/// second time by --fix. The bare heading is promoted to "### Exported
+/// Functions" so the existing rows become the export table.
+#[test]
+fn fix_does_not_duplicate_symbols_documented_under_bare_headings() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src/greeter")).unwrap();
+    fs::write(root.join("src/greeter/lib.rs"), "pub fn greet() {}\n").unwrap();
+
+    fs::create_dir_all(root.join("specs/greeter")).unwrap();
+    let spec = r#"---
+module: greeter
+version: 1
+status: active
+files:
+  - src/greeter/lib.rs
+db_tables: []
+depends_on: []
+---
+
+# Greeter
+
+## Purpose
+
+Greets people.
+
+## Public API
+
+### Functions
+
+| Function | Description |
+|----------|-------------|
+| `greet` | Says hello |
+
+## Invariants
+
+1. Always valid.
+
+## Behavioral Examples
+
+### Scenario: Basic
+
+- **Given** precondition
+- **When** action
+- **Then** result
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+
+## Dependencies
+
+None
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+"#;
+    fs::write(root.join("specs/greeter/greeter.spec.md"), spec).unwrap();
+
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(root.join("specs/greeter/greeter.spec.md")).unwrap();
+    assert_eq!(
+        updated.matches("`greet`").count(),
+        1,
+        "greet must not be duplicated, got:\n{updated}"
+    );
+    assert!(
+        updated.contains("### Exported Functions"),
+        "bare heading must be promoted to an export header, got:\n{updated}"
+    );
+
+    // The promoted table makes the export count as documented on re-check
+    let assert = specsync()
+        .args(["check", "--force", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
+    assert!(
+        stdout.contains("1/1 exports documented"),
+        "expected greet to count as documented after promotion, got:\n{stdout}"
+    );
+}
+
+/// The summary's warning count must match the number of ⚠ lines printed —
+/// the partial "N/M exports documented" line is counted as a warning, so it
+/// must render as one (previously it rendered as a green ✓).
+#[test]
+fn warning_count_matches_printed_warning_lines() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src/utils")).unwrap();
+    fs::write(
+        root.join("src/utils/helpers.ts"),
+        "export function documented() {}\nexport function undocumented() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/utils")).unwrap();
+    let spec = valid_spec("utils", &["src/utils/helpers.ts"]).replace(
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|",
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n| `documented` | — | void | Documented helper |",
+    );
+    fs::write(root.join("specs/utils/utils.spec.md"), spec).unwrap();
+
+    let assert = specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
+
+    // The partial export-coverage summary must render as a ⚠ line
+    assert!(
+        stdout.contains("⚠ 1/2 exports documented"),
+        "partial export coverage must print as a warning, got:\n{stdout}"
+    );
+
+    // Extract N from the "… N warning(s) …" summary and compare with the
+    // number of ⚠ lines actually printed
+    let counted: usize = stdout
+        .lines()
+        .find_map(|line| {
+            let idx = line.find(" warning(s)")?;
+            line[..idx].rsplit(' ').next()?.parse().ok()
+        })
+        .expect("summary line with warning count");
+    assert_eq!(
+        stdout.matches('⚠').count(),
+        counted,
+        "warning count must match printed ⚠ lines, got:\n{stdout}"
+    );
+}

@@ -1,6 +1,6 @@
 ---
 module: parser
-version: 1
+version: 2
 status: stable
 files:
   - src/parser.rs
@@ -37,6 +37,7 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 | `find_section_offset` | `body: &str, section: &str` | `Option<usize>` | Returns byte offset of the `## Section` heading line, using anchored regex with trailing-whitespace tolerance |
 | `body_has_section` | `body: &str, section: &str` | `bool` | Returns true if the spec body contains an exact `## Section` heading (delegates to `find_section_offset`) |
 | `get_near_miss_sections` | `body: &str, required_sections: &[String]` | `Vec<(String, String)>` | For each missing required section, returns `(canonical_name, found_heading)` pairs where a `## Heading` exists within Levenshtein distance ≤ 2 — used to detect typos and suggest `--fix` |
+| `get_all_api_table_symbols` | `body: &str` | `Vec<String>` | Extract the first backtick-quoted symbol from every table row in `## Public API`, including informational subsections that `get_spec_symbols` skips — used by `check --fix` to avoid appending duplicate rows |
 
 ## Invariants
 
@@ -101,3 +102,4 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 | Date | Change |
 |------|--------|
 | 2026-03-25 | Initial spec |
+| 2026-06-11 | Add `get_all_api_table_symbols` so `check --fix` treats symbols documented under any Public API table (e.g. a bare `### Functions` heading) as already documented |

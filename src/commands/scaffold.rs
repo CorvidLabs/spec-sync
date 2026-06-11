@@ -218,8 +218,14 @@ pub fn cmd_scaffold(
         process::exit(1);
     }
 
-    // Auto-detect source files matching the module name
-    let module_files = generator::find_files_for_module(root, module_name, &config);
+    // Auto-detect source files matching the module name; for single-source-file
+    // projects (e.g. only src/lib.rs) fall back to that file.
+    let mut module_files = generator::find_files_for_module(root, module_name, &config);
+    if module_files.is_empty()
+        && let Some(single) = generator::find_single_source_fallback(root, &config)
+    {
+        module_files.push(single);
+    }
 
     // Generate spec content
     let spec_content = if let Some(ref tpl_dir) = template {

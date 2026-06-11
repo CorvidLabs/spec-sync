@@ -601,6 +601,42 @@ pub fn find_files_for_module(
     module_files
 }
 
+/// Fallback source detection for single-source-file projects.
+///
+/// When a module name matches no source directory or file (e.g. `greeter` in a
+/// cargo project whose only source is `src/lib.rs`), but the project contains
+/// exactly one non-test source file across all configured source directories,
+/// that file is unambiguously the module's source. Returns the root-relative
+/// path, or `None` when there are zero or multiple candidates.
+pub fn find_single_source_fallback(root: &Path, config: &SpecSyncConfig) -> Option<String> {
+    let mut found: Option<String> = None;
+    for src_dir in &config.source_dirs {
+        let base = root.join(src_dir);
+        if !base.is_dir() {
+            continue;
+        }
+        for entry in WalkDir::new(&base).into_iter().filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if !path.is_file()
+                || !has_extension(path, &config.source_extensions)
+                || is_test_file(path)
+            {
+                continue;
+            }
+            let rel = path
+                .strip_prefix(root)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .replace('\\', "/");
+            if found.is_some() {
+                return None; // More than one source file — ambiguous, no fallback
+            }
+            found = Some(rel);
+        }
+    }
+    found
+}
+
 /// Generate a spec from a template, using language-aware defaults.
 pub fn generate_spec(
     module_name: &str,
@@ -1492,6 +1528,59 @@ mod tests {
         let config = SpecSyncConfig::default();
         let files = find_files_for_module(root, "nonexistent", &config);
         assert!(files.is_empty());
+    }
+
+    // ── find_single_source_fallback ────────────────────────────────
+
+    #[test]
+    fn single_source_fallback_returns_only_file() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let src_dir = root.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("lib.rs"), "pub fn greet() {}").unwrap();
+
+        let config = SpecSyncConfig::default();
+        let file = find_single_source_fallback(root, &config);
+        assert_eq!(file.as_deref(), Some("src/lib.rs"));
+    }
+
+    #[test]
+    fn single_source_fallback_ambiguous_returns_none() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let src_dir = root.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("lib.rs"), "pub fn greet() {}").unwrap();
+        fs::write(src_dir.join("util.rs"), "pub fn helper() {}").unwrap();
+
+        let config = SpecSyncConfig::default();
+        assert_eq!(find_single_source_fallback(root, &config), None);
+    }
+
+    #[test]
+    fn single_source_fallback_ignores_test_files() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let src_dir = root.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("lib.ts"), "export function greet() {}").unwrap();
+        fs::write(src_dir.join("lib.test.ts"), "test('greet', () => {})").unwrap();
+
+        let mut config = SpecSyncConfig::default();
+        config.source_extensions = vec!["ts".to_string()];
+        let file = find_single_source_fallback(root, &config);
+        assert_eq!(file.as_deref(), Some("src/lib.ts"));
+    }
+
+    #[test]
+    fn single_source_fallback_empty_project_returns_none() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+
+        let config = SpecSyncConfig::default();
+        assert_eq!(find_single_source_fallback(root, &config), None);
     }
 
     #[test]

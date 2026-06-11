@@ -374,7 +374,10 @@ pub fn run_validation(
                 "⊘".yellow()
             );
         } else if let Some(line) = api_line {
-            println!("  {} {line}", "✓".green());
+            // The partial-coverage summary is recorded (and counted) as a
+            // warning — print it as one so the summary's warning count matches
+            // the number of ⚠ lines shown.
+            println!("  {} {line}", "⚠".yellow());
         } else if let Some(ref summary) = result.export_summary {
             println!("  {} {summary}", "✓".green());
         }

@@ -261,6 +261,42 @@ pub fn get_spec_symbols(body: &str) -> Vec<String> {
     symbols
 }
 
+/// Extract the first backtick-quoted symbol from EVERY table row in the
+/// Public API section, including informational subsections that
+/// `get_spec_symbols` skips (e.g. "### API Endpoints", "### Functions").
+/// `check --fix` uses this to avoid appending a duplicate row for a symbol
+/// that a human already documented under a non-export heading.
+pub fn get_all_api_table_symbols(body: &str) -> Vec<String> {
+    let mut symbols = Vec::new();
+
+    let api_start = match find_section_offset(body, "Public API") {
+        Some(pos) => pos,
+        None => return symbols,
+    };
+    let after_header = match body[api_start..].find('\n') {
+        Some(pos) => api_start + pos + 1,
+        None => return symbols,
+    };
+    let rest = &body[after_header..];
+    let heading_re = Regex::new(r"(?m)^## [^#]").unwrap();
+    let api_section = match heading_re.find(rest) {
+        Some(m) => &rest[..m.start()],
+        None => rest,
+    };
+
+    for line in api_section.lines() {
+        if let Some(caps) = TABLE_ROW_RE.captures(line)
+            && let Some(sym) = caps.get(1)
+        {
+            symbols.push(sym.as_str().to_string());
+        }
+    }
+
+    let mut seen = HashSet::new();
+    symbols.retain(|s| seen.insert(s.clone()));
+    symbols
+}
+
 /// Check which required sections are missing from the spec body.
 pub fn get_missing_sections(body: &str, required_sections: &[String]) -> Vec<String> {
     let mut missing = Vec::new();
@@ -583,6 +619,41 @@ Something
         let symbols = get_spec_symbols(body);
         // Only symbols under "### Exported ..." subsections should be extracted
         assert_eq!(symbols, vec!["authenticate", "AuthConfig"]);
+    }
+
+    #[test]
+    fn test_get_all_api_table_symbols_includes_informational_tables() {
+        let body = r#"# Auth
+
+## Public API
+
+### Functions
+
+| Function | Description |
+|----------|-------------|
+| `greet` | Says hello |
+
+### API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `login` | Login route |
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+| `OutsideApiSection` | Not collected |
+"#;
+        let symbols = get_all_api_table_symbols(body);
+        // Tables under ANY ### heading within ## Public API count, but tables
+        // in other ## sections do not.
+        assert_eq!(symbols, vec!["greet", "login"]);
+    }
+
+    #[test]
+    fn test_get_all_api_table_symbols_no_api_section() {
+        assert!(get_all_api_table_symbols("# Title\n\n## Purpose\n\nText.\n").is_empty());
     }
 
     #[test]

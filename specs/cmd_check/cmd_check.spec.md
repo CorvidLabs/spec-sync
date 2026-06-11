@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/check.rs
@@ -36,8 +36,9 @@ Implements the `specsync check` command — the primary validation entry point. 
 ## Invariants
 
 1. When `--fix` is passed, auto-fix runs in two phases: (a) add undocumented exports to spec markdown tables with generated review prompts — type exports are routed to the "… Types" table and functions/values to the "… Functions"/"… Methods" table (falling back to the last export subsection), with rows padded to the target table's column count, (b) AI-regenerate specs whose requirements have drifted
-2. Near-miss header correction (e.g., "Exported Functions" → "### Exported Functions") runs as part of auto-fix
-3. Hash cache is consulted before validation unless `--force` is set — unchanged specs are skipped
+2. Near-miss header correction runs as part of auto-fix — Levenshtein-close typos are renamed to canonical export headers, and bare API-kind headings under `## Public API` (e.g. `### Functions`, `### Methods`, `### Types`) are promoted to `### Exported <Kind>` so hand-written tables become the export table instead of being duplicated
+3. Hash cache is consulted before validation unless `--force`, `--strict`, `--fix`, or a spec filter is set — an explicit `--fix` is never silently skipped because a previous failing/warning run recorded the hashes
+3a. `--fix` never adds a symbol that already appears in any table within `## Public API` (including informational subsections)
 4. After auto-fix, validation is re-run to verify fixes resolved the issues
 5. JSON output mode collects all errors/warnings into a structured object instead of printing inline
 6. `--create-issues` groups errors by spec path and creates one GitHub issue per affected spec
@@ -100,6 +101,7 @@ Implements the `specsync check` command — the primary validation entry point. 
 
 | Date | Change |
 |------|--------|
+| 2026-06-11 | v4: `--fix` bypasses the hash cache (no more silent no-op after a cached warning run); bare API-kind headings are promoted to export headers and symbols already documented in any Public API table are not re-added; partial export-coverage summary prints as ⚠ so the warning count matches printed warnings |
 | 2026-06-11 | v3: `--fix` routes exports to the matching table by kind; unmatched spec filters exit 1 without contradictory output |
 | 2026-06-07 | Document generated review prompts for `--fix` export rows |
 | 2026-04-09 | Initial spec |

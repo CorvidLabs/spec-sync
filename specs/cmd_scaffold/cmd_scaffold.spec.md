@@ -1,6 +1,6 @@
 ---
 module: cmd_scaffold
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/scaffold.rs
@@ -30,7 +30,7 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 
 ## Invariants
 
-1. Both scan source dirs for module name matches
+1. Both scan source dirs for module name matches; `cmd_scaffold` falls back to the project's single non-test source file (e.g. only `src/lib.rs`) when no name match exists
 2. `cmd_scaffold` supports custom templates and auto-appends to registry
 3. Neither overwrites existing specs
 4. Companion files (tasks.md, context.md, requirements.md, testing.md) are always generated with guided starter content; design.md is generated only when `companions.design` is enabled in config
@@ -72,6 +72,7 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 
 | Date | Change |
 |------|--------|
+| 2026-06-11 | `cmd_scaffold` falls back to the project's single source file when no module name match exists |
 | 2026-06-07 | Document guided starter content in generated companions |
 | 2026-04-09 | Initial spec |
 | 2026-04-13 | Document companions.design flag for conditional design.md generation |

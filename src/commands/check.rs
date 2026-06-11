@@ -69,6 +69,32 @@ pub fn cmd_check(
         config.enforcement
     });
 
+    // Spec name filters that matched nothing are an error — don't fall through
+    // to the misleading "No spec files found" message when specs do exist.
+    if spec_files.is_empty() && !spec_filters.is_empty() && !all_spec_files.is_empty() {
+        match format {
+            Json => {
+                let output = serde_json::json!({
+                    "passed": false,
+                    "errors": [format!("No specs matched: {}", spec_filters.join(", "))],
+                    "warnings": [],
+                    "stale": [],
+                    "specs_checked": 0,
+                });
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            }
+            _ => {
+                // filter_specs already printed the "No specs matched: ..." warning
+                eprintln!(
+                    "{} no specs matched the given filter(s) ({} spec file(s) exist)",
+                    "error:".red().bold(),
+                    all_spec_files.len()
+                );
+            }
+        }
+        process::exit(1);
+    }
+
     if spec_files.is_empty() {
         match format {
             Json => {
@@ -560,6 +586,61 @@ fn auto_regen_stale_specs(
 
 use crate::util::levenshtein;
 
+/// Build "### Exported Functions"/"### Exported Types" subsection blocks for
+/// auto-added export rows, omitting empty groups.
+fn build_export_subsections(value_rows: &str, type_rows: &str) -> String {
+    let mut block = String::new();
+    if !value_rows.is_empty() {
+        block.push_str(&format!(
+            "\n\n### Exported Functions\n\n| Export | Description |\n|--------|-------------|\n{value_rows}"
+        ));
+    }
+    if !type_rows.is_empty() {
+        block.push_str(&format!(
+            "\n\n### Exported Types\n\n| Type | Description |\n|------|-------------|\n{type_rows}"
+        ));
+    }
+    block
+}
+
+/// Markdown row for one auto-added export. When the target table's column
+/// count is known, the symbol goes in the first cell, the guidance text in the
+/// last, and any middle cells get a `TODO` placeholder.
+fn build_fix_row(
+    name: &str,
+    columns: Option<usize>,
+    primary_lang: Option<types::Language>,
+) -> String {
+    const GUIDANCE: &str = "Document caller-visible behavior and constraints.";
+    match columns {
+        Some(n) if n > 2 => {
+            let middle = "TODO | ".repeat(n - 2);
+            format!("| `{name}` | {middle}{GUIDANCE} |")
+        }
+        Some(_) => format!("| `{name}` | {GUIDANCE} |"),
+        None => match primary_lang {
+            Some(types::Language::Swift)
+            | Some(types::Language::Kotlin)
+            | Some(types::Language::Java) => {
+                format!("| `{name}` | Type or member kind | {GUIDANCE} |")
+            }
+            _ => format!("| `{name}` | {GUIDANCE} |"),
+        },
+    }
+}
+
+/// Column count of the first markdown table row found in `section`, if any.
+fn table_column_count(section: &str) -> Option<usize> {
+    section.lines().find_map(|line| {
+        let trimmed = line.trim();
+        if trimmed.len() > 2 && trimmed.starts_with('|') && trimmed.ends_with('|') {
+            Some(trimmed[1..trimmed.len() - 1].split('|').count())
+        } else {
+            None
+        }
+    })
+}
+
 /// Normalize near-miss export headers within ## Public API.
 /// E.g., "### Exportd Functions" → "### Exported Functions"
 /// Uses Levenshtein distance ≤ 2 against a canonical list to catch typos,
@@ -742,27 +823,37 @@ fn auto_fix_specs(
             })
             .next();
 
-        // Build new rows with language-appropriate columns
-        let new_rows: String = undocumented
+        // Classify undocumented exports as types vs functions/values so new
+        // rows land in the matching table — functions must not be appended to
+        // an "Exported Types" table.
+        let mut type_names: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for file in &parsed.frontmatter.files {
+            let full_path = root.join(file);
+            type_names.extend(get_exported_symbols_full(
+                &full_path,
+                types::ExportLevel::Type,
+                config.parse_mode,
+            ));
+        }
+        let (type_syms, value_syms): (Vec<&str>, Vec<&str>) = undocumented
             .iter()
-            .map(|name| match primary_lang {
-                Some(types::Language::Swift)
-                | Some(types::Language::Kotlin)
-                | Some(types::Language::Java) => {
-                    format!("| `{name}` | Type or member kind | Document caller-visible behavior and constraints. |")
-                }
-                Some(types::Language::Rust) => {
-                    format!("| `{name}` | Document caller-visible behavior and constraints. |")
-                }
-                _ => format!("| `{name}` | Document caller-visible behavior and constraints. |"),
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
+            .copied()
+            .partition(|s| type_names.contains(*s));
 
-        // Find insertion point: end of the last recognized export subsection within
-        // ## Public API, so new rows land where get_spec_symbols will find them.
-        // Inserting at the end of the whole section causes duplicates when non-export
-        // subsections (e.g. ### API Endpoints) come after the export table.
+        let build_rows = |syms: &[&str], columns: Option<usize>| -> String {
+            syms.iter()
+                .map(|name| build_fix_row(name, columns, primary_lang))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+
+        // Find insertion points: type exports go to the last "… Types" export
+        // subsection within ## Public API, everything else to the last
+        // "… Functions"/"… Methods" subsection (falling back to the last
+        // recognized export subsection), so new rows land where
+        // get_spec_symbols will find them. Inserting at the end of the whole
+        // section causes duplicates when non-export subsections
+        // (e.g. ### API Endpoints) come after the export table.
         let mut new_content = content.clone();
         if let Some(api_start) = content.find("## Public API") {
             let after = &content[api_start..];
@@ -776,63 +867,106 @@ fn auto_fix_specs(
             let sub_positions: Vec<usize> =
                 sub_re.find_iter(api_section).map(|m| m.start()).collect();
 
-            // Find the absolute end of the last recognized export subsection
-            let export_insert = sub_positions
+            // Recognized export subsections: (lowercased header, absolute start, absolute end)
+            let export_subs: Vec<(String, usize, usize)> = sub_positions
                 .iter()
                 .enumerate()
-                .rev()
-                .find_map(|(i, &rel_pos)| {
+                .filter_map(|(i, &rel_pos)| {
                     let header_line = api_section[rel_pos..].lines().next().unwrap_or("");
                     if crate::parser::is_export_header(header_line) {
                         let rel_end = sub_positions
                             .get(i + 1)
                             .copied()
                             .unwrap_or(api_section.len());
-                        Some(api_start + rel_end)
+                        Some((
+                            header_line.to_ascii_lowercase(),
+                            api_start + rel_pos,
+                            api_start + rel_end,
+                        ))
                     } else {
                         None
                     }
-                });
+                })
+                .collect();
 
-            match export_insert {
-                Some(pos) => {
-                    // Append rows at end of last recognized export subsection
+            if !export_subs.is_empty() {
+                let type_target = export_subs
+                    .iter()
+                    .rposition(|(header, _, _)| header.contains("type"));
+                let value_target = export_subs
+                    .iter()
+                    .rposition(|(header, _, _)| {
+                        header.contains("function") || header.contains("method")
+                    })
+                    .or_else(|| {
+                        // No functions table — use the last export subsection
+                        // that is not the types table
+                        export_subs
+                            .iter()
+                            .enumerate()
+                            .rev()
+                            .find(|(i, _)| Some(*i) != type_target)
+                            .map(|(i, _)| i)
+                    })
+                    .unwrap_or(export_subs.len() - 1);
+                let type_target = type_target.unwrap_or(value_target);
+
+                // Group symbols per target subsection (a group may be empty)
+                let mut syms_by_target: std::collections::BTreeMap<usize, Vec<&str>> =
+                    std::collections::BTreeMap::new();
+                for sym in &value_syms {
+                    syms_by_target.entry(value_target).or_default().push(sym);
+                }
+                for sym in &type_syms {
+                    syms_by_target.entry(type_target).or_default().push(sym);
+                }
+
+                // Apply insertions in descending offset order so earlier
+                // offsets remain valid as the content grows
+                for (&target, syms) in syms_by_target.iter().rev() {
+                    let (_, start, end) = export_subs[target];
+                    let columns = table_column_count(&content[start..end]);
+                    let rows = build_rows(syms, columns);
                     new_content = format!(
                         "{}\n{}\n{}",
-                        content[..pos].trim_end(),
-                        new_rows,
-                        &content[pos..]
+                        new_content[..end].trim_end(),
+                        rows,
+                        &new_content[end..]
                     );
                 }
-                None if sub_positions.is_empty() => {
-                    // No ### subsections — flat table or empty body; insert at section end
-                    new_content = format!(
-                        "{}\n{}\n{}",
-                        content[..api_end].trim_end(),
-                        new_rows,
-                        &content[api_end..]
-                    );
-                }
-                None => {
-                    // Has subsections but none are recognized export headers;
-                    // create a new ### Exported Functions subsection at the top of the section
-                    let api_header_end =
-                        api_start + api_section.find('\n').unwrap_or(api_section.len());
-                    let header_block = format!(
-                        "\n\n### Exported Functions\n\n| Export | Description |\n|--------|-------------|\n{new_rows}"
-                    );
-                    new_content = format!(
-                        "{}{}{}",
-                        &content[..api_header_end],
-                        header_block,
-                        &content[api_header_end..]
-                    );
-                }
+            } else if sub_positions.is_empty() {
+                // No ### subsections — flat table or empty body; insert at section end
+                let rows = build_rows(&undocumented, table_column_count(api_section));
+                new_content = format!(
+                    "{}\n{}\n{}",
+                    content[..api_end].trim_end(),
+                    rows,
+                    &content[api_end..]
+                );
+            } else {
+                // Has subsections but none are recognized export headers;
+                // create new export subsections at the top of the section
+                let api_header_end =
+                    api_start + api_section.find('\n').unwrap_or(api_section.len());
+                let header_block = build_export_subsections(
+                    &build_rows(&value_syms, Some(2)),
+                    &build_rows(&type_syms, Some(2)),
+                );
+                new_content = format!(
+                    "{}{}{}",
+                    &content[..api_header_end],
+                    header_block,
+                    &content[api_header_end..]
+                );
             }
         } else {
             // No Public API section — append one
             let section = format!(
-                "\n## Public API\n\n### Exported Functions\n\n| Export | Description |\n|--------|-------------|\n{new_rows}\n"
+                "\n## Public API{}\n",
+                build_export_subsections(
+                    &build_rows(&value_syms, Some(2)),
+                    &build_rows(&type_syms, Some(2)),
+                )
             );
             new_content.push_str(&section);
         }

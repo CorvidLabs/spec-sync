@@ -1,6 +1,6 @@
 ---
 module: cmd_generate
-version: 1
+version: 2
 status: stable
 files:
   - src/commands/generate.rs
@@ -36,6 +36,7 @@ Implements the `specsync generate` command. Scaffolds spec files for unspecced m
 2. With `--provider`, resolves AI provider and generates from source code
 3. Re-runs validation after generation to verify new specs
 4. Exits 1 if AI provider resolution fails
+5. If any AI generation fails (template fallback used), the failures are re-printed prominently on stderr after the check report and the command exits 1; JSON output includes an `ai_errors` array
 
 ## Behavioral Examples
 
@@ -50,7 +51,7 @@ Implements the `specsync generate` command. Scaffolds spec files for unspecced m
 | Condition | Behavior |
 |-----------|----------|
 | AI provider not found | Exits 1 |
-| AI fails for one module | Error printed, continues |
+| AI fails for one module | Error printed, continues, then exits 1 with the failures summarized last on stderr |
 | All modules already specced | Prints "all covered" |
 
 ## Dependencies
@@ -78,3 +79,4 @@ Implements the `specsync generate` command. Scaffolds spec files for unspecced m
 | Date | Change |
 |------|--------|
 | 2026-04-09 | Initial spec |
+| 2026-06-11 | v2: Exit non-zero when AI generation fails, with the errors re-printed last on stderr and `ai_errors` in JSON output |

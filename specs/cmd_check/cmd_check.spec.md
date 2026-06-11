@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/check.rs
@@ -35,7 +35,7 @@ Implements the `specsync check` command — the primary validation entry point. 
 
 ## Invariants
 
-1. When `--fix` is passed, auto-fix runs in two phases: (a) add undocumented exports to spec markdown tables with generated review prompts, (b) AI-regenerate specs whose requirements have drifted
+1. When `--fix` is passed, auto-fix runs in two phases: (a) add undocumented exports to spec markdown tables with generated review prompts — type exports are routed to the "… Types" table and functions/values to the "… Functions"/"… Methods" table (falling back to the last export subsection), with rows padded to the target table's column count, (b) AI-regenerate specs whose requirements have drifted
 2. Near-miss header correction (e.g., "Exported Functions" → "### Exported Functions") runs as part of auto-fix
 3. Hash cache is consulted before validation unless `--force` is set — unchanged specs are skipped
 4. After auto-fix, validation is re-run to verify fixes resolved the issues
@@ -56,7 +56,7 @@ Implements the `specsync check` command — the primary validation entry point. 
 
 - **Given** spec is missing export `pub fn new_function()`
 - **When** `cmd_check` runs with `--fix`
-- **Then** the export is appended to the spec's Public API table with a generated description prompt and the file is rewritten
+- **Then** the export is appended to the matching Public API table (functions to the functions table, types to the types table) with a generated description prompt and the file is rewritten
 
 ### Scenario: JSON output format
 
@@ -70,6 +70,7 @@ Implements the `specsync check` command — the primary validation entry point. 
 |-----------|----------|
 | AI provider not available during `--fix` regen | Prints error per spec, continues with remaining specs |
 | Auto-fix changes a spec but validation still fails | Reports remaining errors, does not loop |
+| Spec name filter matches nothing while specs exist | Prints "No specs matched" error (no contradictory "No spec files found" message) and exits 1 |
 | Hash cache file is corrupted | Falls back to full validation (cache miss) |
 | `--create-issues` with no GitHub repo | Prints error, skips issue creation |
 
@@ -99,5 +100,6 @@ Implements the `specsync check` command — the primary validation entry point. 
 
 | Date | Change |
 |------|--------|
+| 2026-06-11 | v3: `--fix` routes exports to the matching table by kind; unmatched spec filters exit 1 without contradictory output |
 | 2026-06-07 | Document generated review prompts for `--fix` export rows |
 | 2026-04-09 | Initial spec |

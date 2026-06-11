@@ -1,10 +1,33 @@
 use crate::types::RegistryEntry;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use walkdir::WalkDir;
 
 const REGISTRY_FILENAME: &str = "specsync-registry.toml";
+const V4_REGISTRY_RELATIVE: &str = ".specsync/registry.toml";
+
+/// Resolve the local registry path for a project.
+/// Prefers the v4 location (`.specsync/registry.toml`) when it exists or when
+/// the project uses the v4 layout; falls back to the legacy root-level
+/// `specsync-registry.toml` only for un-migrated 3.x projects.
+pub fn local_registry_path(root: &Path) -> PathBuf {
+    let v4_path = root.join(V4_REGISTRY_RELATIVE);
+    if v4_path.exists() {
+        return v4_path;
+    }
+    let legacy_path = root.join(REGISTRY_FILENAME);
+    if legacy_path.exists() {
+        return legacy_path;
+    }
+    // Neither exists yet: default to the v4 location unless the project is
+    // still on the legacy 3.x layout (root-level config, no version stamp).
+    if crate::config::is_legacy_layout(root) {
+        legacy_path
+    } else {
+        v4_path
+    }
+}
 
 /// A parsed remote registry (fetched over HTTPS).
 #[derive(Debug, Clone)]
@@ -128,10 +151,11 @@ pub fn fetch_remote_registry(repo: &str) -> Result<RemoteRegistry, String> {
     })
 }
 
-/// Load a registry from a `specsync-registry.toml` file.
+/// Load a registry from the local registry file
+/// (`.specsync/registry.toml`, falling back to legacy `specsync-registry.toml`).
 #[allow(dead_code)]
 pub fn load_registry(root: &Path) -> Option<RegistryEntry> {
-    let path = root.join(REGISTRY_FILENAME);
+    let path = local_registry_path(root);
     let content = fs::read_to_string(&path).ok()?;
     parse_registry(&content)
 }
@@ -226,11 +250,12 @@ pub fn generate_registry(root: &Path, project_name: &str, specs_dir: &str) -> St
     output
 }
 
-/// Add a module entry to an existing `specsync-registry.toml`.
+/// Add a module entry to an existing local registry file
+/// (`.specsync/registry.toml`, falling back to legacy `specsync-registry.toml`).
 /// If the module already exists, it is not duplicated.
 /// Returns `true` if the entry was added, `false` if it already existed or the file is missing.
 pub fn register_module(root: &Path, module_name: &str, spec_rel_path: &str) -> bool {
-    let path = root.join(REGISTRY_FILENAME);
+    let path = local_registry_path(root);
     let content = match fs::read_to_string(&path) {
         Ok(c) => c,
         Err(_) => return false,

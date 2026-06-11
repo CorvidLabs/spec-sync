@@ -705,7 +705,7 @@ fn tool_generate(root: &Path, arguments: &Value) -> Result<Value, String> {
         None
     };
 
-    let generated_paths = generate_specs_for_unspecced_modules_paths(
+    let outcome = generate_specs_for_unspecced_modules_paths(
         root,
         &coverage,
         &config,
@@ -713,8 +713,9 @@ fn tool_generate(root: &Path, arguments: &Value) -> Result<Value, String> {
     );
 
     Ok(json!({
-        "generated": generated_paths,
-        "count": generated_paths.len(),
+        "generated": outcome.generated_paths,
+        "count": outcome.generated,
+        "ai_errors": outcome.ai_errors,
     }))
 }
 

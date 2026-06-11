@@ -344,6 +344,10 @@ pub struct ValidationResult {
     pub export_summary: Option<String>,
     /// Actionable fix suggestions mapped to errors.
     pub fixes: Vec<String>,
+    /// Parsed lifecycle status of the spec (None if frontmatter was unreadable).
+    /// Lets reporters surface checks that were skipped because of status
+    /// (e.g. drafts skip section and export validation).
+    pub status: Option<SpecStatus>,
 }
 
 impl ValidationResult {
@@ -354,6 +358,7 @@ impl ValidationResult {
             warnings: Vec::new(),
             export_summary: None,
             fixes: Vec::new(),
+            status: None,
         }
     }
 }

@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 2
+version: 3
 status: stable
 files:
   - src/validator.rs
@@ -45,6 +45,7 @@ Core validation engine for spec-sync. Validates individual spec files against so
 8. File suggestions use Levenshtein distance (max 3) when a referenced source file is missing
 9. Flat source files (e.g. `src/config.rs`) are detected as modules, excluding common entry points (main, lib, mod, index, app, `__init__`)
 10. Sections with no substantive content are reported as unfinished draft text rather than as template markers
+11. `validate_spec` records the spec's parsed lifecycle status on `ValidationResult.status` (None when frontmatter is unreadable) so reporters can surface status-based skips, e.g. drafts skipping section and export checks
 
 ## Behavioral Examples
 
@@ -108,6 +109,7 @@ Core validation engine for spec-sync. Validates individual spec files against so
 
 | Date | Change |
 |------|--------|
+| 2026-06-11 | v3: `validate_spec` populates `ValidationResult.status` with the parsed lifecycle status so callers can report draft skips |
 | 2026-06-07 | Update draft-only section warning wording |
 | 2026-03-25 | Initial spec |
 | 2026-04-06 | Document archive, compact, merge as consumers of find_spec_files; note hash_cache integration for incremental validation |

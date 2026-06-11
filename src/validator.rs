@@ -180,6 +180,7 @@ pub fn validate_spec(
 
     let fm = &parsed.frontmatter;
     let body = &parsed.body;
+    result.status = fm.parsed_status();
 
     // File size guard: warn if the spec exceeds the configurable limit (default 512 KB)
     {

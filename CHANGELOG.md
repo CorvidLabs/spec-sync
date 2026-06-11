@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Fresh `specsync init` now creates the v4 layout** — init writes `.specsync/config.toml`, a `4.0.0` version stamp, `.specsync/.gitignore`, and the `lifecycle/`/`changes/`/`archive/` directories (what `specsync migrate` produces) instead of a legacy root-level `specsync.json`, so a brand-new project no longer sees the "Legacy 3.x layout detected" migration nag on its first `check`.
+- **`init-registry` respects the v4 layout** — the registry is written to `.specsync/registry.toml` in v4 projects instead of recreating a root-level `specsync-registry.toml` (which re-triggered the legacy nag after migration). Un-migrated 3.x projects keep the legacy path. `load_registry`/`register_module` now resolve the same location via the new `registry::local_registry_path`.
+- **Draft specs no longer pass validation silently** — when a draft skips section/export checks (by design), `check` now prints explicit "Section validation skipped (status: draft)" / "Export validation skipped (status: draft)" notices instead of misleading "✓ All required sections present" lines, plus a summary hint: "N draft spec(s) skipped section and export validation — set `status: active` to enable full checks".
+- **`check --fix` routes exports to the matching table** — functions/values are appended to the "… Functions"/"… Methods" table and type exports to the "… Types" table (previously everything landed in the last export table, e.g. functions `add`/`subtract` in "Exported Types"). New rows are padded to the target table's column count.
+- **`generate` exits non-zero when AI generation fails** — a failed provider call (e.g. missing API key) still falls back to the template, but the failures are re-printed prominently on stderr *after* the check report and the command exits 1 instead of burying the error and exiting 0. JSON output gains an `ai_errors` array; the MCP `specsync_generate` tool reports `ai_errors` too. Both generation entry points now return a `GenerationOutcome` (count, paths, AI errors).
+- **`watch` footer no longer contradicts the report** — the footer parses the child check's summary line instead of trusting only its exit code (which is 0 under the default `enforcement = warn`), so "All checks passed!" is never printed beneath a "… 1 failed" summary.
+- **Failing checks render negated labels** — a failing frontmatter check now prints "✗ Frontmatter invalid" instead of "✗ Frontmatter valid".
+- **`check <name>` with an unmatched spec filter exits 1** — and no longer follows the "No specs matched" warning with a contradictory "No spec files found in specs/" message when specs exist.
+- **`--root` pointing at a nonexistent path now errors (exit 2)** — previously the CLI silently exited 0 having checked nothing.
 - **Spec scoring no longer false-flags documented HTML-comment syntax** — the `placeholder_free` check strips fenced and inline code before counting `<!-- ... -->`, so a spec that *documents* an HTML-comment directive (e.g. ``a `<!-- specsync-ignore -->` directive``) isn't penalized for showing real syntax.
 
 ## [4.4.0] - 2026-06-07

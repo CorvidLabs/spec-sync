@@ -150,17 +150,18 @@ fn cmd_generate_all(
     let ai = resolved_provider.is_some();
 
     if json {
-        let generated_paths = generate_specs_for_unspecced_modules_paths(
+        let outcome = generate_specs_for_unspecced_modules_paths(
             root,
             &coverage,
             &config,
             resolved_provider.as_ref(),
         );
         let output = serde_json::json!({
-            "generated": generated_paths,
+            "generated": outcome.generated_paths,
+            "ai_errors": outcome.ai_errors,
         });
         println!("{}", serde_json::to_string_pretty(&output).unwrap());
-        process::exit(0);
+        process::exit(if outcome.ai_errors.is_empty() { 0 } else { 1 });
     }
 
     print_coverage_report(&coverage);
@@ -183,8 +184,9 @@ fn cmd_generate_all(
         );
     }
 
-    let generated =
+    let outcome =
         generate_specs_for_unspecced_modules(root, &coverage, &config, resolved_provider.as_ref());
+    let generated = outcome.generated;
     if generated == 0 && coverage.unspecced_modules.is_empty() {
         println!(
             "  {} No specs to generate — full module coverage",
@@ -221,6 +223,7 @@ fn cmd_generate_all(
 
     print_summary(total, passed, total_warnings, total_errors);
     print_coverage_line(&coverage);
+    report_ai_failures_and_exit(&outcome.ai_errors);
     exit_with_status(
         total_errors,
         total_warnings,
@@ -229,6 +232,27 @@ fn cmd_generate_all(
         &coverage,
         require_coverage,
     );
+}
+
+/// If any AI generation failures occurred, print them prominently on stderr
+/// (last, after the check report) and exit non-zero. No-op when empty.
+fn report_ai_failures_and_exit(ai_errors: &[String]) {
+    if ai_errors.is_empty() {
+        return;
+    }
+    eprintln!();
+    for e in ai_errors {
+        eprintln!("  {} {e}", "✗".red());
+    }
+    eprintln!(
+        "{} AI generation failed for {} module(s) — template fallback was used.",
+        "✗".red().bold(),
+        ai_errors.len()
+    );
+    eprintln!(
+        "  Check your provider configuration (API key, --provider, aiProvider/aiCommand) and re-run."
+    );
+    process::exit(1);
 }
 
 /// Generate specs for a specific batch of module names.
@@ -299,7 +323,7 @@ fn cmd_generate_batch(
             unspecced_modules: to_generate.clone(),
             ..coverage.clone()
         };
-        let generated_paths = generate_specs_for_unspecced_modules_paths(
+        let outcome = generate_specs_for_unspecced_modules_paths(
             root,
             &filtered_coverage,
             &config,
@@ -307,12 +331,13 @@ fn cmd_generate_batch(
         );
         let output = serde_json::json!({
             "requested": modules,
-            "generated": generated_paths,
+            "generated": outcome.generated_paths,
+            "ai_errors": outcome.ai_errors,
             "skipped_already_specced": already_specced,
             "skipped_not_found": not_found,
         });
         println!("{}", serde_json::to_string_pretty(&output).unwrap());
-        process::exit(0);
+        process::exit(if outcome.ai_errors.is_empty() { 0 } else { 1 });
     }
 
     println!(
@@ -338,6 +363,7 @@ fn cmd_generate_batch(
         );
     }
 
+    let mut ai_errors: Vec<String> = Vec::new();
     if to_generate.is_empty() {
         println!("  {} Nothing to generate.", "i".blue());
     } else {
@@ -353,17 +379,18 @@ fn cmd_generate_batch(
             ..coverage
         };
 
-        let generated = generate_specs_for_unspecced_modules(
+        let outcome = generate_specs_for_unspecced_modules(
             root,
             &filtered_coverage,
             &config,
             resolved_provider.as_ref(),
         );
+        ai_errors = outcome.ai_errors;
 
         println!(
             "\n  {} Batch generate complete: {}/{} spec(s) generated",
             "✓".green(),
-            generated,
+            outcome.generated,
             to_generate.len()
         );
     }
@@ -388,6 +415,7 @@ fn cmd_generate_batch(
     );
     print_summary(total, passed, total_warnings, total_errors);
 
+    report_ai_failures_and_exit(&ai_errors);
     exit_with_status(
         total_errors,
         total_warnings,

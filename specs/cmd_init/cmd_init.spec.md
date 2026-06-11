@@ -1,6 +1,6 @@
 ---
 module: cmd_init
-version: 1
+version: 2
 status: stable
 files:
   - src/commands/init.rs
@@ -14,7 +14,7 @@ depends_on:
 
 ## Purpose
 
-Implements the `specsync init` command. Creates a `specsync.json` configuration file with auto-detected source directories.
+Implements the `specsync init` command. Creates the v4 `.specsync/` layout — `config.toml` with auto-detected source directories, a `version` stamp, `.gitignore`, and the `lifecycle/`, `changes/`, and `archive/` state directories — matching what `specsync migrate` produces.
 
 ## Public API
 
@@ -22,26 +22,27 @@ Implements the `specsync init` command. Creates a `specsync.json` configuration 
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `cmd_init` | `root: &Path` | `()` | Create specsync.json with auto-detected source dirs |
+| `cmd_init` | `root: &Path` | `()` | Create the v4 `.specsync/` layout with auto-detected source dirs |
 | `ensure_hashes_gitignored` | `root: &Path` | `Result<bool, String>` | Add `.specsync/hashes.json` to the root `.gitignore` (idempotent); returns `Ok(true)` if the entry was added, `Ok(false)` if already present, `Err` if the write fails |
 
 ## Invariants
 
 1. Auto-detects source directories via `config::detect_source_dirs()`
-2. Will not overwrite existing `specsync.json`
-3. Writes default config with detected dirs and standard required sections
+2. Will not overwrite an existing config (v4 `.specsync/config.toml`/`config.json` or legacy `specsync.json`/`.specsync.toml`); legacy configs get a `specsync migrate` hint
+3. Writes default config with detected dirs and standard required sections via `config::config_to_toml()`
+4. A fresh init never triggers the legacy 3.x layout migration nag — `.specsync/version` is stamped with 4.0.0
 
 ## Behavioral Examples
 
 ### Scenario: First init
 
-- **Given** no `specsync.json` exists
+- **Given** no config exists
 - **When** `cmd_init(root)` runs
-- **Then** creates config with detected source dirs
+- **Then** creates `.specsync/config.toml`, `.specsync/version`, `.specsync/.gitignore`, and the `lifecycle/`, `changes/`, `archive/` directories
 
 ### Scenario: Config exists
 
-- **Given** `specsync.json` already exists
+- **Given** `.specsync/config.toml` (or a legacy config) already exists
 - **When** `cmd_init(root)` runs
 - **Then** prints message and returns without changes
 
@@ -58,7 +59,7 @@ Implements the `specsync init` command. Creates a `specsync.json` configuration 
 
 | Module | What is used |
 |--------|-------------|
-| config | `detect_source_dirs` |
+| config | `detect_source_dirs`, `config_to_toml` |
 
 ### Consumed By
 
@@ -71,3 +72,4 @@ Implements the `specsync init` command. Creates a `specsync.json` configuration 
 | Date | Change |
 |------|--------|
 | 2026-04-09 | Initial spec |
+| 2026-06-11 | v2: Init the v4 `.specsync/` layout instead of the legacy `specsync.json` so a fresh project never sees the migration nag |

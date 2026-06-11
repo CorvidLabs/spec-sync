@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 3
+version: 4
 status: stable
 files:
   - src/main.rs
@@ -130,7 +130,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 ## Invariants
 
 1. When no subcommand is given, `check` runs by default
-2. `--root` defaults to the current working directory; the path is canonicalized
+2. `--root` defaults to the current working directory; the path is validated (must be an existing directory — otherwise an error is printed and the process exits 2) and canonicalized
 3. `--strict` causes warnings to produce a non-zero exit code
 4. `--require-coverage N` causes exit 1 if file coverage percent < N
 5. `--json` switches all output to machine-readable JSON (no ANSI colors)
@@ -175,9 +175,9 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 
 ### Scenario: Init idempotency
 
-- **Given** `specsync.json` already exists in the project root
+- **Given** a config (v4 `.specsync/config.toml` or legacy `specsync.json`) already exists
 - **When** `specsync init` is run
-- **Then** prints "specsync.json already exists" and returns without modifying it
+- **Then** prints an "already exists" message and returns without modifying it
 
 ### Scenario: Coverage threshold
 
@@ -347,6 +347,7 @@ Cold start times (first run after boot) may be 2-3x higher due to disk cache war
 
 | Date | Change |
 |------|--------|
+| 2026-06-11 | v4: `--root` now errors (exit 2) for nonexistent paths; init scenario covers the v4 config layout |
 | 2026-04-10 | Add Performance Requirements section with response time targets, cache requirements, resource limits, and scalability targets |
 | 2026-03-25 | Initial spec |
 | 2026-04-06 | Add compact, archive-tasks, view, merge, issues subcommands; add --force, --create-issues, --format flags; add hash_cache/github/archive/compact/view/merge dependencies |

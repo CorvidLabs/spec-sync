@@ -1,6 +1,6 @@
 ---
 module: types
-version: 1
+version: 2
 status: stable
 files:
   - src/types.rs
@@ -36,7 +36,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | Type | Description |
 |------|-------------|
 | `Frontmatter` | YAML frontmatter parsed from a spec file (module, version, status, files, db_tables, depends_on, implements, tracks, agent_policy, lifecycle_log) |
-| `ValidationResult` | Result of validating a single spec — errors, warnings, fixes, and export summary |
+| `ValidationResult` | Result of validating a single spec — errors, warnings, fixes, export summary, and the spec's parsed lifecycle status (so reporters can surface status-based skips) |
 | `CoverageReport` | File and LOC coverage metrics for the project |
 | `SpecSyncConfig` | User-provided configuration loaded from specsync.json or .specsync.toml |
 | `RegistryEntry` | Registry entry mapping module names to spec file paths for cross-project resolution |
@@ -99,7 +99,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 2. `AiProvider::detection_order` returns API providers only (by `<PROVIDER>_API_KEY` presence) — auto-detection never shells out to a CLI
 3. `Language::from_extension` returns `None` for unsupported extensions — never panics
 4. `SpecSyncConfig::default()` always provides sensible defaults (specs_dir="specs", source_dirs=["src"], 7 required sections)
-5. `ValidationResult::new` initializes with empty error/warning/fix vectors
+5. `ValidationResult::new` initializes with empty error/warning/fix vectors and `status: None`
 
 ## Behavioral Examples
 
@@ -165,6 +165,7 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 
 | Date | Change |
 |------|--------|
+| 2026-06-11 | v2: `ValidationResult` carries the spec's parsed lifecycle status for draft-skip reporting |
 | 2026-03-25 | Initial spec |
 | 2026-03-28 | Document OutputFormat, ExportLevel, ModuleDefinition |
 | 2026-04-06 | Add Frontmatter implements/tracks/agent_policy fields, ValidationRules, GitHubConfig structs |

@@ -1,6 +1,6 @@
 ---
 module: generator
-version: 2
+version: 3
 status: stable
 files:
   - src/generator.rs
@@ -24,13 +24,19 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `generate_specs_for_unspecced_modules` | `root, report, config, provider` | `usize` | Generate specs for all unspecced modules, returning count of generated specs |
-| `generate_specs_for_unspecced_modules_paths` | `root, report, config, provider` | `Vec<String>` | Generate specs for all unspecced modules, returning paths of generated files |
+| `generate_specs_for_unspecced_modules` | `root, report, config, provider` | `GenerationOutcome` | Generate specs for all unspecced modules with per-file progress output, returning the generation outcome |
+| `generate_specs_for_unspecced_modules_paths` | `root, report, config, provider` | `GenerationOutcome` | Generate specs for all unspecced modules without per-file progress output (JSON/MCP callers), returning the generation outcome |
 | `generate_companion_files_for_spec` | `spec_dir, module_name, design_enabled` | `()` | Generate companion files (tasks.md, context.md, requirements.md, testing.md, and design.md if enabled) alongside a spec |
 | `find_files_for_module` | `root, module_name, config` | `Vec<String>` | Find source files for a module by checking config definitions, subdirectories, then flat files |
 | `generate_spec` | `module_name, source_files, root, specs_dir` | `String` | Generate a spec from a template (custom or language-aware default) |
 | `generate_spec_from_custom_template` | `template_dir, module_name, source_files, root` | `String` | Generate a spec using files from a custom template directory |
 | `generate_companion_files_from_template` | `spec_dir, module_name, template_dir, design_enabled` | `()` | Generate companion files from a custom template directory with fallback to defaults; creates design.md only when `design_enabled` is true |
+
+### Exported Types
+
+| Type | Description |
+|------|-------------|
+| `GenerationOutcome` | Outcome of a generation run: `generated` count, `generated_paths` (relative spec paths written), and `ai_errors` (one entry per module whose AI generation failed and fell back to the template) |
 
 ## Invariants
 
@@ -40,7 +46,7 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 4. Module title is derived from the module name with dashes converted to title case (e.g. "api-gateway" -> "Api Gateway")
 5. Companion files (tasks.md, context.md, requirements.md, testing.md, and design.md when enabled) are only created if they don't already exist and use guidance text instead of empty template comments
 6. The design.md template includes its own YAML frontmatter with `spec:` (back-reference to the parent spec) and `sources:` (list of design asset references — Figma URLs, image paths, etc.). This frontmatter is companion-level metadata, not parsed by the spec validation pipeline
-7. AI generation falls back to template on failure (with a warning to stderr)
+7. AI generation falls back to template on failure (with a warning to stderr) and records the failure in `GenerationOutcome.ai_errors` so callers can exit non-zero
 8. Source file paths in frontmatter are relative to the project root
 9. Module source files are discovered by checking subdirectory-based modules first, then flat files
 
@@ -56,7 +62,7 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 
 - **Given** a module "auth" that already has `specs/auth/auth.spec.md`
 - **When** `generate_specs_for_unspecced_modules` is called
-- **Then** skips the module, returns 0
+- **Then** skips the module, returns an outcome with `generated == 0`
 
 ### Scenario: Design companion opt-in
 
@@ -74,7 +80,7 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 
 - **Given** an AI provider that fails with an error
 - **When** generating a spec for module "auth"
-- **Then** falls back to template-based generation and prints a warning
+- **Then** falls back to template-based generation, prints a warning, and reports the failure in `GenerationOutcome.ai_errors`
 
 ## Error Cases
 
@@ -82,7 +88,7 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 |-----------|----------|
 | Cannot create spec directory | Prints error to stderr, skips module |
 | Cannot write spec file | Prints error to stderr, skips module |
-| AI generation fails | Falls back to template, prints warning |
+| AI generation fails | Falls back to template, prints warning, records the error in `GenerationOutcome.ai_errors` |
 | No source files found for module | Skips module entirely |
 
 ## Dependencies
@@ -111,3 +117,4 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 | 2026-04-12 | Update companion files list to include requirements.md, testing.md, and opt-in design.md; add design_enabled parameter |
 | 2026-04-13 | Fix generate_companion_files_from_template signature to include design_enabled; update scenario for conditional design.md |
 | 2026-06-07 | Replace unfinished-marker built-in template content with guided starter content |
+| 2026-06-11 | Return `GenerationOutcome` (count, paths, AI errors) from both generation entry points so AI failures surface with a non-zero exit |

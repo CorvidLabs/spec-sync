@@ -472,14 +472,70 @@ fn init_creates_config_file() {
         .arg(root)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Created specsync.json"));
+        .stdout(predicate::str::contains("Created .specsync/config.toml"));
 
-    let config_path = root.join("specsync.json");
+    let config_path = root.join(".specsync/config.toml");
     assert!(config_path.exists());
     let content = fs::read_to_string(&config_path).unwrap();
-    assert!(content.contains("specsDir"));
-    assert!(content.contains("sourceDirs"));
-    assert!(content.contains("requiredSections"));
+    assert!(content.contains("specs_dir"));
+    assert!(content.contains("source_dirs"));
+    assert!(content.contains("required_sections"));
+
+    // Full v4 layout — version stamp, .gitignore, and state directories
+    assert!(root.join(".specsync/version").exists());
+    assert!(root.join(".specsync/.gitignore").exists());
+    assert!(root.join(".specsync/lifecycle").is_dir());
+    assert!(root.join(".specsync/changes").is_dir());
+    assert!(root.join(".specsync/archive").is_dir());
+}
+
+#[test]
+fn init_then_check_does_not_nag_about_legacy_layout() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/main.rs"), "fn main() {}").unwrap();
+
+    specsync()
+        .arg("init")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success();
+
+    // A fresh v4 init must not trigger the legacy 3.x migration nag
+    specsync()
+        .arg("check")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Legacy 3.x layout").not());
+}
+
+#[test]
+fn init_does_not_overwrite_existing_v4_config() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"custom\"\n",
+    )
+    .unwrap();
+
+    specsync()
+        .arg("init")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("already exists"));
+
+    let content = fs::read_to_string(root.join(".specsync/config.toml")).unwrap();
+    assert!(content.contains("custom"));
 }
 
 #[test]
@@ -1372,7 +1428,8 @@ fn ai_command_overrides_ai_provider() {
     fs::create_dir_all(root.join("src/newmod")).unwrap();
     fs::write(root.join("src/newmod/lib.rs"), "pub fn hello() {}").unwrap();
 
-    // The command succeeds (falls back to template) but stderr shows AI was attempted & failed
+    // The spec is still written from the template, but the run exits non-zero
+    // and reports the AI failure prominently on stderr
     specsync()
         .arg("generate")
         .arg("--provider")
@@ -1380,8 +1437,10 @@ fn ai_command_overrides_ai_provider() {
         .arg("--root")
         .arg(&root)
         .assert()
-        .success()
-        .stderr(predicate::str::contains("AI generation failed"));
+        .failure()
+        .code(1)
+        .stderr(predicate::str::contains("AI generation failed"))
+        .stderr(predicate::str::contains("template fallback was used"));
 }
 
 #[test]
@@ -1703,7 +1762,8 @@ fn ai_api_key_config_field_used_for_anthropic() {
     )
     .unwrap();
 
-    // Should succeed (API call fails, falls back to template)
+    // The API call fails (bad key) — the template fallback is written but the
+    // run exits non-zero so the failure is not silent
     specsync()
         .arg("generate")
         .arg("--provider")
@@ -1712,7 +1772,8 @@ fn ai_api_key_config_field_used_for_anthropic() {
         .arg(&root)
         .env_remove("ANTHROPIC_API_KEY")
         .assert()
-        .success()
+        .failure()
+        .code(1)
         .stderr(predicate::str::contains("AI generation failed"));
 }
 
@@ -1751,11 +1812,8 @@ fn init_auto_detects_src_dir() {
         .success()
         .stdout(predicate::str::contains("Detected source directories: src"));
 
-    let config: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(root.join("specsync.json")).unwrap()).unwrap();
-    let dirs = config["sourceDirs"].as_array().unwrap();
-    assert_eq!(dirs.len(), 1);
-    assert_eq!(dirs[0], "src");
+    let config = fs::read_to_string(root.join(".specsync/config.toml")).unwrap();
+    assert!(config.contains("source_dirs = [\"src\"]"));
 }
 
 #[test]
@@ -1775,11 +1833,8 @@ fn init_auto_detects_lib_dir() {
         .success()
         .stdout(predicate::str::contains("Detected source directories: lib"));
 
-    let config: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(root.join("specsync.json")).unwrap()).unwrap();
-    let dirs = config["sourceDirs"].as_array().unwrap();
-    assert_eq!(dirs.len(), 1);
-    assert_eq!(dirs[0], "lib");
+    let config = fs::read_to_string(root.join(".specsync/config.toml")).unwrap();
+    assert!(config.contains("source_dirs = [\"lib\"]"));
 }
 
 #[test]
@@ -1803,12 +1858,8 @@ fn init_auto_detects_multiple_dirs() {
             "Detected source directories: lib, src",
         ));
 
-    let config: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(root.join("specsync.json")).unwrap()).unwrap();
-    let dirs = config["sourceDirs"].as_array().unwrap();
-    assert_eq!(dirs.len(), 2);
-    assert_eq!(dirs[0], "lib");
-    assert_eq!(dirs[1], "src");
+    let config = fs::read_to_string(root.join(".specsync/config.toml")).unwrap();
+    assert!(config.contains("source_dirs = [\"lib\", \"src\"]"));
 }
 
 #[test]
@@ -1836,11 +1887,8 @@ fn init_ignores_node_modules_and_hidden_dirs() {
         .success()
         .stdout(predicate::str::contains("Detected source directories: app"));
 
-    let config: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(root.join("specsync.json")).unwrap()).unwrap();
-    let dirs = config["sourceDirs"].as_array().unwrap();
-    assert_eq!(dirs.len(), 1);
-    assert_eq!(dirs[0], "app");
+    let config = fs::read_to_string(root.join(".specsync/config.toml")).unwrap();
+    assert!(config.contains("source_dirs = [\"app\"]"));
 }
 
 #[test]
@@ -1884,11 +1932,8 @@ fn init_falls_back_to_src_when_no_source_files() {
         .success()
         .stdout(predicate::str::contains("Detected source directories: src"));
 
-    let config: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(root.join("specsync.json")).unwrap()).unwrap();
-    let dirs = config["sourceDirs"].as_array().unwrap();
-    assert_eq!(dirs.len(), 1);
-    assert_eq!(dirs[0], "src");
+    let config = fs::read_to_string(root.join(".specsync/config.toml")).unwrap();
+    assert!(config.contains("source_dirs = [\"src\"]"));
 }
 
 // ─── MCP Server Tests ──────────────────────────────────────────────────────
@@ -4965,4 +5010,278 @@ fn stale_in_fresh_repo_reports_all_up_to_date() {
         .assert()
         .success()
         .stdout(predicate::str::contains("up to date"));
+}
+
+// ─── Hands-on findings: v4 init-registry, draft visibility, fix routing ────
+
+#[test]
+fn init_registry_uses_v4_path_in_migrated_project() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    // v4 project: config + version stamp under .specsync/
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    fs::write(root.join(".specsync/version"), "4.0.0\n").unwrap();
+    fs::create_dir_all(root.join("specs")).unwrap();
+
+    specsync()
+        .args(["init-registry", "--root", root.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created .specsync/registry.toml"));
+
+    assert!(root.join(".specsync/registry.toml").exists());
+    assert!(
+        !root.join("specsync-registry.toml").exists(),
+        "must not recreate the legacy root-level registry in a v4 project"
+    );
+
+    // And the v4 registry must not re-trigger the legacy migration nag
+    specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Legacy 3.x layout").not());
+}
+
+#[test]
+fn init_registry_keeps_legacy_path_for_legacy_project() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    // Un-migrated 3.x project: root-level config, no version stamp
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("specs")).unwrap();
+
+    specsync()
+        .args(["init-registry", "--root", root.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created specsync-registry.toml"));
+
+    assert!(root.join("specsync-registry.toml").exists());
+}
+
+#[test]
+fn init_registry_is_idempotent_for_v4_registry() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/version"), "4.0.0\n").unwrap();
+    fs::write(
+        root.join(".specsync/registry.toml"),
+        "[registry]\nname = \"existing\"\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args(["init-registry", "--root", root.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("already exists"));
+
+    let content = fs::read_to_string(root.join(".specsync/registry.toml")).unwrap();
+    assert!(content.contains("existing"));
+}
+
+#[test]
+fn draft_spec_check_reports_skipped_validation() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    // Draft spec missing several required sections
+    let draft_spec = r#"---
+module: draft-mod
+version: 1
+status: draft
+files:
+  - src/auth/service.ts
+db_tables: []
+depends_on: []
+---
+
+# Draft Mod
+
+## Purpose
+
+Work in progress.
+"#;
+    fs::create_dir_all(root.join("specs/draft-mod")).unwrap();
+    fs::write(root.join("specs/draft-mod/draft-mod.spec.md"), draft_spec).unwrap();
+
+    let assert = specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
+
+    // The draft must not get misleading green checkmarks for skipped checks
+    assert!(
+        stdout.contains("Section validation skipped (status: draft)"),
+        "expected explicit skip notice for sections, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("Export validation skipped (status: draft)"),
+        "expected explicit skip notice for exports, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("draft spec(s) skipped section and export validation"),
+        "expected summary hint about skipped drafts, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("set `status: active` to enable full checks"),
+        "expected guidance to promote the draft, got:\n{stdout}"
+    );
+}
+
+#[test]
+fn active_spec_check_has_no_draft_skip_notice() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    let assert = specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
+
+    assert!(!stdout.contains("skipped (status: draft)"));
+    assert!(!stdout.contains("draft spec(s) skipped"));
+}
+
+#[test]
+fn fix_routes_functions_and_types_to_matching_tables() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    // Source with two functions and one type
+    fs::create_dir_all(root.join("src/mathx")).unwrap();
+    fs::write(
+        root.join("src/mathx/lib.rs"),
+        "pub fn add(a: i32, b: i32) -> i32 { a + b }\n\
+         pub fn subtract(a: i32, b: i32) -> i32 { a - b }\n\
+         pub struct Calculator { pub precision: u8 }\n",
+    )
+    .unwrap();
+
+    // Spec with empty Public API tables (template layout: Functions then Types)
+    fs::create_dir_all(root.join("specs/mathx")).unwrap();
+    fs::write(
+        root.join("specs/mathx/mathx.spec.md"),
+        valid_spec("mathx", &["src/mathx/lib.rs"]),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(root.join("specs/mathx/mathx.spec.md")).unwrap();
+
+    // Extract each subsection to verify the rows landed in the right table
+    let functions_start = updated.find("### Exported Functions").unwrap();
+    let types_start = updated.find("### Exported Types").unwrap();
+    let invariants_start = updated.find("## Invariants").unwrap();
+    let functions_table = &updated[functions_start..types_start];
+    let types_table = &updated[types_start..invariants_start];
+
+    assert!(
+        functions_table.contains("`add`") && functions_table.contains("`subtract`"),
+        "functions must go to the Exported Functions table, got:\n{functions_table}"
+    );
+    assert!(
+        !types_table.contains("`add`") && !types_table.contains("`subtract`"),
+        "functions must NOT land in the Exported Types table, got:\n{types_table}"
+    );
+    assert!(
+        types_table.contains("`Calculator`"),
+        "types must go to the Exported Types table, got:\n{types_table}"
+    );
+    assert!(
+        !functions_table.contains("`Calculator`"),
+        "types must NOT land in the Exported Functions table, got:\n{functions_table}"
+    );
+
+    // The fixed spec passes a re-check without duplicate rows
+    specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+    let recheck = fs::read_to_string(root.join("specs/mathx/mathx.spec.md")).unwrap();
+    assert_eq!(recheck.matches("`add`").count(), 1);
+}
+
+#[test]
+fn failing_frontmatter_shows_negated_label() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn a() {}").unwrap();
+
+    // Spec missing required frontmatter fields (no version/status)
+    fs::create_dir_all(root.join("specs/bad")).unwrap();
+    fs::write(
+        root.join("specs/bad/bad.spec.md"),
+        "---\nmodule: bad\nfiles:\n  - src/lib.rs\n---\n\n# Bad\n\n## Purpose\n\nx\n",
+    )
+    .unwrap();
+
+    let assert = specsync()
+        .args(["check", "--root", root.to_str().unwrap()])
+        .assert();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
+
+    assert!(
+        stdout.contains("✗ Frontmatter invalid"),
+        "failing frontmatter must show a negated label, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("✗ Frontmatter valid"),
+        "must not pair ✗ with a non-negated label, got:\n{stdout}"
+    );
+}
+
+#[test]
+fn check_unmatched_spec_filter_errors_without_contradiction() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    let assert = specsync()
+        .args(["check", "nosuchmodule", "--root", root.to_str().unwrap()])
+        .assert()
+        .failure()
+        .code(1);
+    let output = assert.get_output();
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    assert!(
+        stderr.contains("No specs matched"),
+        "expected unmatched-filter warning, got stderr:\n{stderr}"
+    );
+    assert!(
+        !stdout.contains("No spec files found"),
+        "must not claim no spec files exist when specs are present, got:\n{stdout}"
+    );
+}
+
+#[test]
+fn nonexistent_root_errors_with_nonzero_exit() {
+    specsync()
+        .args(["check", "--root", "/nonexistent/path/for/specsync"])
+        .assert()
+        .failure()
+        .code(2)
+        .stderr(predicate::str::contains("does not exist"));
 }

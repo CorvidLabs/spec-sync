@@ -235,11 +235,16 @@ pub fn run_validation(
     let mut total_errors = 0;
     let mut total_warnings = 0;
     let mut passed = 0;
+    let mut drafts_skipped = 0;
     let mut all_errors: Vec<String> = Vec::new();
     let mut all_warnings: Vec<String> = Vec::new();
 
     for spec_file in spec_files {
         let result = validate_spec(spec_file, root, schema_tables, schema_columns, config);
+        let is_draft = result.status == Some(SpecStatus::Draft);
+        if is_draft {
+            drafts_skipped += 1;
+        }
 
         // Parse inline ignore directives from the spec file
         let inline_ignores = std::fs::read_to_string(spec_file)
@@ -276,7 +281,7 @@ pub fn run_validation(
             .iter()
             .any(|e| e.starts_with("Frontmatter") || e.starts_with("Missing or malformed"));
         if has_fm_errors {
-            println!("  {} Frontmatter valid", "✗".red());
+            println!("  {} Frontmatter invalid", "✗".red());
         } else {
             println!("  {} Frontmatter valid", "✓".green());
         }
@@ -333,13 +338,20 @@ pub fn run_validation(
         }
 
         // Section check
+        // Drafts skip required-section validation by design — say so instead of
+        // printing a misleading "all sections present" checkmark.
         let section_errors: Vec<&str> = result
             .errors
             .iter()
             .filter(|e| e.starts_with("Missing required section"))
             .map(|s| s.as_str())
             .collect();
-        if section_errors.is_empty() {
+        if is_draft {
+            println!(
+                "  {} Section validation skipped (status: draft)",
+                "⊘".yellow()
+            );
+        } else if section_errors.is_empty() {
             println!("  {} All required sections present", "✓".green());
         } else {
             for e in &section_errors {
@@ -348,6 +360,7 @@ pub fn run_validation(
         }
 
         // API surface
+        // Drafts skip export drift detection by design — make that visible.
         let api_line = warnings.iter().find(|w| {
             w.contains("exports documented")
                 && w.chars()
@@ -355,7 +368,12 @@ pub fn run_validation(
                     .map(|c| c.is_ascii_digit())
                     .unwrap_or(false)
         });
-        if let Some(line) = api_line {
+        if is_draft {
+            println!(
+                "  {} Export validation skipped (status: draft)",
+                "⊘".yellow()
+            );
+        } else if let Some(line) = api_line {
             println!("  {} {line}", "✓".green());
         } else if let Some(ref summary) = result.export_summary {
             println!("  {} {summary}", "✓".green());
@@ -492,6 +510,13 @@ pub fn run_validation(
         if result.errors.is_empty() {
             passed += 1;
         }
+    }
+
+    if !collect && drafts_skipped > 0 {
+        println!(
+            "\n{} {drafts_skipped} draft spec(s) skipped section and export validation — set `status: active` to enable full checks",
+            "ℹ".yellow()
+        );
     }
 
     (

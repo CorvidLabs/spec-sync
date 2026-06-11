@@ -679,7 +679,9 @@ pub fn generate_spec(
 }
 
 /// Generate spec content for a module, using AI if a provider is configured.
-/// Returns `(spec_content, ai_was_used)`.
+/// Returns `(spec_content, ai_was_used, ai_error)` — `ai_error` is `Some` when
+/// an AI provider was requested but generation failed and the template
+/// fallback was used instead.
 fn generate_module_spec(
     module_name: &str,
     module_files: &[String],
@@ -687,7 +689,8 @@ fn generate_module_spec(
     specs_dir: &Path,
     config: &SpecSyncConfig,
     provider: Option<&ResolvedProvider>,
-) -> (String, bool) {
+) -> (String, bool, Option<String>) {
+    let mut ai_error: Option<String> = None;
     if let Some(provider) = provider {
         // Make paths relative to root for the AI prompt
         let rel_files: Vec<String> = module_files
@@ -701,12 +704,13 @@ fn generate_module_spec(
             .collect();
 
         match ai::generate_spec_with_ai(module_name, &rel_files, root, config, provider) {
-            Ok(spec) => return (spec, true),
+            Ok(spec) => return (spec, true, None),
             Err(e) => {
                 eprintln!(
                     "  {} AI generation failed for {module_name}: {e} — falling back to template",
                     "⚠".yellow()
                 );
+                ai_error = Some(format!("AI generation failed for {module_name}: {e}"));
             }
         }
     }
@@ -714,6 +718,7 @@ fn generate_module_spec(
     (
         generate_spec(module_name, module_files, root, specs_dir),
         false,
+        ai_error,
     )
 }
 
@@ -933,16 +938,28 @@ pub fn generate_companion_files_from_template(
     }
 }
 
+/// Outcome of a spec-generation run.
+#[derive(Debug, Default)]
+pub struct GenerationOutcome {
+    /// Number of spec files written.
+    pub generated: usize,
+    /// Paths (relative to root) of the spec files written.
+    pub generated_paths: Vec<String>,
+    /// AI generation failures (one entry per module that fell back to the template).
+    pub ai_errors: Vec<String>,
+}
+
 /// Generate spec files for all unspecced modules.
-/// Returns the number of specs generated.
+/// Returns the generation outcome, including any AI failures that fell back
+/// to the template so callers can exit non-zero.
 pub fn generate_specs_for_unspecced_modules(
     root: &Path,
     report: &CoverageReport,
     config: &SpecSyncConfig,
     provider: Option<&ResolvedProvider>,
-) -> usize {
+) -> GenerationOutcome {
     let specs_dir = root.join(&config.specs_dir);
-    let mut generated = 0;
+    let mut outcome = GenerationOutcome::default();
 
     for module_name in &report.unspecced_modules {
         let spec_dir = specs_dir.join(module_name);
@@ -968,7 +985,7 @@ pub fn generate_specs_for_unspecced_modules(
             eprintln!("  Generating {rel} with AI...");
         }
 
-        let (spec_content, ai_used) = generate_module_spec(
+        let (spec_content, ai_used, ai_error) = generate_module_spec(
             module_name,
             &module_files,
             root,
@@ -976,23 +993,30 @@ pub fn generate_specs_for_unspecced_modules(
             config,
             provider,
         );
+        if let Some(e) = ai_error {
+            outcome.ai_errors.push(e);
+        }
 
         match fs::write(&spec_file, &spec_content) {
             Ok(_) => {
-                let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
+                let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file);
                 let from = if provider.is_some() && !ai_used {
                     " from template"
                 } else {
                     ""
                 };
                 println!(
-                    "  {} Generated {rel}{from} ({} files)",
+                    "  {} Generated {}{from} ({} files)",
                     "✓".green(),
+                    rel.display(),
                     module_files.len()
                 );
                 generate_companion_files(&spec_dir, module_name, config.companions.design);
                 let _ = std::io::stdout().flush();
-                generated += 1;
+                outcome.generated += 1;
+                outcome
+                    .generated_paths
+                    .push(rel.to_string_lossy().to_string());
             }
             Err(e) => {
                 eprintln!("  Failed to write {}: {e}", spec_file.display());
@@ -1000,18 +1024,20 @@ pub fn generate_specs_for_unspecced_modules(
         }
     }
 
-    generated
+    outcome
 }
 
-/// Generate spec files for all unspecced modules, returning the paths of generated files.
+/// Generate spec files for all unspecced modules without per-file progress
+/// output (used by JSON and MCP callers). Returns the generation outcome,
+/// including the paths of the spec files written.
 pub fn generate_specs_for_unspecced_modules_paths(
     root: &Path,
     report: &CoverageReport,
     config: &SpecSyncConfig,
     provider: Option<&ResolvedProvider>,
-) -> Vec<String> {
+) -> GenerationOutcome {
     let specs_dir = root.join(&config.specs_dir);
-    let mut generated_paths = Vec::new();
+    let mut outcome = GenerationOutcome::default();
 
     for module_name in &report.unspecced_modules {
         let spec_dir = specs_dir.join(module_name);
@@ -1031,7 +1057,7 @@ pub fn generate_specs_for_unspecced_modules_paths(
             continue;
         }
 
-        let (spec_content, _ai_used) = generate_module_spec(
+        let (spec_content, _ai_used, ai_error) = generate_module_spec(
             module_name,
             &module_files,
             root,
@@ -1039,6 +1065,9 @@ pub fn generate_specs_for_unspecced_modules_paths(
             config,
             provider,
         );
+        if let Some(e) = ai_error {
+            outcome.ai_errors.push(e);
+        }
 
         if fs::write(&spec_file, &spec_content).is_ok() {
             let rel = spec_file
@@ -1046,11 +1075,12 @@ pub fn generate_specs_for_unspecced_modules_paths(
                 .unwrap_or(&spec_file)
                 .to_string_lossy()
                 .to_string();
-            generated_paths.push(rel);
+            outcome.generated += 1;
+            outcome.generated_paths.push(rel);
         }
     }
 
-    generated_paths
+    outcome
 }
 
 #[cfg(test)]

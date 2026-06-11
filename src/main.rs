@@ -61,6 +61,14 @@ fn run() {
     let root = cli
         .root
         .unwrap_or_else(|| std::env::current_dir().expect("Cannot determine cwd"));
+    if !root.is_dir() {
+        eprintln!(
+            "{} --root path does not exist or is not a directory: {}",
+            "error:".red().bold(),
+            root.display()
+        );
+        process::exit(2);
+    }
     let root = root.canonicalize().unwrap_or(root);
 
     // --json flag is shorthand for --format json (backward compat)

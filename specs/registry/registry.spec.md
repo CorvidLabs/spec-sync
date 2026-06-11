@@ -1,6 +1,6 @@
 ---
 module: registry
-version: 2
+version: 3
 status: stable
 files:
   - src/registry.rs
@@ -39,9 +39,10 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 | `fetch_remote_registry` | `repo: &str` | `Result<RemoteRegistry, String>` | Fetch `specsync-registry.toml` from a GitHub repo's default branch via raw content URL |
 | `fetch_remote_spec` | `repo: &str, spec_path: &str` | `Result<String, String>` | Fetch a spec file's raw content from a GitHub repo |
 | `parse_remote_spec` | `module: &str, content: &str` | `Option<RemoteSpec>` | Parse fetched spec content into metadata for verification |
-| `load_registry` | `root: &Path` | `Option<RegistryEntry>` | Load a registry from a local `specsync-registry.toml` file |
+| `local_registry_path` | `root: &Path` | `PathBuf` | Resolve the local registry path — prefers v4 `.specsync/registry.toml`, falls back to legacy root-level `specsync-registry.toml` for un-migrated 3.x projects |
+| `load_registry` | `root: &Path` | `Option<RegistryEntry>` | Load a registry from the local registry file resolved by `local_registry_path` |
 | `generate_registry` | `root, project_name, specs_dir` | `String` | Generate registry TOML content by scanning for spec files |
-| `register_module` | `root, module_name, spec_rel_path` | `bool` | Append a module entry to the registry file; returns false if already exists or file missing |
+| `register_module` | `root, module_name, spec_rel_path` | `bool` | Append a module entry to the registry file resolved by `local_registry_path`; returns false if already exists or file missing |
 
 ## Invariants
 
@@ -52,6 +53,7 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 5. Generated registry entries are sorted alphabetically by module name
 6. `RemoteRegistry::has_spec` performs exact module name matching
 7. TOML parsing is zero-dependency — uses line-by-line string parsing
+8. Local registry resolution prefers the v4 `.specsync/registry.toml` location; the legacy root-level `specsync-registry.toml` is only used for un-migrated 3.x layouts
 
 ## Behavioral Examples
 
@@ -104,3 +106,4 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 | 2026-03-25 | Initial spec |
 | 2026-04-07 | Document register_module function |
 | 2026-04-10 | v2: Added `fetch_remote_spec`, `parse_remote_spec`, `RemoteSpec`, `spec_path` for cross-repo content verification |
+| 2026-06-11 | v3: Added `local_registry_path`; `load_registry`/`register_module` now resolve the v4 `.specsync/registry.toml` location with legacy fallback |

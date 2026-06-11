@@ -1,6 +1,6 @@
 ---
 module: commands
-version: 1
+version: 2
 status: stable
 files:
   - src/commands/mod.rs
@@ -74,6 +74,8 @@ Shared command infrastructure used by all CLI subcommands. Provides config loadi
 1. `load_and_discover` excludes spec files starting with `_` (underscore prefix marks internal/template specs)
 2. `filter_specs` matches against four forms: exact path, relative path, filename stem, and module name (stem minus `.spec` suffix)
 3. `run_validation` applies ignore rules (global, inline, per-spec) to filter warnings before counting
+4. In text mode, draft specs show explicit "Section validation skipped (status: draft)" and "Export validation skipped (status: draft)" notices instead of misleading green checkmarks, plus a closing hint to set `status: active`
+5. Failing checks render negated labels (e.g. "✗ Frontmatter invalid"), never a ✗ next to a passing label
 4. Exit code logic by enforcement mode: Warn → always 0; EnforceNew → 1 if unspecced files; Strict → 1 on errors, also 1 on warnings when `--strict`
 5. `--require-coverage N` triggers exit 1 if file coverage percent < N regardless of enforcement mode
 6. `create_drift_issues` groups errors by spec path and creates one GitHub issue per spec, not per error
@@ -103,7 +105,7 @@ Shared command infrastructure used by all CLI subcommands. Provides config loadi
 | Condition | Behavior |
 |-----------|----------|
 | No spec files found and `allow_empty` is false | Prints suggestion to run `specsync generate` and exits 0 |
-| Filter matches no specs | Prints warning listing unmatched filters, returns empty vec |
+| Filter matches no specs | Prints warning listing unmatched filters, returns empty vec (cmd_check then exits 1) |
 | `schema_dir` not configured | `build_schema_columns` returns empty map (no error) |
 | GitHub repo unresolvable for drift issues | Prints error and returns without creating issues |
 | `gh` CLI fails to create issue | Prints per-spec error but continues with remaining specs |
@@ -141,5 +143,6 @@ Shared command infrastructure used by all CLI subcommands. Provides config loadi
 
 | Date | Change |
 |------|--------|
+| 2026-06-11 | v2: Draft specs report skipped section/export validation explicitly; failing frontmatter renders a negated label |
 | 2026-04-09 | Initial spec |
 | 2026-04-11 | Add lifecycle submodule and filter_by_status function |

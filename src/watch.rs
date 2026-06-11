@@ -175,7 +175,8 @@ fn build_check_args(
 
 fn run_check(root: &Path, strict: bool, require_coverage: Option<usize>, force: bool) {
     // Fork a child process to isolate exit calls from the check command.
-    use std::process::Command;
+    use std::io::{BufRead, BufReader, IsTerminal};
+    use std::process::{Command, Stdio};
 
     let start = Instant::now();
     let args = build_check_args(root, strict, require_coverage, force);
@@ -184,19 +185,51 @@ fn run_check(root: &Path, strict: bool, require_coverage: Option<usize>, force: 
         cmd.arg(arg);
     }
 
-    match cmd.status() {
+    // Pipe the child's stdout so the summary line can be inspected — the exit
+    // code alone is not enough because `enforcement = warn` (the default)
+    // exits 0 even when specs failed. Keep colors on when we're on a TTY.
+    cmd.stdout(Stdio::piped());
+    if std::io::stdout().is_terminal() {
+        cmd.env("CLICOLOR_FORCE", "1");
+    }
+
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("{} Failed to run check: {e}", "Error:".red());
+            return;
+        }
+    };
+
+    // Stream the child's output through while scanning for the summary line.
+    let mut failed_specs: Option<usize> = None;
+    if let Some(stdout) = child.stdout.take() {
+        for line in BufReader::new(stdout).lines() {
+            let line = match line {
+                Ok(l) => l,
+                Err(_) => break,
+            };
+            println!("{line}");
+            if let Some(failed) = parse_failed_count(&line) {
+                failed_specs = Some(failed);
+            }
+        }
+    }
+
+    match child.wait() {
         Ok(status) => {
             let elapsed = start.elapsed();
-            if status.success() {
+            let failed = !status.success() || failed_specs.unwrap_or(0) > 0;
+            if failed {
                 println!(
                     "\n{} ({}ms)",
-                    "All checks passed!".green().bold(),
+                    "Some checks failed.".red().bold(),
                     elapsed.as_millis()
                 );
             } else {
                 println!(
                     "\n{} ({}ms)",
-                    "Some checks failed.".red().bold(),
+                    "All checks passed!".green().bold(),
                     elapsed.as_millis()
                 );
             }
@@ -205,6 +238,39 @@ fn run_check(root: &Path, strict: bool, require_coverage: Option<usize>, force: 
             eprintln!("{} Failed to run check: {e}", "Error:".red());
         }
     }
+}
+
+/// Parse the failed-spec count from a check summary line like
+/// `"3 specs checked: 2 passed, 1 warning(s), 1 failed"`.
+/// Returns `None` for lines that are not the summary.
+fn parse_failed_count(line: &str) -> Option<usize> {
+    let plain = strip_ansi(line);
+    let (_, rest) = plain.split_once(" specs checked: ")?;
+    let failed_part = rest.rsplit(',').next()?.trim();
+    let count = failed_part.strip_suffix(" failed")?.trim();
+    count.parse().ok()
+}
+
+/// Remove ANSI escape sequences (colors) from a string.
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            // Skip a CSI sequence like `\x1b[31m` up to its terminating letter
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                for esc in chars.by_ref() {
+                    if esc.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    out
 }
 
 #[cfg(test)]
@@ -439,5 +505,39 @@ mod tests {
             .map(|p| p.display().to_string());
 
         assert_eq!(changed_file, None);
+    }
+
+    // --- summary line parsing (watch footer) ---
+
+    #[test]
+    fn test_parse_failed_count_with_failures() {
+        let line = "3 specs checked: 2 passed, 1 warning(s), 1 failed";
+        assert_eq!(parse_failed_count(line), Some(1));
+    }
+
+    #[test]
+    fn test_parse_failed_count_all_passed() {
+        let line = "13 specs checked: 13 passed, 0 warning(s), 0 failed";
+        assert_eq!(parse_failed_count(line), Some(0));
+    }
+
+    #[test]
+    fn test_parse_failed_count_ignores_other_lines() {
+        assert_eq!(parse_failed_count("All checks passed!"), None);
+        assert_eq!(parse_failed_count("  ✗ Frontmatter invalid"), None);
+        assert_eq!(parse_failed_count(""), None);
+    }
+
+    #[test]
+    fn test_parse_failed_count_strips_colors() {
+        // print_summary colors the failed count red when non-zero
+        let line = "1 specs checked: \u{1b}[32m0\u{1b}[0m passed, \u{1b}[33m0\u{1b}[0m warning(s), \u{1b}[31m1\u{1b}[0m failed";
+        assert_eq!(parse_failed_count(line), Some(1));
+    }
+
+    #[test]
+    fn test_strip_ansi_removes_escape_sequences() {
+        assert_eq!(strip_ansi("\u{1b}[31mred\u{1b}[0m"), "red");
+        assert_eq!(strip_ansi("plain"), "plain");
     }
 }

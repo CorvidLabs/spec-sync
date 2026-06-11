@@ -1,6 +1,6 @@
 ---
 module: watch
-version: 1
+version: 2
 status: stable
 files:
   - src/watch.rs
@@ -34,6 +34,7 @@ File watcher that re-runs `specsync check` on file changes. Watches spec and sou
 6. Check is run as a child process (fork of current executable) to isolate exit calls
 7. Screen is cleared before each re-run for clean output
 8. Changed file path is displayed in the separator header
+9. The pass/fail footer reflects the actual check results — the child's stdout is streamed through and its summary line is parsed, because `enforcement = warn` (the default) exits 0 even when specs failed
 
 ## Behavioral Examples
 
@@ -62,7 +63,7 @@ File watcher that re-runs `specsync check` on file changes. Watches spec and sou
 | No directories to watch | Prints error, exits with code 1 |
 | Watcher creation fails | Panics with "Failed to create file watcher" |
 | Individual dir watch fails | Prints warning, continues watching other dirs |
-| Check command fails | Prints "Some checks failed", continues watching |
+| Check command fails or any spec failed | Prints "Some checks failed", continues watching |
 
 ## Dependencies
 
@@ -84,3 +85,4 @@ File watcher that re-runs `specsync check` on file changes. Watches spec and sou
 | Date | Change |
 |------|--------|
 | 2026-03-25 | Initial spec |
+| 2026-06-11 | v2: Footer parses the check summary line so it never prints "All checks passed!" under a failing report |

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.5.0] - 2026-06-11
+
 ### Fixed
 
 - **`specsync new`/`scaffold` auto-detect the source in single-source-file projects** — when no directory or file matches the module name but the project has exactly one non-test source file (the README quickstart's fresh cargo crate with only `src/lib.rs`), that file is used, so `new greeter` produces a spec with real `files:` and pre-populated exports instead of an empty `files: []` that immediately fails validation. When nothing can be detected, `new` prints a warning explaining that the `files:` list must be filled in instead of silently writing a spec that fails `check`.

@@ -1,6 +1,6 @@
 ---
 module: generator
-version: 3
+version: 4
 status: stable
 files:
   - src/generator.rs
@@ -28,6 +28,7 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 | `generate_specs_for_unspecced_modules_paths` | `root, report, config, provider` | `GenerationOutcome` | Generate specs for all unspecced modules without per-file progress output (JSON/MCP callers), returning the generation outcome |
 | `generate_companion_files_for_spec` | `spec_dir, module_name, design_enabled` | `()` | Generate companion files (tasks.md, context.md, requirements.md, testing.md, and design.md if enabled) alongside a spec |
 | `find_files_for_module` | `root, module_name, config` | `Vec<String>` | Find source files for a module by checking config definitions, subdirectories, then flat files |
+| `find_single_source_fallback` | `root, config` | `Option<String>` | Root-relative path of the project's only non-test source file (e.g. `src/lib.rs`), or `None` when there are zero or multiple candidates — fallback for `new`/`scaffold` when no name match exists |
 | `generate_spec` | `module_name, source_files, root, specs_dir` | `String` | Generate a spec from a template (custom or language-aware default) |
 | `generate_spec_from_custom_template` | `template_dir, module_name, source_files, root` | `String` | Generate a spec using files from a custom template directory |
 | `generate_companion_files_from_template` | `spec_dir, module_name, template_dir, design_enabled` | `()` | Generate companion files from a custom template directory with fallback to defaults; creates design.md only when `design_enabled` is true |
@@ -118,3 +119,4 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 | 2026-04-13 | Fix generate_companion_files_from_template signature to include design_enabled; update scenario for conditional design.md |
 | 2026-06-07 | Replace unfinished-marker built-in template content with guided starter content |
 | 2026-06-11 | Return `GenerationOutcome` (count, paths, AI errors) from both generation entry points so AI failures surface with a non-zero exit |
+| 2026-06-11 | Add `find_single_source_fallback` so `new`/`scaffold` auto-detect the source in single-source-file projects (e.g. a fresh cargo crate with only `src/lib.rs`) |

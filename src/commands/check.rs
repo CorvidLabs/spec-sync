@@ -127,6 +127,13 @@ pub fn cmd_check(
     let (specs_to_validate, change_classifications) = if force || strict || !spec_filters.is_empty()
     {
         (spec_files.clone(), Vec::new())
+    } else if fix {
+        // --fix bypasses the unchanged-skip: an explicit fix request must
+        // never be a silent no-op because a previous (failing or warning) run
+        // recorded the hashes. Classifications are still computed so
+        // requirements-drift regeneration keeps working.
+        let classifications = hash_cache::classify_all_changes(root, &spec_files, &cache);
+        (spec_files.clone(), classifications)
     } else {
         let classifications = hash_cache::classify_all_changes(root, &spec_files, &cache);
         let changed: Vec<PathBuf> = classifications
@@ -410,7 +417,9 @@ pub fn cmd_check(
     let coverage = compute_coverage(root, &spec_files, &config);
 
     // Update hash cache after validation (only when no errors).
-    // Specs with warnings are still cached — --strict forces re-validation separately.
+    // Specs with warnings are still cached, which is why --fix, --strict, and
+    // --force all bypass the unchanged-skip above — an explicit fix or strict
+    // run must never trust hashes recorded by a run that had findings.
     if total_errors == 0 {
         hash_cache::update_cache(root, &specs_to_validate, &mut cache);
         let _ = cache.save(root);
@@ -697,6 +706,32 @@ fn fix_near_miss_headers(content: &mut String) -> bool {
             let new = format!("### {canonical}");
             new_section = new_section.replacen(&old, &new, 1);
             modified = true;
+            continue;
+        }
+
+        // Bare API-kind headings ("### Functions", "### Methods", "### Types", …)
+        // describe export tables but fail is_export_header, so their rows are
+        // informational-only and --fix would append a duplicate export table
+        // for the same symbols. Promote them to "### Exported <Kind>".
+        let bare_kinds: &[&str] = &[
+            "functions",
+            "methods",
+            "types",
+            "classes",
+            "constants",
+            "components",
+            "hooks",
+            "interfaces",
+            "enums",
+            "structs",
+            "traits",
+            "protocols",
+        ];
+        if bare_kinds.contains(&lower.trim()) {
+            let old = format!("### {header_text}");
+            let new = format!("### Exported {}", header_text.trim());
+            new_section = new_section.replacen(&old, &new, 1);
+            modified = true;
         }
     }
 
@@ -735,7 +770,7 @@ fn auto_fix_specs(
     dry_run: bool,
 ) -> usize {
     use crate::exports::get_exported_symbols_full;
-    use crate::parser::{get_spec_symbols, parse_frontmatter};
+    use crate::parser::{get_all_api_table_symbols, get_spec_symbols, parse_frontmatter};
 
     let mut fixed_count = 0;
     let sub_re = regex::Regex::new(r"(?m)^### ").unwrap();
@@ -795,14 +830,17 @@ fn auto_fix_specs(
         let mut seen = std::collections::HashSet::new();
         all_exports.retain(|s| seen.insert(s.clone()));
 
-        // Find which exports are already documented
-        let spec_symbols = get_spec_symbols(&parsed.body);
-        let spec_set: std::collections::HashSet<&str> =
-            spec_symbols.iter().map(|s| s.as_str()).collect();
+        // Find which exports are already documented — in recognized export
+        // tables AND in any other table within ## Public API. A symbol that a
+        // human already documented under an informational heading must not be
+        // appended a second time.
+        let mut documented: std::collections::HashSet<String> =
+            get_spec_symbols(&parsed.body).into_iter().collect();
+        documented.extend(get_all_api_table_symbols(&parsed.body));
 
         let undocumented: Vec<&str> = all_exports
             .iter()
-            .filter(|s| !spec_set.contains(s.as_str()))
+            .filter(|s| !documented.contains(s.as_str()))
             .map(|s| s.as_str())
             .collect();
 

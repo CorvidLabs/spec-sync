@@ -1,6 +1,6 @@
 ---
 module: cmd_new
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/new.rs
@@ -28,7 +28,7 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 
 ## Invariants
 
-1. Auto-detects source files by scanning source dirs for module name matches
+1. Auto-detects source files by scanning source dirs for module name matches; when nothing matches and the project has exactly one non-test source file (e.g. only `src/lib.rs`), that file is used as the module's source
 2. Extracts exports to pre-populate Public API tables
 3. `--full` generates companion files (tasks.md, context.md, requirements.md, testing.md) via `generator::generate_companion_files_for_spec()`; design.md is included only when `companions.design` is enabled in config
 4. Includes custom `chrono_lite_today()` for dates without chrono dependency
@@ -53,7 +53,7 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 | Condition | Behavior |
 |-----------|----------|
 | Spec already exists | Exits 1 |
-| No source files found | Creates spec with empty `files:` |
+| No source files found | Creates spec with empty `files:` and prints a ⚠ explaining that the `files:` list must be filled in before `check` passes |
 | Dir creation fails | Exits 1 |
 
 ## Dependencies
@@ -76,6 +76,7 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 
 | Date | Change |
 |------|--------|
+| 2026-06-11 | Fall back to the project's single source file when no name match exists (README quickstart flow); warn instead of silently writing an empty `files:` list |
 | 2026-06-07 | Replace unfinished-marker generated rows with review prompts |
 | 2026-04-09 | Initial spec |
 | 2026-04-13 | Document testing.md and conditional design.md in companion generation |

@@ -30,6 +30,18 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
 
     // Auto-detect source files for this module
     let source_files = detect_module_sources(root, module_name, &config);
+    if source_files.is_empty() {
+        eprintln!(
+            "{} No source files matched module '{module_name}' — the spec is created with an empty `files:` list.",
+            "⚠".yellow()
+        );
+        eprintln!(
+            "  Add the module's source path(s) to the `files:` list in the spec frontmatter,"
+        );
+        eprintln!(
+            "  or define the module in your config — `specsync check` fails on empty `files:`."
+        );
+    }
     let files_yaml = if source_files.is_empty() {
         "files: []\n".to_string()
     } else {
@@ -177,6 +189,14 @@ fn detect_module_sources(
                 }
             }
         }
+    }
+
+    // Fallback: a single-source-file project (e.g. only src/lib.rs) has exactly
+    // one possible source — use it even though the name doesn't match.
+    if files.is_empty()
+        && let Some(single) = generator::find_single_source_fallback(root, config)
+    {
+        files.push(single);
     }
 
     files.sort();

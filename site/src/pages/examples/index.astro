@@ -58,7 +58,7 @@ const rest = all.filter(e => !e.data.featured)
 </BaseLayout>
 
 <style>
-  .page-head { padding: 60px 0 40px; background-image: radial-gradient(ellipse 1200px 400px at 50% -100px, rgba(14,165,233,0.10), transparent 70%); border-bottom: 1px solid var(--border); }
+  .page-head { padding: 60px 0 40px; background: var(--bg-raised); border-bottom: 1px solid var(--border); }
   .eyebrow { color: var(--accent-bright); font-size: 0.875rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px; }
   .page-head h1 { font-size: clamp(2.2rem, 4vw, 3rem); letter-spacing: -0.025em; margin-bottom: 14px; line-height: 1.1; }
   .page-head h1 em { font-style: italic; font-family: var(--serif); color: var(--accent-bright); font-weight: 400; }
@@ -74,7 +74,9 @@ const rest = all.filter(e => !e.data.featured)
   .ex-list { padding: 40px 0 80px; }
   .ex-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
   .ex-card { display: grid; grid-template-columns: 100px 1fr; gap: 24px; padding: 28px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius); color: inherit; text-decoration: none; }
+  .ex-card { transition: border-color .15s ease, transform .15s ease; }
   .ex-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  @media (prefers-reduced-motion: reduce) { .ex-card { transition: none; } .ex-card:hover { transform: none; } }
   .ex-card .number { font-family: var(--serif); font-size: 3rem; color: var(--accent-bright); font-style: italic; line-height: 1; }
   .ex-card .tag { display: inline-block; padding: 4px 10px; border-radius: 4px; background: var(--accent-muted); color: var(--accent-bright); font-size: 0.8125rem; font-weight: 600; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
   .ex-card h3 { font-size: 1.25rem; margin-bottom: 8px; }

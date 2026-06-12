@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CorvidLabs">
+    <circle cx="24" cy="32" r="18" fill="#FAF9F6"/>
+    <path d="M33 21.5 L58.5 29.5 L33 39.5 Z" fill="#FAF9F6"/>
+    <circle cx="27.5" cy="26" r="3" fill="#15181B"/>
+</svg>

@@ -1,27 +1,51 @@
+/* CorvidLabs design system — vendored tokens are the single source of truth.
+   tokens.css is loaded via a <link> in BaseLayout (public/brand/tokens.css);
+   here we alias the site's legacy variable names onto the brand tokens so
+   every existing component themes for free in light + dark. */
 :root {
-  --bg: #0a1018;
-  --bg-raised: #0e1825;
-  --bg-raised-2: #1c1917;
-  --border: #1c2a3a;
-  --border-strong: #2a3b4f;
-  --text: #f1f5f9;
-  --text-muted: #b8c5d4;
-  --text-dim: #94a3b8;
-  --accent: #0ea5e9;
-  --accent-bright: #7dd3fc;
-  --accent-deep: #075985;
-  --accent-muted: rgba(14, 165, 233, 0.10);
-  --accent-glow: rgba(14, 165, 233, 0.18);
-  --focus: #7dd3fc;
-  --radius: 10px;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  --serif: "Iowan Old Style", "Apple Garamond", "Baskerville", Georgia, serif;
-  --mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
-  --drift: #fbbf24;
-  --drift-muted: rgba(251, 191, 36, 0.10);
+  /* --- Legacy aliases mapped onto brand tokens ---------------------------- */
+  /* Surfaces */
+  --bg: var(--paper);
+  --bg-raised: var(--surface);
+  --bg-raised-2: var(--surface-strong);
+  --border: var(--hairline);
+  --border-strong: var(--ink-12);
+  /* Text */
+  --text: var(--ink);
+  --text-muted: var(--ink-70);
+  --text-dim: var(--ink-60);
+  /* Accent — corvid feather sheen, never purple */
+  --accent: var(--sheen);
+  --accent-bright: var(--sheen-strong);
+  --accent-deep: var(--sheen-strong);
+  --accent-muted: var(--ink-06);
+  --accent-glow: var(--ink-06);
+  --focus: var(--sheen);
+  /* Warn/drift accent → brand warning */
+  --drift: var(--warning);
+  --drift-muted: var(--ink-06);
+
+  /* Square corners — the standard. */
+  --radius: 0;
+
+  /* Type — brand fonts */
+  --font: var(--font-display);
+  --serif: var(--font-display);
+  --mono: var(--font-mono);
+
   --tap: 44px;
   --max-w: 1180px;
   --container-pad: 32px;
+}
+
+/* On ink (dark), the accent text token reads brighter for contrast. */
+:root[data-theme='dark'] {
+  --accent-bright: var(--sheen-bright);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --accent-bright: var(--sheen-bright);
+  }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -42,6 +66,23 @@ pre code { white-space: pre; word-break: normal; word-wrap: normal; }
 /* Shiki / astro syntax-highlighted blocks */
 pre.astro-code { max-width: 100%; box-sizing: border-box; overflow-x: auto; contain: layout; }
 
+/* Syntax highlighting → brand --code-* palette, in both modes.
+   Shiki is configured with the css-variables theme; map its variables onto
+   the brand tokens so code follows light/dark and never ships purple/blue. */
+:root {
+  --astro-code-foreground: var(--ink);
+  --astro-code-background: transparent;
+  --astro-code-token-constant: var(--code-number);
+  --astro-code-token-string: var(--code-string);
+  --astro-code-token-comment: var(--code-comment);
+  --astro-code-token-keyword: var(--code-keyword);
+  --astro-code-token-parameter: var(--ink-70);
+  --astro-code-token-function: var(--code-function);
+  --astro-code-token-string-expression: var(--code-string);
+  --astro-code-token-punctuation: var(--ink-60);
+  --astro-code-token-link: var(--sheen);
+}
+
 /* Responsive tables */
 table { max-width: 100%; box-sizing: border-box; }
 .doc-body table, .art-body table {
@@ -61,16 +102,16 @@ a:focus-visible, button:focus-visible, input:focus-visible,
 select:focus-visible, [tabindex]:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 3px;
-  border-radius: 4px;
 }
 
 .skip-link {
   position: absolute; top: -100px; left: 8px;
-  background: var(--accent); color: #08141d;
-  padding: 12px 18px; border-radius: 8px;
+  background: var(--accent); color: var(--paper);
+  padding: 12px 18px;
   font-weight: 600; text-decoration: none; z-index: 100;
   transition: top .15s;
 }
+@media (prefers-reduced-motion: reduce) { .skip-link { transition: none; } }
 .skip-link:focus { top: 8px; }
 
 .sr-only {

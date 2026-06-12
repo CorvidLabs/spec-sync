@@ -1,0 +1,139 @@
+/* ============================================================
+   CorvidLabs Brand Tokens
+   The single source of truth. Import this file, don't re-derive it.
+
+   Light is the default. Dark follows the OS via prefers-color-scheme,
+   and either can be forced with data-theme="light|dark" on <html>
+   (the sun/moon toggle in theme.js writes it). Every token is defined
+   in both modes, so anything built on these tokens themes for free.
+   ============================================================ */
+
+:root {
+    color-scheme: light;
+
+    /* Core surfaces */
+    --ink: #15181B;            /* near-black, slightly cool — primary text/marks */
+    --paper: #FAF9F6;          /* warm off-white — page ground */
+    --surface: #FFFFFF;        /* cards, raised panels */
+    --surface-strong: #DCDAD2; /* inputs, wells, lifted surfaces */
+
+    /* Accent — corvid feather sheen. Never purple. */
+    --sheen: #0E6F66;          /* the accent — 5.9:1 on paper (AA) */
+    --sheen-strong: #0B5750;   /* deepened — 8:1 on paper, for small accent text (AAA) */
+    --sheen-bright: #45D0BC;   /* glint — for use ON ink only */
+    --steel: #1E6FA8;          /* gradient end only, never text */
+
+    /* Ink alpha steps (text + hairlines over light surfaces) */
+    --ink-70: rgba(21, 24, 27, 0.72);
+    --ink-60: rgba(21, 24, 27, 0.62);
+    --ink-45: rgba(21, 24, 27, 0.45);
+    --ink-12: rgba(21, 24, 27, 0.12);
+    --ink-06: rgba(21, 24, 27, 0.06);
+    --hairline: var(--ink-12);
+    --header-bg: rgba(250, 249, 246, 0.92);
+
+    /* Semantic state colors (defined so sites stop improvising) */
+    --danger: #84241E;   /* errors, destructive, recording */
+    --warning: #8A5A00;  /* in-progress, caution */
+    --success: #2F6B3A;  /* shipped, healthy */
+    --info: var(--sheen);/* informational — reuses the accent by design */
+
+    /* Code syntax highlighting (docs, terminals) — never purple */
+    --code-keyword: #0B5750;
+    --code-string: #2F6B3A;
+    --code-number: #8A5A00;
+    --code-function: #1B5E8A;   /* also types */
+    --code-comment: rgba(21, 24, 27, 0.50);
+
+    /* Categorical chart / data-viz palette — distinguishable, never purple */
+    --chart-1: #0E6F66;  /* teal */
+    --chart-2: #1E6FA8;  /* steel */
+    --chart-3: #B07A1E;  /* amber */
+    --chart-4: #2F6B3A;  /* green */
+    --chart-5: #A0492E;  /* clay */
+
+    /* The one gradient we allow: a feather-sheen hairline. Decorative only. */
+    --iridescence: linear-gradient(90deg, #0E6F66 0%, #1799A3 55%, #1E6FA8 100%);
+
+    /* Type */
+    --font-display: "Schibsted Grotesk", "Helvetica Neue", sans-serif;
+    --font-mono: "Spline Sans Mono", "SF Mono", monospace;
+    --measure: 64ch;
+}
+
+/* Dark surfaces. Declared once, applied via the forced override below
+   and the system-preference media query. */
+:root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --ink: #F4F3EF;
+    --paper: #131619;
+    --surface: #1B1F23;
+    --surface-strong: #272C31;
+
+    --sheen: #45D0BC;
+    --sheen-strong: #45D0BC;
+    --sheen-bright: #45D0BC;
+
+    --ink-70: rgba(244, 243, 239, 0.78);
+    --ink-60: rgba(244, 243, 239, 0.68);
+    --ink-45: rgba(244, 243, 239, 0.55);
+    --ink-12: rgba(244, 243, 239, 0.15);
+    --ink-06: rgba(244, 243, 239, 0.08);
+    --header-bg: rgba(19, 22, 25, 0.92);
+
+    --danger: #F08A7D;
+    --warning: #E0B05A;
+    --success: #6FC98A;
+
+    --code-keyword: #45D0BC;
+    --code-string: #6FC98A;
+    --code-number: #E0B05A;
+    --code-function: #6BB6E0;
+    --code-comment: rgba(244, 243, 239, 0.50);
+
+    --chart-1: #45D0BC;
+    --chart-2: #6BB6E0;
+    --chart-3: #E0B05A;
+    --chart-4: #6FC98A;
+    --chart-5: #E0916F;
+}
+
+@media (prefers-color-scheme: dark) {
+    /* :not([data-theme="light"]) lets a forced-light override win. */
+    :root:not([data-theme="light"]) {
+        color-scheme: dark;
+
+        --ink: #F4F3EF;
+        --paper: #131619;
+        --surface: #1B1F23;
+        --surface-strong: #272C31;
+
+        --sheen: #45D0BC;
+        --sheen-strong: #45D0BC;
+        --sheen-bright: #45D0BC;
+
+        --ink-70: rgba(244, 243, 239, 0.78);
+        --ink-60: rgba(244, 243, 239, 0.68);
+        --ink-45: rgba(244, 243, 239, 0.55);
+        --ink-12: rgba(244, 243, 239, 0.15);
+        --ink-06: rgba(244, 243, 239, 0.08);
+        --header-bg: rgba(19, 22, 25, 0.92);
+
+        --danger: #F08A7D;
+        --warning: #E0B05A;
+        --success: #6FC98A;
+
+        --code-keyword: #45D0BC;
+        --code-string: #6FC98A;
+        --code-number: #E0B05A;
+        --code-function: #6BB6E0;
+        --code-comment: rgba(244, 243, 239, 0.50);
+
+        --chart-1: #45D0BC;
+        --chart-2: #6BB6E0;
+        --chart-3: #E0B05A;
+        --chart-4: #6FC98A;
+        --chart-5: #E0916F;
+    }
+}

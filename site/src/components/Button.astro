@@ -17,16 +17,17 @@ const Tag = href ? 'a' : 'button'
 <style is:global>
   .btn {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 12px 20px; border-radius: 8px;
+    padding: 12px 20px;
     font-size: 0.9375rem; font-weight: 500; text-decoration: none;
     border: 1px solid transparent; cursor: pointer;
     min-height: 44px; font-family: inherit;
-    transition: all .15s ease;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
   }
-  .btn-primary { background: var(--accent); color: #1a0f08; font-weight: 600; }
-  .btn-primary:hover { background: var(--accent-bright); }
+  @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+  .btn-primary { background: var(--ink); color: var(--paper); font-weight: 600; }
+  .btn-primary:hover { background: var(--sheen-strong); color: var(--paper); }
   .btn-secondary { background: transparent; color: var(--text); border-color: var(--border-strong); }
-  .btn-secondary:hover { border-color: var(--accent); color: var(--accent-bright); background: var(--accent-muted); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); background: var(--ink-06); }
   .btn-ghost { background: transparent; color: var(--text-muted); padding: 12px 14px; }
   .btn-ghost:hover { color: var(--text); }
 </style>

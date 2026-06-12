@@ -22,9 +22,10 @@ export default defineConfig({
   markdown: {
     remarkPlugins: [rewriteMdLinks],
     shikiConfig: {
-      // github-dark-high-contrast passes WCAG AA for all token colors
-      // (#6A737D comment color in github-dark fails 3.05:1 on its #24292e bg)
-      theme: 'github-dark-high-contrast',
+      // css-variables theme so syntax colors come from the CorvidLabs brand
+      // --code-* tokens (mapped to --astro-code-token-* in globals.css). This
+      // follows light/dark automatically and keeps code on-brand (no purple/blue).
+      theme: 'css-variables',
     },
   },
 })

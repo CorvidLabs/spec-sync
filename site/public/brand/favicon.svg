@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CorvidLabs">
+  <style>
+    .mark { fill: #15181B; }
+    .eye  { fill: #FAF9F6; }
+    @media (prefers-color-scheme: dark) {
+      .mark { fill: #F4F3EF; }
+      .eye  { fill: #131619; }
+    }
+  </style>
+  <circle class="mark" cx="24" cy="32" r="18"/>
+  <path class="mark" d="M33 21.5 L58.5 29.5 L33 39.5 Z"/>
+  <circle class="eye" cx="27.5" cy="26" r="3"/>
+</svg>

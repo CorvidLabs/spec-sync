@@ -9,15 +9,15 @@ const { type = 'note' } = Astro.props
 
 <style is:global>
   .callout { padding: 16px 18px; border-left: 3px solid var(--accent);
-    background: var(--accent-muted); border-radius: 0 8px 8px 0; margin: 20px 0; }
+    background: var(--ink-06); margin: 20px 0; }
   .callout p:last-child { margin-bottom: 0; }
-  .callout strong { color: var(--accent-bright); }
-  .callout-warn { border-left-color: #f87171; background: rgba(248,113,113,0.08); }
-  .callout-warn strong { color: #fca5a5; }
-  .callout-tip { border-left-color: #34d399; background: rgba(52,211,153,0.08); }
-  .callout-tip strong { color: #6ee7b7; }
-  .callout-drift { border-left-color: var(--drift); background: var(--drift-muted);
+  .callout strong { color: var(--accent); }
+  .callout-warn { border-left-color: var(--warning); }
+  .callout-warn strong { color: var(--warning); }
+  .callout-tip { border-left-color: var(--success); }
+  .callout-tip strong { color: var(--success); }
+  .callout-drift { border-left-color: var(--warning); background: var(--ink-06);
     display: flex; gap: 12px; align-items: flex-start; }
-  .callout-drift strong { color: var(--drift); }
-  .callout-drift-icon { font-size: 1.1rem; color: var(--drift); flex-shrink: 0; margin-top: 1px; }
+  .callout-drift strong { color: var(--warning); }
+  .callout-drift-icon { font-size: 1.1rem; color: var(--warning); flex-shrink: 0; margin-top: 1px; }
 </style>

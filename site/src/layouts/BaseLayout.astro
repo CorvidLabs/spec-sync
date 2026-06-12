@@ -18,9 +18,25 @@ const ogImage = new URL(`${base}og-default.png`, Astro.site ?? Astro.url.origin)
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  {/* Pre-paint: apply a stored/URL theme before first paint so there's no flash. */}
+  <script is:inline>
+    (() => {
+      try {
+        const q = new URLSearchParams(location.search).get('theme')
+        const t = q || localStorage.getItem('corvid-theme')
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+      } catch (_) {}
+    })()
+  </script>
+  {/* Brand tokens — the single source of truth. Loaded before the bundled
+      site CSS so every legacy alias in globals.css resolves to a brand token. */}
+  <link rel="stylesheet" href={`${base}brand/tokens.css`} />
   <title>{title}</title>
   <meta name="description" content={description} />
-  <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+  <link rel="icon" type="image/svg+xml" href={`${base}brand/favicon.svg`} />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;900&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="canonical" href={canonical} />
   <meta property="og:title" content={title} />
   <meta property="og:description" content={description} />
@@ -37,5 +53,6 @@ const ogImage = new URL(`${base}og-default.png`, Astro.site ?? Astro.url.origin)
   <Header />
   <slot />
   <Footer />
+  <script is:inline src={`${base}brand/theme.js`} defer></script>
 </body>
 </html>

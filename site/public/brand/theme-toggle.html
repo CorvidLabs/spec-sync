@@ -1,0 +1,59 @@
+<!-- ============================================================
+     CorvidLabs theme toggle — the standard sun/moon button.
+     Never ship a "THEME" text button. Copy the three blocks below.
+     ============================================================ -->
+
+<!-- 1. PRE-PAINT (inline in <head>, before any CSS) — sets the theme
+        before first paint so a stored choice never flashes. -->
+<script>
+    (() => {
+        try {
+            const q = new URLSearchParams(location.search).get("theme");
+            const t = q || localStorage.getItem("corvid-theme");
+            if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+        } catch (_) {}
+    })();
+</script>
+
+<!-- 2. THE BUTTON — drop in your header. The icon shown reflects the
+        current mode (sun in light, moon in dark); the swap is CSS, so
+        it's correct on first paint. theme.js keeps the aria-label fresh. -->
+<button type="button" class="corvid-theme-toggle"
+        data-corvid-theme-toggle aria-pressed="false"
+        aria-label="Switch to dark theme" title="Switch theme">
+    <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4.2" />
+        <path d="M12 2.6v2.4M12 19v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.6 12h2.4M19 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7" />
+    </svg>
+    <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12.8A8.6 8.6 0 1 1 11.2 3a6.7 6.7 0 0 0 9.8 9.8z" />
+    </svg>
+</button>
+
+<!-- 3. THE STYLES — uses tokens.css variables; the icon swap mirrors
+        the token cascade so it never disagrees with the page. -->
+<style>
+    .corvid-theme-toggle {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 34px; height: 34px; padding: 0;
+        background: none; border: 1px solid var(--ink-12); color: var(--ink-70);
+        cursor: pointer; transition: border-color 0.2s, color 0.2s;
+    }
+    .corvid-theme-toggle:hover { border-color: var(--sheen); color: var(--sheen); }
+    .corvid-theme-toggle:focus-visible { outline: 2px solid var(--sheen); outline-offset: 2px; }
+    .corvid-theme-toggle svg { width: 17px; height: 17px; }
+
+    /* Show the current mode's icon. */
+    .corvid-theme-toggle .moon { display: none; }
+    :root[data-theme="dark"] .corvid-theme-toggle .sun { display: none; }
+    :root[data-theme="dark"] .corvid-theme-toggle .moon { display: inline; }
+    @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) .corvid-theme-toggle .sun { display: none; }
+        :root:not([data-theme="light"]) .corvid-theme-toggle .moon { display: inline; }
+    }
+    /* A forced-light page while the OS is dark must show the sun again. */
+    :root[data-theme="light"] .corvid-theme-toggle .sun { display: inline; }
+    :root[data-theme="light"] .corvid-theme-toggle .moon { display: none; }
+</style>

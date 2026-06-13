@@ -1,17 +1,15 @@
 ---
 import { getCollection } from 'astro:content'
-import DocsLayout from '../../layouts/DocsLayout.astro'
+import RedirectPage from '../../components/RedirectPage.astro'
+import { HUB_DOCS } from '../../lib/hub'
 
+// Keep enumerating every docs slug (incl. integrations/*) so each retired URL
+// still emits a redirect stub pointing at the hub docs.
 export async function getStaticPaths() {
   const entries = await getCollection('docs')
   return entries
     .filter(e => e.slug !== 'index')
-    .map(entry => ({ params: { slug: entry.slug }, props: { entry } }))
+    .map(entry => ({ params: { slug: entry.slug } }))
 }
-
-const { entry } = Astro.props
-const { Content } = await entry.render()
 ---
-<DocsLayout title={entry.data.title} description={entry.data.description} section={entry.data.section}>
-  <Content />
-</DocsLayout>
+<RedirectPage to={HUB_DOCS} />

@@ -1,0 +1,60 @@
+---
+/**
+ * Full-page meta-refresh redirect stub.
+ *
+ * The standalone spec-sync site has been retired — its marketing and docs now
+ * live on the CorvidLabs hub. Every route renders one of these so visitors and
+ * search engines land on the canonical hub URL.
+ */
+interface Props {
+  /** Absolute hub URL to redirect to. */
+  to: string
+}
+
+const { to } = Astro.props
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>This site has moved to CorvidLabs</title>
+    <link rel="canonical" href={to} />
+    <meta http-equiv="refresh" content={`0; url=${to}`} />
+    <meta name="robots" content="noindex, follow" />
+    <script is:inline set:html={`location.replace(${JSON.stringify(to)})`}></script>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: #0b0d10;
+        color: #e6e8eb;
+        text-align: center;
+        padding: 24px;
+      }
+      main { max-width: 30rem; }
+      p { color: #9aa3ad; line-height: 1.6; }
+      a.moved {
+        display: inline-block;
+        margin-top: 8px;
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #38bdf8;
+        text-decoration: none;
+      }
+      a.moved:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>The standalone spec-sync site has been retired.</p>
+      <a class="moved" href={to}>This site has moved to CorvidLabs →</a>
+      <p>If you are not redirected automatically, follow the link above.</p>
+    </main>
+  </body>
+</html>

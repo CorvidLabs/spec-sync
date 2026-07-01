@@ -28,8 +28,9 @@ Defines the CLI argument parser using Clap derive macros. Declares all subcomman
 
 | Type | Description |
 |------|-------------|
-| `Command` | Subcommand enum with 29 variants: Check, Coverage, Generate, Init, Score, Watch, Mcp, AddSpec, Scaffold, InitRegistry, Resolve, Diff, Hooks, Compact, ArchiveTasks, View, Merge, Issues, New, Wizard, Deps, Import, Stale, Report, Comment, Rules, Changelog, Migrate, Lifecycle |
+| `Command` | Subcommand enum with 30 variants: Check, Coverage, Generate, Init, Score, Watch, Mcp, AddSpec, Scaffold, InitRegistry, Resolve, Diff, Hooks, Agents, Compact, ArchiveTasks, View, Merge, Issues, New, Wizard, Deps, Import, Stale, Report, Comment, Rules, Changelog, Migrate, Lifecycle |
 | `HooksAction` | Sub-subcommand for `Hooks`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, copilot, agents, precommit, claude_code_hook) |
+| `AgentsAction` | Sub-subcommand for `Agents`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, codex, gemini) |
 | `LifecycleAction` | Sub-subcommand for `Lifecycle`: Promote, Demote, Set, Status, History, Guard, AutoPromote, Enforce — manages spec lifecycle transitions |
 
 ## Invariants
@@ -40,6 +41,7 @@ Defines the CLI argument parser using Clap derive macros. Declares all subcomman
 4. Default output format is `text` when neither `--json` nor `--format` is specified
 5. The `Command` enum is optional — running `specsync` with no subcommand defaults to `Check`
 6. Each `HooksAction::Install` / `Uninstall` variant carries identical boolean flags for symmetric install/uninstall
+7. Each `AgentsAction::Install` / `Uninstall` variant carries identical boolean flags for symmetric install/uninstall, mirroring `HooksAction`
 
 ## Behavioral Examples
 
@@ -60,6 +62,12 @@ Defines the CLI argument parser using Clap derive macros. Declares all subcomman
 - **Given** user runs `specsync hooks install --claude --precommit`
 - **When** Clap parses arguments
 - **Then** `HooksAction::Install { claude: true, precommit: true, ... }` with all others false
+
+### Scenario: Agents install targets
+
+- **Given** user runs `specsync agents install --claude --gemini`
+- **When** Clap parses arguments
+- **Then** `AgentsAction::Install { claude: true, gemini: true, cursor: false, codex: false }`
 
 ## Error Cases
 
@@ -84,6 +92,7 @@ Defines the CLI argument parser using Clap derive macros. Declares all subcomman
 |--------|-------------|
 | cli (main.rs) | `Cli::parse()` to drive the entire application |
 | cmd_hooks | `HooksAction` enum for hooks subcommand dispatch |
+| cmd_agents | `AgentsAction` enum for agents subcommand dispatch |
 
 ## Change Log
 
@@ -91,3 +100,4 @@ Defines the CLI argument parser using Clap derive macros. Declares all subcomman
 |------|--------|
 | 2026-04-09 | Initial spec |
 | 2026-04-11 | Add LifecycleAction enum and Lifecycle command variant |
+| 2026-07-01 | Add AgentsAction enum and Agents command variant |

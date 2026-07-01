@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.6.0] - 2026-07-01
+
 ### Added
 
-- **`specsync agents install`/`uninstall`/`status`** — native skill and slash-command integrations for Claude Code, Cursor, Codex, and Gemini CLI, distinct from the prose-instruction-file mechanism `specsync hooks install` already provides. Installs a `SKILL.md` the tool auto-discovers (all four tools) and a `/specsync:create-spec` slash command (`/specsync-create-spec` on Cursor; Claude, Cursor, and Gemini — Codex's command mechanism is deprecated and global-only, so it gets the skill only). `create-spec` accepts either a bare module name or a natural-language feature description (e.g. `/specsync:create-spec "I want a feature that lets users export their data as CSV"`), defaults to a full scaffold (spec + companion files), and supports `--minimal` to create a spec-only draft instead.
+- **`specsync agents install`/`uninstall`/`status`** — native skill and slash-command integrations for Claude Code, Cursor, Codex, and Gemini CLI, distinct from the prose-instruction-file mechanism `specsync hooks install` already provides. Installs a `SKILL.md` the tool auto-discovers (all four tools) and a `/specsync:create-spec` slash command (`/specsync-create-spec` on Cursor; Claude, Cursor, and Gemini — Codex's command mechanism is deprecated and global-only, so it gets the skill only). `create-spec` accepts either a bare module name or a natural-language feature description (e.g. `/specsync:create-spec "I want a feature that lets users export their data as CSV"`), defaults to a full scaffold (spec + companion files), and supports `--minimal` to create a spec-only draft instead. Re-running `install` also refreshes any already-installed skill/command file whose content has drifted from the current template, so upgrading spec-sync updates existing installations instead of leaving them stale.
 
 ## [4.5.0] - 2026-06-11
 

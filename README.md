@@ -193,6 +193,8 @@ specsync lifecycle auto-promote            # Promote all specs that pass guards
 specsync lifecycle enforce --all           # CI: validate lifecycle rules
 specsync hooks install                    # Install agent instructions + git hooks
 specsync hooks status                     # Check what's installed
+specsync agents install                   # Install native skills + /specsync:create-spec commands
+specsync agents status                    # Check what's installed
 specsync mcp                               # Start MCP server for AI agent integration
 specsync watch                             # Re-validate on every file change
 ```
@@ -373,6 +375,7 @@ specsync [command] [flags]
 | `lifecycle enforce` | CI enforcement — validate lifecycle rules, exit non-zero on violations. `--all` for all checks |
 | `issues` | Verify GitHub issue references in spec frontmatter. `--create` to create missing issues |
 | `hooks` | Install/uninstall agent instructions and git hooks (`install`, `uninstall`, `status`) |
+| `agents` | Install/uninstall native AI-tool skills and slash commands for Claude Code, Cursor, Codex, and Gemini CLI (`install`, `uninstall`, `status`) |
 | `mcp` | Start MCP server for AI agent integration (Claude Code, Cursor, etc.) |
 | `init` | Create default `specsync.json` |
 | `watch` | Live validation on file changes (500ms debounce) |
@@ -902,6 +905,8 @@ specsync generate --provider openrouter --model anthropic/claude-sonnet-4-6
 
 ### Designed for AI agents
 
+For Claude Code, Cursor, Codex, and Gemini CLI, `specsync agents install` ships native integrations — a `SKILL.md` the tool auto-discovers (all four) and a `/specsync:create-spec` slash command (Claude/Cursor/Gemini — Codex's command mechanism is deprecated and global-only, so it gets the skill only) that scaffolds a spec, optionally with companion files, from either a module name or a natural-language feature description. This is separate from `specsync hooks install`, which remains the prose-instruction-file mechanism (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`, Copilot instructions) for tools without native skill/command support — run both, or whichever applies to your setup.
+
 The generate command is the entry point for LLM-powered spec workflows:
 
 ```bash
@@ -963,6 +968,7 @@ Shows exports added and removed per spec file since the given git ref. Useful fo
 ```
 src/
 ├── main.rs            CLI entry + output formatting
+├── agents.rs          Native skill/slash-command installation (Claude Code, Cursor, Codex, Gemini CLI)
 ├── ai.rs              AI-powered spec generation (prompt builder + command runner)
 ├── archive.rs         Task archival from companion tasks.md files
 ├── changelog.rs       Changelog generation between git refs

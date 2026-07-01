@@ -1,6 +1,6 @@
 ---
 module: commands
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/mod.rs
@@ -41,6 +41,7 @@ Shared command infrastructure used by all CLI subcommands. Provides config loadi
 
 | Module | Description |
 |--------|-------------|
+| `agents` | Native AI-tool skill/slash-command installation dispatch (Claude Code, Cursor, Codex, Gemini CLI) |
 | `archive_tasks` | Archive completed tasks from companion files |
 | `changelog` | Generate spec changelog between git refs |
 | `check` | Main validation command |
@@ -143,6 +144,7 @@ Shared command infrastructure used by all CLI subcommands. Provides config loadi
 
 | Date | Change |
 |------|--------|
+| 2026-07-01 | v4: Add `agents` submodule (native AI-tool skill/slash-command installation) |
 | 2026-06-11 | v3: Partial export-coverage summary ("N/M exports documented") prints as ⚠ — it is counted as a warning, so the summary's warning count now matches the printed ⚠ lines |
 | 2026-06-11 | v2: Draft specs report skipped section/export validation explicitly; failing frontmatter renders a negated label |
 | 2026-04-09 | Initial spec |

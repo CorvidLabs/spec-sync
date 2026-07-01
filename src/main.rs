@@ -1,3 +1,4 @@
+mod agents;
 mod ai;
 mod archive;
 mod changelog;
@@ -169,6 +170,7 @@ fn run() {
         } => commands::resolve::cmd_resolve(&root, remote || verify, verify, cache_ttl),
         Command::Diff { base } => commands::diff::cmd_diff(&root, &base, format),
         Command::Hooks { action } => commands::hooks::cmd_hooks(&root, action),
+        Command::Agents { action } => commands::agents::cmd_agents(&root, action),
         Command::Compact { keep, dry_run } => commands::compact::cmd_compact(&root, keep, dry_run),
         Command::ArchiveTasks { dry_run } => {
             commands::archive_tasks::cmd_archive_tasks(&root, dry_run)

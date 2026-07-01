@@ -8,9 +8,33 @@ permissions:
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'action.yml'
+      - 'fledge.toml'
+      - 'site/**'
+      - 'vscode-extension/**'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'action.yml'
+      - 'fledge.toml'
+      - 'site/**'
+      - 'vscode-extension/**'
+      - '.github/workflows/ci.yml'
   workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -18,11 +42,12 @@ env:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --verbose
@@ -31,8 +56,9 @@ jobs:
 
   fmt:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -40,16 +66,18 @@ jobs:
 
   audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   coverage:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install tarpaulin
@@ -67,8 +95,9 @@ jobs:
 
   site:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
       - name: Install dependencies
         working-directory: site
@@ -85,8 +114,9 @@ jobs:
 
   vscode-extension:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
       - name: Install dependencies
         working-directory: vscode-extension
@@ -100,17 +130,19 @@ jobs:
 
   validate-action:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Validate action.yml
         run: python3 -c "import yaml; yaml.safe_load(open('action.yml'))"
 
   spec-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     outputs:
       body: ${{ steps.spec-check.outputs.body }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build specsync
@@ -131,10 +163,11 @@ jobs:
 
   corvid-pet:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event_name == 'pull_request' && always()
     needs: [test, fmt, validate-action, spec-check, audit, coverage, site, vscode-extension]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Determine combined status
         id: status

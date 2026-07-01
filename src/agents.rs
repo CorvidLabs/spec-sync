@@ -128,7 +128,7 @@ const SKILL_TRIGGER_DESCRIPTION: &str = "Keep markdown module specs in specs/<mo
 
 /// AI coding tools that receive native skill/command file installation, as
 /// opposed to the prose-instruction-file hooks in `hooks.rs`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentTool {
     Claude,
     Cursor,
@@ -228,31 +228,45 @@ pub fn is_installed(root: &Path, tool: AgentTool) -> bool {
 }
 
 /// Install skill + command files for one tool. Returns Ok(true) if anything
-/// was written, Ok(false) if everything was already present.
+/// was written, Ok(false) if everything was already present and up to date.
+///
+/// Re-running on an already-installed project upgrades stale content: if a
+/// newer spec-sync ships revised skill/command text, the existing file is
+/// overwritten to match rather than being silently left outdated because it
+/// already exists. Safe because these files are fully spec-sync-owned (see
+/// `uninstall_agent`'s doc comment) — there's no user content to preserve.
 pub fn install_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
     let mut changed = false;
 
     if let Some(dir) = tool.skill_dir(root) {
         let skill_path = dir.join("SKILL.md");
-        if !skill_path.exists() {
+        let skill_content = skill_md_content(tool);
+        let needs_write = fs::read_to_string(&skill_path)
+            .map(|existing| existing != skill_content)
+            .unwrap_or(true);
+        if needs_write {
             fs::create_dir_all(&dir)
                 .map_err(|e| format!("Failed to create {}: {e}", dir.display()))?;
-            fs::write(&skill_path, skill_md_content(tool))
+            fs::write(&skill_path, skill_content)
                 .map_err(|e| format!("Failed to write {}: {e}", skill_path.display()))?;
             changed = true;
         }
     }
 
-    if let Some(path) = tool.command_path(root)
-        && !path.exists()
-    {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
+    if let Some(path) = tool.command_path(root) {
+        let command_content = create_spec_command_content(tool);
+        let needs_write = fs::read_to_string(&path)
+            .map(|existing| existing != command_content)
+            .unwrap_or(true);
+        if needs_write {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
+            }
+            fs::write(&path, command_content)
+                .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
+            changed = true;
         }
-        fs::write(&path, create_spec_command_content(tool))
-            .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
-        changed = true;
     }
 
     Ok(changed)
@@ -630,6 +644,42 @@ mod tests {
             assert!(install_agent(tmp.path(), *target).unwrap());
             assert!(!install_agent(tmp.path(), *target).unwrap());
         }
+    }
+
+    #[test]
+    fn install_overwrites_stale_skill_content() {
+        let tmp = setup();
+        let skill_path = tmp.path().join(".claude/skills/spec-sync/SKILL.md");
+        fs::create_dir_all(skill_path.parent().unwrap()).unwrap();
+        fs::write(&skill_path, "stale content from an older spec-sync version").unwrap();
+
+        assert!(install_agent(tmp.path(), AgentTool::Claude).unwrap());
+
+        let content = fs::read_to_string(&skill_path).unwrap();
+        assert!(content.starts_with("---\nname: spec-sync"));
+        assert!(!content.contains("stale content"));
+    }
+
+    #[test]
+    fn install_overwrites_stale_command_content() {
+        let tmp = setup();
+        let command_path = tmp.path().join(".claude/commands/specsync/create-spec.md");
+        fs::create_dir_all(command_path.parent().unwrap()).unwrap();
+        fs::write(&command_path, "stale command body").unwrap();
+
+        assert!(install_agent(tmp.path(), AgentTool::Claude).unwrap());
+
+        let content = fs::read_to_string(&command_path).unwrap();
+        assert!(content.contains("$ARGUMENTS"));
+        assert!(!content.contains("stale command body"));
+    }
+
+    #[test]
+    fn install_does_not_rewrite_unchanged_content() {
+        let tmp = setup();
+        install_agent(tmp.path(), AgentTool::Claude).unwrap();
+        // Second install: content is identical, so nothing should be rewritten.
+        assert!(!install_agent(tmp.path(), AgentTool::Claude).unwrap());
     }
 
     // ── uninstall_agent ──────────────────────────────────────────────

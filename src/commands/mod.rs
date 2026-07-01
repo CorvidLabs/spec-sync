@@ -1,3 +1,4 @@
+pub mod agents;
 pub mod archive_tasks;
 pub mod changelog;
 pub mod check;

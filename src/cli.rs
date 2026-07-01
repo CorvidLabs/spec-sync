@@ -170,6 +170,11 @@ pub enum Command {
         #[command(subcommand)]
         action: HooksAction,
     },
+    /// Manage native skill/slash-command files for AI coding tools (Claude Code, Cursor, Codex, Gemini CLI)
+    Agents {
+        #[command(subcommand)]
+        action: AgentsAction,
+    },
     /// Compact changelog entries in spec files to prevent unbounded growth
     Compact {
         /// Keep the last N changelog entries (default: 10)
@@ -410,6 +415,42 @@ pub enum HooksAction {
         claude_code_hook: bool,
     },
     /// Show installation status of all hooks
+    Status,
+}
+
+#[derive(Subcommand)]
+pub enum AgentsAction {
+    /// Install native skill/command files for AI coding tools
+    Install {
+        /// Install Claude Code skill + /specsync:create-spec command
+        #[arg(long)]
+        claude: bool,
+        /// Install Cursor skill + /specsync-create-spec command
+        #[arg(long)]
+        cursor: bool,
+        /// Install Codex CLI skill (project-scoped, .codex/skills/)
+        #[arg(long)]
+        codex: bool,
+        /// Install Gemini CLI /specsync:create-spec command
+        #[arg(long)]
+        gemini: bool,
+    },
+    /// Remove previously installed skill/command files
+    Uninstall {
+        /// Remove Claude Code skill + command
+        #[arg(long)]
+        claude: bool,
+        /// Remove Cursor skill + command
+        #[arg(long)]
+        cursor: bool,
+        /// Remove Codex CLI skill
+        #[arg(long)]
+        codex: bool,
+        /// Remove Gemini CLI command
+        #[arg(long)]
+        gemini: bool,
+    },
+    /// Show installation status of all agent tools
     Status,
 }
 

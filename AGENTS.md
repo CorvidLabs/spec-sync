@@ -18,7 +18,7 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync scaffold <name>` | Full scaffold: spec + companions + registry entry + source detection |
 | `specsync add-spec <name>` | Scaffold a spec with companion files (tasks.md, context.md) |
 | `specsync hooks install` | Install git pre-commit hooks and IDE agent snippets |
-| `specsync agents install` | Install native Claude/Cursor/Codex skills and `/specsync:create-spec` slash commands (Gemini CLI too) |
+| `specsync agents install` | Install native Claude/Cursor/Codex/Gemini skills and `/specsync:create-spec` slash commands (Claude/Cursor/Gemini) |
 | `specsync resolve --remote` | Resolve cross-project spec references |
 | `specsync diff --base <ref>` | Show export changes since a git ref (useful for CI/PR reviews) |
 | `specsync report` | Per-module coverage report with stale/incomplete detection |

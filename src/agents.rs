@@ -161,7 +161,7 @@ impl AgentTool {
             AgentTool::Claude => "Claude Code skill + /specsync:create-spec command",
             AgentTool::Cursor => "Cursor skill + /specsync-create-spec command",
             AgentTool::Codex => "Codex CLI skill (project-scoped)",
-            AgentTool::Gemini => "Gemini CLI /specsync:create-spec command",
+            AgentTool::Gemini => "Gemini CLI skill + /specsync:create-spec command",
         }
     }
 
@@ -177,14 +177,13 @@ impl AgentTool {
     }
 
     /// Directory (relative to project root) containing this tool's skill
-    /// folder, e.g. `.claude/skills/spec-sync/`. `None` if this tool has no
-    /// skill mechanism (Gemini).
+    /// folder, e.g. `.claude/skills/spec-sync/`.
     fn skill_dir(&self, root: &Path) -> Option<PathBuf> {
         match self {
             AgentTool::Claude => Some(root.join(".claude").join("skills").join("spec-sync")),
             AgentTool::Cursor => Some(root.join(".cursor").join("skills").join("spec-sync")),
             AgentTool::Codex => Some(root.join(".codex").join("skills").join("spec-sync")),
-            AgentTool::Gemini => None,
+            AgentTool::Gemini => Some(root.join(".gemini").join("skills").join("spec-sync")),
         }
     }
 
@@ -540,9 +539,9 @@ mod tests {
     }
 
     #[test]
-    fn gemini_has_no_skill_path() {
+    fn gemini_has_both_skill_and_command_paths() {
         let tmp = setup();
-        assert!(AgentTool::Gemini.skill_dir(tmp.path()).is_none());
+        assert!(AgentTool::Gemini.skill_dir(tmp.path()).is_some());
         assert!(AgentTool::Gemini.command_path(tmp.path()).is_some());
     }
 
@@ -601,10 +600,14 @@ mod tests {
     }
 
     #[test]
-    fn install_gemini_creates_command_only() {
+    fn install_gemini_creates_skill_and_command() {
         let tmp = setup();
         assert!(install_agent(tmp.path(), AgentTool::Gemini).unwrap());
-        assert!(!tmp.path().join(".gemini/skills").exists());
+        assert!(
+            tmp.path()
+                .join(".gemini/skills/spec-sync/SKILL.md")
+                .exists()
+        );
 
         let path = tmp
             .path()
@@ -677,11 +680,12 @@ mod tests {
     }
 
     #[test]
-    fn uninstall_gemini_removes_command_only() {
+    fn uninstall_gemini_removes_skill_and_command() {
         let tmp = setup();
         install_agent(tmp.path(), AgentTool::Gemini).unwrap();
         assert!(uninstall_agent(tmp.path(), AgentTool::Gemini).unwrap());
         assert!(!tmp.path().join(".gemini/commands/specsync").exists());
+        assert!(!tmp.path().join(".gemini/skills/spec-sync").exists());
     }
 
     #[test]

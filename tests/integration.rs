@@ -5676,7 +5676,12 @@ None
     .unwrap();
 
     // First run: clean, and it writes the hash cache (incl. the migration file).
-    specsync().arg("check").arg("--root").arg(&root).assert().success();
+    specsync()
+        .arg("check")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success();
 
     // Drop the documented `content` column. The spec's own files are unchanged,
     // so the naive incremental skip would (wrongly) pass.

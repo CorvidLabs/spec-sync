@@ -22,6 +22,37 @@ use super::{
     filter_by_status, filter_specs, load_and_discover, run_validation,
 };
 
+/// Files whose contents affect validation globally rather than through a single
+/// spec's frontmatter: the resolved config file and every file in the schema
+/// directory. A change to any of these must invalidate the unchanged-skip —
+/// otherwise a migration that drops a documented column, or a newly-added
+/// custom rule, is silently skipped on the default incremental `check` path
+/// (a false-PASS) and only surfaces under `--force`.
+fn global_validation_inputs(root: &Path, config: &types::SpecSyncConfig) -> Vec<String> {
+    let normalize = |p: &Path| -> String {
+        p.strip_prefix(root)
+            .unwrap_or(p)
+            .to_string_lossy()
+            .replace('\\', "/")
+    };
+    let mut inputs: Vec<String> = Vec::new();
+    if let Some(cfg) = &config.config_path {
+        inputs.push(normalize(cfg));
+    }
+    if let Some(dir) = &config.schema_dir
+        && let Ok(entries) = fs::read_dir(root.join(dir))
+    {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                inputs.push(normalize(&path));
+            }
+        }
+    }
+    inputs.sort();
+    inputs
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn cmd_check(
     root: &Path,
@@ -124,6 +155,9 @@ pub fn cmd_check(
 
     // Load hash cache and classify changes for each spec.
     let mut cache = hash_cache::HashCache::load(root);
+    // Config + schema files affect validation globally (not via one spec's
+    // frontmatter), so track them separately from per-spec hashes.
+    let global_inputs = global_validation_inputs(root, &config);
     let (specs_to_validate, change_classifications) = if force || strict || !spec_filters.is_empty()
     {
         (spec_files.clone(), Vec::new())
@@ -136,10 +170,19 @@ pub fn cmd_check(
         (spec_files.clone(), classifications)
     } else {
         let classifications = hash_cache::classify_all_changes(root, &spec_files, &cache);
-        let changed: Vec<PathBuf> = classifications
-            .iter()
-            .map(|c| c.spec_path.clone())
-            .collect();
+        let global_changed = global_inputs.iter().any(|p| cache.is_changed(root, p));
+        let changed: Vec<PathBuf> = if global_changed {
+            // A schema or config file changed since the cache was written — a
+            // spec whose own files are unchanged may still now be stale (e.g. a
+            // migration dropped a documented column, or a new custom rule was
+            // added). Re-validate everything rather than trust the stale skip.
+            spec_files.clone()
+        } else {
+            classifications
+                .iter()
+                .map(|c| c.spec_path.clone())
+                .collect()
+        };
         (changed, classifications)
     };
 
@@ -422,6 +465,11 @@ pub fn cmd_check(
     // run must never trust hashes recorded by a run that had findings.
     if total_errors == 0 {
         hash_cache::update_cache(root, &specs_to_validate, &mut cache);
+        // Record global inputs (config + schema files) so a later unchanged run
+        // can skip, and a future schema/config edit is detected as a change.
+        for input in &global_inputs {
+            cache.update(root, input);
+        }
         let _ = cache.save(root);
     }
 

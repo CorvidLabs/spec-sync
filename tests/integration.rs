@@ -5585,3 +5585,122 @@ fn warning_count_matches_printed_warning_lines() {
         "warning count must match printed ⚠ lines, got:\n{stdout}"
     );
 }
+
+#[test]
+fn incremental_check_detects_schema_drift_after_migration_edit() {
+    // Regression (H2): the default incremental `check` must re-validate when a
+    // schema/migration file changes, even if no spec's own files changed.
+    // Previously a migration that dropped a documented column was silently
+    // skipped ("nothing to validate") — a false-PASS only `--force` caught.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    // schemaDir + strict enforcement: a schema-column ERROR gates the exit code
+    // WITHOUT the --strict flag (which would itself bypass the cache we test).
+    fs::write(
+        root.join("specsync.json"),
+        r#"{
+  "specsDir": "specs",
+  "sourceDirs": ["src"],
+  "schemaDir": "db/migrations",
+  "enforcement": "strict",
+  "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
+  "excludeDirs": ["__tests__"]
+}"#,
+    )
+    .unwrap();
+
+    // Source with no exports keeps Public API validation trivially clean.
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/msg.ts"), "const internal = 1;\n").unwrap();
+
+    // Migration initially defines both columns.
+    fs::create_dir_all(root.join("db/migrations")).unwrap();
+    let migration = root.join("db/migrations/001_init.sql");
+    fs::write(
+        &migration,
+        "CREATE TABLE messages (\n  id INTEGER PRIMARY KEY,\n  content TEXT NOT NULL\n);\n",
+    )
+    .unwrap();
+
+    // Spec documents both columns, so the first run is clean.
+    fs::create_dir_all(root.join("specs/msg")).unwrap();
+    fs::write(
+        root.join("specs/msg/msg.spec.md"),
+        r#"---
+module: msg
+version: 1
+status: active
+files:
+  - src/msg.ts
+db_tables:
+  - messages
+depends_on: []
+---
+
+# Msg
+
+## Purpose
+Messaging.
+
+## Public API
+
+### Schema: messages
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | INTEGER | PRIMARY KEY |
+| `content` | TEXT | NOT NULL |
+
+## Invariants
+1. Valid.
+
+## Behavioral Examples
+### Scenario: Basic
+- **Given** x
+- **When** y
+- **Then** z
+
+## Error Cases
+| Condition | Behavior |
+|-----------|----------|
+
+## Dependencies
+None
+
+## Change Log
+| Date | Author | Change |
+|------|--------|--------|
+"#,
+    )
+    .unwrap();
+
+    // First run: clean, and it writes the hash cache (incl. the migration file).
+    specsync()
+        .arg("check")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success();
+
+    // Drop the documented `content` column. The spec's own files are unchanged,
+    // so the naive incremental skip would (wrongly) pass.
+    fs::write(
+        &migration,
+        "CREATE TABLE messages (\n  id INTEGER PRIMARY KEY\n);\n",
+    )
+    .unwrap();
+
+    // Second run on the default path (no --force / no --strict flag) must catch
+    // the drift instead of reporting "nothing to validate".
+    specsync()
+        .arg("check")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "documented in spec but not found in migrations",
+        ))
+        .stdout(predicate::str::contains("nothing to validate").not());
+}

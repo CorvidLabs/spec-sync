@@ -5839,3 +5839,42 @@ Minimal module.
         .assert()
         .stdout(predicate::str::contains("Frontmatter invalid").not());
 }
+
+// ─── specsync hooks ─────────────────────────────────────────────────────
+
+#[test]
+fn hooks_uninstall_preserves_user_content_after_block() {
+    // Regression: `hooks uninstall` used to delete from the managed block to EOF,
+    // wiping any content the user added after it (and the whole file if spec-sync
+    // created it). It must now remove only the managed block.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    specsync()
+        .current_dir(root)
+        .args(["hooks", "install", "--claude"])
+        .assert()
+        .success();
+
+    let claude = root.join("CLAUDE.md");
+    let mut content = fs::read_to_string(&claude).unwrap();
+    content.push_str("\n## Deploy Notes\nDO NOT DELETE THIS LINE\n");
+    fs::write(&claude, content).unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["hooks", "uninstall", "--claude"])
+        .assert()
+        .success();
+
+    assert!(claude.exists(), "CLAUDE.md must not be deleted");
+    let after = fs::read_to_string(&claude).unwrap();
+    assert!(
+        after.contains("DO NOT DELETE THIS LINE"),
+        "content added after the managed block must survive uninstall:\n{after}"
+    );
+    assert!(
+        !after.contains("Spec-Sync"),
+        "the managed block must be removed:\n{after}"
+    );
+}

@@ -321,19 +321,23 @@ pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
         HookTarget::Claude => {
             // Remove the spec-sync section from CLAUDE.md
             let path = root.join("CLAUDE.md");
-            remove_section_from_file(&path, "# Spec-Sync Integration")
+            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET)
         }
         HookTarget::Cursor => {
             let path = root.join(".cursorrules");
-            remove_section_from_file(&path, "# Spec-Sync Rules")
+            remove_section_from_file(&path, "# Spec-Sync Rules", CURSORRULES_SNIPPET)
         }
         HookTarget::Copilot => {
             let path = root.join(".github").join("copilot-instructions.md");
-            remove_section_from_file(&path, "# Spec-Sync Integration")
+            remove_section_from_file(
+                &path,
+                "# Spec-Sync Integration",
+                COPILOT_INSTRUCTIONS_SNIPPET,
+            )
         }
         HookTarget::Agents => {
             let path = root.join("AGENTS.md");
-            remove_section_from_file(&path, "# Spec-Sync Integration")
+            remove_section_from_file(&path, "# Spec-Sync Integration", AGENTS_MD_SNIPPET)
         }
         HookTarget::Precommit => {
             let path = root.join(".git").join("hooks").join("pre-commit");
@@ -512,16 +516,31 @@ fn install_claude_code_hook(root: &Path) -> Result<bool, String> {
     Ok(true)
 }
 
-/// Remove the spec-sync-managed section (identified by `marker`) from a file,
-/// preserving everything else.
+/// Index of the first contiguous run in `haystack` matching `needle`, comparing
+/// lines by trailing-trimmed content. `None` if absent or `needle` is empty/longer.
+fn position_of_slice(haystack: &[&str], needle: &[&str]) -> Option<usize> {
+    if needle.is_empty() || needle.len() > haystack.len() {
+        return None;
+    }
+    haystack.windows(needle.len()).position(|w| {
+        w.iter()
+            .zip(needle)
+            .all(|(a, b)| a.trim_end() == b.trim_end())
+    })
+}
+
+/// Remove the spec-sync-managed section from a file, preserving everything else.
 ///
-/// Blocks written with begin/end sentinels are removed EXACTLY between them, so
-/// user content added after the block is never touched. Legacy blocks (installed
-/// before sentinels existed) fall back to the older heuristic — remove from the
-/// marker to the next LEVEL-1 heading that isn't ours, or end-of-file — which is
-/// safe as long as nothing follows the block, and never deletes a file that had
-/// content before the block.
-fn remove_section_from_file(path: &Path, marker: &str) -> Result<bool, String> {
+/// Three strategies, most precise first:
+/// 1. **Sentinels** — blocks we wrote carry `begin`/`end` comments; remove exactly
+///    between them. User content before OR after the block is untouched.
+/// 2. **Exact snippet** — a legacy block (no sentinels) installed from a `snippet`
+///    we still recognize is removed by matching that exact text, so real legacy
+///    installs are just as safe as new ones.
+/// 3. **Heuristic** — only when the snippet has drifted beyond recognition: remove
+///    from the marker to the next LEVEL-1 heading that isn't ours, or end-of-file.
+///    Never deletes a file that had content before the block.
+fn remove_section_from_file(path: &Path, marker: &str, snippet: &str) -> Result<bool, String> {
     if !path.exists() {
         return Ok(false);
     }
@@ -533,27 +552,38 @@ fn remove_section_from_file(path: &Path, marker: &str) -> Result<bool, String> {
         return Ok(false);
     }
 
+    // Preserve the file's dominant line ending rather than rewriting CRLF→LF.
+    let newline = if content.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
     let mut lines: Vec<&str> = content.lines().collect();
 
-    // Preferred: precise removal between explicit sentinels (blocks we wrote).
     let begin = lines.iter().position(|l| l.contains(HOOK_BEGIN));
     let end_marker = lines.iter().rposition(|l| l.contains(HOOK_END));
+    let snippet_lines: Vec<&str> = snippet.trim().lines().collect();
 
-    let (start, end, precise) = match (begin, end_marker) {
-        (Some(b), Some(e)) if e >= b => (b, e + 1, true),
-        _ => {
-            // Legacy block: stop at the next LEVEL-1 heading that isn't ours (the
-            // block's own sub-sections are level 2+), or end-of-file.
-            let start = lines.iter().position(|l| l.contains(marker)).unwrap_or(0);
-            let mut end = lines.len();
-            for (j, line) in lines.iter().enumerate().skip(start + 1) {
-                if line.starts_with("# ") && !line.contains("Spec-Sync") {
-                    end = j;
-                    break;
-                }
+    let (start, end, precise) = if let (Some(b), Some(e)) = (begin, end_marker)
+        && e >= b
+    {
+        // 1. Precise removal between explicit sentinels.
+        (b, e + 1, true)
+    } else if let Some(s) = position_of_slice(&lines, &snippet_lines) {
+        // 2. Exact known snippet (legacy install we recognize) — precise.
+        (s, s + snippet_lines.len(), true)
+    } else {
+        // 3. Heuristic fallback: stop at the next LEVEL-1 heading that isn't ours
+        //    (the block's own sub-sections are level 2+), or end-of-file.
+        let start = lines.iter().position(|l| l.contains(marker)).unwrap_or(0);
+        let mut end = lines.len();
+        for (j, line) in lines.iter().enumerate().skip(start + 1) {
+            if line.starts_with("# ") && !line.contains("Spec-Sync") {
+                end = j;
+                break;
             }
-            (start, end, false)
         }
+        (start, end, false)
     };
 
     // Also consume blank lines immediately before the block so no gap is left.
@@ -563,13 +593,13 @@ fn remove_section_from_file(path: &Path, marker: &str) -> Result<bool, String> {
     }
     lines.drain(actual_start..end);
 
-    let new_content = lines.join("\n");
+    let new_content = lines.join(newline);
     let trimmed = new_content.trim();
 
     if trimmed.is_empty() {
         // Delete the file only when it's safe to conclude it held nothing but our
-        // block: either a precise (sentinel) removal, or a legacy block that began
-        // at the very top. If any content preceded the block, keep the file.
+        // block: a precise removal (sentinel or exact snippet), or a legacy block
+        // that began at the very top. If any content preceded the block, keep it.
         if precise || actual_start == 0 {
             fs::remove_file(path)
                 .map_err(|e| format!("Failed to remove {}: {e}", path.display()))?;
@@ -577,7 +607,7 @@ fn remove_section_from_file(path: &Path, marker: &str) -> Result<bool, String> {
             fs::write(path, "").map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
         }
     } else {
-        fs::write(path, format!("{trimmed}\n"))
+        fs::write(path, format!("{trimmed}{newline}"))
             .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
     }
 
@@ -1102,7 +1132,8 @@ mod tests {
         let tmp = setup();
         let path = tmp.path().join("test.md");
         fs::write(&path, "# Spec-Sync Integration\nSome content\n").unwrap();
-        let result = remove_section_from_file(&path, "# Spec-Sync Integration").unwrap();
+        let result =
+            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
         assert!(result);
         assert!(!path.exists());
     }
@@ -1116,7 +1147,7 @@ mod tests {
             "# My Project\n\nKeep this.\n\n# Spec-Sync Integration\nRemove this.\n",
         )
         .unwrap();
-        remove_section_from_file(&path, "# Spec-Sync Integration").unwrap();
+        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("My Project"));
         assert!(content.contains("Keep this"));
@@ -1128,14 +1159,18 @@ mod tests {
         let tmp = setup();
         let path = tmp.path().join("test.md");
         fs::write(&path, "# No marker here\n").unwrap();
-        assert!(!remove_section_from_file(&path, "# Spec-Sync Integration").unwrap());
+        assert!(
+            !remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+        );
     }
 
     #[test]
     fn remove_section_returns_false_for_missing_file() {
         let tmp = setup();
         let path = tmp.path().join("nonexistent.md");
-        assert!(!remove_section_from_file(&path, "# Spec-Sync Integration").unwrap());
+        assert!(
+            !remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+        );
     }
 
     #[test]
@@ -1147,7 +1182,7 @@ mod tests {
             "# Before\n\nKeep.\n\n# Spec-Sync Integration\nRemove.\n\n# After\n\nAlso keep.\n",
         )
         .unwrap();
-        remove_section_from_file(&path, "# Spec-Sync Integration").unwrap();
+        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("Before"));
         assert!(content.contains("Also keep"));
@@ -1163,7 +1198,9 @@ mod tests {
         let block = wrap_snippet("# Spec-Sync Integration\nmanaged body\n\n## Commands\nrun");
         fs::write(&path, format!("{block}\n\n## Deploy Notes\nkeep me\n")).unwrap();
 
-        assert!(remove_section_from_file(&path, "# Spec-Sync Integration").unwrap());
+        assert!(
+            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+        );
         let content = fs::read_to_string(&path).unwrap();
         assert!(
             content.contains("Deploy Notes") && content.contains("keep me"),
@@ -1180,7 +1217,7 @@ mod tests {
         let block = wrap_snippet("# Spec-Sync Integration\nbody");
         fs::write(&path, format!("# Mine\n\nbefore\n\n{block}\n\nafter\n")).unwrap();
 
-        remove_section_from_file(&path, "# Spec-Sync Integration").unwrap();
+        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
         let content = fs::read_to_string(&path).unwrap();
         assert!(
             content.contains("Mine") && content.contains("before") && content.contains("after")
@@ -1198,10 +1235,63 @@ mod tests {
         )
         .unwrap();
 
-        remove_section_from_file(&path, "# Spec-Sync Integration").unwrap();
+        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
         assert!(
             !path.exists(),
             "a file holding only our block should be removed"
+        );
+    }
+
+    #[test]
+    fn uninstall_legacy_block_without_sentinels_preserves_appended_notes() {
+        // A pre-sentinel install: the raw snippet written verbatim (no begin/end
+        // comments), then the user appended a level-2 section. Matching the exact
+        // known snippet must remove only the block and keep the notes and file.
+        let tmp = setup();
+        let path = tmp.path().join("CLAUDE.md");
+        fs::write(
+            &path,
+            format!("{}\n\n## Deploy Notes\nkeep me\n", CLAUDE_MD_SNIPPET.trim()),
+        )
+        .unwrap();
+
+        assert!(
+            remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap()
+        );
+        assert!(
+            path.exists(),
+            "legacy block-plus-notes must not delete the file"
+        );
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(
+            content.contains("Deploy Notes") && content.contains("keep me"),
+            "notes after a legacy block must survive: {content:?}"
+        );
+        assert!(!content.contains("Spec-Sync"), "block removed: {content:?}");
+    }
+
+    #[test]
+    fn uninstall_preserves_crlf_line_endings() {
+        let tmp = setup();
+        let path = tmp.path().join("CLAUDE.md");
+        let block = wrap_snippet("# Spec-Sync Integration\nbody").replace('\n', "\r\n");
+        fs::write(
+            &path,
+            format!("# Mine\r\n\r\nbefore\r\n\r\n{block}\r\n\r\nafter\r\n"),
+        )
+        .unwrap();
+
+        remove_section_from_file(&path, "# Spec-Sync Integration", CLAUDE_MD_SNIPPET).unwrap();
+        let after = fs::read_to_string(&path).unwrap();
+        assert!(after.contains("# Mine") && after.contains("before") && after.contains("after"));
+        assert!(!after.contains("Spec-Sync"));
+        assert!(
+            after.contains("\r\n"),
+            "CRLF endings must be preserved: {after:?}"
+        );
+        assert!(
+            !after.replace("\r\n", "").contains('\n'),
+            "no bare LF should be introduced: {after:?}"
         );
     }
 

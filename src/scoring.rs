@@ -282,6 +282,12 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     if !fm.files.is_empty() {
         let mut all_exports: Vec<String> = Vec::new();
         for file in &fm.files {
+            // Never read a `files:` entry that escapes the project root — it would
+            // leak arbitrary host-file identifiers into score suggestions (and the
+            // MCP score tool). validate/check reports such entries as errors.
+            if !crate::validator::source_within_root(root, file) {
+                continue;
+            }
             let full_path = root.join(file);
             all_exports.extend(get_exported_symbols(&full_path));
         }
@@ -927,6 +933,41 @@ None.
             score.total
         );
         assert!(score.grade == "A" || score.grade == "B");
+    }
+
+    #[test]
+    fn test_score_spec_out_of_root_file_does_not_leak_identifiers() {
+        // Security regression: a spec whose `files:` resolves outside the project
+        // root (here an absolute path) must not have that file's exported
+        // identifiers read and surfaced in `score` suggestions (incl. MCP score).
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(
+            outside.path().join("secret.ts"),
+            "export const AWS_SECRET_ACCESS_KEY = \"leak\";\n",
+        )
+        .unwrap();
+
+        let spec_dir = root.path().join("specs").join("s");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        let spec_content = format!(
+            "---\nmodule: s\nversion: 1\nstatus: active\nfiles:\n  - {}\ndb_tables: []\ndepends_on: []\n---\n\n# S\n\n## Purpose\nx\n\n## Public API\n| Export | Description |\n|--------|-------------|\n\n## Invariants\n1. x\n\n## Behavioral Examples\n### Scenario: a\n- **Given** a **When** b **Then** c\n\n## Error Cases\n| Condition | Behavior |\n|-----------|----------|\n\n## Dependencies\nNone.\n\n## Change Log\n| Date | Change |\n|------|--------|\n| 2024-01-01 | Initial |\n",
+            outside.path().join("secret.ts").display()
+        );
+        let spec_file = spec_dir.join("s.spec.md");
+        std::fs::write(&spec_file, spec_content).unwrap();
+
+        let config = SpecSyncConfig::default();
+        let score = score_spec(&spec_file, root.path(), &config);
+
+        assert!(
+            !score
+                .suggestions
+                .iter()
+                .any(|s| s.contains("AWS_SECRET_ACCESS_KEY")),
+            "out-of-root identifier leaked into score suggestions: {:?}",
+            score.suggestions
+        );
     }
 
     #[test]

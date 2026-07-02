@@ -52,6 +52,11 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
     // Auto-detect exports from source files
     let mut all_exports: Vec<String> = Vec::new();
     for file in &source_files {
+        // Consistency with validate/score/diff: never extract from a path that
+        // escapes the project root.
+        if !crate::validator::source_within_root(root, file) {
+            continue;
+        }
         let full_path = root.join(file);
         all_exports.extend(exports::get_exported_symbols(&full_path));
     }

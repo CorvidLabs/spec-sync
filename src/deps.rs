@@ -318,6 +318,11 @@ fn check_undeclared_imports(
         let mut actual_imports: HashSet<String> = HashSet::new();
 
         for file in &node.files {
+            // Skip `files:` entries that escape the project root — reading their
+            // imports would probe arbitrary host files (see validator::source_within_root).
+            if !crate::validator::source_within_root(root, file) {
+                continue;
+            }
             let full_path = root.join(file);
             let content = match fs::read_to_string(&full_path) {
                 Ok(c) => c,

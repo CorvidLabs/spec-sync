@@ -101,6 +101,11 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
         // Get current exports from changed files
         let mut current_exports: Vec<String> = Vec::new();
         for file in &parsed.frontmatter.files {
+            // Skip `files:` entries that escape the project root (out-of-root
+            // identifier leak); `check` reports them as errors.
+            if !crate::validator::source_within_root(root, file) {
+                continue;
+            }
             let full_path = root.join(file);
             current_exports.extend(get_exported_symbols(&full_path));
         }

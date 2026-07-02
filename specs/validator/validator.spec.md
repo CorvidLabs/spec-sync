@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 3
+version: 4
 status: stable
 files:
   - src/validator.rs
@@ -32,6 +32,7 @@ Core validation engine for spec-sync. Validates individual spec files against so
 | `get_schema_table_names` | `root, config` | `HashSet<String>` | Extract table names from SQL schema files using configurable regex |
 | `is_cross_project_ref` | `dep: &str` | `bool` | Check if a dependency string is a cross-project ref (`owner/repo@module`) |
 | `parse_cross_project_ref` | `dep: &str` | `Option<(&str, &str)>` | Parse cross-project ref into (owner/repo, module) tuple |
+| `source_within_root` | `root: &Path, file: &str` | `bool` | Whether a `files:` entry resolves inside the project root (rejects absolute/`..`/symlink escapes); shared guard for every export-extraction site |
 
 ## Invariants
 
@@ -109,6 +110,7 @@ Core validation engine for spec-sync. Validates individual spec files against so
 
 | Date | Change |
 |------|--------|
+| 2026-07-02 | v4: add `source_within_root` — shared guard rejecting `files:` paths that escape the project root (absolute/`..`/symlink); applied in `validate_spec` and every export-extraction site (score, check --fix, diff, new) to close an out-of-root identifier-disclosure vector |
 | 2026-06-11 | v3: `validate_spec` populates `ValidationResult.status` with the parsed lifecycle status so callers can report draft skips |
 | 2026-06-07 | Update draft-only section warning wording |
 | 2026-03-25 | Initial spec |

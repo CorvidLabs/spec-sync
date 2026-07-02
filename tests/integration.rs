@@ -5760,7 +5760,7 @@ Minimal module.
     fs::write(&spec_path, conflicted).unwrap();
 
     // May resolve or defer to manual — but must never corrupt or delete the body.
-    specsync()
+    let _ = specsync()
         .current_dir(root)
         .args(["merge", "--all"])
         .assert();

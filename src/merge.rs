@@ -131,10 +131,13 @@ fn resolve_spec_conflicts(content: &str, path: &str) -> (String, MergeResult) {
                 theirs,
                 marker_label,
             } => {
-                // Determine what section this conflict is in
+                // Determine what section this conflict is in. We are still inside
+                // the leading frontmatter block until its closing `---` — i.e.
+                // fewer than two fence lines have been emitted so far.
                 let section = detect_section(&output);
+                let in_frontmatter = output.lines().filter(|l| l.trim() == "---").count() < 2;
 
-                match resolve_conflict(ours, theirs, &section) {
+                match resolve_conflict(ours, theirs, &section, in_frontmatter) {
                     Resolution::Auto(merged) => {
                         details.push(format!(
                             "Auto-resolved in {}: {}",
@@ -160,12 +163,12 @@ fn resolve_spec_conflicts(content: &str, path: &str) -> (String, MergeResult) {
         }
     }
 
-    // Safety net (shape-independent): never write back a spec we just made invalid
-    // or empty. If the input had frontmatter but the assembled output either does
-    // not parse as frontmatter OR parses to one that lost its `module` (fields
-    // demoted into the body, fences mis-nested, etc.), refuse — downgrade to Manual
-    // so the caller (which writes only on `Resolved`) leaves the ORIGINAL file
-    // untouched instead of silently corrupting it while reporting success.
+    // Safety net for frontmatter validity: if the input had frontmatter but the
+    // assembled output no longer parses as frontmatter OR parses to one that lost
+    // its `module`, refuse — downgrade to Manual so the caller (which writes only
+    // on `Resolved`) leaves the ORIGINAL file untouched. (This guards frontmatter
+    // structure; body/row preservation is handled upstream by only auto-merging
+    // pure field/table hunks, never prose- or section-carrying ones.)
     let had_frontmatter = content.lines().any(|l| l.trim() == "---");
     let resolved_frontmatter_ok = parse_frontmatter(&output)
         .map(|parsed| parsed.frontmatter.module.is_some())
@@ -274,24 +277,35 @@ enum Resolution {
 }
 
 /// Try to auto-resolve a conflict based on section context.
-fn resolve_conflict(ours: &str, theirs: &str, section: &Option<String>) -> Resolution {
+///
+/// `in_frontmatter` is true only while the cursor is still inside the leading
+/// `---…---` frontmatter block. A `None` section (no `## ` heading seen yet) can
+/// mean either the frontmatter OR a pre-first-heading body region (a `# Title` /
+/// intro); only the former may use the field resolver — routing intro prose to it
+/// would silently drop bullet lists and non-winning text.
+fn resolve_conflict(
+    ours: &str,
+    theirs: &str,
+    section: &Option<String>,
+    in_frontmatter: bool,
+) -> Resolution {
     let section_name = section.as_deref().unwrap_or("");
 
+    // Frontmatter fields — only when genuinely inside the frontmatter block.
+    if section_name.is_empty() && in_frontmatter {
+        return resolve_frontmatter_conflict(ours, theirs);
+    }
+
+    // Every remaining auto-merge requires the hunk to be PURE table rows. A hunk
+    // that also carries prose/headings (e.g. a Change Log conflict that swallowed
+    // the following section) is NOT pure, so the row merge — which keeps only
+    // `|`-rows and would delete everything else — is refused and left for manual
+    // resolution instead.
+    let pure_rows = is_pure_table_rows(ours) && is_pure_table_rows(theirs);
     match section_name {
-        // Changelog: merge rows chronologically
+        _ if !pure_rows => Resolution::Manual,
         "Change Log" => resolve_changelog_conflict(ours, theirs),
-
-        // Frontmatter region (before any ## heading): merge frontmatter
-        "" => resolve_frontmatter_conflict(ours, theirs),
-
-        // Any section with only table rows: try table merge
-        _ => {
-            if is_pure_table_rows(ours) && is_pure_table_rows(theirs) {
-                resolve_table_conflict(ours, theirs)
-            } else {
-                Resolution::Manual
-            }
-        }
+        _ => resolve_table_conflict(ours, theirs),
     }
 }
 
@@ -942,6 +956,99 @@ Theirs purpose.
         );
         assert!(resolved.contains("Ours purpose."));
         assert!(resolved.contains("Theirs purpose."));
+    }
+
+    #[test]
+    fn pre_heading_body_field_hunk_falls_to_manual() {
+        // Regression: a conflict in a pre-first-`##` intro (a `# Notes` region,
+        // AFTER the frontmatter) has no `## ` heading, so it used to route to the
+        // frontmatter field resolver, which drops bullet lists and non-winning
+        // prose. It must fall to Manual — bullets and both sides preserved.
+        let content = "\
+---
+module: m
+version: 1
+status: active
+files:
+  - src/m.ts
+db_tables: []
+depends_on: []
+---
+# Notes
+
+<<<<<<< HEAD
+TODO: fix the auth flow
+- step one
+- step two
+=======
+TODO: rewrite the auth flow
+- step three
+>>>>>>> feature
+
+## Purpose
+
+The module.
+";
+        let (resolved, result) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        assert_eq!(
+            result.status,
+            MergeStatus::Manual,
+            "pre-heading body hunk must not be field-merged: {:?}",
+            result.details
+        );
+        assert!(has_conflict_markers(&resolved));
+        assert!(resolved.contains("- step one"), "bullets must survive");
+        assert!(resolved.contains("- step two"));
+        assert!(resolved.contains("- step three"));
+    }
+
+    #[test]
+    fn changelog_hunk_swallowing_next_section_falls_to_manual() {
+        // Regression: a Change Log conflict whose hunk runs past the table into the
+        // following section previously deleted that section (the row resolver keeps
+        // only `|`-rows). Impure changelog hunks now fall to Manual.
+        let content = "\
+---
+module: m
+version: 1
+status: active
+files:
+  - src/m.ts
+db_tables: []
+depends_on: []
+---
+# M
+
+## Change Log
+
+| Date | Change |
+|------|--------|
+<<<<<<< HEAD
+| 2026-01-01 | a |
+
+## Migration Notes
+
+Run the migration script before deploying.
+=======
+| 2026-01-02 | b |
+
+## Migration Notes
+
+Run it after.
+>>>>>>> feature
+";
+        let (resolved, result) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        assert_eq!(
+            result.status,
+            MergeStatus::Manual,
+            "impure changelog hunk must not be row-merged: {:?}",
+            result.details
+        );
+        assert!(has_conflict_markers(&resolved));
+        assert!(
+            resolved.contains("## Migration Notes") && resolved.contains("migration script"),
+            "the swallowed following section must not be deleted:\n{resolved}"
+        );
     }
 
     #[test]

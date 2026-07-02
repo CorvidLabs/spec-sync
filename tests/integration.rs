@@ -1407,13 +1407,14 @@ fn ai_command_overrides_ai_provider() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);
 
-    // Config has both aiProvider and aiCommand — aiCommand ("false") wins over aiProvider
-    // The "false" command exits 1, AI falls back to template, but stderr shows it tried
+    // aiCommand must come from a TRUSTED channel — here the SPECSYNC_AI_COMMAND
+    // env var (always honored, never sourced from a committed repo file). It
+    // still overrides aiProvider: the "false" command exits 1, AI falls back to
+    // template, and stderr shows it tried.
     let config = serde_json::json!({
         "specsDir": "specs",
         "sourceDirs": ["src"],
         "aiProvider": "claude",
-        "aiCommand": "false",
         "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
@@ -1431,6 +1432,7 @@ fn ai_command_overrides_ai_provider() {
     // The spec is still written from the template, but the run exits non-zero
     // and reports the AI failure prominently on stderr
     specsync()
+        .env("SPECSYNC_AI_COMMAND", "false")
         .arg("generate")
         .arg("--provider")
         .arg("auto")

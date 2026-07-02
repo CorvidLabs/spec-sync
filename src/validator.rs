@@ -290,6 +290,13 @@ pub fn validate_spec(
                     "Remove `{file}` from files list or create the source file"
                 ));
             }
+        } else if !source_within_root(root, file) {
+            result.errors.push(format!(
+                "Source file `{file}` resolves outside the project root and is ignored for security"
+            ));
+            result.fixes.push(format!(
+                "Use a path inside the project (no absolute paths, `..` escapes, or symlinks that leave the project), or remove `{file}` from the files list"
+            ));
         } else if full_path.is_file()
             && let Err(err) = fs::read_to_string(&full_path)
         {
@@ -430,6 +437,12 @@ pub fn validate_spec(
         let mut exports_by_file: Vec<(String, String)> = Vec::new(); // (symbol, file)
         let mut all_exports: Vec<String> = Vec::new();
         for file in &fm.files {
+            // Never extract exports from a path that escapes the project root — it
+            // would leak arbitrary host-file identifiers. The files-exist check
+            // above already reports such entries as errors.
+            if !source_within_root(root, file) {
+                continue;
+            }
             let full_path = root.join(file);
             let exports =
                 get_exported_symbols_full(&full_path, config.export_level, config.parse_mode);
@@ -796,6 +809,26 @@ fn suggest_similar_file(root: &Path, missing_file: &str) -> Option<String> {
     best.map(|(s, _)| s)
 }
 
+/// Whether a spec `files:` entry resolves to a real path INSIDE the project root.
+///
+/// Source files a spec validates must live within the project. An entry that
+/// escapes — an absolute path, `..` traversal, or a symlink pointing outside the
+/// project — is rejected by the caller: reading it would count arbitrary host
+/// files as covered and leak their exported identifiers into coverage output and
+/// PR comments (a hostile-repo info-disclosure vector, the same threat model as a
+/// committed `ai_command`).
+///
+/// Returns `true` when the path does not yet resolve (nonexistent/unreadable) so
+/// the existence check reports those instead; containment is only enforced for
+/// paths that actually resolve on disk (which is where a leak could occur).
+fn source_within_root(root: &Path, file: &str) -> bool {
+    let full = root.join(file);
+    match (root.canonicalize(), full.canonicalize()) {
+        (Ok(canon_root), Ok(canon_full)) => canon_full.starts_with(&canon_root),
+        _ => true,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -931,6 +964,85 @@ mod tests {
                 .any(|e| e.contains("could not be read as UTF-8")),
             "expected a UTF-8 read error, got: {:?}",
             result.errors
+        );
+    }
+
+    #[test]
+    fn test_validate_spec_absolute_path_source_is_rejected() {
+        // Security: a `files:` entry resolving OUTSIDE the project root (here an
+        // absolute path into a different directory) must be rejected, and its
+        // exported identifiers must never leak into the report.
+        let root_tmp = tempfile::tempdir().unwrap();
+        let outside_tmp = tempfile::tempdir().unwrap();
+        let secret = outside_tmp.path().join("secret.ts");
+        fs::write(&secret, "export const AWS_SECRET_ACCESS_KEY = \"leak\";\n").unwrap();
+
+        let spec = root_tmp.path().join("s.spec.md");
+        let body = format!(
+            "---\nmodule: s\nversion: 1\nstatus: active\nfiles:\n  - {}\n---\n\n## Purpose\nx\n## Public API\n## Invariants\n## Behavioral Examples\n## Error Cases\n## Dependencies\n## Change Log\n",
+            secret.display()
+        );
+        fs::write(&spec, body).unwrap();
+
+        let tables = HashSet::new();
+        let schema_cols = HashMap::new();
+        let config = SpecSyncConfig::default();
+        let result = validate_spec(&spec, root_tmp.path(), &tables, &schema_cols, &config);
+
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("outside the project root")),
+            "expected an out-of-root rejection, got: {:?}",
+            result.errors
+        );
+        assert!(
+            !result
+                .warnings
+                .iter()
+                .any(|w| w.contains("AWS_SECRET_ACCESS_KEY")),
+            "out-of-root export leaked into warnings: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_spec_parent_escape_source_is_rejected() {
+        // Security: `..` traversal that leaves the project root is rejected.
+        let parent = tempfile::tempdir().unwrap();
+        let root = parent.path().join("project");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            parent.path().join("outside.ts"),
+            "export function leakMe() {}\n",
+        )
+        .unwrap();
+
+        let spec = root.join("s.spec.md");
+        fs::write(
+            &spec,
+            "---\nmodule: s\nversion: 1\nstatus: active\nfiles:\n  - ../outside.ts\n---\n\n## Purpose\nx\n## Public API\n## Invariants\n## Behavioral Examples\n## Error Cases\n## Dependencies\n## Change Log\n",
+        )
+        .unwrap();
+
+        let tables = HashSet::new();
+        let schema_cols = HashMap::new();
+        let config = SpecSyncConfig::default();
+        let result = validate_spec(&spec, &root, &tables, &schema_cols, &config);
+
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("outside the project root")),
+            "expected an out-of-root rejection for `..` escape, got: {:?}",
+            result.errors
+        );
+        assert!(
+            !result.warnings.iter().any(|w| w.contains("leakMe")),
+            "escaped export leaked into warnings: {:?}",
+            result.warnings
         );
     }
 

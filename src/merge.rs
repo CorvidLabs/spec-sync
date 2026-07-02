@@ -380,29 +380,45 @@ fn resolve_table_conflict(ours: &str, theirs: &str) -> Resolution {
     Resolution::Auto(format!("{merged}\n"))
 }
 
-/// Whether a conflict-hunk side is ONLY interior frontmatter fields — every
-/// non-blank line is a YAML `key: value` (spaceless key) or `- item` list line.
+/// Whether a conflict-hunk side is ONLY interior frontmatter fields that
+/// [`parse_yaml_fields`] can round-trip WITHOUT dropping anything.
 ///
-/// Deliberately strict: a `---` fence, a `##` heading, a table row, or any prose
-/// line disqualifies it. We only auto-merge a frontmatter conflict when BOTH sides
-/// are pure fields with the `---` fences left in the surrounding clean regions
-/// (the common "two branches bumped `version`" case). Reconstructing fences that a
-/// hunk swallowed is not attempted — a hunk carrying a fence or body is left for
-/// manual resolution rather than risk deleting body content or emitting a broken
-/// or doubled fence.
+/// It must mirror the parser's keep/drop rules exactly, or a hunk it accepts could
+/// still lose content on merge:
+/// - a `---` fence, `##` heading, table row, or prose line ⇒ reject (not a field);
+/// - a `- item` list line is kept by the parser only while it follows a key with an
+///   empty/`[]` value (a list key). A `- item` before any such key — its owning key
+///   sits in the surrounding clean region — is silently dropped by the parser, so
+///   reject it here and defer to manual resolution instead of losing list items.
+///
+/// The upshot: we only auto-merge conflicts whose fences stay in the clean regions
+/// (the common "two branches bumped `version`" / "diverging `files:` list" case);
+/// anything else is left for the human.
 fn is_frontmatter_only(text: &str) -> bool {
+    let mut under_list_key = false;
     text.lines().all(|line| {
         let t = line.trim();
-        if t.is_empty() || t.starts_with("- ") {
+        if t.is_empty() {
             return true;
         }
-        // A `---` fence has no colon and is rejected here (find(':') → None).
-        line.find(':')
-            .map(|c| {
+        if t.starts_with("- ") {
+            // Only safe when an owning list key was opened earlier in THIS hunk.
+            return under_list_key;
+        }
+        // `key: value` with a spaceless key (a `---` fence has no colon → rejected).
+        match line.find(':') {
+            Some(c) => {
                 let key = line[..c].trim();
-                !key.is_empty() && !key.contains(' ')
-            })
-            .unwrap_or(false)
+                if key.is_empty() || key.contains(' ') {
+                    return false;
+                }
+                let value = line[c + 1..].trim();
+                // An empty (or `[]`) value opens a list the parser attaches items to.
+                under_list_key = value.is_empty() || value == "[]";
+                true
+            }
+            None => false,
+        }
     })
 }
 
@@ -1000,6 +1016,48 @@ The module.
         assert!(resolved.contains("- step one"), "bullets must survive");
         assert!(resolved.contains("- step two"));
         assert!(resolved.contains("- step three"));
+    }
+
+    #[test]
+    fn frontmatter_orphan_list_items_hunk_falls_to_manual() {
+        // Regression: a real `git merge` of two branches that both extended `files:`
+        // (and another field) yields a hunk that STARTS with orphan `- item` lines
+        // (their `files:` key is in the clean region) then continues into
+        // `db_tables:`. The parser drops the orphan items while the trailing field
+        // keeps the result non-empty — silently losing both branches' new files.
+        // Must fall to Manual with the items preserved.
+        let content = "\
+---
+module: m
+version: 1
+status: active
+files:
+  - src/a.ts
+<<<<<<< HEAD
+  - src/b.ts
+db_tables:
+  - users
+=======
+  - src/c.ts
+db_tables:
+  - accounts
+>>>>>>> theirs
+depends_on: []
+---
+# M
+";
+        let (resolved, result) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        assert_eq!(
+            result.status,
+            MergeStatus::Manual,
+            "orphan leading list items must not be field-merged: {:?}",
+            result.details
+        );
+        assert!(has_conflict_markers(&resolved));
+        assert!(
+            resolved.contains("- src/b.ts") && resolved.contains("- src/c.ts"),
+            "list items from both sides must survive:\n{resolved}"
+        );
     }
 
     #[test]

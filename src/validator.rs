@@ -821,7 +821,11 @@ fn suggest_similar_file(root: &Path, missing_file: &str) -> Option<String> {
 /// Returns `true` when the path does not yet resolve (nonexistent/unreadable) so
 /// the existence check reports those instead; containment is only enforced for
 /// paths that actually resolve on disk (which is where a leak could occur).
-fn source_within_root(root: &Path, file: &str) -> bool {
+///
+/// Shared: every site that reads a `files:` entry's CONTENT (export extraction in
+/// `score`, `check --fix`, `diff`, `new`, …) must gate on this, or the out-of-root
+/// identifier leak reopens through that command.
+pub(crate) fn source_within_root(root: &Path, file: &str) -> bool {
     let full = root.join(file);
     match (root.canonicalize(), full.canonicalize()) {
         (Ok(canon_root), Ok(canon_full)) => canon_full.starts_with(&canon_root),

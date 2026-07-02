@@ -5706,3 +5706,128 @@ None
         ))
         .stdout(predicate::str::contains("nothing to validate").not());
 }
+
+// ─── specsync merge ─────────────────────────────────────────────────────
+
+/// Regression (CRITICAL): `merge` must never write a spec with corrupt
+/// frontmatter. A conflict hunk spanning the whole `---…---` block previously
+/// resolved to loose `key: value` lines (fences dropped), so the next `check`
+/// failed with "Frontmatter invalid" — data loss reported as "✓ resolved".
+#[test]
+fn merge_frontmatter_spanning_conflict_stays_valid() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/minimal.ts"),
+        "export function doThing() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/minimal")).unwrap();
+
+    // Each side of the conflict carries its own `---` frontmatter fences.
+    let conflicted = "\
+<<<<<<< HEAD
+---
+module: minimal
+version: 2
+status: active
+files:
+  - src/minimal.ts
+db_tables: []
+depends_on: []
+---
+=======
+---
+module: minimal
+version: 1
+status: active
+files:
+  - src/minimal.ts
+db_tables: []
+depends_on: []
+---
+>>>>>>> branch
+# Minimal
+
+## Purpose
+
+Minimal module.
+
+## Public API
+
+### Exported Functions
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `doThing` | none | void | Does the thing |
+
+### Exported Types
+
+| Type | Description |
+|------|-------------|
+
+## Invariants
+
+1. None.
+
+## Behavioral Examples
+
+### Scenario: call
+
+- **Given** nothing
+- **When** doThing
+- **Then** ok
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+
+## Dependencies
+
+### Consumes
+
+| Module | What is used |
+|--------|-------------|
+
+### Consumed By
+
+| Module | What is used |
+|--------|-------------|
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+";
+    let spec_path = root.join("specs/minimal/minimal.spec.md");
+    fs::write(&spec_path, conflicted).unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["merge", "--all"])
+        .assert()
+        .success();
+
+    // The written spec must be valid frontmatter with no leftover conflict markers.
+    let resolved = fs::read_to_string(&spec_path).unwrap();
+    assert!(
+        resolved.starts_with("---\n"),
+        "merge must re-emit the opening frontmatter fence, got:\n{resolved}"
+    );
+    assert!(
+        !resolved.contains("<<<<<<<"),
+        "conflict markers must be gone, got:\n{resolved}"
+    );
+
+    // And `check` must accept it — the corruption made this say "Frontmatter invalid".
+    specsync()
+        .current_dir(root)
+        .arg("check")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Frontmatter valid"))
+        .stdout(predicate::str::contains("Frontmatter invalid").not());
+}

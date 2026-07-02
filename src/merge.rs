@@ -14,6 +14,7 @@ pub struct MergeResult {
     pub details: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MergeStatus {
     /// File had conflicts and they were resolved automatically.
     Resolved,
@@ -159,13 +160,22 @@ fn resolve_spec_conflicts(content: &str, path: &str) -> (String, MergeResult) {
         }
     }
 
-    // If everything was resolved, validate the result parses
+    // Safety net: never write back a spec we just made invalid. If the assembled
+    // output no longer has parseable frontmatter (e.g. a resolution dropped the
+    // `---` fences), refuse to auto-resolve — downgrade to Manual so the caller
+    // leaves the ORIGINAL file untouched (it only writes on `Resolved`) instead of
+    // silently corrupting it while reporting success.
     if all_resolved
         && !output.is_empty()
-        && parse_frontmatter(&output).is_none()
         && content.contains("---\n")
+        && parse_frontmatter(&output).is_none()
     {
-        details.push("Warning: resolved file has invalid frontmatter".to_string());
+        all_resolved = false;
+        details.push(
+            "Resolved content would have invalid frontmatter — left for manual \
+             resolution; the original file was not modified"
+                .to_string(),
+        );
     }
 
     let status = if !all_resolved {
@@ -429,8 +439,23 @@ fn resolve_frontmatter_conflict(ours: &str, theirs: &str) -> Resolution {
         }
     }
 
-    let result = merged_lines.join("\n");
-    Resolution::Auto(format!("{result}\n"))
+    let body = merged_lines.join("\n");
+    // If the conflict hunk swallowed the frontmatter `---` fences — i.e. each side
+    // carried its own full `---\n…\n---` block rather than just the interior fields
+    // — then parsing to fields dropped the delimiters. Re-emit them so the resolved
+    // spec is valid frontmatter instead of loose `key: value` lines. (In the common
+    // interior conflict the fences live in the surrounding clean regions and this is
+    // a no-op.)
+    let had_fences = ours
+        .lines()
+        .chain(theirs.lines())
+        .any(|l| l.trim() == "---");
+    let result = if had_fences {
+        format!("---\n{body}\n---\n")
+    } else {
+        format!("{body}\n")
+    };
+    Resolution::Auto(result)
 }
 
 #[derive(Clone, Debug)]
@@ -756,6 +781,53 @@ Auth module.
         // Changelog: all entries merged chronologically
         assert!(resolved.contains("Added login"));
         assert!(resolved.contains("Added signup"));
+    }
+
+    #[test]
+    fn frontmatter_conflict_spanning_fences_stays_valid() {
+        // Regression (CRITICAL): a conflict hunk that swallows the entire
+        // `---\n…\n---` frontmatter block — each side carrying its own fences —
+        // previously auto-resolved to loose `key: value` lines with NO delimiters,
+        // writing a corrupt spec (`check` → "Frontmatter invalid") while reporting
+        // "✓ resolved". The resolved output must remain valid frontmatter.
+        let content = "\
+<<<<<<< HEAD
+---
+module: minimal
+version: 2
+status: active
+files:
+  - src/minimal.ts
+depends_on: []
+---
+=======
+---
+module: minimal
+version: 1
+status: review
+files:
+  - src/minimal.ts
+depends_on: []
+---
+>>>>>>> branch
+# Minimal
+";
+        let (resolved, result) = resolve_spec_conflicts(content, "specs/minimal/minimal.spec.md");
+        assert!(
+            matches!(result.status, MergeStatus::Resolved),
+            "should auto-resolve, got {:?}: {:?}",
+            result.status,
+            result.details
+        );
+        assert!(!has_conflict_markers(&resolved));
+        assert!(
+            resolved.starts_with("---\n"),
+            "resolved spec must re-emit the opening frontmatter fence, got:\n{resolved}"
+        );
+        assert!(
+            parse_frontmatter(&resolved).is_some(),
+            "resolved frontmatter must parse, got:\n{resolved}"
+        );
     }
 
     #[test]

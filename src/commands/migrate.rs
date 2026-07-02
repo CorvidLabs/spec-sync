@@ -848,9 +848,84 @@ fn apply_stamp_version(ctx: &MigrationContext, report: &mut MigrationReport) -> 
     Ok(())
 }
 
+// ─── Pre-flight: config parseability ─────────────────────────────────────────
+
+/// The config file `migrate` would convert, mirroring `apply_relocate_config`'s
+/// source selection: legacy root `specsync.json` first, then the intermediate
+/// `.specsync/config.json`. The legacy `.specsync.toml` is intentionally omitted —
+/// its hand-rolled parser is lenient and never hard-fails.
+fn config_source_to_validate(root: &Path) -> Option<PathBuf> {
+    let old_json = root.join("specsync.json");
+    if old_json.exists() {
+        return Some(old_json);
+    }
+    if root.join(".specsync.toml").exists() {
+        return None;
+    }
+    let new_json = root.join(".specsync/config.json");
+    if new_json.exists() {
+        return Some(new_json);
+    }
+    None
+}
+
+/// Verify the JSON config `migrate` would convert actually parses. Returns
+/// `Err((relative_name, parse_error))` when the file exists but is malformed, so
+/// the caller can refuse rather than silently replace a real config with defaults
+/// and delete the original. `Ok` when parseable, absent, or a lenient TOML source.
+fn preflight_config_parseable(root: &Path) -> Result<(), (String, String)> {
+    let Some(source) = config_source_to_validate(root) else {
+        return Ok(());
+    };
+    let name = source
+        .strip_prefix(root)
+        .unwrap_or(&source)
+        .display()
+        .to_string();
+    let content =
+        fs::read_to_string(&source).map_err(|e| (name.clone(), format!("cannot read file: {e}")))?;
+    // Same parse `load_json_config` uses; on failure it would fall back to
+    // defaults, so catch it here first (unknown keys are ignored by serde, not
+    // an error — they are only warned about during a normal load).
+    serde_json::from_str::<crate::types::SpecSyncConfig>(&content)
+        .map_err(|e| (name, e.to_string()))?;
+    Ok(())
+}
+
 // ─── Main command ───────────────────────────────────────────────────────────
 
 pub fn cmd_migrate(root: &Path, format: OutputFormat, dry_run: bool, no_backup: bool) {
+    // Refuse to migrate a config we cannot parse. Otherwise the parse error is
+    // swallowed, a pure-default config.toml is written, and the original file is
+    // deleted — silent, unrecoverable config loss reported as success. Runs before
+    // any mutation (directory creation, version stamping) so a failure leaves the
+    // project byte-for-byte unchanged.
+    if let Err((name, err)) = preflight_config_parseable(root) {
+        match format {
+            OutputFormat::Json => {
+                let output = serde_json::json!({
+                    "status": "error",
+                    "error": format!("Cannot parse {name}: {err}"),
+                    "hint": "Fix the config file and re-run `specsync migrate`. Your original file was not modified.",
+                });
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            }
+            _ => {
+                eprintln!(
+                    "{} Cannot migrate: {} is not valid — {}",
+                    "✗".red(),
+                    name.cyan(),
+                    err
+                );
+                eprintln!(
+                    "  Fix the config file and re-run {}. Your original file was not modified.",
+                    "specsync migrate".cyan()
+                );
+            }
+        }
+        process::exit(1);
+    }
+
     // Discover spec files
     let spec_files = discover_specs(root);
 
@@ -1185,6 +1260,42 @@ mod tests {
         }
         assert_eq!(report.dirs_created.len(), 4);
         assert_eq!(report.steps_completed.len(), 1);
+    }
+
+    #[test]
+    fn preflight_rejects_malformed_json_config() {
+        let tmp = TempDir::new().unwrap();
+        // Trailing comma — valid intent, invalid JSON.
+        fs::write(
+            tmp.path().join("specsync.json"),
+            "{ \"sourceDirs\": [\"lib\"], \"enforcement\": \"strict\", }",
+        )
+        .unwrap();
+        let err = preflight_config_parseable(tmp.path()).unwrap_err();
+        assert_eq!(err.0, "specsync.json");
+        assert!(!err.1.is_empty());
+    }
+
+    #[test]
+    fn preflight_accepts_valid_json_including_unknown_keys() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join("specsync.json"),
+            "{ \"sourceDirs\": [\"lib\"], \"somethingNew\": 1 }",
+        )
+        .unwrap();
+        // Unknown keys are ignored by serde (only warned during a real load), so
+        // an otherwise-valid config must not be rejected.
+        assert!(preflight_config_parseable(tmp.path()).is_ok());
+    }
+
+    #[test]
+    fn preflight_ok_when_no_json_source() {
+        let tmp = TempDir::new().unwrap();
+        // No config at all, and a lenient TOML source, both pass the JSON gate.
+        assert!(preflight_config_parseable(tmp.path()).is_ok());
+        fs::write(tmp.path().join(".specsync.toml"), "not = valid = toml =").unwrap();
+        assert!(preflight_config_parseable(tmp.path()).is_ok());
     }
 
     #[test]

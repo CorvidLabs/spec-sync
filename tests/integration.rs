@@ -1407,13 +1407,14 @@ fn ai_command_overrides_ai_provider() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);
 
-    // Config has both aiProvider and aiCommand — aiCommand ("false") wins over aiProvider
-    // The "false" command exits 1, AI falls back to template, but stderr shows it tried
+    // aiCommand must come from the TRUSTED local channel (gitignored
+    // config.local.toml), never committed config (see load_config security note).
+    // It still overrides aiProvider: the "false" command exits 1, AI falls back
+    // to template, and stderr shows it tried.
     let config = serde_json::json!({
         "specsDir": "specs",
         "sourceDirs": ["src"],
         "aiProvider": "claude",
-        "aiCommand": "false",
         "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
         "excludeDirs": ["__tests__"],
         "excludePatterns": ["**/__tests__/**"]
@@ -1421,6 +1422,12 @@ fn ai_command_overrides_ai_provider() {
     fs::write(
         root.join("specsync.json"),
         serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .unwrap();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/config.local.toml"),
+        "ai_command = \"false\"\n",
     )
     .unwrap();
 

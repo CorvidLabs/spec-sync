@@ -271,7 +271,11 @@ pub fn validate_spec(
         );
     }
 
-    // Check files exist
+    // Check files exist and can be read as UTF-8.
+    // A file that exists but cannot be decoded must fail loud here: otherwise
+    // export extraction silently yields zero symbols (see exports::mod read path),
+    // so undocumented exports are never checked and the spec passes — a silent
+    // false-PASS of the core API-surface guarantee.
     for file in &fm.files {
         let full_path = root.join(file);
         if !full_path.exists() {
@@ -286,6 +290,15 @@ pub fn validate_spec(
                     "Remove `{file}` from files list or create the source file"
                 ));
             }
+        } else if full_path.is_file()
+            && let Err(err) = fs::read_to_string(&full_path)
+        {
+            result.errors.push(format!(
+                "Source file `{file}` could not be read as UTF-8 for validation: {err}"
+            ));
+            result.fixes.push(format!(
+                "Re-save `{file}` as UTF-8 (specsync validates UTF-8 source), or remove it from the files list"
+            ));
         }
     }
 
@@ -882,6 +895,38 @@ mod tests {
                 .errors
                 .iter()
                 .any(|e| e.contains("Source file not found"))
+        );
+    }
+
+    #[test]
+    fn test_validate_spec_non_utf8_source_fails_loud() {
+        // Regression: a source file that exists but is not valid UTF-8 must
+        // produce an ERROR, not silently contribute zero exports (which would
+        // let a spec documenting nothing pass — a silent false-PASS).
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        // Valid JS export plus a stray Latin-1 byte (0xE9) → invalid UTF-8.
+        fs::write(src_dir.join("bad.ts"), b"export function chargeCard() {}\n// \xE9").unwrap();
+
+        let spec = tmp.path().join("bad.spec.md");
+        fs::write(
+            &spec,
+            "---\nmodule: bad\nversion: 1\nstatus: active\nfiles:\n  - src/bad.ts\n---\n\n## Purpose\nTest\n## Requirements\n## Public API\n## Invariants\n## Behavioral Examples\n## Error Cases\n## Dependencies\n## Change Log\n",
+        )
+        .unwrap();
+
+        let tables = HashSet::new();
+        let schema_cols = HashMap::new();
+        let config = SpecSyncConfig::default();
+        let result = validate_spec(&spec, tmp.path(), &tables, &schema_cols, &config);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("could not be read as UTF-8")),
+            "expected a UTF-8 read error, got: {:?}",
+            result.errors
         );
     }
 

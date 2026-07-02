@@ -1,6 +1,6 @@
 ---
 module: git_utils
-version: 2
+version: 1
 status: stable
 files:
   - src/git_utils.rs
@@ -24,7 +24,6 @@ Shared git utility functions for querying repository history. Provides commit ha
 | `git_last_commit_hash` | `root: &Path, file: &str` | `Option<String>` | Get the SHA hash of the last commit that touched a file |
 | `git_commits_since` | `root: &Path, spec_commit: &str, source_file: &str` | `usize` | Count commits to source_file since a precomputed spec commit hash |
 | `is_git_repo` | `root: &Path` | `bool` | Check if a directory is inside a git work tree |
-| `is_file_tracked` | `root: &Path, rel_path: &str` | `bool` | Check whether a path is tracked by git (committed or staged); false when untracked or not a git repo |
 
 ### Exported Types
 
@@ -71,4 +70,3 @@ None (only uses `std::process::Command` for git CLI calls).
 |------|--------|
 | 2026-04-10 | Initial — extracted from cmd_report for shared use by stale, report, and scoring |
 | 2026-06-07 | Replaced `git_commits_between` with `git_commits_since`, which takes a precomputed spec commit hash so callers resolve it once per spec instead of once per source file (eliminates N+1 `git log` calls) |
-| 2026-07-01 | Added `is_file_tracked` — used by config loading to honor a `config.local.toml` `ai_command` only when the file is untracked (closes the H1 committed-`config.local.toml` shell-injection path) |

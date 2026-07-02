@@ -49,19 +49,6 @@ pub fn is_git_repo(root: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Check whether `rel_path` (relative to `root`) is tracked by git — i.e. it is
-/// committed or staged, and therefore shared when the repo is cloned.
-/// Returns `false` when the path is untracked or `root` is not a git repo.
-/// `git ls-files --error-unmatch` exits 0 only for a tracked path.
-pub fn is_file_tracked(root: &Path, rel_path: &str) -> bool {
-    Command::new("git")
-        .args(["ls-files", "--error-unmatch", "--", rel_path])
-        .current_dir(root)
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-}
-
 /// Staleness info for a single spec relative to its source files.
 #[derive(Debug, Clone)]
 pub struct StaleInfo {

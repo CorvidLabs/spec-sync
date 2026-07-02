@@ -581,12 +581,27 @@ fn parse_table_rows(text: &str) -> Vec<&str> {
     text.lines()
         .filter(|l| {
             let t = l.trim();
-            t.starts_with('|')
-                && !t.starts_with("| -")
-                && !t.starts_with("|--")
-                && !t.starts_with("|-")
+            // Keep every `|`-row EXCEPT the GFM separator row. Match the separator
+            // structurally (all cells are dashes/colons), not by a `| -` prefix —
+            // otherwise a data row whose first cell legitimately starts with `-`
+            // (a CLI flag like `| --debug |`, a negative number) is dropped.
+            t.starts_with('|') && !is_table_separator_row(t)
         })
         .collect()
+}
+
+/// Whether a `|`-delimited row is a GFM header/body separator (`|---|:--:|`),
+/// i.e. every cell contains only dashes, colons, and spaces (with at least one
+/// dash). Data rows — even ones whose first cell starts with `-` — are not.
+fn is_table_separator_row(row: &str) -> bool {
+    let inner = row.trim();
+    if !inner.contains('-') {
+        return false;
+    }
+    inner.trim_matches('|').split('|').all(|cell| {
+        let c = cell.trim();
+        !c.is_empty() && c.chars().all(|ch| ch == '-' || ch == ':')
+    })
 }
 
 /// Extract the first cell value from a markdown table row.
@@ -1107,6 +1122,56 @@ Run it after.
             resolved.contains("## Migration Notes") && resolved.contains("migration script"),
             "the swallowed following section must not be deleted:\n{resolved}"
         );
+    }
+
+    #[test]
+    fn separator_row_detection_excludes_dash_leading_data_rows() {
+        assert!(is_table_separator_row("|------|------|"));
+        assert!(is_table_separator_row("| :--- | ---: |"));
+        assert!(!is_table_separator_row("| --debug | Enable debug |"));
+        assert!(!is_table_separator_row("| Flag | Description |"));
+        assert!(!is_table_separator_row("| -5 | a negative number |"));
+    }
+
+    #[test]
+    fn table_conflict_preserves_dash_leading_row() {
+        // Regression: a generic table hunk mixing a normal row with a `--flag` row
+        // used to DROP the flag row (misread as a `|---|` separator) and write the
+        // result as Resolved — content loss. The flag rows must survive the merge.
+        let content = "\
+---
+module: m
+version: 1
+status: active
+files:
+  - src/m.ts
+db_tables: []
+depends_on: []
+---
+# M
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+<<<<<<< HEAD
+| newFlag | A new flag |
+| --debug | Enable debug |
+=======
+| newFlag | A new flag |
+| --quiet | Quiet mode |
+>>>>>>> feature
+";
+        let (resolved, _result) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        assert!(
+            !has_conflict_markers(&resolved),
+            "should auto-resolve:\n{resolved}"
+        );
+        assert!(
+            resolved.contains("--debug") && resolved.contains("--quiet"),
+            "dash-leading rows must not be dropped:\n{resolved}"
+        );
+        assert!(resolved.contains("newFlag"));
     }
 
     #[test]

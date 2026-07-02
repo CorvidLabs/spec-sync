@@ -868,6 +868,12 @@ fn auto_fix_specs(
         // Collect all exports from source files
         let mut all_exports: Vec<String> = Vec::new();
         for file in &parsed.frontmatter.files {
+            // Never read (or --fix persist) exports from a `files:` entry that
+            // escapes the project root — it would write arbitrary host-file
+            // identifiers into the spec. `check` reports such entries as errors.
+            if !crate::validator::source_within_root(root, file) {
+                continue;
+            }
             let full_path = root.join(file);
             all_exports.extend(get_exported_symbols_full(
                 &full_path,
@@ -914,6 +920,9 @@ fn auto_fix_specs(
         // an "Exported Types" table.
         let mut type_names: std::collections::HashSet<String> = std::collections::HashSet::new();
         for file in &parsed.frontmatter.files {
+            if !crate::validator::source_within_root(root, file) {
+                continue;
+            }
             let full_path = root.join(file);
             type_names.extend(get_exported_symbols_full(
                 &full_path,

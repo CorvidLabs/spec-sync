@@ -1407,10 +1407,10 @@ fn ai_command_overrides_ai_provider() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);
 
-    // aiCommand must come from the TRUSTED local channel (gitignored
-    // config.local.toml), never committed config (see load_config security note).
-    // It still overrides aiProvider: the "false" command exits 1, AI falls back
-    // to template, and stderr shows it tried.
+    // aiCommand must come from a TRUSTED channel — here the SPECSYNC_AI_COMMAND
+    // env var (always honored, never sourced from a committed repo file). It
+    // still overrides aiProvider: the "false" command exits 1, AI falls back to
+    // template, and stderr shows it tried.
     let config = serde_json::json!({
         "specsDir": "specs",
         "sourceDirs": ["src"],
@@ -1424,12 +1424,6 @@ fn ai_command_overrides_ai_provider() {
         serde_json::to_string_pretty(&config).unwrap(),
     )
     .unwrap();
-    fs::create_dir_all(root.join(".specsync")).unwrap();
-    fs::write(
-        root.join(".specsync/config.local.toml"),
-        "ai_command = \"false\"\n",
-    )
-    .unwrap();
 
     // Create unspecced module so generation is triggered
     fs::create_dir_all(root.join("src/newmod")).unwrap();
@@ -1438,6 +1432,7 @@ fn ai_command_overrides_ai_provider() {
     // The spec is still written from the template, but the run exits non-zero
     // and reports the AI failure prominently on stderr
     specsync()
+        .env("SPECSYNC_AI_COMMAND", "false")
         .arg("generate")
         .arg("--provider")
         .arg("auto")

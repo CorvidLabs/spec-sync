@@ -14,6 +14,7 @@ pub struct MergeResult {
     pub details: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MergeStatus {
     /// File had conflicts and they were resolved automatically.
     Resolved,
@@ -130,10 +131,13 @@ fn resolve_spec_conflicts(content: &str, path: &str) -> (String, MergeResult) {
                 theirs,
                 marker_label,
             } => {
-                // Determine what section this conflict is in
+                // Determine what section this conflict is in. We are still inside
+                // the leading frontmatter block until its closing `---` — i.e.
+                // fewer than two fence lines have been emitted so far.
                 let section = detect_section(&output);
+                let in_frontmatter = output.lines().filter(|l| l.trim() == "---").count() < 2;
 
-                match resolve_conflict(ours, theirs, &section) {
+                match resolve_conflict(ours, theirs, &section, in_frontmatter) {
                     Resolution::Auto(merged) => {
                         details.push(format!(
                             "Auto-resolved in {}: {}",
@@ -159,13 +163,23 @@ fn resolve_spec_conflicts(content: &str, path: &str) -> (String, MergeResult) {
         }
     }
 
-    // If everything was resolved, validate the result parses
-    if all_resolved
-        && !output.is_empty()
-        && parse_frontmatter(&output).is_none()
-        && content.contains("---\n")
-    {
-        details.push("Warning: resolved file has invalid frontmatter".to_string());
+    // Safety net for frontmatter validity: if the input had frontmatter but the
+    // assembled output no longer parses as frontmatter OR parses to one that lost
+    // its `module`, refuse — downgrade to Manual so the caller (which writes only
+    // on `Resolved`) leaves the ORIGINAL file untouched. (This guards frontmatter
+    // structure; body/row preservation is handled upstream by only auto-merging
+    // pure field/table hunks, never prose- or section-carrying ones.)
+    let had_frontmatter = content.lines().any(|l| l.trim() == "---");
+    let resolved_frontmatter_ok = parse_frontmatter(&output)
+        .map(|parsed| parsed.frontmatter.module.is_some())
+        .unwrap_or(false);
+    if all_resolved && !output.is_empty() && had_frontmatter && !resolved_frontmatter_ok {
+        all_resolved = false;
+        details.push(
+            "Resolved content would have invalid or empty frontmatter — left for \
+             manual resolution; the original file was not modified"
+                .to_string(),
+        );
     }
 
     let status = if !all_resolved {
@@ -263,24 +277,35 @@ enum Resolution {
 }
 
 /// Try to auto-resolve a conflict based on section context.
-fn resolve_conflict(ours: &str, theirs: &str, section: &Option<String>) -> Resolution {
+///
+/// `in_frontmatter` is true only while the cursor is still inside the leading
+/// `---…---` frontmatter block. A `None` section (no `## ` heading seen yet) can
+/// mean either the frontmatter OR a pre-first-heading body region (a `# Title` /
+/// intro); only the former may use the field resolver — routing intro prose to it
+/// would silently drop bullet lists and non-winning text.
+fn resolve_conflict(
+    ours: &str,
+    theirs: &str,
+    section: &Option<String>,
+    in_frontmatter: bool,
+) -> Resolution {
     let section_name = section.as_deref().unwrap_or("");
 
+    // Frontmatter fields — only when genuinely inside the frontmatter block.
+    if section_name.is_empty() && in_frontmatter {
+        return resolve_frontmatter_conflict(ours, theirs);
+    }
+
+    // Every remaining auto-merge requires the hunk to be PURE table rows. A hunk
+    // that also carries prose/headings (e.g. a Change Log conflict that swallowed
+    // the following section) is NOT pure, so the row merge — which keeps only
+    // `|`-rows and would delete everything else — is refused and left for manual
+    // resolution instead.
+    let pure_rows = is_pure_table_rows(ours) && is_pure_table_rows(theirs);
     match section_name {
-        // Changelog: merge rows chronologically
+        _ if !pure_rows => Resolution::Manual,
         "Change Log" => resolve_changelog_conflict(ours, theirs),
-
-        // Frontmatter region (before any ## heading): merge frontmatter
-        "" => resolve_frontmatter_conflict(ours, theirs),
-
-        // Any section with only table rows: try table merge
-        _ => {
-            if is_pure_table_rows(ours) && is_pure_table_rows(theirs) {
-                resolve_table_conflict(ours, theirs)
-            } else {
-                Resolution::Manual
-            }
-        }
+        _ => resolve_table_conflict(ours, theirs),
     }
 }
 
@@ -355,10 +380,62 @@ fn resolve_table_conflict(ours: &str, theirs: &str) -> Resolution {
     Resolution::Auto(format!("{merged}\n"))
 }
 
+/// Whether a conflict-hunk side is ONLY interior frontmatter fields that
+/// [`parse_yaml_fields`] can round-trip WITHOUT dropping anything.
+///
+/// It must mirror the parser's keep/drop rules exactly, or a hunk it accepts could
+/// still lose content on merge:
+/// - a `---` fence, `##` heading, table row, or prose line ⇒ reject (not a field);
+/// - a `- item` list line is kept by the parser only while it follows a key with an
+///   empty/`[]` value (a list key). A `- item` before any such key — its owning key
+///   sits in the surrounding clean region — is silently dropped by the parser, so
+///   reject it here and defer to manual resolution instead of losing list items.
+///
+/// The upshot: we only auto-merge conflicts whose fences stay in the clean regions
+/// (the common "two branches bumped `version`" / "diverging `files:` list" case);
+/// anything else is left for the human.
+fn is_frontmatter_only(text: &str) -> bool {
+    let mut under_list_key = false;
+    text.lines().all(|line| {
+        let t = line.trim();
+        if t.is_empty() {
+            return true;
+        }
+        if t.starts_with("- ") {
+            // Only safe when an owning list key was opened earlier in THIS hunk.
+            return under_list_key;
+        }
+        // `key: value` with a spaceless key (a `---` fence has no colon → rejected).
+        match line.find(':') {
+            Some(c) => {
+                let key = line[..c].trim();
+                if key.is_empty() || key.contains(' ') {
+                    return false;
+                }
+                let value = line[c + 1..].trim();
+                // An empty (or `[]`) value opens a list the parser attaches items to.
+                under_list_key = value.is_empty() || value == "[]";
+                true
+            }
+            None => false,
+        }
+    })
+}
+
 /// Merge frontmatter YAML fields.
 /// Lists (files, depends_on, db_tables) are unioned.
 /// Scalars: theirs wins if different.
 fn resolve_frontmatter_conflict(ours: &str, theirs: &str) -> Resolution {
+    // Only auto-merge when BOTH sides are pure interior frontmatter fields (no
+    // `---` fence, heading, or body in the hunk). A plain `git merge` of specs
+    // whose content differs right after the frontmatter swallows the closing `---`
+    // and body into the hunk; since this resolver rebuilds from parsed `key: value`
+    // fields alone, reconstructing those fences is error-prone (dropped body,
+    // doubled fences). So we don't try — such hunks are left for manual resolution.
+    if !is_frontmatter_only(ours) || !is_frontmatter_only(theirs) {
+        return Resolution::Manual;
+    }
+
     // Parse both sides as YAML-like key-value pairs
     let our_fields = parse_yaml_fields(ours);
     let their_fields = parse_yaml_fields(theirs);
@@ -429,8 +506,11 @@ fn resolve_frontmatter_conflict(ours: &str, theirs: &str) -> Resolution {
         }
     }
 
-    let result = merged_lines.join("\n");
-    Resolution::Auto(format!("{result}\n"))
+    // Emit only the merged interior fields. The `---` fences come from the
+    // surrounding clean regions (guaranteed: `is_frontmatter_only` rejects any hunk
+    // that contains a fence), so we never reconstruct or double a delimiter.
+    let body = merged_lines.join("\n");
+    Resolution::Auto(format!("{body}\n"))
 }
 
 #[derive(Clone, Debug)]
@@ -501,12 +581,27 @@ fn parse_table_rows(text: &str) -> Vec<&str> {
     text.lines()
         .filter(|l| {
             let t = l.trim();
-            t.starts_with('|')
-                && !t.starts_with("| -")
-                && !t.starts_with("|--")
-                && !t.starts_with("|-")
+            // Keep every `|`-row EXCEPT the GFM separator row. Match the separator
+            // structurally (all cells are dashes/colons), not by a `| -` prefix —
+            // otherwise a data row whose first cell legitimately starts with `-`
+            // (a CLI flag like `| --debug |`, a negative number) is dropped.
+            t.starts_with('|') && !is_table_separator_row(t)
         })
         .collect()
+}
+
+/// Whether a `|`-delimited row is a GFM header/body separator (`|---|:--:|`),
+/// i.e. every cell contains only dashes, colons, and spaces (with at least one
+/// dash). Data rows — even ones whose first cell starts with `-` — are not.
+fn is_table_separator_row(row: &str) -> bool {
+    let inner = row.trim();
+    if !inner.contains('-') {
+        return false;
+    }
+    inner.trim_matches('|').split('|').all(|cell| {
+        let c = cell.trim();
+        !c.is_empty() && c.chars().all(|ch| ch == '-' || ch == ':')
+    })
 }
 
 /// Extract the first cell value from a markdown table row.
@@ -756,6 +851,327 @@ Auth module.
         // Changelog: all entries merged chronologically
         assert!(resolved.contains("Added login"));
         assert!(resolved.contains("Added signup"));
+    }
+
+    #[test]
+    fn frontmatter_conflict_with_fences_in_hunk_falls_to_manual() {
+        // Regression (CRITICAL): a conflict hunk that swallows the `---` fences was
+        // the original corruption source (it resolved to loose `key: value` lines
+        // with the delimiters dropped, or a doubled/empty fence, written as
+        // "✓ resolved"). We no longer try to reconstruct fences — any hunk carrying
+        // a `---` fence falls to Manual with the file left UNTOUCHED (no data loss).
+        let content = "\
+<<<<<<< HEAD
+---
+module: minimal
+version: 2
+status: active
+files:
+  - src/minimal.ts
+depends_on: []
+---
+=======
+---
+module: minimal
+version: 1
+status: review
+files:
+  - src/minimal.ts
+depends_on: []
+---
+>>>>>>> branch
+# Minimal
+";
+        let (resolved, result) = resolve_spec_conflicts(content, "specs/minimal/minimal.spec.md");
+        assert_eq!(
+            result.status,
+            MergeStatus::Manual,
+            "a fence-carrying frontmatter hunk must not auto-resolve: {:?}",
+            result.details
+        );
+        assert!(
+            has_conflict_markers(&resolved),
+            "conflict markers must be preserved for manual resolution"
+        );
+        // No data loss: both sides' fields survive verbatim in the preserved hunk.
+        assert!(resolved.contains("version: 2"));
+        assert!(resolved.contains("version: 1"));
+        assert!(resolved.contains("# Minimal"));
+    }
+
+    #[test]
+    fn frontmatter_conflict_with_separator_before_fence_falls_to_manual() {
+        // Regression: a blank/whitespace line between the clean opening `---` and a
+        // fence-swallowing hunk previously defeated the re-wrap + backstop and wrote
+        // an empty-frontmatter spec as "✓ resolved". The hunk carries a `---`, so it
+        // must fall to Manual — file untouched, fields preserved.
+        let content = "\
+---
+
+<<<<<<< HEAD
+module: a
+version: 2
+---
+=======
+module: a
+version: 3
+---
+>>>>>>> feature
+# Body
+";
+        let (resolved, result) = resolve_spec_conflicts(content, "specs/a/a.spec.md");
+        assert_eq!(
+            result.status,
+            MergeStatus::Manual,
+            "separator-before-fence hunk must fall to Manual: {:?}",
+            result.details
+        );
+        assert!(has_conflict_markers(&resolved));
+        assert!(resolved.contains("version: 2"));
+        assert!(resolved.contains("version: 3"));
+        assert!(resolved.contains("# Body"));
+    }
+
+    #[test]
+    fn frontmatter_conflict_swallowing_body_falls_to_manual() {
+        // Regression (CRITICAL): a plain `git merge` of two specs whose content
+        // differs right after the frontmatter yields a hunk that spans the closing
+        // `---` AND the body. The field-only resolver would silently DELETE that
+        // body; it must instead fall to Manual — markers preserved, body intact.
+        let content = "\
+---
+<<<<<<< HEAD
+module: alpha
+version: 2
+status: active
+files:
+  - src/a.ts
+db_tables: []
+depends_on: []
+---
+# Alpha
+
+## Purpose
+
+Ours purpose.
+=======
+module: alpha
+version: 3
+status: active
+files:
+  - src/a.ts
+db_tables: []
+depends_on: []
+---
+# Alpha
+
+## Purpose
+
+Theirs purpose.
+>>>>>>> feature
+";
+        let (resolved, result) = resolve_spec_conflicts(content, "specs/alpha/alpha.spec.md");
+        assert_eq!(
+            result.status,
+            MergeStatus::Manual,
+            "a body-swallowing frontmatter conflict must NOT auto-resolve: {:?}",
+            result.details
+        );
+        assert!(
+            has_conflict_markers(&resolved),
+            "conflict markers must be preserved for manual resolution"
+        );
+        assert!(
+            resolved.contains("## Purpose"),
+            "spec body must not be deleted, got:\n{resolved}"
+        );
+        assert!(resolved.contains("Ours purpose."));
+        assert!(resolved.contains("Theirs purpose."));
+    }
+
+    #[test]
+    fn pre_heading_body_field_hunk_falls_to_manual() {
+        // Regression: a conflict in a pre-first-`##` intro (a `# Notes` region,
+        // AFTER the frontmatter) has no `## ` heading, so it used to route to the
+        // frontmatter field resolver, which drops bullet lists and non-winning
+        // prose. It must fall to Manual — bullets and both sides preserved.
+        let content = "\
+---
+module: m
+version: 1
+status: active
+files:
+  - src/m.ts
+db_tables: []
+depends_on: []
+---
+# Notes
+
+<<<<<<< HEAD
+TODO: fix the auth flow
+- step one
+- step two
+=======
+TODO: rewrite the auth flow
+- step three
+>>>>>>> feature
+
+## Purpose
+
+The module.
+";
+        let (resolved, result) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        assert_eq!(
+            result.status,
+            MergeStatus::Manual,
+            "pre-heading body hunk must not be field-merged: {:?}",
+            result.details
+        );
+        assert!(has_conflict_markers(&resolved));
+        assert!(resolved.contains("- step one"), "bullets must survive");
+        assert!(resolved.contains("- step two"));
+        assert!(resolved.contains("- step three"));
+    }
+
+    #[test]
+    fn frontmatter_orphan_list_items_hunk_falls_to_manual() {
+        // Regression: a real `git merge` of two branches that both extended `files:`
+        // (and another field) yields a hunk that STARTS with orphan `- item` lines
+        // (their `files:` key is in the clean region) then continues into
+        // `db_tables:`. The parser drops the orphan items while the trailing field
+        // keeps the result non-empty — silently losing both branches' new files.
+        // Must fall to Manual with the items preserved.
+        let content = "\
+---
+module: m
+version: 1
+status: active
+files:
+  - src/a.ts
+<<<<<<< HEAD
+  - src/b.ts
+db_tables:
+  - users
+=======
+  - src/c.ts
+db_tables:
+  - accounts
+>>>>>>> theirs
+depends_on: []
+---
+# M
+";
+        let (resolved, result) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        assert_eq!(
+            result.status,
+            MergeStatus::Manual,
+            "orphan leading list items must not be field-merged: {:?}",
+            result.details
+        );
+        assert!(has_conflict_markers(&resolved));
+        assert!(
+            resolved.contains("- src/b.ts") && resolved.contains("- src/c.ts"),
+            "list items from both sides must survive:\n{resolved}"
+        );
+    }
+
+    #[test]
+    fn changelog_hunk_swallowing_next_section_falls_to_manual() {
+        // Regression: a Change Log conflict whose hunk runs past the table into the
+        // following section previously deleted that section (the row resolver keeps
+        // only `|`-rows). Impure changelog hunks now fall to Manual.
+        let content = "\
+---
+module: m
+version: 1
+status: active
+files:
+  - src/m.ts
+db_tables: []
+depends_on: []
+---
+# M
+
+## Change Log
+
+| Date | Change |
+|------|--------|
+<<<<<<< HEAD
+| 2026-01-01 | a |
+
+## Migration Notes
+
+Run the migration script before deploying.
+=======
+| 2026-01-02 | b |
+
+## Migration Notes
+
+Run it after.
+>>>>>>> feature
+";
+        let (resolved, result) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        assert_eq!(
+            result.status,
+            MergeStatus::Manual,
+            "impure changelog hunk must not be row-merged: {:?}",
+            result.details
+        );
+        assert!(has_conflict_markers(&resolved));
+        assert!(
+            resolved.contains("## Migration Notes") && resolved.contains("migration script"),
+            "the swallowed following section must not be deleted:\n{resolved}"
+        );
+    }
+
+    #[test]
+    fn separator_row_detection_excludes_dash_leading_data_rows() {
+        assert!(is_table_separator_row("|------|------|"));
+        assert!(is_table_separator_row("| :--- | ---: |"));
+        assert!(!is_table_separator_row("| --debug | Enable debug |"));
+        assert!(!is_table_separator_row("| Flag | Description |"));
+        assert!(!is_table_separator_row("| -5 | a negative number |"));
+    }
+
+    #[test]
+    fn table_conflict_preserves_dash_leading_row() {
+        // Regression: a generic table hunk mixing a normal row with a `--flag` row
+        // used to DROP the flag row (misread as a `|---|` separator) and write the
+        // result as Resolved — content loss. The flag rows must survive the merge.
+        let content = "\
+---
+module: m
+version: 1
+status: active
+files:
+  - src/m.ts
+db_tables: []
+depends_on: []
+---
+# M
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+<<<<<<< HEAD
+| newFlag | A new flag |
+| --debug | Enable debug |
+=======
+| newFlag | A new flag |
+| --quiet | Quiet mode |
+>>>>>>> feature
+";
+        let (resolved, _result) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        assert!(
+            !has_conflict_markers(&resolved),
+            "should auto-resolve:\n{resolved}"
+        );
+        assert!(
+            resolved.contains("--debug") && resolved.contains("--quiet"),
+            "dash-leading rows must not be dropped:\n{resolved}"
+        );
+        assert!(resolved.contains("newFlag"));
     }
 
     #[test]

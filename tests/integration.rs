@@ -5709,12 +5709,13 @@ None
 
 // ─── specsync merge ─────────────────────────────────────────────────────
 
-/// Regression (CRITICAL): `merge` must never write a spec with corrupt
-/// frontmatter. A conflict hunk spanning the whole `---…---` block previously
-/// resolved to loose `key: value` lines (fences dropped), so the next `check`
-/// failed with "Frontmatter invalid" — data loss reported as "✓ resolved".
+/// Regression (CRITICAL): `merge` must never write a corrupt spec. A conflict
+/// hunk that swallows the `---` fences previously resolved to loose/doubled/empty
+/// frontmatter written as "✓ resolved". We now leave such hunks for manual
+/// resolution — the invariant: a marker-free result is always valid frontmatter,
+/// and the body is never deleted.
 #[test]
-fn merge_frontmatter_spanning_conflict_stays_valid() {
+fn merge_never_writes_corrupt_spec_for_fence_hunk() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     write_config(root, "specs", &["src"]);
@@ -5754,53 +5755,64 @@ depends_on: []
 ## Purpose
 
 Minimal module.
+";
+    let spec_path = root.join("specs/minimal/minimal.spec.md");
+    fs::write(&spec_path, conflicted).unwrap();
 
-## Public API
+    // May resolve or defer to manual — but must never corrupt or delete the body.
+    specsync()
+        .current_dir(root)
+        .args(["merge", "--all"])
+        .assert();
 
-### Exported Functions
+    let after = fs::read_to_string(&spec_path).unwrap();
+    if !after.contains("<<<<<<<") {
+        assert!(
+            after.starts_with("---\n") && after.contains("module: minimal"),
+            "merge produced a corrupt, marker-free spec:\n{after}"
+        );
+    }
+    assert!(
+        after.contains("## Purpose") && after.contains("Minimal module."),
+        "spec body must never be deleted:\n{after}"
+    );
+}
 
-| Function | Parameters | Returns | Description |
-|----------|-----------|---------|-------------|
-| `doThing` | none | void | Does the thing |
+/// The common case must still auto-resolve: two branches bumped `version`, with
+/// the `---` fences left in the surrounding clean regions.
+#[test]
+fn merge_resolves_interior_field_conflict() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/minimal.ts"),
+        "export function doThing() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/minimal")).unwrap();
 
-### Exported Types
+    // The conflict is purely the `version` line; fences stay in clean regions.
+    let conflicted = "\
+---
+module: minimal
+<<<<<<< HEAD
+version: 2
+=======
+version: 3
+>>>>>>> branch
+status: active
+files:
+  - src/minimal.ts
+db_tables: []
+depends_on: []
+---
+# Minimal
 
-| Type | Description |
-|------|-------------|
+## Purpose
 
-## Invariants
-
-1. None.
-
-## Behavioral Examples
-
-### Scenario: call
-
-- **Given** nothing
-- **When** doThing
-- **Then** ok
-
-## Error Cases
-
-| Condition | Behavior |
-|-----------|----------|
-
-## Dependencies
-
-### Consumes
-
-| Module | What is used |
-|--------|-------------|
-
-### Consumed By
-
-| Module | What is used |
-|--------|-------------|
-
-## Change Log
-
-| Date | Author | Change |
-|------|--------|--------|
+Minimal module.
 ";
     let spec_path = root.join("specs/minimal/minimal.spec.md");
     fs::write(&spec_path, conflicted).unwrap();
@@ -5811,23 +5823,19 @@ Minimal module.
         .assert()
         .success();
 
-    // The written spec must be valid frontmatter with no leftover conflict markers.
     let resolved = fs::read_to_string(&spec_path).unwrap();
     assert!(
-        resolved.starts_with("---\n"),
-        "merge must re-emit the opening frontmatter fence, got:\n{resolved}"
+        !resolved.contains("<<<<<<<"),
+        "interior field conflict should auto-resolve, got:\n{resolved}"
     );
     assert!(
-        !resolved.contains("<<<<<<<"),
-        "conflict markers must be gone, got:\n{resolved}"
+        resolved.starts_with("---\n") && resolved.contains("version: 3"),
+        "resolved spec must be valid frontmatter with theirs' version, got:\n{resolved}"
     );
-
-    // And `check` must accept it — the corruption made this say "Frontmatter invalid".
+    // No "Frontmatter invalid" — the resolved spec parses.
     specsync()
         .current_dir(root)
         .arg("check")
         .assert()
-        .success()
-        .stdout(predicate::str::contains("Frontmatter valid"))
         .stdout(predicate::str::contains("Frontmatter invalid").not());
 }

@@ -160,19 +160,17 @@ fn resolve_spec_conflicts(content: &str, path: &str) -> (String, MergeResult) {
         }
     }
 
-    // Safety net: never write back a spec we just made invalid. If the assembled
-    // output no longer has parseable frontmatter, or collapsed to an empty
-    // `---\n---` block (a resolution that dropped the fields/body between the
-    // fences), refuse to auto-resolve — downgrade to Manual so the caller leaves
-    // the ORIGINAL file untouched (it only writes on `Resolved`) instead of
-    // silently corrupting it while reporting success.
+    // Safety net (shape-independent): never write back a spec we just made invalid
+    // or empty. If the input had frontmatter but the assembled output either does
+    // not parse as frontmatter OR parses to one that lost its `module` (fields
+    // demoted into the body, fences mis-nested, etc.), refuse — downgrade to Manual
+    // so the caller (which writes only on `Resolved`) leaves the ORIGINAL file
+    // untouched instead of silently corrupting it while reporting success.
     let had_frontmatter = content.lines().any(|l| l.trim() == "---");
-    let doubled_fence = output.trim_start().starts_with("---\n---")
-        || output.trim_start().starts_with("---\r\n---");
-    if all_resolved
-        && !output.is_empty()
-        && ((had_frontmatter && parse_frontmatter(&output).is_none()) || doubled_fence)
-    {
+    let resolved_frontmatter_ok = parse_frontmatter(&output)
+        .map(|parsed| parsed.frontmatter.module.is_some())
+        .unwrap_or(false);
+    if all_resolved && !output.is_empty() && had_frontmatter && !resolved_frontmatter_ok {
         all_resolved = false;
         details.push(
             "Resolved content would have invalid or empty frontmatter — left for \
@@ -368,29 +366,23 @@ fn resolve_table_conflict(ours: &str, theirs: &str) -> Resolution {
     Resolution::Auto(format!("{merged}\n"))
 }
 
-/// Whether a conflict-hunk side contains ONLY frontmatter — YAML `key: value` /
-/// `- item` lines, optionally wrapped in `---` fences — and no body content.
+/// Whether a conflict-hunk side is ONLY interior frontmatter fields — every
+/// non-blank line is a YAML `key: value` (spaceless key) or `- item` list line.
 ///
-/// Rejected if any non-blank line follows the last `---` fence (a swallowed body),
-/// or if any non-blank, non-fence line is not a field/list line (a heading, prose,
-/// or table — body the field parser would silently drop). Guards the frontmatter
-/// resolver against auto-merging a hunk that spans into the spec body.
+/// Deliberately strict: a `---` fence, a `##` heading, a table row, or any prose
+/// line disqualifies it. We only auto-merge a frontmatter conflict when BOTH sides
+/// are pure fields with the `---` fences left in the surrounding clean regions
+/// (the common "two branches bumped `version`" case). Reconstructing fences that a
+/// hunk swallowed is not attempted — a hunk carrying a fence or body is left for
+/// manual resolution rather than risk deleting body content or emitting a broken
+/// or doubled fence.
 fn is_frontmatter_only(text: &str) -> bool {
-    let lines: Vec<&str> = text.lines().collect();
-
-    // Nothing but blanks may follow a closing fence.
-    if let Some(last_fence) = lines.iter().rposition(|l| l.trim() == "---")
-        && lines[last_fence + 1..].iter().any(|l| !l.trim().is_empty())
-    {
-        return false;
-    }
-
-    // Every non-blank, non-fence line must look like a frontmatter field or list item.
-    lines.iter().all(|line| {
+    text.lines().all(|line| {
         let t = line.trim();
-        if t.is_empty() || t == "---" || t.starts_with("- ") {
+        if t.is_empty() || t.starts_with("- ") {
             return true;
         }
+        // A `---` fence has no colon and is rejected here (find(':') → None).
         line.find(':')
             .map(|c| {
                 let key = line[..c].trim();
@@ -404,12 +396,12 @@ fn is_frontmatter_only(text: &str) -> bool {
 /// Lists (files, depends_on, db_tables) are unioned.
 /// Scalars: theirs wins if different.
 fn resolve_frontmatter_conflict(ours: &str, theirs: &str) -> Resolution {
-    // Only auto-merge when BOTH sides are genuinely frontmatter-only. A plain
-    // `git merge` of two specs whose content differs right after the frontmatter
-    // produces a hunk that swallows the closing `---` and the body/headings; since
-    // this resolver rebuilds the block from parsed `key: value` fields alone, any
-    // such body content would be silently discarded. Refuse those — leave the
-    // conflict markers for manual resolution rather than delete a spec body.
+    // Only auto-merge when BOTH sides are pure interior frontmatter fields (no
+    // `---` fence, heading, or body in the hunk). A plain `git merge` of specs
+    // whose content differs right after the frontmatter swallows the closing `---`
+    // and body into the hunk; since this resolver rebuilds from parsed `key: value`
+    // fields alone, reconstructing those fences is error-prone (dropped body,
+    // doubled fences). So we don't try — such hunks are left for manual resolution.
     if !is_frontmatter_only(ours) || !is_frontmatter_only(theirs) {
         return Resolution::Manual;
     }
@@ -484,23 +476,11 @@ fn resolve_frontmatter_conflict(ours: &str, theirs: &str) -> Resolution {
         }
     }
 
+    // Emit only the merged interior fields. The `---` fences come from the
+    // surrounding clean regions (guaranteed: `is_frontmatter_only` rejects any hunk
+    // that contains a fence), so we never reconstruct or double a delimiter.
     let body = merged_lines.join("\n");
-    // If the conflict hunk swallowed the frontmatter `---` fences — i.e. each side
-    // carried its own full `---\n…\n---` block rather than just the interior fields
-    // — then parsing to fields dropped the delimiters. Re-emit them so the resolved
-    // spec is valid frontmatter instead of loose `key: value` lines. (In the common
-    // interior conflict the fences live in the surrounding clean regions and this is
-    // a no-op.)
-    let had_fences = ours
-        .lines()
-        .chain(theirs.lines())
-        .any(|l| l.trim() == "---");
-    let result = if had_fences {
-        format!("---\n{body}\n---\n")
-    } else {
-        format!("{body}\n")
-    };
-    Resolution::Auto(result)
+    Resolution::Auto(format!("{body}\n"))
 }
 
 #[derive(Clone, Debug)]
@@ -829,12 +809,12 @@ Auth module.
     }
 
     #[test]
-    fn frontmatter_conflict_spanning_fences_stays_valid() {
-        // Regression (CRITICAL): a conflict hunk that swallows the entire
-        // `---\n…\n---` frontmatter block — each side carrying its own fences —
-        // previously auto-resolved to loose `key: value` lines with NO delimiters,
-        // writing a corrupt spec (`check` → "Frontmatter invalid") while reporting
-        // "✓ resolved". The resolved output must remain valid frontmatter.
+    fn frontmatter_conflict_with_fences_in_hunk_falls_to_manual() {
+        // Regression (CRITICAL): a conflict hunk that swallows the `---` fences was
+        // the original corruption source (it resolved to loose `key: value` lines
+        // with the delimiters dropped, or a doubled/empty fence, written as
+        // "✓ resolved"). We no longer try to reconstruct fences — any hunk carrying
+        // a `---` fence falls to Manual with the file left UNTOUCHED (no data loss).
         let content = "\
 <<<<<<< HEAD
 ---
@@ -858,21 +838,53 @@ depends_on: []
 # Minimal
 ";
         let (resolved, result) = resolve_spec_conflicts(content, "specs/minimal/minimal.spec.md");
-        assert!(
-            matches!(result.status, MergeStatus::Resolved),
-            "should auto-resolve, got {:?}: {:?}",
+        assert_eq!(
             result.status,
+            MergeStatus::Manual,
+            "a fence-carrying frontmatter hunk must not auto-resolve: {:?}",
             result.details
         );
-        assert!(!has_conflict_markers(&resolved));
         assert!(
-            resolved.starts_with("---\n"),
-            "resolved spec must re-emit the opening frontmatter fence, got:\n{resolved}"
+            has_conflict_markers(&resolved),
+            "conflict markers must be preserved for manual resolution"
         );
-        assert!(
-            parse_frontmatter(&resolved).is_some(),
-            "resolved frontmatter must parse, got:\n{resolved}"
+        // No data loss: both sides' fields survive verbatim in the preserved hunk.
+        assert!(resolved.contains("version: 2"));
+        assert!(resolved.contains("version: 1"));
+        assert!(resolved.contains("# Minimal"));
+    }
+
+    #[test]
+    fn frontmatter_conflict_with_separator_before_fence_falls_to_manual() {
+        // Regression: a blank/whitespace line between the clean opening `---` and a
+        // fence-swallowing hunk previously defeated the re-wrap + backstop and wrote
+        // an empty-frontmatter spec as "✓ resolved". The hunk carries a `---`, so it
+        // must fall to Manual — file untouched, fields preserved.
+        let content = "\
+---
+
+<<<<<<< HEAD
+module: a
+version: 2
+---
+=======
+module: a
+version: 3
+---
+>>>>>>> feature
+# Body
+";
+        let (resolved, result) = resolve_spec_conflicts(content, "specs/a/a.spec.md");
+        assert_eq!(
+            result.status,
+            MergeStatus::Manual,
+            "separator-before-fence hunk must fall to Manual: {:?}",
+            result.details
         );
+        assert!(has_conflict_markers(&resolved));
+        assert!(resolved.contains("version: 2"));
+        assert!(resolved.contains("version: 3"));
+        assert!(resolved.contains("# Body"));
     }
 
     #[test]

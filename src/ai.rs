@@ -764,6 +764,11 @@ pub fn regenerate_spec_with_ai(
     let files = crate::hash_cache::extract_frontmatter_files(&current_spec);
     let mut source_contents = Vec::new();
     for file in &files {
+        // Never feed an out-of-root `files:` entry's full content into the AI
+        // prompt — a hostile spec could exfiltrate arbitrary host files that way.
+        if !crate::validator::source_within_root(root, file) {
+            continue;
+        }
         let full_path = root.join(file);
         if let Ok(content) = fs::read_to_string(&full_path) {
             source_contents.push((file.clone(), content));

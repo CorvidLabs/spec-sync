@@ -1183,8 +1183,22 @@ mod tests {
 
     // ── resolve_ai_provider ────────────────────────────────────────
 
+    // `SPECSYNC_AI_COMMAND` is process-global, and `resolve_ai_provider` reads it
+    // ABOVE `config.ai_command`. Any two tests touching that var must not run
+    // concurrently, or one leaks into the other (a real flake seen on CI). Serialize
+    // them through this lock; recover from poisoning so one failing test doesn't
+    // cascade.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn resolve_with_ai_command_in_config() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // Clear any value a sibling test may have left set, so the config-tier path
+        // is what actually gets exercised here.
+        // SAFETY: guarded by ENV_LOCK — no other test mutates env concurrently.
+        unsafe {
+            std::env::remove_var("SPECSYNC_AI_COMMAND");
+        }
         let mut config = SpecSyncConfig::default();
         config.ai_command = Some("my-custom-ai".to_string());
         let result = resolve_ai_provider(&config, None).unwrap();
@@ -1196,8 +1210,9 @@ mod tests {
 
     #[test]
     fn resolve_with_env_var() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let config = SpecSyncConfig::default();
-        // SAFETY: single-threaded test — no concurrent env access
+        // SAFETY: guarded by ENV_LOCK — no other test mutates env concurrently.
         unsafe {
             std::env::set_var("SPECSYNC_AI_COMMAND", "env-ai-tool");
         }

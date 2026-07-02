@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.6.1] - 2026-07-02
+
+### Security
+
+- **`aiCommand` is now honored only from the `SPECSYNC_AI_COMMAND` environment variable** — it is no longer read from any config file (committed `.specsync/config.toml`/`specsync.json` or the per-developer `.specsync/config.local.toml`). Because `aiCommand` is run via `sh -c`, sourcing it from a repo file let a malicious repository — delivered by `git clone`, a ZIP/tarball download, or extraction into an existing checkout — achieve arbitrary code execution the moment an AI path ran (`generate`, `check --fix`, or the MCP `generate` tool). If you previously set `aiCommand` in config, export it instead: `export SPECSYNC_AI_COMMAND="…"`. Other `ai_*` fields (provider, model, etc.) are unaffected and still load from config.
+- **`files:` entries that escape the project root are now rejected** — a spec `files:` path resolving outside the project via an absolute path (`/etc/passwd`), `..` traversal, or an in-repo symlink pointing out was previously read and validated: the out-of-root file counted as covered and its exported identifiers leaked into `check`/`score`/`diff` output, PR comments, and the MCP tools (a hostile-repo information-disclosure vector). Every site that reads a `files:` entry's content now requires it to resolve inside the project root; out-of-root entries are reported as an error. In-root relative paths and in-root symlinks still work.
+
+### Fixed
+
+- **Non-UTF-8 source files no longer pass validation silently** — a file listed in a spec's `files:` that exists but is not valid UTF-8 caused export extraction to yield nothing, so undocumented exports went unchecked and the spec falsely passed. `check` now reports an error naming the file and how to fix it.
+- **Incremental `check` re-validates when schema or config files change** — the default cached `check` only re-checked specs whose own tracked files changed, so editing a schema/migration to drop a documented column, or changing the config, was silently skipped as "nothing to validate." Schema-directory files and the config file are now part of the incremental fingerprint, so such changes trigger re-validation. (`check --force` was already correct.)
+- **`merge` no longer corrupts or silently drops spec content** — `specsync merge` reported `✓ resolved` while (depending on the conflict shape) deleting the YAML frontmatter fences, deleting the spec body, dropping frontmatter list items, or deleting a table/changelog section. It now auto-resolves only conflict hunks it can merge losslessly — a pure interior frontmatter-field conflict (fences left in the surrounding clean regions) or a pure table/changelog-row conflict — and leaves anything else for manual resolution with the file untouched. Common cases (a `version` bump, a `files:` list extension where the key is in the hunk, unioned changelog rows) still auto-resolve.
+
 ## [4.6.0] - 2026-07-01
 
 ### Added

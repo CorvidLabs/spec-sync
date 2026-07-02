@@ -907,7 +907,11 @@ mod tests {
         let src_dir = tmp.path().join("src");
         fs::create_dir_all(&src_dir).unwrap();
         // Valid JS export plus a stray Latin-1 byte (0xE9) → invalid UTF-8.
-        fs::write(src_dir.join("bad.ts"), b"export function chargeCard() {}\n// \xE9").unwrap();
+        fs::write(
+            src_dir.join("bad.ts"),
+            b"export function chargeCard() {}\n// \xE9",
+        )
+        .unwrap();
 
         let spec = tmp.path().join("bad.spec.md");
         fs::write(

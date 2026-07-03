@@ -16,6 +16,13 @@ static FRONTMATTER_RE: LazyLock<Regex> =
 /// Parse YAML frontmatter from a spec file.
 /// Zero-dependency YAML: uses regex, no YAML parser needed.
 pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
+    // A leading UTF-8 BOM (U+FEFF) is a non-semantic encoding marker that some
+    // editors prepend; left in place it sits before the opening `---`, so the
+    // `^---` anchor fails and a perfectly valid spec is reported as having
+    // "malformed frontmatter" (the delimiters are right there — the user just
+    // can't see the invisible byte). Strip only a single leading BOM (a U+FEFF
+    // anywhere else is real content and is left untouched); this is lossless.
+    let content = content.strip_prefix('\u{feff}').unwrap_or(content);
     let caps = FRONTMATTER_RE.captures(content)?;
     let yaml_block = caps.get(1)?.as_str();
     let body = caps.get(2)?.as_str().to_string();
@@ -502,6 +509,37 @@ mod tests {
         assert_eq!(parsed.frontmatter.version.as_deref(), Some("1"));
         assert_eq!(parsed.frontmatter.status.as_deref(), Some("active"));
         assert_eq!(parsed.frontmatter.files, vec!["src/auth.ts"]);
+    }
+
+    #[test]
+    fn test_parse_frontmatter_leading_bom() {
+        // A leading UTF-8 BOM must not break frontmatter parsing: the spec is valid,
+        // the invisible byte just precedes the opening `---`.
+        let content = "\u{feff}---\nmodule: auth\nversion: 1\nstatus: active\nfiles:\n  - src/auth.ts\ndb_tables: []\ndepends_on: []\n---\n\n# Auth\n\n## Purpose\n";
+        let parsed = parse_frontmatter(content).expect("BOM-prefixed frontmatter should parse");
+        assert_eq!(parsed.frontmatter.module.as_deref(), Some("auth"));
+        assert_eq!(parsed.frontmatter.files, vec!["src/auth.ts"]);
+        // The body is BOM-free (the strip happens before the split).
+        assert!(
+            parsed.body.starts_with("\n# Auth"),
+            "body: {:?}",
+            parsed.body
+        );
+        assert!(!parsed.body.contains('\u{feff}'));
+    }
+
+    #[test]
+    fn test_parse_frontmatter_bom_only_leading() {
+        // Only a *leading* BOM is stripped; a U+FEFF elsewhere in the content is
+        // real (zero-width no-break space) and must be preserved.
+        let content =
+            "---\nmodule: a\nfiles:\n  - src/a.ts\n---\n\n# A\n\nZero\u{feff}width in body.\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert_eq!(parsed.frontmatter.module.as_deref(), Some("a"));
+        assert!(
+            parsed.body.contains('\u{feff}'),
+            "a non-leading BOM must be preserved"
+        );
     }
 
     #[test]

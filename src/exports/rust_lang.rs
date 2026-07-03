@@ -1,10 +1,6 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)//.*$").unwrap());
-
-static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
-
 /// Raw string literals: r###"..."###, r##"..."##, r#"..."#, r"..."
 /// Processed from most hashes to fewest so inner patterns don't match prematurely.
 static RAW_STR_3: LazyLock<Regex> =
@@ -16,9 +12,6 @@ static RAW_STR_0: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)\br"[^"]*
 
 /// Char literals that contain a double quote: '"' or '\"'
 static CHAR_DQUOTE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"'(?:\\.|")'"#).unwrap());
-
-/// Regular string literals (handling escaped quotes and line continuations).
-static REG_STR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)"(?:[^"\\]|\\.)*""#).unwrap());
 
 /// pub fn, pub struct, pub enum, pub trait, pub type, pub const, pub static, pub mod
 static PUB_DECL: LazyLock<Regex> = LazyLock::new(|| {
@@ -33,17 +26,22 @@ static PUB_DECL: LazyLock<Regex> = LazyLock::new(|| {
 /// `pub const`, `pub static`, and `pub mod` declarations.
 /// Also matches `pub(crate)` items.
 pub fn extract_exports(content: &str) -> Vec<String> {
-    // Strip string literals first (before comments, since strings can contain //)
+    // Blank out raw strings and double-quote char literals up front (their hash-
+    // balanced / quoted forms are awkward for a linear scan); their inner `"`,
+    // `//`, `/*` then can't be misread as delimiters.
     let stripped = RAW_STR_3.replace_all(content, r#""""#);
     let stripped = RAW_STR_2.replace_all(&stripped, r#""""#);
     let stripped = RAW_STR_1.replace_all(&stripped, r#""""#);
     let stripped = RAW_STR_0.replace_all(&stripped, r#""""#);
     let stripped = CHAR_DQUOTE.replace_all(&stripped, "' '");
-    let stripped = REG_STR.replace_all(&stripped, r#""""#);
 
-    // Then strip comments
-    let stripped = COMMENT_SINGLE.replace_all(&stripped, "");
-    let stripped = COMMENT_MULTI.replace_all(&stripped, "");
+    // Strip regular strings AND comments in a SINGLE pass so neither is misread as
+    // the other. A regex that strips strings first treats a `"` inside a `//` doc
+    // comment as a string opener and swallows code up to the next real `"` —
+    // deleting `pub fn` declarations between them (a `///` line with an odd number
+    // of `"` silently hid exports). Recognizing `//` / `/*` before `"` fixes it,
+    // and a `//` inside a string is correctly kept as string content.
+    let stripped = strip_strings_and_comments(&stripped);
 
     let mut symbols = Vec::new();
 
@@ -54,6 +52,71 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     }
 
     symbols
+}
+
+/// Replace regular double-quoted strings, `//` line comments, and (nesting) `/* */`
+/// block comments with blanks, in one linear pass so a `"` in a comment is not
+/// treated as a string and a `//` in a string is not treated as a comment. Newlines
+/// are preserved. Assumes raw strings and double-quote char literals are already
+/// blanked (see `extract_exports`).
+fn strip_strings_and_comments(s: &str) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    let n = chars.len();
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < n {
+        let c = chars[i];
+        // Line comment: skip to end of line (keep the newline).
+        if c == '/' && i + 1 < n && chars[i + 1] == '/' {
+            i += 2;
+            while i < n && chars[i] != '\n' {
+                i += 1;
+            }
+            continue;
+        }
+        // Block comment (Rust block comments nest).
+        if c == '/' && i + 1 < n && chars[i + 1] == '*' {
+            i += 2;
+            let mut depth = 1;
+            while i < n && depth > 0 {
+                if chars[i] == '/' && i + 1 < n && chars[i + 1] == '*' {
+                    depth += 1;
+                    i += 2;
+                } else if chars[i] == '*' && i + 1 < n && chars[i + 1] == '/' {
+                    depth -= 1;
+                    i += 2;
+                } else {
+                    if chars[i] == '\n' {
+                        out.push('\n');
+                    }
+                    i += 1;
+                }
+            }
+            continue;
+        }
+        // Regular string literal: skip to the closing quote, honoring `\` escapes.
+        if c == '"' {
+            i += 1;
+            while i < n {
+                if chars[i] == '\\' {
+                    i += 2;
+                    continue;
+                }
+                if chars[i] == '"' {
+                    i += 1;
+                    break;
+                }
+                if chars[i] == '\n' {
+                    out.push('\n');
+                }
+                i += 1;
+            }
+            continue;
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
 }
 
 #[cfg(test)]
@@ -193,5 +256,44 @@ pub unsafe fn unsafe_fn() {}
 "#;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["async_fn", "unsafe_fn"]);
+    }
+
+    #[test]
+    fn test_quotes_in_comments_do_not_hide_exports() {
+        // A doc/line/block comment containing an odd number of `"` used to be read
+        // as a string opener, swallowing the following `pub fn` up to the next real
+        // quote. Comments must be recognized before strings.
+        let src = r#"
+/// Returns the escape for `\"` (a lone quote in a doc comment).
+pub fn alpha() {}
+
+/// A "quoted phrase" in a doc comment.
+pub fn bravo() {}
+
+pub const URL: &str = "http://example.com/a//b";
+pub fn charlie() {}
+
+/* block "comment" with a quote and // slashes */
+pub fn delta() {}
+"#;
+        let symbols = extract_exports(src);
+        for name in ["alpha", "bravo", "URL", "charlie", "delta"] {
+            assert!(
+                symbols.contains(&name.to_string()),
+                "missing {name}: {symbols:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_pub_fn_inside_string_not_extracted() {
+        // A `pub fn` that appears only inside a string literal must not be captured.
+        let src = r#"pub fn real() {} let s = "pub fn fake() {}";"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"real".to_string()));
+        assert!(
+            !symbols.contains(&"fake".to_string()),
+            "fake is inside a string literal"
+        );
     }
 }

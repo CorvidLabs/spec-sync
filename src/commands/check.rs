@@ -90,7 +90,11 @@ pub fn cmd_check(
         );
     }
 
-    let (config, all_spec_files) = load_and_discover(root, fix);
+    // Always allow the empty-specs case through: `check` handles it itself below,
+    // where a requested coverage/enforcement gate is still evaluated (the shared
+    // early-exit would `exit(0)` and silently pass the gate — and emit a non-JSON
+    // message under --format json). Default warn mode still exits 0 there.
+    let (config, all_spec_files) = load_and_discover(root, true);
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
     let spec_files = filter_by_status(&spec_files, exclude_status, only_status);
     // CLI --enforcement flag overrides config; --strict implies strict enforcement.
@@ -127,10 +131,18 @@ pub fn cmd_check(
     }
 
     if spec_files.is_empty() {
+        // No specs to validate — but a requested gate must still be evaluated
+        // against source coverage. Otherwise `check --require-coverage N`,
+        // `--enforcement enforce-new`, or `--strict` silently PASS in exactly the
+        // state they exist to catch: a project with source code but no specs (the
+        // default state right after `specsync init`). Default mode (warn, no gate)
+        // still exits 0 with the informational message.
+        let coverage = compute_coverage(root, &spec_files, &config);
+        let exit_code = compute_exit_code(0, 0, strict, enforcement, &coverage, require_coverage);
         match format {
             Json => {
                 let output = serde_json::json!({
-                    "passed": true,
+                    "passed": exit_code == 0,
                     "errors": [],
                     "warnings": [],
                     "stale": [],
@@ -148,9 +160,14 @@ pub fn cmd_check(
                     "No spec files found in {}/. Run `specsync generate` to scaffold specs.",
                     abs_specs.display()
                 );
+                // When a gate fails, show the coverage that failed it so exit 1
+                // isn't unexplained.
+                if exit_code != 0 {
+                    print_coverage_line(&coverage);
+                }
             }
         }
-        process::exit(0);
+        process::exit(exit_code);
     }
 
     // Load hash cache and classify changes for each spec.
@@ -200,7 +217,13 @@ pub fn cmd_check(
         println!("{}", "All specs unchanged — nothing to validate.".green());
         let coverage = compute_coverage(root, &spec_files, &config);
         print_coverage_line(&coverage);
-        process::exit(0);
+        // A warm cache skips spec RE-validation, but a requested coverage/
+        // enforcement gate must still be evaluated against freshly computed
+        // coverage — otherwise an unchanged run silently flips a failing
+        // --require-coverage / --enforcement gate to exit 0. Cached specs had no
+        // errors (that's why they're cached), so 0 errors/warnings is correct here.
+        let exit_code = compute_exit_code(0, 0, strict, enforcement, &coverage, require_coverage);
+        process::exit(exit_code);
     }
 
     // Report staleness from change classifications

@@ -6041,3 +6041,83 @@ fn score_no_specs_still_evaluates_requested_gate() {
         .failure();
     specsync().current_dir(root).arg("score").assert().success();
 }
+
+// ─── specsync deps: --strict gates on undeclared-import warnings ─────────
+
+/// Build a two-module project where `api` imports `db` without declaring it.
+fn setup_undeclared_import_project(root: &std::path::Path) {
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src/api")).unwrap();
+    fs::create_dir_all(root.join("src/db")).unwrap();
+    fs::create_dir_all(root.join("specs/api")).unwrap();
+    fs::create_dir_all(root.join("specs/db")).unwrap();
+    fs::write(root.join("src/db/db.ts"), "export function query() {}\n").unwrap();
+    fs::write(
+        root.join("src/api/api.ts"),
+        "import { query } from '../db/db';\nexport function handler() { return query(); }\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/db/db.spec.md"),
+        "---\nmodule: db\nversion: 1\nstatus: active\nfiles:\n  - src/db/db.ts\ndepends_on: []\n---\n# db\n## Purpose\np\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/api/api.spec.md"),
+        "---\nmodule: api\nversion: 1\nstatus: active\nfiles:\n  - src/api/api.ts\ndepends_on: []\n---\n# api\n## Purpose\np\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn deps_strict_gates_on_undeclared_imports() {
+    // Regression (H6): `deps --strict` was a silent no-op — undeclared imports
+    // were reported as warnings but never failed the exit code.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_undeclared_import_project(root);
+
+    // Default deps is advisory (reports the warning, exits 0).
+    specsync().current_dir(root).arg("deps").assert().success();
+    // --strict now fails on the undeclared import.
+    specsync()
+        .current_dir(root)
+        .args(["deps", "--strict"])
+        .assert()
+        .failure();
+    // JSON output gates AND stdout stays fully parseable JSON (the strict note
+    // is a stderr diagnostic, so it must not leak into the JSON body).
+    let out = specsync()
+        .current_dir(root)
+        .args(["deps", "--strict", "--format", "json"])
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&out).expect("deps --strict json stdout must be valid JSON");
+    assert!(
+        !parsed["undeclared_imports"].as_array().unwrap().is_empty(),
+        "expected the undeclared import to be reported in JSON"
+    );
+}
+
+#[test]
+fn deps_strict_passes_when_dependency_is_declared() {
+    // No false failure: once `api` declares `depends_on: [db]`, --strict is clean.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_undeclared_import_project(root);
+    fs::write(
+        root.join("specs/api/api.spec.md"),
+        "---\nmodule: api\nversion: 1\nstatus: active\nfiles:\n  - src/api/api.ts\ndepends_on:\n  - db\n---\n# api\n## Purpose\np\n",
+    )
+    .unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["deps", "--strict"])
+        .assert()
+        .success();
+}

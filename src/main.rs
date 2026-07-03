@@ -183,7 +183,9 @@ fn run() {
         Command::Issues { create } => commands::issues::cmd_issues(&root, format, create),
         Command::New { name, full } => commands::new::cmd_new(&root, &name, full),
         Command::Wizard => commands::wizard::cmd_wizard(&root),
-        Command::Deps { mermaid, dot } => commands::deps::cmd_deps(&root, format, mermaid, dot),
+        Command::Deps { mermaid, dot } => {
+            commands::deps::cmd_deps(&root, cli.strict, format, mermaid, dot)
+        }
         Command::Import {
             source,
             id,

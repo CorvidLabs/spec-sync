@@ -4266,6 +4266,40 @@ fn migrate_no_project_fails() {
 }
 
 #[test]
+fn migrate_preserves_unparseable_config_and_fails() {
+    // Regression: a single parse error (here a trailing comma) must not cause
+    // migrate to write a pure-default config.toml, delete the original, and
+    // report success. It must fail loudly and leave the project untouched.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    let original = "{\n  \"sourceDirs\": [\"lib\"],\n  \"enforcement\": \"strict\",\n}\n";
+    fs::write(root.join("specsync.json"), original).unwrap();
+    fs::create_dir_all(root.join("specs")).unwrap();
+
+    specsync()
+        .args(["migrate", "--no-backup", "--root"])
+        .arg(&root)
+        .assert()
+        .failure();
+
+    // Original config preserved byte-for-byte; no default config written.
+    assert_eq!(
+        fs::read_to_string(root.join("specsync.json")).unwrap(),
+        original,
+        "the original (malformed) config must be left untouched"
+    );
+    assert!(
+        !root.join(".specsync/config.toml").exists(),
+        "no default config.toml should have been written"
+    );
+    // And no version stamp that would make a re-run refuse to migrate.
+    assert!(
+        !root.join(".specsync/version").exists(),
+        "migration must not stamp a version when it aborted"
+    );
+}
+
+#[test]
 fn migrate_no_backup_flag() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().to_path_buf();

@@ -690,12 +690,14 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                         lines.next(); // consume blank / whole-line comment in array
                         continue;
                     }
-                    // Array items are quoted strings (or a nested `[`); the close is
-                    // `]`. A continuation line that is none of these means the `]`
-                    // was omitted — stop WITHOUT consuming it so the following
-                    // key/section still parses, bounding a malformed array's damage
-                    // to its own key rather than swallowing the rest of the file.
-                    if !cont.starts_with('"') && !cont.starts_with(']') && !cont.starts_with('[') {
+                    // Array items are quoted strings; the close is `]`. A
+                    // continuation line that is neither means the `]` was omitted —
+                    // stop WITHOUT consuming it so the following key/section still
+                    // parses, bounding a malformed array's damage to its own key
+                    // rather than swallowing the rest of the file. (These configs
+                    // never use nested arrays, so a leading `[` is a following
+                    // section header, not array content — it must NOT be absorbed.)
+                    if !cont.starts_with('"') && !cont.starts_with(']') {
                         break;
                     }
                     lines.next();
@@ -1097,7 +1099,8 @@ mod tests {
 
     #[test]
     fn test_parse_toml_string_array_glob_with_brackets() {
-        // A quoted glob containing `]` must survive (rfind picks the array close).
+        // A quoted glob containing `]` must survive (the close scan skips the
+        // in-string bracket and stops at the array's real close).
         let result = parse_toml_string_array("[\"**/[abc]/**\", \"src\"]");
         assert_eq!(result, vec!["**/[abc]/**", "src"]);
     }
@@ -1206,6 +1209,33 @@ mod tests {
         // The key AFTER the unterminated array still parses correctly.
         assert_eq!(config.specs_dir, "myspecs");
         assert_eq!(config.exclude_dirs, vec!["target"]);
+    }
+
+    #[test]
+    fn test_load_config_toml_unterminated_array_before_section_preserved() {
+        // A malformed unterminated array followed by a `[section]` header must not
+        // absorb the header — the section's keys must still parse.
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "source_dirs = [\n  \"src\"\n[lifecycle]\nallowed_statuses = [\"draft\", \"active\"]\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert_eq!(config.lifecycle.allowed_statuses, vec!["draft", "active"]);
+    }
+
+    #[test]
+    fn test_load_config_toml_multiline_array_crlf() {
+        // Multi-line arrays with Windows CRLF line endings parse correctly.
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "specs_dir = \"specs\"\r\nsource_dirs = [\r\n  \"src\",\r\n  \"lib\",\r\n]\r\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert_eq!(config.source_dirs, vec!["src", "lib"]);
     }
 
     #[test]

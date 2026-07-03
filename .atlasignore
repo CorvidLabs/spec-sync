@@ -1,0 +1,9 @@
+# spec-sync atlas coverage scope: the specs govern the tool's source, not these.
+
+# The marketing + docs site.
+site/
+
+# Tests, benchmarks, and examples are verified against the specs, not governed by them.
+tests/
+benches/
+examples/

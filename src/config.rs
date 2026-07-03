@@ -315,6 +315,41 @@ fn toml_escape(s: &str) -> String {
         .replace('\t', "\\t")
 }
 
+/// Inverse of `toml_escape` for the escapes it emits (`\\`, `\"`, `\n`, `\r`,
+/// `\t`). Without this, `config_to_toml` writes a correctly-escaped basic string
+/// that the reader would load with the escapes still present — silently changing
+/// any value containing a backslash or quote on migrate (e.g. a `schema_pattern`
+/// regex like `\s`, or a Windows module path). An unrecognized `\x` sequence is
+/// left byte-for-byte so a hand-written config with a stray backslash is not
+/// mangled.
+fn toml_unescape(s: &str) -> String {
+    if !s.contains('\\') {
+        return s.to_string();
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            out.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('\\') => out.push('\\'),
+            Some('"') => out.push('"'),
+            Some('n') => out.push('\n'),
+            Some('r') => out.push('\r'),
+            Some('t') => out.push('\t'),
+            // Unknown escape — preserve both characters literally.
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
 /// Serialize a SpecSyncConfig to TOML format string.
 pub fn config_to_toml(config: &SpecSyncConfig) -> String {
     let mut lines: Vec<String> = Vec::new();
@@ -638,6 +673,7 @@ const KNOWN_JSON_KEYS: &[&str] = &[
     "excludePatterns",
     "sourceExtensions",
     "exportLevel",
+    "parseMode",
     "modules",
     "aiProvider",
     "aiModel",
@@ -919,7 +955,9 @@ fn strip_inline_comment(s: &str) -> String {
 fn parse_toml_string(s: &str) -> String {
     let s = s.trim();
     if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-        s[1..s.len() - 1].to_string()
+        // Quoted basic string: decode the escapes `toml_escape` emits so the value
+        // round-trips (an unquoted bare value is left as-is).
+        toml_unescape(&s[1..s.len() - 1])
     } else {
         s.to_string()
     }
@@ -974,11 +1012,45 @@ fn parse_toml_string_array(s: &str) -> Vec<String> {
     let Some(end) = find_toml_array_close(&s[start..]).map(|rel| start + rel) else {
         return vec![parse_toml_string(s)];
     };
-    s[start + 1..end]
-        .split(',')
+    // Split on commas OUTSIDE quoted strings so a quoted item containing a comma
+    // (e.g. a path or glob) is not torn into bogus entries. A bare `split(',')`
+    // would mangle `["a, b", "c"]`.
+    split_toml_array_items(&s[start + 1..end])
+        .into_iter()
         .map(|item| parse_toml_string(item.trim()))
         .filter(|item| !item.is_empty())
         .collect()
+}
+
+/// Split a TOML array body on top-level commas, skipping commas inside quoted
+/// (escape-aware) strings. Each returned segment still carries its quotes/whitespace
+/// for `parse_toml_string` to strip.
+fn split_toml_array_items(body: &str) -> Vec<String> {
+    let mut items = Vec::new();
+    let mut cur = String::new();
+    let mut in_string = false;
+    let mut prev_backslash = false;
+    for ch in body.chars() {
+        if in_string {
+            cur.push(ch);
+            if ch == '"' && !prev_backslash {
+                in_string = false;
+            }
+            prev_backslash = ch == '\\' && !prev_backslash;
+            continue;
+        }
+        prev_backslash = false;
+        match ch {
+            '"' => {
+                in_string = true;
+                cur.push(ch);
+            }
+            ',' => items.push(std::mem::take(&mut cur)),
+            _ => cur.push(ch),
+        }
+    }
+    items.push(cur);
+    items
 }
 
 /// Parse a key=value pair inside a `[rules]` TOML section.
@@ -1057,7 +1129,12 @@ fn parse_toml_modules_nested(
     let Some(raw_name) = section.strip_prefix("modules.") else {
         return;
     };
-    let name = raw_name.trim().trim_matches('"').to_string();
+    // The name is a quoted basic string in the header (`[modules."name"]`); strip
+    // the quotes and decode escapes so a name with a quote/backslash round-trips.
+    let trimmed = raw_name.trim();
+    let inner = trimmed.strip_prefix('"').unwrap_or(trimmed);
+    let inner = inner.strip_suffix('"').unwrap_or(inner);
+    let name = toml_unescape(inner);
     if name.is_empty() {
         return;
     }
@@ -1357,10 +1434,11 @@ mod tests {
     #[test]
     fn test_parse_toml_string_array_escaped_quote() {
         // An escaped quote inside a basic string must not toggle string state and
-        // false-detect the closing bracket.
+        // false-detect the closing bracket (2 items parsed), and the `\"` decodes
+        // to a literal `"` in the value (see `toml_unescape`).
         assert_eq!(
             parse_toml_string_array("[\"a\\\"]b\", \"c\"]"),
-            vec!["a\\\"]b", "c"]
+            vec!["a\"]b", "c"]
         );
     }
 
@@ -1995,6 +2073,67 @@ verify_issues = false
         let util = reloaded.modules.get("util").expect("util module");
         assert_eq!(util.files, vec!["src/u.ts"]);
         assert!(util.depends_on.is_empty());
+    }
+
+    #[test]
+    fn test_toml_unescape_inverts_toml_escape() {
+        for original in [
+            "plain",
+            "back\\slash",
+            "quote\"inside",
+            "tab\tand\nnewline",
+            "windows\\path\\file.ts",
+            "regex \\s+ (\\w+)",
+        ] {
+            assert_eq!(
+                toml_unescape(&toml_escape(original)),
+                original,
+                "escape→unescape must round-trip: {original:?}"
+            );
+        }
+        // An unrecognized escape is preserved byte-for-byte (a hand-written config
+        // with a stray backslash must not be mangled).
+        assert_eq!(toml_unescape("C:\\Users"), "C:\\Users");
+    }
+
+    #[test]
+    fn test_config_to_toml_roundtrips_schema_pattern_regex() {
+        // A regex with backslash escapes (\s \w) used to reload with doubled
+        // backslashes — a broken/different regex silently persisted by migrate.
+        let mut config = SpecSyncConfig::default();
+        config.schema_pattern = Some(r"CREATE TABLE\s+(\w+)".to_string());
+        assert_eq!(
+            roundtrip_toml(&config).schema_pattern.as_deref(),
+            Some(r"CREATE TABLE\s+(\w+)")
+        );
+    }
+
+    #[test]
+    fn test_config_to_toml_roundtrips_module_special_chars() {
+        let mut config = SpecSyncConfig::default();
+        config.modules.insert(
+            "grp\"x".to_string(), // name with a quote
+            crate::types::ModuleDefinition {
+                // a Windows path (backslashes) and a path containing a comma
+                files: vec!["src\\win\\a.ts".to_string(), "src/b,c.ts".to_string()],
+                depends_on: vec![],
+            },
+        );
+        let reloaded = roundtrip_toml(&config);
+        let module = reloaded
+            .modules
+            .get("grp\"x")
+            .expect("module name with a quote must round-trip");
+        assert_eq!(module.files, vec!["src\\win\\a.ts", "src/b,c.ts"]);
+    }
+
+    #[test]
+    fn test_split_toml_array_items_is_quote_aware() {
+        // A comma inside a quoted item must NOT split it.
+        let items = split_toml_array_items(r#""a, b", "c""#);
+        assert_eq!(items.len(), 2);
+        assert_eq!(parse_toml_string(items[0].trim()), "a, b");
+        assert_eq!(parse_toml_string(items[1].trim()), "c");
     }
 
     #[test]

@@ -904,27 +904,49 @@ fn preflight_config_parseable(root: &Path) -> Result<(), (String, String)> {
 /// Refuse to convert a config whose contents `config_to_toml` cannot faithfully
 /// represent (e.g. `customRules`). Otherwise those fields would be silently
 /// dropped on JSON→TOML conversion and the original deleted — silent, unrecoverable
-/// loss of (often security-relevant) config reported as success. Returns
-/// `Err((relative_name, lossy_field_names))` when the source config uses such a
-/// field. Runs before any mutation, so a refusal leaves the project untouched.
-fn preflight_config_lossless(root: &Path) -> Result<(), (String, Vec<String>)> {
-    let Some(source) = config_source_to_validate(root) else {
+/// loss of (often security-relevant) config reported as success. Runs before any
+/// mutation, so a refusal leaves the project untouched.
+///
+/// Checks EVERY JSON config `apply_relocate_config` would convert-or-delete, not
+/// just its chosen source: that step converts one source but also deletes the other
+/// legacy configs unconverted, so a higher-precedence `.specsync/config.json`
+/// carrying `customRules` (with a plain root `specsync.json` also present) would
+/// otherwise slip past a single-source check and be destroyed. `.specsync.toml` is
+/// not checked — the lenient TOML reader cannot represent `customRules` anyway.
+/// Returns `Err(offenders)` as `(relative_name, lossy_field_names)` pairs.
+fn preflight_config_lossless(root: &Path) -> Result<(), Vec<(String, Vec<String>)>> {
+    let old_json = root.join("specsync.json");
+    let old_toml_root = root.join(".specsync.toml");
+    let new_toml = root.join(".specsync/config.toml");
+    let new_json = root.join(".specsync/config.json");
+
+    // Mirror apply_relocate_config's early return: when config.toml already exists
+    // and there is no legacy root config, nothing is converted or deleted — so a
+    // coexisting .specsync/config.json is left untouched and nothing can be lost.
+    if new_toml.exists() && !old_json.exists() && !old_toml_root.exists() {
         return Ok(());
-    };
-    let name = source
-        .strip_prefix(root)
-        .unwrap_or(&source)
-        .display()
-        .to_string();
-    // Load exactly as `apply_relocate_config` does, then ask which fields would be
-    // lost. (This is only reached for a parseable source — the parseability
-    // preflight ran first.)
-    let config = config::load_config_from_path(&source, root);
-    let lossy = config::config_to_toml_lossy_fields(&config);
-    if lossy.is_empty() {
+    }
+
+    let mut offenders: Vec<(String, Vec<String>)> = Vec::new();
+    for path in [&old_json, &new_json] {
+        if !path.exists() {
+            continue;
+        }
+        let config = config::load_config_from_path(path, root);
+        let lossy = config::config_to_toml_lossy_fields(&config);
+        if !lossy.is_empty() {
+            let name = path
+                .strip_prefix(root)
+                .unwrap_or(path)
+                .display()
+                .to_string();
+            offenders.push((name, lossy.into_iter().map(String::from).collect()));
+        }
+    }
+    if offenders.is_empty() {
         Ok(())
     } else {
-        Err((name, lossy.into_iter().map(String::from).collect()))
+        Err(offenders)
     }
 }
 
@@ -1008,28 +1030,35 @@ pub fn cmd_migrate(root: &Path, format: OutputFormat, dry_run: bool, no_backup: 
     // unrecoverable loss of security-relevant config. Runs before any mutation, so
     // the project is left byte-for-byte unchanged; the user keeps the working
     // JSON config.
-    if let Err((name, fields)) = preflight_config_lossless(root) {
-        let field_list = fields.join(", ");
+    if let Err(offenders) = preflight_config_lossless(root) {
+        // e.g. "customRules in specsync.json; enforcement in .specsync/config.json"
+        let summary = offenders
+            .iter()
+            .map(|(name, fields)| format!("{} in {name}", fields.join(", ")))
+            .collect::<Vec<_>>()
+            .join("; ");
         match format {
             OutputFormat::Json => {
+                let files: Vec<serde_json::Value> = offenders
+                    .iter()
+                    .map(|(name, fields)| serde_json::json!({ "file": name, "fields": fields }))
+                    .collect();
                 let output = serde_json::json!({
                     "status": "error",
-                    "error": format!("Migrating {name} would drop unsupported field(s): {field_list}"),
-                    "unsupported_fields": fields,
-                    "hint": "config.toml cannot yet represent these fields. Your original file was not modified — keep using it, or remove these fields before migrating.",
+                    "error": format!("Migrating would drop unsupported config field(s): {summary}"),
+                    "unsupported": files,
+                    "hint": "config.toml cannot yet represent these fields. Your original file(s) were not modified — keep using them, or remove these fields before migrating.",
                 });
                 println!("{}", serde_json::to_string_pretty(&output).unwrap());
             }
             _ => {
                 eprintln!(
-                    "{} Cannot migrate {} without losing data: {} cannot be represented in config.toml yet.",
+                    "{} Cannot migrate without losing data: {} cannot be represented in config.toml yet.",
                     "✗".red(),
-                    name.cyan(),
-                    field_list.cyan()
+                    summary.cyan()
                 );
                 eprintln!(
-                    "  Your original file was NOT modified. Keep using it, or remove {} before migrating.",
-                    field_list.cyan()
+                    "  Your original config was NOT modified. Keep using it, or remove those field(s) before migrating."
                 );
             }
         }

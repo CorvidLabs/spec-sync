@@ -6324,6 +6324,41 @@ fn migrate_refuses_config_with_custom_rules() {
     );
 }
 
+#[test]
+fn migrate_refuses_custom_rules_in_coexisting_v4_json() {
+    // Regression (#2 review): migrate converts one source but DELETES the other
+    // legacy configs unconverted. A higher-precedence .specsync/config.json with
+    // customRules (alongside a clean root specsync.json) must still be caught — it
+    // is the runtime-active config and would otherwise be silently destroyed.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+    let root_json =
+        "{ \"specsDir\": \"specs\", \"sourceDirs\": [\"src\"], \"enforcement\": \"warn\" }\n";
+    let v4_json = "{ \"specsDir\": \"specs\", \"sourceDirs\": [\"src\"], \"enforcement\": \"strict\", \"customRules\": [ { \"name\": \"threat-model\", \"type\": \"require_section\", \"section\": \"Threat Model\", \"severity\": \"error\" } ] }\n";
+    fs::write(root.join("specsync.json"), root_json).unwrap();
+    fs::write(root.join(".specsync/config.json"), v4_json).unwrap();
+
+    specsync()
+        .current_dir(root)
+        .arg("migrate")
+        .assert()
+        .failure();
+
+    // Both source configs preserved; no lossy config.toml written.
+    assert_eq!(
+        fs::read_to_string(root.join("specsync.json")).unwrap(),
+        root_json
+    );
+    assert_eq!(
+        fs::read_to_string(root.join(".specsync/config.json")).unwrap(),
+        v4_json
+    );
+    assert!(!root.join(".specsync/config.toml").exists());
+}
+
 // ─── hooks install: claude-code-hook must not clobber user settings ──────
 
 #[test]

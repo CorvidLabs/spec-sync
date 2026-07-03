@@ -315,6 +315,16 @@ fn toml_escape(s: &str) -> String {
         .replace('\t', "\\t")
 }
 
+/// Format a `name = ["a", "b"]` TOML array line (an empty slice → `name = []`).
+fn toml_array_line(name: &str, items: &[String]) -> String {
+    let body = items
+        .iter()
+        .map(|s| format!("\"{}\"", toml_escape(s)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{name} = [{body}]")
+}
+
 /// Inverse of `toml_escape` for the escapes it emits (`\\`, `\"`, `\n`, `\r`,
 /// `\t`). Without this, `config_to_toml` writes a correctly-escaped basic string
 /// that the reader would load with the escapes still present — silently changing
@@ -385,51 +395,28 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
         ));
     }
 
-    if !config.exclude_dirs.is_empty() {
-        lines.push(format!(
-            "exclude_dirs = [{}]",
-            config
-                .exclude_dirs
-                .iter()
-                .map(|s| format!("\"{}\"", toml_escape(s)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
-    }
-    if !config.exclude_patterns.is_empty() {
-        lines.push(format!(
-            "exclude_patterns = [{}]",
-            config
-                .exclude_patterns
-                .iter()
-                .map(|s| format!("\"{}\"", toml_escape(s)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
-    }
+    // These three fields default to a NON-empty value in the reader
+    // (SpecSyncConfig::default), so an explicitly-empty value (a user opting out of
+    // section enforcement / test-file exclusion) must be written as `= []` — omitting
+    // it would silently restore the defaults on reload, flipping check/coverage
+    // results on migrate. So they are always emitted, empty or not.
+    lines.push(toml_array_line("exclude_dirs", &config.exclude_dirs));
+    lines.push(toml_array_line(
+        "exclude_patterns",
+        &config.exclude_patterns,
+    ));
+    // source_extensions defaults to empty, so omitting it when empty round-trips.
     if !config.source_extensions.is_empty() {
-        lines.push(format!(
-            "source_extensions = [{}]",
-            config
-                .source_extensions
-                .iter()
-                .map(|s| format!("\"{}\"", toml_escape(s)))
-                .collect::<Vec<_>>()
-                .join(", ")
+        lines.push(toml_array_line(
+            "source_extensions",
+            &config.source_extensions,
         ));
     }
 
-    if !config.required_sections.is_empty() {
-        lines.push(format!(
-            "required_sections = [{}]",
-            config
-                .required_sections
-                .iter()
-                .map(|s| format!("\"{}\"", toml_escape(s)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
-    }
+    lines.push(toml_array_line(
+        "required_sections",
+        &config.required_sections,
+    ));
 
     // Export level
     match config.export_level {
@@ -942,10 +929,20 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
 ///   `"has # inside"`    →  `"has # inside"`
 fn strip_inline_comment(s: &str) -> String {
     let mut in_string = false;
+    let mut prev_backslash = false;
     for (i, c) in s.char_indices() {
+        if in_string {
+            if c == '"' && !prev_backslash {
+                in_string = false;
+            }
+            prev_backslash = c == '\\' && !prev_backslash;
+            continue;
+        }
+        prev_backslash = false;
         match c {
-            '"' => in_string = !in_string,
-            '#' if !in_string => return s[..i].trim().to_string(),
+            '"' => in_string = true,
+            // A `#` outside any string starts a comment.
+            '#' => return s[..i].trim().to_string(),
             _ => {}
         }
     }
@@ -2134,6 +2131,39 @@ verify_issues = false
         assert_eq!(items.len(), 2);
         assert_eq!(parse_toml_string(items[0].trim()), "a, b");
         assert_eq!(parse_toml_string(items[1].trim()), "c");
+    }
+
+    #[test]
+    fn test_config_to_toml_roundtrips_explicitly_empty_arrays() {
+        // required_sections / exclude_dirs / exclude_patterns default to NON-empty,
+        // so an explicit [] (opting out) must survive rather than silently reverting
+        // to the defaults on migrate.
+        let mut config = SpecSyncConfig::default();
+        config.required_sections = vec![];
+        config.exclude_dirs = vec![];
+        config.exclude_patterns = vec![];
+
+        let toml_str = config_to_toml(&config);
+        assert!(toml_str.contains("required_sections = []"));
+        assert!(toml_str.contains("exclude_dirs = []"));
+        assert!(toml_str.contains("exclude_patterns = []"));
+
+        let reloaded = roundtrip_toml(&config);
+        assert!(reloaded.required_sections.is_empty(), "opted-out sections");
+        assert!(reloaded.exclude_dirs.is_empty(), "opted-out exclude_dirs");
+        assert!(
+            reloaded.exclude_patterns.is_empty(),
+            "opted-out exclude_patterns"
+        );
+    }
+
+    #[test]
+    fn test_strip_inline_comment_is_escape_aware() {
+        // An escaped quote must not toggle string state and let a later `#`
+        // truncate the value.
+        assert_eq!(strip_inline_comment(r#""a\"b#c""#), r#""a\"b#c""#);
+        // A real comment after a closed string is still stripped.
+        assert_eq!(strip_inline_comment(r#""ollama" # local"#), r#""ollama""#);
     }
 
     #[test]

@@ -6359,6 +6359,42 @@ fn migrate_refuses_custom_rules_in_coexisting_v4_json() {
     assert!(!root.join(".specsync/config.toml").exists());
 }
 
+#[test]
+fn migrate_preserves_explicitly_empty_arrays() {
+    // Regression (#2 re-review): an explicit requiredSections/excludeDirs/
+    // excludePatterns = [] (opting out) used to silently revert to the non-empty
+    // defaults on migrate, flipping check results. They must survive as [].
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        r#"{ "specsDir": "specs", "sourceDirs": ["src"], "requiredSections": [], "excludeDirs": [], "excludePatterns": [] }"#,
+    )
+    .unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["migrate", "--no-backup"])
+        .assert()
+        .success();
+
+    let migrated = fs::read_to_string(root.join(".specsync/config.toml")).unwrap();
+    assert!(
+        migrated.contains("required_sections = []"),
+        "explicit empty required_sections must be written, not omitted:\n{migrated}"
+    );
+    assert!(
+        migrated.contains("exclude_patterns = []"),
+        "explicit empty exclude_patterns must be written:\n{migrated}"
+    );
+    assert!(
+        migrated.contains("exclude_dirs = []"),
+        "explicit empty exclude_dirs must be written:\n{migrated}"
+    );
+}
+
 // ─── hooks install: claude-code-hook must not clobber user settings ──────
 
 #[test]

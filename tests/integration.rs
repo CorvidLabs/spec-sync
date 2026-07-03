@@ -6042,6 +6042,84 @@ fn score_no_specs_still_evaluates_requested_gate() {
     specsync().current_dir(root).arg("score").assert().success();
 }
 
+#[test]
+fn coverage_no_specs_evaluates_gate() {
+    // Regression (M1): `coverage` used to take the no-spec early-exit (exit 0) and
+    // its JSON path always exited 0, so the gate was never evaluated. A project
+    // with source but no specs is 0% covered and must FAIL a requested gate.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["coverage", "--require-coverage", "100"])
+        .assert()
+        .failure();
+    // JSON path must gate too, and stay valid JSON.
+    specsync()
+        .current_dir(root)
+        .args(["coverage", "--require-coverage", "100", "--format", "json"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::starts_with("{"));
+    specsync()
+        .current_dir(root)
+        .args(["coverage", "--enforcement", "enforce-new"])
+        .assert()
+        .failure();
+    // A CONFIG-only enforce-new gate (no CLI flag) must also fire.
+    fs::write(
+        root.join(".specsync.toml"),
+        "enforcement = \"enforce-new\"\nspecs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    specsync()
+        .current_dir(root)
+        .arg("coverage")
+        .assert()
+        .failure();
+    // Back to a warn config → coverage report still exits 0 (no gate requested).
+    fs::write(
+        root.join(".specsync.toml"),
+        "enforcement = \"warn\"\nspecs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    specsync()
+        .current_dir(root)
+        .arg("coverage")
+        .assert()
+        .success();
+}
+
+#[test]
+fn score_config_only_enforcement_gates_no_specs() {
+    // Regression (M1 sibling): a CONFIG-level enforcement gate (no CLI flag) must
+    // also stop the no-spec early-exit — `score` on a spec-less project whose
+    // config sets enforce-new must FAIL, matching `check`.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+
+    fs::write(
+        root.join(".specsync.toml"),
+        "enforcement = \"enforce-new\"\nspecs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    specsync().current_dir(root).arg("score").assert().failure();
+
+    // A warn config keeps the friendly advisory early-exit (exit 0).
+    fs::write(
+        root.join(".specsync.toml"),
+        "enforcement = \"warn\"\nspecs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    specsync().current_dir(root).arg("score").assert().success();
+}
+
 // ─── specsync deps: --strict gates on undeclared-import warnings ─────────
 
 /// Build a two-module project where `api` imports `db` without declaring it.

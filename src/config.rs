@@ -325,13 +325,13 @@ fn toml_array_line(name: &str, items: &[String]) -> String {
     format!("{name} = [{body}]")
 }
 
-/// Inverse of `toml_escape` for the escapes it emits (`\\`, `\"`, `\n`, `\r`,
-/// `\t`). Without this, `config_to_toml` writes a correctly-escaped basic string
-/// that the reader would load with the escapes still present — silently changing
-/// any value containing a backslash or quote on migrate (e.g. a `schema_pattern`
-/// regex like `\s`, or a Windows module path). An unrecognized `\x` sequence is
-/// left byte-for-byte so a hand-written config with a stray backslash is not
-/// mangled.
+/// Inverse of `toml_escape`: decodes the backslash, double-quote, newline,
+/// carriage-return, and tab escape sequences it emits. Without this,
+/// `config_to_toml` writes a correctly-escaped basic string that the reader would
+/// load with the escapes still literal — silently changing any value containing a
+/// backslash or quote on migrate (e.g. a `schema_pattern` regex, or a Windows
+/// module path). An unrecognized escape is left byte-for-byte so a hand-written
+/// config with a stray backslash is not mangled.
 fn toml_unescape(s: &str) -> String {
     if !s.contains('\\') {
         return s.to_string();

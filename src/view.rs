@@ -133,6 +133,10 @@ fn split_sections(body: &str) -> Vec<(String, String)> {
 
 /// Strip YAML frontmatter from a markdown file.
 fn strip_frontmatter(content: &str) -> &str {
+    // Ignore a leading UTF-8 BOM so a BOM-prefixed spec's frontmatter is still
+    // recognized and stripped (mirrors `parser::parse_frontmatter`); otherwise
+    // `specsync view` would render the raw YAML block.
+    let content = content.trim_start_matches('\u{feff}');
     if let Some(stripped) = content.strip_prefix("---\n")
         && let Some(end) = stripped.find("\n---\n")
     {
@@ -169,5 +173,17 @@ mod tests {
         let content = "---\nmodule: test\n---\n\n## Purpose\n";
         let result = strip_frontmatter(content);
         assert!(result.contains("## Purpose"));
+    }
+
+    #[test]
+    fn test_strip_frontmatter_leading_bom() {
+        // A leading BOM must not prevent the frontmatter from being stripped.
+        let content = "\u{feff}---\nmodule: test\n---\n\n## Purpose\n";
+        let result = strip_frontmatter(content);
+        assert!(result.contains("## Purpose"));
+        assert!(
+            !result.contains("module: test"),
+            "frontmatter should be stripped, got: {result:?}"
+        );
     }
 }

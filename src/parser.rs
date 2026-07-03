@@ -20,9 +20,9 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
     // editors prepend; left in place it sits before the opening `---`, so the
     // `^---` anchor fails and a perfectly valid spec is reported as having
     // "malformed frontmatter" (the delimiters are right there — the user just
-    // can't see the invisible byte). Strip only a single leading BOM (a U+FEFF
-    // anywhere else is real content and is left untouched); this is lossless.
-    let content = content.strip_prefix('\u{feff}').unwrap_or(content);
+    // can't see the invisible byte). Strip leading BOM(s) only (a U+FEFF anywhere
+    // else is real content and is left untouched); this is lossless.
+    let content = content.trim_start_matches('\u{feff}');
     let caps = FRONTMATTER_RE.captures(content)?;
     let yaml_block = caps.get(1)?.as_str();
     let body = caps.get(2)?.as_str().to_string();
@@ -526,6 +526,11 @@ mod tests {
             parsed.body
         );
         assert!(!parsed.body.contains('\u{feff}'));
+
+        // Repeated leading BOMs are also tolerated (trim_start_matches).
+        let doubled = format!("\u{feff}{content}");
+        let parsed2 = parse_frontmatter(&doubled).expect("repeated-BOM frontmatter should parse");
+        assert_eq!(parsed2.frontmatter.module.as_deref(), Some("auth"));
     }
 
     #[test]

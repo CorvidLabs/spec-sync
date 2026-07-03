@@ -112,7 +112,7 @@ pub fn cmd_deps(root: &Path, strict: bool, format: types::OutputFormat, mermaid:
     // around; a JSON consumer already sees the failing warnings in the
     // `warnings` array and the non-zero exit code. Every other format gets the
     // note on stderr, keeping stdout a clean, parseable body.
-    if strict_fail && !matches!(format, types::OutputFormat::Json) {
+    if strict_fail && format != types::OutputFormat::Json {
         eprintln!(
             "{}: {} dependency warning(s) treated as errors",
             "--strict mode".red(),

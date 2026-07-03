@@ -28,17 +28,22 @@ static GO_GROUP_ITEM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^([A-Za-z_
 pub fn extract_exports(content: &str) -> Vec<String> {
     let stripped = COMMENT_SINGLE.replace_all(content, "");
     let stripped = COMMENT_MULTI.replace_all(&stripped, "");
+    // Blank the CONTENTS of string/rune literals — including multi-line backtick raw
+    // strings (SQL/GraphQL/template constants) — so a declaration-shaped token or a
+    // `{`/`}`/`(`/`)` inside a literal is never read as code or as a delimiter.
+    // Newlines are preserved, so all the line-anchored/line-based passes stay aligned.
+    let blanked = blank_go_strings(&stripped);
 
     let mut symbols = Vec::new();
 
-    for caps in GO_DECL.captures_iter(&stripped) {
+    for caps in GO_DECL.captures_iter(&blanked) {
         if let Some(name) = caps.get(1) {
             symbols.push(name.as_str().to_string());
         }
     }
 
     // Also capture exported methods
-    for caps in GO_METHOD.captures_iter(&stripped) {
+    for caps in GO_METHOD.captures_iter(&blanked) {
         if let Some(name) = caps.get(1) {
             let n = name.as_str().to_string();
             if !symbols.contains(&n) {
@@ -52,17 +57,15 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     // regexes above). Capture each item's leading exported (uppercase) identifier,
     // but ONLY at brace-depth 0 AND paren-depth 0 — so struct/interface fields
     // inside a grouped `type`, and the interior of a multi-line value like
-    // `X = f(\n ...\n)`, are not mistaken for items or for the group's closer.
-    // Brace/paren counting is done on a copy with string/rune literals blanked, so
-    // a `{`, `}`, `(`, `)`, or `#` inside a value (e.g. `X = "{"`, a struct tag)
-    // does not corrupt the depths.
+    // `X = f(\n ...\n)`, are not mistaken for items or for the group's closer. The
+    // scan runs on the string-blanked copy, so a `{`/`}`/`(`/`)` inside a value
+    // (`X = "{"`, a struct tag, a multi-line backtick template) never corrupts the
+    // depths.
     let mut in_group = false;
     let mut brace_depth: i32 = 0;
     let mut paren_depth: i32 = 0;
-    for line in stripped.lines() {
-        let t = line.trim();
-        let blanked = blank_go_strings(line);
-        let bt = blanked.trim();
+    for line in blanked.lines() {
+        let bt = line.trim();
         if in_group {
             let at_base = brace_depth == 0 && paren_depth == 0;
             if at_base && bt.starts_with(')') {
@@ -70,7 +73,7 @@ pub fn extract_exports(content: &str) -> Vec<String> {
                 continue;
             }
             if at_base
-                && let Some(caps) = GO_GROUP_ITEM.captures(t)
+                && let Some(caps) = GO_GROUP_ITEM.captures(bt)
                 && let Some(name) = caps.get(1)
             {
                 let n = name.as_str();
@@ -100,16 +103,15 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     symbols
 }
 
-/// Return a copy of a Go source line with the CONTENTS of string and rune literals
-/// replaced by spaces, so brace/paren counting and identifier detection are not
-/// confused by `{`, `}`, `(`, `)`, or `#` inside them. Handles interpreted
-/// (`"..."`, with `\` escapes), raw (`` `...` ``), and rune (`'...'`) literals.
-/// Multi-line raw strings (backtick spanning lines) are a rare edge and not
-/// tracked across lines.
-fn blank_go_strings(line: &str) -> String {
-    let chars: Vec<char> = line.chars().collect();
+/// Return a copy of Go source with the CONTENTS of string and rune literals replaced
+/// by spaces, so declaration detection and brace/paren counting are not confused by
+/// code-shaped text, `{`, `}`, `(`, `)`, or `#` inside them. Handles interpreted
+/// (`"..."`, with `\` escapes), raw (`` `...` `` — which may span multiple lines),
+/// and rune (`'...'`) literals. Newlines are preserved throughout.
+fn blank_go_strings(content: &str) -> String {
+    let chars: Vec<char> = content.chars().collect();
     let n = chars.len();
-    let mut out = String::with_capacity(line.len());
+    let mut out = String::with_capacity(content.len());
     let mut i = 0;
     while i < n {
         match chars[i] {
@@ -118,12 +120,18 @@ fn blank_go_strings(line: &str) -> String {
                 i += 1;
                 while i < n {
                     if chars[i] == '\\' {
+                        if i + 1 < n && chars[i + 1] == '\n' {
+                            out.push('\n');
+                        }
                         i += 2;
                         continue;
                     }
                     if chars[i] == '"' {
                         i += 1;
                         break;
+                    }
+                    if chars[i] == '\n' {
+                        out.push('\n');
                     }
                     i += 1;
                 }
@@ -132,6 +140,9 @@ fn blank_go_strings(line: &str) -> String {
                 out.push(' ');
                 i += 1;
                 while i < n && chars[i] != '`' {
+                    if chars[i] == '\n' {
+                        out.push('\n');
+                    }
                     i += 1;
                 }
                 if i < n {
@@ -149,6 +160,9 @@ fn blank_go_strings(line: &str) -> String {
                     if chars[i] == '\'' {
                         i += 1;
                         break;
+                    }
+                    if chars[i] == '\n' {
+                        out.push('\n');
                     }
                     i += 1;
                 }
@@ -391,5 +405,60 @@ type (
         assert!(symbols.contains(&"Helper".to_string()));
         assert!(!symbols.contains(&"Afield".to_string()), "struct field");
         assert!(!symbols.contains(&"Bfield".to_string()), "struct field");
+    }
+
+    #[test]
+    fn test_go_grouped_multiline_backtick_raw_string() {
+        // A multi-line backtick raw string (SQL/GraphQL/template constant) inside a
+        // grouped block must be blanked across lines: its body must not leak an
+        // uppercase word as a phantom export, and a `)`/`{`/`(` in the body must not
+        // corrupt the group's brace/paren depth.
+        let src = "
+package db
+
+const (
+    schema = `
+CREATE TABLE users (
+    id INT
+);
+`
+    Version = 2
+)
+
+const AfterGroup = 9
+";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Version".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"AfterGroup".to_string()), "group closed");
+        // Raw-string body text is not code.
+        assert!(!symbols.contains(&"CREATE".to_string()), "SQL body text");
+        assert!(!symbols.contains(&"TABLE".to_string()));
+    }
+
+    #[test]
+    fn test_go_grouped_backtick_with_brace_and_paren_recovers() {
+        // Unbalanced `)` / `{` inside a multi-line backtick value must not close the
+        // group early or leave it stuck open (which would swallow later exports and
+        // subsequent grouped blocks).
+        let src = "
+package m
+
+var (
+    tmpl = `
+) closing text and an unbalanced { brace
+`
+    Alpha = 1
+)
+
+const (
+    Later = 5
+)
+";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Alpha".to_string()), "{symbols:?}");
+        assert!(
+            symbols.contains(&"Later".to_string()),
+            "a later separate group is still seen"
+        );
     }
 }

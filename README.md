@@ -3,6 +3,7 @@
 # SpecSync
 
 [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-SpecSync-blue?logo=github)](https://github.com/marketplace/actions/spec-sync)
+[![spec coverage](https://img.shields.io/endpoint?url=https://corvidlabs.github.io/spec-sync/badges/coverage.json)](https://corvidlabs.github.io/spec-sync/)
 [![CI](https://github.com/CorvidLabs/spec-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/CorvidLabs/spec-sync/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/specsync.svg)](https://crates.io/crates/specsync)
 [![Downloads](https://img.shields.io/crates/d/specsync.svg)](https://crates.io/crates/specsync)

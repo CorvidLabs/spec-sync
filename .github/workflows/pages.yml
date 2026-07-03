@@ -6,6 +6,9 @@ on:
     paths:
       - 'site/**'
       - '.github/workflows/pages.yml'
+      - 'src/**'
+      - 'specs/**'
+      - '.atlasignore'
   workflow_dispatch:
 
 concurrency:
@@ -45,6 +48,26 @@ jobs:
       - name: Run unit tests
         working-directory: site
         run: bun test
+
+      - name: Resolve pinned atlas commit (cache key)
+        id: atlasref
+        run: echo "sha=$(git ls-remote https://github.com/CorvidLabs/fledge-plugin-atlas v1 | cut -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the fledge-atlas CLI
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/fledge-atlas
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+          key: fledge-atlas-${{ runner.os }}-${{ steps.atlasref.outputs.sha }}
+
+      - name: Render atlas coverage badges
+        uses: CorvidLabs/fledge-plugin-atlas@v1
+        with:
+          path: .
+          output-dir: site/public/badges
+          components: "coverage langmix treemap sunburst"
 
       - name: "Build site (runs prebuild: validate + redirects)"
         working-directory: site

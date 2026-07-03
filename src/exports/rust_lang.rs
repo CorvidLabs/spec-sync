@@ -1,25 +1,6 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)//.*$").unwrap());
-
-static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
-
-/// Raw string literals: r###"..."###, r##"..."##, r#"..."#, r"..."
-/// Processed from most hashes to fewest so inner patterns don't match prematurely.
-static RAW_STR_3: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?s)\br\#\#\#".*?"\#\#\#"#).unwrap());
-static RAW_STR_2: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?s)\br\#\#".*?"\#\#"#).unwrap());
-static RAW_STR_1: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)\br\#".*?"\#"#).unwrap());
-static RAW_STR_0: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)\br"[^"]*""#).unwrap());
-
-/// Char literals that contain a double quote: '"' or '\"'
-static CHAR_DQUOTE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"'(?:\\.|")'"#).unwrap());
-
-/// Regular string literals (handling escaped quotes and line continuations).
-static REG_STR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)"(?:[^"\\]|\\.)*""#).unwrap());
-
 /// pub fn, pub struct, pub enum, pub trait, pub type, pub const, pub static, pub mod
 static PUB_DECL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
@@ -33,17 +14,10 @@ static PUB_DECL: LazyLock<Regex> = LazyLock::new(|| {
 /// `pub const`, `pub static`, and `pub mod` declarations.
 /// Also matches `pub(crate)` items.
 pub fn extract_exports(content: &str) -> Vec<String> {
-    // Strip string literals first (before comments, since strings can contain //)
-    let stripped = RAW_STR_3.replace_all(content, r#""""#);
-    let stripped = RAW_STR_2.replace_all(&stripped, r#""""#);
-    let stripped = RAW_STR_1.replace_all(&stripped, r#""""#);
-    let stripped = RAW_STR_0.replace_all(&stripped, r#""""#);
-    let stripped = CHAR_DQUOTE.replace_all(&stripped, "' '");
-    let stripped = REG_STR.replace_all(&stripped, r#""""#);
-
-    // Then strip comments
-    let stripped = COMMENT_SINGLE.replace_all(&stripped, "");
-    let stripped = COMMENT_MULTI.replace_all(&stripped, "");
+    // Blank every string literal (regular, byte/C, and raw with ANY hash count) and
+    // comment in one linear pass, so nothing inside them — a `"`, `//`, `/*`, or a
+    // `pub fn`-shaped token — is misread as code or as a delimiter of the wrong kind.
+    let stripped = strip_strings_and_comments(content);
 
     let mut symbols = Vec::new();
 
@@ -54,6 +28,128 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     }
 
     symbols
+}
+
+fn is_ident_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+/// Blank string literals and comments in one linear pass so neither is misread as
+/// the other and nothing inside them is extracted. Handles, at each position:
+/// `//` line comments; nesting `/* */` block comments; raw strings `r#"…"#` with
+/// ANY hash count (and the byte/C prefixes `br`/`cr`); `'"'`/`'\"'` char literals
+/// (whose `"` would otherwise open a string); and regular/byte/C `"…"` strings with
+/// `\` escapes. Newlines are preserved so line-based callers stay aligned.
+fn strip_strings_and_comments(s: &str) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    let n = chars.len();
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < n {
+        let c = chars[i];
+        // Line comment: skip to end of line (keep the newline).
+        if c == '/' && i + 1 < n && chars[i + 1] == '/' {
+            i += 2;
+            while i < n && chars[i] != '\n' {
+                i += 1;
+            }
+            continue;
+        }
+        // Block comment (Rust block comments nest).
+        if c == '/' && i + 1 < n && chars[i + 1] == '*' {
+            i += 2;
+            let mut depth = 1;
+            while i < n && depth > 0 {
+                if chars[i] == '/' && i + 1 < n && chars[i + 1] == '*' {
+                    depth += 1;
+                    i += 2;
+                } else if chars[i] == '*' && i + 1 < n && chars[i + 1] == '/' {
+                    depth -= 1;
+                    i += 2;
+                } else {
+                    if chars[i] == '\n' {
+                        out.push('\n');
+                    }
+                    i += 1;
+                }
+            }
+            continue;
+        }
+        // Raw string literal `r"…"`, `r#"…"#`, … with ANY number of hashes, plus the
+        // byte/C prefixes `br`/`cr`. Only at an identifier boundary, so the `r` in
+        // `for`/`error` (or an identifier ending in `r`) is not misread as a prefix.
+        if (c == 'r' || ((c == 'b' || c == 'c') && i + 1 < n && chars[i + 1] == 'r'))
+            && (i == 0 || !is_ident_char(chars[i - 1]))
+        {
+            let after_r = if c == 'r' { i + 1 } else { i + 2 };
+            let mut hash_end = after_r;
+            while hash_end < n && chars[hash_end] == '#' {
+                hash_end += 1;
+            }
+            if hash_end < n && chars[hash_end] == '"' {
+                let hashes = hash_end - after_r;
+                // Scan for a closing `"` followed by exactly `hashes` `#`.
+                let mut j = hash_end + 1;
+                while j < n {
+                    if chars[j] == '"' {
+                        let mut k = 0;
+                        while k < hashes && j + 1 + k < n && chars[j + 1 + k] == '#' {
+                            k += 1;
+                        }
+                        if k == hashes {
+                            j = j + 1 + hashes;
+                            break;
+                        }
+                    }
+                    if chars[j] == '\n' {
+                        out.push('\n');
+                    }
+                    j += 1;
+                }
+                i = j;
+                continue;
+            }
+        }
+        // Char literal containing a double quote — `'"'` or `'\"'`. Blank it so its
+        // `"` is not read as a string opener. Other char literals and lifetimes hold
+        // no `"` and are harmless, so they are left as-is.
+        if c == '\'' {
+            if i + 2 < n && chars[i + 1] == '"' && chars[i + 2] == '\'' {
+                i += 3;
+                continue;
+            }
+            if i + 3 < n && chars[i + 1] == '\\' && chars[i + 2] == '"' && chars[i + 3] == '\'' {
+                i += 4;
+                continue;
+            }
+        }
+        // Regular / byte / C (non-raw) string literal: skip to the closing quote,
+        // honoring `\` escapes.
+        if c == '"' {
+            i += 1;
+            while i < n {
+                if chars[i] == '\\' {
+                    if i + 1 < n && chars[i + 1] == '\n' {
+                        out.push('\n');
+                    }
+                    i += 2;
+                    continue;
+                }
+                if chars[i] == '"' {
+                    i += 1;
+                    break;
+                }
+                if chars[i] == '\n' {
+                    out.push('\n');
+                }
+                i += 1;
+            }
+            continue;
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
 }
 
 #[cfg(test)]
@@ -193,5 +289,79 @@ pub unsafe fn unsafe_fn() {}
 "#;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["async_fn", "unsafe_fn"]);
+    }
+
+    #[test]
+    fn test_quotes_in_comments_do_not_hide_exports() {
+        // A doc/line/block comment containing an odd number of `"` used to be read
+        // as a string opener, swallowing the following `pub fn` up to the next real
+        // quote. Comments must be recognized before strings.
+        let src = r#"
+/// Returns the escape for `\"` (a lone quote in a doc comment).
+pub fn alpha() {}
+
+/// A "quoted phrase" in a doc comment.
+pub fn bravo() {}
+
+pub const URL: &str = "http://example.com/a//b";
+pub fn charlie() {}
+
+/* block "comment" with a quote and // slashes */
+pub fn delta() {}
+"#;
+        let symbols = extract_exports(src);
+        for name in ["alpha", "bravo", "URL", "charlie", "delta"] {
+            assert!(
+                symbols.contains(&name.to_string()),
+                "missing {name}: {symbols:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_pub_fn_inside_string_not_extracted() {
+        // A `pub fn` that appears only inside a string literal must not be captured.
+        let src = r#"pub fn real() {} let s = "pub fn fake() {}";"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"real".to_string()));
+        assert!(
+            !symbols.contains(&"fake".to_string()),
+            "fake is inside a string literal"
+        );
+    }
+
+    #[test]
+    fn test_byte_and_c_raw_strings_do_not_hide_exports() {
+        // A byte raw string `br#"..."#` (or `cr#"..."#`) with an odd number of
+        // interior quotes must be blanked; otherwise the scanner opens a string on
+        // the trailing quote and swallows the following pub fn to EOF.
+        let src = r####"
+let x = br#"a "b"#;
+pub fn real() {}
+"####;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"real".to_string()), "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_raw_strings_with_many_hashes_do_not_hide_exports() {
+        // Raw strings with 4+ hashes must be handled (the scanner counts hashes
+        // rather than relying on fixed 0..3-hash regexes). An interior quote must
+        // not leak and open an unterminated string that swallows later decls.
+        let src = r######"
+pub fn before_raw() {}
+pub const P: &str = r####"a "### b"####;
+pub fn after_raw() {}
+pub struct AfterStruct {}
+let q = r#####"x "#### y"#####;
+pub fn tail() {}
+"######;
+        let symbols = extract_exports(src);
+        for name in ["before_raw", "P", "after_raw", "AfterStruct", "tail"] {
+            assert!(
+                symbols.contains(&name.to_string()),
+                "missing {name}: {symbols:?}"
+            );
+        }
     }
 }

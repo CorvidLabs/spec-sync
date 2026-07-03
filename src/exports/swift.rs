@@ -6,10 +6,14 @@ static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"//.*$").u
 static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
 
 /// Swift public/open declarations:
-/// public/open func, class, struct, enum, protocol, typealias, var, let, actor
+/// public/open func, class, struct, enum, protocol, typealias, var, let, actor.
+/// The modifier group allows any run of the common member modifiers between the
+/// access keyword and the declaration keyword (finding #4: `public final class` was
+/// missed — as were the even more common `public override func` / `public mutating
+/// func` / `public lazy var` / `public weak var`).
 static SWIFT_DECL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)(?:public|open)\s+(?:static\s+)?(?:class\s+)?(?:func|class|struct|enum|protocol|typealias|var|let|actor|init)\s+(\w+)",
+        r"(?m)(?:public|open)\s+(?:(?:final|static|class|override|mutating|nonmutating|lazy|weak|unowned|dynamic|nonisolated)\s+)*(?:func|class|struct|enum|protocol|typealias|var|let|actor|init)\s+(\w+)",
     )
     .unwrap()
 });
@@ -99,5 +103,67 @@ open class BaseView {
         let symbols = extract_exports(src);
         assert!(symbols.contains(&"BaseView".to_string()));
         assert!(symbols.contains(&"layoutSubviews".to_string()));
+    }
+
+    #[test]
+    fn test_swift_final_modifiers_exported() {
+        // Finding #4: `final` (and combinations with static/class) between the
+        // access keyword and the declaration keyword must not hide the export.
+        let src = r#"
+public final class Repository {}
+open final class BaseService {}
+public final func recompute() -> Int {}
+public static let shared = Repository()
+public class RegularClass {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"Repository".to_string()),
+            "public final class"
+        );
+        assert!(
+            symbols.contains(&"BaseService".to_string()),
+            "open final class"
+        );
+        assert!(
+            symbols.contains(&"recompute".to_string()),
+            "public final func"
+        );
+        assert!(symbols.contains(&"shared".to_string()), "public static let");
+        assert!(
+            symbols.contains(&"RegularClass".to_string()),
+            "plain public class still works"
+        );
+    }
+
+    #[test]
+    fn test_swift_common_member_modifiers_exported() {
+        // The common member modifiers between the access keyword and the declaration
+        // keyword must not hide the export (override/mutating are more common than
+        // `final func`).
+        let src = r#"
+public override func recompute() -> Int {}
+public mutating func append(_ x: Int) {}
+public lazy var cache = Cache()
+public weak var delegate: Foo?
+open dynamic func draw() {}
+public final override func layout() {}
+public nonisolated func now() -> Date {}
+"#;
+        let symbols = extract_exports(src);
+        for name in [
+            "recompute",
+            "append",
+            "cache",
+            "delegate",
+            "draw",
+            "layout",
+            "now",
+        ] {
+            assert!(
+                symbols.contains(&name.to_string()),
+                "missing {name}: {symbols:?}"
+            );
+        }
     }
 }

@@ -10,7 +10,7 @@ static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?
 /// Then exclude lines that start with private/internal/protected.
 static KT_DECL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*(?:(?:public|internal|private|protected)\s+)?(?:suspend\s+)?(?:inline\s+)?(?:data\s+|sealed\s+|enum\s+|annotation\s+|abstract\s+|open\s+)?(?:fun|class|object|interface|typealias|val|var)\s+(?:<[^>]+>\s+)?(\w+)",
+        r"(?m)^[^\S\n]*(?:(?:public|internal|private|protected)\s+)?(?:suspend\s+)?(?:inline\s+)?(?:data\s+|sealed\s+|enum\s+|annotation\s+|abstract\s+|open\s+)?(?:const\s+)?(?:fun|class|object|interface|typealias|val|var)\s+(?:<[^>]+>\s+)?(\w+)",
     )
     .unwrap()
 });
@@ -109,5 +109,23 @@ public suspend fun loadProfile(): Profile {}
         let symbols = extract_exports(src);
         assert!(symbols.contains(&"fetchData".to_string()));
         assert!(symbols.contains(&"loadProfile".to_string()));
+    }
+
+    #[test]
+    fn test_kotlin_const_val_exported() {
+        // Finding #9: top-level `const val` is a public compile-time constant and
+        // must be captured; the `const` modifier previously blocked the match.
+        let src = r#"
+const val MAX_SIZE = 100
+public const val VISIBLE = 2
+internal const val HIDDEN = 3
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"MAX_SIZE".to_string()), "const val");
+        assert!(symbols.contains(&"VISIBLE".to_string()), "public const val");
+        assert!(
+            !symbols.contains(&"HIDDEN".to_string()),
+            "internal const val is not exported"
+        );
     }
 }

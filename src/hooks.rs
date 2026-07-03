@@ -499,9 +499,9 @@ fn install_claude_code_hook(root: &Path) -> Result<bool, String> {
             .expect("built-in hook template is valid JSON");
 
         if let Some(obj) = parsed.as_object_mut()
-            && let Some(hooks) = hook_value.get("hooks")
+            && let Some(new_hooks) = hook_value.get("hooks").and_then(|h| h.as_object())
         {
-            obj.insert("hooks".to_string(), hooks.clone());
+            merge_claude_code_hooks(obj, new_hooks);
         }
 
         let new_content = serde_json::to_string_pretty(&parsed)
@@ -514,6 +514,45 @@ fn install_claude_code_hook(root: &Path) -> Result<bool, String> {
     }
 
     Ok(true)
+}
+
+/// Deep-merge specsync's hook events into an existing `.claude/settings.json`
+/// object WITHOUT clobbering the user's other settings or hooks.
+///
+/// Claude Code's `hooks` maps an event name (e.g. `PostToolUse`) to an array of
+/// matcher groups. We merge per-event: an event the user doesn't have is added;
+/// an event they do have has our matcher group(s) APPENDED to their array, so
+/// their existing hooks — and any other events like `PreToolUse` — survive.
+fn merge_claude_code_hooks(
+    settings: &mut serde_json::Map<String, serde_json::Value>,
+    new_hooks: &serde_json::Map<String, serde_json::Value>,
+) {
+    let existing = settings
+        .entry("hooks".to_string())
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+
+    // If the user's `hooks` is present but not an object (malformed for Claude
+    // Code), replace it with a working object rather than merge into a non-map.
+    if !existing.is_object() {
+        *existing = serde_json::Value::Object(serde_json::Map::new());
+    }
+    let Some(existing_obj) = existing.as_object_mut() else {
+        return;
+    };
+
+    for (event, groups) in new_hooks {
+        match existing_obj.get_mut(event) {
+            Some(serde_json::Value::Array(existing_arr)) => {
+                if let Some(new_arr) = groups.as_array() {
+                    existing_arr.extend(new_arr.iter().cloned());
+                }
+            }
+            // Event absent, or present but not an array → set our value.
+            _ => {
+                existing_obj.insert(event.clone(), groups.clone());
+            }
+        }
+    }
 }
 
 /// Index of the first contiguous run in `haystack` matching `needle`, comparing
@@ -1052,6 +1091,51 @@ mod tests {
         let content = fs::read_to_string(claude_dir.join("settings.json")).unwrap();
         assert!(content.contains("existingKey"));
         assert!(content.contains("specsync check"));
+    }
+
+    #[test]
+    fn install_claude_code_hook_preserves_existing_user_hooks() {
+        // Regression (H3): install must DEEP-MERGE, never clobber the user's own
+        // `hooks` object. A pre-existing PreToolUse event and a user's own
+        // PostToolUse matcher must both survive, with specsync's group appended.
+        let tmp = setup();
+        let claude_dir = tmp.path().join(".claude");
+        fs::create_dir_all(&claude_dir).unwrap();
+        let user = r#"{
+  "model": "opus",
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "my-guard.sh" }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Read", "hooks": [{ "type": "command", "command": "my-logger.sh" }] }
+    ]
+  }
+}"#;
+        fs::write(claude_dir.join("settings.json"), user).unwrap();
+
+        assert!(install_hook(tmp.path(), HookTarget::ClaudeCodeHook).unwrap());
+
+        let parsed: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(claude_dir.join("settings.json")).unwrap())
+                .unwrap();
+        // Unrelated top-level setting preserved.
+        assert_eq!(parsed["model"], "opus");
+        // The user's PreToolUse event is untouched.
+        let pre = parsed["hooks"]["PreToolUse"].as_array().unwrap();
+        assert_eq!(pre.len(), 1);
+        assert_eq!(pre[0]["hooks"][0]["command"], "my-guard.sh");
+        // The user's own PostToolUse group survives AND specsync's is appended.
+        let post = parsed["hooks"]["PostToolUse"].as_array().unwrap();
+        assert_eq!(post.len(), 2, "user group + specsync group");
+        assert_eq!(post[0]["hooks"][0]["command"], "my-logger.sh");
+        assert!(
+            post[1]["hooks"][0]["command"]
+                .as_str()
+                .unwrap()
+                .contains("specsync check"),
+            "specsync group appended, not replacing the user's"
+        );
     }
 
     #[test]

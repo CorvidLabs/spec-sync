@@ -6164,3 +6164,45 @@ fn migrate_preserves_multiline_toml_array_config() {
         "exclude_patterns must survive migration:\n{migrated}"
     );
 }
+
+// ─── hooks install: claude-code-hook must not clobber user settings ──────
+
+#[test]
+fn hooks_install_claude_code_hook_preserves_user_settings() {
+    // Regression (H3): `hooks install --claude-code-hook` used to overwrite the
+    // whole `hooks` object in .claude/settings.json, destroying the user's own
+    // hooks. It must deep-merge instead.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".claude")).unwrap();
+    fs::write(
+        root.join(".claude/settings.json"),
+        "{\n  \"permissions\": { \"allow\": [\"Bash(ls:*)\"] },\n  \"hooks\": {\n    \"PreToolUse\": [\n      { \"matcher\": \"Bash\", \"hooks\": [{ \"type\": \"command\", \"command\": \"audit.sh\" }] }\n    ]\n  }\n}\n",
+    )
+    .unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["hooks", "install", "--claude-code-hook"])
+        .assert()
+        .success();
+
+    let parsed: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(root.join(".claude/settings.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        parsed["permissions"]["allow"][0], "Bash(ls:*)",
+        "unrelated settings must survive"
+    );
+    assert_eq!(
+        parsed["hooks"]["PreToolUse"][0]["hooks"][0]["command"], "audit.sh",
+        "the user's own hooks must survive"
+    );
+    assert!(
+        parsed["hooks"]["PostToolUse"][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap()
+            .contains("specsync"),
+        "specsync's hook must be added"
+    );
+}

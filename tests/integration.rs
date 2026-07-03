@@ -5912,3 +5912,64 @@ fn hooks_uninstall_preserves_user_content_after_block() {
         "the managed block must be removed:\n{after}"
     );
 }
+
+// ─── specsync check: gate evaluation is not bypassed ─────────────────────
+
+#[test]
+fn check_no_specs_still_evaluates_requested_gate() {
+    // Regression (H2): a project with source but no specs must still FAIL a
+    // requested coverage/enforcement gate instead of short-circuiting to exit 0.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+
+    // 0% coverage must fail a 100% requirement, and enforce-new must flag the
+    // unspecced file.
+    specsync()
+        .current_dir(root)
+        .args(["check", "--require-coverage", "100"])
+        .assert()
+        .failure();
+    specsync()
+        .current_dir(root)
+        .args(["check", "--enforcement", "enforce-new"])
+        .assert()
+        .failure();
+    // Default check (no gate requested) still succeeds informationally.
+    specsync().current_dir(root).arg("check").assert().success();
+}
+
+#[test]
+fn check_require_coverage_gate_fails_on_warm_cache() {
+    // Regression (C2): the coverage gate must be evaluated even when the hash
+    // cache is warm and no specs need re-validation — a warm run must not flip a
+    // failing --require-coverage into exit 0.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    // 1 specced + 1 unspecced file → 50% coverage.
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+    fs::write(root.join("src/b.ts"), "export function b() {}\n").unwrap();
+    fs::create_dir_all(root.join("specs/a")).unwrap();
+    fs::write(
+        root.join("specs/a/a.spec.md"),
+        valid_spec("a", &["src/a.ts"]),
+    )
+    .unwrap();
+
+    // Cold run populates the cache and fails the 90% gate.
+    specsync()
+        .current_dir(root)
+        .args(["check", "--require-coverage", "90"])
+        .assert()
+        .failure();
+    // Warm run (specs unchanged, served from cache) must ALSO fail.
+    specsync()
+        .current_dir(root)
+        .args(["check", "--require-coverage", "90"])
+        .assert()
+        .failure();
+}

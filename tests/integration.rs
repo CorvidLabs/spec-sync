@@ -6043,6 +6043,35 @@ fn score_no_specs_still_evaluates_requested_gate() {
 }
 
 #[test]
+fn check_scalar_inline_comment_does_not_hide_specs() {
+    // Regression (#6): an inline comment on `specs_dir` used to be kept in the
+    // value (`"specs" # note`), mis-resolving the specs dir so every spec became
+    // invisible and `check` silently passed. The spec must be discovered.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("mydocs")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+    fs::write(
+        root.join(".specsync.toml"),
+        "specs_dir = \"mydocs\" # where specs live\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("mydocs/a.spec.md"),
+        "---\nmodule: a\nstatus: stable\nfiles:\n  - src/a.ts\n---\n# A\n## Purpose\nx\n",
+    )
+    .unwrap();
+
+    // The spec is now discovered (output names it) rather than "No spec files found".
+    specsync()
+        .current_dir(root)
+        .arg("check")
+        .assert()
+        .stdout(predicate::str::contains("a.spec.md"));
+}
+
+#[test]
 fn coverage_no_specs_evaluates_gate() {
     // Regression (M1): `coverage` used to take the no-spec early-exit (exit 0) and
     // its JSON path always exited 0, so the gate was never evaluated. A project

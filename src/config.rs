@@ -1052,6 +1052,32 @@ mod tests {
     }
 
     #[test]
+    fn test_load_config_toml_lifecycle_guard_camelcase_aliases() {
+        // Transition-guard inner keys also accept the camelCase forms.
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "source_dirs = [\"src\"]\n\
+             [lifecycle.guards.\"review→active\"]\n\
+             minScore = 80\n\
+             requireSections = [\"Purpose\", \"Invariants\"]\n\
+             noStale = true\n\
+             staleThreshold = 5\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        let guard = config
+            .lifecycle
+            .guards
+            .get("review→active")
+            .expect("guard parsed");
+        assert_eq!(guard.min_score, Some(80));
+        assert_eq!(guard.require_sections, vec!["Purpose", "Invariants"]);
+        assert_eq!(guard.no_stale, Some(true));
+        assert_eq!(guard.stale_threshold, Some(5));
+    }
+
+    #[test]
     fn test_load_config_toml_lifecycle_snake_case_still_works() {
         let tmp = TempDir::new().unwrap();
         fs::write(

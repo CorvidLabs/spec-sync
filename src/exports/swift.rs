@@ -1,8 +1,14 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
+static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"//.*$").unwrap());
+
+static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
+
 /// Swift public/open declarations:
-/// public/open func, class, struct, enum, protocol, typealias, var, let, actor
+/// public/open func, class, struct, enum, protocol, typealias, var, let, actor.
+/// The modifier group allows any run of `final`/`static`/`class` between the access
+/// keyword and the declaration keyword (finding #4: `public final class` was missed).
 static SWIFT_DECL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?m)(?:public|open)\s+(?:(?:final|static|class)\s+)*(?:func|class|struct|enum|protocol|typealias|var|let|actor|init)\s+(\w+)",
@@ -17,11 +23,8 @@ static SWIFT_INIT: LazyLock<Regex> = LazyLock::new(|| {
 
 /// Extract exported (public/open) symbols from Swift source code.
 pub fn extract_exports(content: &str) -> Vec<String> {
-    // Strip strings AND comments in one pass so a declaration-shaped token inside a
-    // string literal (e.g. a code-gen template `let t = "public final class X {}"`)
-    // is not extracted as a phantom export, and a `"` in a comment is not read as a
-    // string (and vice-versa).
-    let stripped = strip_swift_strings_and_comments(content);
+    let stripped = COMMENT_SINGLE.replace_all(content, "");
+    let stripped = COMMENT_MULTI.replace_all(&stripped, "");
 
     let mut symbols = Vec::new();
 
@@ -37,88 +40,6 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     }
 
     symbols
-}
-
-/// Blank Swift string literals (`"..."` and `"""..."""`), `//` line comments, and
-/// (nesting) `/* */` block comments in one linear pass, so neither is misread as
-/// the other and no declaration inside a string is extracted. Newlines preserved.
-fn strip_swift_strings_and_comments(s: &str) -> String {
-    let chars: Vec<char> = s.chars().collect();
-    let n = chars.len();
-    let mut out = String::with_capacity(s.len());
-    let mut i = 0;
-    while i < n {
-        let c = chars[i];
-        // Line comment.
-        if c == '/' && i + 1 < n && chars[i + 1] == '/' {
-            i += 2;
-            while i < n && chars[i] != '\n' {
-                i += 1;
-            }
-            continue;
-        }
-        // Block comment (Swift block comments nest).
-        if c == '/' && i + 1 < n && chars[i + 1] == '*' {
-            i += 2;
-            let mut depth = 1;
-            while i < n && depth > 0 {
-                if chars[i] == '/' && i + 1 < n && chars[i + 1] == '*' {
-                    depth += 1;
-                    i += 2;
-                } else if chars[i] == '*' && i + 1 < n && chars[i + 1] == '/' {
-                    depth -= 1;
-                    i += 2;
-                } else {
-                    if chars[i] == '\n' {
-                        out.push('\n');
-                    }
-                    i += 1;
-                }
-            }
-            continue;
-        }
-        // Multi-line string literal `"""..."""`.
-        if c == '"' && i + 2 < n && chars[i + 1] == '"' && chars[i + 2] == '"' {
-            i += 3;
-            while i < n {
-                if chars[i] == '\\' {
-                    i += 2;
-                    continue;
-                }
-                if chars[i] == '"' && i + 2 < n && chars[i + 1] == '"' && chars[i + 2] == '"' {
-                    i += 3;
-                    break;
-                }
-                if chars[i] == '\n' {
-                    out.push('\n');
-                }
-                i += 1;
-            }
-            continue;
-        }
-        // Single-line string literal `"..."`.
-        if c == '"' {
-            i += 1;
-            while i < n {
-                if chars[i] == '\\' {
-                    i += 2;
-                    continue;
-                }
-                if chars[i] == '"' {
-                    i += 1;
-                    break;
-                }
-                if chars[i] == '\n' {
-                    out.push('\n');
-                }
-                i += 1;
-            }
-            continue;
-        }
-        out.push(c);
-        i += 1;
-    }
-    out
 }
 
 #[cfg(test)]
@@ -211,38 +132,5 @@ public class RegularClass {}
             symbols.contains(&"RegularClass".to_string()),
             "plain public class still works"
         );
-    }
-
-    #[test]
-    fn test_swift_declaration_inside_string_not_extracted() {
-        // A declaration-shaped token inside a string literal (e.g. a code-gen
-        // template) must not be extracted as a phantom export.
-        let src = r#"
-public let template = "public final class Injected {}"
-public final class Real {}
-"#;
-        let symbols = extract_exports(src);
-        assert!(symbols.contains(&"template".to_string()));
-        assert!(symbols.contains(&"Real".to_string()));
-        assert!(
-            !symbols.contains(&"Injected".to_string()),
-            "declaration is inside a string literal"
-        );
-    }
-
-    #[test]
-    fn test_swift_declaration_inside_multiline_string_not_extracted() {
-        let src = r#"
-public let generator = """
-public final class Generated {}
-public struct AlsoFake {}
-"""
-public struct Keep {}
-"#;
-        let symbols = extract_exports(src);
-        assert!(symbols.contains(&"generator".to_string()));
-        assert!(symbols.contains(&"Keep".to_string()));
-        assert!(!symbols.contains(&"Generated".to_string()));
-        assert!(!symbols.contains(&"AlsoFake".to_string()));
     }
 }

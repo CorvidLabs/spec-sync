@@ -1,10 +1,6 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"//.*$").unwrap());
-
-static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
-
 /// Go exports: func Name, type Name, var Name, const Name
 /// In Go, anything starting with uppercase is exported.
 static GO_DECL: LazyLock<Regex> = LazyLock::new(|| {
@@ -26,24 +22,25 @@ static GO_GROUP_ITEM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^([A-Za-z_
 /// Extract exported symbols from Go source code.
 /// In Go, any top-level identifier starting with an uppercase letter is exported.
 pub fn extract_exports(content: &str) -> Vec<String> {
-    let stripped = COMMENT_SINGLE.replace_all(content, "");
-    let stripped = COMMENT_MULTI.replace_all(&stripped, "");
-    // Blank the CONTENTS of string/rune literals — including multi-line backtick raw
-    // strings (SQL/GraphQL/template constants) — so a declaration-shaped token or a
-    // `{`/`}`/`(`/`)` inside a literal is never read as code or as a delimiter.
-    // Newlines are preserved, so all the line-anchored/line-based passes stay aligned.
-    let blanked = blank_go_strings(&stripped);
+    // One linear pass strips comments AND blanks every string/rune literal together,
+    // so neither is misread as the other: a `'` (apostrophe in a contraction) or a
+    // `{`/`}`/`(`/`)` inside a `//` or `/* */` comment is ignored, and a multi-line
+    // backtick raw string (SQL/GraphQL/template constant) is blanked across lines.
+    // Every pass below runs on this copy, so no comment or string body is ever read
+    // as code or as a delimiter. Newlines are preserved to keep line-based passes
+    // aligned.
+    let stripped = strip_go_strings_and_comments(content);
 
     let mut symbols = Vec::new();
 
-    for caps in GO_DECL.captures_iter(&blanked) {
+    for caps in GO_DECL.captures_iter(&stripped) {
         if let Some(name) = caps.get(1) {
             symbols.push(name.as_str().to_string());
         }
     }
 
     // Also capture exported methods
-    for caps in GO_METHOD.captures_iter(&blanked) {
+    for caps in GO_METHOD.captures_iter(&stripped) {
         if let Some(name) = caps.get(1) {
             let n = name.as_str().to_string();
             if !symbols.contains(&n) {
@@ -58,13 +55,13 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     // but ONLY at brace-depth 0 AND paren-depth 0 — so struct/interface fields
     // inside a grouped `type`, and the interior of a multi-line value like
     // `X = f(\n ...\n)`, are not mistaken for items or for the group's closer. The
-    // scan runs on the string-blanked copy, so a `{`/`}`/`(`/`)` inside a value
-    // (`X = "{"`, a struct tag, a multi-line backtick template) never corrupts the
-    // depths.
+    // scan runs on the comment-stripped, string-blanked copy, so a `{`/`}`/`(`/`)`
+    // inside a value (`X = "{"`, a struct tag, a multi-line backtick template) or a
+    // comment never corrupts the depths.
     let mut in_group = false;
     let mut brace_depth: i32 = 0;
     let mut paren_depth: i32 = 0;
-    for line in blanked.lines() {
+    for line in stripped.lines() {
         let bt = line.trim();
         if in_group {
             let at_base = brace_depth == 0 && paren_depth == 0;
@@ -103,75 +100,101 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     symbols
 }
 
-/// Return a copy of Go source with the CONTENTS of string and rune literals replaced
-/// by spaces, so declaration detection and brace/paren counting are not confused by
-/// code-shaped text, `{`, `}`, `(`, `)`, or `#` inside them. Handles interpreted
-/// (`"..."`, with `\` escapes), raw (`` `...` `` — which may span multiple lines),
-/// and rune (`'...'`) literals. Newlines are preserved throughout.
-fn blank_go_strings(content: &str) -> String {
+/// Strip `//` and `/* */` comments and blank the CONTENTS of string/rune literals in
+/// one linear pass, so neither is misread as the other. Recognizing `//` / `/*`
+/// before `"`/`` ` ``/`'` means an apostrophe or brace inside a comment is ignored
+/// (a plain `//.*` regex without the multiline flag stripped only the file's LAST
+/// comment, leaking the rest into the string scan); and blanking string/rune
+/// literals — interpreted `"..."` (with `\` escapes), raw `` `...` `` (which may span
+/// multiple lines), and rune `'...'` — keeps their code-shaped text and delimiters
+/// out of the parse. Go block comments do NOT nest. Newlines are preserved.
+fn strip_go_strings_and_comments(content: &str) -> String {
     let chars: Vec<char> = content.chars().collect();
     let n = chars.len();
     let mut out = String::with_capacity(content.len());
     let mut i = 0;
     while i < n {
-        match chars[i] {
-            '"' => {
-                out.push(' ');
-                i += 1;
-                while i < n {
-                    if chars[i] == '\\' {
-                        if i + 1 < n && chars[i + 1] == '\n' {
-                            out.push('\n');
-                        }
-                        i += 2;
-                        continue;
-                    }
-                    if chars[i] == '"' {
-                        i += 1;
-                        break;
-                    }
-                    if chars[i] == '\n' {
-                        out.push('\n');
-                    }
-                    i += 1;
-                }
-            }
-            '`' => {
-                out.push(' ');
-                i += 1;
-                while i < n && chars[i] != '`' {
-                    if chars[i] == '\n' {
-                        out.push('\n');
-                    }
-                    i += 1;
-                }
-                if i < n {
-                    i += 1;
-                }
-            }
-            '\'' => {
-                out.push(' ');
-                i += 1;
-                while i < n {
-                    if chars[i] == '\\' {
-                        i += 2;
-                        continue;
-                    }
-                    if chars[i] == '\'' {
-                        i += 1;
-                        break;
-                    }
-                    if chars[i] == '\n' {
-                        out.push('\n');
-                    }
-                    i += 1;
-                }
-            }
-            c => {
-                out.push(c);
+        let c = chars[i];
+        // Line comment.
+        if c == '/' && i + 1 < n && chars[i + 1] == '/' {
+            i += 2;
+            while i < n && chars[i] != '\n' {
                 i += 1;
             }
+            continue;
         }
+        // Block comment (does not nest in Go).
+        if c == '/' && i + 1 < n && chars[i + 1] == '*' {
+            i += 2;
+            while i < n {
+                if chars[i] == '*' && i + 1 < n && chars[i + 1] == '/' {
+                    i += 2;
+                    break;
+                }
+                if chars[i] == '\n' {
+                    out.push('\n');
+                }
+                i += 1;
+            }
+            continue;
+        }
+        // Interpreted string literal `"..."` (with `\` escapes).
+        if c == '"' {
+            i += 1;
+            while i < n {
+                if chars[i] == '\\' {
+                    if i + 1 < n && chars[i + 1] == '\n' {
+                        out.push('\n');
+                    }
+                    i += 2;
+                    continue;
+                }
+                if chars[i] == '"' {
+                    i += 1;
+                    break;
+                }
+                if chars[i] == '\n' {
+                    out.push('\n');
+                }
+                i += 1;
+            }
+            continue;
+        }
+        // Raw string literal `` `...` `` (no escapes; may span multiple lines).
+        if c == '`' {
+            i += 1;
+            while i < n && chars[i] != '`' {
+                if chars[i] == '\n' {
+                    out.push('\n');
+                }
+                i += 1;
+            }
+            if i < n {
+                i += 1;
+            }
+            continue;
+        }
+        // Rune literal `'...'` (with `\` escapes).
+        if c == '\'' {
+            i += 1;
+            while i < n {
+                if chars[i] == '\\' {
+                    i += 2;
+                    continue;
+                }
+                if chars[i] == '\'' {
+                    i += 1;
+                    break;
+                }
+                if chars[i] == '\n' {
+                    out.push('\n');
+                }
+                i += 1;
+            }
+            continue;
+        }
+        out.push(c);
+        i += 1;
     }
     out
 }
@@ -460,5 +483,59 @@ const (
             symbols.contains(&"Later".to_string()),
             "a later separate group is still seen"
         );
+    }
+
+    #[test]
+    fn test_go_comment_with_apostrophe_or_quote_does_not_drop_exports() {
+        // Comments are recognized before rune/string scanning, so a contraction
+        // ("can't") or a stray `"` in ANY comment (not just the file's last one) does
+        // not swallow following declarations.
+        let src = "
+package m
+
+// Serve can't fail here.
+func Serve() {}
+
+// A stray \" quote mark in a comment.
+type Handler struct{}
+
+const Alpha = 1 // it's a value
+const Beta = 2
+";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Serve".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"Handler".to_string()));
+        assert!(symbols.contains(&"Alpha".to_string()));
+        assert!(symbols.contains(&"Beta".to_string()));
+    }
+
+    #[test]
+    fn test_go_grouped_comment_delimiters_do_not_corrupt_depth() {
+        // Unbalanced `(`/`{`/`}` inside comments — on item lines, the group-open line,
+        // or a struct-field line — must not corrupt the grouped-pass depth.
+        let src = "
+package m
+
+const ( // begin group with an unbalanced ( in the comment
+    Alpha = 1 // see foo(
+    Beta = 2  // has a { brace
+)
+
+type (
+    Config struct {
+        A int // a stray } here
+        Bfield int
+    }
+    Helper int
+)
+";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Alpha".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"Beta".to_string()), "comment paren/brace");
+        assert!(symbols.contains(&"Config".to_string()));
+        assert!(symbols.contains(&"Helper".to_string()));
+        // The `}` in a comment must not leak a struct field as an export.
+        assert!(!symbols.contains(&"A".to_string()), "struct field");
+        assert!(!symbols.contains(&"Bfield".to_string()), "struct field");
     }
 }

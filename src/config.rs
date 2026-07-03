@@ -2018,6 +2018,18 @@ verify_issues = false
     }
 
     #[test]
+    fn test_config_to_toml_roundtrips_ai_provider_custom() {
+        // `custom` used to write `ai_provider = "custom"` but reload as None
+        // (from_str_loose had no arm) — a silent drop on migrate.
+        let mut config = SpecSyncConfig::default();
+        config.ai_provider = Some(crate::types::AiProvider::Custom);
+        assert_eq!(
+            roundtrip_toml(&config).ai_provider,
+            Some(crate::types::AiProvider::Custom)
+        );
+    }
+
+    #[test]
     fn test_config_to_toml_roundtrips_parse_mode() {
         let mut config = SpecSyncConfig::default();
         config.parse_mode = crate::types::ParseMode::Ast;

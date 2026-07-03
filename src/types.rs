@@ -133,6 +133,10 @@ impl AiProvider {
             "mistral" => Some(AiProvider::Mistral),
             "xai" | "grok" | "x-ai" => Some(AiProvider::XAi),
             "together" | "together-ai" => Some(AiProvider::Together),
+            // `Custom` must round-trip: config_to_toml writes `ai_provider = "custom"`
+            // (via Display), so the reader must map it back rather than dropping it to
+            // None on migrate. (Custom still needs SPECSYNC_AI_COMMAND to function.)
+            "custom" => Some(AiProvider::Custom),
             _ => None,
         }
     }

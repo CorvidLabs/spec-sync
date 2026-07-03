@@ -109,8 +109,10 @@ pub fn cmd_score(
     // score does no validation, so errors/warnings are 0; coverage and
     // unspecced-file gating still apply.
     let coverage = compute_coverage(root, &spec_files, &config);
-    if json {
-        // Machine output already printed — gate silently so stdout stays valid JSON.
+    // JSON and CSV are machine formats: their body is already printed, so gate
+    // SILENTLY via the exit code — appending exit_with_status's human message
+    // would corrupt the parseable output. Other formats get the explanation.
+    if json || matches!(format, types::OutputFormat::Csv) {
         std::process::exit(compute_exit_code(
             0,
             0,

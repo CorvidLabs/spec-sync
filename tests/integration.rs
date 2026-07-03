@@ -6012,6 +6012,14 @@ fn score_honors_require_coverage_gate() {
         .assert()
         .failure()
         .stdout(predicate::str::starts_with("{"));
+    // CSV is a machine format too: it must gate WITHOUT the human failure message
+    // leaking into the CSV body (regression guard for the review's CSV nit).
+    specsync()
+        .current_dir(root)
+        .args(["score", "--require-coverage", "100", "--format", "csv"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("--require-coverage").not());
     specsync().current_dir(root).arg("score").assert().success();
 }
 

@@ -107,9 +107,12 @@ pub fn cmd_deps(root: &Path, strict: bool, format: types::OutputFormat, mermaid:
     // module not listed in `depends_on`) as failures. Without this, `deps --strict`
     // was a silent no-op: undeclared imports were reported but never gated CI.
     let strict_fail = strict && !report.warnings.is_empty();
-    if strict_fail {
-        // A diagnostic, not report content — route to stderr so stdout stays a
-        // clean, machine-parseable body for every format (JSON/markdown/csv).
+    // Human diagnostic, not report content. Suppress it in JSON mode so JSON
+    // output stays fully machine-readable — no ANSI, nothing on stderr to parse
+    // around; a JSON consumer already sees the failing warnings in the
+    // `warnings` array and the non-zero exit code. Every other format gets the
+    // note on stderr, keeping stdout a clean, parseable body.
+    if strict_fail && !matches!(format, types::OutputFormat::Json) {
         eprintln!(
             "{}: {} dependency warning(s) treated as errors",
             "--strict mode".red(),

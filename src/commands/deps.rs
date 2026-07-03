@@ -6,7 +6,7 @@ use crate::config::load_config;
 use crate::deps;
 use crate::types;
 
-pub fn cmd_deps(root: &Path, format: types::OutputFormat, mermaid: bool, dot: bool) {
+pub fn cmd_deps(root: &Path, strict: bool, format: types::OutputFormat, mermaid: bool, dot: bool) {
     let config = load_config(root);
 
     // --mermaid or --dot: output graph visualization and exit
@@ -103,7 +103,19 @@ pub fn cmd_deps(root: &Path, format: types::OutputFormat, mermaid: bool, dot: bo
         }
     }
 
-    if !report.errors.is_empty() {
+    // `--strict` treats dependency warnings (undeclared imports — imports of a
+    // module not listed in `depends_on`) as failures. Without this, `deps --strict`
+    // was a silent no-op: undeclared imports were reported but never gated CI.
+    let strict_fail = strict && !report.warnings.is_empty();
+    if strict_fail && !matches!(format, types::OutputFormat::Json) {
+        println!(
+            "{}: {} dependency warning(s) treated as errors",
+            "--strict mode".red(),
+            report.warnings.len()
+        );
+    }
+
+    if !report.errors.is_empty() || strict_fail {
         process::exit(1);
     }
 }

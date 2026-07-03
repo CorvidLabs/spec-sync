@@ -1,14 +1,20 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-/// Raw string literals: r###"..."###, r##"..."##, r#"..."#, r"..."
-/// Processed from most hashes to fewest so inner patterns don't match prematurely.
+/// Raw string literals: r###"..."###, r##"..."##, r#"..."#, r"..." and their
+/// byte/C-string variants (br"...", cr"..."). The optional `(?:b|c)?` before `r`
+/// is essential: without it `br#"..."#` is never blanked, and the linear scanner
+/// then reads its interior quotes as real delimiters and can run a string to EOF,
+/// hiding later declarations. Processed most-hashes-first so inner patterns don't
+/// match prematurely.
 static RAW_STR_3: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?s)\br\#\#\#".*?"\#\#\#"#).unwrap());
+    LazyLock::new(|| Regex::new(r#"(?s)\b(?:b|c)?r\#\#\#".*?"\#\#\#"#).unwrap());
 static RAW_STR_2: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?s)\br\#\#".*?"\#\#"#).unwrap());
-static RAW_STR_1: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)\br\#".*?"\#"#).unwrap());
-static RAW_STR_0: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)\br"[^"]*""#).unwrap());
+    LazyLock::new(|| Regex::new(r#"(?s)\b(?:b|c)?r\#\#".*?"\#\#"#).unwrap());
+static RAW_STR_1: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?s)\b(?:b|c)?r\#".*?"\#"#).unwrap());
+static RAW_STR_0: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?s)\b(?:b|c)?r"[^"]*""#).unwrap());
 
 /// Char literals that contain a double quote: '"' or '\"'
 static CHAR_DQUOTE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"'(?:\\.|")'"#).unwrap());
@@ -295,5 +301,18 @@ pub fn delta() {}
             !symbols.contains(&"fake".to_string()),
             "fake is inside a string literal"
         );
+    }
+
+    #[test]
+    fn test_byte_and_c_raw_strings_do_not_hide_exports() {
+        // A byte raw string `br#"..."#` (or `cr#"..."#`) with an odd number of
+        // interior quotes must be blanked; otherwise the scanner opens a string on
+        // the trailing quote and swallows the following pub fn to EOF.
+        let src = r####"
+let x = br#"a "b"#;
+pub fn real() {}
+"####;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"real".to_string()), "got {symbols:?}");
     }
 }

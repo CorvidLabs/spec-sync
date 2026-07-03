@@ -49,19 +49,27 @@ pub fn extract_exports(content: &str) -> Vec<String> {
 
     // Grouped declarations: `const (` / `var (` / `type (` blocks, whose items sit
     // on their own lines with no keyword prefix (missed by the line-anchored
-    // regexes above). Capture the leading identifier of each item at brace-depth 0
-    // so struct/interface field lines inside a grouped `type` are not mistaken for
-    // top-level exports.
+    // regexes above). Capture each item's leading exported (uppercase) identifier,
+    // but ONLY at brace-depth 0 AND paren-depth 0 — so struct/interface fields
+    // inside a grouped `type`, and the interior of a multi-line value like
+    // `X = f(\n ...\n)`, are not mistaken for items or for the group's closer.
+    // Brace/paren counting is done on a copy with string/rune literals blanked, so
+    // a `{`, `}`, `(`, `)`, or `#` inside a value (e.g. `X = "{"`, a struct tag)
+    // does not corrupt the depths.
     let mut in_group = false;
     let mut brace_depth: i32 = 0;
+    let mut paren_depth: i32 = 0;
     for line in stripped.lines() {
         let t = line.trim();
+        let blanked = blank_go_strings(line);
+        let bt = blanked.trim();
         if in_group {
-            if brace_depth == 0 && t.starts_with(')') {
+            let at_base = brace_depth == 0 && paren_depth == 0;
+            if at_base && bt.starts_with(')') {
                 in_group = false;
                 continue;
             }
-            if brace_depth == 0
+            if at_base
                 && let Some(caps) = GO_GROUP_ITEM.captures(t)
                 && let Some(name) = caps.get(1)
             {
@@ -72,19 +80,86 @@ pub fn extract_exports(content: &str) -> Vec<String> {
                     symbols.push(n.to_string());
                 }
             }
-            brace_depth += t.matches('{').count() as i32 - t.matches('}').count() as i32;
+            brace_depth += bt.matches('{').count() as i32 - bt.matches('}').count() as i32;
+            paren_depth += bt.matches('(').count() as i32 - bt.matches(')').count() as i32;
             if brace_depth < 0 {
                 brace_depth = 0;
             }
+            if paren_depth < 0 {
+                paren_depth = 0;
+            }
             continue;
         }
-        if GO_GROUP_OPEN.is_match(t) {
+        if GO_GROUP_OPEN.is_match(bt) {
             in_group = true;
             brace_depth = 0;
+            paren_depth = 0;
         }
     }
 
     symbols
+}
+
+/// Return a copy of a Go source line with the CONTENTS of string and rune literals
+/// replaced by spaces, so brace/paren counting and identifier detection are not
+/// confused by `{`, `}`, `(`, `)`, or `#` inside them. Handles interpreted
+/// (`"..."`, with `\` escapes), raw (`` `...` ``), and rune (`'...'`) literals.
+/// Multi-line raw strings (backtick spanning lines) are a rare edge and not
+/// tracked across lines.
+fn blank_go_strings(line: &str) -> String {
+    let chars: Vec<char> = line.chars().collect();
+    let n = chars.len();
+    let mut out = String::with_capacity(line.len());
+    let mut i = 0;
+    while i < n {
+        match chars[i] {
+            '"' => {
+                out.push(' ');
+                i += 1;
+                while i < n {
+                    if chars[i] == '\\' {
+                        i += 2;
+                        continue;
+                    }
+                    if chars[i] == '"' {
+                        i += 1;
+                        break;
+                    }
+                    i += 1;
+                }
+            }
+            '`' => {
+                out.push(' ');
+                i += 1;
+                while i < n && chars[i] != '`' {
+                    i += 1;
+                }
+                if i < n {
+                    i += 1;
+                }
+            }
+            '\'' => {
+                out.push(' ');
+                i += 1;
+                while i < n {
+                    if chars[i] == '\\' {
+                        i += 2;
+                        continue;
+                    }
+                    if chars[i] == '\'' {
+                        i += 1;
+                        break;
+                    }
+                    i += 1;
+                }
+            }
+            c => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -250,5 +325,71 @@ type (
         assert!(!symbols.contains(&"internalX".to_string()));
         assert!(!symbols.contains(&"localState".to_string()));
         assert!(!symbols.contains(&"private2".to_string()));
+    }
+
+    #[test]
+    fn test_go_grouped_delimiters_in_strings() {
+        // A `{` / `}` / `(` / `)` inside a grouped item's value string must not
+        // corrupt brace/paren depth (which would drop later items AND leave the
+        // group open, swallowing every subsequent grouped block), and a multi-line
+        // function-call value must not be mistaken for the group's closer.
+        let src = r#"
+package config
+
+const (
+    OpenBrace = "{"
+    Version   = "1.0"
+    APIPath   = "/v1"
+)
+
+var (
+    DefaultConfig = loadConfig(
+        "path",
+    )
+    Alpha = 1
+    Beta  = 2
+)
+
+const LaterExport = 5
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"OpenBrace".to_string()), "{symbols:?}");
+        assert!(
+            symbols.contains(&"Version".to_string()),
+            "after brace-string"
+        );
+        assert!(symbols.contains(&"APIPath".to_string()));
+        assert!(symbols.contains(&"DefaultConfig".to_string()));
+        assert!(
+            symbols.contains(&"Alpha".to_string()),
+            "after multiline value"
+        );
+        assert!(symbols.contains(&"Beta".to_string()));
+        assert!(
+            symbols.contains(&"LaterExport".to_string()),
+            "group closed correctly so a later const is still seen"
+        );
+    }
+
+    #[test]
+    fn test_go_grouped_type_struct_tag_brace() {
+        // A `}` inside a struct-tag string must not drop brace_depth to 0 mid-struct
+        // and leak a field as a top-level export.
+        let src = "
+package m
+
+type (
+    Config struct {
+        Afield string `json:\"a}\"`
+        Bfield int
+    }
+    Helper int
+)
+";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Config".to_string()));
+        assert!(symbols.contains(&"Helper".to_string()));
+        assert!(!symbols.contains(&"Afield".to_string()), "struct field");
+        assert!(!symbols.contains(&"Bfield".to_string()), "struct field");
     }
 }

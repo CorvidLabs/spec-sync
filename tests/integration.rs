@@ -6070,7 +6070,23 @@ fn coverage_no_specs_evaluates_gate() {
         .args(["coverage", "--enforcement", "enforce-new"])
         .assert()
         .failure();
-    // No gate requested → coverage report still exits 0.
+    // A CONFIG-only enforce-new gate (no CLI flag) must also fire.
+    fs::write(
+        root.join(".specsync.toml"),
+        "enforcement = \"enforce-new\"\nspecs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    specsync()
+        .current_dir(root)
+        .arg("coverage")
+        .assert()
+        .failure();
+    // Back to a warn config → coverage report still exits 0 (no gate requested).
+    fs::write(
+        root.join(".specsync.toml"),
+        "enforcement = \"warn\"\nspecs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
     specsync()
         .current_dir(root)
         .arg("coverage")

@@ -5973,3 +5973,71 @@ fn check_require_coverage_gate_fails_on_warm_cache() {
         .assert()
         .failure();
 }
+
+// ─── specsync score: gate flags are honored, not silent no-ops ───────────
+
+#[test]
+fn score_honors_require_coverage_gate() {
+    // Regression (H5): the global --require-coverage / --enforcement flags were
+    // silently ignored by `score` (it always exited 0). They must now gate.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    // 1 specced + 1 unspecced file → below 100% coverage.
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+    fs::write(root.join("src/uncovered.ts"), "export function b() {}\n").unwrap();
+    fs::create_dir_all(root.join("specs/a")).unwrap();
+    fs::write(
+        root.join("specs/a/a.spec.md"),
+        valid_spec("a", &["src/a.ts"]),
+    )
+    .unwrap();
+
+    // Gate flags now fail; default score stays advisory (exit 0).
+    specsync()
+        .current_dir(root)
+        .args(["score", "--require-coverage", "100"])
+        .assert()
+        .failure();
+    specsync()
+        .current_dir(root)
+        .args(["score", "--enforcement", "enforce-new"])
+        .assert()
+        .failure();
+    // JSON output must still gate AND remain valid JSON.
+    specsync()
+        .current_dir(root)
+        .args(["score", "--require-coverage", "100", "--format", "json"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::starts_with("{"));
+    // CSV is a machine format too: it must gate WITHOUT the human failure message
+    // leaking into the CSV body (regression guard for the review's CSV nit).
+    specsync()
+        .current_dir(root)
+        .args(["score", "--require-coverage", "100", "--format", "csv"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("--require-coverage").not());
+    specsync().current_dir(root).arg("score").assert().success();
+}
+
+#[test]
+fn score_no_specs_still_evaluates_requested_gate() {
+    // Regression (H5/H2 class): a spec-less project must still FAIL a requested
+    // gate rather than taking the no-spec early-exit, while a plain `score`
+    // keeps its friendly early-exit.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["score", "--require-coverage", "100"])
+        .assert()
+        .failure();
+    specsync().current_dir(root).arg("score").assert().success();
+}

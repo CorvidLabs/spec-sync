@@ -761,14 +761,12 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
             // user's file with the corrupted result.
             let raw_value = line[eq_pos + 1..].trim();
             let is_array = raw_value.starts_with('[');
-            // For array values, strip inline `#` comments (quote-aware) so a
-            // commented item line doesn't become a bogus entry. Scalar values are
-            // left byte-for-byte unchanged.
-            let mut acc = if is_array {
-                strip_inline_comment(raw_value)
-            } else {
-                raw_value.to_string()
-            };
+            // Strip an inline `#` comment (quote/escape-aware) from the value. This
+            // applies to SCALARS too: `specs_dir = "specs" # note` must parse as
+            // `specs`, not the literal `"specs" # note` — otherwise the specs dir
+            // mis-resolves and every spec becomes invisible, silently turning
+            // `check` into an exit-0 pass. A `#` inside a quoted string is preserved.
+            let mut acc = strip_inline_comment(raw_value);
             // Close detection is quote/escape/bracket-depth aware (see
             // `find_toml_array_close`), so a `]` INSIDE a quoted item — e.g. a glob
             // char-class `"**/[abc]/**"` — does not falsely end the array.
@@ -1478,6 +1476,35 @@ mod tests {
         let config = load_config(tmp.path());
         assert_eq!(config.specs_dir, "my-specs");
         assert_eq!(config.source_dirs, vec!["lib", "app"]);
+    }
+
+    #[test]
+    fn test_load_config_toml_scalar_inline_comment_stripped() {
+        // Finding #6: an inline comment on a scalar value must be stripped, or the
+        // value carries the quotes + comment and (for specs_dir) hides every spec.
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "specs_dir = \"mydocs\" # where specs live\n\
+             ai_timeout = 120 # seconds\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert_eq!(config.specs_dir, "mydocs");
+        assert_eq!(config.ai_timeout, Some(120));
+    }
+
+    #[test]
+    fn test_load_config_toml_hash_inside_quotes_preserved() {
+        // A `#` inside a quoted scalar is part of the value, not a comment.
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "schema_pattern = \"CREATE #TABLE\" # trailing comment\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert_eq!(config.schema_pattern.as_deref(), Some("CREATE #TABLE"));
     }
 
     #[test]

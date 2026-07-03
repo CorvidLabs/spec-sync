@@ -223,6 +223,14 @@ pub fn load_config(root: &Path) -> SpecSyncConfig {
 /// Only fields explicitly set in the local file override the shared config.
 /// This lets each developer set their own `ai_provider`, `ai_command`, etc.
 /// without conflicting in the shared `config.toml`.
+///
+/// NOTE: this is a second, deliberately minimal line-by-line reader. It handles
+/// only SCALAR keys (ai_* and a few strings) — it does NOT support multi-line
+/// arrays the way `load_toml_config` does. That is safe today because no array
+/// key is read here and `config.local.toml` is never rewritten. If an array key
+/// is ever added to local config, route it through the shared array handling
+/// (`find_toml_array_close` accumulation) to avoid re-introducing `["["]`
+/// corruption.
 fn merge_local_config(local_path: &Path, config: &mut SpecSyncConfig) {
     let content = match fs::read_to_string(local_path) {
         Ok(c) => c,
@@ -637,9 +645,10 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
     let mut has_source_dirs = false;
     let mut current_section: Option<String> = None;
 
-    // Explicit iterator (not `for`) so a value that opens a multi-line array can
-    // consume its continuation lines via `lines.by_ref()`.
-    let mut lines = content.lines();
+    // Peekable so a value that opens a multi-line array can consume its
+    // continuation lines while leaving a following key/section un-consumed if the
+    // array turns out to be unterminated.
+    let mut lines = content.lines().peekable();
     #[allow(clippy::while_let_on_iterator)]
     while let Some(raw_line) = lines.next() {
         let line = raw_line.trim();
@@ -657,10 +666,10 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
             let key = line[..eq_pos].trim();
             // A value may open a multi-line array (`key = [` with items and the
             // closing `]` on following lines). Accumulate continuation lines until
-            // the array closes — otherwise the value is just `[`, which parses to
-            // `["["]`, silently dropping the real entries AND (because `migrate`
-            // reads then rewrites the config) overwriting the user's file with the
-            // corrupted result.
+            // the array's bracket is balanced — otherwise the value is just `[`,
+            // which parses to `["["]`, silently dropping the real entries AND
+            // (because `migrate` reads then rewrites the config) overwriting the
+            // user's file with the corrupted result.
             let raw_value = line[eq_pos + 1..].trim();
             let is_array = raw_value.starts_with('[');
             // For array values, strip inline `#` comments (quote-aware) so a
@@ -671,15 +680,28 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
             } else {
                 raw_value.to_string()
             };
-            if is_array && !acc.contains(']') {
-                for next in lines.by_ref() {
-                    let cont = strip_inline_comment(next.trim());
+            // Close detection is quote/escape/bracket-depth aware (see
+            // `find_toml_array_close`), so a `]` INSIDE a quoted item — e.g. a glob
+            // char-class `"**/[abc]/**"` — does not falsely end the array.
+            if is_array && find_toml_array_close(&acc).is_none() {
+                while let Some(&peeked) = lines.peek() {
+                    let cont = strip_inline_comment(peeked.trim());
                     if cont.is_empty() {
-                        continue; // blank or whole-line comment inside the array
+                        lines.next(); // consume blank / whole-line comment in array
+                        continue;
                     }
+                    // Array items are quoted strings (or a nested `[`); the close is
+                    // `]`. A continuation line that is none of these means the `]`
+                    // was omitted — stop WITHOUT consuming it so the following
+                    // key/section still parses, bounding a malformed array's damage
+                    // to its own key rather than swallowing the rest of the file.
+                    if !cont.starts_with('"') && !cont.starts_with(']') && !cont.starts_with('[') {
+                        break;
+                    }
+                    lines.next();
                     acc.push(' ');
                     acc.push_str(&cont);
-                    if cont.contains(']') {
+                    if find_toml_array_close(&acc).is_some() {
                         break;
                     }
                 }
@@ -821,19 +843,55 @@ fn parse_toml_string(s: &str) -> String {
     }
 }
 
+/// Return the byte index of the `]` that closes the first `[` in `s`, scanning
+/// with quote-, escape-, and bracket-depth awareness so a `]` inside a quoted
+/// string (e.g. a glob char-class `"**/[abc]/**"`) or a nested array does not
+/// count. Returns `None` if the array is not closed within `s`.
+fn find_toml_array_close(s: &str) -> Option<usize> {
+    let mut in_string = false;
+    let mut prev_backslash = false;
+    let mut depth: i32 = 0;
+    let mut opened = false;
+    for (i, ch) in s.char_indices() {
+        if in_string {
+            if ch == '"' && !prev_backslash {
+                in_string = false;
+            }
+            prev_backslash = ch == '\\' && !prev_backslash;
+            continue;
+        }
+        prev_backslash = false;
+        match ch {
+            '"' => in_string = true,
+            '[' => {
+                depth += 1;
+                opened = true;
+            }
+            ']' => {
+                depth -= 1;
+                if opened && depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 /// Parse a TOML array of strings: `["a", "b"]` -> vec!["a", "b"]
 fn parse_toml_string_array(s: &str) -> Vec<String> {
     let s = s.trim();
-    // Use the span between the first `[` and the LAST `]` so surrounding content
-    // is tolerated: a trailing comment (`[...]  # note`) or the joined lines of a
-    // multi-line array both parse correctly. A bare value with no brackets is
-    // treated as a single-element array (unchanged behavior).
-    let (Some(start), Some(end)) = (s.find('['), s.rfind(']')) else {
+    // Extract the span between the first `[` and its matching `]` (quote/depth
+    // aware — see `find_toml_array_close`), so a `]` inside a quoted item and any
+    // trailing content are tolerated. A value with no array brackets is treated as
+    // a single-element array (unchanged behavior).
+    let Some(start) = s.find('[') else {
         return vec![parse_toml_string(s)];
     };
-    if end <= start {
+    let Some(end) = find_toml_array_close(&s[start..]).map(|rel| start + rel) else {
         return vec![parse_toml_string(s)];
-    }
+    };
     s[start + 1..end]
         .split(',')
         .map(|item| parse_toml_string(item.trim()))
@@ -1105,6 +1163,69 @@ mod tests {
         let config = load_config(tmp.path());
         assert!(config.exclude_dirs.is_empty());
         assert_eq!(config.specs_dir, "specs");
+    }
+
+    #[test]
+    fn test_load_config_toml_multiline_array_bracket_in_item() {
+        // Regression: a `]` INSIDE a quoted item (glob char-class, bracketed
+        // heading, or a literal `]`) must NOT falsely close a multi-line array.
+        // This is the exact parity gap that dropped entries and fed migrate a
+        // corrupted config.
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "specs_dir = \"specs\"\n\
+             exclude_patterns = [\n  \"**/[abc]/**\",\n  \"src/[0-9]*.rs\",\n  \"keep\",\n]\n\
+             required_sections = [\n  \"[Optional] Notes\",\n  \"API\",\n]\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert_eq!(
+            config.exclude_patterns,
+            vec!["**/[abc]/**", "src/[0-9]*.rs", "keep"]
+        );
+        assert_eq!(config.required_sections, vec!["[Optional] Notes", "API"]);
+        // Parity: the single-line form yields the same result.
+        assert_eq!(
+            parse_toml_string_array("[\"**/[abc]/**\", \"src/[0-9]*.rs\", \"keep\"]"),
+            vec!["**/[abc]/**", "src/[0-9]*.rs", "keep"]
+        );
+    }
+
+    #[test]
+    fn test_load_config_toml_unterminated_array_bounds_damage() {
+        // A malformed (unterminated) multi-line array must NOT swallow the
+        // following keys — only its own key is affected.
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "source_dirs = [\n  \"src\",\n  \"lib\"\nspecs_dir = \"myspecs\"\nexclude_dirs = [\"target\"]\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        // The key AFTER the unterminated array still parses correctly.
+        assert_eq!(config.specs_dir, "myspecs");
+        assert_eq!(config.exclude_dirs, vec!["target"]);
+    }
+
+    #[test]
+    fn test_find_toml_array_close_quote_aware() {
+        // Close is the bracket that balances the first `[`, ignoring quoted `]`.
+        assert_eq!(find_toml_array_close("[\"a\"]"), Some(4));
+        assert_eq!(find_toml_array_close("[\"a]b\", \"c\"]"), Some(11));
+        assert_eq!(find_toml_array_close("[\"a\","), None); // unterminated
+        assert_eq!(find_toml_array_close("[\"a\\\"]\"]"), Some(7)); // escaped quote
+        assert_eq!(find_toml_array_close("no brackets"), None);
+    }
+
+    #[test]
+    fn test_parse_toml_string_array_escaped_quote() {
+        // An escaped quote inside a basic string must not toggle string state and
+        // false-detect the closing bracket.
+        assert_eq!(
+            parse_toml_string_array("[\"a\\\"]b\", \"c\"]"),
+            vec!["a\\\"]b", "c"]
+        );
     }
 
     #[test]

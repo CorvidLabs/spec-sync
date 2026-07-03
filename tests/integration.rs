@@ -6121,3 +6121,46 @@ fn deps_strict_passes_when_dependency_is_declared() {
         .assert()
         .success();
 }
+
+// ─── config: multi-line TOML arrays are not corrupted ────────────────────
+
+#[test]
+fn migrate_preserves_multiline_toml_array_config() {
+    // Regression (data loss): a formatter-style multi-line array in a legacy
+    // `.specsync.toml` used to parse as `["["]`, and `migrate` (which reads then
+    // rewrites the config) would persist that corruption — silently discarding the
+    // user's real source_dirs/exclude_patterns.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("lib")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+    fs::write(root.join("lib/b.ts"), "export function b() {}\n").unwrap();
+    fs::write(
+        root.join(".specsync.toml"),
+        "specs_dir = \"specs\"\n\
+         source_dirs = [\n  \"src\",\n  \"lib\",\n]\n\
+         exclude_patterns = [\n  \"**/*.test.ts\",\n]\n",
+    )
+    .unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["migrate", "--no-backup"])
+        .assert()
+        .success();
+
+    let migrated = fs::read_to_string(root.join(".specsync/config.toml")).unwrap();
+    assert!(
+        migrated.contains("\"src\"") && migrated.contains("\"lib\""),
+        "both source dirs must survive migration:\n{migrated}"
+    );
+    assert!(
+        !migrated.contains("[\"[\""),
+        "config must not be corrupted to a bogus '[' entry:\n{migrated}"
+    );
+    assert!(
+        migrated.contains("**/*.test.ts"),
+        "exclude_patterns must survive migration:\n{migrated}"
+    );
+}

@@ -186,6 +186,12 @@ const CLAUDE_CODE_HOOK_SETTINGS: &str = r#"{
   }
 }"#;
 
+/// The exact hook command installed into `.claude/settings.json`. Used as the
+/// install / is-installed marker: a precise match, so merely referencing specsync
+/// elsewhere (e.g. `Bash(specsync:*)` in `permissions`) is NOT mistaken for an
+/// installed hook. Must stay in sync with the command in CLAUDE_CODE_HOOK_SETTINGS.
+const CLAUDE_CODE_HOOK_MARKER: &str = "specsync check --json 2>/dev/null | head -1 || true";
+
 /// All hook targets that can be installed.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(dead_code)]
@@ -289,7 +295,7 @@ pub fn is_installed(root: &Path, target: HookTarget) -> bool {
             let path = root.join(".claude").join("settings.json");
             path.exists()
                 && fs::read_to_string(&path)
-                    .map(|c| c.contains("specsync check"))
+                    .map(|c| c.contains(CLAUDE_CODE_HOOK_MARKER))
                     .unwrap_or(false)
         }
     }
@@ -487,7 +493,11 @@ fn install_claude_code_hook(root: &Path) -> Result<bool, String> {
         let existing = fs::read_to_string(&path)
             .map_err(|e| format!("Failed to read .claude/settings.json: {e}"))?;
 
-        if existing.contains("specsync") {
+        // Precise marker (the full hook command), not a bare "specsync" substring —
+        // otherwise a user who merely allows `Bash(specsync:*)` in `permissions`, or
+        // references specsync anywhere else, is wrongly treated as already-installed
+        // and never gets the hook.
+        if existing.contains(CLAUDE_CODE_HOOK_MARKER) {
             return Ok(false);
         }
 
@@ -948,11 +958,22 @@ mod tests {
 
     #[test]
     fn is_installed_claude_code_hook_detects_marker() {
+        // The fixture must contain the ACTUAL installed hook command; is_installed
+        // matches the precise marker so an unrelated `specsync check` reference is
+        // not mistaken for an installed hook.
         let tmp = setup();
         let claude_dir = tmp.path().join(".claude");
         fs::create_dir_all(&claude_dir).unwrap();
-        fs::write(claude_dir.join("settings.json"), r#"{"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"specsync check"}]}]}}"#).unwrap();
+        fs::write(claude_dir.join("settings.json"), CLAUDE_CODE_HOOK_SETTINGS).unwrap();
         assert!(is_installed(tmp.path(), HookTarget::ClaudeCodeHook));
+
+        // A settings.json that references specsync only loosely is NOT "installed".
+        fs::write(
+            claude_dir.join("settings.json"),
+            r#"{"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"specsync check"}]}]}}"#,
+        )
+        .unwrap();
+        assert!(!is_installed(tmp.path(), HookTarget::ClaudeCodeHook));
     }
 
     // ── install_hook ───────────────────────────────────────────────
@@ -1136,6 +1157,39 @@ mod tests {
                 .contains("specsync check"),
             "specsync group appended, not replacing the user's"
         );
+    }
+
+    #[test]
+    fn install_claude_code_hook_not_skipped_by_specsync_permission() {
+        // The install guard must match the actual hook command, not a bare
+        // "specsync" substring — a user who merely allows `Bash(specsync:*)` must
+        // still get the hook installed (previously this was a silent no-op).
+        let tmp = setup();
+        let claude_dir = tmp.path().join(".claude");
+        fs::create_dir_all(&claude_dir).unwrap();
+        fs::write(
+            claude_dir.join("settings.json"),
+            r#"{ "permissions": { "allow": ["Bash(specsync:*)"] } }"#,
+        )
+        .unwrap();
+
+        assert!(
+            install_hook(tmp.path(), HookTarget::ClaudeCodeHook).unwrap(),
+            "install must proceed, not skip as already-installed"
+        );
+        let parsed: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(claude_dir.join("settings.json")).unwrap())
+                .unwrap();
+        assert_eq!(parsed["permissions"]["allow"][0], "Bash(specsync:*)");
+        assert!(
+            parsed["hooks"]["PostToolUse"][0]["hooks"][0]["command"]
+                .as_str()
+                .unwrap()
+                .contains("specsync check"),
+            "the hook must actually be installed"
+        );
+        // And now it IS idempotent (marker present).
+        assert!(!install_hook(tmp.path(), HookTarget::ClaudeCodeHook).unwrap());
     }
 
     #[test]

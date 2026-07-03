@@ -6243,6 +6243,87 @@ fn migrate_preserves_multiline_toml_array_config() {
     );
 }
 
+#[test]
+fn migrate_preserves_parse_mode_and_modules() {
+    // Regression (#2, data loss): config_to_toml used to silently drop parseMode
+    // and modules, so migrating a 3.x project lost them. They must survive.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        r#"{
+  "specsDir": "specs",
+  "sourceDirs": ["src"],
+  "parseMode": "ast",
+  "modules": {
+    "core": { "files": ["src/a.ts"], "dependsOn": ["util"] },
+    "util": { "files": ["src/u.ts"] }
+  }
+}
+"#,
+    )
+    .unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["migrate", "--no-backup"])
+        .assert()
+        .success();
+
+    let migrated = fs::read_to_string(root.join(".specsync/config.toml")).unwrap();
+    assert!(
+        migrated.contains("parse_mode = \"ast\""),
+        "parse_mode must survive migration:\n{migrated}"
+    );
+    assert!(
+        migrated.contains("[modules.\"core\"]") && migrated.contains("[modules.\"util\"]"),
+        "module definitions must survive migration:\n{migrated}"
+    );
+    assert!(
+        migrated.contains("depends_on = [\"util\"]"),
+        "module depends_on must survive migration:\n{migrated}"
+    );
+}
+
+#[test]
+fn migrate_refuses_config_with_custom_rules() {
+    // Regression (#2, data loss): customRules cannot be represented in config.toml,
+    // so migrate must REFUSE (exit 1) and leave specsync.json intact rather than
+    // silently drop a security rule and delete the source.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+    let original = r#"{
+  "specsDir": "specs",
+  "sourceDirs": ["src"],
+  "customRules": [
+    { "name": "threat-model", "type": "require_section", "section": "Threat Model", "severity": "error" }
+  ]
+}
+"#;
+    fs::write(root.join("specsync.json"), original).unwrap();
+
+    specsync()
+        .current_dir(root)
+        .arg("migrate")
+        .assert()
+        .failure();
+
+    // The original config is preserved byte-for-byte and no lossy TOML was written.
+    assert_eq!(
+        fs::read_to_string(root.join("specsync.json")).unwrap(),
+        original,
+        "specsync.json must be preserved unchanged"
+    );
+    assert!(
+        !root.join(".specsync/config.toml").exists(),
+        "no lossy config.toml should be written on refusal"
+    );
+}
+
 // ─── hooks install: claude-code-hook must not clobber user settings ──────
 
 #[test]

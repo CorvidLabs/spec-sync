@@ -901,6 +901,33 @@ fn preflight_config_parseable(root: &Path) -> Result<(), (String, String)> {
     Ok(())
 }
 
+/// Refuse to convert a config whose contents `config_to_toml` cannot faithfully
+/// represent (e.g. `customRules`). Otherwise those fields would be silently
+/// dropped on JSON→TOML conversion and the original deleted — silent, unrecoverable
+/// loss of (often security-relevant) config reported as success. Returns
+/// `Err((relative_name, lossy_field_names))` when the source config uses such a
+/// field. Runs before any mutation, so a refusal leaves the project untouched.
+fn preflight_config_lossless(root: &Path) -> Result<(), (String, Vec<String>)> {
+    let Some(source) = config_source_to_validate(root) else {
+        return Ok(());
+    };
+    let name = source
+        .strip_prefix(root)
+        .unwrap_or(&source)
+        .display()
+        .to_string();
+    // Load exactly as `apply_relocate_config` does, then ask which fields would be
+    // lost. (This is only reached for a parseable source — the parseability
+    // preflight ran first.)
+    let config = config::load_config_from_path(&source, root);
+    let lossy = config::config_to_toml_lossy_fields(&config);
+    if lossy.is_empty() {
+        Ok(())
+    } else {
+        Err((name, lossy.into_iter().map(String::from).collect()))
+    }
+}
+
 // ─── Main command ───────────────────────────────────────────────────────────
 
 pub fn cmd_migrate(root: &Path, format: OutputFormat, dry_run: bool, no_backup: bool) {
@@ -970,6 +997,39 @@ pub fn cmd_migrate(root: &Path, format: OutputFormat, dry_run: bool, no_backup: 
                 eprintln!(
                     "  Fix the config file and re-run {}. Your original file was not modified.",
                     "specsync migrate".cyan()
+                );
+            }
+        }
+        process::exit(1);
+    }
+
+    // Refuse to convert a config that uses fields config.toml cannot yet represent
+    // (e.g. customRules). Silently dropping them and deleting the source would be
+    // unrecoverable loss of security-relevant config. Runs before any mutation, so
+    // the project is left byte-for-byte unchanged; the user keeps the working
+    // JSON config.
+    if let Err((name, fields)) = preflight_config_lossless(root) {
+        let field_list = fields.join(", ");
+        match format {
+            OutputFormat::Json => {
+                let output = serde_json::json!({
+                    "status": "error",
+                    "error": format!("Migrating {name} would drop unsupported field(s): {field_list}"),
+                    "unsupported_fields": fields,
+                    "hint": "config.toml cannot yet represent these fields. Your original file was not modified — keep using it, or remove these fields before migrating.",
+                });
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            }
+            _ => {
+                eprintln!(
+                    "{} Cannot migrate {} without losing data: {} cannot be represented in config.toml yet.",
+                    "✗".red(),
+                    name.cyan(),
+                    field_list.cyan()
+                );
+                eprintln!(
+                    "  Your original file was NOT modified. Keep using it, or remove {} before migrating.",
+                    field_list.cyan()
                 );
             }
         }

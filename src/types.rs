@@ -133,6 +133,10 @@ impl AiProvider {
             "mistral" => Some(AiProvider::Mistral),
             "xai" | "grok" | "x-ai" => Some(AiProvider::XAi),
             "together" | "together-ai" => Some(AiProvider::Together),
+            // `Custom` must round-trip: config_to_toml writes `ai_provider = "custom"`
+            // (via Display), so the reader must map it back rather than dropping it to
+            // None on migrate. (Custom still needs SPECSYNC_AI_COMMAND to function.)
+            "custom" => Some(AiProvider::Custom),
             _ => None,
         }
     }
@@ -541,7 +545,7 @@ pub struct CompanionConfig {
 }
 
 /// Lifecycle configuration for transition guards and history tracking.
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleConfig {
     /// Transition guard rules keyed by "from→to" (e.g. "review→active").
@@ -562,6 +566,23 @@ pub struct LifecycleConfig {
     /// Empty means no restriction.
     #[serde(default)]
     pub allowed_statuses: Vec<String>,
+}
+
+// `track_history` defaults to `true` when absent (the documented default and the
+// `#[serde(default = "default_true")]` behavior). The derived `Default` would make
+// it `false`, which desyncs the hand-rolled TOML reader (it starts from
+// `SpecSyncConfig::default()`) from serde: an omitted `track_history` in config.toml
+// would silently load as `false`, dropping a user's enabled history tracking on
+// migrate. This manual impl keeps every default path consistent with serde.
+impl Default for LifecycleConfig {
+    fn default() -> Self {
+        Self {
+            guards: std::collections::HashMap::new(),
+            track_history: true,
+            max_age: std::collections::HashMap::new(),
+            allowed_statuses: Vec::new(),
+        }
+    }
 }
 
 /// A transition guard — conditions that must be satisfied before a lifecycle
@@ -694,7 +715,7 @@ pub struct RuleFilter {
 }
 
 /// A user-defined module grouping in specsync.json.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub struct ModuleDefinition {

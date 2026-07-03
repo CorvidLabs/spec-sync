@@ -6243,6 +6243,158 @@ fn migrate_preserves_multiline_toml_array_config() {
     );
 }
 
+#[test]
+fn migrate_preserves_parse_mode_and_modules() {
+    // Regression (#2, data loss): config_to_toml used to silently drop parseMode
+    // and modules, so migrating a 3.x project lost them. They must survive.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        r#"{
+  "specsDir": "specs",
+  "sourceDirs": ["src"],
+  "parseMode": "ast",
+  "modules": {
+    "core": { "files": ["src/a.ts"], "dependsOn": ["util"] },
+    "util": { "files": ["src/u.ts"] }
+  }
+}
+"#,
+    )
+    .unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["migrate", "--no-backup"])
+        .assert()
+        .success();
+
+    let migrated = fs::read_to_string(root.join(".specsync/config.toml")).unwrap();
+    assert!(
+        migrated.contains("parse_mode = \"ast\""),
+        "parse_mode must survive migration:\n{migrated}"
+    );
+    assert!(
+        migrated.contains("[modules.\"core\"]") && migrated.contains("[modules.\"util\"]"),
+        "module definitions must survive migration:\n{migrated}"
+    );
+    assert!(
+        migrated.contains("depends_on = [\"util\"]"),
+        "module depends_on must survive migration:\n{migrated}"
+    );
+}
+
+#[test]
+fn migrate_refuses_config_with_custom_rules() {
+    // Regression (#2, data loss): customRules cannot be represented in config.toml,
+    // so migrate must REFUSE (exit 1) and leave specsync.json intact rather than
+    // silently drop a security rule and delete the source.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+    let original = r#"{
+  "specsDir": "specs",
+  "sourceDirs": ["src"],
+  "customRules": [
+    { "name": "threat-model", "type": "require_section", "section": "Threat Model", "severity": "error" }
+  ]
+}
+"#;
+    fs::write(root.join("specsync.json"), original).unwrap();
+
+    specsync()
+        .current_dir(root)
+        .arg("migrate")
+        .assert()
+        .failure();
+
+    // The original config is preserved byte-for-byte and no lossy TOML was written.
+    assert_eq!(
+        fs::read_to_string(root.join("specsync.json")).unwrap(),
+        original,
+        "specsync.json must be preserved unchanged"
+    );
+    assert!(
+        !root.join(".specsync/config.toml").exists(),
+        "no lossy config.toml should be written on refusal"
+    );
+}
+
+#[test]
+fn migrate_refuses_custom_rules_in_coexisting_v4_json() {
+    // Regression (#2 review): migrate converts one source but DELETES the other
+    // legacy configs unconverted. A higher-precedence .specsync/config.json with
+    // customRules (alongside a clean root specsync.json) must still be caught — it
+    // is the runtime-active config and would otherwise be silently destroyed.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+    let root_json =
+        "{ \"specsDir\": \"specs\", \"sourceDirs\": [\"src\"], \"enforcement\": \"warn\" }\n";
+    let v4_json = "{ \"specsDir\": \"specs\", \"sourceDirs\": [\"src\"], \"enforcement\": \"strict\", \"customRules\": [ { \"name\": \"threat-model\", \"type\": \"require_section\", \"section\": \"Threat Model\", \"severity\": \"error\" } ] }\n";
+    fs::write(root.join("specsync.json"), root_json).unwrap();
+    fs::write(root.join(".specsync/config.json"), v4_json).unwrap();
+
+    specsync()
+        .current_dir(root)
+        .arg("migrate")
+        .assert()
+        .failure();
+
+    // Both source configs preserved; no lossy config.toml written.
+    assert_eq!(
+        fs::read_to_string(root.join("specsync.json")).unwrap(),
+        root_json
+    );
+    assert_eq!(
+        fs::read_to_string(root.join(".specsync/config.json")).unwrap(),
+        v4_json
+    );
+    assert!(!root.join(".specsync/config.toml").exists());
+}
+
+#[test]
+fn migrate_preserves_explicitly_empty_arrays() {
+    // Regression (#2 re-review): an explicit requiredSections/excludeDirs/
+    // excludePatterns = [] (opting out) used to silently revert to the non-empty
+    // defaults on migrate, flipping check results. They must survive as [].
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        r#"{ "specsDir": "specs", "sourceDirs": ["src"], "requiredSections": [], "excludeDirs": [], "excludePatterns": [] }"#,
+    )
+    .unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["migrate", "--no-backup"])
+        .assert()
+        .success();
+
+    let migrated = fs::read_to_string(root.join(".specsync/config.toml")).unwrap();
+    assert!(
+        migrated.contains("required_sections = []"),
+        "explicit empty required_sections must be written, not omitted:\n{migrated}"
+    );
+    assert!(
+        migrated.contains("exclude_patterns = []"),
+        "explicit empty exclude_patterns must be written:\n{migrated}"
+    );
+    assert!(
+        migrated.contains("exclude_dirs = []"),
+        "explicit empty exclude_dirs must be written:\n{migrated}"
+    );
+}
+
 // ─── hooks install: claude-code-hook must not clobber user settings ──────
 
 #[test]

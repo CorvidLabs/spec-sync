@@ -315,6 +315,51 @@ fn toml_escape(s: &str) -> String {
         .replace('\t', "\\t")
 }
 
+/// Format a `name = ["a", "b"]` TOML array line (an empty slice → `name = []`).
+fn toml_array_line(name: &str, items: &[String]) -> String {
+    let body = items
+        .iter()
+        .map(|s| format!("\"{}\"", toml_escape(s)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{name} = [{body}]")
+}
+
+/// Inverse of `toml_escape`: decodes the backslash, double-quote, newline,
+/// carriage-return, and tab escape sequences it emits. Without this,
+/// `config_to_toml` writes a correctly-escaped basic string that the reader would
+/// load with the escapes still literal — silently changing any value containing a
+/// backslash or quote on migrate (e.g. a `schema_pattern` regex, or a Windows
+/// module path). An unrecognized escape is left byte-for-byte so a hand-written
+/// config with a stray backslash is not mangled.
+fn toml_unescape(s: &str) -> String {
+    if !s.contains('\\') {
+        return s.to_string();
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            out.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('\\') => out.push('\\'),
+            Some('"') => out.push('"'),
+            Some('n') => out.push('\n'),
+            Some('r') => out.push('\r'),
+            Some('t') => out.push('\t'),
+            // Unknown escape — preserve both characters literally.
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
 /// Serialize a SpecSyncConfig to TOML format string.
 pub fn config_to_toml(config: &SpecSyncConfig) -> String {
     let mut lines: Vec<String> = Vec::new();
@@ -350,56 +395,39 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
         ));
     }
 
-    if !config.exclude_dirs.is_empty() {
-        lines.push(format!(
-            "exclude_dirs = [{}]",
-            config
-                .exclude_dirs
-                .iter()
-                .map(|s| format!("\"{}\"", toml_escape(s)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
-    }
-    if !config.exclude_patterns.is_empty() {
-        lines.push(format!(
-            "exclude_patterns = [{}]",
-            config
-                .exclude_patterns
-                .iter()
-                .map(|s| format!("\"{}\"", toml_escape(s)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
-    }
+    // These three fields default to a NON-empty value in the reader
+    // (SpecSyncConfig::default), so an explicitly-empty value (a user opting out of
+    // section enforcement / test-file exclusion) must be written as `= []` — omitting
+    // it would silently restore the defaults on reload, flipping check/coverage
+    // results on migrate. So they are always emitted, empty or not.
+    lines.push(toml_array_line("exclude_dirs", &config.exclude_dirs));
+    lines.push(toml_array_line(
+        "exclude_patterns",
+        &config.exclude_patterns,
+    ));
+    // source_extensions defaults to empty, so omitting it when empty round-trips.
     if !config.source_extensions.is_empty() {
-        lines.push(format!(
-            "source_extensions = [{}]",
-            config
-                .source_extensions
-                .iter()
-                .map(|s| format!("\"{}\"", toml_escape(s)))
-                .collect::<Vec<_>>()
-                .join(", ")
+        lines.push(toml_array_line(
+            "source_extensions",
+            &config.source_extensions,
         ));
     }
 
-    if !config.required_sections.is_empty() {
-        lines.push(format!(
-            "required_sections = [{}]",
-            config
-                .required_sections
-                .iter()
-                .map(|s| format!("\"{}\"", toml_escape(s)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
-    }
+    lines.push(toml_array_line(
+        "required_sections",
+        &config.required_sections,
+    ));
 
     // Export level
     match config.export_level {
         crate::types::ExportLevel::Type => lines.push("export_level = \"type\"".to_string()),
         crate::types::ExportLevel::Member => {} // default, omit
+    }
+
+    // Parse mode (AST is opt-in; regex is the default, so omit it)
+    match config.parse_mode {
+        crate::types::ParseMode::Ast => lines.push("parse_mode = \"ast\"".to_string()),
+        crate::types::ParseMode::Regex => {} // default, omit
     }
 
     // Enforcement
@@ -557,8 +585,68 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
         lines.push("design = true".to_string());
     }
 
+    // Module definitions — one `[modules."name"]` table each. Sorted by name so the
+    // output is deterministic (HashMap order is not) for clean diffs and stable tests.
+    if !config.modules.is_empty() {
+        let mut names: Vec<&String> = config.modules.keys().collect();
+        names.sort();
+        for name in names {
+            let module = &config.modules[name];
+            // A module with no files and no deps carries no data and would not
+            // round-trip (the reader materializes a module only from a key line),
+            // so skip it to keep the writer and reader symmetric.
+            if module.files.is_empty() && module.depends_on.is_empty() {
+                continue;
+            }
+            lines.push(String::new());
+            lines.push(format!("[modules.\"{}\"]", toml_escape(name)));
+            if !module.files.is_empty() {
+                lines.push(format!(
+                    "files = [{}]",
+                    module
+                        .files
+                        .iter()
+                        .map(|s| format!("\"{}\"", toml_escape(s)))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+            if !module.depends_on.is_empty() {
+                lines.push(format!(
+                    "depends_on = [{}]",
+                    module
+                        .depends_on
+                        .iter()
+                        .map(|s| format!("\"{}\"", toml_escape(s)))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+        }
+    }
+
     lines.push(String::new()); // trailing newline
     lines.join("\n")
+}
+
+/// Config fields that `config_to_toml` cannot faithfully serialize (and that the
+/// hand-rolled TOML reader cannot parse back), so converting a config that uses
+/// them would silently drop data. `migrate` calls this to refuse rather than lose
+/// a user's config on JSON→TOML conversion.
+///
+/// Keep this in lockstep with `config_to_toml`: when a field gains real TOML
+/// round-trip support above, remove it here. `ai_api_key` is intentionally NOT
+/// listed — it is deliberately never written to disk (secrets belong in an env
+/// var) and `config_to_toml` already warns about it loudly, so it is not a silent
+/// loss.
+pub fn config_to_toml_lossy_fields(config: &SpecSyncConfig) -> Vec<&'static str> {
+    let mut fields = Vec::new();
+    if !config.custom_rules.is_empty() {
+        // `[[custom_rules]]` array-of-tables (with a nested `applies_to` filter) has
+        // no writer above and no support in the hand-rolled reader.
+        fields.push("customRules");
+    }
+    fields
 }
 
 /// Known config keys in specsync.json (camelCase).
@@ -572,6 +660,7 @@ const KNOWN_JSON_KEYS: &[&str] = &[
     "excludePatterns",
     "sourceExtensions",
     "exportLevel",
+    "parseMode",
     "modules",
     "aiProvider",
     "aiModel",
@@ -733,6 +822,10 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                         parse_toml_lifecycle_nested(s, key, value, &mut config.lifecycle);
                         continue;
                     }
+                    s if s.starts_with("modules.") => {
+                        parse_toml_modules_nested(s, key, value, &mut config.modules);
+                        continue;
+                    }
                     _ => {
                         // Unknown section — skip silently
                         continue;
@@ -775,6 +868,16 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                         }
                         _ => eprintln!(
                             "Warning: unknown export_level \"{s}\" (expected \"type\" or \"member\")"
+                        ),
+                    }
+                }
+                "parse_mode" | "parseMode" => {
+                    let s = parse_toml_string(value);
+                    match s.as_str() {
+                        "ast" => config.parse_mode = crate::types::ParseMode::Ast,
+                        "regex" => config.parse_mode = crate::types::ParseMode::Regex,
+                        _ => eprintln!(
+                            "Warning: unknown parse_mode \"{s}\" (expected \"regex\" or \"ast\")"
                         ),
                     }
                 }
@@ -826,10 +929,20 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
 ///   `"has # inside"`    →  `"has # inside"`
 fn strip_inline_comment(s: &str) -> String {
     let mut in_string = false;
+    let mut prev_backslash = false;
     for (i, c) in s.char_indices() {
+        if in_string {
+            if c == '"' && !prev_backslash {
+                in_string = false;
+            }
+            prev_backslash = c == '\\' && !prev_backslash;
+            continue;
+        }
+        prev_backslash = false;
         match c {
-            '"' => in_string = !in_string,
-            '#' if !in_string => return s[..i].trim().to_string(),
+            '"' => in_string = true,
+            // A `#` outside any string starts a comment.
+            '#' => return s[..i].trim().to_string(),
             _ => {}
         }
     }
@@ -839,7 +952,9 @@ fn strip_inline_comment(s: &str) -> String {
 fn parse_toml_string(s: &str) -> String {
     let s = s.trim();
     if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-        s[1..s.len() - 1].to_string()
+        // Quoted basic string: decode the escapes `toml_escape` emits so the value
+        // round-trips (an unquoted bare value is left as-is).
+        toml_unescape(&s[1..s.len() - 1])
     } else {
         s.to_string()
     }
@@ -894,11 +1009,45 @@ fn parse_toml_string_array(s: &str) -> Vec<String> {
     let Some(end) = find_toml_array_close(&s[start..]).map(|rel| start + rel) else {
         return vec![parse_toml_string(s)];
     };
-    s[start + 1..end]
-        .split(',')
+    // Split on commas OUTSIDE quoted strings so a quoted item containing a comma
+    // (e.g. a path or glob) is not torn into bogus entries. A bare `split(',')`
+    // would mangle `["a, b", "c"]`.
+    split_toml_array_items(&s[start + 1..end])
+        .into_iter()
         .map(|item| parse_toml_string(item.trim()))
         .filter(|item| !item.is_empty())
         .collect()
+}
+
+/// Split a TOML array body on top-level commas, skipping commas inside quoted
+/// (escape-aware) strings. Each returned segment still carries its quotes/whitespace
+/// for `parse_toml_string` to strip.
+fn split_toml_array_items(body: &str) -> Vec<String> {
+    let mut items = Vec::new();
+    let mut cur = String::new();
+    let mut in_string = false;
+    let mut prev_backslash = false;
+    for ch in body.chars() {
+        if in_string {
+            cur.push(ch);
+            if ch == '"' && !prev_backslash {
+                in_string = false;
+            }
+            prev_backslash = ch == '\\' && !prev_backslash;
+            continue;
+        }
+        prev_backslash = false;
+        match ch {
+            '"' => {
+                in_string = true;
+                cur.push(ch);
+            }
+            ',' => items.push(std::mem::take(&mut cur)),
+            _ => cur.push(ch),
+        }
+    }
+    items.push(cur);
+    items
 }
 
 /// Parse a key=value pair inside a `[rules]` TOML section.
@@ -961,6 +1110,37 @@ fn parse_toml_companions_key(
         "design" => companions.design = parse_toml_bool(value),
         _ => {
             eprintln!("Warning: unknown key \"{key}\" in [companions] section (ignored)");
+        }
+    }
+}
+
+/// Parse a key=value pair inside a `[modules."name"]` TOML section (the form
+/// `config_to_toml` writes). The module name is the quoted segment after
+/// `modules.`; a name containing `.` is preserved (the whole remainder is the key).
+fn parse_toml_modules_nested(
+    section: &str,
+    key: &str,
+    value: &str,
+    modules: &mut std::collections::HashMap<String, crate::types::ModuleDefinition>,
+) {
+    let Some(raw_name) = section.strip_prefix("modules.") else {
+        return;
+    };
+    // The name is a quoted basic string in the header (`[modules."name"]`); strip
+    // the quotes and decode escapes so a name with a quote/backslash round-trips.
+    let trimmed = raw_name.trim();
+    let inner = trimmed.strip_prefix('"').unwrap_or(trimmed);
+    let inner = inner.strip_suffix('"').unwrap_or(inner);
+    let name = toml_unescape(inner);
+    if name.is_empty() {
+        return;
+    }
+    let module = modules.entry(name).or_default();
+    match key {
+        "files" => module.files = parse_toml_string_array(value),
+        "depends_on" | "dependsOn" => module.depends_on = parse_toml_string_array(value),
+        _ => {
+            eprintln!("Warning: unknown key \"{key}\" in [modules] section (ignored)");
         }
     }
 }
@@ -1251,10 +1431,11 @@ mod tests {
     #[test]
     fn test_parse_toml_string_array_escaped_quote() {
         // An escaped quote inside a basic string must not toggle string state and
-        // false-detect the closing bracket.
+        // false-detect the closing bracket (2 items parsed), and the `\"` decodes
+        // to a literal `"` in the value (see `toml_unescape`).
         assert_eq!(
             parse_toml_string_array("[\"a\\\"]b\", \"c\"]"),
-            vec!["a\\\"]b", "c"]
+            vec!["a\"]b", "c"]
         );
     }
 
@@ -1798,5 +1979,221 @@ verify_issues = false
             toml_str.contains("design = true"),
             "should contain design = true"
         );
+    }
+
+    /// Write `config_to_toml(config)` to a temp `.specsync.toml`, load it back
+    /// through the real reader, and return the reloaded config — exercising the
+    /// full write→read round-trip.
+    fn roundtrip_toml(config: &SpecSyncConfig) -> SpecSyncConfig {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join(".specsync.toml"), config_to_toml(config)).unwrap();
+        load_config(tmp.path())
+    }
+
+    #[test]
+    fn test_lifecycle_default_track_history_is_true() {
+        // The documented default and serde default are both `true`; the Rust
+        // `Default` must agree or the TOML reader (which starts from
+        // SpecSyncConfig::default()) silently loads an omitted key as false (#10).
+        assert!(crate::types::LifecycleConfig::default().track_history);
+        assert!(SpecSyncConfig::default().lifecycle.track_history);
+    }
+
+    #[test]
+    fn test_config_to_toml_roundtrips_track_history() {
+        // true (the default) is omitted from TOML but must reload as true, not
+        // silently flip to false on migrate (#10).
+        let mut config = SpecSyncConfig::default();
+        config.lifecycle.track_history = true;
+        assert!(
+            !config_to_toml(&config).contains("track_history"),
+            "the default (true) should be omitted"
+        );
+        assert!(roundtrip_toml(&config).lifecycle.track_history);
+
+        // false is the non-default, so it is written explicitly and must reload false.
+        config.lifecycle.track_history = false;
+        assert!(config_to_toml(&config).contains("track_history = false"));
+        assert!(!roundtrip_toml(&config).lifecycle.track_history);
+    }
+
+    #[test]
+    fn test_config_to_toml_roundtrips_ai_provider_custom() {
+        // `custom` used to write `ai_provider = "custom"` but reload as None
+        // (from_str_loose had no arm) — a silent drop on migrate.
+        let mut config = SpecSyncConfig::default();
+        config.ai_provider = Some(crate::types::AiProvider::Custom);
+        assert_eq!(
+            roundtrip_toml(&config).ai_provider,
+            Some(crate::types::AiProvider::Custom)
+        );
+    }
+
+    #[test]
+    fn test_config_to_toml_roundtrips_parse_mode() {
+        let mut config = SpecSyncConfig::default();
+        config.parse_mode = crate::types::ParseMode::Ast;
+        assert!(config_to_toml(&config).contains("parse_mode = \"ast\""));
+        assert_eq!(
+            roundtrip_toml(&config).parse_mode,
+            crate::types::ParseMode::Ast
+        );
+
+        // regex is the default → omitted → reloads as regex.
+        config.parse_mode = crate::types::ParseMode::Regex;
+        assert!(!config_to_toml(&config).contains("parse_mode"));
+        assert_eq!(
+            roundtrip_toml(&config).parse_mode,
+            crate::types::ParseMode::Regex
+        );
+    }
+
+    #[test]
+    fn test_config_to_toml_roundtrips_modules() {
+        let mut config = SpecSyncConfig::default();
+        config.modules.insert(
+            "core".to_string(),
+            crate::types::ModuleDefinition {
+                files: vec!["src/a.ts".to_string(), "src/b.ts".to_string()],
+                depends_on: vec!["util".to_string()],
+            },
+        );
+        config.modules.insert(
+            "util".to_string(),
+            crate::types::ModuleDefinition {
+                files: vec!["src/u.ts".to_string()],
+                depends_on: vec![],
+            },
+        );
+
+        let toml_str = config_to_toml(&config);
+        // Deterministic (sorted) output: core before util.
+        assert!(
+            toml_str.find("[modules.\"core\"]").unwrap()
+                < toml_str.find("[modules.\"util\"]").unwrap(),
+            "modules should be emitted in sorted order"
+        );
+
+        let reloaded = roundtrip_toml(&config);
+        assert_eq!(reloaded.modules.len(), 2);
+        let core = reloaded.modules.get("core").expect("core module");
+        assert_eq!(core.files, vec!["src/a.ts", "src/b.ts"]);
+        assert_eq!(core.depends_on, vec!["util"]);
+        let util = reloaded.modules.get("util").expect("util module");
+        assert_eq!(util.files, vec!["src/u.ts"]);
+        assert!(util.depends_on.is_empty());
+    }
+
+    #[test]
+    fn test_toml_unescape_inverts_toml_escape() {
+        for original in [
+            "plain",
+            "back\\slash",
+            "quote\"inside",
+            "tab\tand\nnewline",
+            "windows\\path\\file.ts",
+            "regex \\s+ (\\w+)",
+        ] {
+            assert_eq!(
+                toml_unescape(&toml_escape(original)),
+                original,
+                "escape→unescape must round-trip: {original:?}"
+            );
+        }
+        // An unrecognized escape is preserved byte-for-byte (a hand-written config
+        // with a stray backslash must not be mangled).
+        assert_eq!(toml_unescape("C:\\Users"), "C:\\Users");
+    }
+
+    #[test]
+    fn test_config_to_toml_roundtrips_schema_pattern_regex() {
+        // A regex with backslash escapes (\s \w) used to reload with doubled
+        // backslashes — a broken/different regex silently persisted by migrate.
+        let mut config = SpecSyncConfig::default();
+        config.schema_pattern = Some(r"CREATE TABLE\s+(\w+)".to_string());
+        assert_eq!(
+            roundtrip_toml(&config).schema_pattern.as_deref(),
+            Some(r"CREATE TABLE\s+(\w+)")
+        );
+    }
+
+    #[test]
+    fn test_config_to_toml_roundtrips_module_special_chars() {
+        let mut config = SpecSyncConfig::default();
+        config.modules.insert(
+            "grp\"x".to_string(), // name with a quote
+            crate::types::ModuleDefinition {
+                // a Windows path (backslashes) and a path containing a comma
+                files: vec!["src\\win\\a.ts".to_string(), "src/b,c.ts".to_string()],
+                depends_on: vec![],
+            },
+        );
+        let reloaded = roundtrip_toml(&config);
+        let module = reloaded
+            .modules
+            .get("grp\"x")
+            .expect("module name with a quote must round-trip");
+        assert_eq!(module.files, vec!["src\\win\\a.ts", "src/b,c.ts"]);
+    }
+
+    #[test]
+    fn test_split_toml_array_items_is_quote_aware() {
+        // A comma inside a quoted item must NOT split it.
+        let items = split_toml_array_items(r#""a, b", "c""#);
+        assert_eq!(items.len(), 2);
+        assert_eq!(parse_toml_string(items[0].trim()), "a, b");
+        assert_eq!(parse_toml_string(items[1].trim()), "c");
+    }
+
+    #[test]
+    fn test_config_to_toml_roundtrips_explicitly_empty_arrays() {
+        // required_sections / exclude_dirs / exclude_patterns default to NON-empty,
+        // so an explicit [] (opting out) must survive rather than silently reverting
+        // to the defaults on migrate.
+        let mut config = SpecSyncConfig::default();
+        config.required_sections = vec![];
+        config.exclude_dirs = vec![];
+        config.exclude_patterns = vec![];
+
+        let toml_str = config_to_toml(&config);
+        assert!(toml_str.contains("required_sections = []"));
+        assert!(toml_str.contains("exclude_dirs = []"));
+        assert!(toml_str.contains("exclude_patterns = []"));
+
+        let reloaded = roundtrip_toml(&config);
+        assert!(reloaded.required_sections.is_empty(), "opted-out sections");
+        assert!(reloaded.exclude_dirs.is_empty(), "opted-out exclude_dirs");
+        assert!(
+            reloaded.exclude_patterns.is_empty(),
+            "opted-out exclude_patterns"
+        );
+    }
+
+    #[test]
+    fn test_strip_inline_comment_is_escape_aware() {
+        // An escaped quote must not toggle string state and let a later `#`
+        // truncate the value.
+        assert_eq!(strip_inline_comment(r#""a\"b#c""#), r#""a\"b#c""#);
+        // A real comment after a closed string is still stripped.
+        assert_eq!(strip_inline_comment(r#""ollama" # local"#), r#""ollama""#);
+    }
+
+    #[test]
+    fn test_config_to_toml_lossy_fields_flags_custom_rules() {
+        // A config without unsupported fields is losslessly convertible.
+        assert!(config_to_toml_lossy_fields(&SpecSyncConfig::default()).is_empty());
+
+        // customRules cannot be represented in config.toml yet, so it must be
+        // flagged (migrate refuses rather than silently dropping it).
+        let config: SpecSyncConfig = serde_json::from_str(
+            r#"{
+                "customRules": [
+                    { "name": "threat-model", "type": "require_section",
+                      "section": "Threat Model", "severity": "error" }
+                ]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(config_to_toml_lossy_fields(&config), vec!["customRules"]);
     }
 }

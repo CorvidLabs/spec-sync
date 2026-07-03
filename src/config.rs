@@ -867,10 +867,16 @@ fn parse_toml_companions_key(
 }
 
 /// Parse a key=value pair inside a `[lifecycle]` TOML section.
+///
+/// Accepts both snake_case (what `init`/`config_to_toml` write) and the camelCase
+/// form documented in `--help` and the README's JSON example, so a config written
+/// either way is honored rather than silently ignored.
 fn parse_toml_lifecycle_key(key: &str, value: &str, lc: &mut crate::types::LifecycleConfig) {
     match key {
-        "track_history" => lc.track_history = parse_toml_bool(value),
-        "allowed_statuses" => lc.allowed_statuses = parse_toml_string_array(value),
+        "track_history" | "trackHistory" => lc.track_history = parse_toml_bool(value),
+        "allowed_statuses" | "allowedStatuses" => {
+            lc.allowed_statuses = parse_toml_string_array(value)
+        }
         _ => {
             eprintln!("Warning: unknown key \"{key}\" in [lifecycle] section (ignored)");
         }
@@ -878,14 +884,16 @@ fn parse_toml_lifecycle_key(key: &str, value: &str, lc: &mut crate::types::Lifec
 }
 
 /// Parse a key=value pair inside nested lifecycle sections like `[lifecycle.max_age]`
-/// or `[lifecycle.guards."review→active"]`.
+/// or `[lifecycle.guards."review→active"]`. Accepts the documented camelCase section
+/// and key names as aliases for their snake_case equivalents.
 fn parse_toml_lifecycle_nested(
     section: &str,
     key: &str,
     value: &str,
     lc: &mut crate::types::LifecycleConfig,
 ) {
-    if section == "lifecycle.max_age" {
+    if section == "lifecycle.max_age" || section == "lifecycle.maxAge" {
+        // Keys here are status names (e.g. "draft"), so they are NOT normalized.
         if let Ok(days) = value.trim().parse::<u64>() {
             lc.max_age.insert(key.to_string(), days);
         }
@@ -894,14 +902,16 @@ fn parse_toml_lifecycle_nested(
         let name = guard_name.trim_matches('"').to_string();
         let guard = lc.guards.entry(name).or_default();
         match key {
-            "min_score" => {
+            "min_score" | "minScore" => {
                 if let Ok(n) = value.trim().parse::<u32>() {
                     guard.min_score = Some(n);
                 }
             }
-            "require_sections" => guard.require_sections = parse_toml_string_array(value),
-            "no_stale" => guard.no_stale = Some(parse_toml_bool(value)),
-            "stale_threshold" => {
+            "require_sections" | "requireSections" => {
+                guard.require_sections = parse_toml_string_array(value)
+            }
+            "no_stale" | "noStale" => guard.no_stale = Some(parse_toml_bool(value)),
+            "stale_threshold" | "staleThreshold" => {
                 if let Ok(n) = value.trim().parse::<usize>() {
                     guard.stale_threshold = Some(n);
                 }
@@ -911,6 +921,10 @@ fn parse_toml_lifecycle_nested(
                 eprintln!("Warning: unknown key \"{key}\" in [lifecycle.guards] section (ignored)");
             }
         }
+    } else {
+        // An unknown lifecycle subsection (e.g. a typo'd `[lifecycle.maxAgee]`) would
+        // otherwise be silently dropped — warn so a mis-scoped gate isn't a no-op.
+        eprintln!("Warning: unknown lifecycle section \"[{section}]\" (ignored)");
     }
 }
 
@@ -1016,6 +1030,42 @@ mod tests {
         let config = load_config(tmp.path());
         assert_eq!(config.specs_dir, "my-specs");
         assert_eq!(config.source_dirs, vec!["lib", "app"]);
+    }
+
+    #[test]
+    fn test_load_config_toml_lifecycle_camelcase_aliases() {
+        // camelCase keys are what `--help` and the README JSON example document;
+        // the TOML reader must honor them, not silently drop them (finding C3).
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "source_dirs = [\"src\"]\n\
+             [lifecycle]\n\
+             allowedStatuses = [\"draft\", \"active\"]\n\
+             [lifecycle.maxAge]\n\
+             draft = 30\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert_eq!(config.lifecycle.max_age.get("draft"), Some(&30));
+        assert_eq!(config.lifecycle.allowed_statuses, vec!["draft", "active"]);
+    }
+
+    #[test]
+    fn test_load_config_toml_lifecycle_snake_case_still_works() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "source_dirs = [\"src\"]\n\
+             [lifecycle]\n\
+             allowed_statuses = [\"draft\"]\n\
+             [lifecycle.max_age]\n\
+             review = 14\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert_eq!(config.lifecycle.max_age.get("review"), Some(&14));
+        assert_eq!(config.lifecycle.allowed_statuses, vec!["draft"]);
     }
 
     #[test]

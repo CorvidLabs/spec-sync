@@ -2,9 +2,12 @@ use regex::Regex;
 use std::sync::LazyLock;
 
 /// Go exports: func Name, type Name, var Name, const Name
-/// In Go, anything starting with uppercase is exported.
+/// In Go, anything starting with uppercase is exported. The optional receiver group
+/// uses `[^)\n]*` (not `[^)]*`) so it cannot span newlines: on a grouped `type (`
+/// opener line it must not leap across the block body to the first interior `)` and
+/// capture a struct field / interface method as a phantom top-level export.
 static GO_DECL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^(?:func|type|var|const)\s+(?:\([^)]*\)\s+)?([A-Z]\w*)").unwrap()
+    Regex::new(r"(?m)^(?:func|type|var|const)\s+(?:\([^)\n]*\)\s+)?([A-Z]\w*)").unwrap()
 });
 
 /// Go method: func (receiver) Name(...)
@@ -678,5 +681,30 @@ const (
                 "missing {name}: {symbols:?}"
             );
         }
+    }
+
+    #[test]
+    fn test_go_grouped_type_field_with_parens_not_leaked() {
+        // GO_DECL's receiver group must not span newlines from a grouped `type (`
+        // opener into the block body and capture a struct field (esp. one after a
+        // func-typed field with parens) as a phantom top-level export.
+        let src = "
+package m
+
+type (
+    Config struct {
+        fn     func(x int)
+        Secret string
+    }
+    Helper int
+)
+";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Config".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"Helper".to_string()));
+        assert!(
+            !symbols.contains(&"Secret".to_string()),
+            "struct field leaked"
+        );
     }
 }

@@ -66,15 +66,23 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     let mut in_group = false;
     let mut brace_depth: i32 = 0;
     let mut paren_depth: i32 = 0;
+    // Whether the previous non-empty in-group line left a statement unfinished (a
+    // value spanning lines via a trailing `.`/operator, which Go does NOT auto-
+    // terminate). A continuation line is part of the previous item's value, so its
+    // leading identifier (e.g. `WithTimeout` in `Client = New().\n WithTimeout(5)`)
+    // must NOT be captured as a new grouped item.
+    let mut prev_continues = false;
     for line in stripped.lines() {
         let bt = line.trim();
         if in_group {
             let at_base = brace_depth == 0 && paren_depth == 0;
-            if at_base && bt.starts_with(')') {
+            if at_base && !prev_continues && bt.starts_with(')') {
                 in_group = false;
+                prev_continues = false;
                 continue;
             }
             if at_base
+                && !prev_continues
                 && let Some(caps) = GO_GROUP_ITEM.captures(bt)
                 && let Some(name) = caps.get(1)
             {
@@ -93,16 +101,38 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             if paren_depth < 0 {
                 paren_depth = 0;
             }
+            if !bt.is_empty() {
+                prev_continues = go_line_continues(bt);
+            }
             continue;
         }
         if GO_GROUP_OPEN.is_match(line.trim_end()) {
             in_group = true;
             brace_depth = 0;
             paren_depth = 0;
+            prev_continues = false;
         }
     }
 
     symbols
+}
+
+/// Whether a Go line leaves the statement unfinished (no automatic semicolon). Go
+/// inserts a semicolon when a line's final token is an identifier, a literal (here a
+/// `_` placeholder stands in for every string/rune), `)`, `]`, `}`, or `++`/`--`;
+/// any other trailing token — a binary/unary operator, `.`, `,`, `(`, `{`, `[`, `=`,
+/// `:` — continues the statement onto the next line. Operates on the comment-stripped,
+/// string-blanked copy.
+fn go_line_continues(line: &str) -> bool {
+    let trimmed = line.trim_end();
+    match trimmed.chars().last() {
+        None => false,
+        Some(c) if c.is_alphanumeric() || c == '_' => false,
+        Some(')') | Some(']') | Some('}') => false,
+        Some('+') => !trimmed.ends_with("++"),
+        Some('-') => !trimmed.ends_with("--"),
+        Some(_) => true,
+    }
 }
 
 /// Strip `//` and `/* */` comments and blank the CONTENTS of string/rune literals in
@@ -143,8 +173,12 @@ fn strip_go_strings_and_comments(content: &str) -> String {
             }
             continue;
         }
-        // Interpreted string literal `"..."` (with `\` escapes).
+        // Interpreted string literal `"..."` (with `\` escapes). Emit a single `_`
+        // placeholder so the literal still reads as a statement-ending token (so a
+        // value that is just a string, `X = "y"`, is not mistaken for an unfinished
+        // statement by `go_line_continues`); its contents/delimiters are dropped.
         if c == '"' {
+            out.push('_');
             i += 1;
             while i < n {
                 if chars[i] == '\\' {
@@ -167,6 +201,7 @@ fn strip_go_strings_and_comments(content: &str) -> String {
         }
         // Raw string literal `` `...` `` (no escapes; may span multiple lines).
         if c == '`' {
+            out.push('_');
             i += 1;
             while i < n && chars[i] != '`' {
                 if chars[i] == '\n' {
@@ -181,6 +216,7 @@ fn strip_go_strings_and_comments(content: &str) -> String {
         }
         // Rune literal `'...'` (with `\` escapes).
         if c == '\'' {
+            out.push('_');
             i += 1;
             while i < n {
                 if chars[i] == '\\' {
@@ -580,5 +616,67 @@ const TopLevel = 1
             !symbols.contains(&"Buffer".to_string()),
             "function-local var"
         );
+    }
+
+    #[test]
+    fn test_go_grouped_multiline_value_continuation_not_captured() {
+        // A grouped item whose value spans lines via a trailing `.` (builder chain)
+        // or a trailing binary operator must not have its continuation line captured
+        // as a phantom export.
+        let src = "
+package m
+
+var (
+    Client = New().
+        WithTimeout(5)
+    Ready = true
+)
+
+const (
+    Path = Base +
+        Suffix
+    Other = 1
+)
+";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Client".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"Ready".to_string()), "item after a chain");
+        assert!(symbols.contains(&"Path".to_string()));
+        assert!(
+            symbols.contains(&"Other".to_string()),
+            "item after an operator"
+        );
+        // Continuation lines are value fragments, not declarations.
+        assert!(
+            !symbols.contains(&"WithTimeout".to_string()),
+            "method call in a builder chain"
+        );
+        assert!(
+            !symbols.contains(&"Suffix".to_string()),
+            "operand of a continued expression"
+        );
+    }
+
+    #[test]
+    fn test_go_grouped_string_value_does_not_swallow_next_item() {
+        // A value that is just a string literal must still read as a completed
+        // statement (via the `_` placeholder), so the following item is captured.
+        let src = "
+package m
+
+const (
+    Name = \"hello\"
+    Next = 2
+    Tmpl = `raw`
+    Last = 3
+)
+";
+        let symbols = extract_exports(src);
+        for name in ["Name", "Next", "Tmpl", "Last"] {
+            assert!(
+                symbols.contains(&name.to_string()),
+                "missing {name}: {symbols:?}"
+            );
+        }
     }
 }

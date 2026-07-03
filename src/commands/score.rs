@@ -24,18 +24,22 @@ pub fn cmd_score(
 ) {
     let json = matches!(format, types::OutputFormat::Json);
     // The global `--strict` / `--enforcement` / `--require-coverage` flags are
-    // gates. `score` must honor them (they were previously silent no-ops here):
-    // when one is set, don't take load_and_discover's no-spec early-exit —
-    // otherwise `score --require-coverage 100` on a spec-less project would
-    // bypass the gate exactly like the `check` no-spec bug did.
-    let gate_requested = strict || enforcement.is_some() || require_coverage.is_some();
-    let (config, all_spec_files) = load_and_discover(root, gate_requested);
-    // CLI --enforcement overrides config; --strict implies strict enforcement.
-    let enforcement = enforcement.unwrap_or(if strict {
-        types::EnforcementMode::Strict
-    } else {
-        config.enforcement
+    // gates, and so is a project's configured `enforcement`. `score` must honor
+    // all of them: when a gate could fire, don't take load_and_discover's no-spec
+    // early-exit — otherwise a spec-less project bypasses the gate (exit 0) exactly
+    // like the `check` no-spec bug did. Resolve the effective enforcement up-front
+    // (peeking the config only when no CLI flag decides it) so a CONFIG-only
+    // enforce-new/strict gate is covered too, not just the CLI flags.
+    let enforcement = enforcement.unwrap_or_else(|| {
+        if strict {
+            types::EnforcementMode::Strict
+        } else {
+            crate::config::load_config(root).enforcement
+        }
     });
+    let gate_requested =
+        require_coverage.is_some() || !matches!(enforcement, types::EnforcementMode::Warn);
+    let (config, all_spec_files) = load_and_discover(root, gate_requested);
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
     let spec_files = filter_by_status(&spec_files, exclude_status, only_status);
     let scores: Vec<scoring::SpecScore> = spec_files

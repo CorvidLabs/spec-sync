@@ -5,7 +5,9 @@ use crate::output::{print_coverage_line, print_coverage_report, print_summary};
 use crate::types;
 use crate::validator::{compute_coverage, get_schema_table_names};
 
-use super::{build_schema_columns, exit_with_status, load_and_discover, run_validation};
+use super::{
+    build_schema_columns, compute_exit_code, exit_with_status, load_and_discover, run_validation,
+};
 
 pub fn cmd_coverage(
     root: &Path,
@@ -15,7 +17,12 @@ pub fn cmd_coverage(
     format: types::OutputFormat,
 ) {
     let json = matches!(format, types::OutputFormat::Json);
-    let (config, spec_files) = load_and_discover(root, false);
+    // `coverage` is a gate/report command: it must evaluate the requested gate
+    // even on a project with source but NO specs (0% coverage). Passing
+    // allow_empty=true stops load_and_discover from taking its no-spec early-exit
+    // (which returned exit 0 and bypassed --require-coverage/--enforcement/--strict
+    // and any config enforcement — finding M1).
+    let (config, spec_files) = load_and_discover(root, true);
     let enforcement = enforcement.unwrap_or(if strict {
         types::EnforcementMode::Strict
     } else {
@@ -72,7 +79,17 @@ pub fn cmd_coverage(
             "uncovered_files": uncovered_files,
         });
         println!("{}", serde_json::to_string_pretty(&output).unwrap());
-        process::exit(0);
+        // Gate the exit code for machine consumers too (was an unconditional
+        // exit 0, so `coverage --format json --require-coverage N` never failed —
+        // finding M1). compute_exit_code prints nothing, so stdout stays valid JSON.
+        process::exit(compute_exit_code(
+            total_errors,
+            total_warnings,
+            strict,
+            enforcement,
+            &coverage,
+            require_coverage,
+        ));
     }
 
     print_coverage_report(&coverage);

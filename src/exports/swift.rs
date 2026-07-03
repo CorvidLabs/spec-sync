@@ -7,11 +7,13 @@ static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?
 
 /// Swift public/open declarations:
 /// public/open func, class, struct, enum, protocol, typealias, var, let, actor.
-/// The modifier group allows any run of `final`/`static`/`class` between the access
-/// keyword and the declaration keyword (finding #4: `public final class` was missed).
+/// The modifier group allows any run of the common member modifiers between the
+/// access keyword and the declaration keyword (finding #4: `public final class` was
+/// missed — as were the even more common `public override func` / `public mutating
+/// func` / `public lazy var` / `public weak var`).
 static SWIFT_DECL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)(?:public|open)\s+(?:(?:final|static|class)\s+)*(?:func|class|struct|enum|protocol|typealias|var|let|actor|init)\s+(\w+)",
+        r"(?m)(?:public|open)\s+(?:(?:final|static|class|override|mutating|nonmutating|lazy|weak|unowned|dynamic|nonisolated)\s+)*(?:func|class|struct|enum|protocol|typealias|var|let|actor|init)\s+(\w+)",
     )
     .unwrap()
 });
@@ -132,5 +134,36 @@ public class RegularClass {}
             symbols.contains(&"RegularClass".to_string()),
             "plain public class still works"
         );
+    }
+
+    #[test]
+    fn test_swift_common_member_modifiers_exported() {
+        // The common member modifiers between the access keyword and the declaration
+        // keyword must not hide the export (override/mutating are more common than
+        // `final func`).
+        let src = r#"
+public override func recompute() -> Int {}
+public mutating func append(_ x: Int) {}
+public lazy var cache = Cache()
+public weak var delegate: Foo?
+open dynamic func draw() {}
+public final override func layout() {}
+public nonisolated func now() -> Date {}
+"#;
+        let symbols = extract_exports(src);
+        for name in [
+            "recompute",
+            "append",
+            "cache",
+            "delegate",
+            "draw",
+            "layout",
+            "now",
+        ] {
+            assert!(
+                symbols.contains(&name.to_string()),
+                "missing {name}: {symbols:?}"
+            );
+        }
     }
 }

@@ -58,6 +58,11 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     // scan runs on the comment-stripped, string-blanked copy, so a `{`/`}`/`(`/`)`
     // inside a value (`X = "{"`, a struct tag, a multi-line backtick template) or a
     // comment never corrupts the depths.
+    //
+    // The group-open is matched on the UN-trimmed line, so it fires only at column 0
+    // — i.e. package-level blocks (where gofmt always puts them). A function-local,
+    // indented `const (` / `var (` / `type (` is NOT a package export and must be
+    // ignored, matching the column-0-anchored GO_DECL/GO_METHOD above.
     let mut in_group = false;
     let mut brace_depth: i32 = 0;
     let mut paren_depth: i32 = 0;
@@ -90,7 +95,7 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             }
             continue;
         }
-        if GO_GROUP_OPEN.is_match(bt) {
+        if GO_GROUP_OPEN.is_match(line.trim_end()) {
             in_group = true;
             brace_depth = 0;
             paren_depth = 0;
@@ -537,5 +542,43 @@ type (
         // The `}` in a comment must not leak a struct field as an export.
         assert!(!symbols.contains(&"A".to_string()), "struct field");
         assert!(!symbols.contains(&"Bfield".to_string()), "struct field");
+    }
+
+    #[test]
+    fn test_go_function_local_grouped_block_not_exported() {
+        // A function-local (indented) grouped block is not a package export; only
+        // column-0 (package-level) grouped blocks are scanned, matching the
+        // column-anchored GO_DECL/GO_METHOD passes.
+        let src = "
+package worker
+
+func Run() {
+    const (
+        MaxAttempts = 5
+        backoff     = 2
+    )
+    var (
+        Buffer []byte
+    )
+    _ = MaxAttempts
+    _ = Buffer
+}
+
+const TopLevel = 1
+";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Run".to_string()));
+        assert!(
+            symbols.contains(&"TopLevel".to_string()),
+            "column-0 still works"
+        );
+        assert!(
+            !symbols.contains(&"MaxAttempts".to_string()),
+            "function-local const"
+        );
+        assert!(
+            !symbols.contains(&"Buffer".to_string()),
+            "function-local var"
+        );
     }
 }

@@ -637,8 +637,12 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
     let mut has_source_dirs = false;
     let mut current_section: Option<String> = None;
 
-    for line in content.lines() {
-        let line = line.trim();
+    // Explicit iterator (not `for`) so a value that opens a multi-line array can
+    // consume its continuation lines via `lines.by_ref()`.
+    let mut lines = content.lines();
+    #[allow(clippy::while_let_on_iterator)]
+    while let Some(raw_line) = lines.next() {
+        let line = raw_line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
@@ -651,7 +655,36 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
 
         if let Some(eq_pos) = line.find('=') {
             let key = line[..eq_pos].trim();
-            let value = line[eq_pos + 1..].trim();
+            // A value may open a multi-line array (`key = [` with items and the
+            // closing `]` on following lines). Accumulate continuation lines until
+            // the array closes — otherwise the value is just `[`, which parses to
+            // `["["]`, silently dropping the real entries AND (because `migrate`
+            // reads then rewrites the config) overwriting the user's file with the
+            // corrupted result.
+            let raw_value = line[eq_pos + 1..].trim();
+            let is_array = raw_value.starts_with('[');
+            // For array values, strip inline `#` comments (quote-aware) so a
+            // commented item line doesn't become a bogus entry. Scalar values are
+            // left byte-for-byte unchanged.
+            let mut acc = if is_array {
+                strip_inline_comment(raw_value)
+            } else {
+                raw_value.to_string()
+            };
+            if is_array && !acc.contains(']') {
+                for next in lines.by_ref() {
+                    let cont = strip_inline_comment(next.trim());
+                    if cont.is_empty() {
+                        continue; // blank or whole-line comment inside the array
+                    }
+                    acc.push(' ');
+                    acc.push_str(&cont);
+                    if cont.contains(']') {
+                        break;
+                    }
+                }
+            }
+            let value = acc.as_str();
 
             // Route to section-specific parsing
             if let Some(ref section) = current_section {
@@ -791,11 +824,17 @@ fn parse_toml_string(s: &str) -> String {
 /// Parse a TOML array of strings: `["a", "b"]` -> vec!["a", "b"]
 fn parse_toml_string_array(s: &str) -> Vec<String> {
     let s = s.trim();
-    if !s.starts_with('[') || !s.ends_with(']') {
+    // Use the span between the first `[` and the LAST `]` so surrounding content
+    // is tolerated: a trailing comment (`[...]  # note`) or the joined lines of a
+    // multi-line array both parse correctly. A bare value with no brackets is
+    // treated as a single-element array (unchanged behavior).
+    let (Some(start), Some(end)) = (s.find('['), s.rfind(']')) else {
+        return vec![parse_toml_string(s)];
+    };
+    if end <= start {
         return vec![parse_toml_string(s)];
     }
-    let inner = &s[1..s.len() - 1];
-    inner
+    s[start + 1..end]
         .split(',')
         .map(|item| parse_toml_string(item.trim()))
         .filter(|item| !item.is_empty())
@@ -989,6 +1028,83 @@ mod tests {
         // When no brackets, treats as single-element array
         let result = parse_toml_string_array("\"single\"");
         assert_eq!(result, vec!["single"]);
+    }
+
+    #[test]
+    fn test_parse_toml_string_array_trailing_comment() {
+        // A trailing comment after the closing bracket must not corrupt the array.
+        let result = parse_toml_string_array("[\"a\", \"b\"]  # note");
+        assert_eq!(result, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn test_parse_toml_string_array_glob_with_brackets() {
+        // A quoted glob containing `]` must survive (rfind picks the array close).
+        let result = parse_toml_string_array("[\"**/[abc]/**\", \"src\"]");
+        assert_eq!(result, vec!["**/[abc]/**", "src"]);
+    }
+
+    #[test]
+    fn test_load_config_toml_multiline_arrays() {
+        // Regression: a formatter-style multi-line array must parse into its real
+        // entries, not the corrupt `["["]` that silently dropped them (and got
+        // written back over the user's config by `migrate`).
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "specs_dir = \"specs\"\n\
+             source_dirs = [\n  \"src\",\n  \"lib\",\n]\n\
+             exclude_patterns = [\n  \"**/*.test.ts\",  # inline-ish comment line\n  \"**/gen/**\",\n]\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert_eq!(config.source_dirs, vec!["src", "lib"]);
+        assert_eq!(config.exclude_patterns, vec!["**/*.test.ts", "**/gen/**"]);
+    }
+
+    #[test]
+    fn test_load_config_toml_multiline_comment_inside_array() {
+        // A whole-line comment inside the array is skipped, not parsed as an entry.
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "source_dirs = [\n  # the app sources\n  \"src\",\n  \"app\",\n]\n\
+             specs_dir = \"specs\"\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert_eq!(config.source_dirs, vec!["src", "app"]);
+        // A key AFTER the multi-line array is still parsed (array consumption stops
+        // at the closing bracket).
+        assert_eq!(config.specs_dir, "specs");
+    }
+
+    #[test]
+    fn test_load_config_toml_multiline_lifecycle_array() {
+        // Multi-line arrays inside a section (here `[lifecycle]`) also work.
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "source_dirs = [\"src\"]\n\
+             [lifecycle]\n\
+             allowed_statuses = [\n  \"draft\",\n  \"active\",\n]\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert_eq!(config.lifecycle.allowed_statuses, vec!["draft", "active"]);
+    }
+
+    #[test]
+    fn test_load_config_toml_multiline_empty_array() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "source_dirs = [\"src\"]\nexclude_dirs = [\n]\nspecs_dir = \"specs\"\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert!(config.exclude_dirs.is_empty());
+        assert_eq!(config.specs_dir, "specs");
     }
 
     #[test]

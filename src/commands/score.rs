@@ -3,11 +3,18 @@ use std::path::Path;
 
 use crate::scoring;
 use crate::types;
+use crate::validator::compute_coverage;
 
-use super::{filter_by_status, filter_specs, load_and_discover};
+use super::{
+    compute_exit_code, exit_with_status, filter_by_status, filter_specs, load_and_discover,
+};
 
+#[allow(clippy::too_many_arguments)]
 pub fn cmd_score(
     root: &Path,
+    strict: bool,
+    enforcement: Option<types::EnforcementMode>,
+    require_coverage: Option<usize>,
     format: types::OutputFormat,
     explain: bool,
     all: bool,
@@ -16,7 +23,19 @@ pub fn cmd_score(
     only_status: &[String],
 ) {
     let json = matches!(format, types::OutputFormat::Json);
-    let (config, all_spec_files) = load_and_discover(root, false);
+    // The global `--strict` / `--enforcement` / `--require-coverage` flags are
+    // gates. `score` must honor them (they were previously silent no-ops here):
+    // when one is set, don't take load_and_discover's no-spec early-exit —
+    // otherwise `score --require-coverage 100` on a spec-less project would
+    // bypass the gate exactly like the `check` no-spec bug did.
+    let gate_requested = strict || enforcement.is_some() || require_coverage.is_some();
+    let (config, all_spec_files) = load_and_discover(root, gate_requested);
+    // CLI --enforcement overrides config; --strict implies strict enforcement.
+    let enforcement = enforcement.unwrap_or(if strict {
+        types::EnforcementMode::Strict
+    } else {
+        config.enforcement
+    });
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
     let spec_files = filter_by_status(&spec_files, exclude_status, only_status);
     let scores: Vec<scoring::SpecScore> = spec_files
@@ -83,6 +102,25 @@ pub fn cmd_score(
             print_text_output(&project, explain);
         }
     }
+
+    // Honor the global gate flags. `score` is advisory by default (Warn config →
+    // exit 0), but `--require-coverage`, `--enforcement enforce-new`, and a strict
+    // config now gate the exit code — previously they were silent no-ops here.
+    // score does no validation, so errors/warnings are 0; coverage and
+    // unspecced-file gating still apply.
+    let coverage = compute_coverage(root, &spec_files, &config);
+    if json {
+        // Machine output already printed — gate silently so stdout stays valid JSON.
+        std::process::exit(compute_exit_code(
+            0,
+            0,
+            strict,
+            enforcement,
+            &coverage,
+            require_coverage,
+        ));
+    }
+    exit_with_status(0, 0, strict, enforcement, &coverage, require_coverage);
 }
 
 fn print_text_output(project: &scoring::ProjectScore, explain: bool) {

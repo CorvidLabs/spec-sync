@@ -147,6 +147,9 @@ fn run() {
             specs,
         } => commands::score::cmd_score(
             &root,
+            cli.strict,
+            cli.enforcement,
+            cli.require_coverage,
             format,
             explain,
             all,

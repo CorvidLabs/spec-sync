@@ -6085,13 +6085,22 @@ fn deps_strict_gates_on_undeclared_imports() {
         .args(["deps", "--strict"])
         .assert()
         .failure();
-    // JSON output gates AND stays valid JSON.
-    specsync()
+    // JSON output gates AND stdout stays fully parseable JSON (the strict note
+    // is a stderr diagnostic, so it must not leak into the JSON body).
+    let out = specsync()
         .current_dir(root)
         .args(["deps", "--strict", "--format", "json"])
         .assert()
         .failure()
-        .stdout(predicate::str::starts_with("{"));
+        .get_output()
+        .stdout
+        .clone();
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&out).expect("deps --strict json stdout must be valid JSON");
+    assert!(
+        !parsed["undeclared_imports"].as_array().unwrap().is_empty(),
+        "expected the undeclared import to be reported in JSON"
+    );
 }
 
 #[test]

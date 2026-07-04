@@ -695,6 +695,40 @@ fn require_coverage_fails_when_below_threshold() {
         .stdout(predicate::str::contains("--require-coverage"));
 }
 
+#[test]
+fn require_coverage_fails_loud_on_zero_source_files() {
+    // A `--require-coverage` gate over 0 source files reports a vacuous 100% and must
+    // NOT silently pass. Here `**/**` excludes every source file; enforcement=warn so
+    // ordinary spec diagnostics never exit 1, leaving the require-coverage gate as the
+    // sole failure.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\nexclude_patterns = [\"**/**\"]\nenforcement = \"warn\"\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.ts"), "export function a() {}\n").unwrap();
+    fs::create_dir_all(root.join("specs/a")).unwrap();
+    fs::write(
+        root.join("specs/a/a.spec.md"),
+        valid_spec("a", &["src/a.ts"]),
+    )
+    .unwrap();
+
+    specsync()
+        .arg("check")
+        .arg("--require-coverage")
+        .arg("100")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("no source files were found"));
+}
+
 // ─── 7. --root flag ────────────────────────────────────────────────────
 
 #[test]

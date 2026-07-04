@@ -39,7 +39,7 @@ Core validation engine for spec-sync. Validates individual spec files against so
 1. Validation is bidirectional: spec documenting non-existent exports = ERROR; code exports not in spec = WARNING
 2. Missing frontmatter fields (module, version, status, files) are errors, not warnings
 3. Cross-project refs (`owner/repo@module`) are skipped during local validation — only checked by `specsync resolve`
-4. Coverage computation excludes test files and configured exclude patterns
+4. Coverage computation excludes test files and configured exclude patterns. Exclude globs support `**/dir/**` (path contains `dir`), `**/*.ext` (suffix), and `**/name` (filename); a degenerate `**/**` matches every path (empty middle) and is handled without panicking
 5. Source file discovery respects `source_extensions` config — empty means all supported languages
 6. `find_spec_files` returns sorted results
 7. Schema table extraction supports configurable regex patterns via `schema_pattern` config

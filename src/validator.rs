@@ -838,6 +838,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_compute_coverage_double_star_exclude_no_panic() {
+        // Regression: a `**/**` exclude pattern used to panic in the glob matcher
+        // (`&pattern[3..len-3]` reverses to `[3..2]` for the len-5 string). It must
+        // instead match every path (empty middle) and exclude all source files.
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(src.join("a.ts"), "export function a() {}").unwrap();
+
+        let mut config = SpecSyncConfig::default();
+        config.source_dirs = vec!["src".to_string()];
+        config.exclude_patterns = vec!["**/**".to_string()];
+
+        // Must not panic; `**/**` excludes all source files.
+        let report = compute_coverage(tmp.path(), &[], &config);
+        assert_eq!(
+            report.total_source_files, 0,
+            "`**/**` should exclude every source file"
+        );
+
+        // A normal `**/dir/**` pattern still excludes only that directory.
+        fs::create_dir_all(src.join("gen")).unwrap();
+        fs::write(src.join("gen/z.ts"), "export function z() {}").unwrap();
+        config.exclude_patterns = vec!["**/gen/**".to_string()];
+        let report = compute_coverage(tmp.path(), &[], &config);
+        assert_eq!(
+            report.total_source_files, 1,
+            "only src/gen should be excluded, leaving src/a.ts"
+        );
+    }
+
+    #[test]
     fn test_is_cross_project_ref() {
         assert!(is_cross_project_ref("corvid-labs/algochat@auth"));
         assert!(is_cross_project_ref("owner/repo@module"));
@@ -1361,7 +1393,15 @@ pub fn compute_coverage(
                 for pattern in &config.exclude_patterns {
                     // **/dir/** — matches path containing dir
                     if pattern.starts_with("**/") && pattern.ends_with("/**") {
-                        let dir_part = &pattern[3..pattern.len() - 3];
+                        // Strip the `**/` … `/**` wrapper. A naive `pattern[3..len-3]`
+                        // panics on a degenerate `**/**` (len 5), where the prefix and
+                        // suffix overlap and the range reverses. Peeling both ends yields
+                        // an empty `dir_part`, which `contains` matches against any path —
+                        // the correct meaning of `**/**` (match everything).
+                        let dir_part = pattern
+                            .strip_prefix("**/")
+                            .and_then(|rest| rest.strip_suffix("/**"))
+                            .unwrap_or("");
                         if rel_str.contains(dir_part) {
                             return None;
                         }

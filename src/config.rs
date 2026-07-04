@@ -145,6 +145,21 @@ fn dir_contains_source_files(dir: &Path, ignored: &HashSet<&str>, max_depth: usi
 /// When no config file exists, auto-detects source directories.
 ///
 /// Config file search order (v4 first, then legacy):
+/// Read a config file into a String, dropping a leading UTF-8 BOM (U+FEFF). Some
+/// editors prepend a BOM; left in place it attaches to the first TOML key (which then
+/// becomes an unknown key and is silently ignored) or breaks JSON parsing entirely.
+/// Stripping a leading BOM is lossless. Returns None when the file can't be read.
+/// Avoids allocating when there is no BOM (the common case).
+pub(crate) fn read_config_file(path: &Path) -> Option<String> {
+    let content = fs::read_to_string(path).ok()?;
+    let trimmed = content.trim_start_matches('\u{feff}');
+    Some(if trimmed.len() == content.len() {
+        content
+    } else {
+        trimmed.to_string()
+    })
+}
+
 /// Load config from a specific file path (JSON or TOML based on extension).
 /// Used by migration to convert a known source file rather than relying on precedence.
 pub fn load_config_from_path(config_path: &Path, root: &Path) -> SpecSyncConfig {
@@ -232,9 +247,9 @@ pub fn load_config(root: &Path) -> SpecSyncConfig {
 /// (`find_toml_array_close` accumulation) to avoid re-introducing `["["]`
 /// corruption.
 fn merge_local_config(local_path: &Path, config: &mut SpecSyncConfig) {
-    let content = match fs::read_to_string(local_path) {
-        Ok(c) => c,
-        Err(_) => return,
+    let content = match read_config_file(local_path) {
+        Some(c) => c,
+        None => return,
     };
 
     let mut current_section: Option<String> = None;
@@ -678,9 +693,9 @@ const KNOWN_JSON_KEYS: &[&str] = &[
 ];
 
 fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
-    let content = match fs::read_to_string(config_path) {
-        Ok(c) => c,
-        Err(_) => return SpecSyncConfig::default(),
+    let content = match read_config_file(config_path) {
+        Some(c) => c,
+        None => return SpecSyncConfig::default(),
     };
 
     // Warn about unknown keys
@@ -725,9 +740,9 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
 /// required_sections = ["Purpose", "Public API"]
 /// ```
 fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
-    let content = match fs::read_to_string(config_path) {
-        Ok(c) => c,
-        Err(_) => return SpecSyncConfig::default(),
+    let content = match read_config_file(config_path) {
+        Some(c) => c,
+        None => return SpecSyncConfig::default(),
     };
 
     let mut config = SpecSyncConfig::default();
@@ -1990,6 +2005,46 @@ verify_issues = false
         assert!(
             !config.companions.design,
             "design companion should default to false"
+        );
+    }
+
+    #[test]
+    fn test_config_toml_with_leading_bom_first_key_honored() {
+        // A leading UTF-8 BOM must not attach to the first TOML key (which would then
+        // be an unknown key and be silently ignored). `source_dirs` is first here.
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/config.toml"),
+            "\u{feff}source_dirs = [\"libx\"]\n\n[companions]\ndesign = true\n",
+        )
+        .unwrap();
+        let config = load_config(root);
+        assert!(
+            config.source_dirs.contains(&"libx".to_string()),
+            "first key after a BOM must apply: {:?}",
+            config.source_dirs
+        );
+        assert!(config.companions.design);
+    }
+
+    #[test]
+    fn test_config_json_with_leading_bom_parses() {
+        // A leading UTF-8 BOM before `{` must not break JSON parsing entirely.
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/config.json"),
+            "\u{feff}{\"sourceDirs\": [\"libx\"]}\n",
+        )
+        .unwrap();
+        let config = load_config(root);
+        assert!(
+            config.source_dirs.contains(&"libx".to_string()),
+            "JSON config with a leading BOM must parse: {:?}",
+            config.source_dirs
         );
     }
 

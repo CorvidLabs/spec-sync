@@ -604,10 +604,17 @@ pub fn compute_exit_code(
             }
         }
     }
-    if let Some(req) = require_coverage
-        && coverage.coverage_percent < req
-    {
-        return 1;
+    if let Some(req) = require_coverage {
+        // A `--require-coverage` gate over zero source files is a vacuous pass:
+        // coverage is reported as 100% when there is nothing to measure (an empty or
+        // misconfigured `source_dirs`, or an over-broad `exclude_patterns`), silently
+        // satisfying the gate. Fail loud so a broken config cannot pass CI.
+        if req > 0 && coverage.total_source_files == 0 {
+            return 1;
+        }
+        if coverage.coverage_percent < req {
+            return 1;
+        }
     }
     0
 }
@@ -649,19 +656,32 @@ pub fn exit_with_status(
         }
     }
 
-    if let Some(req) = require_coverage
-        && coverage.coverage_percent < req
-    {
-        println!(
-            "\n{} {req}%: actual coverage is {}% ({} file(s) missing specs)",
-            "--require-coverage".red(),
-            coverage.coverage_percent,
-            coverage.unspecced_files.len()
-        );
-        for f in &coverage.unspecced_files {
-            println!("  {} {f}", "✗".red());
+    if let Some(req) = require_coverage {
+        // Fail loud on a vacuous pass: `--require-coverage` over zero source files
+        // reports 100% because there is nothing to measure (empty/misconfigured
+        // `source_dirs` or an over-broad `exclude_patterns`), which would otherwise
+        // satisfy the gate silently.
+        if req > 0 && coverage.total_source_files == 0 {
+            println!(
+                "\n{} {req}%: no source files were found to measure coverage against — \
+                 check `source_dirs` and `exclude_patterns` (an empty or over-broad \
+                 config reports coverage as a vacuous 100%)",
+                "--require-coverage".red()
+            );
+            process::exit(1);
         }
-        process::exit(1);
+        if coverage.coverage_percent < req {
+            println!(
+                "\n{} {req}%: actual coverage is {}% ({} file(s) missing specs)",
+                "--require-coverage".red(),
+                coverage.coverage_percent,
+                coverage.unspecced_files.len()
+            );
+            for f in &coverage.unspecced_files {
+                println!("  {} {f}", "✗".red());
+            }
+            process::exit(1);
+        }
     }
 }
 

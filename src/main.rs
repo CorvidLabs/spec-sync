@@ -289,6 +289,18 @@ mod tests {
         }
     }
 
+    /// A realistic coverage report at `percent`% over a non-empty source tree (100
+    /// files). Use this for `--require-coverage` tests so they exercise the
+    /// percentage gate — not the separate zero-source-files gate.
+    fn coverage_pct(percent: usize) -> types::CoverageReport {
+        types::CoverageReport {
+            total_source_files: 100,
+            specced_file_count: percent,
+            coverage_percent: percent,
+            ..empty_coverage()
+        }
+    }
+
     fn coverage_with_unspecced(files: Vec<&str>) -> types::CoverageReport {
         let total = files.len();
         types::CoverageReport {
@@ -335,10 +347,7 @@ mod tests {
 
     #[test]
     fn warn_mode_respects_require_coverage() {
-        let coverage = types::CoverageReport {
-            coverage_percent: 50,
-            ..empty_coverage()
-        };
+        let coverage = coverage_pct(50);
         assert_eq!(
             compute_exit_code(
                 0,
@@ -458,10 +467,7 @@ mod tests {
 
     #[test]
     fn strict_mode_respects_require_coverage() {
-        let coverage = types::CoverageReport {
-            coverage_percent: 70,
-            ..empty_coverage()
-        };
+        let coverage = coverage_pct(70);
         assert_eq!(
             compute_exit_code(
                 0,
@@ -477,10 +483,7 @@ mod tests {
 
     #[test]
     fn strict_mode_exits_0_when_coverage_meets_threshold() {
-        let coverage = types::CoverageReport {
-            coverage_percent: 85,
-            ..empty_coverage()
-        };
+        let coverage = coverage_pct(85);
         assert_eq!(
             compute_exit_code(
                 0,
@@ -490,6 +493,42 @@ mod tests {
                 &coverage,
                 Some(80)
             ),
+            0
+        );
+    }
+
+    #[test]
+    fn require_coverage_fails_loud_on_zero_source_files() {
+        // Regression: `--require-coverage` over 0 source files reports a vacuous 100%
+        // and must NOT silently pass — it indicates an empty/misconfigured source tree.
+        let coverage = empty_coverage(); // total_source_files: 0, coverage_percent: 100
+        assert_eq!(
+            compute_exit_code(
+                0,
+                0,
+                false,
+                types::EnforcementMode::Strict,
+                &coverage,
+                Some(100)
+            ),
+            1,
+            "require-coverage over zero source files must fail loud"
+        );
+        // A require of 0 is a no-op requirement and still passes with no sources.
+        assert_eq!(
+            compute_exit_code(
+                0,
+                0,
+                false,
+                types::EnforcementMode::Strict,
+                &coverage,
+                Some(0)
+            ),
+            0
+        );
+        // No require-coverage flag → zero sources is fine.
+        assert_eq!(
+            compute_exit_code(0, 0, false, types::EnforcementMode::Strict, &coverage, None),
             0
         );
     }

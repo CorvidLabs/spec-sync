@@ -79,7 +79,7 @@ Shared command infrastructure used by all CLI subcommands. Provides config loadi
 4. In text mode, draft specs show explicit "Section validation skipped (status: draft)" and "Export validation skipped (status: draft)" notices instead of misleading green checkmarks, plus a closing hint to set `status: active`
 5. Failing checks render negated labels (e.g. "✗ Frontmatter invalid"), never a ✗ next to a passing label
 4. Exit code logic by enforcement mode: Warn → always 0; EnforceNew → 1 if unspecced files; Strict → 1 on errors, also 1 on warnings when `--strict`
-5. `--require-coverage N` triggers exit 1 if file coverage percent < N regardless of enforcement mode
+5. `--require-coverage N` triggers exit 1 if file coverage percent < N regardless of enforcement mode. When `N > 0` but 0 source files were discovered (empty/misconfigured `source_dirs` or an over-broad `exclude_patterns`), the gate fails loud (exit 1) rather than passing on the vacuous 100% reported for an empty source tree
 6. `create_drift_issues` groups errors by spec path and creates one GitHub issue per spec, not per error
 
 ## Behavioral Examples

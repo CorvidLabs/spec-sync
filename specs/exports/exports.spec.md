@@ -40,7 +40,7 @@ Language-aware export extraction from source files. Auto-detects the programming
 |----------|-----------|---------|-------------|
 | `get_exported_symbols` | `file_path: &Path` | `Vec<String>` | Extract exported symbol names from a source file, auto-detecting language from extension |
 | `get_exported_symbols_with_level` | `file_path: &Path, level: ExportLevel` | `Vec<String>` | Extract exports with configurable granularity — Type (declarations only) or Member (all symbols) |
-| `is_test_file` | `file_path: &Path` | `bool` | Check if a file is a test file based on language-specific naming conventions |
+| `is_test_file` | `file_path: &Path, root: &Path` | `bool` | Check if a file is a test file by filename convention or a test directory *within `root`*; the directory check is bounded to project-relative components so ancestors above `root` (e.g. a parent dir named `spec`/`test`) do not misclassify ordinary sources |
 | `is_source_file` | `file_path: &Path` | `bool` | Check if a file extension belongs to a supported source language |
 | `has_extension` | `file_path: &Path, extensions: &[String]` | `bool` | Check if file matches specific extensions, or any supported language if extensions is empty |
 | `extract_exports` | `content: &str` | `Vec<String>` | Per-language backend function that parses source text and returns exported symbol names (one per backend file) |
@@ -197,8 +197,14 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 ### Scenario: Test file detection
 
 - **Given** a file named `auth.test.ts`
-- **When** `is_test_file(path)` is called
+- **When** `is_test_file(path, root)` is called
 - **Then** returns `true`
+
+### Scenario: Test-named ancestor above the project root
+
+- **Given** a project at `/home/user/spec/proj` with source `/home/user/spec/proj/src/app.ts`
+- **When** `is_test_file(path, root)` is called with `root = /home/user/spec/proj`
+- **Then** returns `false` — the `spec` component is above `root` and is not a project test directory
 
 ## Error Cases
 

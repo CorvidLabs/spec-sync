@@ -115,6 +115,7 @@ fn find_source_files(
     dir: &Path,
     exclude_dirs: &HashSet<String>,
     config: &SpecSyncConfig,
+    root: &Path,
 ) -> Vec<PathBuf> {
     let mut results = Vec::new();
     if !dir.exists() {
@@ -134,7 +135,10 @@ fn find_source_files(
         .filter_map(|e| e.ok())
     {
         let path = entry.path();
-        if path.is_file() && has_extension(path, &config.source_extensions) && !is_test_file(path) {
+        if path.is_file()
+            && has_extension(path, &config.source_extensions)
+            && !is_test_file(path, root)
+        {
             results.push(path.to_path_buf());
         }
     }
@@ -1384,7 +1388,7 @@ pub fn compute_coverage(
     let mut all_source_files: Vec<String> = Vec::new();
     for src_dir in &config.source_dirs {
         let full_dir = root.join(src_dir);
-        let files: Vec<String> = find_source_files(&full_dir, &exclude_dirs, config)
+        let files: Vec<String> = find_source_files(&full_dir, &exclude_dirs, config, root)
             .into_iter()
             .filter_map(|f| {
                 let rel = f.strip_prefix(root).ok()?;
@@ -1506,7 +1510,7 @@ pub fn compute_coverage(
                 let path = entry.path();
                 if !path.is_file()
                     || !has_extension(&path, &config.source_extensions)
-                    || is_test_file(&path)
+                    || is_test_file(&path, root)
                 {
                     continue;
                 }

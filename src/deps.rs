@@ -69,14 +69,39 @@ pub struct DepsReport {
 
 /// Build the dependency graph from all spec files in the project.
 pub fn build_dep_graph(root: &Path, specs_dir: &str) -> HashMap<String, DepNode> {
+    build_dep_graph_checked(root, specs_dir).0
+}
+
+/// Like `build_dep_graph`, but also returns error messages for spec files that
+/// EXIST yet could not be read as UTF-8. Silently dropping such a spec removes its
+/// node from the graph, which defeats cycle detection and missing-dependency
+/// checks for that module — so the validation path (`validate_deps`) surfaces
+/// these as hard errors rather than losing them. Kept internal; `build_dep_graph`
+/// preserves the original signature for the non-gating callers (visualization,
+/// topological order).
+fn build_dep_graph_checked(
+    root: &Path,
+    specs_dir: &str,
+) -> (HashMap<String, DepNode>, Vec<String>) {
     let specs_path = root.join(specs_dir);
     let spec_files = find_spec_files(&specs_path);
     let mut graph: HashMap<String, DepNode> = HashMap::new();
+    let mut unreadable: Vec<String> = Vec::new();
 
     for spec_file in &spec_files {
         let content = match fs::read_to_string(spec_file) {
             Ok(c) => c.replace("\r\n", "\n"),
-            Err(_) => continue,
+            Err(err) => {
+                let rel = spec_file
+                    .strip_prefix(root)
+                    .unwrap_or(spec_file)
+                    .to_string_lossy()
+                    .to_string();
+                unreadable.push(format!(
+                    "{rel}: spec file could not be read as UTF-8; dependency analysis skipped this spec: {err}"
+                ));
+                continue;
+            }
         };
 
         let parsed = match parse_frontmatter(&content) {
@@ -117,7 +142,7 @@ pub fn build_dep_graph(root: &Path, specs_dir: &str) -> HashMap<String, DepNode>
         );
     }
 
-    graph
+    (graph, unreadable)
 }
 
 /// Extract a module name from a dependency path.
@@ -146,8 +171,11 @@ fn extract_module_from_dep_path(dep: &str) -> Option<String> {
 
 /// Validate the entire dependency graph.
 pub fn validate_deps(root: &Path, specs_dir: &str) -> DepsReport {
-    let graph = build_dep_graph(root, specs_dir);
+    let (graph, unreadable_specs) = build_dep_graph_checked(root, specs_dir);
     let mut report = DepsReport::default();
+    // A spec that exists but couldn't be read was dropped from the graph; record it
+    // as a hard error so cmd_deps exits 1 instead of silently under-validating.
+    report.errors.extend(unreadable_specs);
 
     let known_modules: HashSet<&str> = graph.keys().map(|k| k.as_str()).collect();
     report.module_count = graph.len();
@@ -326,7 +354,18 @@ fn check_undeclared_imports(
             let full_path = root.join(file);
             let content = match fs::read_to_string(&full_path) {
                 Ok(c) => c,
-                Err(_) => continue,
+                // A declared source file that can't be read as UTF-8 silently
+                // contributed no imports, so `deps --strict` could pass while
+                // hiding real undeclared-import violations. Fail loud instead —
+                // mirrors the validator's source-read policy (validator.rs) and,
+                // because cmd_deps exits 1 on any error, gates CI consistently.
+                Err(err) => {
+                    report.errors.push(format!(
+                        "{}: source file `{}` could not be read as UTF-8 for dependency analysis: {}",
+                        node.spec_path, file, err
+                    ));
+                    continue;
+                }
             };
             let file_imports = extract_imports(&full_path, &content);
             actual_imports.extend(file_imports);

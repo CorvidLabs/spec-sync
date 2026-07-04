@@ -249,7 +249,19 @@ pub fn load_config(root: &Path) -> SpecSyncConfig {
 fn merge_local_config(local_path: &Path, config: &mut SpecSyncConfig) {
     let content = match read_config_file(local_path) {
         Some(c) => c,
-        None => return,
+        None => {
+            // Local config is optional, but a file that exists yet cannot be read
+            // (not valid UTF-8) must not be silently ignored — its per-developer
+            // overrides (ai_provider/ai_model/etc.) would be dropped with no signal.
+            if local_path.exists() {
+                eprintln!(
+                    "Warning: local config {} exists but could not be read (not valid UTF-8 or unreadable); \
+                     per-developer overrides are NOT applied",
+                    local_path.display()
+                );
+            }
+            return;
+        }
     };
 
     let mut current_section: Option<String> = None;
@@ -695,7 +707,18 @@ const KNOWN_JSON_KEYS: &[&str] = &[
 fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
     let content = match read_config_file(config_path) {
         Some(c) => c,
-        None => return SpecSyncConfig::default(),
+        None => {
+            // See load_toml_config: a present-but-unreadable config must fail loud
+            // rather than silently downgrade enforcement to defaults.
+            if config_path.exists() {
+                eprintln!(
+                    "Warning: config file {} exists but could not be read (not valid UTF-8 or unreadable); \
+                     using built-in defaults — its settings (enforcement, required sections, etc.) are NOT applied",
+                    config_path.display()
+                );
+            }
+            return SpecSyncConfig::default();
+        }
     };
 
     // Warn about unknown keys
@@ -742,7 +765,22 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
 fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
     let content = match read_config_file(config_path) {
         Some(c) => c,
-        None => return SpecSyncConfig::default(),
+        None => {
+            // read_config_file returns None for both "absent" and "present but
+            // unreadable". This function is reached only after an `.exists()` check
+            // (load_config) or with a known migration source path, so a None on a
+            // file that still exists means it could not be read (e.g. not valid
+            // UTF-8) — fail loud instead of silently reverting to defaults, which
+            // would downgrade enforcement (strict→warn, exit 1→0) with no signal.
+            if config_path.exists() {
+                eprintln!(
+                    "Warning: config file {} exists but could not be read (not valid UTF-8 or unreadable); \
+                     using built-in defaults — its settings (enforcement, required sections, etc.) are NOT applied",
+                    config_path.display()
+                );
+            }
+            return SpecSyncConfig::default();
+        }
     };
 
     let mut config = SpecSyncConfig::default();

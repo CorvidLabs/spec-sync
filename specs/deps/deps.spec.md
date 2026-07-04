@@ -45,6 +45,7 @@ Cross-module dependency validation. Parses `depends_on` declarations from spec f
 4. Cross-project refs (containing `/`) in `depends_on` are skipped — only local deps are validated
 5. Undeclared imports (found in source but not in `depends_on`) are reported as warnings, not errors
 6. Module names in `depends_on` paths are extracted from the path's directory component
+7. A spec or declared source file that exists but cannot be read as UTF-8 is a hard error (not a silent skip): an unreadable spec would otherwise be dropped from the graph — defeating cycle and missing-dependency detection for that module — and an unreadable source would contribute no imports, hiding undeclared-import violations. Both are recorded in `report.errors`, so `cmd_deps` exits 1 rather than under-validating silently
 
 ## Behavioral Examples
 

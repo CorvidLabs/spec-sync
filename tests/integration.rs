@@ -6456,6 +6456,78 @@ fn deps_strict_passes_when_dependency_is_declared() {
 }
 
 #[test]
+fn deps_fails_loud_on_unreadable_source_file() {
+    // Regression: a declared source file that can't be read as UTF-8 silently
+    // contributed no imports, so `deps` could pass while hiding undeclared imports.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    let mut bad = b"export function apiFn() {}\n".to_vec();
+    bad.push(0xFF);
+    fs::write(root.join("src/a.ts"), bad).unwrap();
+    fs::create_dir_all(root.join("specs/m")).unwrap();
+    fs::write(
+        root.join("specs/m/m.spec.md"),
+        valid_spec("m", &["src/a.ts"]),
+    )
+    .unwrap();
+
+    specsync()
+        .current_dir(root)
+        .arg("deps")
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "could not be read as UTF-8 for dependency analysis",
+        ));
+}
+
+#[test]
+fn deps_fails_loud_on_unreadable_spec_file() {
+    // Regression: a spec file that can't be read as UTF-8 was silently dropped from
+    // the dependency graph, defeating cycle / missing-dep detection for that module.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.rs"), "pub fn f() {}\n").unwrap();
+    fs::create_dir_all(root.join("specs/m")).unwrap();
+    let mut bad = b"---\nmodule: m\nfiles:\n  - src/a.rs\n---\n# m\n".to_vec();
+    bad.push(0xFF);
+    fs::write(root.join("specs/m/m.spec.md"), bad).unwrap();
+
+    specsync()
+        .current_dir(root)
+        .arg("deps")
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "spec file could not be read as UTF-8",
+        ));
+}
+
+#[test]
+fn config_warns_on_unreadable_config_file() {
+    // Regression: a config file that exists but can't be read as UTF-8 silently
+    // reverted to built-in defaults, downgrading enforcement with no signal.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.rs"), "pub fn f() {}\n").unwrap();
+    // A config whose keys are valid ASCII but whose tail is invalid UTF-8.
+    let mut bad = b"specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n".to_vec();
+    bad.extend_from_slice(&[0xFF, 0xFE]);
+    fs::write(root.join(".specsync.toml"), bad).unwrap();
+
+    specsync()
+        .current_dir(root)
+        .arg("check")
+        .assert()
+        .stderr(predicate::str::contains("exists but could not be read"));
+}
+
+#[test]
 fn deps_strict_mermaid_still_gates() {
     // Regression: `deps --mermaid`/`--dot` early-returned before the strict gate, so
     // `deps --strict --mermaid` silently exited 0 on the same undeclared import that

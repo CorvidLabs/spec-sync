@@ -2894,6 +2894,81 @@ fn diff_no_changes_returns_empty() {
 }
 
 #[test]
+fn diff_bad_base_ref_fails_loud() {
+    // Regression: `git diff` exits non-zero on a bad base ref with empty stdout.
+    // The command must NOT report "no files changed" and exit 0 (that would silently
+    // mask a failed comparison and green-light CI); it must fail loud (exit != 0).
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.name", "Test"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+    std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["commit", "-m", "initial"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+
+    let output = specsync()
+        .args([
+            "diff",
+            "--base",
+            "no-such-ref-xyz",
+            "--root",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "diff against a bogus base ref must fail loud, not report 'no changes' and exit 0"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("no-such-ref-xyz"),
+        "error should name the bad base ref; stderr was: {stderr}"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains("No files changed"),
+        "must not print the no-drift message on a failed diff; stdout was: {stdout}"
+    );
+}
+
+#[test]
 fn diff_detects_removed_exports() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();

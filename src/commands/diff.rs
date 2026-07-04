@@ -37,6 +37,29 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
         }
     };
 
+    // Git runs but exits non-zero on error (bad base ref, not a git repo, …). Its
+    // stdout is then empty — which the "no files changed" path below would report as
+    // "no drift" and exit 0, silently masking a failed comparison (a bad `--base` in
+    // CI would green-light a PR that was never actually diffed). Fail loud instead.
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let detail = stderr.trim();
+        eprintln!(
+            "git diff failed for base ref `{base}`{}",
+            if detail.is_empty() {
+                String::new()
+            } else {
+                format!(": {detail}")
+            }
+        );
+        eprintln!("  Is `{base}` a valid revision, and is this a git repository?");
+        eprintln!(
+            "  In a shallow CI checkout the base ref is often absent — fetch it first \
+             (e.g. actions/checkout with `fetch-depth: 0`)."
+        );
+        process::exit(1);
+    }
+
     let changed_files: std::collections::HashSet<String> = String::from_utf8_lossy(&output.stdout)
         .lines()
         .map(|l| l.to_string())

@@ -32,9 +32,10 @@ Implements the `specsync diff` command — shows which specs are affected by sou
 
 1. Uses `git diff --name-only {base}` to get the list of changed files
 2. Only files matching `config.source_extensions` are considered
-3. Export deltas are computed by comparing current exports against base-ref exports (via `git show`)
+3. Export deltas compare each affected spec's currently-exported symbols (parsed from the working-tree source files) against the symbols it documents: `new_exports` are current exports the spec does not document, `removed_exports` are documented symbols no longer exported (there is no base-ref content fetch)
 4. Changed files not covered by any spec are listed separately
 5. Text output delegates to `output::print_diff_markdown`
+6. A non-zero `git diff` exit (bad base ref, not a git repository) fails loud with exit code 1 — it is never treated as an empty change set ("No files changed"), so a failed comparison cannot silently pass in CI
 
 ## Behavioral Examples
 

@@ -7,7 +7,13 @@ use crate::config::load_config;
 use crate::generator;
 use crate::registry;
 
+use super::validate_module_name;
+
 pub fn cmd_add_spec(root: &Path, module_name: &str) {
+    if let Err(e) = validate_module_name(module_name) {
+        eprintln!("{e}");
+        process::exit(1);
+    }
     let config = load_config(root);
     let specs_dir = root.join(&config.specs_dir);
     let spec_dir = specs_dir.join(module_name);
@@ -184,6 +190,10 @@ pub fn cmd_scaffold(
     dir: Option<PathBuf>,
     template: Option<PathBuf>,
 ) {
+    if let Err(e) = validate_module_name(module_name) {
+        eprintln!("{e}");
+        process::exit(1);
+    }
     let config = load_config(root);
     let specs_dir = dir.unwrap_or_else(|| root.join(&config.specs_dir));
     let spec_dir = specs_dir.join(module_name);

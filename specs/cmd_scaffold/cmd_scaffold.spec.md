@@ -34,6 +34,7 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 2. `cmd_scaffold` supports custom templates and auto-appends to registry
 3. Neither overwrites existing specs
 4. Companion files (tasks.md, context.md, requirements.md, testing.md) are always generated with guided starter content; design.md is generated only when `companions.design` is enabled in config
+5. Both validate `module_name` as a single path segment before any filesystem write — a name containing a path separator (`/`, `\`), `.`/`..`, or an absolute path is refused with exit 1, so scaffolding can never create files outside the project (no path traversal)
 
 ## Behavioral Examples
 
@@ -50,6 +51,8 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 | Spec exists | Early return |
 | Dir creation fails | Exits 1 |
 | Custom template dir missing | Falls back to built-in |
+| Module name with path separator / `..` / absolute path | Refused before any write; prints `invalid module name …` and exits 1 |
+| Empty module name | Refused; exits 1 |
 
 ## Dependencies
 

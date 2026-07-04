@@ -55,6 +55,7 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 | Spec already exists | Exits 1 |
 | No source files found | Creates spec with empty `files:` and prints a ⚠ explaining that the `files:` list must be filled in before `check` passes |
 | Dir creation fails | Exits 1 |
+| Invalid module name (path separator, `.`/`..`, absolute/drive-relative, control chars) | Refused via `validate_module_name` before any write; prints `invalid module name …` and exits 1 (no path traversal) |
 
 ## Dependencies
 

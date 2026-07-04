@@ -5483,6 +5483,37 @@ fn scaffold_auto_detects_single_source_file() {
     );
 }
 
+/// `new`/`add-spec`/`scaffold` must refuse a module name that would escape the project
+/// (path traversal) rather than writing spec/companion files to an arbitrary location.
+#[test]
+fn scaffold_rejects_module_name_path_traversal() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+
+    for sub in ["new", "add-spec", "scaffold"] {
+        let output = specsync()
+            .args([sub, "../../escape/evil", "--root", root.to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert!(
+            !output.status.success(),
+            "`{sub}` with a traversal module name must fail loud"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("invalid module name"),
+            "`{sub}` should report an invalid module name; stderr: {stderr}"
+        );
+    }
+
+    // The guard runs before any filesystem write, so nothing escaped the project root.
+    assert!(
+        !root.parent().unwrap().join("escape").exists(),
+        "a spec/companion escaped the project root"
+    );
+}
+
 /// The original repro: a spec with a warning gets recorded in the hash cache,
 /// then `check --fix` (without --force) reports "All specs unchanged" and
 /// fixes nothing. An explicit --fix must never be a silent no-op.

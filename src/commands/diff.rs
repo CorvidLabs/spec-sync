@@ -3,7 +3,6 @@ use std::fs;
 use std::path::Path;
 use std::process;
 
-use crate::exports::get_exported_symbols;
 use crate::output::print_diff_markdown;
 use crate::parser::parse_frontmatter;
 use crate::types;
@@ -86,6 +85,10 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
         new_exports: Vec<String>,
         removed_exports: Vec<String>,
         spec_itself_changed: bool,
+        /// `files:` entries that exist-or-should but could not be read (missing /
+        /// non-UTF-8), so this spec's export delta is unreliable — surfaced and
+        /// failed loud rather than silently reported as "no drift".
+        inconclusive_files: Vec<String>,
     }
 
     let mut entries: Vec<DiffEntry> = Vec::new();
@@ -123,6 +126,7 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
 
         // Get current exports from changed files
         let mut current_exports: Vec<String> = Vec::new();
+        let mut inconclusive_files: Vec<String> = Vec::new();
         for file in &parsed.frontmatter.files {
             // Skip `files:` entries that escape the project root (out-of-root
             // identifier leak); `check` reports them as errors.
@@ -130,7 +134,18 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
                 continue;
             }
             let full_path = root.join(file);
-            current_exports.extend(get_exported_symbols(&full_path));
+            match crate::exports::scan_exported_symbols(&full_path) {
+                crate::exports::ExportScan::Parsed(syms) => current_exports.extend(syms),
+                // A recognized-language source file that can't be read (missing /
+                // non-UTF-8) makes this spec's export delta unreliable. Record it so
+                // the "no drift" verdict cannot be silent, and fail loud below —
+                // consistent with the invariant that a failed comparison must not
+                // silently pass in CI.
+                crate::exports::ExportScan::Unreadable => inconclusive_files.push(file.clone()),
+                // A non-source file (e.g. a `.md`/`.sql` listed in `files:`)
+                // legitimately has no extractable exports — not a failure.
+                crate::exports::ExportScan::UnknownLanguage => {}
+            }
         }
         let mut seen = std::collections::HashSet::new();
         current_exports.retain(|s| seen.insert(s.clone()));
@@ -160,6 +175,7 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
             new_exports,
             removed_exports,
             spec_itself_changed,
+            inconclusive_files,
         });
     }
 
@@ -174,6 +190,7 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
                         "new_exports": e.new_exports,
                         "removed_exports": e.removed_exports,
                         "spec_modified": e.spec_itself_changed,
+                        "inconclusive_files": e.inconclusive_files,
                     })
                 })
                 .collect();
@@ -219,7 +236,13 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
                         entry.removed_exports.join(", ")
                     );
                 }
-                if entry.new_exports.is_empty() && entry.removed_exports.is_empty() {
+                if !entry.inconclusive_files.is_empty() {
+                    println!(
+                        "  {} Could not read (drift unknown): {}",
+                        "⚠".yellow(),
+                        entry.inconclusive_files.join(", ")
+                    );
+                } else if entry.new_exports.is_empty() && entry.removed_exports.is_empty() {
                     println!("  {} Spec is up to date", "✓".green());
                 }
             }
@@ -252,6 +275,27 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
                 }
             }
         }
+    }
+
+    // Fail loud if any spec's export delta was inconclusive because a source file
+    // could not be read (missing / non-UTF-8). Such a file silently contributes zero
+    // exports, so a genuinely-changed API could otherwise be reported as "no drift".
+    // The report above already surfaces the files on stdout; the diagnostic and the
+    // non-zero exit (a failed comparison must not silently pass in CI) go here.
+    let inconclusive: Vec<&String> = entries
+        .iter()
+        .flat_map(|e| e.inconclusive_files.iter())
+        .collect();
+    if !inconclusive.is_empty() {
+        eprintln!(
+            "\ndiff is inconclusive: {} source file(s) could not be read (missing or not UTF-8), \
+             so their export drift is unknown:",
+            inconclusive.len()
+        );
+        for f in &inconclusive {
+            eprintln!("  {} {f}", "⚠".yellow());
+        }
+        process::exit(1);
     }
 }
 

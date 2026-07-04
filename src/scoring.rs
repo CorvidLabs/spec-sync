@@ -1,4 +1,3 @@
-use crate::exports::get_exported_symbols;
 use crate::git_utils;
 use crate::parser::{
     find_stub_sections, get_missing_sections, get_spec_symbols, parse_frontmatter,
@@ -281,6 +280,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     // ─── API Coverage (0-20) ─────────────────────────────────────────
     if !fm.files.is_empty() {
         let mut all_exports: Vec<String> = Vec::new();
+        let mut unreadable_files = 0usize;
         for file in &fm.files {
             // Never read a `files:` entry that escapes the project root — it would
             // leak arbitrary host-file identifiers into score suggestions (and the
@@ -289,7 +289,17 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
                 continue;
             }
             let full_path = root.join(file);
-            all_exports.extend(get_exported_symbols(&full_path));
+            match crate::exports::scan_exported_symbols(&full_path) {
+                crate::exports::ExportScan::Parsed(syms) => all_exports.extend(syms),
+                // A recognized-language source file that can't be read (missing /
+                // non-UTF-8) leaves its API unknown — it must NOT be scored as if it
+                // had nothing to document (that awarded a perfect API dimension and
+                // inflated the gating total, e.g. past a lifecycle min_score guard).
+                crate::exports::ExportScan::Unreadable => unreadable_files += 1,
+                // A non-source file (e.g. a `.md`/`.sql`) legitimately has no
+                // extractable exports — not a failure, and not counted against.
+                crate::exports::ExportScan::UnknownLanguage => {}
+            }
         }
         let mut seen = HashSet::new();
         all_exports.retain(|s| seen.insert(s.clone()));
@@ -302,7 +312,9 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             .filter(|s| export_set.contains(s.as_str()))
             .count();
 
-        if all_exports.is_empty() {
+        if all_exports.is_empty() && unreadable_files == 0 {
+            // Genuinely nothing to document: every listed file parsed cleanly (or was
+            // a non-source file) and produced no exports. Full marks.
             score.api_score = DIMENSION_MAX;
             score.explain.push(ExplainDetail {
                 dimension: "API".to_string(),
@@ -314,6 +326,25 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
                     points: DIMENSION_MAX,
                     max_points: DIMENSION_MAX,
                     detail: Some("no exports to document".to_string()),
+                }],
+            });
+        } else if all_exports.is_empty() {
+            // Empty ONLY because listed source file(s) could not be read — API
+            // coverage is unverifiable, so withhold the credit rather than award a
+            // perfect (and gating-relevant) score for code we could not analyze.
+            score.api_score = 0;
+            score.explain.push(ExplainDetail {
+                dimension: "API".to_string(),
+                score: 0,
+                max_score: DIMENSION_MAX,
+                criteria: vec![CriterionResult {
+                    name: "documented_exports".to_string(),
+                    passed: false,
+                    points: 0,
+                    max_points: DIMENSION_MAX,
+                    detail: Some(format!(
+                        "could not analyze exports for {unreadable_files} file(s) (missing or not UTF-8)"
+                    )),
                 }],
             });
         } else {

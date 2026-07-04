@@ -45,7 +45,15 @@ Language-aware export extraction from source files. Auto-detects the programming
 | `has_extension` | `file_path: &Path, extensions: &[String]` | `bool` | Check if file matches specific extensions, or any supported language if extensions is empty |
 | `extract_exports` | `content: &str` | `Vec<String>` | Per-language backend function that parses source text and returns exported symbol names (one per backend file) |
 | `extract_exports_with_resolver` | `content: &str, resolver: Option<&ImportResolver>` | `Vec<String>` | TypeScript-specific: extract exports with optional wildcard re-export resolution via file resolver callback |
-| `get_exported_symbols_full` | `file_path: &Path, level: ExportLevel, parse_mode: ParseMode` | `Vec<String>` | Extract exports with full control over granularity and parse mode (Regex or Ast) |
+| `get_exported_symbols_full` | `file_path: &Path, level: ExportLevel, parse_mode: ParseMode` | `Vec<String>` | Extract exports with full control over granularity and parse mode (Regex or Ast); a read/parse failure or unsupported language yields an empty vector |
+| `scan_exported_symbols` | `file_path: &Path` | `ExportScan` | Like `get_exported_symbols` but returns an `ExportScan`, distinguishing a genuine empty result from an unreadable/unsupported file |
+| `scan_exported_symbols_full` | `file_path: &Path, level: ExportLevel, parse_mode: ParseMode` | `ExportScan` | Like `get_exported_symbols_full` but returns an `ExportScan` so gating callers (`diff`, `score`) can tell a failure from genuine emptiness |
+
+### Exported Types
+
+| Type | Description |
+|------|-------------|
+| `ExportScan` | Outcome of an extraction attempt: `Parsed(Vec<String>)` (recognized language, read + parsed — the vec may be empty, meaning genuinely no exports), `UnknownLanguage` (extension not a source language, e.g. a `.md`/`.sql` file — not a failure), or `Unreadable` (missing / permission-denied / non-UTF-8 — exports unknown). Lets gating callers avoid treating an unreadable file as export-free. |
 
 ### Exported Modules
 

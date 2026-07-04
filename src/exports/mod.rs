@@ -30,24 +30,48 @@ pub fn get_exported_symbols_with_level(file_path: &Path, level: ExportLevel) -> 
     get_exported_symbols_full(file_path, level, ParseMode::Regex)
 }
 
-/// Extract exported symbol names with full control over granularity and parse mode.
-/// When `parse_mode` is `Ast`, uses tree-sitter for TypeScript, Python, and Rust.
-/// Falls back to regex for all other languages or if AST parsing fails.
-pub fn get_exported_symbols_full(
+/// The outcome of attempting to extract exported symbols from a source file,
+/// distinguishing a genuine "nothing is exported" from a failure to analyze the
+/// file. Callers that gate on coverage or export drift (`diff`, `score`) must not
+/// treat an unreadable or unsupported file as export-free — doing so silently drops
+/// a file's real API from the comparison and reports a false clean result.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExportScan {
+    /// The file's language was recognized and it was read and parsed. The vector may
+    /// be empty, which means the file genuinely exports nothing.
+    Parsed(Vec<String>),
+    /// The extension is not a recognized source language, so exports cannot be
+    /// extracted (e.g. a `.md`/`.sql` file listed in `files:`). Not a failure.
+    UnknownLanguage,
+    /// The file could not be read — missing, permission-denied, or not valid UTF-8 —
+    /// so its exports are unknown. A gate must not treat this as "no exports".
+    Unreadable,
+}
+
+/// Extract exported symbol names, distinguishing failure from genuine emptiness.
+/// Uses `ExportLevel::Member` and regex parsing (matches `get_exported_symbols`).
+pub fn scan_exported_symbols(file_path: &Path) -> ExportScan {
+    scan_exported_symbols_full(file_path, ExportLevel::Member, ParseMode::Regex)
+}
+
+/// Like `get_exported_symbols_full`, but returns an `ExportScan` so a read/parse
+/// failure or unsupported language is distinguishable from a file that genuinely
+/// exports nothing — required by callers that gate on the result.
+pub fn scan_exported_symbols_full(
     file_path: &Path,
     level: ExportLevel,
     parse_mode: ParseMode,
-) -> Vec<String> {
+) -> ExportScan {
     let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
     let lang = match Language::from_extension(ext) {
         Some(l) => l,
-        None => return Vec::new(),
+        None => return ExportScan::UnknownLanguage,
     };
 
     let content = match std::fs::read_to_string(file_path) {
         Ok(c) => c,
-        Err(_) => return Vec::new(),
+        Err(_) => return ExportScan::Unreadable,
     };
 
     let symbols = if parse_mode == ParseMode::Ast {
@@ -99,10 +123,28 @@ pub fn get_exported_symbols_full(
 
     // Deduplicate preserving order
     let mut seen = std::collections::HashSet::new();
-    symbols
-        .into_iter()
-        .filter(|s| seen.insert(s.clone()))
-        .collect()
+    ExportScan::Parsed(
+        symbols
+            .into_iter()
+            .filter(|s| seen.insert(s.clone()))
+            .collect(),
+    )
+}
+
+/// Extract exported symbol names with full control over granularity and parse mode.
+/// When `parse_mode` is `Ast`, uses tree-sitter for TypeScript, Python, and Rust.
+/// Falls back to regex for all other languages or if AST parsing fails. A read/parse
+/// failure or unsupported language yields an empty vector — use
+/// `scan_exported_symbols_full` when that distinction matters (e.g. for gating).
+pub fn get_exported_symbols_full(
+    file_path: &Path,
+    level: ExportLevel,
+    parse_mode: ParseMode,
+) -> Vec<String> {
+    match scan_exported_symbols_full(file_path, level, parse_mode) {
+        ExportScan::Parsed(symbols) => symbols,
+        ExportScan::UnknownLanguage | ExportScan::Unreadable => Vec::new(),
+    }
 }
 
 /// Dispatch to the regex-based export extractor for the given language.
@@ -379,5 +421,47 @@ mod is_test_file_tests {
             Path::new("/home/user/myproject/tests/data.json"),
             root
         ));
+    }
+}
+
+#[cfg(test)]
+mod scan_tests {
+    use super::{ExportScan, scan_exported_symbols};
+    use std::io::Write;
+
+    #[test]
+    fn parsed_distinguishes_from_unreadable_and_unknown() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // A recognized-language file that parses → Parsed(symbols).
+        let ts = dir.path().join("a.ts");
+        std::fs::write(&ts, "export function hi() {}\n").unwrap();
+        assert_eq!(
+            scan_exported_symbols(&ts),
+            ExportScan::Parsed(vec!["hi".to_string()])
+        );
+
+        // A recognized-language file that genuinely exports nothing → Parsed(empty),
+        // NOT Unreadable — the caller can tell "clean but empty" from "could not read".
+        let empty = dir.path().join("empty.rs");
+        std::fs::write(&empty, "fn private_only() {}\n").unwrap();
+        assert_eq!(scan_exported_symbols(&empty), ExportScan::Parsed(vec![]));
+
+        // A non-source extension → UnknownLanguage (a `.md`/`.sql` listed in files:).
+        let md = dir.path().join("readme.md");
+        std::fs::write(&md, "# doc\n").unwrap();
+        assert_eq!(scan_exported_symbols(&md), ExportScan::UnknownLanguage);
+
+        // A missing file → Unreadable.
+        assert_eq!(
+            scan_exported_symbols(&dir.path().join("missing.ts")),
+            ExportScan::Unreadable
+        );
+
+        // A non-UTF-8 recognized-language file → Unreadable (not silently empty).
+        let bad = dir.path().join("bad.ts");
+        let mut f = std::fs::File::create(&bad).unwrap();
+        f.write_all(b"export function x() {}\n\xff\xfe").unwrap();
+        assert_eq!(scan_exported_symbols(&bad), ExportScan::Unreadable);
     }
 }

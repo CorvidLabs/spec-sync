@@ -66,6 +66,37 @@ pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConf
     (config, spec_files)
 }
 
+/// Validate a user-supplied module name used by the scaffolding commands
+/// (`new`, `add-spec`, `scaffold`, `wizard`). The name is written verbatim into paths
+/// like `<specs_dir>/<name>/<name>.spec.md` and joined onto source dirs, so an
+/// unvalidated name containing a path separator, `.`/`..`, or an absolute/drive-relative
+/// path would let scaffolding create files anywhere on disk (path traversal).
+///
+/// A valid name is a single plain path segment: exactly one `Component::Normal`, with no
+/// raw path separator and no control characters. The component check is platform-aware —
+/// it also rejects Windows drive-relative prefixes like `C:foo` that `Path::is_absolute`
+/// misses. Control characters are rejected so a name cannot inject into the generated
+/// YAML frontmatter or create a control-char directory. Returns `Err` (to be printed and
+/// exited on) rather than writing outside the project.
+pub(crate) fn validate_module_name(module_name: &str) -> Result<(), String> {
+    let single_normal_segment = {
+        let mut components = Path::new(module_name).components();
+        matches!(components.next(), Some(std::path::Component::Normal(_)))
+            && components.next().is_none()
+    };
+    let clean = !module_name.contains('/')
+        && !module_name.contains('\\')
+        && !module_name.chars().any(char::is_control);
+    if single_normal_segment && clean {
+        return Ok(());
+    }
+    Err(format!(
+        "invalid module name `{}`: use a single plain name — no path separators (`/`, `\\`), \
+         `.`/`..`, drive prefixes, absolute paths, or control characters",
+        module_name.escape_default()
+    ))
+}
+
 /// Filter spec files by user-provided spec names/paths.
 /// Matches against: exact file path, relative path, module name (from filename stem).
 /// Returns the full list if `filters` is empty.
@@ -700,5 +731,63 @@ pub fn create_drift_issues(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_module_name;
+
+    #[test]
+    fn validate_module_name_accepts_plain_names() {
+        for name in [
+            "auth",
+            "auth-service",
+            "user_profile",
+            "v2",
+            "a.b",
+            "Módulo",
+        ] {
+            assert!(
+                validate_module_name(name).is_ok(),
+                "`{name}` should be a valid module name"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_module_name_rejects_traversal_and_injection() {
+        // Empty, path separators, parent/current refs, absolute paths, and control
+        // characters must all be refused — none may reach a filesystem join.
+        for name in [
+            "",
+            ".",
+            "..",
+            "../evil",
+            "../../PWNED/evil",
+            "a/b",
+            "a\\b",
+            "sub/mod",
+            "/tmp/abs",
+            "auth/", // trailing separator normalizes to one segment, still refused
+            "evil\nversion: 99", // newline → frontmatter injection
+            "tab\tname",
+            "null\0byte",
+        ] {
+            assert!(
+                validate_module_name(name).is_err(),
+                "`{}` must be rejected as an unsafe module name",
+                name.escape_default()
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn validate_module_name_rejects_windows_drive_relative() {
+        // `C:foo` has no separator and `is_absolute()` is false (drive-relative), but its
+        // components include a Prefix, so the single-Normal-segment check refuses it.
+        assert!(validate_module_name("C:foo").is_err());
+        assert!(validate_module_name("C:\\abs").is_err());
     }
 }

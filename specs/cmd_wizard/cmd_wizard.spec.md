@@ -54,7 +54,7 @@ Implements the `specsync wizard` command — an interactive TUI wizard for creat
 
 | Condition | Behavior |
 |-----------|----------|
-| Empty module name entered | Exits with code 1 |
+| Empty or unsafe module name entered (path separator, `.`/`..`, absolute/drive-relative, control chars) | Refused via `validate_module_name`; prints `invalid module name …` and exits 1 (no path traversal) |
 | Spec directory already exists | Prints error and exits 1 |
 | User cancels at confirmation | Exits cleanly with code 0 |
 | Directory creation fails | Exits with code 1 |

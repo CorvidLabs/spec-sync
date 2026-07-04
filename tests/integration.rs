@@ -5483,7 +5483,7 @@ fn scaffold_auto_detects_single_source_file() {
     );
 }
 
-/// `add-spec`/`scaffold` must refuse a module name that would escape the project
+/// `new`/`add-spec`/`scaffold` must refuse a module name that would escape the project
 /// (path traversal) rather than writing spec/companion files to an arbitrary location.
 #[test]
 fn scaffold_rejects_module_name_path_traversal() {
@@ -5491,7 +5491,7 @@ fn scaffold_rejects_module_name_path_traversal() {
     let root = tmp.path();
     write_config(root, "specs", &["src"]);
 
-    for sub in ["add-spec", "scaffold"] {
+    for sub in ["new", "add-spec", "scaffold"] {
         let output = specsync()
             .args([sub, "../../escape/evil", "--root", root.to_str().unwrap()])
             .output()

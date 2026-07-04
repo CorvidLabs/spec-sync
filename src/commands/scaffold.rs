@@ -7,29 +7,7 @@ use crate::config::load_config;
 use crate::generator;
 use crate::registry;
 
-/// Reject a module name that could escape the target directory. The name is written
-/// verbatim into paths like `<specs_dir>/<name>/<name>.spec.md` and joined onto source
-/// dirs, so a name containing a path separator, `.`/`..`, or an absolute/rooted path
-/// would let `add-spec`/`scaffold` create files anywhere on disk (path traversal). A
-/// module name must be a single path segment. Fails loud rather than writing outside
-/// the project.
-fn validate_module_name(module_name: &str) -> Result<(), String> {
-    if module_name.is_empty() {
-        return Err("module name must not be empty".to_string());
-    }
-    if module_name.contains('/')
-        || module_name.contains('\\')
-        || module_name == "."
-        || module_name == ".."
-        || Path::new(module_name).is_absolute()
-    {
-        return Err(format!(
-            "invalid module name `{module_name}`: use a single name without path \
-             separators (`/`, `\\`), `.`/`..`, or an absolute path"
-        ));
-    }
-    Ok(())
-}
+use super::validate_module_name;
 
 pub fn cmd_add_spec(root: &Path, module_name: &str) {
     if let Err(e) = validate_module_name(module_name) {
@@ -310,42 +288,6 @@ pub fn cmd_scaffold(
             .replace('\\', "/");
         if registry::register_module(root, module_name, &spec_rel) {
             println!("    {} Registered in specsync-registry.toml", "✓".green());
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn validate_module_name_accepts_plain_names() {
-        for name in ["auth", "auth-service", "user_profile", "v2", "a.b"] {
-            assert!(
-                validate_module_name(name).is_ok(),
-                "`{name}` should be a valid module name"
-            );
-        }
-    }
-
-    #[test]
-    fn validate_module_name_rejects_path_traversal() {
-        // Anything that could escape `<specs_dir>/<name>/` must be refused.
-        for name in [
-            "",
-            "..",
-            ".",
-            "../evil",
-            "../../PWNED/evil",
-            "a/b",
-            "a\\b",
-            "/tmp/abs",
-            "sub/mod",
-        ] {
-            assert!(
-                validate_module_name(name).is_err(),
-                "`{name}` must be rejected as an unsafe module name"
-            );
         }
     }
 }

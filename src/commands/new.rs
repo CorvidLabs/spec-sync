@@ -7,8 +7,14 @@ use crate::config::load_config;
 use crate::exports;
 use crate::generator;
 
+use super::validate_module_name;
+
 /// Quick-create a minimal spec for a module with auto-detected source files.
 pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
+    if let Err(e) = validate_module_name(module_name) {
+        eprintln!("{e}");
+        process::exit(1);
+    }
     let config = load_config(root);
     let specs_dir = root.join(&config.specs_dir);
     let spec_dir = specs_dir.join(module_name);

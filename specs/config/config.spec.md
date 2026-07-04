@@ -59,6 +59,7 @@ The configuration file supports the following top-level sections:
 5. `detect_source_dirs` falls back to `["src"]` if no source files are found
 6. Root-level source files (no subdirectories) produce `["."]` as source dirs
 7. TOML parsing is zero-dependency — uses line-by-line string parsing, not a TOML library
+8. The reader accepts both TOML string kinds for scalar and array values: basic `"..."` strings (backslash escapes decoded) and literal `'...'` strings (taken verbatim, no escape processing); a `#`, `,`, `[`, or `]` appearing inside either kind is treated as content, not as a comment or array structure
 
 ## Behavioral Examples
 

@@ -792,14 +792,15 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                         lines.next(); // consume blank / whole-line comment in array
                         continue;
                     }
-                    // Array items are quoted strings; the close is `]`. A
-                    // continuation line that is neither means the `]` was omitted —
-                    // stop WITHOUT consuming it so the following key/section still
-                    // parses, bounding a malformed array's damage to its own key
-                    // rather than swallowing the rest of the file. (These configs
-                    // never use nested arrays, so a leading `[` is a following
-                    // section header, not array content — it must NOT be absorbed.)
-                    if !cont.starts_with('"') && !cont.starts_with(']') {
+                    // Array items are quoted strings — basic `"..."` or literal
+                    // `'...'` — and the close is `]`. A continuation line that is none
+                    // of these means the `]` was omitted — stop WITHOUT consuming it so
+                    // the following key/section still parses, bounding a malformed
+                    // array's damage to its own key rather than swallowing the rest of
+                    // the file. (These configs never use nested arrays, so a leading
+                    // `[` is a following section header, not array content — it must
+                    // NOT be absorbed.)
+                    if !cont.starts_with('"') && !cont.starts_with('\'') && !cont.starts_with(']') {
                         break;
                     }
                     lines.next();
@@ -941,19 +942,30 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
 ///   `120 # seconds`     →  `120`
 ///   `"has # inside"`    →  `"has # inside"`
 fn strip_inline_comment(s: &str) -> String {
-    let mut in_string = false;
+    // Track both TOML string kinds: basic `"..."` (backslash-escaped) and literal
+    // `'...'` (no escapes). A `#` inside either is content, not a comment.
+    let mut in_basic = false;
+    let mut in_literal = false;
     let mut prev_backslash = false;
     for (i, c) in s.char_indices() {
-        if in_string {
+        if in_basic {
             if c == '"' && !prev_backslash {
-                in_string = false;
+                in_basic = false;
             }
             prev_backslash = c == '\\' && !prev_backslash;
             continue;
         }
+        if in_literal {
+            // Literal strings have no escapes, so the next `'` always closes.
+            if c == '\'' {
+                in_literal = false;
+            }
+            continue;
+        }
         prev_backslash = false;
         match c {
-            '"' => in_string = true,
+            '"' => in_basic = true,
+            '\'' => in_literal = true,
             // A `#` outside any string starts a comment.
             '#' => return s[..i].trim().to_string(),
             _ => {}
@@ -964,35 +976,49 @@ fn strip_inline_comment(s: &str) -> String {
 
 fn parse_toml_string(s: &str) -> String {
     let s = s.trim();
-    if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+    if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
         // Quoted basic string: decode the escapes `toml_escape` emits so the value
         // round-trips (an unquoted bare value is left as-is).
         toml_unescape(&s[1..s.len() - 1])
+    } else if s.len() >= 2 && s.starts_with('\'') && s.ends_with('\'') {
+        // Literal string: content is taken verbatim (TOML literal strings perform no
+        // escape processing), so a Windows path or regex keeps its backslashes.
+        s[1..s.len() - 1].to_string()
     } else {
         s.to_string()
     }
 }
 
 /// Return the byte index of the `]` that closes the first `[` in `s`, scanning
-/// with quote-, escape-, and bracket-depth awareness so a `]` inside a quoted
-/// string (e.g. a glob char-class `"**/[abc]/**"`) or a nested array does not
-/// count. Returns `None` if the array is not closed within `s`.
+/// with quote-, escape-, and bracket-depth awareness so a `[`/`]` inside a quoted
+/// string (e.g. a glob char-class `"**/[abc]/**"` or its literal-string form
+/// `'**/[abc]/**'`) or a nested array does not count. Both TOML string kinds are
+/// tracked: basic `"..."` (backslash-escaped) and literal `'...'` (no escapes).
+/// Returns `None` if the array is not closed within `s`.
 fn find_toml_array_close(s: &str) -> Option<usize> {
-    let mut in_string = false;
+    let mut in_basic = false;
+    let mut in_literal = false;
     let mut prev_backslash = false;
     let mut depth: i32 = 0;
     let mut opened = false;
     for (i, ch) in s.char_indices() {
-        if in_string {
+        if in_basic {
             if ch == '"' && !prev_backslash {
-                in_string = false;
+                in_basic = false;
             }
             prev_backslash = ch == '\\' && !prev_backslash;
             continue;
         }
+        if in_literal {
+            if ch == '\'' {
+                in_literal = false;
+            }
+            continue;
+        }
         prev_backslash = false;
         match ch {
-            '"' => in_string = true,
+            '"' => in_basic = true,
+            '\'' => in_literal = true,
             '[' => {
                 depth += 1;
                 opened = true;
@@ -1033,26 +1059,39 @@ fn parse_toml_string_array(s: &str) -> Vec<String> {
 }
 
 /// Split a TOML array body on top-level commas, skipping commas inside quoted
-/// (escape-aware) strings. Each returned segment still carries its quotes/whitespace
-/// for `parse_toml_string` to strip.
+/// strings — both basic `"..."` (escape-aware) and literal `'...'` (no escapes).
+/// Each returned segment still carries its quotes/whitespace for `parse_toml_string`
+/// to strip.
 fn split_toml_array_items(body: &str) -> Vec<String> {
     let mut items = Vec::new();
     let mut cur = String::new();
-    let mut in_string = false;
+    let mut in_basic = false;
+    let mut in_literal = false;
     let mut prev_backslash = false;
     for ch in body.chars() {
-        if in_string {
+        if in_basic {
             cur.push(ch);
             if ch == '"' && !prev_backslash {
-                in_string = false;
+                in_basic = false;
             }
             prev_backslash = ch == '\\' && !prev_backslash;
+            continue;
+        }
+        if in_literal {
+            cur.push(ch);
+            if ch == '\'' {
+                in_literal = false;
+            }
             continue;
         }
         prev_backslash = false;
         match ch {
             '"' => {
-                in_string = true;
+                in_basic = true;
+                cur.push(ch);
+            }
+            '\'' => {
+                in_literal = true;
                 cur.push(ch);
             }
             ',' => items.push(std::mem::take(&mut cur)),
@@ -1299,6 +1338,85 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_toml_string_single_quoted_literal() {
+        // TOML literal (single-quoted) strings are taken verbatim.
+        assert_eq!(parse_toml_string("'hello'"), "hello");
+        assert_eq!(parse_toml_string("  'trimmed'  "), "trimmed");
+        assert_eq!(parse_toml_string("''"), "");
+    }
+
+    #[test]
+    fn test_parse_toml_string_literal_preserves_backslashes() {
+        // A literal string performs NO escape processing (unlike a basic string),
+        // so backslashes in a Windows path or regex survive intact.
+        assert_eq!(parse_toml_string("'C:\\temp\\new'"), "C:\\temp\\new");
+        assert_eq!(parse_toml_string("'\\d+'"), "\\d+");
+    }
+
+    #[test]
+    fn test_parse_toml_string_array_single_quoted() {
+        assert_eq!(
+            parse_toml_string_array("['a', 'b', 'c']"),
+            vec!["a", "b", "c"]
+        );
+    }
+
+    #[test]
+    fn test_parse_toml_string_array_mixed_quotes() {
+        // Basic and literal strings can be mixed within one array.
+        assert_eq!(
+            parse_toml_string_array("[\"src\", 'gen']"),
+            vec!["src", "gen"]
+        );
+    }
+
+    #[test]
+    fn test_parse_toml_string_array_literal_glob_with_brackets() {
+        // A literal-quoted glob containing `]` must not close the array early.
+        assert_eq!(
+            parse_toml_string_array("['**/[abc]/**', 'src']"),
+            vec!["**/[abc]/**", "src"]
+        );
+    }
+
+    #[test]
+    fn test_parse_toml_string_array_literal_comma_and_bracket_intact() {
+        // A `,` or `]` inside a literal element must not split or truncate the array.
+        assert_eq!(
+            parse_toml_string_array("['a]b', 'c,d']"),
+            vec!["a]b", "c,d"]
+        );
+    }
+
+    #[test]
+    fn test_strip_inline_comment_hash_inside_literal() {
+        // A `#` inside a string (basic or literal) is content; only an out-of-string
+        // `#` starts a comment.
+        assert_eq!(strip_inline_comment("'a#b'"), "'a#b'");
+        assert_eq!(strip_inline_comment("'a#b' # real comment"), "'a#b'");
+        assert_eq!(strip_inline_comment("\"a#b\" # real comment"), "\"a#b\"");
+    }
+
+    #[test]
+    fn test_load_config_toml_single_quoted_strings() {
+        // Regression: a config written with TOML literal (single-quoted) strings — valid
+        // TOML — was mis-parsed, silently dropping the setting (source_dirs scanned a dir
+        // named `'lib'` quotes-and-all, yielding vacuous 0/0 coverage).
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "specs_dir = 'specs'\n\
+             source_dirs = ['src', 'lib']\n\
+             exclude_patterns = ['**/gen/**']\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert_eq!(config.specs_dir, "specs");
+        assert_eq!(config.source_dirs, vec!["src", "lib"]);
+        assert_eq!(config.exclude_patterns, vec!["**/gen/**"]);
+    }
+
+    #[test]
     fn test_load_config_toml_multiline_arrays() {
         // Regression: a formatter-style multi-line array must parse into its real
         // entries, not the corrupt `["["]` that silently dropped them (and got
@@ -1309,6 +1427,26 @@ mod tests {
             "specs_dir = \"specs\"\n\
              source_dirs = [\n  \"src\",\n  \"lib\",\n]\n\
              exclude_patterns = [\n  \"**/*.test.ts\",  # inline-ish comment line\n  \"**/gen/**\",\n]\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert_eq!(config.source_dirs, vec!["src", "lib"]);
+        assert_eq!(config.exclude_patterns, vec!["**/*.test.ts", "**/gen/**"]);
+    }
+
+    #[test]
+    fn test_load_config_toml_multiline_single_quoted_array() {
+        // Regression: a formatter-style multi-line array whose items are TOML literal
+        // (single-quoted) strings must accumulate its real entries — the continuation
+        // guard accepts `'`-led lines, not just `"`. Otherwise it collapsed to the
+        // corrupt `["["]`, the same silent-drop → vacuous-coverage failure this fix
+        // targets.
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "specs_dir = 'specs'\n\
+             source_dirs = [\n  'src',\n  'lib',\n]\n\
+             exclude_patterns = [\n  '**/*.test.ts',\n  '**/gen/**',\n]\n",
         )
         .unwrap();
         let config = load_config(tmp.path());

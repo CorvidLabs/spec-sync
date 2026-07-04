@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.7.1] - 2026-07-04
+
+### Fixed
+
+- **TOML literal (single-quoted) config values are parsed, not silently dropped** — the hand-rolled config reader recognized only double-quoted `"..."` strings, so a valid TOML literal string like `source_dirs = ['lib']` (single-line or a formatter-style multi-line array) was mis-parsed: it scanned a directory named `'lib'` quotes-and-all, found no source files, and reported vacuous `File coverage: 0/0 (100%)` on a green build — the same silent-drop failure class as the multi-line-array and scalar-comment fixes in 4.7.0. Both TOML string kinds are now handled across every scalar and array value: basic `"..."` (escapes decoded) and literal `'...'` (taken verbatim, so a Windows path or regex keeps its backslashes); a `#`, `,`, `[`, or `]` inside either kind is content, not a comment or array structure. Configs that used single quotes are now scanned against their real directories, so `check` reports actual — and possibly failing — coverage where it previously passed vacuously.
+- **`deps --strict --format json` no longer emits the human diagnostic note** — the `--strict` failure note (`N dependency warning(s) treated as errors`) introduced in 4.7.0 was written to stderr for every output format, including JSON. It is now suppressed in JSON mode so a JSON consumer gets fully machine-readable output with nothing extraneous to parse around — the offending dependencies are already in the `warnings` array and signalled by the non-zero exit code. Human-readable formats still print the note on stderr, and the `--strict` exit-1 gating is unchanged. Also refreshes the `cmd_deps` spec and its companion docs to match the current `cmd_deps(root, strict, format, mermaid, dot)` signature.
+
 ## [4.7.0] - 2026-07-04
 
 > **Upgrade note:** This release closes a family of bugs where enforcement gates silently exited `0` in exactly the states they exist to catch — `check`, `score`, and `coverage` on warm caches or spec-less projects, `deps --strict` on undeclared imports, `lifecycle enforce` configured with the documented camelCase keys, and `--require-coverage` measured against zero source files. After upgrading, CI that passed on one of those false-greens may now correctly fail; each entry below gives the specific remedy. Shallow CI checkouts that run `specsync diff --base <ref>` should set `fetch-depth: 0`.

@@ -10,7 +10,9 @@ use crate::output::{print_coverage_line, print_coverage_report, print_summary};
 use crate::types;
 use crate::validator::{compute_coverage, get_schema_table_names};
 
-use super::{build_schema_columns, exit_with_status, load_and_discover, run_validation};
+use super::{
+    build_schema_columns, compute_exit_code, exit_with_status, load_and_discover, run_validation,
+};
 
 /// Resolve the AI provider for `generate`, or `None` for template-only mode.
 ///
@@ -126,7 +128,11 @@ fn cmd_generate_all(
     let ignore_rules = crate::ignore::IgnoreRules::default();
 
     let (mut total_errors, mut total_warnings, mut passed, mut total) = if spec_files.is_empty() {
-        println!("No existing specs found. Scanning for source modules...");
+        // Diagnostic only — never on stdout under --format json, which must stay a
+        // clean JSON document.
+        if !json {
+            println!("No existing specs found. Scanning for source modules...");
+        }
         (0, 0, 0, 0)
     } else {
         let (te, tw, p, t, _, _) = run_validation(
@@ -156,12 +162,49 @@ fn cmd_generate_all(
             &config,
             resolved_provider.as_ref(),
         );
+        // Recompute coverage + validation post-generation so the gate reflects the
+        // newly written specs, then honor the same gate flags the text path does.
+        // Without this, `--strict`/`--enforcement`/`--require-coverage` were silently
+        // ignored on the JSON path — a machine-consumer false pass on the exact
+        // states (validation errors, unspecced files, sub-threshold/vacuous coverage)
+        // a gate exists to catch.
+        let (config, spec_files) = load_and_discover(root, true);
+        let coverage = compute_coverage(root, &spec_files, &config);
+        let (total_errors, total_warnings) = if spec_files.is_empty() {
+            (0, 0)
+        } else {
+            let schema_tables = get_schema_table_names(root, &config);
+            let schema_columns = build_schema_columns(root, &config);
+            let (te, tw, _, _, _, _) = run_validation(
+                root,
+                &spec_files,
+                &schema_tables,
+                &schema_columns,
+                &config,
+                true,
+                false,
+                &ignore_rules,
+            );
+            (te, tw)
+        };
         let output = serde_json::json!({
             "generated": outcome.generated_paths,
             "ai_errors": outcome.ai_errors,
         });
         println!("{}", serde_json::to_string_pretty(&output).unwrap());
-        process::exit(if outcome.ai_errors.is_empty() { 0 } else { 1 });
+        let gate = compute_exit_code(
+            total_errors,
+            total_warnings,
+            strict,
+            enforcement,
+            &coverage,
+            require_coverage,
+        );
+        process::exit(if outcome.ai_errors.is_empty() && gate == 0 {
+            0
+        } else {
+            1
+        });
     }
 
     print_coverage_report(&coverage);
@@ -329,6 +372,29 @@ fn cmd_generate_batch(
             &config,
             resolved_provider.as_ref(),
         );
+        // Recompute coverage + validation post-generation and honor the gate flags,
+        // matching the text path — the JSON path previously ignored
+        // --strict/--enforcement/--require-coverage (a machine-consumer false pass).
+        let (config, spec_files) = load_and_discover(root, true);
+        let coverage = compute_coverage(root, &spec_files, &config);
+        let (total_errors, total_warnings) = if spec_files.is_empty() {
+            (0, 0)
+        } else {
+            let schema_tables = get_schema_table_names(root, &config);
+            let schema_columns = build_schema_columns(root, &config);
+            let ignore_rules = crate::ignore::IgnoreRules::default();
+            let (te, tw, _, _, _, _) = run_validation(
+                root,
+                &spec_files,
+                &schema_tables,
+                &schema_columns,
+                &config,
+                true,
+                false,
+                &ignore_rules,
+            );
+            (te, tw)
+        };
         let output = serde_json::json!({
             "requested": modules,
             "generated": outcome.generated_paths,
@@ -337,7 +403,19 @@ fn cmd_generate_batch(
             "skipped_not_found": not_found,
         });
         println!("{}", serde_json::to_string_pretty(&output).unwrap());
-        process::exit(if outcome.ai_errors.is_empty() { 0 } else { 1 });
+        let gate = compute_exit_code(
+            total_errors,
+            total_warnings,
+            strict,
+            enforcement,
+            &coverage,
+            require_coverage,
+        );
+        process::exit(if outcome.ai_errors.is_empty() && gate == 0 {
+            0
+        } else {
+            1
+        });
     }
 
     println!(

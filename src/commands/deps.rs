@@ -24,6 +24,23 @@ pub fn cmd_deps(root: &Path, strict: bool, format: types::OutputFormat, mermaid:
                 "Hint:".yellow()
             );
         }
+        // A visualization request must still honor the gate flags: without this,
+        // `deps --strict --mermaid`/`--dot` silently exited 0 on the same undeclared
+        // imports / cycles / missing deps that the non-visual path fails on. The
+        // diagram remains the only thing on stdout; the gate note and exit go to
+        // stderr / the exit code, consistent with the normal `deps` path.
+        let report = deps::validate_deps(root, &config.specs_dir);
+        let strict_fail = strict && !report.warnings.is_empty();
+        if strict_fail {
+            eprintln!(
+                "{}: {} dependency warning(s) treated as errors",
+                "--strict mode".red(),
+                report.warnings.len()
+            );
+        }
+        if !report.errors.is_empty() || strict_fail {
+            process::exit(1);
+        }
         return;
     }
 

@@ -522,7 +522,7 @@ Document this module's responsibility, inputs, outputs, and ownership boundaries
 }
 
 /// Find source files in a module directory.
-fn find_module_source_files(dir: &Path, config: &SpecSyncConfig) -> Vec<String> {
+fn find_module_source_files(dir: &Path, config: &SpecSyncConfig, root: &Path) -> Vec<String> {
     let mut results = Vec::new();
     if !dir.exists() {
         return results;
@@ -530,7 +530,10 @@ fn find_module_source_files(dir: &Path, config: &SpecSyncConfig) -> Vec<String> 
 
     for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
-        if path.is_file() && has_extension(path, &config.source_extensions) && !is_test_file(path) {
+        if path.is_file()
+            && has_extension(path, &config.source_extensions)
+            && !is_test_file(path, root)
+        {
             results.push(path.to_string_lossy().to_string());
         }
     }
@@ -560,7 +563,7 @@ pub fn find_files_for_module(
             if full_path.exists() {
                 module_files.push(full_path.to_string_lossy().replace('\\', "/"));
             } else if full_path.is_dir() {
-                module_files.extend(find_module_source_files(&full_path, config));
+                module_files.extend(find_module_source_files(&full_path, config, root));
             }
         }
         if !module_files.is_empty() {
@@ -571,7 +574,7 @@ pub fn find_files_for_module(
     // Second: look for subdirectory-based modules (src/module_name/)
     for src_dir in &config.source_dirs {
         let module_dir = root.join(src_dir).join(module_name);
-        let files = find_module_source_files(&module_dir, config);
+        let files = find_module_source_files(&module_dir, config, root);
         module_files.extend(files);
     }
 
@@ -584,7 +587,7 @@ pub fn find_files_for_module(
                     let path = entry.path();
                     if !path.is_file()
                         || !has_extension(&path, &config.source_extensions)
-                        || is_test_file(&path)
+                        || is_test_file(&path, root)
                     {
                         continue;
                     }
@@ -619,7 +622,7 @@ pub fn find_single_source_fallback(root: &Path, config: &SpecSyncConfig) -> Opti
             let path = entry.path();
             if !path.is_file()
                 || !has_extension(path, &config.source_extensions)
-                || is_test_file(path)
+                || is_test_file(path, root)
             {
                 continue;
             }

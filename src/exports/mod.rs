@@ -264,7 +264,7 @@ const TEST_DIR_NAMES: &[&str] = &[
 ];
 
 /// Check if a file is a test file based on language conventions and path.
-pub fn is_test_file(file_path: &Path) -> bool {
+pub fn is_test_file(file_path: &Path, root: &Path) -> bool {
     let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
     let lang = match Language::from_extension(ext) {
@@ -281,12 +281,18 @@ pub fn is_test_file(file_path: &Path) -> bool {
         }
     }
 
-    // Check if any ancestor directory is a test directory
-    for component in file_path.components() {
-        if let std::path::Component::Normal(dir) = component {
-            let dir_lower = dir.to_string_lossy().to_lowercase();
-            if TEST_DIR_NAMES.contains(&dir_lower.as_str()) {
-                return true;
+    // Check whether any directory *inside the project* is a test directory. Bound the
+    // walk to components below `root`: when a full/absolute path is passed (as coverage
+    // does), an ancestor above the project named `test`/`spec`/etc. must not
+    // misclassify an ordinary source file. If the path is not under `root`, we cannot
+    // tell which components are project-relative, so we rely on the filename alone.
+    if let Ok(relative) = file_path.strip_prefix(root) {
+        for component in relative.components() {
+            if let std::path::Component::Normal(dir) = component {
+                let dir_lower = dir.to_string_lossy().to_lowercase();
+                if TEST_DIR_NAMES.contains(&dir_lower.as_str()) {
+                    return true;
+                }
             }
         }
     }
@@ -308,4 +314,70 @@ pub fn has_extension(file_path: &Path, extensions: &[String]) -> bool {
     }
     let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
     extensions.iter().any(|e| e == ext)
+}
+
+#[cfg(test)]
+mod is_test_file_tests {
+    use super::is_test_file;
+    use std::path::Path;
+
+    #[test]
+    fn ignores_test_named_ancestors_above_root() {
+        // Regression: a project living under a directory named `spec`/`test`/etc. must
+        // not have its ordinary sources mis-classified as tests. The directory check is
+        // bounded to components below `root`.
+        let root = Path::new("/home/user/spec/myproject");
+        let file = Path::new("/home/user/spec/myproject/src/app.ts");
+        assert!(
+            !is_test_file(file, root),
+            "a `spec/` ancestor above the project root must be ignored"
+        );
+
+        let root2 = Path::new("/ci/tests/checkout/repo");
+        let file2 = Path::new("/ci/tests/checkout/repo/src/lib.rs");
+        assert!(
+            !is_test_file(file2, root2),
+            "`tests/` above root must be ignored"
+        );
+    }
+
+    #[test]
+    fn detects_in_project_test_directory() {
+        let root = Path::new("/home/user/myproject");
+        assert!(is_test_file(
+            Path::new("/home/user/myproject/src/tests/helper.ts"),
+            root
+        ));
+        assert!(is_test_file(
+            Path::new("/home/user/myproject/__tests__/util.ts"),
+            root
+        ));
+    }
+
+    #[test]
+    fn detects_test_filename_patterns() {
+        let root = Path::new("/home/user/myproject");
+        assert!(is_test_file(
+            Path::new("/home/user/myproject/src/app.test.ts"),
+            root
+        ));
+        assert!(is_test_file(
+            Path::new("/home/user/myproject/src/app.spec.ts"),
+            root
+        ));
+    }
+
+    #[test]
+    fn plain_source_is_not_a_test() {
+        let root = Path::new("/home/user/myproject");
+        assert!(!is_test_file(
+            Path::new("/home/user/myproject/src/app.ts"),
+            root
+        ));
+        // A non-source extension is never a test file.
+        assert!(!is_test_file(
+            Path::new("/home/user/myproject/tests/data.json"),
+            root
+        ));
+    }
 }

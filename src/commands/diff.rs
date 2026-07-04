@@ -157,17 +157,28 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
         let export_set: std::collections::HashSet<&str> =
             current_exports.iter().map(|s| s.as_str()).collect();
 
-        let new_exports: Vec<String> = current_exports
-            .iter()
-            .filter(|s| !spec_set.contains(s.as_str()))
-            .cloned()
-            .collect();
-
-        let removed_exports: Vec<String> = spec_symbols
-            .iter()
-            .filter(|s| !export_set.contains(s.as_str()))
-            .cloned()
-            .collect();
+        // If any of this spec's files could not be read, the export set is
+        // incomplete, so the computed deltas are unreliable — a missing file's
+        // documented symbols would otherwise show up as bogus "removed exports"
+        // (a false deletion to a machine consumer). Suppress the deltas and rely on
+        // the inconclusive marker + non-zero exit instead.
+        let (new_exports, removed_exports): (Vec<String>, Vec<String>) =
+            if inconclusive_files.is_empty() {
+                (
+                    current_exports
+                        .iter()
+                        .filter(|s| !spec_set.contains(s.as_str()))
+                        .cloned()
+                        .collect(),
+                    spec_symbols
+                        .iter()
+                        .filter(|s| !export_set.contains(s.as_str()))
+                        .cloned()
+                        .collect(),
+                )
+            } else {
+                (Vec::new(), Vec::new())
+            };
 
         entries.push(DiffEntry {
             spec: spec_rel,

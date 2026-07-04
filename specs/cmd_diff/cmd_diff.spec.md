@@ -36,6 +36,7 @@ Implements the `specsync diff` command — shows which specs are affected by sou
 4. Changed files not covered by any spec are listed separately
 5. Text output delegates to `output::print_diff_markdown`
 6. A non-zero `git diff` exit (bad base ref, not a git repository) fails loud with exit code 1 — it is never treated as an empty change set ("No files changed"), so a failed comparison cannot silently pass in CI
+7. A spec whose `files:` includes a source file that exists-or-should but cannot be read (missing, or not valid UTF-8) is inconclusive: the file is surfaced (`inconclusive_files`), its unreliable export deltas are suppressed, and `diff` exits 1 — an unreadable source must not be silently treated as export-free "no drift" (a non-source file, e.g. a `.md`/`.sql` listed in `files:`, is not a failure)
 
 ## Behavioral Examples
 

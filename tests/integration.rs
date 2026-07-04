@@ -6326,27 +6326,35 @@ fn deps_strict_gates_on_undeclared_imports() {
 
     // Default deps is advisory (reports the warning, exits 0).
     specsync().current_dir(root).arg("deps").assert().success();
-    // --strict now fails on the undeclared import.
+    // --strict fails on the undeclared import; non-JSON formats get the human
+    // "treated as errors" note on stderr.
     specsync()
         .current_dir(root)
         .args(["deps", "--strict"])
         .assert()
-        .failure();
-    // JSON output gates AND stdout stays fully parseable JSON (the strict note
-    // is a stderr diagnostic, so it must not leak into the JSON body).
-    let out = specsync()
+        .failure()
+        .stderr(predicate::str::contains("treated as errors"));
+    // JSON output gates AND stays fully machine-readable: stdout is parseable
+    // JSON carrying the warning, and the human strict note is suppressed
+    // entirely — not even on stderr — so a JSON consumer sees only structured
+    // data plus the exit code (no ANSI, nothing to parse around).
+    let output = specsync()
         .current_dir(root)
         .args(["deps", "--strict", "--format", "json"])
         .assert()
         .failure()
         .get_output()
-        .stdout
         .clone();
-    let parsed: serde_json::Value =
-        serde_json::from_slice(&out).expect("deps --strict json stdout must be valid JSON");
+    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .expect("deps --strict json stdout must be valid JSON");
     assert!(
         !parsed["undeclared_imports"].as_array().unwrap().is_empty(),
         "expected the undeclared import to be reported in JSON"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains("treated as errors") && !stderr.contains("--strict mode"),
+        "JSON mode must not emit the human strict note, even on stderr; got: {stderr:?}"
     );
 }
 

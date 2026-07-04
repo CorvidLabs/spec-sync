@@ -53,6 +53,10 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
             }
         );
         eprintln!("  Is `{base}` a valid revision, and is this a git repository?");
+        eprintln!(
+            "  In a shallow CI checkout the base ref is often absent — fetch it first \
+             (e.g. actions/checkout with `fetch-depth: 0`)."
+        );
         process::exit(1);
     }
 

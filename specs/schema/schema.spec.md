@@ -36,12 +36,14 @@ Parses SQL schema files (migrations) and spec markdown to build table/column map
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `build_schema` | `schema_dir: &Path` | `HashMap<String, SchemaTable>` | Build a complete schema map from SQL/migration files in the given directory, sorted by filename |
+| `schema_read_errors` | `schema_dir: &Path` | `Vec<String>` | Error message for each schema/migration file that exists but cannot be read as UTF-8, so the validation gate can fail loud instead of silently under-validating (`build_schema` skips such files) |
 | `parse_spec_schema` | `body: &str` | `HashMap<String, Vec<SpecColumn>>` | Extract column definitions from a spec's `### Schema` section(s) |
 
 ## Invariants
 
 1. `build_schema` replays migrations in filename-sorted order for deterministic results
 2. `build_schema` returns an empty map if the directory does not exist
+2a. A schema/migration file that exists but cannot be read as UTF-8 is silently skipped by `build_schema` (its tables/columns vanish); `schema_read_errors` reports each such file so the validation gate surfaces it as a hard error rather than letting an all-unreadable schema silently disable `db_tables`/column checks
 3. Column types are normalized to uppercase (e.g. "integer" becomes "INTEGER")
 4. ALTER TABLE ADD COLUMN is idempotent — duplicate column names are skipped
 5. DROP TABLE removes the table and all its columns from the map

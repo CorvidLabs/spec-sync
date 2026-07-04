@@ -103,6 +103,53 @@ pub fn build_schema(schema_dir: &Path) -> HashMap<String, SchemaTable> {
     tables
 }
 
+/// Return an error message for each schema/migration file that EXISTS in
+/// `schema_dir` but could not be read as UTF-8. `build_schema` silently skips such
+/// a file (`Err(_) => continue`), which makes its tables/columns vanish and can
+/// silently disable DB validation — if every schema file is unreadable, the
+/// discovered set is empty and the `db_tables`/column checks become a no-op with
+/// no signal. The validation gate surfaces these so an unreadable migration fails
+/// loud instead of quietly weakening the guarantee. Scans the same files
+/// `build_schema` would (matching `SQL_EXTENSIONS`); returns an empty vec when the
+/// directory is absent (schema is simply not configured for this project).
+pub fn schema_read_errors(schema_dir: &Path) -> Vec<String> {
+    let mut errors = Vec::new();
+    if !schema_dir.exists() {
+        return errors;
+    }
+
+    let mut files: Vec<_> = fs::read_dir(schema_dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| {
+            let ext = e
+                .path()
+                .extension()
+                .and_then(|x| x.to_str())
+                .unwrap_or("")
+                .to_string();
+            SQL_EXTENSIONS.contains(&ext.as_str())
+        })
+        .collect();
+    files.sort_by_key(|e| e.file_name());
+
+    for entry in &files {
+        let path = entry.path();
+        if path.is_file() && fs::read_to_string(&path).is_err() {
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("<unknown>");
+            errors.push(format!(
+                "Schema/migration file `{name}` could not be read as UTF-8; DB schema validation would be incomplete"
+            ));
+        }
+    }
+
+    errors
+}
+
 /// Parse SQL content and merge discovered tables/columns into the map.
 fn parse_sql_into(sql: &str, tables: &mut HashMap<String, SchemaTable>) {
     // Handle CREATE TABLE statements
@@ -692,6 +739,32 @@ Something
     fn test_build_schema_nonexistent_dir() {
         let tables = build_schema(Path::new("/nonexistent/path"));
         assert!(tables.is_empty());
+    }
+
+    #[test]
+    fn test_schema_read_errors_flags_only_unreadable() {
+        use std::io::Write;
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+
+        // Absent dir → no errors (schema simply not configured).
+        assert!(schema_read_errors(Path::new("/nonexistent/path")).is_empty());
+
+        // A readable migration → no error.
+        fs::write(dir.join("001_ok.sql"), "CREATE TABLE t (id INTEGER);").unwrap();
+        assert!(schema_read_errors(dir).is_empty());
+
+        // A non-source file present alongside → ignored (not a SQL_EXTENSIONS file).
+        fs::write(dir.join("README.md"), "notes").unwrap();
+        assert!(schema_read_errors(dir).is_empty());
+
+        // A non-UTF-8 migration → exactly one error naming the file.
+        let mut f = std::fs::File::create(dir.join("002_bad.sql")).unwrap();
+        f.write_all(b"CREATE TABLE u (id INTEGER);\n\xff\xfe")
+            .unwrap();
+        let errs = schema_read_errors(dir);
+        assert_eq!(errs.len(), 1, "only the unreadable file should be flagged");
+        assert!(errs[0].contains("002_bad.sql"));
     }
 
     #[test]

@@ -2856,6 +2856,84 @@ fn diff_shows_changes_since_base_ref() {
 }
 
 #[test]
+fn diff_fails_loud_on_unreadable_source_file() {
+    // Regression: a changed source file whose exports can't be read (non-UTF-8)
+    // silently contributed zero exports, so real new API was dropped and diff
+    // reported "no drift" with exit 0. It must now surface the file and fail loud.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    for args in [
+        vec!["init"],
+        vec!["config", "user.email", "t@t.com"],
+        vec!["config", "user.name", "T"],
+    ] {
+        std::process::Command::new("git")
+            .args(&args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+    }
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/api.ts"), "export function apiFn() {}\n").unwrap();
+    fs::create_dir_all(root.join("specs/m")).unwrap();
+    fs::write(
+        root.join("specs/m/m.spec.md"),
+        valid_spec("m", &["src/api.ts"]),
+    )
+    .unwrap();
+    for args in [vec!["add", "."], vec!["commit", "-m", "init"]] {
+        std::process::Command::new("git")
+            .args(&args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+    }
+
+    // Rewrite api.ts with a genuinely-new export plus an invalid UTF-8 byte, then stage.
+    let mut bad = b"export function apiFn() {}\nexport function brandNew() {}\n".to_vec();
+    bad.push(0xFF);
+    fs::write(root.join("src/api.ts"), bad).unwrap();
+    std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(root)
+        .output()
+        .unwrap();
+
+    specsync()
+        .args(["diff", "--base", "HEAD", "--root", root.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("inconclusive"));
+}
+
+#[test]
+fn score_withholds_api_credit_for_unreadable_file() {
+    // Regression: a `files:` entry that can't be read (here missing) produced zero
+    // exports, which the API dimension scored as a PERFECT "no exports to document"
+    // (20/20) — inflating the gating total. It must withhold the credit instead.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/foo.rs"), "pub fn f() {}\n").unwrap();
+    fs::create_dir_all(root.join("specs/foo")).unwrap();
+    fs::write(
+        root.join("specs/foo/foo.spec.md"),
+        "---\nmodule: foo\nversion: 1\nstatus: active\nfiles:\n  - src/does_not_exist.rs\n---\n# foo\n## Purpose\np\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args(["score", "--explain", "--root", root.to_str().unwrap()])
+        .assert()
+        .stdout(
+            predicate::str::contains("could not analyze exports")
+                .and(predicate::str::contains("no exports to document").not()),
+        );
+}
+
+#[test]
 fn diff_no_changes_returns_empty() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();

@@ -891,12 +891,14 @@ fn preflight_config_parseable(root: &Path) -> Result<(), (String, String)> {
         .unwrap_or(&source)
         .display()
         .to_string();
-    let content = fs::read_to_string(&source)
+    let raw = fs::read_to_string(&source)
         .map_err(|e| (name.clone(), format!("cannot read file: {e}")))?;
-    // Same parse `load_json_config` uses; on failure it would fall back to
-    // defaults, so catch it here first (unknown keys are ignored by serde, not
-    // an error — they are only warned about during a normal load).
-    serde_json::from_str::<crate::types::SpecSyncConfig>(&content)
+    // Same parse `load_json_config` uses (including its leading-BOM tolerance), so a
+    // BOM-prefixed JSON config that loads fine is not spuriously refused here; on
+    // failure it would fall back to defaults, so catch it first (unknown keys are
+    // ignored by serde, not an error — they are only warned about during a load).
+    let content = raw.trim_start_matches('\u{feff}');
+    serde_json::from_str::<crate::types::SpecSyncConfig>(content)
         .map_err(|e| (name, e.to_string()))?;
     Ok(())
 }
@@ -1307,15 +1309,16 @@ fn parse_specs_dir_from_toml(content: &str) -> Option<String> {
 
 /// Discover spec files without requiring a valid config (since config may be mid-migration).
 fn discover_specs(root: &Path) -> Vec<PathBuf> {
-    // Try loading config to find specs_dir (JSON then TOML), fall back to "specs"
-    let specs_dir_name = fs::read_to_string(root.join("specsync.json"))
-        .or_else(|_| fs::read_to_string(root.join(".specsync/config.json")))
-        .ok()
+    // Try loading config to find specs_dir (JSON then TOML), fall back to "specs".
+    // `read_config_file` strips a leading BOM so a BOM-prefixed config does not
+    // silently lose its `specsDir`/`specs_dir` (which would drop specs in a custom
+    // dir from the migration entirely).
+    let specs_dir_name = crate::config::read_config_file(&root.join("specsync.json"))
+        .or_else(|| crate::config::read_config_file(&root.join(".specsync/config.json")))
         .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
         .and_then(|v| v.get("specsDir").and_then(|s| s.as_str()).map(String::from))
         .or_else(|| {
-            fs::read_to_string(root.join(".specsync.toml"))
-                .ok()
+            crate::config::read_config_file(&root.join(".specsync.toml"))
                 .and_then(|content| parse_specs_dir_from_toml(&content))
         })
         .unwrap_or_else(|| "specs".to_string());
@@ -1387,6 +1390,63 @@ mod tests {
         // Unknown keys are ignored by serde (only warned during a real load), so
         // an otherwise-valid config must not be rejected.
         assert!(preflight_config_parseable(tmp.path()).is_ok());
+    }
+
+    #[test]
+    fn preflight_accepts_bom_prefixed_json_config() {
+        // A leading UTF-8 BOM must not make migrate refuse a config that
+        // `load_json_config` reads fine (it strips the same BOM).
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join("specsync.json"),
+            "\u{feff}{ \"sourceDirs\": [\"lib\"] }",
+        )
+        .unwrap();
+        assert!(
+            preflight_config_parseable(tmp.path()).is_ok(),
+            "BOM-prefixed JSON config must not be refused"
+        );
+    }
+
+    #[test]
+    fn discover_specs_honors_bom_prefixed_specs_dir() {
+        // A BOM-prefixed config must not silently lose its `specsDir`, which would
+        // drop specs in a custom dir from the migration entirely.
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::write(
+            root.join("specsync.json"),
+            "\u{feff}{ \"specsDir\": \"mydocs\" }",
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("mydocs")).unwrap();
+        fs::write(
+            root.join("mydocs/a.spec.md"),
+            "---\nmodule: a\n---\n\n# A\n",
+        )
+        .unwrap();
+        let found = discover_specs(root);
+        assert_eq!(
+            found.len(),
+            1,
+            "spec in a BOM-config'd custom dir: {found:?}"
+        );
+
+        // Same via a legacy BOM-prefixed .specsync.toml.
+        let tmp2 = TempDir::new().unwrap();
+        let root2 = tmp2.path();
+        fs::write(
+            root2.join(".specsync.toml"),
+            "\u{feff}specs_dir = \"mydocs\"\n",
+        )
+        .unwrap();
+        fs::create_dir_all(root2.join("mydocs")).unwrap();
+        fs::write(
+            root2.join("mydocs/b.spec.md"),
+            "---\nmodule: b\n---\n\n# B\n",
+        )
+        .unwrap();
+        assert_eq!(discover_specs(root2).len(), 1, "legacy TOML BOM path");
     }
 
     #[test]

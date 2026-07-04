@@ -6377,6 +6377,135 @@ fn deps_strict_passes_when_dependency_is_declared() {
         .success();
 }
 
+#[test]
+fn deps_strict_mermaid_still_gates() {
+    // Regression: `deps --mermaid`/`--dot` early-returned before the strict gate, so
+    // `deps --strict --mermaid` silently exited 0 on the same undeclared import that
+    // `deps --strict` fails on. The diagram must still print, but the gate must apply.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_undeclared_import_project(root);
+
+    // Diagram is emitted on stdout AND the strict gate fails.
+    let output = specsync()
+        .current_dir(root)
+        .args(["deps", "--strict", "--mermaid"])
+        .assert()
+        .failure()
+        .get_output()
+        .clone();
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("graph LR"),
+        "the mermaid diagram must still be printed to stdout"
+    );
+    // Without --strict, a render is advisory (exit 0).
+    specsync()
+        .current_dir(root)
+        .args(["deps", "--mermaid"])
+        .assert()
+        .success();
+}
+
+// ─── generate: --format json honors the same gates as the text path ──────
+
+#[test]
+fn generate_json_honors_require_coverage_gate() {
+    // Regression: `generate --format json` exited solely on AI-generation success and
+    // never gated on --require-coverage/--enforcement/--strict — a machine-consumer
+    // false pass. Here an empty source dir yields vacuous 0/0 coverage that
+    // --require-coverage 50 must fail loud on, in JSON just like text.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs")).unwrap();
+
+    // Text path fails the gate.
+    specsync()
+        .current_dir(root)
+        .args(["generate", "--require-coverage", "50"])
+        .assert()
+        .failure();
+    // JSON path fails identically AND stdout stays valid JSON.
+    let output = specsync()
+        .current_dir(root)
+        .args(["generate", "--require-coverage", "50", "--format", "json"])
+        .assert()
+        .failure()
+        .get_output()
+        .clone();
+    serde_json::from_slice::<serde_json::Value>(&output.stdout)
+        .expect("generate --format json stdout must be valid JSON even when the gate fails");
+}
+
+#[test]
+fn generate_json_honors_enforcement_strict() {
+    // An existing spec with a real validation error (a missing source file) that
+    // `generate` cannot fix must fail `--enforcement strict` on the JSON path too.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/foo.rs"), "pub fn f() {}\n").unwrap();
+    fs::create_dir_all(root.join("specs/foo")).unwrap();
+    fs::write(
+        root.join("specs/foo/foo.spec.md"),
+        "---\nmodule: foo\nversion: 1\nstatus: active\nfiles:\n  - src/foo.rs\n  - src/does_not_exist.rs\n---\n# foo\n## Purpose\np\n",
+    )
+    .unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["generate", "--enforcement", "strict"])
+        .assert()
+        .failure();
+    let output = specsync()
+        .current_dir(root)
+        .args(["generate", "--enforcement", "strict", "--format", "json"])
+        .assert()
+        .failure()
+        .get_output()
+        .clone();
+    serde_json::from_slice::<serde_json::Value>(&output.stdout)
+        .expect("generate --format json stdout must be valid JSON even when the gate fails");
+}
+
+#[test]
+fn generate_json_no_specs_emits_valid_json() {
+    // Regression: the "No existing specs found…" diagnostic was printed to stdout even
+    // under --format json, prepending non-JSON text and breaking any parser.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/foo.js"), "export function add() {}\n").unwrap();
+
+    let output = specsync()
+        .current_dir(root)
+        .args(["generate", "--format", "json"])
+        .assert()
+        .get_output()
+        .clone();
+    serde_json::from_slice::<serde_json::Value>(&output.stdout).expect(
+        "generate --format json stdout must be a clean JSON document with no specs present",
+    );
+}
+
 // ─── config: multi-line TOML arrays are not corrupted ────────────────────
 
 #[test]

@@ -792,14 +792,15 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                         lines.next(); // consume blank / whole-line comment in array
                         continue;
                     }
-                    // Array items are quoted strings; the close is `]`. A
-                    // continuation line that is neither means the `]` was omitted —
-                    // stop WITHOUT consuming it so the following key/section still
-                    // parses, bounding a malformed array's damage to its own key
-                    // rather than swallowing the rest of the file. (These configs
-                    // never use nested arrays, so a leading `[` is a following
-                    // section header, not array content — it must NOT be absorbed.)
-                    if !cont.starts_with('"') && !cont.starts_with(']') {
+                    // Array items are quoted strings — basic `"..."` or literal
+                    // `'...'` — and the close is `]`. A continuation line that is none
+                    // of these means the `]` was omitted — stop WITHOUT consuming it so
+                    // the following key/section still parses, bounding a malformed
+                    // array's damage to its own key rather than swallowing the rest of
+                    // the file. (These configs never use nested arrays, so a leading
+                    // `[` is a following section header, not array content — it must
+                    // NOT be absorbed.)
+                    if !cont.starts_with('"') && !cont.starts_with('\'') && !cont.starts_with(']') {
                         break;
                     }
                     lines.next();
@@ -1426,6 +1427,26 @@ mod tests {
             "specs_dir = \"specs\"\n\
              source_dirs = [\n  \"src\",\n  \"lib\",\n]\n\
              exclude_patterns = [\n  \"**/*.test.ts\",  # inline-ish comment line\n  \"**/gen/**\",\n]\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert_eq!(config.source_dirs, vec!["src", "lib"]);
+        assert_eq!(config.exclude_patterns, vec!["**/*.test.ts", "**/gen/**"]);
+    }
+
+    #[test]
+    fn test_load_config_toml_multiline_single_quoted_array() {
+        // Regression: a formatter-style multi-line array whose items are TOML literal
+        // (single-quoted) strings must accumulate its real entries — the continuation
+        // guard accepts `'`-led lines, not just `"`. Otherwise it collapsed to the
+        // corrupt `["["]`, the same silent-drop → vacuous-coverage failure this fix
+        // targets.
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "specs_dir = 'specs'\n\
+             source_dirs = [\n  'src',\n  'lib',\n]\n\
+             exclude_patterns = [\n  '**/*.test.ts',\n  '**/gen/**',\n]\n",
         )
         .unwrap();
         let config = load_config(tmp.path());

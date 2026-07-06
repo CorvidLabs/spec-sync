@@ -233,7 +233,10 @@ jobs:
   attest:
     name: Record attestation
     runs-on: ubuntu-latest
-    needs: [test, fmt, audit, spec-check]
+    # Depend on every gate job, not just a subset: an attestation records
+    # "proceed", so it must not sign off on a commit where any real check failed.
+    # (corvid-pet is a PR-comment mascot, not a gate, so it is intentionally out.)
+    needs: [test, fmt, audit, coverage, site, vscode-extension, validate-action, spec-check]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     # contents: write lets the step push refs/notes/attest.
     permissions:

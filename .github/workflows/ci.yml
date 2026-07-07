@@ -229,3 +229,47 @@ jobs:
           review-on-pr: "true"
           context: ${{ steps.status.outputs.context }}
           job-status: ${{ steps.status.outputs.result }}
+
+  attest:
+    name: Record attestation
+    runs-on: ubuntu-latest
+    # Depend on every gate job, not just a subset: an attestation records
+    # "proceed", so it must not sign off on a commit where any real check failed.
+    # (corvid-pet is a PR-comment mascot, not a gate, so it is intentionally out.)
+    needs: [test, fmt, audit, coverage, site, vscode-extension, validate-action, spec-check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # contents: write lets the step push refs/notes/attest.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      # After the gates pass, record a provenance attestation on this commit and
+      # push it to refs/notes/attest, so spec-sync builds a trust ledger (and its
+      # /trust/ attest pip lights). attest ships a public Linux binary
+      # (checksum-verified), so no token is needed; the step is additive and
+      # best-effort, so a hiccup logs a warning and never fails CI.
+      - name: Record attestation (attest)
+        env:
+          ATTEST_VERSION: v0.5.0
+        run: |
+          base="https://github.com/CorvidLabs/attest/releases/download/${ATTEST_VERSION}"
+          bin="${RUNNER_TEMP}/attest"; sum="${bin}.sha256"
+          retry="--retry 5 --retry-connrefused --retry-delay 1"
+          if curl -fsSL $retry "${base}/attest-linux-x86_64" -o "$bin" \
+            && curl -fsSL $retry "${base}/attest-linux-x86_64.sha256" -o "$sum" \
+            && want="$(awk '{print $1}' "$sum")" && [ -n "$want" ] \
+            && printf '%s  %s\n' "$want" "$bin" | sha256sum -c - ; then
+            chmod +x "$bin"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git fetch origin "+refs/notes/attest:refs/notes/attest" 2>/dev/null || true
+            if "$bin" sign --commit HEAD --reviewer agent:ci --confidence 0.9 --tests-passed \
+                 --verdict proceed --note "CI green: test, fmt, audit, coverage, site, vscode-extension, validate-action, spec-check" \
+               && git push origin refs/notes/attest ; then
+              echo "attestation recorded for $(git rev-parse --short HEAD)"
+            else
+              echo "::warning::attest sign/push failed; provenance not recorded this run"
+            fi
+          else
+            echo "::warning::attest download/verify failed; provenance not recorded this run"
+          fi

@@ -3,7 +3,7 @@ module: greeter
 version: 1
 status: draft
 files:
-  - src/lib.rs
+  - examples/quickstart/src/lib.rs
 ---
 
 # greeter

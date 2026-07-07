@@ -5959,6 +5959,76 @@ None
         .stdout(predicate::str::contains("nothing to validate").not());
 }
 
+#[test]
+fn check_gates_on_unreadable_schema_file() {
+    // Regression: an unreadable (non-UTF-8) migration was silently skipped by
+    // build_schema, so its tables vanished and db_tables validation became a
+    // no-op — check passed green even under strict. It must now be a hard error.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    // enforcement: strict so a validation error gates the exit code without the
+    // --strict flag (mirrors the schema-drift test above).
+    fs::write(
+        root.join(".specsync.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\nschema_dir = \"db/migrations\"\nenforcement = \"strict\"\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.rs"), "pub fn f() {}\n").unwrap();
+    fs::create_dir_all(root.join("db/migrations")).unwrap();
+    let mut bad = b"CREATE TABLE users (id INTEGER);\n".to_vec();
+    bad.push(0xFF);
+    fs::write(root.join("db/migrations/001_init.sql"), bad).unwrap();
+    fs::create_dir_all(root.join("specs/m")).unwrap();
+    fs::write(
+        root.join("specs/m/m.spec.md"),
+        "---\nmodule: m\nversion: 1\nstatus: active\nfiles:\n  - src/a.rs\ndb_tables:\n  - users\n---\n# m\n## Purpose\np\n",
+    )
+    .unwrap();
+
+    // The unreadable migration is surfaced as a hard error AND gates the exit.
+    specsync()
+        .current_dir(root)
+        .arg("check")
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "could not be read as UTF-8; DB schema",
+        ));
+}
+
+#[test]
+fn check_no_schema_error_for_readable_migration() {
+    // No false positive: a readable migration produces no schema-read error.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::write(
+        root.join(".specsync.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\nschema_dir = \"db/migrations\"\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/a.rs"), "pub fn f() {}\n").unwrap();
+    fs::create_dir_all(root.join("db/migrations")).unwrap();
+    fs::write(
+        root.join("db/migrations/001_init.sql"),
+        "CREATE TABLE users (id INTEGER);\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/m")).unwrap();
+    fs::write(
+        root.join("specs/m/m.spec.md"),
+        "---\nmodule: m\nversion: 1\nstatus: active\nfiles:\n  - src/a.rs\ndb_tables:\n  - users\n---\n# m\n## Purpose\np\n",
+    )
+    .unwrap();
+
+    specsync()
+        .current_dir(root)
+        .arg("check")
+        .assert()
+        .stdout(predicate::str::contains("could not be read as UTF-8; DB schema").not());
+}
+
 // ─── specsync merge ─────────────────────────────────────────────────────
 
 /// Regression (CRITICAL): `merge` must never write a corrupt spec. A conflict

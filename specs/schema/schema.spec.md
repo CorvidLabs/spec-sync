@@ -1,6 +1,6 @@
 ---
 module: schema
-version: 1
+version: 2
 status: stable
 files:
   - src/schema.rs
@@ -36,12 +36,15 @@ Parses SQL schema files (migrations) and spec markdown to build table/column map
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `build_schema` | `schema_dir: &Path` | `HashMap<String, SchemaTable>` | Build a complete schema map from SQL/migration files in the given directory, sorted by filename |
+| `schema_read_errors` | `schema_dir: &Path` | `Vec<String>` | Error message for each schema/migration file that exists but cannot be read as UTF-8, plus one for a `schema_dir` that exists but cannot be enumerated (unreadable, or a file rather than a directory), so the validation gate can fail loud instead of silently under-validating (`build_schema` skips such files / returns empty) |
 | `parse_spec_schema` | `body: &str` | `HashMap<String, Vec<SpecColumn>>` | Extract column definitions from a spec's `### Schema` section(s) |
 
 ## Invariants
 
 1. `build_schema` replays migrations in filename-sorted order for deterministic results
 2. `build_schema` returns an empty map if the directory does not exist
+2a. A schema/migration file that exists but cannot be read as UTF-8 is silently skipped by `build_schema` (its tables/columns vanish); `schema_read_errors` reports each such file so the validation gate surfaces it as a hard error rather than letting an all-unreadable schema silently disable `db_tables`/column checks
+2b. A `schema_dir` that exists but cannot be enumerated by `read_dir` — because it is unreadable or is a file rather than a directory — is itself a hard error from `schema_read_errors` (not a silent empty result): the same fail-open would otherwise leave schema discovery empty and skip `db_tables`/column checks with no signal
 3. Column types are normalized to uppercase (e.g. "integer" becomes "INTEGER")
 4. ALTER TABLE ADD COLUMN is idempotent — duplicate column names are skipped
 5. DROP TABLE removes the table and all its columns from the map
@@ -97,8 +100,9 @@ Parses SQL schema files (migrations) and spec markdown to build table/column map
 
 | Condition | Behavior |
 |-----------|----------|
-| Schema directory does not exist | `build_schema` returns empty map |
-| File cannot be read | File is silently skipped |
+| Schema directory does not exist | `build_schema` returns empty map; `schema_read_errors` returns no errors (schema simply not configured) |
+| Schema directory exists but cannot be enumerated (unreadable, or a file not a directory) | `schema_read_errors` returns a hard error naming the directory (fail-loud); `build_schema` returns an empty map |
+| File cannot be read | `build_schema` silently skips the file; `schema_read_errors` flags it as a hard error |
 | Unmatched parentheses in CREATE TABLE | `extract_paren_body` returns `None`, table is skipped |
 | No `### Schema` section in spec | `parse_spec_schema` returns empty map |
 | Column name looks like SQL keyword | Column is skipped by `is_sql_keyword` check |
@@ -123,4 +127,5 @@ Parses SQL schema files (migrations) and spec markdown to build table/column map
 
 | Date | Change |
 |------|--------|
+| 2026-07-06 | `schema_read_errors` now also fails loud when `schema_dir` exists but cannot be enumerated by `read_dir` (unreadable, or a file not a directory) — closing the same fail-open; added invariant 2b, updated the API row and Error Cases table |
 | 2026-03-29 | Initial spec |

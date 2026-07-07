@@ -547,6 +547,22 @@ pub fn run_validation(
         }
     }
 
+    // Schema/migration files that exist but can't be read as UTF-8 are silently
+    // skipped by build_schema — their tables/columns vanish, which can silently
+    // disable db_tables/column validation (an all-unreadable schema makes the
+    // checks a no-op). Surface them once, project-level (not per spec), as hard
+    // errors so the gate fails loud instead of under-validating.
+    if let Some(dir) = &config.schema_dir {
+        for err in schema::schema_read_errors(&root.join(dir)) {
+            total_errors += 1;
+            if collect {
+                all_errors.push(err);
+            } else {
+                println!("\n{} {err}", "✗".red());
+            }
+        }
+    }
+
     if !collect && drafts_skipped > 0 {
         println!(
             "\n{} {drafts_skipped} draft spec(s) skipped section and export validation — set `status: active` to enable full checks",

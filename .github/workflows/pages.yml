@@ -27,6 +27,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -67,7 +69,7 @@ jobs:
         with:
           path: .
           output-dir: site/public/badges
-          components: "coverage langmix treemap sunburst"
+          components: "coverage langmix treemap sunburst calendar"
 
       - name: "Build site (runs prebuild: validate + redirects)"
         working-directory: site

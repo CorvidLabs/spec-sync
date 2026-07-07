@@ -242,7 +242,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # After the gates pass, record a provenance attestation on this commit and
       # push it to refs/notes/attest, so spec-sync builds a trust ledger (and its
       # /trust/ attest pip lights). attest ships a public Linux binary
@@ -264,7 +264,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git fetch origin "+refs/notes/attest:refs/notes/attest" 2>/dev/null || true
             if "$bin" sign --commit HEAD --reviewer agent:ci --confidence 0.9 --tests-passed \
-                 --verdict proceed --note "CI: cargo test + fmt + audit + spec-check green" \
+                 --verdict proceed --note "CI green: test, fmt, audit, coverage, site, vscode-extension, validate-action, spec-check" \
                && git push origin refs/notes/attest ; then
               echo "attestation recorded for $(git rev-parse --short HEAD)"
             else

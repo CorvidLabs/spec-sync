@@ -1,6 +1,6 @@
 ---
 module: deps
-version: 2
+version: 3
 status: stable
 files:
   - src/deps.rs
@@ -45,6 +45,7 @@ Cross-module dependency validation. Parses `depends_on` declarations from spec f
 4. Cross-project refs (containing `/`) in `depends_on` are skipped — only local deps are validated
 5. Undeclared imports (found in source but not in `depends_on`) are reported as warnings, not errors
 6. Module names in `depends_on` paths are extracted from the path's directory component
+7. A spec or declared source file that exists but cannot be read as UTF-8 is a hard error (not a silent skip): an unreadable spec would otherwise be dropped from the graph — defeating cycle and missing-dependency detection for that module — and an unreadable source would contribute no imports, hiding undeclared-import violations. Both are recorded in `report.errors`, so `cmd_deps` exits 1 rather than under-validating silently
 
 ## Behavioral Examples
 
@@ -70,7 +71,8 @@ Cross-module dependency validation. Parses `depends_on` declarations from spec f
 
 | Condition | Behavior |
 |-----------|----------|
-| Source file unreadable | Skipped during import extraction |
+| Declared source file exists but unreadable as UTF-8 | Hard error recorded in `report.errors`; `cmd_deps` exits 1 (not skipped during import extraction) |
+| Spec file exists but unreadable as UTF-8 | Hard error recorded in `report.errors`; node is not silently dropped from the graph; `cmd_deps` exits 1 |
 | Spec frontmatter unparseable | Module excluded from dependency graph |
 | No specs found in specs_dir | Returns empty graph and clean DepsReport |
 
@@ -94,5 +96,6 @@ Cross-module dependency validation. Parses `depends_on` declarations from spec f
 
 | Date | Change |
 |------|--------|
+| 2026-07-06 | Documented fail-loud behavior for unreadable declared source and spec files: added invariant 7 and updated Error Cases table so an existing-but-non-UTF-8 file is a hard error gating `cmd_deps` rather than a silent skip |
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-07 | Initial spec |

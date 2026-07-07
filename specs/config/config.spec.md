@@ -1,6 +1,6 @@
 ---
 module: config
-version: 1
+version: 2
 status: stable
 files:
   - src/config.rs
@@ -60,6 +60,7 @@ The configuration file supports the following top-level sections:
 6. Root-level source files (no subdirectories) produce `["."]` as source dirs
 7. TOML parsing is zero-dependency — uses line-by-line string parsing, not a TOML library
 8. The reader accepts both TOML string kinds for scalar and array values: basic `"..."` strings (backslash escapes decoded) and literal `'...'` strings (taken verbatim, no escape processing); a `#`, `,`, `[`, or `]` appearing inside either kind is treated as content, not as a comment or array structure
+9. A config file that is absent is expected — defaults apply silently. But a config file that **exists yet cannot be read** (e.g. not valid UTF-8) fails loud: a warning naming the file is printed and built-in defaults are used, rather than silently reverting to defaults (which would downgrade enforcement — strict→warn, exit 1→0 — with no signal). The same applies to the optional local override file (`config.local.toml`)
 
 ## Behavioral Examples
 
@@ -85,7 +86,8 @@ The configuration file supports the following top-level sections:
 
 | Condition | Behavior |
 |-----------|----------|
-| Config file unreadable | Falls back to `SpecSyncConfig::default()` |
+| Config file exists but unreadable (e.g. not valid UTF-8) | Prints a warning naming the file to stderr, then falls back to `SpecSyncConfig::default()` (fail-loud, not silent) |
+| Config file absent | Silently uses `SpecSyncConfig::default()` with auto-detected source dirs (expected) |
 | Malformed JSON config | Prints warning to stderr, falls back to defaults |
 | Empty project root | Returns `["src"]` as source dirs |
 
@@ -116,3 +118,4 @@ The configuration file supports the following top-level sections:
 | 2026-03-28 | Document discover_manifest_modules |
 | 2026-04-06 | Document github config section, rules section, and full config file structure |
 | 2026-07-03 | Document `read_config_file` (leading-BOM-tolerant config read, shared with `migrate`) |
+| 2026-07-06 | Document fail-loud behavior for present-but-unreadable config (invariant 9): unreadable config/local-override files now warn loudly before falling back to defaults; clarified Error Cases table |

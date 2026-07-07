@@ -118,18 +118,30 @@ pub fn schema_read_errors(schema_dir: &Path) -> Vec<String> {
         return errors;
     }
 
-    let mut files: Vec<_> = fs::read_dir(schema_dir)
-        .into_iter()
-        .flatten()
+    // A `schema_dir` that exists but cannot be enumerated (unreadable, or a file
+    // rather than a directory) makes `read_dir` return `Err`. Ignoring it would be
+    // the same fail-open this function exists to close: schema discovery would come
+    // back empty and the `db_tables`/column checks would be silently skipped. Surface
+    // it as a hard error instead.
+    let read_dir = match fs::read_dir(schema_dir) {
+        Ok(read_dir) => read_dir,
+        Err(err) => {
+            errors.push(format!(
+                "Schema directory `{}` could not be read ({err}); DB schema validation would be incomplete",
+                schema_dir.display()
+            ));
+            return errors;
+        }
+    };
+
+    let mut files: Vec<_> = read_dir
         .flatten()
         .filter(|e| {
-            let ext = e
-                .path()
+            e.path()
                 .extension()
-                .and_then(|x| x.to_str())
-                .unwrap_or("")
-                .to_string();
-            SQL_EXTENSIONS.contains(&ext.as_str())
+                .and_then(|ext| ext.to_str())
+                .map(|ext| SQL_EXTENSIONS.contains(&ext))
+                .unwrap_or(false)
         })
         .collect();
     files.sort_by_key(|e| e.file_name());
@@ -765,6 +777,20 @@ Something
         let errs = schema_read_errors(dir);
         assert_eq!(errs.len(), 1, "only the unreadable file should be flagged");
         assert!(errs[0].contains("002_bad.sql"));
+    }
+
+    #[test]
+    fn test_schema_read_errors_flags_unenumerable_dir() {
+        // A `schema_dir` that exists but is a file rather than a directory makes
+        // `read_dir` return `Err`. That must fail loud (hard error), not fail open
+        // to an empty schema that would silently skip db_tables/column checks.
+        let tmp = tempfile::tempdir().unwrap();
+        let not_a_dir = tmp.path().join("schema.sql");
+        fs::write(&not_a_dir, "CREATE TABLE t (id INTEGER);").unwrap();
+
+        let errs = schema_read_errors(&not_a_dir);
+        assert_eq!(errs.len(), 1, "an unenumerable schema dir must be flagged");
+        assert!(errs[0].contains("could not be read"));
     }
 
     #[test]

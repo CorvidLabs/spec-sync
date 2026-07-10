@@ -115,7 +115,7 @@ fn find_dunder_all(root: &tree_sitter::Node, src: &[u8]) -> Option<Vec<String>> 
                         };
                         let mut names = Vec::new();
                         collect_list_literals(&right, src, &mut names);
-                        if !names.is_empty() {
+                        if right.kind() == "list" || right.kind() == "tuple" || !names.is_empty() {
                             return Some(names);
                         }
                     }
@@ -127,7 +127,7 @@ fn find_dunder_all(root: &tree_sitter::Node, src: &[u8]) -> Option<Vec<String>> 
     None
 }
 
-/// Recursively harvest string-literal entries from every `list` node
+/// Recursively harvest string-literal entries from every `list` or `tuple` node
 /// reachable within `node`.
 ///
 /// Handles a dynamically-built `__all__`, e.g. `__all__ = ["a"] + other`
@@ -140,8 +140,8 @@ fn find_dunder_all(root: &tree_sitter::Node, src: &[u8]) -> Option<Vec<String>> 
 /// back to scanning every top-level public def/class -- including names
 /// the module never intended to export.
 fn collect_list_literals(node: &tree_sitter::Node, src: &[u8], names: &mut Vec<String>) {
-    if node.kind() == "list" {
-        names.extend(extract_string_list(node, src));
+    if node.kind() == "list" || node.kind() == "tuple" {
+        names.extend(extract_string_collection(node, src));
         return;
     }
 
@@ -151,26 +151,29 @@ fn collect_list_literals(node: &tree_sitter::Node, src: &[u8], names: &mut Vec<S
     }
 }
 
-/// Extract string values from a list literal: `["foo", "bar"]`.
-fn extract_string_list(node: &tree_sitter::Node, src: &[u8]) -> Vec<String> {
+/// Extract string values from a list or tuple literal: `["foo", "bar"]` or `("foo", "bar")`.
+fn extract_string_collection(node: &tree_sitter::Node, src: &[u8]) -> Vec<String> {
     let mut names = Vec::new();
-    let mut cursor = node.walk();
+    collect_strings_recursively(node, src, &mut names);
+    names
+}
 
-    for child in node.children(&mut cursor) {
-        if child.kind() == "string" {
-            // String node contains string_content child(ren)
-            let text = child.utf8_text(src).unwrap_or_default();
-            // Strip surrounding quotes
-            let trimmed = text
-                .trim_start_matches(['\'', '"'])
-                .trim_end_matches(['\'', '"']);
-            if !trimmed.is_empty() {
-                names.push(trimmed.to_string());
-            }
+fn collect_strings_recursively(node: &tree_sitter::Node, src: &[u8], names: &mut Vec<String>) {
+    if node.kind() == "string" {
+        let text = node.utf8_text(src).unwrap_or_default();
+        let trimmed = text
+            .trim_start_matches(['\'', '"'])
+            .trim_end_matches(['\'', '"']);
+        if !trimmed.is_empty() && !names.contains(&trimmed.to_string()) {
+            names.push(trimmed.to_string());
         }
+        return;
     }
 
-    names
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_strings_recursively(&child, src, names);
+    }
 }
 
 #[cfg(test)]
@@ -690,5 +693,34 @@ class Real:
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["handle".to_string(), "Real".to_string()]);
         assert!(!symbols.contains(&"n".to_string()));
+    }
+
+    #[test]
+    fn test_python_dunder_all_tuples() {
+        let src = r#"
+__all__ = ("foo", "bar")
+def foo(): pass
+def bar(): pass
+"#;
+        assert_eq!(extract_exports(src), vec!["foo", "bar"]);
+    }
+
+    #[test]
+    fn test_python_dunder_all_empty() {
+        let src = r#"
+__all__ = []
+def foo(): pass
+"#;
+        assert!(extract_exports(src).is_empty());
+    }
+
+    #[test]
+    fn test_python_dunder_all_list_of_tuples() {
+        let src = r#"
+__all__ = [("foo",), ("bar",)]
+def foo(): pass
+def bar(): pass
+"#;
+        assert_eq!(extract_exports(src), vec!["foo", "bar"]);
     }
 }

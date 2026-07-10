@@ -81,7 +81,7 @@ fn collect_effective_top_level<'tree>(node: Node<'tree>, out: &mut Vec<Node<'tre
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
-            "preproc_ifdef" | "preproc_elif" | "preproc_else" => {
+            "preproc_if" | "preproc_ifdef" | "preproc_elif" | "preproc_else" => {
                 collect_effective_top_level(child, out);
             }
             "linkage_specification" => {

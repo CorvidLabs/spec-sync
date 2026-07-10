@@ -379,4 +379,15 @@ describe_internal() -> ok.
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["foo".to_string()]);
     }
+
+    #[test]
+    fn test_erlang_custom_attributes_not_exported() {
+        let src = r#"
+-module(custom_attr).
+-my_custom_attribute([foo/1, bar/2]).
+-export([baz/3]).
+baz(A, B, C) -> ok.
+"#;
+        assert_eq!(extract_exports(src), vec!["baz"]);
+    }
 }

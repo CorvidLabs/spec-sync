@@ -189,16 +189,4 @@ lazy val config = "dev"
         assert!(!symbols.contains(&"Helper".to_string()));
         assert!(!symbols.contains(&"hiddenFunc".to_string()));
     }
-
-    #[test]
-    fn throwaway_real_learnxinyminutes_regex() {
-        let src = include_str!(
-            "/private/tmp/claude-501/-Users-leif-Development--CorvidLabs-spec-sync/1429498c-236f-41e9-839d-cd71a8ca63b8/scratchpad/scala_work/real.scala"
-        );
-        let symbols = extract_exports(src);
-        eprintln!("REGEX symbol count: {}", symbols.len());
-        for s in &symbols {
-            eprintln!("  {:?}", s);
-        }
-    }
 }

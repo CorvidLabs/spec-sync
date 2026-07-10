@@ -323,17 +323,3 @@ end
         assert!(!symbols.contains(&"callback".to_string()));
     }
 }
-
-#[cfg(test)]
-mod throwaway_real_world {
-    use super::*;
-
-    #[test]
-    fn test_real_learnxinyminutes_elixir_ast() {
-        let src = include_str!(
-            "/private/tmp/claude-501/-Users-leif-Development--CorvidLabs-spec-sync/1429498c-236f-41e9-839d-cd71a8ca63b8/scratchpad/elixir_extracted.ex"
-        );
-        let symbols = extract_exports(src);
-        eprintln!("AST SYMBOLS ({}): {:#?}", symbols.len(), symbols);
-    }
-}

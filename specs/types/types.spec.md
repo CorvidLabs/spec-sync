@@ -22,14 +22,14 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | Type | Description |
 |------|-------------|
 | `AiProvider` | Supported AI provider presets. API providers (via corvid-ai): Anthropic, OpenAi, OpenRouter, Gemini, DeepSeek, Groq, Mistral, XAi, Together, Ollama. Deprecated CLI: Claude (routes to Anthropic), Copilot, Cursor. Plus Custom (`aiCommand`) |
-| `Language` | Detected source language for export extraction: TypeScript, Rust, Go, Python, Swift, Kotlin, Java, CSharp, Dart, Php, Ruby, Yaml |
+| `Language` | Detected source language for export extraction: TypeScript, Rust, Go, Python, Swift, Kotlin, Java, CSharp, Dart, Php, Ruby, Yaml, C, Cpp, Scala, Crystal, Nim, Erlang, Elixir, Perl, Lisp, Haskell, Lua, R, OCaml, Groovy, FSharp, Clojure, D, ObjectiveC, Bash, PowerShell, Vala |
 | `OutputFormat` | CLI output format: Text (colored terminal, default), Json (machine-readable), Markdown (PR comments / agent consumption) |
 | `ExportLevel` | Export extraction granularity: Type (top-level declarations only) or Member (all public symbols, default) |
 | `SpecStatus` | Spec lifecycle status: draft, review, active, stable, deprecated, archived. Parsed from frontmatter `status` field |
 | `EnforcementMode` | Graduated enforcement level: Warn (always exit 0), EnforceNew (exit 1 for unspecced files), Strict (exit 1 on any error) |
 | `CustomRuleType` | Type of a declarative custom validation rule: RequireSection, MinWordCount, RequirePattern, ForbidPattern |
 | `RuleSeverity` | Severity level for custom rules: Error, Warning (default), Info |
-| `ParseMode` | Export parsing strategy: Regex (default, all languages) or Ast (tree-sitter, supports TypeScript/Python/Rust with regex fallback) |
+| `ParseMode` | Export parsing strategy: Regex (default, all languages) or Ast (tree-sitter, supports TypeScript/Python/Rust/C/C++/Scala/Erlang/Elixir/Perl/Lisp with regex fallback) |
 
 ### Exported Structs
 

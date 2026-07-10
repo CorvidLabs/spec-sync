@@ -22,6 +22,24 @@ static GO_GROUP_OPEN: LazyLock<Regex> =
 /// Leading identifier of a grouped item line (`Name = ...`, `Name Type`, ...).
 static GO_GROUP_ITEM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^([A-Za-z_]\w*)").unwrap());
 
+/// Opening of a top-level interface body: `type Name interface {` (optionally
+/// with a generic parameter list, e.g. `type Container[T any] interface {`).
+/// Matched on the UN-trimmed line (only trailing whitespace stripped) so it
+/// fires only at column 0 — i.e. a genuine package-level type declaration,
+/// never a struct field whose type happens to be an inline interface (always
+/// indented, nested inside the enclosing struct's own braces).
+static GO_INTERFACE_OPEN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^type\s+([A-Za-z_]\w*)(?:\[[^\]]*\])?\s+interface\s*\{$").unwrap()
+});
+
+/// Leading identifier of an interface method-requirement line: `Name(args)
+/// results`. Interface method signatures have no `func` keyword and no
+/// receiver (unlike GO_METHOD), so this is the only pattern that can ever
+/// match them. A bare embedded-interface line (`Reader`, `io.Closer`) has no
+/// `(` immediately following its identifier and is correctly NOT matched.
+static GO_INTERFACE_METHOD: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^([A-Za-z_]\w*)(?:\[[^\]]*\])?\(").unwrap());
+
 /// Extract exported symbols from Go source code.
 /// In Go, any top-level identifier starting with an uppercase letter is exported.
 pub fn extract_exports(content: &str) -> Vec<String> {
@@ -51,6 +69,11 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             }
         }
     }
+
+    // Also capture exported interface method requirements (see
+    // capture_interface_methods doc comment for why GO_DECL/GO_METHOD can
+    // never see these).
+    capture_interface_methods(&stripped, &mut symbols);
 
     // Grouped declarations: `const (` / `var (` / `type (` blocks, whose items sit
     // on their own lines with no keyword prefix (missed by the line-anchored
@@ -118,6 +141,54 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     }
 
     symbols
+}
+
+/// Capture exported method requirements inside top-level (column-0) `type
+/// Name interface { ... }` bodies. Interface method-signature lines start
+/// with the method name itself (no `func`, no receiver), so neither GO_DECL
+/// nor GO_METHOD can ever match them — without this pass, an interface's
+/// entire public contract collapsed to just the interface's own type name:
+/// removing or renaming a method on an exported interface (a breaking API
+/// change) produced no diff at all. Methods are captured only when the
+/// ENCLOSING interface is itself exported, mirroring Go's rule that a
+/// capitalized method name inside an unexported interface (`type
+/// internalHelper interface { Foo() error }`) is not independently part of
+/// the package's public surface — the same "member exported only if its
+/// container is exported" rule used elsewhere for member/container pairs.
+/// Runs on the comment-stripped, string-blanked copy. Scope is intentionally
+/// limited to standalone top-level interfaces; an interface declared as an
+/// item inside a grouped `type ( ... )` block is not covered (narrower, less
+/// common, left for future work).
+fn capture_interface_methods(stripped: &str, symbols: &mut Vec<String>) {
+    let mut depth: i32 = 0;
+    let mut capturing = false;
+    for line in stripped.lines() {
+        if depth == 0 {
+            if let Some(caps) = GO_INTERFACE_OPEN.captures(line.trim_end()) {
+                let name = caps.get(1).unwrap().as_str();
+                capturing = matches!(name.chars().next(), Some(c) if c.is_ascii_uppercase());
+                depth = 1;
+            }
+            continue;
+        }
+        let bt = line.trim();
+        if capturing
+            && let Some(caps) = GO_INTERFACE_METHOD.captures(bt)
+            && let Some(name) = caps.get(1)
+        {
+            let n = name.as_str();
+            if matches!(n.chars().next(), Some(c) if c.is_ascii_uppercase())
+                && !symbols.contains(&n.to_string())
+            {
+                symbols.push(n.to_string());
+            }
+        }
+        depth += bt.matches('{').count() as i32 - bt.matches('}').count() as i32;
+        if depth <= 0 {
+            depth = 0;
+            capturing = false;
+        }
+    }
 }
 
 /// Whether a Go line leaves the statement unfinished (no automatic semicolon). Go
@@ -246,6 +317,116 @@ fn strip_go_strings_and_comments(content: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_go_interface_methods_captured() {
+        // An interface's method requirements have no `func` keyword and no
+        // receiver, so GO_DECL/GO_METHOD can never match them. Without
+        // capture_interface_methods, an exported interface's entire public
+        // contract collapsed to just its own type name, and removing/renaming
+        // a method (a breaking API change) produced zero export diff. Also
+        // covers embedded interfaces (bare name and qualified `io.Closer`),
+        // which must NOT themselves be mistaken for methods.
+        let src = r#"
+package store
+
+// Reader reads records from a persistent store.
+type Reader interface {
+    Get(ctx context.Context, key string) (Record, error)
+    List(ctx context.Context, prefix string) ([]Record, error)
+}
+
+type Writer interface {
+    Put(ctx context.Context, key string, rec Record) error
+    Delete(ctx context.Context, key string) error
+}
+
+type ReadWriter interface {
+    Reader
+    Writer
+}
+
+type Closer interface {
+    Close() error
+}
+
+type Store interface {
+    ReadWriter
+    Closer
+    io.Closer
+}
+"#;
+        let symbols = extract_exports(src);
+        for name in [
+            "Reader",
+            "Writer",
+            "ReadWriter",
+            "Closer",
+            "Store",
+            "Get",
+            "List",
+            "Put",
+            "Delete",
+            "Close",
+        ] {
+            assert!(
+                symbols.contains(&name.to_string()),
+                "missing {name}: {symbols:?}"
+            );
+        }
+        // Embedded interface references are not method declarations.
+        assert!(!symbols.contains(&"io".to_string()));
+    }
+
+    #[test]
+    fn test_go_unexported_interface_methods_not_captured() {
+        // Mirrors Go's own export rule: a capitalized method name inside an
+        // UNEXPORTED (lowercase) interface is not independently part of the
+        // package's public surface just because the method's own name is
+        // capitalized — the containing interface itself is inaccessible from
+        // outside the package.
+        let src = r#"
+package store
+
+type internalCache interface {
+    Get(key string) (string, bool)
+    Set(key string, value string)
+}
+
+type PublicStore interface {
+    Load(key string) (string, error)
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"PublicStore".to_string()));
+        assert!(symbols.contains(&"Load".to_string()));
+        assert!(!symbols.contains(&"internalCache".to_string()));
+        assert!(!symbols.contains(&"Get".to_string()), "{symbols:?}");
+        assert!(!symbols.contains(&"Set".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_go_interface_method_with_generic_and_multiline_signature() {
+        // A generic interface (`type Name[T any] interface {`) and a method
+        // signature whose parameter list wraps across lines (common gofmt
+        // output for long signatures) must still have the method's leading
+        // identifier captured from its opening line.
+        let src = r#"
+package cache
+
+type Cache[T any] interface {
+    Fetch(
+        ctx context.Context,
+        key string,
+    ) (T, error)
+    Invalidate(key string) error
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Cache".to_string()));
+        assert!(symbols.contains(&"Fetch".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"Invalidate".to_string()));
+    }
 
     #[test]
     fn test_go_exports() {
@@ -705,6 +886,87 @@ type (
         assert!(
             !symbols.contains(&"Secret".to_string()),
             "struct field leaked"
+        );
+    }
+
+    #[test]
+    fn test_go_learnxinyminutes_stringer_and_handler_excerpt() {
+        // Real excerpt from learnxinyminutes.com/go (the Stringer interface, the
+        // unexported `pair` struct that implements it via a value-receiver method,
+        // and a second exported method implementing http.Handler). Locks in
+        // real-world idiomatic Go: an exported interface with one method, an
+        // unexported struct whose fields must not leak, and exported methods on
+        // an unexported receiver type (only the method names are exported, not
+        // the type `pair` itself).
+        let src = r#"
+package main
+
+// Define Stringer as an interface type with one method, String.
+type Stringer interface {
+	String() string
+}
+
+// Define pair as a struct with two fields, ints named x and y.
+type pair struct {
+	x, y int
+}
+
+// Define a method on type pair. Pair now implements Stringer because Pair has defined all the methods in the interface.
+func (p pair) String() string { // p is called the "receiver"
+	// Sprintf is another public function in package fmt.
+	// Dot syntax references fields of p.
+	return fmt.Sprintf("(%d, %d)", p.x, p.y)
+}
+
+// Make pair an http.Handler by implementing its only method, ServeHTTP.
+func (p pair) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Serve data with a method of http.ResponseWriter.
+	w.Write([]byte("You learned Go in Y minutes!"))
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Stringer".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"String".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"ServeHTTP".to_string()), "{symbols:?}");
+        assert!(!symbols.contains(&"pair".to_string()), "unexported type");
+        assert!(!symbols.contains(&"x".to_string()), "struct field");
+        assert!(!symbols.contains(&"y".to_string()), "struct field");
+    }
+
+    #[test]
+    fn test_go_learnxinyminutes_goto_label_and_local_vars_not_exported() {
+        // Real excerpt from learnxinyminutes.com/go: a function body containing a
+        // `goto` statement whose target label (`love:`) sits at column 0 (gofmt
+        // does not indent labels), plus function-local closures and reassignments.
+        // The column-0 label must not be mistaken for a package-level declaration
+        // (it starts with neither func/type/var/const nor a grouped-block opener),
+        // and none of the function-local identifiers should be exported. The
+        // enclosing function itself (`learnFlowControl`, lowercase) is also
+        // unexported, so the correct result is an empty symbol list.
+        let src = "
+package main
+
+func learnFlowControl() {
+	// Function literals are closures.
+	xBig := func() bool {
+		return x > 10000 // References x declared above switch statement.
+	}
+	x = 99999
+	fmt.Println(\"xBig:\", xBig()) // true
+
+	// When you need it, you'll love it.
+	goto love
+love:
+
+	learnFunctionFactory() // func returning func is fun(3)(3)
+	learnDefer()      // A quick detour to an important keyword.
+	learnInterfaces() // Good stuff coming up!
+}
+";
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.is_empty(),
+            "expected no exports (all identifiers unexported): {symbols:?}"
         );
     }
 }

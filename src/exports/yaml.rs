@@ -6,8 +6,14 @@ static TOP_LEVEL_KEY: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^([a-zA-Z_][a-zA-Z0-9_-]*):(?:\s|$)").unwrap());
 
 /// YAML anchor: `&anchor-name`
+///
+/// Requires the `&` to be preceded by start-of-line or a YAML structural
+/// delimiter (whitespace, `,`, `[`, `{`, `(`). This avoids false positives on
+/// `&` that appears mid-word inside unquoted scalars (e.g. a URL query string
+/// like `...?key=abc&format=json`), since a real YAML anchor is always its
+/// own token, never glued to the preceding character.
 static ANCHOR: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"&([a-zA-Z_][a-zA-Z0-9_.-]*)").unwrap());
+    LazyLock::new(|| Regex::new(r"(?:^|[\s,\[{(])&([a-zA-Z_][a-zA-Z0-9_.-]*)").unwrap());
 
 /// Well-known YAML keys whose children represent named entries worth extracting.
 /// e.g., `jobs:` in GitHub Actions, `services:` in Docker Compose.
@@ -35,27 +41,40 @@ const NESTED_SYMBOL_PARENTS: &[&str] = &[
 pub fn extract_exports(content: &str) -> Vec<String> {
     let mut symbols = Vec::new();
 
-    // Collect top-level keys
+    // Collect top-level keys (deduplicated, since multi-document YAML files
+    // separated by `---` repeat the same top-level key names once per document).
     let top_level_keys: Vec<String> = TOP_LEVEL_KEY
         .captures_iter(content)
         .filter_map(|caps| caps.get(1).map(|m| m.as_str().to_string()))
         .collect();
 
     for key in &top_level_keys {
-        symbols.push(key.clone());
+        if !symbols.contains(key) {
+            symbols.push(key.clone());
+        }
     }
 
-    // For well-known parent keys, extract second-level children as `parent.child`
-    // We scan line-by-line, detecting the indent of the first child to only match
-    // direct children (not deeper nested keys).
-    let top_level_line = Regex::new(r"^([a-zA-Z_][a-zA-Z0-9_-]*):").unwrap();
+    // For well-known parent keys, extract second-level children as `parent.child`.
+    // Well-known parents are matched at *any* indentation depth (not just column 0),
+    // so e.g. a `outputs:` block nested under `jobs.build:` in a GitHub Actions
+    // workflow is picked up the same as a top-level one. For each match we scan
+    // subsequent lines, detecting the indent of the first child to only match
+    // direct children (not deeper nested keys), and stop once we reach a line
+    // at or above the parent's own indent (i.e. a sibling or ancestor key).
+    let key_line = Regex::new(r"^([a-zA-Z_][a-zA-Z0-9_-]*):").unwrap();
 
     let lines: Vec<&str> = content.lines().collect();
     let mut i = 0;
     while i < lines.len() {
         let line = lines[i];
-        // Check if this is a top-level key that's a well-known parent
-        if let Some(caps) = top_level_line.captures(line)
+        let trimmed_line = line.trim_start();
+        if trimmed_line.is_empty() || trimmed_line.starts_with('#') {
+            i += 1;
+            continue;
+        }
+        let parent_indent = line.len() - trimmed_line.len();
+        // Check if this line is a well-known parent key (at any indentation).
+        if let Some(caps) = key_line.captures(trimmed_line)
             && let Some(key_match) = caps.get(1)
         {
             let parent = key_match.as_str();
@@ -65,28 +84,33 @@ pub fn extract_exports(content: &str) -> Vec<String> {
                 let mut child_indent: Option<usize> = None;
                 while j < lines.len() {
                     let child_line = lines[j];
-                    // Stop if we hit another top-level key or end of file
-                    if !child_line.is_empty()
-                        && !child_line.starts_with(' ')
-                        && !child_line.starts_with('\t')
-                        && !child_line.starts_with('#')
-                    {
+                    let trimmed = child_line.trim_start();
+                    if trimmed.is_empty() {
+                        j += 1;
+                        continue;
+                    }
+                    let indent = child_line.len() - trimmed.len();
+                    // Stop once we hit a line at or above the parent's own indent
+                    // (a sibling or ancestor key), unless it's a comment.
+                    if indent <= parent_indent && !trimmed.starts_with('#') {
                         break;
                     }
-                    // Measure leading whitespace
-                    let indent = child_line.len() - child_line.trim_start().len();
-                    let trimmed = child_line.trim_start();
-                    if indent > 0 && !trimmed.is_empty() && !trimmed.starts_with('#') {
-                        // Detect indent of first child
-                        if child_indent.is_none() {
-                            child_indent = Some(indent);
-                        }
-                        // Only match lines at the exact child indent level
-                        if Some(indent) == child_indent
-                            && let Some(child_caps) = top_level_line.captures(trimmed)
-                            && let Some(child_match) = child_caps.get(1)
-                        {
-                            symbols.push(format!("{}.{}", parent, child_match.as_str()));
+                    if trimmed.starts_with('#') {
+                        j += 1;
+                        continue;
+                    }
+                    // Detect indent of first child
+                    if child_indent.is_none() {
+                        child_indent = Some(indent);
+                    }
+                    // Only match lines at the exact child indent level
+                    if Some(indent) == child_indent
+                        && let Some(child_caps) = key_line.captures(trimmed)
+                        && let Some(child_match) = child_caps.get(1)
+                    {
+                        let symbol = format!("{}.{}", parent, child_match.as_str());
+                        if !symbols.contains(&symbol) {
+                            symbols.push(symbol);
                         }
                     }
                     j += 1;
@@ -112,6 +136,160 @@ pub fn extract_exports(content: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_real_learnxinyminutes_scalar_types() {
+        // Excerpt straight from learnxinyminutes.com's yaml.md "SCALAR TYPES"
+        // section: real idiomatic YAML demonstrating plain scalars, the
+        // yes/no boolean gotcha, quoted keys/values, and literal/folded
+        // block scalars with strip/keep chomping indicators.
+        let content = r#"key: value
+another_key: Another value goes here.
+a_number_value: 100
+scientific_notation: 1e+12
+hex_notation: 0x123  # evaluates to 291
+octal_notation: 0123 # evaluates to 83
+
+boolean: true
+null_value: null
+another_null_value: ~
+key with spaces: value
+
+no: no            # evaluates to "no": false
+yes: No           # evaluates to "yes": false
+not_enclosed: yes # evaluates to "not_enclosed": true
+enclosed: "yes"   # evaluates to "enclosed": yes
+
+however: 'A string, enclosed in quotes.'
+'Keys can be quoted too.': "Useful if you want to put a ':' in your key."
+single quotes: 'have ''one'' escape pattern'
+double quotes: "have many: \", \0, \t, ☺, \x0d\x0a == \r\n, and more."
+Superscript two: ²
+
+special_characters: "[ John ] & { Jane } - <Doe>"
+
+literal_block: |
+  This entire block of text will be the value of the 'literal_block' key,
+  with line breaks being preserved.
+
+  The literal continues until de-dented, and the leading indentation is
+  stripped.
+
+      Any lines that are 'more-indented' keep the rest of their indentation -
+      these lines will be indented by 4 spaces.
+folded_style: >
+  This entire block of text will be the value of 'folded_style', but this
+  time, all newlines will be replaced with a single space.
+literal_strip: |-
+  This entire block of text will be the value of the 'literal_strip' key,
+  with trailing blank line being stripped.
+block_keep: >+
+  This entire block of text will be the value of 'block_keep', but this
+  time, all newlines will be replaced with a single space and
+  trailing blank line being kept.
+"#;
+        // Must not panic/hang on real-world scalar syntax breadth.
+        let symbols = extract_exports(content);
+
+        // Plain identifier-style keys are found.
+        for key in [
+            "key",
+            "another_key",
+            "a_number_value",
+            "scientific_notation",
+            "hex_notation",
+            "octal_notation",
+            "boolean",
+            "null_value",
+            "another_null_value",
+            "no",
+            "yes",
+            "not_enclosed",
+            "enclosed",
+            "however",
+            "special_characters",
+            "literal_block",
+            "folded_style",
+            "literal_strip",
+            "block_keep",
+        ] {
+            assert!(symbols.contains(&key.to_string()), "missing key: {key}");
+        }
+
+        // The `&` inside the quoted `special_characters` value is not a YAML
+        // anchor (it's plain text data), so it must not leak "Jane" or any
+        // other fragment out as a spurious anchor/symbol.
+        assert!(!symbols.iter().any(|s| s.contains("Jane")));
+
+        // Indented lines inside literal/folded block scalars (prose that
+        // happens to contain `key:`-shaped substrings, e.g. "the leading
+        // indentation is") must never be mistaken for top-level keys.
+        assert!(!symbols.contains(&"stripped".to_string()));
+    }
+
+    #[test]
+    fn test_real_learnxinyminutes_anchors_merge_keys_and_tags() {
+        // Excerpt from learnxinyminutes.com's yaml.md "EXTRA YAML FEATURES"
+        // section: real anchors/aliases, the `<<` merge key, and explicit
+        // `!!type` tags.
+        let content = r#"anchored_content: &anchor_name This string will appear as the value of two keys.
+other_anchor: *anchor_name
+
+base: &base
+  name: Everyone has same name
+
+foo:
+  <<: *base # doesn't merge the anchor
+  age: 10
+  name: John
+bar:
+  <<: *base # base anchor will be merged
+  age: 20
+
+explicit_boolean: !!bool true
+explicit_integer: !!int 42
+explicit_float: !!float -42.24
+explicit_string: !!str 0.5
+explicit_datetime: !!timestamp 2022-11-17 12:34:56.78 +9
+explicit_null: !!null null
+
+python_complex_number: !!python/complex 1+2j
+
+? !!python/tuple [ 5, 7 ]
+: Fifty Seven
+"#;
+        let symbols = extract_exports(content);
+
+        // Top-level keys are found.
+        for key in [
+            "anchored_content",
+            "other_anchor",
+            "base",
+            "foo",
+            "bar",
+            "explicit_boolean",
+            "explicit_integer",
+            "explicit_float",
+            "explicit_string",
+            "explicit_datetime",
+            "explicit_null",
+            "python_complex_number",
+        ] {
+            assert!(symbols.contains(&key.to_string()), "missing key: {key}");
+        }
+
+        // The anchor `&anchor_name` is extracted as its own symbol.
+        assert!(symbols.contains(&"anchor_name".to_string()));
+
+        // The `<<` merge key and `*base` alias reference are not anchors
+        // (no `&`) and must not produce a stray "base" duplicate or any
+        // garbage symbol from the merge-key syntax itself.
+        assert!(!symbols.iter().any(|s| s == "<<"));
+
+        // The complex mapping key introduced by `? !!python/tuple [ 5, 7 ]`
+        // must not be mistaken for a top-level `key:` declaration.
+        assert!(!symbols.iter().any(|s| s.contains("Fifty")));
+    }
 
     #[test]
     fn test_github_actions_workflow() {
@@ -250,5 +428,108 @@ on:
         assert!(symbols.contains(&"name".to_string()));
         assert!(symbols.contains(&"on".to_string()));
         assert_eq!(symbols.len(), 2);
+    }
+
+    #[test]
+    fn test_ampersand_in_url_query_string_not_treated_as_anchor() {
+        // Docker Compose environment values often embed URLs with query strings.
+        // The `&` there is a query-parameter separator, not a YAML anchor sigil,
+        // since it's glued directly to the preceding word character (no
+        // delimiter before it as a real anchor would have).
+        let content = r#"services:
+  web:
+    image: nginx
+    environment:
+      - API_URL=https://api.example.com/v1?key=abc&format=json
+  db:
+    image: postgres
+"#;
+        let symbols = extract_exports(content);
+        assert!(symbols.contains(&"services.web".to_string()));
+        assert!(symbols.contains(&"services.db".to_string()));
+        assert!(!symbols.contains(&"format".to_string()));
+
+        // A GitHub Actions `run:` block with a curl command hits the same case.
+        let gha_content = r#"jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -X POST "https://hooks.example.com/service?ref=main&token=abc123"
+"#;
+        let gha_symbols = extract_exports(gha_content);
+        assert!(gha_symbols.contains(&"jobs.notify".to_string()));
+        assert!(!gha_symbols.contains(&"token".to_string()));
+    }
+
+    #[test]
+    fn test_real_anchor_still_extracted_after_delimiter_tightening() {
+        // Legitimate anchors (preceded by whitespace, a dash, or a flow-collection
+        // delimiter) must still be recognized after tightening the ANCHOR regex.
+        let content = r#"defaults: &defaults
+  timeout: 30
+list: [&first-item value, &second-item other]
+jobs:
+  test:
+    <<: *defaults
+"#;
+        let symbols = extract_exports(content);
+        assert!(symbols.contains(&"defaults".to_string()));
+        assert!(symbols.contains(&"first-item".to_string()));
+    }
+
+    #[test]
+    fn test_nested_outputs_under_job_extracted() {
+        // `outputs:` is a well-known parent, but in a real GitHub Actions workflow
+        // it commonly appears nested under `jobs.<job>.outputs`, not at column 0.
+        // The named entries there are part of the workflow's public surface
+        // (consumed elsewhere via `needs.<job>.outputs.<name>`) and must not be
+        // silently dropped just because they aren't top-level.
+        let content = r#"jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ steps.build.outputs.name }}
+      version: ${{ steps.build.outputs.version }}
+    steps:
+      - id: build
+        run: echo "name=app" >> "$GITHUB_OUTPUT"
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ needs.build.outputs.artifact-name }}"
+"#;
+        let symbols = extract_exports(content);
+        assert!(symbols.contains(&"jobs.build".to_string()));
+        assert!(symbols.contains(&"jobs.deploy".to_string()));
+        assert!(symbols.contains(&"outputs.artifact-name".to_string()));
+        assert!(symbols.contains(&"outputs.version".to_string()));
+    }
+
+    #[test]
+    fn test_multi_document_yaml_dedupes_top_level_keys() {
+        // A multi-document Kubernetes manifest (Deployment + Service, `---`-separated)
+        // repeats the same top-level key names in every document. The symbol list
+        // should behave like a set, consistent with how anchors are already deduped.
+        let content = r#"apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-svc
+spec:
+  ports: []
+"#;
+        let symbols = extract_exports(content);
+        assert_eq!(symbols.iter().filter(|s| *s == "apiVersion").count(), 1);
+        assert_eq!(symbols.iter().filter(|s| *s == "kind").count(), 1);
+        assert_eq!(symbols.iter().filter(|s| *s == "metadata").count(), 1);
+        assert_eq!(symbols.iter().filter(|s| *s == "spec").count(), 1);
     }
 }

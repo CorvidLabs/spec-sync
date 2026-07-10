@@ -1,7 +1,7 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"//.*$").unwrap());
+static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)//.*$").unwrap());
 
 static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
 
@@ -13,13 +13,41 @@ static JAVA_TYPE: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
-/// Java public methods and fields
-static JAVA_MEMBER: LazyLock<Regex> = LazyLock::new(|| {
+/// Type/interface header used to track brace-nesting context (not to collect names --
+/// `JAVA_TYPE` already does that for the `public` case). Captures whether the header
+/// itself carries an explicit `public` and whether it is an interface/@interface, so
+/// callers can tell when a body's direct members are implicitly public.
+static JAVA_TYPE_HEADER: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*public\s+(?:static\s+)?(?:final\s+)?(?:synchronized\s+)?(?:abstract\s+)?(?:native\s+)?(?:<[^>]+>\s+)?(?:\w+(?:<[^>]*>)?(?:\[\])*)\s+(\w+)\s*[({;=]",
+        r"(?m)^[^\S\n]*(?P<pub>public\s+)?(?:static\s+)?(?:final\s+)?(?:abstract\s+)?(?:sealed\s+)?(?:strictfp\s+)?(?P<kind>@interface|interface|class|enum|record)\s+\w+",
     )
     .unwrap()
 });
+
+/// Shared "modifiers + type + name + terminator" tail for member declarations. Allows
+/// `static`/`final` in either order (both are legal Java, e.g. `public final static`)
+/// and `default` (interface default methods), in addition to the previously-supported
+/// modifiers.
+const JAVA_MEMBER_TAIL: &str = r"(?:static\s+final\s+|final\s+static\s+|static\s+|final\s+)?(?:default\s+)?(?:synchronized\s+)?(?:abstract\s+)?(?:native\s+)?(?:strictfp\s+)?(?:<[^>]+>\s+)?(?:\w+(?:<[^>]*>)?(?:\[\])*)\s+(\w+)\s*[({;=]";
+
+/// Java public methods and fields (explicit `public` keyword required).
+static JAVA_MEMBER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"(?m)^[^\S\n]*public\s+{JAVA_MEMBER_TAIL}")).unwrap());
+
+/// Java interface/@interface members: same shape as `JAVA_MEMBER` but `public` is
+/// optional, since interface (and annotation type) constants and methods are
+/// implicitly public and idiomatically never carry the keyword. Only applied while
+/// walking bodies known to be directly inside an exported interface/@interface --
+/// members with an explicit `private` (legal for interface methods since Java 9) are
+/// filtered out by the caller before this is tried.
+static JAVA_IMPLICIT_MEMBER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(r"(?m)^[^\S\n]*(?:public\s+)?{JAVA_MEMBER_TAIL}")).unwrap()
+});
+
+/// Matches a member line that explicitly opts back out of the implicit-public default
+/// with `private` (optionally preceded by one modifier, e.g. `private static`).
+static JAVA_PRIVATE_MODIFIER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*(?:\w+\s+)?private\b").unwrap());
 
 /// Extract public symbols from Java source code.
 pub fn extract_exports(content: &str) -> Vec<String> {
@@ -39,6 +67,50 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             let n = name.as_str().to_string();
             if !symbols.contains(&n) {
                 symbols.push(n);
+            }
+        }
+    }
+
+    // Interface (and annotation type) members have no visibility keyword of their own
+    // -- they're implicitly public. Walk line-by-line tracking brace depth so we know
+    // when we're directly inside the body of an interface/@interface that is itself
+    // part of the public surface (explicitly `public`, or nested inside another such
+    // body), and pick up member declarations there even without `public`.
+    let mut interface_body_stack: Vec<bool> = Vec::new();
+    for line in stripped.lines() {
+        let auto_public = *interface_body_stack.last().unwrap_or(&false);
+
+        if let Some(caps) = JAVA_TYPE_HEADER.captures(line) {
+            let is_interface = matches!(
+                caps.name("kind").map(|m| m.as_str()),
+                Some("interface") | Some("@interface")
+            );
+            let is_public = caps.name("pub").is_some();
+            let child_auto_public = is_interface && (is_public || auto_public);
+            if line.contains('{') {
+                interface_body_stack.push(child_auto_public);
+            }
+            continue;
+        }
+
+        if auto_public
+            && !JAVA_PRIVATE_MODIFIER.is_match(line)
+            && let Some(caps) = JAVA_IMPLICIT_MEMBER.captures(line)
+            && let Some(name) = caps.get(1)
+        {
+            let n = name.as_str().to_string();
+            if !symbols.contains(&n) {
+                symbols.push(n);
+            }
+        }
+
+        for ch in line.chars() {
+            match ch {
+                '{' => interface_body_stack.push(false),
+                '}' => {
+                    interface_body_stack.pop();
+                }
+                _ => {}
             }
         }
     }
@@ -176,5 +248,264 @@ public class Constants {
         assert!(symbols.contains(&"MAX_SIZE".to_string()));
         assert!(symbols.contains(&"VERSION".to_string()));
         assert!(symbols.contains(&"init".to_string()));
+    }
+
+    #[test]
+    fn test_java_interface_members_implicitly_public() {
+        // Interface fields, abstract methods, default methods, and static factory
+        // methods are implicitly public and idiomatically never carry the `public`
+        // keyword -- the same bug class as the Swift protocol-member issue.
+        let src = r#"
+public interface PaymentGateway {
+    int MAX_RETRIES = 3;
+    String DEFAULT_CURRENCY = "USD";
+
+    boolean authorize(String token, double amount);
+    List<Transaction> history(String accountId);
+
+    default boolean isRefundable(String transactionId) { return true; }
+
+    static PaymentGateway createDefault() { return new DefaultPaymentGateway(); }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"PaymentGateway".to_string()));
+        assert!(symbols.contains(&"MAX_RETRIES".to_string()));
+        assert!(symbols.contains(&"DEFAULT_CURRENCY".to_string()));
+        assert!(symbols.contains(&"authorize".to_string()));
+        assert!(symbols.contains(&"history".to_string()));
+        assert!(symbols.contains(&"isRefundable".to_string()));
+        assert!(symbols.contains(&"createDefault".to_string()));
+    }
+
+    #[test]
+    fn test_java_annotation_type_members_implicitly_public() {
+        // @interface (annotation type) elements are the entire public contract of the
+        // annotation and never carry `public`, same as interface members.
+        let src = r#"
+public @interface Cacheable {
+    String key();
+    boolean enabled() default true;
+    int ttl() default 300;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Cacheable".to_string()));
+        assert!(symbols.contains(&"key".to_string()));
+        assert!(symbols.contains(&"enabled".to_string()));
+        assert!(symbols.contains(&"ttl".to_string()));
+    }
+
+    #[test]
+    fn test_java_interface_private_helper_excluded() {
+        // Interface private methods (legal since Java 9) are the one case where a
+        // member is NOT implicitly public -- an explicit `private` must still exclude
+        // it even though every other member in the body is auto-public.
+        let src = r#"
+public interface Validator {
+    boolean isValid(String input);
+
+    private boolean normalize(String input) { return input.trim().isEmpty(); }
+
+    private static boolean isBlank(String input) { return input == null; }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Validator".to_string()));
+        assert!(symbols.contains(&"isValid".to_string()));
+        assert!(!symbols.contains(&"normalize".to_string()));
+        assert!(!symbols.contains(&"isBlank".to_string()));
+    }
+
+    #[test]
+    fn test_java_learnxinyminutes_bicycle_class() {
+        // Real excerpt (trimmed of surrounding context only) from learnxinyminutes.com's
+        // Java tutorial: a class with mixed-visibility fields (public/private/protected/
+        // package-private/static), a static initializer block, two constructors, several
+        // public getter/setter methods, and an `@Override` method with a trailing `//`
+        // comment on the same line as the annotation -- real idiomatic syntax breadth
+        // that hand-written examples might not think to combine.
+        let src = r#"
+class Bicycle {
+
+    // Bicycle's Fields/Variables
+    public int cadence; // Public: Can be accessed from anywhere
+    private int speed;  // Private: Only accessible from within the class
+    protected int gear; // Protected: Accessible from the class and subclasses
+    String name; // default: Only accessible from within this package
+    static String className; // Static class variable
+
+    // Static block
+    static {
+        className = "Bicycle";
+    }
+
+    // Constructors are a way of creating classes
+    public Bicycle() {
+        gear = 1;
+        cadence = 50;
+        speed = 5;
+        name = "Bontrager";
+    }
+    // This is a constructor that takes arguments
+    public Bicycle(int startCadence, int startSpeed, int startGear,
+        String name) {
+        this.gear = startGear;
+        this.cadence = startCadence;
+        this.speed = startSpeed;
+        this.name = name;
+    }
+
+    public int getCadence() {
+        return cadence;
+    }
+
+    // void methods require no return statement
+    public void setCadence(int newValue) {
+        cadence = newValue;
+    }
+    public void setGear(int newValue) {
+        gear = newValue;
+    }
+    public void speedUp(int increment) {
+        speed += increment;
+    }
+    public void slowDown(int decrement) {
+        speed -= decrement;
+    }
+    public void setName(String newName) {
+        name = newName;
+    }
+    public String getName() {
+        return name;
+    }
+
+    //Method to display the attribute values of this Object.
+    @Override // Inherited from the Object class.
+    public String toString() {
+        return "gear: " + gear + " cadence: " + cadence + " speed: " + speed +
+            " name: " + name;
+    }
+} // end class Bicycle
+"#;
+        let symbols = extract_exports(src);
+        // Public members expected.
+        for expected in [
+            "cadence",
+            "getCadence",
+            "setCadence",
+            "setGear",
+            "speedUp",
+            "slowDown",
+            "setName",
+            "getName",
+            "toString",
+        ] {
+            assert!(
+                symbols.contains(&expected.to_string()),
+                "missing {expected}: {symbols:?}"
+            );
+        }
+        // Non-public members must stay excluded.
+        for excluded in ["speed", "gear", "name", "className"] {
+            assert!(
+                !symbols.contains(&excluded.to_string()),
+                "leaked {excluded}: {symbols:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_java_learnxinyminutes_interfaces_with_pseudocode_comments() {
+        // Real excerpt from learnxinyminutes.com's Java tutorial. This is a regression
+        // test for a genuine bug: `COMMENT_SINGLE` was `//.*$` *without* the `(?m)` flag,
+        // so in the `regex` crate `$` only anchors to the end of the whole haystack --
+        // meaning `//` comments were effectively never stripped except possibly on the
+        // file's last line. That was mostly invisible because `JAVA_TYPE`/`JAVA_MEMBER`
+        // both require `public` to be the first non-whitespace token on the line (which a
+        // `//`-prefixed line can never satisfy), but the interface-nesting brace-tracker
+        // walks raw characters of every (falsely) unstripped line -- and this real file
+        // has a `//`-commented pseudo-code block with an unbalanced `{` on its own line
+        // right before real `public interface` declarations, exactly the kind of input
+        // that could desync the nesting stack and corrupt implicit-public detection for
+        // the interface members that follow.
+        let src = r#"
+// Interfaces
+// Interface declaration syntax
+// <access-level> interface <interface-name> extends <super-interfaces> {
+//     // Constants
+//     // Method declarations
+// }
+
+// Example - Food:
+public interface Edible {
+    public void eat(); // Any class that implements this interface, must
+                       // implement this method.
+}
+
+public interface Digestible {
+    public void digest();
+    // Since Java 8, interfaces can have default method.
+    public default void defaultMethod() {
+        System.out.println("Hi from default method ...");
+    }
+}
+
+// We can now create a class that implements both of these interfaces.
+public class Fruit implements Edible, Digestible {
+    @Override
+    public void eat() {
+        // ...
+    }
+
+    @Override
+    public void digest() {
+        // ...
+    }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Edible".to_string()));
+        assert!(symbols.contains(&"Digestible".to_string()));
+        assert!(symbols.contains(&"Fruit".to_string()));
+        assert!(symbols.contains(&"eat".to_string()));
+        assert!(symbols.contains(&"digest".to_string()));
+        assert!(symbols.contains(&"defaultMethod".to_string()));
+        // The commented-out pseudo-code (e.g. "interface", "Constants", "Method
+        // declarations") must never leak through as if it were a real declaration.
+        assert!(!symbols.contains(&"Constants".to_string()));
+        assert!(!symbols.contains(&"Declarations".to_string()));
+    }
+
+    #[test]
+    fn test_java_public_default_method_and_modifier_order() {
+        // Finding #2: an explicit `public default` interface method must still match
+        // even though `default` wasn't previously in the modifier alternation.
+        // Finding #3: `public final static` (reversed from the canonical
+        // `public static final`) must still be recognized as a member.
+        let src = r#"
+public interface Widget {
+    public int MAX = 5;
+    public boolean render();
+    public default boolean isVisible() { return true; }
+}
+
+public class Config {
+    public final static int VERSION = 2;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Widget".to_string()));
+        assert!(symbols.contains(&"MAX".to_string()));
+        assert!(symbols.contains(&"render".to_string()));
+        assert!(
+            symbols.contains(&"isVisible".to_string()),
+            "public default method: {symbols:?}"
+        );
+        assert!(symbols.contains(&"Config".to_string()));
+        assert!(
+            symbols.contains(&"VERSION".to_string()),
+            "public final static (reversed order): {symbols:?}"
+        );
     }
 }

@@ -6,8 +6,15 @@ static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)//.*$
 static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
 
 /// export function/class/interface/type/const/enum name
+///
+/// The `const\s+enum` alternative must be listed before the bare `const`
+/// alternative: `export const enum Name` would otherwise match the `const`
+/// branch and greedily capture the following `enum` keyword as the name
+/// instead of `Name`. `declare` is accepted as an optional modifier so
+/// ambient declarations (`export declare function/class/const ...`) are not
+/// silently dropped.
 static EXPORT_DECL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"export\s+(?:async\s+)?(?:abstract\s+)?(?:function|class|interface|type|const|enum)\s+(\w+)")
+    Regex::new(r"export\s+(?:declare\s+)?(?:async\s+)?(?:abstract\s+)?(?:const\s+enum|function|class|interface|type|const|enum)\s+(\w+)")
         .unwrap()
 });
 
@@ -29,6 +36,10 @@ static EXPORT_DEFAULT: LazyLock<Regex> = LazyLock::new(|| {
         .unwrap()
 });
 
+/// export = name (CommonJS-style default export)
+static EXPORT_EQUALS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"export\s*=\s*(\w+)").unwrap());
+
 /// Extract exported symbols from TypeScript/JavaScript source (without file resolution).
 ///
 /// Supports:
@@ -36,6 +47,7 @@ static EXPORT_DEFAULT: LazyLock<Regex> = LazyLock::new(|| {
 /// - Re-exports: `export { Name }` and `export type { Name }`
 /// - Namespace re-exports: `export * as Name from './module'`
 /// - Default exports: `export default class Name`
+/// - CommonJS-style default exports: `export = Name`
 ///
 /// For wildcard `export * from` support, use `extract_exports_with_resolver`.
 #[cfg_attr(not(test), allow(dead_code))]
@@ -85,6 +97,13 @@ pub fn extract_exports_with_resolver(
             {
                 symbols.push(n.to_string());
             }
+        }
+    }
+
+    // CommonJS-style default export: export = Name
+    for caps in EXPORT_EQUALS.captures_iter(&stripped) {
+        if let Some(name) = caps.get(1) {
+            symbols.push(name.as_str().to_string());
         }
     }
 
@@ -257,5 +276,183 @@ export abstract class BaseService {}
         let symbols = extract_exports(src);
         assert!(symbols.contains(&"fetchData".to_string()));
         assert!(symbols.contains(&"BaseService".to_string()));
+    }
+
+    #[test]
+    fn test_export_equals() {
+        // CommonJS-style default export: `export = Name` exports the identifier
+        // as the module's default.
+        let src = r#"
+class AuthService {}
+export = AuthService;
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["AuthService"]);
+    }
+
+    #[test]
+    fn test_export_equals_no_spaces() {
+        let src = r#"export=AuthService;"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["AuthService"]);
+    }
+
+    #[test]
+    fn test_export_equals_does_not_match_equality() {
+        // `export == Foo` is not valid TS, but `export =` should not greedily
+        // consume an `=` inside an expression. This input has no real export.
+        let src = r#"const x = 1; export = x;"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["x"]);
+    }
+
+    #[test]
+    fn test_const_enum_export() {
+        // Regression: `export const enum` is a common idiomatic TS pattern
+        // (compile-time-only enums). The alternation used to match the bare
+        // `const` branch first and then greedily capture the following
+        // `enum` keyword as the symbol name instead of `Direction`.
+        let src = r#"
+export const enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+export const MAX_RETRIES = 3;
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Direction", "MAX_RETRIES"]);
+    }
+
+    #[test]
+    fn test_declare_ambient_exports() {
+        // Regression: `export declare function/class/const` ambient
+        // declarations were dropped entirely because `declare` wasn't
+        // recognized as a modifier between `export` and the declaration
+        // keyword.
+        let src = r#"
+export declare function debounce<T extends (...args: any[]) => void>(fn: T, wait: number): T;
+export declare class EventEmitter {
+    on(event: string, listener: (...args: any[]) => void): this;
+}
+export declare const VERSION: string;
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["debounce", "EventEmitter", "VERSION"]);
+    }
+
+    #[test]
+    fn test_learnxinyminutes_module_namespace_export() {
+        // Regression: real excerpt from learnxinyminutes.com/typescript.
+        // Legacy `module Foo { ... }` namespace syntax nests its `export`
+        // one level inside a `module` block rather than at the top level.
+        // This was previously untested even though both the regex and AST
+        // backends already recurse/scan past the enclosing block.
+        let src = r#"
+// Modules, "." can be used as separator for sub modules
+module Geometry {
+  export class Square {
+    constructor(public sideLength: number = 0) {
+    }
+    area() {
+      return Math.pow(this.sideLength, 2);
+    }
+  }
+}
+
+let s1 = new Geometry.Square(5);
+
+// Local alias for referencing a module
+import G = Geometry;
+
+let s2 = new G.Square(10);
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Square"]);
+    }
+
+    #[test]
+    fn test_learnxinyminutes_interfaces_and_classes_real_excerpt() {
+        // Real excerpt (verbatim) from learnxinyminutes.com/typescript,
+        // covering structural interfaces, a class with constructor
+        // shorthand properties, `implements`, inheritance via `extends`,
+        // and the legacy namespace `module` export. None of the
+        // interfaces/classes here are exported except `Square` nested in
+        // `Geometry` -- this locks in that the extractor doesn't spuriously
+        // pick up un-exported top-level declarations while still finding
+        // the genuinely nested export, and that a realistic slice with this
+        // much syntax breadth doesn't panic or produce garbage.
+        let src = r#"
+// Interfaces are structural, anything that has the properties is compliant with
+// the interface
+interface Person {
+  name: string;
+  // Optional properties, marked with a "?"
+  age?: number;
+  // And of course functions
+  move(): void;
+}
+
+// Object that implements the "Person" interface
+// Can be treated as a Person since it has the name and move properties
+let p: Person = { name: "Bobby", move: () => { } };
+// Objects that have the optional property:
+let validPerson: Person = { name: "Bobby", age: 42, move: () => { } };
+// Is not a person because age is not a number
+let invalidPerson: Person = { name: "Bobby", age: true };
+
+// Classes - members are public by default
+class Point {
+  // Properties
+  x: number;
+
+  constructor(x: number, public y: number = 0) {
+    this.x = x;
+  }
+
+  // Functions
+  dist(): number { return Math.sqrt(this.x * this.x + this.y * this.y); }
+
+  // Static members
+  static origin = new Point(0, 0);
+}
+
+// Classes can be explicitly marked as implementing an interface.
+class PointPerson implements Person {
+    name: string
+    move() {}
+}
+
+let p1 = new Point(10, 20);
+
+// Inheritance
+class Point3D extends Point {
+  constructor(x: number, y: number, public z: number = 0) {
+    super(x, y); // Explicit call to the super class constructor is mandatory
+  }
+
+  // Overwrite
+  dist(): number {
+    let d = super.dist();
+    return Math.sqrt(d * d + this.z * this.z);
+  }
+}
+
+// Modules, "." can be used as separator for sub modules
+module Geometry {
+  export class Square {
+    constructor(public sideLength: number = 0) {
+    }
+    area() {
+      return Math.pow(this.sideLength, 2);
+    }
+  }
+}
+
+let s1 = new Geometry.Square(5);
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Square"]);
     }
 }

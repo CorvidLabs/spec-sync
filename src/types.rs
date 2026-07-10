@@ -397,15 +397,17 @@ pub enum ExportLevel {
 
 /// Controls which parser backend to use for export extraction.
 /// - `regex` (default): Fast regex-based parsing (current behavior).
-/// - `ast`: Tree-sitter AST-based parsing for higher accuracy (TypeScript, Python, Rust only).
-///   Falls back to regex for unsupported languages.
+/// - `ast`: Tree-sitter AST-based parsing for higher accuracy (TypeScript, Python, Rust, C, C++,
+///   Scala, Erlang, Elixir, Perl, Lisp/Scheme/Emacs Lisp). Falls back to regex for other languages.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ParseMode {
     /// Regex-based parsing (default, all languages).
     #[default]
     Regex,
-    /// AST-based parsing via tree-sitter (TypeScript, Python, Rust). Falls back to regex for others.
+    /// AST-based parsing via tree-sitter (TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir,
+    /// Perl, Lisp/Scheme/Emacs Lisp). Falls back to regex for others (e.g. Nim, Crystal — no
+    /// published tree-sitter grammar).
     Ast,
 }
 
@@ -459,7 +461,8 @@ pub struct SpecSyncConfig {
     pub export_level: ExportLevel,
 
     /// Parser backend: "regex" (default) or "ast" (tree-sitter, opt-in).
-    /// AST mode supports TypeScript, Python, and Rust; other languages fall back to regex.
+    /// AST mode supports TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, and
+    /// Lisp/Scheme/Emacs Lisp; other languages fall back to regex.
     #[serde(default)]
     pub parse_mode: ParseMode,
 
@@ -751,6 +754,27 @@ pub enum Language {
     Php,
     Ruby,
     Yaml,
+    C,
+    Cpp,
+    Scala,
+    Crystal,
+    Nim,
+    Erlang,
+    Elixir,
+    Perl,
+    Lisp,
+    Haskell,
+    Lua,
+    R,
+    OCaml,
+    Groovy,
+    FSharp,
+    Clojure,
+    D,
+    ObjectiveC,
+    Bash,
+    PowerShell,
+    Vala,
 }
 
 impl Language {
@@ -769,6 +793,27 @@ impl Language {
             "php" => Some(Language::Php),
             "rb" => Some(Language::Ruby),
             "yaml" | "yml" => Some(Language::Yaml),
+            "c" => Some(Language::C),
+            "cpp" | "cc" | "cxx" | "h" | "hpp" => Some(Language::Cpp),
+            "scala" => Some(Language::Scala),
+            "cr" => Some(Language::Crystal),
+            "nim" => Some(Language::Nim),
+            "erl" => Some(Language::Erlang),
+            "ex" | "exs" => Some(Language::Elixir),
+            "pl" | "pm" | "pl6" | "pm6" => Some(Language::Perl),
+            "lisp" | "lsp" | "scm" | "el" => Some(Language::Lisp),
+            "hs" => Some(Language::Haskell),
+            "lua" => Some(Language::Lua),
+            "r" | "R" => Some(Language::R),
+            "ml" | "mli" => Some(Language::OCaml),
+            "groovy" | "gvy" => Some(Language::Groovy),
+            "fs" | "fsx" | "fsi" => Some(Language::FSharp),
+            "clj" | "cljs" | "cljc" => Some(Language::Clojure),
+            "d" => Some(Language::D),
+            "m" | "mm" => Some(Language::ObjectiveC),
+            "sh" | "bash" => Some(Language::Bash),
+            "ps1" => Some(Language::PowerShell),
+            "vala" => Some(Language::Vala),
             _ => None,
         }
     }
@@ -789,6 +834,27 @@ impl Language {
             Language::Php => &["php"],
             Language::Ruby => &["rb"],
             Language::Yaml => &["yaml", "yml"],
+            Language::C => &["c"],
+            Language::Cpp => &["cpp", "cc", "cxx", "h", "hpp"],
+            Language::Scala => &["scala"],
+            Language::Crystal => &["cr"],
+            Language::Nim => &["nim"],
+            Language::Erlang => &["erl"],
+            Language::Elixir => &["ex", "exs"],
+            Language::Perl => &["pl", "pm", "pl6", "pm6"],
+            Language::Lisp => &["lisp", "lsp", "scm", "el"],
+            Language::Haskell => &["hs"],
+            Language::Lua => &["lua"],
+            Language::R => &["r", "R"],
+            Language::OCaml => &["ml", "mli"],
+            Language::Groovy => &["groovy", "gvy"],
+            Language::FSharp => &["fs", "fsx", "fsi"],
+            Language::Clojure => &["clj", "cljs", "cljc"],
+            Language::D => &["d"],
+            Language::ObjectiveC => &["m", "mm"],
+            Language::Bash => &["sh", "bash"],
+            Language::PowerShell => &["ps1"],
+            Language::Vala => &["vala"],
         }
     }
 
@@ -824,6 +890,27 @@ impl Language {
             Language::Php => &["Test.php", "test_"],
             Language::Ruby => &["_spec.rb", "_test.rb", "test_"],
             Language::Yaml => &[], // YAML files are typically not test files
+            Language::C => &["_test.c", "test_"],
+            Language::Cpp => &["_test.cpp", "test_"],
+            Language::Scala => &["Spec.scala", "Suite.scala", "Test.scala"],
+            Language::Crystal => &["_spec.cr"],
+            Language::Nim => &["t", "test"],
+            Language::Erlang => &["_tests.erl"],
+            Language::Elixir => &["_test.exs"],
+            Language::Perl => &["_test.pl", ".t"],
+            Language::Lisp => &["test.lisp", "test.scm"],
+            Language::Haskell => &["Spec.hs", "Test.hs", "Tests.hs"],
+            Language::Lua => &["_spec.lua", "_test.lua", "spec.lua"],
+            Language::R => &["test-", "test_"],
+            Language::OCaml => &["_test.ml", "test_"],
+            Language::Groovy => &["Test.groovy", "Tests.groovy", "Spec.groovy"],
+            Language::FSharp => &["Tests.fs", "Test.fs", "Spec.fs"],
+            Language::Clojure => &["_test.clj", "_test.cljs", "_test.cljc"],
+            Language::D => &["_test.d", "test_"],
+            Language::ObjectiveC => &["Tests.m", "Test.m", "Spec.m"],
+            Language::Bash => &["_test.sh", "test_"],
+            Language::PowerShell => &["Tests.ps1", ".Tests.ps1"],
+            Language::Vala => &["Test.vala", "Tests.vala"],
         }
     }
 }

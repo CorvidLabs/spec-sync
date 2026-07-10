@@ -16,10 +16,38 @@ files:
   - src/exports/php.rs
   - src/exports/ruby.rs
   - src/exports/yaml.rs
+  - src/exports/c.rs
+  - src/exports/cpp.rs
+  - src/exports/scala.rs
+  - src/exports/crystal.rs
+  - src/exports/nim.rs
+  - src/exports/erlang.rs
+  - src/exports/elixir.rs
+  - src/exports/perl.rs
+  - src/exports/lisp.rs
   - src/exports/ast/mod.rs
   - src/exports/ast/typescript.rs
   - src/exports/ast/python.rs
   - src/exports/ast/rust_lang.rs
+  - src/exports/ast/c.rs
+  - src/exports/ast/cpp.rs
+  - src/exports/ast/scala.rs
+  - src/exports/ast/erlang.rs
+  - src/exports/ast/elixir.rs
+  - src/exports/ast/perl.rs
+  - src/exports/ast/lisp.rs
+  - src/exports/haskell.rs
+  - src/exports/lua.rs
+  - src/exports/r.rs
+  - src/exports/ocaml.rs
+  - src/exports/groovy.rs
+  - src/exports/fsharp.rs
+  - src/exports/clojure.rs
+  - src/exports/d.rs
+  - src/exports/objective_c.rs
+  - src/exports/bash.rs
+  - src/exports/powershell.rs
+  - src/exports/vala.rs
 db_tables: []
 tracks: [60]
 depends_on:
@@ -30,7 +58,7 @@ depends_on:
 
 ## Purpose
 
-Language-aware export extraction from source files. Auto-detects the programming language from file extension and extracts public/exported symbol names using regex-based parsing or tree-sitter AST analysis. Supports 12 languages: TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, and YAML.
+Language-aware export extraction from source files. Auto-detects the programming language from file extension and extracts public/exported symbol names using regex-based parsing or tree-sitter AST analysis. Supports 33 languages: TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML, C, C++, Scala, Crystal, Nim, Erlang, Elixir, Perl, Lisp (Common Lisp/Scheme/Emacs Lisp), Haskell, Lua, R, OCaml, Groovy, F#, Clojure, D, Objective-C, Bash, PowerShell, and Vala.
 
 ## Public API
 
@@ -63,13 +91,20 @@ Language-aware export extraction from source files. Auto-detects the programming
 
 ### Exported AST Sub-modules
 
-Tree-sitter based export extraction backends for TypeScript, Python, and Rust. Used when `ParseMode::Ast` is selected. Falls back to regex extraction for unsupported languages or when AST parsing fails.
+Tree-sitter based export extraction backends for TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, and Lisp (Common Lisp/Scheme/Emacs Lisp). Used when `ParseMode::Ast` is selected. Falls back to regex extraction for unsupported languages (Nim, Crystal — no published tree-sitter grammar) or when AST parsing returns nothing.
 
 | Sub-module | File | Description |
 |------------|------|-------------|
 | `typescript` | `ast/typescript.rs` | Tree-sitter based TypeScript/JS export extraction with wildcard resolver support |
 | `python` | `ast/python.rs` | Tree-sitter based Python export extraction using `__all__` and top-level definitions |
 | `rust_lang` | `ast/rust_lang.rs` | Tree-sitter based Rust `pub` item extraction |
+| `c` | `ast/c.rs` | Tree-sitter based C export extraction: top-level struct/union/enum names and non-static function definitions/declarations |
+| `cpp` | `ast/cpp.rs` | Tree-sitter based C++ export extraction: class/struct/union/enum/namespace names (including nested types) and non-static, non-private/protected functions and methods |
+| `scala` | `ast/scala.rs` | Tree-sitter based Scala export extraction: class/object/trait/def/val/var declarations excluding `private`/`protected` |
+| `erlang` | `ast/erlang.rs` | Tree-sitter based Erlang export extraction: function names listed in `-export([...])` attributes |
+| `elixir` | `ast/elixir.rs` | Tree-sitter based Elixir export extraction: `defmodule`/`def`/`defmacro` excluding `defp`/`defmacrop` |
+| `perl` | `ast/perl.rs` | Tree-sitter based Perl export extraction: all `sub` declarations |
+| `lisp` | `ast/lisp.rs` | Tree-sitter based Lisp export extraction across three dialects (Common Lisp, Scheme, Emacs Lisp, dispatched by file extension): `defun`/`defmacro`/`defvar`/`defparameter` forms |
 
 ### Language Backend Functions
 
@@ -77,18 +112,39 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 
 | Backend | File | Extraction Strategy |
 |---------|------|-------------------|
-| TypeScript/JS | `typescript.rs` | `export function/class/interface/type/const/enum`, re-exports (`export { }`, `export type { }`), wildcard re-exports (`export * from`, `export * as Ns from`), default exports (`export default class/function`); with `as` alias support; strips `//` and `/* */` comments |
+| TypeScript/JS | `typescript.rs` | `export function/class/interface/type/const/enum`, re-exports (`export { }`, `export type { }`), wildcard re-exports (`export * from`, `export * as Ns from`), default exports (`export default class/function`), and CommonJS-style `export = Name`; with `as` alias support; strips `//` and `/* */` comments |
 | Python | `python.rs` | Uses `__all__` list if present; otherwise top-level `def`/`class`/`async def` not prefixed with `_` |
-| Rust | `rust_lang.rs` | `pub fn/struct/enum/trait/type/const/static/mod` including `pub(crate)` and `pub async/unsafe`; strips comments |
+| Rust | `rust_lang.rs` | `pub fn/struct/enum/trait/type/const/static/mod` including `pub async/unsafe`; excludes restricted visibility `pub(crate)`, `pub(super)`, `pub(self)`, and `pub(in path::to::mod)`; strips comments |
 | Go | `go.rs` | Top-level `func/type/var/const` starting with uppercase letter; also exported methods `func (receiver) Name()`; strips comments |
 | Java | `java.rs` | `public class/interface/enum/record/@interface` types and `public` methods/fields; handles `static`, `final`, `abstract`, `sealed` modifiers |
 | Kotlin | `kotlin.rs` | All top-level `fun/class/object/interface/typealias/val/var/enum class/data class/sealed class` unless marked `private`/`internal`/`protected`; handles `suspend`/`inline` modifiers |
-| Swift | `swift.rs` | `public`/`open` declarations: `func/class/struct/enum/protocol/typealias/var/let/actor`; detects `public init` separately; handles `static class func` |
+| Swift | `swift.rs` | `public`/`open` declarations: `func/class/struct/enum/protocol/typealias/var/let/actor`; detects `public init` and `public subscript` separately; recognizes that protocol requirements and `public extension` members don't repeat the container's access keyword — scans protocol/extension/enum bodies (associatedtype, subscript, func, var/let, `case` lines) at brace-depth 0, descending past nested blocks without scanning inside them; handles `static class func` |
 | Dart | `dart.rs` | `class/mixin/enum/extension/typedef` types, `final`/`const` declarations, top-level functions; excludes `_`-prefixed private identifiers |
 | C# | `csharp.rs` | `public class/struct/interface/enum/record/delegate` types and `public` members; handles `static`, `partial`, `sealed`, `abstract`, `virtual`, `override`, `async` modifiers |
 | PHP | `php.rs` | `class/interface/trait/enum` types (always public); `public`/unqualified `function` and `const` declarations; skips `private`/`protected` members and `__` magic methods; handles `abstract`, `final`, `readonly`, `static` modifiers; strips `//`, `/* */`, and `#` comments |
 | Ruby | `ruby.rs` | `class`/`module` declarations; top-level `def` (always public); class methods with visibility tracking (`public`→`private`→`protected`→`public` toggles); `CONSTANT` assignments; `attr_accessor`/`attr_reader`/`attr_writer` symbols; skips `_`-prefixed names and `initialize`; strips `#` and `=begin/=end` comments |
 | YAML | `yaml.rs` | Top-level mapping keys from `.yaml`/`.yml` files; named entries under well-known parent keys (e.g., `jobs.test`, `services.web`); YAML anchors (`&name`) |
+| C | `c.rs` | Top-level `struct/union/enum` names and non-`static` function definitions/declarations; strips comments |
+| C++ | `cpp.rs` | `class/struct/union/enum/namespace` names plus methods declared under a `public:` section (class defaults private, struct defaults public), excluding `static`/`private:`/`protected:`; strips comments |
+| Scala | `scala.rs` | `class/object/trait/def/val/var` declarations at any nesting depth (line-based scan), excluding lines starting with `private`/`protected`; strips comments |
+| Crystal | `crystal.rs` | `class/module/struct/enum/def/alias` declarations, public by default (no access keyword required) |
+| Nim | `nim.rs` | Exported symbols use Nim's explicit `*` suffix convention, e.g. `proc foo*(...)`, `type Bar* = ...` |
+| Erlang | `erlang.rs` | Function names listed in one or more `-export([name/arity, ...])` attributes only — not every defined function, just the declared export list |
+| Elixir | `elixir.rs` | `defmodule`/`def`/`defmacro` declarations, excluding `defp`/`defmacrop` |
+| Perl | `perl.rs` | Every `sub` declaration (Perl has no built-in per-sub privacy convention) |
+| Lisp | `lisp.rs` | `defun`/`defmacro`/`defvar`/`defparameter` forms, shared across three dialects dispatched by extension: Common Lisp (`.lisp`/`.lsp`), Scheme (`.scm`), Emacs Lisp (`.el`) |
+| Haskell | `haskell.rs` | Explicit module export list `module Foo (bar, Baz(..)) where` takes precedence when present; with no export list, every top-level `data/newtype/type/class/instance` and function binding is exported (Haskell's actual "no list = everything public" rule); character-literal-aware comment/string stripping so a quote inside `'"'` doesn't desync the scanner |
+| Lua | `lua.rs` | Detects the idiomatic `local M = {}` ... `function M.foo()` / `M.foo = function()` ... `return M` module-table pattern; also supports bare top-level `function foo()` scripts and the anonymous `return { key = val }` table idiom (brace-depth aware so nested table values aren't leaked as top-level exports); strips `--`/`--[[ ]]` comments and `[[ ]]` long-bracket strings |
+| R | `r.rs` | roxygen2 `#' @export` tags (column-0 anchored) take precedence when present; falls back to top-level `name <- function(...)` / `name = function(...)` / `name <- \(...)` not prefixed with `.` (R's internal-symbol convention) |
+| OCaml | `ocaml.rs` | Top-level `let`/`let rec`/`and`/`type`/`module`/`exception` bindings, public by default (mirrors OCaml's real rule: with no `.mli` signature file, everything in the `.ml` is public); comment stripping preserves column-0 position so a same-line leading comment doesn't hide the declaration that follows it |
+| Groovy | `groovy.rs` | `class/interface/trait/enum` types and `def`/typed methods, public by default (Groovy's actual default, unlike Java's package-private default) unless marked `private`/`protected`; brace-depth scope tracking (annotation-aware) so method-local variables aren't leaked as class members |
+| F# | `fsharp.rs` | `let`/`let rec`/`and`/`type`/`module` bindings, public by default, excluding those marked `private` |
+| Clojure | `clojure.rs` | `defn`/`def`/`defrecord`/`deftype`/`defprotocol`/`defmacro` forms, excluding `defn-`/`def-` (Clojure's trailing-dash private convention) and `^:private`-tagged forms |
+| D | `d.rs` | `class/struct/interface/enum` types and functions, public by default (D's actual module-scope default) unless marked `private`/`protected`/`package` |
+| Objective-C | `objective_c.rs` | `@interface`/`@implementation`/`@protocol` class and protocol names plus `-`/`+` method signatures within `@implementation`/`@protocol` blocks; best-effort approximation since Objective-C has no private-method keyword (real visibility is header-vs-implementation architecture, not scanned here) |
+| Bash | `bash.rs` | `export -f name` statements (if any exist) are the authoritative export list; otherwise every `function name`/`name()` declaration not prefixed with `_` |
+| PowerShell | `powershell.rs` | `Export-ModuleMember -Function ...` statements (if any exist) are the authoritative export list; otherwise every `function Verb-Noun { ... }` declaration |
+| Vala | `vala.rs` | `public class/struct/interface/enum/delegate` types and `public` methods/auto-properties, excluding `private`/`protected`/`internal` |
 
 ## Invariants
 
@@ -98,12 +154,12 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 4. `has_extension` with an empty extensions list delegates to `is_source_file` (matches all supported languages)
 5. Test file detection uses language-specific patterns (e.g. `.test.ts`, `_test.go`, `Test.java`)
 6. Each language backend uses `LazyLock<Regex>` for compiled patterns — compiled once, reused across calls
-7. TypeScript backend handles `export function/class/type/const/enum/interface`, re-exports, wildcard re-exports (`export * from`), namespace re-exports (`export * as Ns from`), and default exports
+7. TypeScript backend handles `export function/class/type/const/enum/interface`, re-exports, wildcard re-exports (`export * from`), namespace re-exports (`export * as Ns from`), default exports, and CommonJS-style `export = Name`
 7a. Wildcard `export * from './module'` is resolved via `resolve_ts_import` which tries .ts/.tsx/.js/.jsx/.mts/.cts extensions and /index.ts etc.
 7b. Wildcard resolution is one level deep — resolved modules are parsed without a resolver to avoid infinite loops
 7c. `export * as Ns from './module'` emits the namespace name (Ns) as the export, not the individual symbols
 7d. Without a resolver (e.g. in unit tests), wildcard `export *` lines are silently skipped
-8. Rust backend extracts `pub fn/struct/enum/trait/type/const/static/mod` items
+8. Rust backend extracts only plain `pub fn/struct/enum/trait/type/const/static/mod` items; `pub(crate)`, `pub(super)`, `pub(self)`, and `pub(in path::to::mod)` are not treated as exported
 9. Go backend extracts uppercase (exported) identifiers and methods
 10. Python backend uses `__all__` if present, otherwise top-level non-underscore `def/class`
 11. Swift backend distinguishes `public` and `open` visibility (both are exported)
@@ -190,6 +246,12 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 - **When** `get_exported_symbols(path)` is called
 - **Then** includes "MyApp"
 
+### Scenario: CommonJS-style export
+
+- **Given** a `.ts` file containing `class AuthService {}` and `export = AuthService`
+- **When** `get_exported_symbols(path)` is called
+- **Then** includes "AuthService"
+
 ### Scenario: Wildcard resolution is one level deep
 
 - **Given** `top.ts` has `export * from './middle'` and `middle.ts` has `export * from './bottom'`
@@ -248,3 +310,5 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 | 2026-03-28 | Document get_exported_symbols_with_level |
 | 2026-03-29 | Add PHP and Ruby language support |
 | 2026-04-12 | Add YAML language support (yaml.rs) |
+| 2026-07-09 | Add AST parse mode support for C, C++, Scala, Erlang, Elixir, Perl, and Lisp (Common Lisp/Scheme/Emacs Lisp) |
+| 2026-07-09 | Filter Rust `pub(crate)`/`pub(super)`/`pub(self)`/`pub(in path)` from exports; add TypeScript `export = Name` support |

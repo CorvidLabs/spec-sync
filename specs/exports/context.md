@@ -4,7 +4,7 @@ spec: exports.spec.md
 
 ## Key Decisions
 
-- **Regex by default, AST opt-in**: All 12 language backends use compiled regexes (`LazyLock<Regex>`). `ParseMode::Ast` enables tree-sitter backends for TypeScript, Python, and Rust only; if the AST backend returns nothing (parse failure), `mod.rs` falls back to the regex backend automatically.
+- **Regex by default, AST opt-in**: All language backends use compiled regexes (`LazyLock<Regex>`). `ParseMode::Ast` enables tree-sitter backends for TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, and Lisp/Scheme/Emacs Lisp; if the AST backend returns nothing (parse failure), `mod.rs` falls back to the regex backend automatically. Nim and Crystal have no published tree-sitter grammar crate, so they remain regex-only.
 - **Comment stripping first**: Every backend strips string literals then comments before running export regexes, preventing false matches inside strings or commented-out code.
 - **TypeScript wildcard resolution**: `export * from './foo'` is resolved one level deep via `resolve_ts_import` to prevent infinite re-export loops. Namespace re-exports (`export * as Ns`) produce the namespace name, not the inner symbols. Without a resolver, wildcard lines are skipped.
 - **Python `__all__` precedence**: If `__all__` is defined, it is the sole source of exports. Otherwise, top-level non-underscore functions and classes are extracted.
@@ -19,7 +19,7 @@ spec: exports.spec.md
 
 ## Current Status
 
-Fully implemented for all 12 languages: TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML. Each regex backend has compiled patterns; AST backends exist for TypeScript, Python, and Rust under `src/exports/ast/`.
+Each regex backend has compiled patterns; AST backends exist for TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, and Lisp/Scheme/Emacs Lisp under `src/exports/ast/` (Nim and Crystal remain regex-only — no published tree-sitter grammar crate for either).
 
 ## Notes
 

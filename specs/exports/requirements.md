@@ -9,13 +9,13 @@ spec: exports.spec.md
 - As a Rust developer, I want `pub` items extracted including `pub(crate)` visibility so that my module's public API is accurately captured
 - As a Python developer, I want `__all__` respected when present, with fallback to top-level definitions, so that my intended public API is what gets checked
 - As a Go developer, I want uppercase identifiers recognized as exports so that Go's visibility convention is supported
-- As a polyglot team, I want export extraction for all 12 supported languages so that spec-sync works across our entire codebase
+- As a polyglot team, I want export extraction for all 33 supported languages so that spec-sync works across our entire codebase
 - As a developer, I want test files automatically excluded from export extraction so that test helpers don't pollute the public API
-- As a power user, I want an opt-in AST parse mode (`ParseMode::Ast`) for TypeScript, Python, and Rust so that I get higher-fidelity extraction with regex fallback when AST parsing fails
+- As a power user, I want an opt-in AST parse mode (`ParseMode::Ast`) for TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, and Lisp/Scheme/Emacs Lisp so that I get higher-fidelity extraction with regex fallback when AST parsing fails
 
 ## Acceptance Criteria
 
-- Supports 12 languages: TypeScript/JS, Python, Rust, Go, Java, Kotlin, Swift, Dart, C#, PHP, Ruby, YAML
+- Supports 33 languages: TypeScript/JS, Python, Rust, Go, Java, Kotlin, Swift, Dart, C#, PHP, Ruby, YAML, C, C++, Scala, Crystal, Nim, Erlang, Elixir, Perl, Lisp (Common Lisp/Scheme/Emacs Lisp), Haskell, Lua, R, OCaml, Groovy, F#, Clojure, D, Objective-C, Bash, PowerShell, Vala
 - Language detection is purely extension-based via `Language::from_extension` (no content sniffing)
 - Symbols are deduplicated while preserving declaration order
 - Unreadable files or unknown extensions return empty vector (no errors)
@@ -23,13 +23,13 @@ spec: exports.spec.md
 - Ruby visibility tracking correctly handles public/private/protected toggles
 - PHP skips magic methods (`__construct`, `__toString`, etc.) and private members
 - `ExportLevel::Type` filters (via `filter_type_level_exports`) to only class/struct/enum declarations; `Member` includes all public symbols
-- `ParseMode::Ast` uses tree-sitter for TypeScript, Python, and Rust; falls back to regex for other languages or on empty/failed AST results
+- `ParseMode::Ast` uses tree-sitter for TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, and Lisp/Scheme/Emacs Lisp; falls back to regex for other languages (Nim, Crystal have no published tree-sitter grammar) or on empty/failed AST results
 - Test file detection uses language-specific patterns (`.test.ts`, `_test.go`, `test_*.py`, etc.) plus well-known test directory names (`tests`, `__tests__`, `fixtures`, `mocks`, ...)
 - All regex patterns are compiled once via `LazyLock` for performance
 
 ## Constraints
 
-- Regex-based parsing is the default; AST parsing (tree-sitter) is opt-in via `ParseMode::Ast` and limited to TS/Python/Rust
+- Regex-based parsing is the default; AST parsing (tree-sitter) is opt-in via `ParseMode::Ast` and limited to TS/Python/Rust/C/C++/Scala/Erlang/Elixir/Perl/Lisp
 - Must handle malformed or partial source files gracefully (best-effort extraction; never panic)
 - Each language backend lives in its own file under `src/exports/` for maintainability
 - Must strip comments before extracting exports to avoid false positives
@@ -37,7 +37,7 @@ spec: exports.spec.md
 
 ## Out of Scope
 
-- AST/semantic analysis for languages other than TypeScript, Python, and Rust
+- AST/semantic analysis for languages other than TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, and Lisp/Scheme/Emacs Lisp (notably Nim and Crystal, which have no published tree-sitter grammar crate)
 - Extracting function signatures, parameter types, or return types
 - Cross-file dependency resolution (except TypeScript wildcard re-exports, one level deep)
 - Extracting private/internal symbols for any purpose

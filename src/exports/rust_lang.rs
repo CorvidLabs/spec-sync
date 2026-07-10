@@ -2,9 +2,11 @@ use regex::Regex;
 use std::sync::LazyLock;
 
 /// pub fn, pub struct, pub enum, pub trait, pub type, pub const, pub static, pub mod
+/// Only plain `pub` is treated as exported; restricted visibility forms such as
+/// `pub(crate)`, `pub(super)`, `pub(self)`, and `pub(in path::to::mod)` are excluded.
 static PUB_DECL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"pub(?:\(crate\))?\s+(?:async\s+)?(?:unsafe\s+)?(?:fn|struct|enum|trait|type|const|static|mod)\s+(\w+)",
+        r"pub(\([^)]*\))?\s+(?:async\s+)?(?:unsafe\s+)?(?:fn|struct|enum|trait|type|const|static|mod)\s+(\w+)",
     )
     .unwrap()
 });
@@ -12,7 +14,9 @@ static PUB_DECL: LazyLock<Regex> = LazyLock::new(|| {
 /// Extract public symbols from Rust source code.
 /// Looks for `pub fn`, `pub struct`, `pub enum`, `pub trait`, `pub type`,
 /// `pub const`, `pub static`, and `pub mod` declarations.
-/// Also matches `pub(crate)` items.
+/// Restricted visibility forms `pub(crate)`, `pub(super)`, `pub(self)`, and
+/// `pub(in path::to::mod)` are excluded because they are not exported outside the
+/// crate or module.
 pub fn extract_exports(content: &str) -> Vec<String> {
     // Blank every string literal (regular, byte/C, and raw with ANY hash count) and
     // comment in one linear pass, so nothing inside them — a `"`, `//`, `/*`, or a
@@ -22,7 +26,12 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     let mut symbols = Vec::new();
 
     for caps in PUB_DECL.captures_iter(&stripped) {
-        if let Some(name) = caps.get(1) {
+        // Skip restricted visibility: pub(crate), pub(super), pub(self),
+        // pub(in path::to::mod), or any other parenthesized form.
+        if caps.get(1).is_some() {
+            continue;
+        }
+        if let Some(name) = caps.get(2) {
             symbols.push(name.as_str().to_string());
         }
     }
@@ -185,13 +194,42 @@ struct PrivateStruct {}
     }
 
     #[test]
-    fn test_pub_crate() {
+    fn test_pub_crate_excluded() {
         let src = r#"
 pub(crate) fn internal_fn() {}
 pub(crate) struct InternalStruct {}
 "#;
         let symbols = extract_exports(src);
-        assert_eq!(symbols, vec!["internal_fn", "InternalStruct"]);
+        assert!(
+            symbols.is_empty(),
+            "pub(crate) items must not be exported: {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_pub_super_and_pub_in_path_excluded() {
+        // `pub(super)` and `pub(in path::to::mod)` are restricted visibility
+        // forms used to share an item with a parent module without making it
+        // part of the crate's public API. Only plain `pub` is exported.
+        let src = r#"
+pub(super) fn helper_for_parent() {}
+pub(in crate::auth) struct ScopedConfig {}
+pub(crate) fn crate_visible() {}
+pub fn truly_public() {}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["truly_public"]);
+    }
+
+    #[test]
+    fn test_pub_self_excluded() {
+        let src = r#"
+pub(self) fn private_self() {}
+pub(self) struct PrivateStruct {}
+pub fn truly_public() {}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["truly_public"]);
     }
 
     #[test]
@@ -341,6 +379,107 @@ pub fn real() {}
 "####;
         let symbols = extract_exports(src);
         assert!(symbols.contains(&"real".to_string()), "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_learnxinyminutes_preamble_no_false_positives() {
+        // Real excerpt (verbatim) from learnxinyminutes.com/rust.md: the file's
+        // opening comment block plus its first two functions. Exercises nested
+        // `/* /* */ */` block comments, a `///` doc comment containing a
+        // markdown code fence (which itself contains Rust-looking source), and
+        // stacked `#[allow(...)]` attributes -- none of which precede a `pub`
+        // item here, so nothing should be extracted. Locks in that comment/attr
+        // handling on real, syntax-rich source doesn't produce garbage.
+        let src = r#"
+// This is a comment. Line comments look like this...
+// and extend multiple lines like this.
+
+/* Block comments
+  /* can be nested. */ */
+
+/// Documentation comments look like this and support markdown notation.
+/// # Examples
+///
+/// ```
+/// let five = 5
+/// ```
+
+///////////////
+// 1. Basics //
+///////////////
+
+#[allow(dead_code)]
+// Functions
+// `i32` is the type for 32-bit signed integers
+fn add2(x: i32, y: i32) -> i32 {
+    // Implicit return (no semicolon)
+    x + y
+}
+
+#[allow(unused_variables)]
+#[allow(unused_assignments)]
+#[allow(dead_code)]
+// Main function
+fn main() {
+    // Numbers //
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.is_empty(),
+            "no pub items in this excerpt, but got: {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_learnxinyminutes_traits_and_generics_no_false_positives() {
+        // Real excerpt (verbatim) from learnxinyminutes.com/rust.md: trait
+        // definitions, a generic `impl<T> Trait<T> for Type<T>`, a recursive
+        // `fn`, a `type` alias, and pattern matching with Unicode smart-quote
+        // string literals (`it’s an i32`). None of these carry a `pub`
+        // keyword in the tutorial's source, so this is a strong real-world
+        // negative test: lots of `trait`/`impl`/`fn`/`type`/`struct` keywords
+        // that must NOT be misread as exports just because they resemble
+        // declaration syntax.
+        let src = r#"
+    trait Frobnicate<T> {
+        fn frobnicate(self) -> Option<T>;
+    }
+
+    impl<T> Frobnicate<T> for Foo<T> {
+        fn frobnicate(self) -> Option<T> {
+            Some(self.bar)
+        }
+    }
+
+    let another_foo = Foo { bar: 1 };
+    println!("{:?}", another_foo.frobnicate()); // Some(1)
+
+    // Function pointer types //
+
+    fn fibonacci(n: u32) -> u32 {
+        match n {
+            0 => 1,
+            1 => 1,
+            _ => fibonacci(n - 1) + fibonacci(n - 2),
+        }
+    }
+
+    type FunctionPointer = fn(u32) -> u32;
+
+    let fib : FunctionPointer = fibonacci;
+    println!("Fib: {}", fib(4)); // 5
+
+    let foo = OptionalI32::AnI32(1);
+    match foo {
+        OptionalI32::AnI32(n) => println!("it’s an i32: {}", n),
+        OptionalI32::Nothing  => println!("it’s nothing!"),
+    }
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.is_empty(),
+            "no pub items in this excerpt, but got: {symbols:?}"
+        );
     }
 
     #[test]

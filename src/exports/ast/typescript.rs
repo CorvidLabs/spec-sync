@@ -17,6 +17,7 @@ fn parse_ts(content: &str) -> Option<Tree> {
 /// - `export type { Name }`
 /// - `export * as Ns from './module'`
 /// - `export * from './module'` (with optional resolver)
+/// - CommonJS-style default export: `export = Name`
 /// - Conditional exports (`if (...)  { export ... }` — still captured)
 /// - Computed property names in export lists are skipped
 pub fn extract_exports(content: &str) -> Vec<String> {
@@ -89,6 +90,7 @@ fn handle_export_statement(
 
     let mut has_default = false;
     let mut has_wildcard = false;
+    let mut has_equals = false;
     let mut namespace_name: Option<String> = None;
     let mut from_path: Option<String> = None;
 
@@ -97,38 +99,43 @@ fn handle_export_statement(
             "default" => {
                 has_default = true;
             }
-            // `export function name() {}` etc.
-            "function_declaration" | "generator_function_declaration" => {
-                if let Some(name) = get_child_by_field(&child, "name", src) {
-                    symbols.push(name);
+            "=" => {
+                has_equals = true;
+            }
+            // `export declare function/class/const ...` — tree-sitter wraps the
+            // inner declaration in an `ambient_declaration` node rather than
+            // exposing it directly as a child of `export_statement`. Unwrap it
+            // and handle the inner declaration the same way as a non-ambient one
+            // (ambient functions surface as `function_signature`, since they
+            // have no body).
+            "ambient_declaration" => {
+                let mut ambient_cursor = child.walk();
+                for ambient_child in child.children(&mut ambient_cursor) {
+                    handle_declaration_child(&ambient_child, src, symbols);
                 }
+            }
+            // `export function name() {}` etc.
+            "function_declaration" | "generator_function_declaration" | "function_signature" => {
+                handle_declaration_child(&child, src, symbols);
             }
             "class_declaration" | "abstract_class_declaration" => {
-                if let Some(name) = get_child_by_field(&child, "name", src) {
-                    symbols.push(name);
-                }
+                handle_declaration_child(&child, src, symbols);
             }
             "interface_declaration" => {
-                if let Some(name) = get_child_by_field(&child, "name", src) {
-                    symbols.push(name);
-                }
+                handle_declaration_child(&child, src, symbols);
             }
             "type_alias_declaration" => {
-                if let Some(name) = get_child_by_field(&child, "name", src) {
-                    symbols.push(name);
-                }
+                handle_declaration_child(&child, src, symbols);
             }
             "enum_declaration" => {
-                if let Some(name) = get_child_by_field(&child, "name", src) {
-                    symbols.push(name);
-                }
+                handle_declaration_child(&child, src, symbols);
             }
             "lexical_declaration" => {
                 // export const name = ... or export let name = ...
-                extract_variable_names(&child, src, symbols);
+                handle_declaration_child(&child, src, symbols);
             }
             "variable_declaration" => {
-                extract_variable_names(&child, src, symbols);
+                handle_declaration_child(&child, src, symbols);
             }
             // export { Foo, Bar as Baz }
             "export_clause" => {
@@ -187,6 +194,83 @@ fn handle_export_statement(
                 symbols.extend(target_symbols);
             }
         }
+    }
+
+    // Handle CommonJS-style `export = Name`
+    if has_equals {
+        handle_export_equals(node, src, symbols);
+    }
+}
+
+/// Extract the name from a CommonJS-style `export = expression` statement.
+/// Captures the identifier name for `export = Foo`, or the declared name for
+/// `export = class Foo {}` / `export = function foo() {}`.
+fn handle_export_equals(node: &tree_sitter::Node, src: &[u8], symbols: &mut Vec<String>) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            "identifier" => {
+                let name = child.utf8_text(src).unwrap_or_default();
+                if !name.is_empty() {
+                    symbols.push(name.to_string());
+                }
+                return;
+            }
+            "class"
+            | "class_declaration"
+            | "abstract_class_declaration"
+            | "function_expression"
+            | "generator_function"
+            | "arrow_function" => {
+                if let Some(name) = get_child_by_field(&child, "name", src) {
+                    if !name.is_empty() {
+                        symbols.push(name);
+                    }
+                }
+                return;
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Handle a node representing a single declaration (function, class,
+/// interface, type alias, enum, or variable/lexical declaration), pushing its
+/// name(s) onto `symbols`. Shared between direct `export_statement` children
+/// and the inner declaration wrapped by `ambient_declaration`
+/// (`export declare function/class/const ...`), which tree-sitter nests one
+/// level deeper instead of exposing directly as a child of `export_statement`.
+fn handle_declaration_child(child: &tree_sitter::Node, src: &[u8], symbols: &mut Vec<String>) {
+    match child.kind() {
+        "function_declaration" | "generator_function_declaration" | "function_signature" => {
+            if let Some(name) = get_child_by_field(child, "name", src) {
+                symbols.push(name);
+            }
+        }
+        "class_declaration" | "abstract_class_declaration" => {
+            if let Some(name) = get_child_by_field(child, "name", src) {
+                symbols.push(name);
+            }
+        }
+        "interface_declaration" => {
+            if let Some(name) = get_child_by_field(child, "name", src) {
+                symbols.push(name);
+            }
+        }
+        "type_alias_declaration" => {
+            if let Some(name) = get_child_by_field(child, "name", src) {
+                symbols.push(name);
+            }
+        }
+        "enum_declaration" => {
+            if let Some(name) = get_child_by_field(child, "name", src) {
+                symbols.push(name);
+            }
+        }
+        "lexical_declaration" | "variable_declaration" => {
+            extract_variable_names(child, src, symbols);
+        }
+        _ => {}
     }
 }
 
@@ -412,5 +496,177 @@ export type { MyType, AnotherType as Renamed } from './types';
         let symbols = extract_exports(src);
         assert!(symbols.contains(&"MyType".to_string()));
         assert!(symbols.contains(&"Renamed".to_string()));
+    }
+
+    #[test]
+    fn test_ambient_declare_exports() {
+        // `export declare ...` ambient declarations wrap their inner
+        // declaration in an `ambient_declaration` node in tree-sitter's AST
+        // rather than exposing it directly as a child of `export_statement`;
+        // regression test for that unwrap.
+        let src = r#"
+export declare function debounce<T extends (...args: any[]) => void>(fn: T, wait: number): T;
+export declare class EventEmitter {
+    on(event: string, listener: (...args: any[]) => void): this;
+}
+export declare const VERSION: string;
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["debounce", "EventEmitter", "VERSION"]);
+    }
+
+    #[test]
+    fn test_ambient_declare_mixed_with_normal_export() {
+        // Regression: in a file mixing ambient declarations with a normal
+        // export, `scan_exported_symbols_full`'s AST-with-regex-fallback only
+        // falls back to regex when the AST result is empty. Before the fix,
+        // this returned a non-empty but incomplete result (`createEmitter`
+        // only), so the fallback never triggered and EventEmitter/VERSION
+        // silently vanished with no error signal.
+        let src = r#"
+export declare class EventEmitter { on(event: string, listener: (...args: any[]) => void): this; }
+export declare const VERSION: string;
+export function createEmitter(): EventEmitter { return new EventEmitter(); }
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["EventEmitter", "VERSION", "createEmitter"]);
+    }
+
+    #[test]
+    fn test_learnxinyminutes_module_namespace_export() {
+        // Regression: real excerpt from learnxinyminutes.com/typescript.
+        // Legacy `module Foo { ... }` namespace syntax nests its `export`
+        // one level inside a `module`/`internal_module` node rather than at
+        // the top level, requiring the generic recursion in
+        // `collect_exports` to descend into it.
+        let src = r#"
+// Modules, "." can be used as separator for sub modules
+module Geometry {
+  export class Square {
+    constructor(public sideLength: number = 0) {
+    }
+    area() {
+      return Math.pow(this.sideLength, 2);
+    }
+  }
+}
+
+let s1 = new Geometry.Square(5);
+
+// Local alias for referencing a module
+import G = Geometry;
+
+let s2 = new G.Square(10);
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Square"]);
+    }
+
+    #[test]
+    fn test_learnxinyminutes_interfaces_and_classes_real_excerpt() {
+        // Real excerpt (verbatim) from learnxinyminutes.com/typescript,
+        // covering structural interfaces, a class with constructor
+        // shorthand properties, `implements`, inheritance via `extends`,
+        // and the legacy namespace `module` export. None of the
+        // interfaces/classes here are exported except `Square` nested in
+        // `Geometry` -- this locks in that the AST extractor doesn't
+        // spuriously pick up un-exported top-level declarations while still
+        // finding the genuinely nested export, and that a realistic slice
+        // with this much syntax breadth parses cleanly without panicking.
+        let src = r#"
+// Interfaces are structural, anything that has the properties is compliant with
+// the interface
+interface Person {
+  name: string;
+  // Optional properties, marked with a "?"
+  age?: number;
+  // And of course functions
+  move(): void;
+}
+
+// Object that implements the "Person" interface
+// Can be treated as a Person since it has the name and move properties
+let p: Person = { name: "Bobby", move: () => { } };
+// Objects that have the optional property:
+let validPerson: Person = { name: "Bobby", age: 42, move: () => { } };
+// Is not a person because age is not a number
+let invalidPerson: Person = { name: "Bobby", age: true };
+
+// Classes - members are public by default
+class Point {
+  // Properties
+  x: number;
+
+  constructor(x: number, public y: number = 0) {
+    this.x = x;
+  }
+
+  // Functions
+  dist(): number { return Math.sqrt(this.x * this.x + this.y * this.y); }
+
+  // Static members
+  static origin = new Point(0, 0);
+}
+
+// Classes can be explicitly marked as implementing an interface.
+class PointPerson implements Person {
+    name: string
+    move() {}
+}
+
+let p1 = new Point(10, 20);
+
+// Inheritance
+class Point3D extends Point {
+  constructor(x: number, y: number, public z: number = 0) {
+    super(x, y); // Explicit call to the super class constructor is mandatory
+  }
+
+  // Overwrite
+  dist(): number {
+    let d = super.dist();
+    return Math.sqrt(d * d + this.z * this.z);
+  }
+}
+
+// Modules, "." can be used as separator for sub modules
+module Geometry {
+  export class Square {
+    constructor(public sideLength: number = 0) {
+    }
+    area() {
+      return Math.pow(this.sideLength, 2);
+    }
+  }
+}
+
+let s1 = new Geometry.Square(5);
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Square"]);
+    }
+
+    #[test]
+    fn test_export_equals_identifier() {
+        let src = r#"
+class AuthService {}
+export = AuthService;
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["AuthService"]);
+    }
+
+    #[test]
+    fn test_export_equals_class_expression() {
+        let src = r#"export = class AuthService {};"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["AuthService"]);
+    }
+
+    #[test]
+    fn test_export_equals_function_expression() {
+        let src = r#"export = function createAuth() {};"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["createAuth"]);
     }
 }

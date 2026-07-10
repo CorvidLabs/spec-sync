@@ -1,15 +1,36 @@
 pub mod ast;
+mod bash;
+mod c;
+mod clojure;
+mod cpp;
+mod crystal;
 mod csharp;
+mod d;
 mod dart;
+mod elixir;
+mod erlang;
+mod fsharp;
 mod go;
+mod groovy;
+mod haskell;
 mod java;
 mod kotlin;
+mod lisp;
+mod lua;
+mod nim;
+mod objective_c;
+mod ocaml;
+mod perl;
 mod php;
+mod powershell;
 mod python;
+mod r;
 mod ruby;
 mod rust_lang;
+mod scala;
 mod swift;
 mod typescript;
+mod vala;
 mod yaml;
 
 use crate::types::{ExportLevel, Language, ParseMode};
@@ -107,7 +128,63 @@ pub fn scan_exported_symbols_full(
                     result
                 }
             }
-            // All other languages: fall back to regex
+            Language::C => {
+                let result = ast::c::extract_exports(&content);
+                if result.is_empty() {
+                    c::extract_exports(&content)
+                } else {
+                    result
+                }
+            }
+            Language::Cpp => {
+                let result = ast::cpp::extract_exports(&content);
+                if result.is_empty() {
+                    cpp::extract_exports(&content)
+                } else {
+                    result
+                }
+            }
+            Language::Scala => {
+                let result = ast::scala::extract_exports(&content);
+                if result.is_empty() {
+                    scala::extract_exports(&content)
+                } else {
+                    result
+                }
+            }
+            Language::Erlang => {
+                let result = ast::erlang::extract_exports(&content);
+                if result.is_empty() {
+                    erlang::extract_exports(&content)
+                } else {
+                    result
+                }
+            }
+            Language::Elixir => {
+                let result = ast::elixir::extract_exports(&content);
+                if result.is_empty() {
+                    elixir::extract_exports(&content)
+                } else {
+                    result
+                }
+            }
+            Language::Perl => {
+                let result = ast::perl::extract_exports(&content);
+                if result.is_empty() {
+                    perl::extract_exports(&content)
+                } else {
+                    result
+                }
+            }
+            Language::Lisp => {
+                let result = ast::lisp::extract_exports(&content, ext);
+                if result.is_empty() {
+                    lisp::extract_exports(&content)
+                } else {
+                    result
+                }
+            }
+            // Nim and Crystal have no published tree-sitter grammar crate: fall back to regex
             _ => extract_with_regex(&content, lang, file_path),
         }
     } else {
@@ -132,7 +209,8 @@ pub fn scan_exported_symbols_full(
 }
 
 /// Extract exported symbol names with full control over granularity and parse mode.
-/// When `parse_mode` is `Ast`, uses tree-sitter for TypeScript, Python, and Rust.
+/// When `parse_mode` is `Ast`, uses tree-sitter for TypeScript, Python, Rust, C, C++,
+/// Scala, Erlang, Elixir, Perl, and Lisp/Scheme/Emacs Lisp.
 /// Falls back to regex for all other languages or if AST parsing fails. A read/parse
 /// failure or unsupported language yields an empty vector — use
 /// `scan_exported_symbols_full` when that distinction matters (e.g. for gating).
@@ -166,6 +244,27 @@ fn extract_with_regex(content: &str, lang: Language, file_path: &Path) -> Vec<St
         Language::Php => php::extract_exports(content),
         Language::Ruby => ruby::extract_exports(content),
         Language::Yaml => yaml::extract_exports(content),
+        Language::C => c::extract_exports(content),
+        Language::Cpp => cpp::extract_exports(content),
+        Language::Scala => scala::extract_exports(content),
+        Language::Crystal => crystal::extract_exports(content),
+        Language::Nim => nim::extract_exports(content),
+        Language::Erlang => erlang::extract_exports(content),
+        Language::Elixir => elixir::extract_exports(content),
+        Language::Perl => perl::extract_exports(content),
+        Language::Lisp => lisp::extract_exports(content),
+        Language::Haskell => haskell::extract_exports(content),
+        Language::Lua => lua::extract_exports(content),
+        Language::R => r::extract_exports(content),
+        Language::OCaml => ocaml::extract_exports(content),
+        Language::Groovy => groovy::extract_exports(content),
+        Language::FSharp => fsharp::extract_exports(content),
+        Language::Clojure => clojure::extract_exports(content),
+        Language::D => d::extract_exports(content),
+        Language::ObjectiveC => objective_c::extract_exports(content),
+        Language::Bash => bash::extract_exports(content),
+        Language::PowerShell => powershell::extract_exports(content),
+        Language::Vala => vala::extract_exports(content),
     }
 }
 
@@ -183,7 +282,9 @@ fn filter_type_level_exports(content: &str, symbols: &[String], lang: Language) 
             .ok()
         }
         Language::Rust => {
-            Regex::new(r"(?m)pub(?:\(crate\))?\s+(?:struct|enum|trait|type|mod)\s+(\w+)").ok()
+            // Capture optional visibility restriction so pub(crate)/pub(super)/pub(in path)/pub(self)
+            // type names can be discarded before intersecting with the symbol list.
+            Regex::new(r"(?m)pub(\([^)]*\))?\s+(?:struct|enum|trait|type|mod)\s+(\w+)").ok()
         }
         Language::Go => {
             // Go: type X struct/interface
@@ -232,15 +333,37 @@ fn filter_type_level_exports(content: &str, symbols: &[String], lang: Language) 
             // YAML has no type declarations
             return symbols.to_vec();
         }
+        Language::C => Regex::new(r"(?m)^[^\S\n]*(?:struct|union|enum)\s+(\w+)").ok(),
+        Language::Cpp => Regex::new(r"(?m)^[^\S\n]*(?:class|struct|union|enum|namespace)\s+(\w+)").ok(),
+        Language::Scala => Regex::new(r"(?m)^[^\S\n]*(?:class|object|trait)\s+(\w+)").ok(),
+        Language::Crystal => Regex::new(r"(?m)^[^\S\n]*(?:class|module|struct|enum)\s+(\w+)").ok(),
+        Language::Nim => Regex::new(r"(?m)^[^\S\n]*type\s+(\w+)\*").ok(),
+        Language::Elixir => Regex::new(r"(?m)^[^\S\n]*defmodule\s+([\w.!?]+)").ok(),
+        Language::Erlang | Language::Perl | Language::Lisp => None,
+        Language::Haskell => Regex::new(r"(?m)^[^\S\n]*(?:data|newtype|type|class)\s+(\w+)").ok(),
+        Language::Lua | Language::R | Language::Bash | Language::PowerShell => None,
+        Language::OCaml => Regex::new(r"(?m)^[^\S\n]*(?:type|module)\s+(\w+)").ok(),
+        Language::Groovy => {
+            Regex::new(r"(?m)^[^\S\n]*(?:class|interface|trait|enum)\s+(\w+)").ok()
+        }
+        Language::FSharp => Regex::new(r"(?m)^[^\S\n]*(?:type|module)\s+(\w+)").ok(),
+        Language::Clojure => {
+            Regex::new(r"(?m)\(\s*(?:defrecord|deftype|defprotocol)\s+(\w+)").ok()
+        }
+        Language::D => Regex::new(r"(?m)^[^\S\n]*(?:class|struct|interface|enum)\s+(\w+)").ok(),
+        Language::ObjectiveC => Regex::new(r"(?m)^[^\S\n]*@(?:interface|protocol)\s+(\w+)").ok(),
+        Language::Vala => Regex::new(r"(?m)^[^\S\n]*(?:class|interface|struct|enum)\s+(\w+)").ok(),
     };
 
     let type_names: std::collections::HashSet<String> = match type_pattern {
         Some(re) => re
             .captures_iter(content)
             .filter_map(|caps| {
-                caps.get(1)
-                    .or_else(|| caps.get(2))
-                    .map(|m| m.as_str().to_string())
+                // Skip restricted visibility: pub(crate), pub(super), pub(in path), pub(self).
+                if caps.get(1).is_some() {
+                    return None;
+                }
+                caps.get(2).map(|m| m.as_str().to_string())
             })
             .collect(),
         None => return symbols.to_vec(),

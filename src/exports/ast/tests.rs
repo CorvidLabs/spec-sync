@@ -61,6 +61,18 @@ export default class MyApp {}
     }
 
     #[test]
+    fn ts_export_equals() {
+        let src = r#"
+class AuthService {}
+export = AuthService;
+"#;
+        let regex_result = typescript::extract_exports(src);
+        let ast_result = ast::typescript::extract_exports(src);
+        assert!(ast_result.contains(&"AuthService".to_string()));
+        assert_eq!(ast_result, regex_result);
+    }
+
+    #[test]
     fn ts_async_abstract() {
         let src = r#"
 export async function fetchData() {}
@@ -244,13 +256,21 @@ struct PrivateStruct {}
     }
 
     #[test]
-    fn rs_pub_crate() {
+    fn rs_pub_crate_excluded() {
         let src = r#"
 pub(crate) fn internal_fn() {}
 pub(crate) struct InternalStruct {}
 "#;
         let regex_result = rust_lang::extract_exports(src);
         let ast_result = ast::rust_lang::extract_exports(src);
+        assert!(
+            regex_result.is_empty(),
+            "regex backend must exclude pub(crate): {regex_result:?}"
+        );
+        assert!(
+            ast_result.is_empty(),
+            "AST backend must exclude pub(crate): {ast_result:?}"
+        );
         assert_eq!(ast_result, regex_result);
     }
 

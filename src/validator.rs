@@ -301,15 +301,28 @@ pub fn validate_spec(
             result.fixes.push(format!(
                 "Use a path inside the project (no absolute paths, `..` escapes, or symlinks that leave the project), or remove `{file}` from the files list"
             ));
-        } else if full_path.is_file()
-            && let Err(err) = fs::read_to_string(&full_path)
-        {
-            result.errors.push(format!(
-                "Source file `{file}` could not be read as UTF-8 for validation: {err}"
-            ));
-            result.fixes.push(format!(
-                "Re-save `{file}` as UTF-8 (specsync validates UTF-8 source), or remove it from the files list"
-            ));
+        } else if full_path.is_file() {
+            let ext = full_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            let is_supported = crate::types::Language::from_extension(ext).is_some();
+            if is_supported {
+                if let Err(err) = fs::read_to_string(&full_path) {
+                    result.errors.push(format!(
+                        "Source file `{file}` could not be read as UTF-8 for validation: {err}"
+                    ));
+                    result.fixes.push(format!(
+                        "Re-save `{file}` as UTF-8 (specsync validates UTF-8 source), or remove it from the files list"
+                    ));
+                }
+            } else {
+                if let Err(err) = fs::read(&full_path) {
+                    result.errors.push(format!(
+                        "Source file `{file}` could not be read for validation: {err}"
+                    ));
+                    result.fixes.push(format!(
+                        "Remove `{file}` from the files list or fix permissions"
+                    ));
+                }
+            }
         }
     }
 

@@ -187,6 +187,7 @@ static MEMBER_ASSOCIATEDTYPE: LazyLock<Regex> =
 pub fn extract_exports(content: &str) -> Vec<String> {
     let stripped = strip_block_comments(content);
     let stripped = strip_line_comments(&stripped);
+    let brace_mask = mask_string_literals(&stripped);
 
     let mut symbols = Vec::new();
 
@@ -209,14 +210,14 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     // Protocol requirements and extension members: neither repeats the container's own
     // access keyword, so pull them straight out of the body.
     for m in SWIFT_PROTOCOL_OR_EXTENSION.find_iter(&stripped) {
-        if let Some(body) = find_body(&stripped, m.end()) {
+        if let Some(body) = find_body(&stripped, &brace_mask, m.end()) {
             symbols.extend(scan_container_members(body, true, false));
         }
     }
 
     // Enum cases can never carry their own access modifier.
     for m in SWIFT_ENUM.find_iter(&stripped) {
-        if let Some(body) = find_body(&stripped, m.end()) {
+        if let Some(body) = find_body(&stripped, &brace_mask, m.end()) {
             symbols.extend(scan_container_members(body, false, true));
         }
     }
@@ -224,11 +225,53 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     symbols
 }
 
+/// Produces a byte-length-identical companion to `text` where every byte inside a
+/// double-quoted string literal is replaced with an ASCII space, so a `{`/`}`
+/// character living inside a string -- whether literal text or Swift's pervasive
+/// `\(...)` string interpolation -- can never be mistaken for a real scope
+/// delimiter. Byte-for-byte length is preserved (replacing, never removing) so the
+/// byte offsets this mask is used to compute stay valid against the original,
+/// unmasked `text` that `find_body` slices its return value from. Since only ASCII
+/// space bytes replace existing bytes one-for-one -- never splitting a multi-byte
+/// UTF-8 sequence without replacing all of its bytes -- the result is always valid
+/// UTF-8 even when the masked-over string contents include multibyte characters.
+fn mask_string_literals(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut in_string = false;
+    let mut escaped = false;
+    for &b in bytes {
+        if in_string {
+            out.push(b' ');
+            if escaped {
+                escaped = false;
+            } else if b == b'\\' {
+                escaped = true;
+            } else if b == b'"' {
+                in_string = false;
+            } else if b == b'\n' {
+                // An unterminated string can't legally span a newline; stop masking
+                // so a stray unbalanced quote doesn't blank out the rest of the file.
+                in_string = false;
+            }
+        } else if b == b'"' {
+            in_string = true;
+            out.push(b' ');
+        } else {
+            out.push(b);
+        }
+    }
+    String::from_utf8(out).unwrap_or_default()
+}
+
 /// Returns the text between the next `{` at/after `from` and its brace-depth-matched
 /// closing `}`, so nested blocks (getter bodies, nested types) don't terminate the body
-/// early.
-fn find_body(text: &str, from: usize) -> Option<&str> {
-    let bytes = text.as_bytes();
+/// early. `mask` must be a `mask_string_literals`-produced, byte-length-identical
+/// companion to `text`: brace positions are located in `mask` (so a brace inside a
+/// string literal is never counted), but the returned body slice is taken from the
+/// real `text`.
+fn find_body<'a>(text: &'a str, mask: &str, from: usize) -> Option<&'a str> {
+    let bytes = mask.as_bytes();
     let mut i = from;
     while i < bytes.len() && bytes[i] != b'{' {
         i += 1;
@@ -285,7 +328,10 @@ fn scan_container_members(body: &str, allow_members: bool, allow_case: bool) -> 
             }
         }
 
-        for ch in raw_line.chars() {
+        // Mask this line's string-literal contents before counting braces, for the
+        // same reason `find_body` does: a `{`/`}` inside a string (or a `\(...)`
+        // interpolation) must never be mistaken for a real nested-block delimiter.
+        for ch in mask_string_literals(raw_line).chars() {
             match ch {
                 '{' => depth += 1,
                 '}' => depth = (depth - 1).max(0),
@@ -545,6 +591,33 @@ public extension String {
         assert!(
             !symbols.contains(&"helper".to_string()),
             "private extension member must stay excluded: {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_swift_brace_in_string_interpolation_inside_extension_body_not_desynced() {
+        // PR review finding (Gemini Code Assist): `find_body`/`scan_container_members`
+        // counted braces over raw text, so a `{`/`}` living inside a string literal --
+        // especially Swift's pervasive `\(...)` string interpolation, which itself
+        // contains a `{`/`}`-shaped delimiter pair -- could desync brace-depth
+        // tracking and either terminate a container body early (dropping every member
+        // after it) or swallow the real closing brace (merging unrelated code into the
+        // body). This uses an interpolation containing a dictionary-literal-style
+        // brace character to stress exactly that.
+        let src = r#"
+public extension Formatter {
+    var greeting: String { "Status: \(["a": 1, "b": 2])" }
+    func describe(_ x: Int) -> String { "value is \(x) { still here }" }
+    func afterTheTrap() -> Bool { true }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"greeting".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"describe".to_string()), "{symbols:?}");
+        assert!(
+            symbols.contains(&"afterTheTrap".to_string()),
+            "a brace inside string interpolation must not prematurely close the \
+             extension body and drop members declared after it: {symbols:?}"
         );
     }
 

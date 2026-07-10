@@ -183,13 +183,6 @@ struct Shape {
     }
 
     #[test]
-    fn test_learnxinyminutes_scratch() {
-        let src = std::fs::read_to_string("/private/tmp/claude-501/-Users-leif-Development--CorvidLabs-spec-sync/1429498c-236f-41e9-839d-cd71a8ca63b8/scratchpad/c_test/full.c").unwrap();
-        let symbols = extract_exports(&src);
-        eprintln!("REGEX SYMBOLS ({}): {:?}", symbols.len(), symbols);
-    }
-
-    #[test]
     fn test_c_exports() {
         let src = r#"
 // This is a comment

@@ -67,31 +67,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_erlang_scratch_real_world() {
-        let content = std::fs::read_to_string(
-            "/private/tmp/claude-501/-Users-leif-Development--CorvidLabs-spec-sync/1429498c-236f-41e9-839d-cd71a8ca63b8/scratchpad/erlang_extracted.erl",
-        )
-        .unwrap();
-        let symbols = extract_exports(&content);
-        eprintln!("REGEX symbols ({}): {:?}", symbols.len(), symbols);
-
-        let calc_content = std::fs::read_to_string(
-            "/private/tmp/claude-501/-Users-leif-Development--CorvidLabs-spec-sync/1429498c-236f-41e9-839d-cd71a8ca63b8/scratchpad/erlang_calc.erl",
-        )
-        .unwrap();
-        eprintln!("REGEX calc symbols: {:?}", extract_exports(&calc_content));
-
-        let lib_misc_content = std::fs::read_to_string(
-            "/private/tmp/claude-501/-Users-leif-Development--CorvidLabs-spec-sync/1429498c-236f-41e9-839d-cd71a8ca63b8/scratchpad/erlang_lib_misc.erl",
-        )
-        .unwrap();
-        eprintln!(
-            "REGEX lib_misc symbols: {:?}",
-            extract_exports(&lib_misc_content)
-        );
-    }
-
-    #[test]
     fn test_erlang_exports() {
         let src = r#"
 -module(math_utils).

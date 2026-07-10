@@ -278,16 +278,6 @@ static void localHelper() {
     }
 
     #[test]
-    fn test_scratch_real_learnxinyminutes() {
-        let src = std::fs::read_to_string("/private/tmp/claude-501/-Users-leif-Development--CorvidLabs-spec-sync/1429498c-236f-41e9-839d-cd71a8ca63b8/scratchpad/cpp_real.cpp").unwrap();
-        let symbols = extract_exports(&src);
-        for s in &symbols {
-            println!("{}", s);
-        }
-        println!("TOTAL: {}", symbols.len());
-    }
-
-    #[test]
     fn test_class_defaults_private() {
         // `class` bodies default to private; a method with no explicit
         // access-specifier section should NOT be captured.

@@ -354,18 +354,3 @@ undocumented_helper <- function() {
         assert_eq!(symbols, vec!["fetch_record", "validate_config"]);
     }
 }
-
-#[cfg(test)]
-mod throwaway_realworld {
-    use super::*;
-
-    #[test]
-    fn scratch_learnxinyminutes_r() {
-        let content = std::fs::read_to_string(
-            "/private/tmp/claude-501/-Users-leif-Development--CorvidLabs-spec-sync/1429498c-236f-41e9-839d-cd71a8ca63b8/scratchpad/r_extracted.r",
-        )
-        .unwrap();
-        let symbols = extract_exports(&content);
-        eprintln!("SYMBOLS ({}): {:?}", symbols.len(), symbols);
-    }
-}

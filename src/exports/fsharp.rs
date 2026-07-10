@@ -431,16 +431,6 @@ let realExport2 = 1
     }
 
     #[test]
-    fn test_fsharp_learnxinyminutes_real_source() {
-        let src = std::fs::read_to_string(
-            "/private/tmp/claude-501/-Users-leif-Development--CorvidLabs-spec-sync/1429498c-236f-41e9-839d-cd71a8ca63b8/scratchpad/fsharp_real.fs",
-        )
-        .unwrap();
-        let symbols = extract_exports(&src);
-        println!("{symbols:#?}");
-    }
-
-    #[test]
     fn test_fsharp_attribute_same_line_as_type() {
         let src = r#"
 [<Struct>]

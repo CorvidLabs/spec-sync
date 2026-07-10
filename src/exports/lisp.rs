@@ -76,39 +76,3 @@ mod tests {
         assert!(symbols.contains(&"with-something".to_string()));
     }
 }
-
-#[cfg(test)]
-mod temp_probe {
-    use super::*;
-    use std::fs;
-
-    #[test]
-    fn probe_real_common_lisp() {
-        let src = fs::read_to_string("/private/tmp/claude-501/-Users-leif-Development--CorvidLabs-spec-sync/1429498c-236f-41e9-839d-cd71a8ca63b8/scratchpad/cl_extracted.lisp").unwrap();
-        let symbols = extract_exports(&src);
-        eprintln!("COMMON LISP REGEX ({} symbols):", symbols.len());
-        for s in &symbols {
-            eprintln!("  {:?}", s);
-        }
-    }
-
-    #[test]
-    fn probe_real_scheme() {
-        let src = fs::read_to_string("/private/tmp/claude-501/-Users-leif-Development--CorvidLabs-spec-sync/1429498c-236f-41e9-839d-cd71a8ca63b8/scratchpad/scheme_extracted.scm").unwrap();
-        let symbols = extract_exports(&src);
-        eprintln!("SCHEME REGEX ({} symbols):", symbols.len());
-        for s in &symbols {
-            eprintln!("  {:?}", s);
-        }
-    }
-
-    #[test]
-    fn probe_real_elisp() {
-        let src = fs::read_to_string("/private/tmp/claude-501/-Users-leif-Development--CorvidLabs-spec-sync/1429498c-236f-41e9-839d-cd71a8ca63b8/scratchpad/elisp_extracted.el").unwrap();
-        let symbols = extract_exports(&src);
-        eprintln!("ELISP REGEX ({} symbols):", symbols.len());
-        for s in &symbols {
-            eprintln!("  {:?}", s);
-        }
-    }
-}

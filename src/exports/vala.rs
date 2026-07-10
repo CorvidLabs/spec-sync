@@ -192,6 +192,31 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     // declarations are legitimate export candidates), false = a non-public type body, a
     // method body, or any other block. An empty stack means top level (namespace scope),
     // which is exportable.
+    /// Splits a line into declaration segments at each `;`/`}` boundary (the
+    /// delimiter stays attached to the end of the segment it closes). Every
+    /// export-detection regex below is anchored to true segment-start
+    /// (`^[^\S\n]*public...`), so a line packing multiple declarations --
+    /// `public class A {} public class B {}` or `public int a; public int b;`
+    /// -- would otherwise only ever yield the first one: after the anchored
+    /// regex consumes its own terminator (`;`/`{`/`(`), nothing is left before
+    /// the next declaration's `public` for a *repeated* anchored match to grab
+    /// onto. Splitting first gives each packed declaration its own
+    /// independent, freshly-anchored segment to match against.
+    fn split_into_segments(line: &str) -> Vec<&str> {
+        let mut segments = Vec::new();
+        let mut start = 0;
+        for (i, b) in line.bytes().enumerate() {
+            if b == b';' || b == b'}' {
+                segments.push(&line[start..=i]);
+                start = i + 1;
+            }
+        }
+        if start < line.len() {
+            segments.push(&line[start..]);
+        }
+        segments
+    }
+
     let mut scope_stack: Vec<bool> = Vec::new();
     // Set when a `public class/struct/interface` header is seen but its line has no `{`
     // (a multi-line header: base-type list, generic constraints, or a standalone brace on
@@ -207,43 +232,49 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         let in_exportable_scope = scope_stack.last().copied().unwrap_or(true);
 
         if in_exportable_scope {
-            if let Some(caps) = VALA_TYPE.captures(line)
-                && let Some(name) = caps.get(1)
-            {
-                let n = name.as_str().to_string();
-                if !symbols.contains(&n) {
-                    symbols.push(n);
-                }
-            }
-
-            if let Some(caps) = VALA_DELEGATE.captures(line)
-                && let Some(name) = caps.get(1)
-            {
-                let n = name.as_str().to_string();
-                if !symbols.contains(&n) {
-                    symbols.push(n);
-                }
-            }
-
-            if let Some(caps) = VALA_MEMBER.captures(line)
-                && let Some(name) = caps.get(1)
-            {
-                let n = name.as_str().to_string();
-                if !symbols.contains(&n) {
-                    symbols.push(n);
-                }
-            }
-
-            if let Some(caps) = VALA_CTOR.captures(line) {
-                // Named constructor (`Foo.bar`) captures the constructor name in group 2;
-                // otherwise fall back to group 1, the canonical constructor's identifier
-                // (which is just the class name again -- redundant with `VALA_TYPE`, but
-                // deduped below).
-                let name = caps.get(2).or_else(|| caps.get(1));
-                if let Some(name) = name {
+            // Run every export-detection regex against each `;`/`}`-delimited segment
+            // of the line independently (see `split_into_segments`), not the raw line
+            // as a whole, so multiple declarations packed onto one physical line are
+            // all captured, not just the first.
+            for segment in split_into_segments(line) {
+                if let Some(caps) = VALA_TYPE.captures(segment)
+                    && let Some(name) = caps.get(1)
+                {
                     let n = name.as_str().to_string();
                     if !symbols.contains(&n) {
                         symbols.push(n);
+                    }
+                }
+
+                if let Some(caps) = VALA_DELEGATE.captures(segment)
+                    && let Some(name) = caps.get(1)
+                {
+                    let n = name.as_str().to_string();
+                    if !symbols.contains(&n) {
+                        symbols.push(n);
+                    }
+                }
+
+                if let Some(caps) = VALA_MEMBER.captures(segment)
+                    && let Some(name) = caps.get(1)
+                {
+                    let n = name.as_str().to_string();
+                    if !symbols.contains(&n) {
+                        symbols.push(n);
+                    }
+                }
+
+                if let Some(caps) = VALA_CTOR.captures(segment) {
+                    // Named constructor (`Foo.bar`) captures the constructor name in
+                    // group 2; otherwise fall back to group 1, the canonical
+                    // constructor's identifier (which is just the class name again --
+                    // redundant with `VALA_TYPE`, but deduped below).
+                    let name = caps.get(2).or_else(|| caps.get(1));
+                    if let Some(name) = name {
+                        let n = name.as_str().to_string();
+                        if !symbols.contains(&n) {
+                            symbols.push(n);
+                        }
                     }
                 }
             }
@@ -784,16 +815,12 @@ public class Downloader : Object {
     }
 
     #[test]
-    fn test_vala_two_full_declarations_packed_on_one_line_documented_limitation() {
-        // Documented, out-of-scope limitation (not a scope-tracking bug): each
-        // export-detection regex is run with `.captures()` (first match only), not
-        // `.captures_iter()`, so at most one declaration per physical line/segment is
-        // ever extracted. Two full declarations on separate lines are both captured
-        // (first case below). Two full declarations packed onto the SAME physical line
-        // -- `public class A {} public class B {}` -- only yield the first (`A`); `B`
-        // is silently missed as a *symbol*. This is purely a regex-extraction gap: the
-        // scope stack itself still balances correctly (each `{}` pair nets to zero), as
-        // proven by the third class parsing correctly afterward.
+    fn test_vala_multiple_declarations_packed_on_one_line_all_captured() {
+        // Regression test: every export-detection regex now runs via `.captures_iter()`
+        // with an anchor that matches at true line-start OR immediately after a `;`/`}`
+        // (not just `.captures()`, which only ever finds the FIRST match per line). Two
+        // full declarations packed onto the SAME physical line -- `public class A {}
+        // public class B {}` -- now correctly yield both `A` and `B`, not just `A`.
         let src = "public class A {}\npublic class B {}\n";
         let symbols = extract_exports(src);
         assert!(symbols.contains(&"A".to_string()));
@@ -803,13 +830,28 @@ public class Downloader : Object {
         let packed_symbols = extract_exports(packed);
         assert!(packed_symbols.contains(&"A".to_string()));
         assert!(
-            !packed_symbols.contains(&"B".to_string()),
-            "known limitation: only the first declaration per line is captured as a symbol"
+            packed_symbols.contains(&"B".to_string()),
+            "both declarations packed on one line must be captured: {packed_symbols:?}"
         );
-        // Scope integrity is unaffected by the missed second symbol -- the class after
-        // the packed line is still correctly recognized as exportable.
         assert!(packed_symbols.contains(&"C".to_string()));
         assert!(packed_symbols.contains(&"after_packed".to_string()));
+    }
+
+    #[test]
+    fn test_vala_multiple_members_packed_on_one_line_all_captured() {
+        // Same fix, member-declaration form: a field/method terminated by `;`/`{`
+        // immediately followed by another `public` declaration on the same line.
+        let src = r#"
+public class Config : Object {
+    public string url = "http://x"; public void trailing () { }
+    public int a; public int b;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"url".to_string()));
+        assert!(symbols.contains(&"trailing".to_string()));
+        assert!(symbols.contains(&"a".to_string()));
+        assert!(symbols.contains(&"b".to_string()));
     }
 
     #[test]

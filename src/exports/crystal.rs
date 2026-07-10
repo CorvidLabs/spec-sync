@@ -4,19 +4,21 @@ use std::sync::LazyLock;
 static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"#.*$").unwrap());
 
 /// Crystal public declarations: class, module, struct, enum, def, alias,
-/// property, getter, setter. An optional leading `abstract` modifier (as in
-/// `abstract class Foo` or `abstract def bar`) is skipped so it doesn't
-/// defeat the line anchor. A `def` name may be qualified with `self.` (class
-/// methods, e.g. `def self.foo`) which is skipped so the captured name is
-/// the actual method name rather than the literal word `self`. The name may
-/// also be written as a symbol (e.g. `property :name`, `getter :label`),
-/// which is Crystal's idiomatic macro-accessor shorthand, so a leading `:`
-/// is likewise skipped. The captured name may carry a single trailing `?`,
-/// `!`, or `=` since those are valid Crystal identifier characters (e.g.
-/// `valid?`, `save!`, `x=`).
+/// property, getter, setter, macro. An optional leading `abstract` modifier
+/// (as in `abstract class Foo` or `abstract def bar`) is skipped so it
+/// doesn't defeat the line anchor. A `def` name may be qualified with
+/// `self.` (class methods, e.g. `def self.foo`) which is skipped so the
+/// captured name is the actual method name rather than the literal word
+/// `self`. The name may also be written as a symbol (e.g. `property :name`,
+/// `getter :label`), which is Crystal's idiomatic macro-accessor shorthand,
+/// so a leading `:` is likewise skipped. The captured name may carry a
+/// single trailing `?`, `!`, or `=` since those are valid Crystal identifier
+/// characters (e.g. `valid?`, `save!`, `x=`). `macro` covers Crystal's
+/// compile-time codegen declarations (e.g. `macro included`, the
+/// Ruby-`included`-hook equivalent, and `macro define_thing(name)`).
 static CRYSTAL_DECL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*(?:abstract\s+)?(?:class|module|struct|enum|def|alias|property|getter|setter)\s+(?:self\.)?:?(\w+[?!=]?)",
+        r"(?m)^[^\S\n]*(?:abstract\s+)?(?:class|module|struct|enum|def|alias|property|getter|setter|macro)\s+(?:self\.)?:?(\w+[?!=]?)",
     )
     .unwrap()
 });
@@ -264,5 +266,152 @@ end
         assert!(symbols.contains(&"foo=".to_string()));
         assert!(symbols.contains(&"Worker".to_string()));
         assert!(!symbols.contains(&"self".to_string()));
+    }
+
+    #[test]
+    fn test_crystal_macro_declarations() {
+        // Regression test: `macro` was missing from CRYSTAL_DECL's keyword
+        // alternation, so `macro included` (Crystal's Ruby-style inclusion
+        // hook) and `macro define_thing(name)` (compile-time codegen)
+        // vanished from output entirely. This would have caught that bug.
+        let src = r#"
+module Greeter
+  macro included
+    puts "included!"
+  end
+
+  macro define_thing(name)
+    def value
+      "thing"
+    end
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Greeter".to_string()));
+        assert!(symbols.contains(&"included".to_string()));
+        assert!(symbols.contains(&"define_thing".to_string()));
+    }
+
+    #[test]
+    fn test_crystal_private_macro_excluded() {
+        // A `private macro` must be excluded just like private class/def,
+        // since CRYSTAL_PRIVATE runs before CRYSTAL_DECL is even tried.
+        let src = r#"
+module Foo
+  macro included
+  end
+
+  private macro helper
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(symbols.contains(&"included".to_string()));
+        assert!(!symbols.contains(&"helper".to_string()));
+    }
+
+    #[test]
+    fn test_crystal_nested_private_does_not_leak_across_lines() {
+        // Unlike a state-machine-based extractor that tracks "currently
+        // inside a private block" across lines, this scanner evaluates each
+        // line independently, so a `private class Inner` sandwiched between
+        // two public siblings (and a top-level declaration after the
+        // enclosing module) must not suppress or corrupt anything else.
+        let src = r#"
+module Outer
+  class Before
+  end
+
+  private class Inner
+  end
+
+  class After
+  end
+end
+
+class TopLevel
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Outer".to_string()));
+        assert!(symbols.contains(&"Before".to_string()));
+        assert!(symbols.contains(&"After".to_string()));
+        assert!(symbols.contains(&"TopLevel".to_string()));
+        assert!(!symbols.contains(&"Inner".to_string()));
+    }
+
+    #[test]
+    fn test_crystal_struct_enum_and_enum_members() {
+        // `struct`/`enum` declarations themselves must be captured, but
+        // individual enum member lines (e.g. `Red`, `Green`) have no leading
+        // declaration keyword and must NOT be treated as declarations. A
+        // `private enum` must be excluded like any other private construct.
+        let src = r#"
+struct Point3D
+  property x : Int32
+end
+
+enum Color
+  Red
+  Green
+  Blue
+end
+
+private enum Status
+  Active
+  Inactive
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Point3D".to_string()));
+        assert!(symbols.contains(&"x".to_string()));
+        assert!(symbols.contains(&"Color".to_string()));
+        assert!(!symbols.contains(&"Red".to_string()));
+        assert!(!symbols.contains(&"Green".to_string()));
+        assert!(!symbols.contains(&"Blue".to_string()));
+        assert!(!symbols.contains(&"Status".to_string()));
+        assert!(!symbols.contains(&"Active".to_string()));
+        assert!(!symbols.contains(&"Inactive".to_string()));
+    }
+
+    #[test]
+    fn test_crystal_one_liner_def() {
+        // A one-liner `def bar; end` must still be captured since the decl
+        // keyword and name are on the same line as usual; a private
+        // one-liner must still be excluded by CRYSTAL_PRIVATE.
+        let src = r#"
+class Utils
+  def bar; end
+  private def baz; end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Utils".to_string()));
+        assert!(symbols.contains(&"bar".to_string()));
+        assert!(!symbols.contains(&"baz".to_string()));
+    }
+
+    #[test]
+    fn test_crystal_bare_constant_assignment_not_captured_by_design() {
+        // Unlike Ruby's exports backend, which has a dedicated regex for
+        // bare `NAME = value` constant assignments, this Crystal backend
+        // only recognizes the fixed set of declaration keywords in
+        // CRYSTAL_DECL. A bare top-level (or nested) constant assignment
+        // with no such keyword is intentionally NOT captured -- this is a
+        // documented scope limitation, not a bug, so this test pins the
+        // current (by-design) behavior rather than asserting a regression.
+        let src = r#"
+MAX_SIZE = 100
+
+module Config
+  TIMEOUT = 30
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Config".to_string()));
+        assert!(!symbols.contains(&"MAX_SIZE".to_string()));
+        assert!(!symbols.contains(&"TIMEOUT".to_string()));
     }
 }

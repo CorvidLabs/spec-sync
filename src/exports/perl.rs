@@ -22,11 +22,46 @@ static EXPORT_ARRAY: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
-/// An identifier-shaped token within an `EXPORT_ARRAY` body — deliberately ignores
-/// surrounding quotes/commas/whitespace so it works uniformly across both the bareword
-/// `qw(...)` form and the quoted-list `('foo', 'bar')` form without needing separate
-/// per-delimiter tokenizers.
+/// `push @EXPORT, ...` / `push @EXPORT_OK, ...`: the common idiom for appending to an
+/// export array after its initial declaration (e.g. conditionally, or split across
+/// multiple statements). `EXPORT_ARRAY` above requires `@EXPORT(?:_OK)?\s*=` immediately
+/// after the array name, which a `push` statement never satisfies (a comma follows the
+/// array name there, not `=`), so without this second regex any names appended via
+/// `push` are silently dropped from the tracked public API. Mirrors the same delimiter
+/// alternatives as `EXPORT_ARRAY`, plus a final catch-all up to the statement-ending
+/// `;` for a bare comma-separated quoted list (`push @EXPORT_OK, 'bar', 'baz';`).
+static EXPORT_PUSH: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?s)push\s+@EXPORT(?:_OK)?\s*,\s*(?:qw\s*\(([^)]*)\)|qw\s*\[([^\]]*)\]|qw\s*\{([^}]*)\}|qw\s*/([^/]*)/|\(([^)]*)\)|([^;]*));",
+    )
+    .unwrap()
+});
+
+/// An identifier-shaped token within an `EXPORT_ARRAY`/`EXPORT_PUSH` body — deliberately
+/// ignores surrounding quotes/commas/whitespace so it works uniformly across both the
+/// bareword `qw(...)` form and the quoted-list `('foo', 'bar')` form without needing
+/// separate per-delimiter tokenizers.
 static EXPORT_ARRAY_TOKEN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[A-Za-z_]\w*").unwrap());
+
+/// Extract identifier tokens from an export-list body, but only when the body is a
+/// literal list the regex can statically resolve. A body containing a `$` or `@`
+/// sigil (e.g. `@{$EXPORT_TAGS{all}}`, dereferencing a `%EXPORT_TAGS` hash entry) is a
+/// runtime Perl expression, not a literal list -- the regex has no way to evaluate it.
+/// Blindly tokenizing it would pick up the referenced variable's own name/hash-keys
+/// (e.g. `EXPORT_TAGS`, `all`) as if they were export names. Returning `None` here lets
+/// the caller correctly skip the match and fall through to the underscore-naming-
+/// convention scan instead of returning that garbage.
+fn extract_export_names(body: &str) -> Option<Vec<String>> {
+    if body.contains('$') || body.contains('@') {
+        return None;
+    }
+    Some(
+        EXPORT_ARRAY_TOKEN
+            .find_iter(body)
+            .map(|m| m.as_str().to_string())
+            .collect(),
+    )
+}
 
 /// Strip Perl POD documentation blocks (`=head1` ... `=cut`, `=pod` ... `=cut`,
 /// `=item`, `=over`/`=back`, etc.) before scanning for code.
@@ -76,16 +111,26 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     let no_pod = strip_pod(content);
     let stripped = COMMENT_SINGLE.replace_all(&no_pod, "");
 
+    // Collect matches from both the initial-assignment (`@EXPORT(_OK) = ...`) and
+    // `push @EXPORT(_OK), ...` regexes, then process them in the order they occur in
+    // the source so a `push` that appends to an earlier declaration accumulates onto
+    // it rather than being processed out of order.
+    let mut export_matches: Vec<regex::Captures> = EXPORT_ARRAY.captures_iter(&stripped).collect();
+    export_matches.extend(EXPORT_PUSH.captures_iter(&stripped));
+    export_matches.sort_by_key(|caps| caps.get(0).map(|m| m.start()).unwrap_or(0));
+
     let mut export_list: Vec<String> = Vec::new();
-    for caps in EXPORT_ARRAY.captures_iter(&stripped) {
+    for caps in export_matches {
         let body = caps
             .iter()
             .skip(1)
             .find_map(|m| m)
             .map(|m| m.as_str())
             .unwrap_or("");
-        for tok in EXPORT_ARRAY_TOKEN.find_iter(body) {
-            let n = tok.as_str().to_string();
+        let Some(names) = extract_export_names(body) else {
+            continue;
+        };
+        for n in names {
             if !export_list.contains(&n) {
                 export_list.push(n);
             }
@@ -374,5 +419,169 @@ sub another_helper {
         assert!(!symbols.contains(&"validate".to_string()));
         assert!(symbols.contains(&"helper".to_string()));
         assert!(symbols.contains(&"another_helper".to_string()));
+    }
+
+    #[test]
+    fn test_export_ok_hash_tag_deref_falls_back_to_underscore_convention() {
+        // Regression test for a real bug: `our @EXPORT_OK = (@{$EXPORT_TAGS{all}});`
+        // dereferences a `%EXPORT_TAGS` hash entry -- a runtime expression the regex
+        // cannot statically resolve. The plain-paren fallback branch of EXPORT_ARRAY
+        // used to blindly tokenize the captured body, previously returning the hash
+        // variable's own name/key (`["EXPORT_TAGS", "all"]`) as if they were real
+        // export names. It must instead detect the `$`/`@` sigils, treat the match as
+        // unresolvable, and fall through to the underscore-naming-convention scan.
+        let src = r#"
+package MyModule;
+our %EXPORT_TAGS = (all => [qw(foo bar)]);
+our @EXPORT_OK = (@{$EXPORT_TAGS{all}});
+
+sub foo { return 1; }
+sub bar { return 2; }
+sub _hidden { return 3; }
+"#;
+        let symbols = extract_exports(src);
+        assert!(!symbols.contains(&"EXPORT_TAGS".to_string()));
+        assert!(!symbols.contains(&"all".to_string()));
+        assert!(symbols.contains(&"foo".to_string()));
+        assert!(symbols.contains(&"bar".to_string()));
+        assert!(!symbols.contains(&"_hidden".to_string()));
+    }
+
+    #[test]
+    fn test_push_export_ok_accumulates_after_initial_assignment() {
+        // Regression test for a real bug: `push @EXPORT_OK, qw(bar baz);` following an
+        // initial `our @EXPORT_OK = qw(foo);` was silently dropped -- EXPORT_ARRAY only
+        // matches `@EXPORT_OK\s*=`, which a `push` statement's `@EXPORT_OK,` never
+        // satisfies. Names appended via `push` must be accumulated onto the initial
+        // declaration, not discarded.
+        let src = r#"
+package MyModule;
+our @EXPORT_OK = qw(foo);
+push @EXPORT_OK, qw(bar baz);
+
+sub foo { return 1; }
+sub bar { return 2; }
+sub baz { return 3; }
+sub _hidden { return 4; }
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec!["foo".to_string(), "bar".to_string(), "baz".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_push_export_ok_plain_quoted_list() {
+        // `push` can also append a bare comma-separated quoted list rather than
+        // `qw(...)`; the catch-all `([^;]*)` branch of EXPORT_PUSH must handle it too.
+        let src = r#"
+package MyModule;
+our @EXPORT_OK = qw(foo);
+push @EXPORT_OK, 'bar', 'baz';
+
+sub foo { return 1; }
+sub bar { return 2; }
+sub baz { return 3; }
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec!["foo".to_string(), "bar".to_string(), "baz".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_isa_exporter_base_with_export_ok_still_works() {
+        // `use base 'Exporter'; our @ISA = ('Exporter');` is the classic pre-`use
+        // parent` idiom for declaring a module as an Exporter subclass. Its `@ISA`
+        // array must not be confused with `@EXPORT_OK`, and the latter must still be
+        // parsed correctly alongside it.
+        let src = r#"
+package MyModule;
+use base 'Exporter';
+our @ISA = ('Exporter');
+our @EXPORT_OK = qw(public_api);
+
+sub public_api {
+    return 1;
+}
+
+sub _helper {
+    return 2;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["public_api".to_string()]);
+        assert!(!symbols.contains(&"Exporter".to_string()));
+        assert!(!symbols.contains(&"_helper".to_string()));
+    }
+
+    #[test]
+    fn test_export_tags_hash_does_not_confuse_plain_export_ok_parsing() {
+        // A `%EXPORT_TAGS` hash declared alongside a plain (non-dereferencing)
+        // `@EXPORT_OK` list must not interfere with parsing the latter: `%EXPORT_TAGS`
+        // has no literal `@EXPORT` substring (it's prefixed with `%`, not `@`), so the
+        // EXPORT_ARRAY/EXPORT_PUSH regexes must only match the real `@EXPORT_OK` line.
+        let src = r#"
+package MyModule;
+our %EXPORT_TAGS = (all => [qw(foo bar)]);
+our @EXPORT_OK = qw(foo bar);
+
+sub foo { return 1; }
+sub bar { return 2; }
+sub _hidden { return 3; }
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["foo".to_string(), "bar".to_string()]);
+        assert!(!symbols.contains(&"EXPORT_TAGS".to_string()));
+    }
+
+    #[test]
+    fn test_export_array_spanning_multiple_physical_lines() {
+        // `@EXPORT`/`@EXPORT_OK` bareword lists are frequently wrapped across multiple
+        // lines for readability; the export-array body must still be captured in full.
+        let src = r#"
+package MyModule;
+our @EXPORT_OK = qw(
+    foo
+    bar
+    baz
+);
+
+sub foo { return 1; }
+sub bar { return 2; }
+sub baz { return 3; }
+sub _hidden { return 4; }
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec!["foo".to_string(), "bar".to_string(), "baz".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_no_exporter_usage_falls_back_to_underscore_convention() {
+        // A module that never mentions Exporter, @EXPORT, or @EXPORT_OK at all (not
+        // even @ISA) must still fall back cleanly to the leading-underscore naming
+        // convention, with no export-array parsing accidentally triggering on
+        // unrelated code.
+        let src = r#"
+package PlainModule;
+use strict;
+use warnings;
+
+sub public_thing {
+    return 1;
+}
+
+sub _private_thing {
+    return 2;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["public_thing".to_string()]);
+        assert!(!symbols.contains(&"_private_thing".to_string()));
     }
 }

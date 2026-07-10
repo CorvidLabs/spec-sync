@@ -26,16 +26,26 @@ static EXPORT_F: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*export[^\S\n]+-f[^\S\n]+([^;&|\n]+)").unwrap());
 
 /// A single exported name inside an `export -f` argument list.
-static EXPORT_F_NAME: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[A-Za-z_]\w*").unwrap());
+///
+/// Bash function names may contain hyphens (common in subcommand-style
+/// scripts, e.g. `pre-commit`, `git-diff-index`), so the tail of the name
+/// allows `-` alongside `\w`. Without this, `export -f foo-bar baz` would be
+/// mis-split into three bogus names (`foo`, `bar`, `baz`) instead of the
+/// two real ones (`foo-bar`, `baz`).
+static EXPORT_F_NAME: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[A-Za-z_][\w-]*").unwrap());
 
 /// Explicit `function name { ... }` or `function name() { ... }` form.
+///
+/// See `EXPORT_F_NAME` above for why the name allows hyphens.
 static FUNCTION_KEYWORD_DECL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^[^\S\n]*function[^\S\n]+([A-Za-z_]\w*)[^\S\n]*(?:\(\))?").unwrap()
+    Regex::new(r"(?m)^[^\S\n]*function[^\S\n]+([A-Za-z_][\w-]*)[^\S\n]*(?:\(\))?").unwrap()
 });
 
 /// POSIX form: `name() { ... }` with no `function` keyword.
+///
+/// See `EXPORT_F_NAME` above for why the name allows hyphens.
 static POSIX_FUNCTION_DECL: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*([A-Za-z_]\w*)[^\S\n]*\(\)").unwrap());
+    LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*([A-Za-z_][\w-]*)[^\S\n]*\(\)").unwrap());
 
 /// Blank out heredoc bodies (and their terminator line), leaving the
 /// heredoc-start line itself intact so any real code preceding the `<<` is
@@ -413,5 +423,166 @@ echo "hello $NAME"
 "#;
         let symbols = extract_exports(src);
         assert!(symbols.is_empty());
+    }
+
+    #[test]
+    fn test_bash_hyphenated_posix_function_name_included() {
+        // Regression test for a bug where POSIX_FUNCTION_DECL's name class
+        // was `[A-Za-z_]\w*` (no hyphen). Since `\w` doesn't include `-`,
+        // the regex needed whitespace/`(` immediately after "foo" but hit
+        // `-` instead, so `foo-bar() { ... }` matched nothing at all and
+        // was silently dropped from the output. Hyphenated names are a
+        // common bash convention for subcommand-style scripts (e.g.
+        // `git-diff-index`, `pre-commit`).
+        let src = r#"
+foo-bar() {
+    echo hi
+}
+
+plain() {
+    echo plain
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["foo-bar", "plain"]);
+    }
+
+    #[test]
+    fn test_bash_hyphenated_function_keyword_form() {
+        // Same hyphen bug as above, but for the `function name { ... }`
+        // form via FUNCTION_KEYWORD_DECL's name class.
+        let src = r#"
+function pre-commit {
+    echo "checking"
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["pre-commit"]);
+    }
+
+    #[test]
+    fn test_bash_export_f_hyphenated_name_not_mis_split() {
+        // Regression test for a bug where EXPORT_F_NAME's character class
+        // was `[A-Za-z_]\w*` (no hyphen), so it stopped matching at the
+        // hyphen and resumed matching on the remainder. This caused
+        // `export -f foo-bar baz` to be split into THREE bogus names
+        // (`foo`, `bar`, `baz`) instead of the two real ones (`foo-bar`,
+        // `baz`).
+        let src = r#"
+foo-bar() { echo a; }
+baz() { echo b; }
+
+export -f foo-bar baz
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["foo-bar", "baz"]);
+        assert!(!symbols.contains(&"foo".to_string()));
+        assert!(!symbols.contains(&"bar".to_string()));
+    }
+
+    #[test]
+    fn test_bash_allman_brace_style_functions() {
+        // Allman style (opening brace on its own line) is valid bash for
+        // both the POSIX and `function`-keyword forms. The trailing
+        // `[^\S\n]*(?:\(\))?` / `\(\)` in the declaration regexes must not
+        // require the brace to be on the same line, since the regexes only
+        // match through the name (and optional parens), not the brace.
+        let src = r#"
+posix_style()
+{
+    echo "posix"
+}
+
+function keyword_style()
+{
+    echo "keyword with parens"
+}
+
+function keyword_no_parens
+{
+    echo "keyword without parens"
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec!["posix_style", "keyword_style", "keyword_no_parens"]
+        );
+    }
+
+    #[test]
+    fn test_bash_export_f_references_undeclared_function_is_still_authoritative() {
+        // By design, `export -f` is treated as authoritative with no
+        // cross-validation against actual function declarations in the
+        // file. A name exported via `export -f` that was never declared
+        // anywhere (e.g. defined in a sourced file, or simply a stale
+        // export) must still surface in the output verbatim.
+        let src = r#"
+declared_func() {
+    echo "I exist"
+}
+
+export -f declared_func never_declared_anywhere
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["declared_func", "never_declared_anywhere"]);
+    }
+
+    #[test]
+    fn test_bash_heredoc_dash_quoted_delimiter_body_ignored() {
+        // `<<-'EOF'` combines the dash form (terminator may be indented
+        // with tabs, common for indenting heredocs inside functions) with a
+        // quoted delimiter (disables parameter/command expansion in the
+        // body). Both properties together must still be recognized by
+        // HEREDOC_START and the body correctly blanked out, so payload text
+        // that looks like a function declaration or `export -f` isn't
+        // picked up as real code.
+        let src = "deploy() {\n\tcat > /tmp/out.sh <<-'EOF'\n\tfake_func() { echo no; }\n\texport -f fake_func\n\tEOF\n\techo done\n}\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["deploy"]);
+        assert!(!symbols.contains(&"fake_func".to_string()));
+    }
+
+    #[test]
+    fn test_bash_variable_only_export_forms_not_surfaced() {
+        // This backend is function-name-only by design: `export FOO=bar`,
+        // `declare -x FOO`, and `readonly FOO=bar` export/declare shell
+        // *variables*, not functions, and must never appear in the output
+        // even though they share the `export`/`declare`/`readonly` keyword
+        // vocabulary with the function-oriented forms this backend does
+        // recognize.
+        let src = r#"
+export FOO=bar
+declare -x BAZ=qux
+readonly QUUX=corge
+
+real_func() {
+    echo "real"
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real_func"]);
+        assert!(!symbols.contains(&"FOO".to_string()));
+        assert!(!symbols.contains(&"BAZ".to_string()));
+        assert!(!symbols.contains(&"QUUX".to_string()));
+    }
+
+    #[test]
+    fn test_bash_hyphenated_underscore_prefixed_excluded_in_fallback() {
+        // Combines the hyphen fix with the existing `_`-prefix exclusion
+        // rule: a hyphenated internal helper must still be excluded from
+        // the fallback (no `export -f` present) list.
+        let src = r#"
+_internal-helper() {
+    echo "should not be exported"
+}
+
+public-entrypoint() {
+    _internal-helper
+    echo "ok"
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["public-entrypoint"]);
     }
 }

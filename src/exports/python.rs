@@ -534,4 +534,118 @@ def connect():
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["MAX_RETRIES", "DEFAULT_TIMEOUT", "connect"]);
     }
+
+    #[test]
+    fn test_python_walrus_in_condition_not_captured() {
+        // The walrus operator (`:=`) inside an `if`/`while` condition binds a
+        // name in the enclosing scope, but the statement itself is not a
+        // module-level assignment: the line starts with `if`/`while`, not a
+        // bare `NAME =`, so ASSIGN_TARGET never matches at column 0 and no
+        // symbol is captured.
+        let src = r#"
+if (x := 5):
+    print(x)
+
+while (chunk := read()) != b'':
+    process(chunk)
+"#;
+        let symbols = extract_exports(src);
+        assert!(!symbols.contains(&"x".to_string()));
+        assert!(!symbols.contains(&"chunk".to_string()));
+    }
+
+    #[test]
+    fn test_python_augmented_assignment_not_double_counted() {
+        // `x += 1` is not a fresh `NAME =` declaration (the required literal
+        // `=` in ASSIGN_TARGET can't match immediately after `+`), so it
+        // contributes nothing on its own; only the original `x = 1` binding
+        // is captured, and exactly once.
+        let src = r#"
+x = 1
+x += 1
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols.iter().filter(|s| *s == "x").count(), 1);
+    }
+
+    #[test]
+    fn test_python_tuple_and_starred_unpacking_not_captured() {
+        // Tuple/starred unpacking targets (`a, b = ...`, `a, *b = ...`) are
+        // conservatively NOT captured as individual names: ASSIGN_TARGET
+        // requires `NAME` to be immediately followed by (optional type
+        // annotation then) `=`, and a comma right after the first name
+        // breaks that pattern, so the whole line yields no targets.
+        let src = r#"
+a, b = 1, 2
+a, *b = [1, 2, 3]
+"#;
+        let symbols = extract_exports(src);
+        assert!(!symbols.contains(&"a".to_string()));
+        assert!(!symbols.contains(&"b".to_string()));
+    }
+
+    #[test]
+    fn test_python_chained_assignment_with_tuple_rhs_only_leading_target() {
+        // `a = b, c = 1, 2`: only the leading target `a` is captured. After
+        // consuming `a =`, the remaining text `b, c = 1, 2` fails to match
+        // ASSIGN_TARGET at its start (comma right after `b`), so the walk
+        // stops and `b`/`c` are never treated as additional chained targets.
+        let src = "a = b, c = 1, 2\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["a"]);
+    }
+
+    #[test]
+    fn test_python_bare_annotation_without_value_not_captured() {
+        // `x: int` with no `=` is a declaration-only annotation, not a
+        // binding; ASSIGN_TARGET requires a trailing `=` after the optional
+        // `: Type` portion, which is absent here, so nothing is captured.
+        // `x: int = 5`, by contrast, has a value and must be captured.
+        let src = r#"
+x: int
+y: int = 5
+"#;
+        let symbols = extract_exports(src);
+        assert!(!symbols.contains(&"x".to_string()));
+        assert!(symbols.contains(&"y".to_string()));
+    }
+
+    #[test]
+    fn test_python_class_body_assignments_and_dataclass_field_excluded() {
+        // Chained/augmented assignments and `field(default_factory=...)`
+        // inside a class body are indented (not column-0), so they never
+        // reach ASSIGN_TARGET's `^` anchor and stay excluded regardless of
+        // their assignment shape; only the class name itself is top-level.
+        let src = r#"
+class Foo:
+    x = y = 1
+    z += 1
+    w: int = field(default_factory=list)
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Foo"]);
+    }
+
+    #[test]
+    fn test_python_walrus_in_module_level_comprehension_not_captured() {
+        // `results = [y := f(x) for x in data]` is a real top-level
+        // assignment to `results`; the walrus-bound `y` lives inside the
+        // `[...]` on the right-hand side, so once `results =` is consumed
+        // the remaining text starts with `[`, which doesn't match
+        // ASSIGN_TARGET's `^(\w+)`, and `y` is never captured.
+        let src = "results = [y := f(x) for x in data]\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["results"]);
+    }
+
+    #[test]
+    fn test_python_bare_equality_comparison_not_mistaken_for_assignment() {
+        // `x == 5` as a bare top-level statement must not be mistaken for an
+        // assignment: after matching `x =` (the first `=` of `==`), the code
+        // checks whether the very next character is also `=`; since it is,
+        // the walk breaks immediately and no target is captured.
+        let src = "x == 5\n";
+        let symbols = extract_exports(src);
+        assert!(symbols.is_empty());
+    }
 }

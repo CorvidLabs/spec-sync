@@ -93,6 +93,16 @@ static BLOCK_END: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*e
 /// a later line for `BLOCK_END` to pop.
 static INLINE_END: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\bend\b").unwrap());
 
+/// Heredoc start: `<<~TAG`, `<<-TAG`, `<<TAG`, or quoted-tag variants
+/// (`<<~"TAG"`, `<<~'TAG'`). Requires no whitespace immediately before `<<`
+/// (checked by the caller, not the regex) so a bitshift expression like
+/// `x << SOME_CONST` is never mistaken for a heredoc opener. The body lines
+/// of a heredoc are arbitrary text -- they may contain a line that is just
+/// `end` (or `class Foo`, etc.) which must never reach the block-nesting or
+/// visibility scan below, or the scan desyncs.
+static HEREDOC_START: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"<<([-~]?)["']?([A-Za-z_]\w*)["']?"#).unwrap());
+
 /// Compact namespaced declarations (`class Api::V1::UsersController`) capture
 /// the whole `A::B::C` path, but only the last segment is the type actually
 /// being declared here — the outer segments are references to an
@@ -172,15 +182,31 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     // reset to public on entry but never restored on exit).
     let mut public = true;
     let mut scope_stack: Vec<Option<bool>> = Vec::new();
+    // Tag of a currently-open heredoc, if any. While this is `Some`, every
+    // line is heredoc body content -- arbitrary text that must be skipped
+    // entirely (not scanned for `end`, `class`, `private`, etc.) until the
+    // line that terminates it is found.
+    let mut heredoc_terminator: Option<String> = None;
     for line in stripped.lines() {
+        if let Some(tag) = &heredoc_terminator {
+            // A `<<~`/`<<-` heredoc terminator may be indented; a bare
+            // `<<TAG` terminator must start at column 0. Accepting either by
+            // trimming is safe here since we're only trying to find *where
+            // the body ends*, not reformat it.
+            if line.trim() == tag.as_str() {
+                heredoc_terminator = None;
+            }
+            continue;
+        }
+
         let is_class_or_module = RUBY_CLASS.is_match(line) || RUBY_MODULE.is_match(line);
         let has_inline_end = INLINE_END.is_match(line);
 
         if is_class_or_module {
             if !has_inline_end {
                 scope_stack.push(Some(public));
+                public = true;
             }
-            public = true;
         } else if !ENDLESS_DEF.is_match(line) && BLOCK_OPENER.is_match(line) && !has_inline_end {
             scope_stack.push(None);
         }
@@ -218,6 +244,21 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             {
                 symbols.push(n.to_string());
             }
+        }
+
+        // A heredoc opener on this line means every subsequent line is
+        // opaque body content until the terminator is found -- start
+        // skipping from the *next* line onward (this line has already been
+        // fully scanned above). Bitshift expressions like `x << SOME_CONST`
+        // never match: Ruby heredocs require no whitespace between `<<` and
+        // the optional `~`/`-` modifier/tag, which `HEREDOC_START` mirrors
+        // by having no whitespace token in that position, whereas a bitshift
+        // operator is conventionally (and here, structurally) followed by a
+        // space before its right-hand operand.
+        if let Some(caps) = HEREDOC_START.captures(line)
+            && let Some(tag) = caps.get(2)
+        {
+            heredoc_terminator = Some(tag.as_str().to_string());
         }
     }
 
@@ -595,5 +636,215 @@ end
         assert!(symbols.contains(&"bar".to_string()));
         assert!(symbols.contains(&"qux".to_string()));
         assert!(symbols.contains(&"included".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_heredoc_body_line_matching_end_does_not_desync_visibility() {
+        // Regression test: a heredoc body line that is just `end` (a very common
+        // thing to see in a heredoc holding e.g. generated Ruby/SQL/HTML source)
+        // used to be scanned as a real block-closer. That popped the wrong
+        // entry off the block-nesting stack, so the *real* `end` a few lines
+        // later incorrectly popped `class Foo`'s visibility-restore entry
+        // instead, flipping `public` back to `true` while still inside the
+        // class body and leaking `secret` even though it's declared under
+        // `private`.
+        let src = r#"
+class Foo
+  def public_one
+  end
+
+  private
+
+  SQL_TEXT = <<~SQL
+    end
+  SQL
+
+  def secret
+  end
+end
+
+class Bar
+  def also_public
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(symbols.contains(&"Bar".to_string()));
+        assert!(symbols.contains(&"public_one".to_string()));
+        assert!(symbols.contains(&"SQL_TEXT".to_string()));
+        assert!(symbols.contains(&"also_public".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_heredoc_variants_with_end_in_body_do_not_desync_visibility() {
+        // Same regression as above but exercising the other heredoc opener
+        // spellings: bare `<<TAG`, dash `<<-TAG`, and a quoted tag `<<~"TAG"`.
+        // All three must have their body lines (including a literal `end`)
+        // skipped by the block-nesting scan.
+        let src = r#"
+class Baz
+  private
+
+  A = <<TAGA
+end
+TAGA
+
+  B = <<-TAGB
+    end
+    TAGB
+
+  C = <<~"TAGC"
+    end
+  TAGC
+
+  def secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Baz".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_oneliner_class_does_not_leak_public_after_private() {
+        // Regression test: a self-contained one-liner namespace declaration
+        // (`class Inline; end`) never pushes a block-nesting stack entry (it
+        // has nothing to restore), but the code used to unconditionally reset
+        // `public = true` anyway. That stomped on a `private` toggle set
+        // earlier in the enclosing class body, so `secret` (declared right
+        // after the one-liner) incorrectly came back as public.
+        let src = r#"
+class Foo
+  private
+
+  class Inline; end
+
+  def secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(symbols.contains(&"Inline".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_oneliner_module_does_not_leak_public_after_private() {
+        // Same regression as above, but for a one-liner `module` instead of
+        // a one-liner `class`.
+        let src = r#"
+class Foo
+  private
+
+  module Inline; end
+
+  def secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(symbols.contains(&"Inline".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_begin_rescue_ensure_does_not_desync_visibility() {
+        // A `begin`/`rescue`/`ensure`/`end` block doesn't carry its own
+        // visibility state (unlike class/module), so a `private` toggle set
+        // before it must still apply to a `def` that follows the block's
+        // `end`. This also checks that `begin` itself pushes exactly one
+        // stack entry regardless of how many `rescue`/`ensure` clauses it has.
+        let src = r#"
+class Config
+  private
+
+  begin
+    require "optional_dep"
+  rescue LoadError
+    nil
+  ensure
+    nil
+  end
+
+  def another_secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Config".to_string()));
+        assert!(!symbols.contains(&"another_secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_case_when_else_does_not_desync_visibility() {
+        // A `case`/`when`/`else`/`end` block, like `if`/`begin`, doesn't carry
+        // its own visibility state -- a `private` toggle set before it must
+        // still apply after the block's `end` closes it.
+        let src = r#"
+class Config
+  private
+
+  case RUBY_VERSION
+  when "3.0"
+    nil
+  else
+    nil
+  end
+
+  def another_secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Config".to_string()));
+        assert!(!symbols.contains(&"another_secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_oneliner_def_does_not_desync_visibility() {
+        // A one-liner `def quick; end` is self-contained (its `end` is on the
+        // same line) and must never push a block-nesting stack entry --
+        // otherwise a later unrelated `end` would incorrectly pop it.
+        let src = r#"
+class Foo
+  def quick; end
+
+  private
+
+  def secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(symbols.contains(&"quick".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_endless_method_does_not_desync_visibility() {
+        // A Ruby 3.0+ endless method (`def square(x) = x * x`) has no `end`
+        // at all -- it must not push a block-nesting stack entry, or a later
+        // unrelated `end` elsewhere in the class would incorrectly pop it and
+        // desync the visibility-restore chain.
+        let src = r#"
+class MathHelper
+  def square(x) = x * x
+
+  private
+
+  def secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"MathHelper".to_string()));
+        assert!(symbols.contains(&"square".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
     }
 }

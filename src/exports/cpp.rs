@@ -16,13 +16,24 @@ static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?
 static ACCESS_LABEL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[^\S\n]*(public|private|protected)[^\S\n]*:(.*)$").unwrap());
 
-/// Matches a `class`/`struct`/`union` header line, capturing the keyword so
-/// the caller can pick the section's default visibility (`class` is
-/// private by default, `struct`/`union` are public). Anchored to the line's
-/// first token so `enum class Channel { ... }` doesn't match (its first
+/// Matches a `class`/`struct`/`union` header line, capturing the keyword (group 1) so
+/// the caller can pick the section's default visibility (`class` is private by
+/// default, `struct`/`union` are public) and the type's own name (group 2) so
+/// constructor/destructor declarations inside its body can be recognized. Anchored to
+/// the line's first token so `enum class Channel { ... }` doesn't match (its first
 /// token is `enum`, handled separately by `CPP_TYPE`).
 static CLASS_HEADER: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[^\S\n]*(class|struct|union)\s+\w").unwrap());
+    LazyLock::new(|| Regex::new(r"^[^\S\n]*(class|struct|union)\s+(\w+)").unwrap());
+
+/// An anonymous namespace (`namespace { ... }` or `namespace` with the brace on the
+/// next line): its own name is absent, and — unlike a *named* namespace — every
+/// entity defined inside one has internal linkage, i.e. is private to this
+/// translation unit and never part of the public API, even though the members
+/// themselves may be written with no visibility label at all (namespaces don't have
+/// `public:`/`private:` sections). Anchored so a named namespace (`namespace Foo {`)
+/// never matches: the name token between `namespace` and `{`/EOL breaks the match.
+static ANON_NAMESPACE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*namespace(?:[^\S\n]*\{)?[^\S\n]*$").unwrap());
 
 /// C++ types: class, struct, union, enum, namespace. `enum class`/`enum
 /// struct` (scoped enums) are also recognized, capturing the enum's own
@@ -36,9 +47,16 @@ static CPP_TYPE: LazyLock<Regex> = LazyLock::new(|| {
 
 /// C++ top-level and method functions (which could include keywords, filtered in rust).
 /// Allows the trailing member-function qualifiers (`const`, `noexcept`,
-/// `override`, `final`) and/or a pure-virtual `= 0` specifier to appear
-/// between the closing `)` and the terminating `{`/`;`, in the order the
-/// C++ grammar requires them.
+/// `override`, `final`) and/or a pure-virtual/defaulted/deleted specifier (`= 0`,
+/// `= default`, `= delete`) to appear between the closing `)` and the terminating
+/// `{`/`;`, in the order the C++ grammar requires them. Also allows a trailing
+/// return type (`auto name(...) -> Type`) in the same trailing position.
+///
+/// The parameter list allows one level of nested parens (`(?:[^()]|\([^()]*\))*`)
+/// so a callback parameter of function-pointer type (e.g. `int register_callback(int
+/// (*cb)(int), void *ctx);`) doesn't break the match: a flat `[^)]*` parameter list
+/// stops at the callback's own closing `)`, leaving the real terminator unreachable
+/// from that position and silently dropping the entire declaration.
 ///
 /// The return-type/qualifier prefix uses `[^\S\n]+` (not `\s+`) between
 /// tokens so the match cannot bridge a newline: with a plain `\s+`, a
@@ -49,10 +67,30 @@ static CPP_TYPE: LazyLock<Regex> = LazyLock::new(|| {
 /// name (e.g. `fclose`) as an exported symbol.
 static CPP_FUNCTION: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*(?:[\w:*&<>~]+[^\S\n]+)+\*?(\w+)\s*\([^)]*\)\s*(?:const\s*)?(?:noexcept\s*)?(?:override\s*)?(?:final\s*)?(?:=\s*0\s*)?[{;]",
+        r"(?m)^[^\S\n]*(?:[\w:*&<>~]+[^\S\n]+)+\*?(\w+)\s*\((?:[^()]|\([^()]*\))*\)\s*(?:const\s*)?(?:noexcept\s*)?(?:override\s*)?(?:final\s*)?(?:=\s*(?:0|default|delete)\s*)?(?:->\s*[\w:*&<>,\s]+)?[{;]",
     )
     .unwrap()
 });
+
+/// Matches a constructor or destructor declaration/definition for a known enclosing
+/// class name, e.g. `Widget(int x);`, `~Widget();`, `Widget() = default;`. Unlike
+/// ordinary methods, special member functions have no return-type prefix at all — the
+/// class name itself fills that role — so `CPP_FUNCTION`'s "one-or-more
+/// word-then-space prefix before the name" shape structurally cannot match them
+/// (and deliberately shouldn't be loosened to allow a bare `name(args);` shape, since
+/// that would also start matching ordinary function-call statements with no return
+/// value, e.g. `doWork(x, y);`, as if they were declarations). Built as a dynamic
+/// regex keyed on the specific class name so only that class's own constructors and
+/// destructor are recognized, never an unrelated call to a same-named free function.
+fn ctor_dtor_name(line: &str, class_name: &str) -> Option<String> {
+    let pattern = format!(
+        r"^[^\S\n]*(~)?{}\s*\((?:[^()]|\([^()]*\))*\)\s*(?:const\s*)?(?:noexcept\s*)?(?:=\s*(?:default|delete)\s*)?[{{;]",
+        regex::escape(class_name)
+    );
+    let re = Regex::new(&pattern).ok()?;
+    let caps = re.captures(line)?;
+    Some(format!("{}{}", caps.get(1).map_or("", |_| "~"), class_name))
+}
 
 /// `CPP_FUNCTION`'s "one-or-more word-then-space" prefix is meant to match a
 /// return-type (and qualifiers like `static`/`const`) before a function name,
@@ -141,6 +179,11 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     // first so a forward declaration (`class Foo;`) doesn't leak into the
     // next unrelated brace.
     let mut pending_visibility: Option<Visibility> = None;
+    // Parallel stack to `brace_stack`: `Some(name)` for a brace opened by a
+    // class/struct/union header (so constructor/destructor declarations inside can be
+    // recognized against the enclosing type's own name), `None` for any other brace.
+    let mut class_name_stack: Vec<Option<String>> = Vec::new();
+    let mut pending_class_name: Option<String> = None;
 
     for line in stripped.split('\n') {
         let mut rest = line;
@@ -162,6 +205,7 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             .rev()
             .find_map(|scope| *scope)
             .unwrap_or(Visibility::Public);
+        let current_class_name = class_name_stack.iter().rev().find_map(|n| n.clone());
 
         for caps in CPP_TYPE.captures_iter(rest) {
             if let Some(name) = caps.get(1) {
@@ -188,21 +232,42 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             }
         }
 
+        if current_visibility == Visibility::Public
+            && let Some(class_name) = &current_class_name
+            && let Some(n) = ctor_dtor_name(rest, class_name)
+            && !symbols.contains(&n)
+        {
+            symbols.push(n);
+        }
+
         if let Some(caps) = CLASS_HEADER.captures(rest) {
             pending_visibility = Some(if &caps[1] == "class" {
                 Visibility::Hidden
             } else {
                 Visibility::Public
             });
+            pending_class_name = Some(caps[2].to_string());
+        } else if ANON_NAMESPACE.is_match(rest) {
+            // Internal-linkage scope: members defined inside have no visibility
+            // label of their own but must not be treated as part of the public API.
+            pending_visibility = Some(Visibility::Hidden);
+            pending_class_name = None;
         }
 
         for ch in rest.chars() {
             match ch {
-                '{' => brace_stack.push(pending_visibility.take()),
+                '{' => {
+                    brace_stack.push(pending_visibility.take());
+                    class_name_stack.push(pending_class_name.take());
+                }
                 '}' => {
                     brace_stack.pop();
+                    class_name_stack.pop();
                 }
-                ';' => pending_visibility = None,
+                ';' => {
+                    pending_visibility = None;
+                    pending_class_name = None;
+                }
                 _ => {}
             }
         }
@@ -388,5 +453,110 @@ public:
         let symbols = extract_exports(src);
         assert!(symbols.contains(&"Channel".to_string()));
         assert!(!symbols.contains(&"class".to_string()));
+    }
+
+    #[test]
+    fn test_constructor_and_destructor_captured() {
+        // Bug found via adversarial probing: constructors/destructors have no
+        // return-type prefix at all (the class name fills that role), so
+        // `CPP_FUNCTION`'s "one-or-more word-then-space prefix before the name" shape
+        // structurally could never match `Widget(int x);` or `~Widget();` -- every
+        // constructor and destructor in every public class silently vanished from the
+        // extracted API surface. Also covers `= default`/`= delete` special-member
+        // specifiers, which the old trailing-qualifier group didn't recognize either.
+        let src = r#"
+class Widget {
+public:
+    Widget(int x);
+    Widget();
+    ~Widget();
+    Widget(const Widget&) = default;
+    Widget& assignSelf() { return *this; }
+private:
+    Widget(double hidden);
+};
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Widget".to_string()));
+        assert!(
+            symbols.contains(&"~Widget".to_string()),
+            "expected destructor ~Widget in {symbols:?}"
+        );
+        assert!(symbols.contains(&"assignSelf".to_string()));
+    }
+
+    #[test]
+    fn test_trailing_return_type_arrow_syntax_captured() {
+        // Bug found via adversarial probing: trailing return type syntax (`auto
+        // name(...) -> Type`, common in modern C++11+ code, especially templates) put
+        // extra text after the closing `)` that none of the recognized trailing
+        // qualifiers (`const`/`noexcept`/`override`/`final`/`= 0`) matched, so the
+        // whole declaration failed and `compute` was dropped.
+        let src = r#"
+class Calculator {
+public:
+    auto compute(int a, int b) -> int;
+    auto name() const -> std::string;
+};
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"compute".to_string()),
+            "expected compute in {symbols:?}"
+        );
+        assert!(
+            symbols.contains(&"name".to_string()),
+            "expected name in {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_function_pointer_callback_parameter_not_dropped() {
+        // Bug found via adversarial probing, same class of bug as the C backend:
+        // `CPP_FUNCTION`'s parameter-list group was a flat `[^)]*`, which can never
+        // contain a `)`. A callback parameter of function-pointer type has its own
+        // closing `)` before the real parameter list ends, so the flat pattern
+        // stopped there and the terminator was unreachable -- the entire declaration
+        // silently failed to match.
+        let src = r#"
+int register_callback(int (*cb)(int), void *ctx);
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"register_callback".to_string()),
+            "expected register_callback in {symbols:?}"
+        );
+        assert!(!symbols.contains(&"cb".to_string()));
+    }
+
+    #[test]
+    fn test_anonymous_namespace_members_not_exported() {
+        // Bug found via adversarial probing: entities defined inside an anonymous
+        // namespace have internal linkage (private to the translation unit) even
+        // though the members carry no `private`/`protected` label of their own --
+        // namespaces don't have access-specifier sections. Previously an anonymous
+        // namespace's brace pushed `None` onto the visibility stack (the same as any
+        // other non-class brace), which inherits the *enclosing* visibility rather
+        // than hiding its own members, so a free function defined only for internal
+        // use inside `namespace { ... }` at file scope leaked out as if it were a
+        // public top-level function.
+        let src = r#"
+namespace {
+    void hiddenLinkage() {}
+}
+
+namespace utils {
+    void visibleHelper() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            !symbols.contains(&"hiddenLinkage".to_string()),
+            "anonymous namespace member must not be exported: {symbols:?}"
+        );
+        assert!(
+            symbols.contains(&"visibleHelper".to_string()),
+            "named namespace member must still be exported: {symbols:?}"
+        );
     }
 }

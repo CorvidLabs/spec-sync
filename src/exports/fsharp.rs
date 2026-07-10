@@ -84,6 +84,76 @@ static MODULE_INLINE_LET: LazyLock<Regex> = LazyLock::new(|| {
         .unwrap()
 });
 
+/// Same idea as `MODULE_INLINE_LET`, but for a `type` written inline after a one-liner
+/// module's own `=` instead of a `let` (e.g. `module Bar = type Foo = { X: int }`) --
+/// an equally valid, equally common one-liner shape that a single `let`-only pattern
+/// doesn't cover.
+static MODULE_INLINE_TYPE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\s*=\s*type\s+((?:(?:private|internal)\s+)*)([A-Za-z_][\w']*)").unwrap()
+});
+
+/// Same idea again, but for a *nested* one-liner module written inline after another
+/// one-liner module's `=` (e.g. `module A = module B = let x = 1`). Unlike
+/// `MODULE_INLINE_LET`/`MODULE_INLINE_TYPE`, this one is walked in a loop by
+/// `process_inline_chain` below so an arbitrarily deep chain of nested one-liner
+/// modules is fully unwound, not just a single level.
+static MODULE_INLINE_MODULE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\s*=\s*module\s+((?:(?:rec|private|internal)\s+)*)([A-Za-z_][\w'.]*)").unwrap()
+});
+
+/// Walks the remainder of a line after a one-liner module's own `=`, unwinding an
+/// arbitrarily deep chain of further nested one-liner modules (`module A = module B =
+/// module C = let x = 1`) until it bottoms out at an inline `let`/`type` member or the
+/// chain simply ends. `outer_exportable` is whether everything found here is reachable
+/// at all (the enclosing module chain so far is public); each nested module's own
+/// `private`/`internal` modifier narrows exportability for everything nested inside
+/// *it*, matching the non-inline (multi-line) module-nesting behavior below.
+fn process_inline_chain(remainder: &str, outer_exportable: bool, symbols: &mut Vec<String>) {
+    if let Some(caps) = MODULE_INLINE_MODULE.captures(remainder) {
+        let is_private = caps
+            .get(1)
+            .is_some_and(|m| has_private_modifier(m.as_str()));
+        if outer_exportable
+            && !is_private
+            && let Some(name) = caps.get(2)
+        {
+            push_symbol(symbols, name.as_str());
+        }
+        let inner_exportable = outer_exportable && !is_private;
+        process_inline_chain(
+            &remainder[caps.get(0).unwrap().end()..],
+            inner_exportable,
+            symbols,
+        );
+        return;
+    }
+
+    if let Some(caps) = MODULE_INLINE_LET.captures(remainder) {
+        let is_private = caps
+            .get(1)
+            .is_some_and(|m| has_private_modifier(m.as_str()));
+        if outer_exportable
+            && !is_private
+            && let Some(name) = caps.get(2)
+        {
+            push_symbol(symbols, name.as_str());
+        }
+        return;
+    }
+
+    if let Some(caps) = MODULE_INLINE_TYPE.captures(remainder) {
+        let is_private = caps
+            .get(1)
+            .is_some_and(|m| has_private_modifier(m.as_str()));
+        if outer_exportable
+            && !is_private
+            && let Some(name) = caps.get(2)
+        {
+            push_symbol(symbols, name.as_str());
+        }
+    }
+}
+
 /// True if the captured modifier blob contains an explicit `private`/`internal`.
 fn has_private_modifier(modifiers: &str) -> bool {
     modifiers
@@ -191,22 +261,16 @@ pub fn extract_exports(content: &str) -> Vec<String> {
                 push_symbol(&mut symbols, name.as_str());
             }
             let module_exportable = exportable && !is_private;
-            // A one-liner module body's inline member is exportable only if both the
-            // enclosing module is exportable AND the member itself isn't separately
-            // marked `private`/`internal` (e.g. `module Bar = let private x = 1`).
-            if let Some(inline_caps) =
-                MODULE_INLINE_LET.captures(&line[caps.get(0).unwrap().end()..])
-            {
-                let inline_is_private = inline_caps
-                    .get(1)
-                    .is_some_and(|m| has_private_modifier(m.as_str()));
-                if module_exportable
-                    && !inline_is_private
-                    && let Some(name) = inline_caps.get(2)
-                {
-                    push_symbol(&mut symbols, name.as_str());
-                }
-            }
+            // A one-liner module body's inline member (`let`, `type`, or an arbitrarily
+            // deep chain of further nested one-liner modules) is exportable only if both
+            // the enclosing module chain is exportable AND the member itself isn't
+            // separately marked `private`/`internal` (e.g. `module Bar = let private x =
+            // 1`) -- handled by `process_inline_chain`, see its doc comment.
+            process_inline_chain(
+                &line[caps.get(0).unwrap().end()..],
+                module_exportable,
+                &mut symbols,
+            );
             // A private/internal module hides everything nested under it too.
             scope_stack.push((indent, module_exportable));
         } else if let Some(caps) = TYPE_DECL.captures(line) {
@@ -640,6 +704,53 @@ let after = 2
             symbols,
             vec!["Bar".to_string(), "x".to_string(), "after".to_string()]
         );
+    }
+
+    #[test]
+    fn test_fsharp_oneliner_module_inline_type_exported() {
+        // Regression test: `MODULE_INLINE_LET` handled `module Bar = let x = 1` but a
+        // one-liner module's inline member is just as often a `type`
+        // (`module Bar = type Foo = { X: int }`), which was silently dropped entirely
+        // since no equivalent inline-`type` pattern existed.
+        let src = "module Bar = type Foo = { X: int }\n";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Bar".to_string()));
+        assert!(symbols.contains(&"Foo".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_fsharp_oneliner_module_inline_type_private_excluded() {
+        let src = "module Bar = type private Foo = { X: int }\n";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Bar".to_string()));
+        assert!(!symbols.contains(&"Foo".to_string()));
+    }
+
+    #[test]
+    fn test_fsharp_nested_oneliner_modules_all_captured() {
+        // Regression test: an arbitrarily deep chain of nested one-liner modules
+        // (`module A = module B = let x = 1`) previously only ever captured the
+        // outermost module (`A`) -- everything chained after its `=` (`B` and `x`) was
+        // silently dropped, since the single-level `MODULE_INLINE_LET` check only
+        // recognized an inline `let`/`type`, not another nested one-liner `module`.
+        let src = "module A = module B = let x = 1\n";
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec!["A".to_string(), "B".to_string(), "x".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_fsharp_nested_oneliner_modules_private_narrows_from_that_point() {
+        // A `private`/`internal` modifier partway through a nested one-liner module
+        // chain must hide everything nested inside *that* module (and anything chained
+        // after it), while the modules before it in the chain stay visible.
+        let src = "module A = module private B = let x = 1\n";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"A".to_string()));
+        assert!(!symbols.contains(&"B".to_string()));
+        assert!(!symbols.contains(&"x".to_string()));
     }
 
     #[test]

@@ -14,10 +14,18 @@ static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?
 /// Also recognizes `infix` and `operator` (idiomatic on operator-overload members like `plus`,
 /// `plusAssign`, `invoke`, `contains`, `set`, and on infix member functions) — without them the
 /// whole line previously failed to match, same class of bug as a missing `override`.
+/// Also recognizes `tailrec` (idiomatic on self-recursive functions optimized to a loop) —
+/// same class of bug: without it in the chain, a top-level `tailrec fun` failed to match at
+/// all and the entire declaration (not just the modifier) was silently dropped.
+/// The function/property's own generic type-parameter list (`fun <T> ...`) allows one level
+/// of nested angle brackets (`<(?:[^<>]|<[^<>]*>)*>`), not a flat `<[^>]+>`: a bounded type
+/// parameter like `<T : Comparable<T>>` (common on generic extension functions) has its own
+/// nested `<T>` closing before the list's real outer `>`, so a flat pattern stopped at the
+/// inner `>` and the whole declaration failed to match from that point on.
 /// Then exclude lines that start with private/internal/protected.
 static KT_DECL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*(?:(?:public|internal|private|protected)\s+)?(?:override\s+)?(?:suspend\s+)?(?:inline\s+)?(?:data\s+|sealed\s+|enum\s+|annotation\s+|abstract\s+|open\s+)?(?:const\s+)?(?:infix\s+)?(?:operator\s+)?(?:fun|class|object|interface|typealias|val|var)\s+(?:<[^>]+>\s+)?(?:[A-Za-z_]\w*(?:<[^>]*>)?\??\.)?(\w+)",
+        r"(?m)^[^\S\n]*(?:(?:public|internal|private|protected)\s+)?(?:override\s+)?(?:suspend\s+)?(?:inline\s+)?(?:tailrec\s+)?(?:data\s+|sealed\s+|enum\s+|annotation\s+|abstract\s+|open\s+)?(?:const\s+)?(?:infix\s+)?(?:operator\s+)?(?:fun|class|object|interface|typealias|val|var)\s+(?:<(?:[^<>]|<[^<>]*>)*>\s+)?(?:[A-Za-z_]\w*(?:<(?:[^<>]|<[^<>]*>)*>)?\??\.)?(\w+)",
     )
     .unwrap()
 });
@@ -363,5 +371,161 @@ fun main(args: Array<String>) {
 "#;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["main".to_string()]);
+    }
+
+    #[test]
+    fn test_kotlin_tailrec_function_captured() {
+        // Bug found via adversarial probing: `tailrec` was not part of the recognized
+        // modifier chain, so a top-level `tailrec fun` -- idiomatic for self-recursive
+        // functions the compiler optimizes into a loop -- failed to match at all and
+        // the entire declaration (not just the modifier) silently disappeared, same
+        // bug class as the earlier missing `override`/`infix`/`operator` findings.
+        let src = r#"
+tailrec fun factorial(n: Int, acc: Int = 1): Int =
+    if (n <= 1) acc else factorial(n - 1, n * acc)
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"factorial".to_string()),
+            "expected factorial in {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_kotlin_bounded_generic_extension_function_captured() {
+        // Bug found via adversarial probing: the function's own generic
+        // type-parameter list used a flat `<[^>]+>`, which can never contain a `>`. A
+        // bounded type parameter like `<T : Comparable<T>>` (common on generic
+        // extension functions) has its own nested `<T>` closing before the list's
+        // real outer `>`, so the flat pattern stopped there and the whole declaration
+        // -- including the extension function's real name -- failed to match.
+        let src = r#"
+fun <T : Comparable<T>> List<T>.secondLargest(): T? {
+    val sorted = this.sorted()
+    return sorted.getOrNull(sorted.size - 2)
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"secondLargest".to_string()),
+            "expected secondLargest in {symbols:?}"
+        );
+        assert!(
+            !symbols.contains(&"sorted".to_string()),
+            "local var inside extension fn body"
+        );
+    }
+
+    #[test]
+    fn test_kotlin_sealed_interface_hierarchy_captured() {
+        // Documents correct (already-working) behavior: `sealed interface` (Kotlin
+        // 1.5+) and a `data class` implementing it with an `override val` are
+        // captured the same as a `sealed class` hierarchy -- not previously
+        // exercised (existing tests only cover `sealed class`).
+        let src = r#"
+sealed interface Shape {
+    val area: Double
+}
+
+data class Circle(override val area: Double, val radius: Double) : Shape
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Shape".to_string()));
+        assert!(symbols.contains(&"area".to_string()));
+        assert!(symbols.contains(&"Circle".to_string()));
+    }
+
+    #[test]
+    fn test_kotlin_nested_sealed_subclasses_captured() {
+        // Documents correct (already-working) behavior: `data class` variants nested
+        // directly inside a generic `sealed class` body (the idiomatic
+        // `Result<T>`/`Success`/`Failure` pattern) are captured as type-body members,
+        // same mechanism as any other class member.
+        let src = r#"
+sealed class Result<out T> {
+    data class Success<out T>(val value: T) : Result<T>()
+    data class Failure(val error: String) : Result<Nothing>()
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Result".to_string()));
+        assert!(symbols.contains(&"Success".to_string()));
+        assert!(symbols.contains(&"Failure".to_string()));
+    }
+
+    #[test]
+    fn test_kotlin_companion_object_member_exported_but_name_is_not() {
+        // Documents intentional, already-implemented behavior: a companion object's
+        // own name is deliberately excluded ("Skip companion objects (they're not
+        // standalone exports)" in the code), while its members are real accessible
+        // API (`Registry.create()`) and must still be captured via the type-body
+        // scope mechanism. Not previously exercised with a *named* usage pattern.
+        let src = r#"
+object Registry {
+    companion object {
+        fun create(): Registry = Registry
+    }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Registry".to_string()));
+        assert!(
+            symbols.contains(&"create".to_string()),
+            "expected create in {symbols:?}"
+        );
+        assert!(!symbols.contains(&"companion".to_string()));
+    }
+
+    #[test]
+    fn test_kotlin_property_with_restricted_setter_still_exported() {
+        // Documents correct (already-working) behavior: `private set`/`internal set`
+        // restricts only the setter -- the property itself (and its getter) is still
+        // public when the property's own declaration carries no visibility modifier,
+        // so the property name must still be captured. Not previously exercised.
+        let src = r#"
+class Counter {
+    var count: Int = 0
+        private set
+
+    var label: String = "x"
+        internal set
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"count".to_string()),
+            "expected count in {symbols:?}"
+        );
+        assert!(
+            symbols.contains(&"label".to_string()),
+            "expected label in {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_kotlin_internal_and_protected_open_members_excluded() {
+        // Documents correct (already-working) behavior: `internal open fun` and
+        // `protected open fun` are both non-public visibility combined with `open`
+        // (member can be overridden but isn't part of the public surface) and must
+        // stay excluded, same as any other `internal`/`protected` declaration. Not
+        // previously exercised combined with `open`.
+        let src = r#"
+class Base {
+    internal open fun hook() {}
+    protected open fun protectedHook() {}
+    open fun publicHook() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Base".to_string()));
+        assert!(symbols.contains(&"publicHook".to_string()));
+        assert!(
+            !symbols.contains(&"hook".to_string()),
+            "internal open fun: {symbols:?}"
+        );
+        assert!(
+            !symbols.contains(&"protectedHook".to_string()),
+            "protected open fun: {symbols:?}"
+        );
     }
 }

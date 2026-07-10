@@ -71,6 +71,21 @@ static CS_INTERFACE_MEMBER: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
+/// Matches ANY class/struct/interface/enum/record header, regardless of its own access
+/// modifier (or lack of one), so the caller can track type-nesting visibility. Unlike
+/// `CS_TYPE` (which requires a literal `public` and is used to decide what's exported),
+/// this exists purely to notice when a body belongs to a non-public (default/
+/// `internal`/`private`/`protected`) type, since C# has no concept of a member being
+/// "more public" than its own containing type: a `public` member or nested type
+/// declared inside an `internal`/`private` type is not actually reachable from outside
+/// the assembly/type, no matter what its own modifier says.
+static CS_TYPE_HEADER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?m)^[^\S\n]*(?:(?P<vis>public|internal|private|protected)\s+)?(?:(?:static|partial|sealed|abstract)\s+)*(?:class|struct|interface|enum|record)\s+\w+",
+    )
+    .unwrap()
+});
+
 /// Returns the byte index of the `}` that matches the `{` at `open_pos`, counting
 /// nested brace depth. `open_pos` must point at a `{` byte.
 fn find_matching_brace(bytes: &[u8], open_pos: usize) -> Option<usize> {
@@ -90,21 +105,85 @@ fn find_matching_brace(bytes: &[u8], open_pos: usize) -> Option<usize> {
     None
 }
 
+/// For every line, whether declarations directly inside the type-nesting chain active
+/// at that line sit within an entirely-public chain of enclosing types (or are at top
+/// level, which is trivially public). A type only stays "in chain" via its own header
+/// line's access modifier: anything other than a literal `public` (the default,
+/// `internal`, `private`, or `protected`) breaks the chain for everything nested
+/// inside, regardless of that nested content's own modifiers — a `public` method or
+/// nested type declared inside an `internal`/`private` class is not actually reachable
+/// from outside, no matter what its own line says.
+///
+/// Returns (per-line effective-public flags, byte offset each line starts at) so a
+/// regex match's start offset can be mapped back to "was this line's nesting chain
+/// fully public".
+fn compute_line_effective_public(stripped: &str) -> (Vec<bool>, Vec<usize>) {
+    let mut line_effective = Vec::new();
+    let mut line_starts = Vec::new();
+    let mut stack: Vec<bool> = Vec::new();
+    let mut pending: Option<bool> = None;
+    let mut offset = 0usize;
+
+    for line in stripped.split_inclusive('\n') {
+        let line_no_nl = line.strip_suffix('\n').unwrap_or(line);
+        line_starts.push(offset);
+        offset += line.len();
+
+        let effective_now = stack.last().copied().unwrap_or(true);
+        line_effective.push(effective_now);
+
+        if let Some(caps) = CS_TYPE_HEADER.captures(line_no_nl) {
+            let is_public_here = caps.name("vis").map(|m| m.as_str()) == Some("public");
+            pending = Some(is_public_here && effective_now);
+        }
+
+        for ch in line_no_nl.chars() {
+            match ch {
+                '{' => stack.push(pending.take().unwrap_or(effective_now)),
+                '}' => {
+                    stack.pop();
+                }
+                ';' => pending = None,
+                _ => {}
+            }
+        }
+    }
+
+    (line_effective, line_starts)
+}
+
+/// Looks up the effective-public flag for the line containing byte `offset`.
+fn effective_public_at(offset: usize, line_effective: &[bool], line_starts: &[usize]) -> bool {
+    let line_idx = match line_starts.binary_search(&offset) {
+        Ok(i) => i,
+        Err(i) => i.saturating_sub(1),
+    };
+    line_effective.get(line_idx).copied().unwrap_or(true)
+}
+
 /// Extract public symbols from C# source code.
 pub fn extract_exports(content: &str) -> Vec<String> {
     let stripped = COMMENT_SINGLE.replace_all(content, "");
     let stripped = COMMENT_MULTI.replace_all(&stripped, "");
 
+    let (line_effective, line_starts) = compute_line_effective_public(&stripped);
+    let is_effective_public =
+        |start: usize| effective_public_at(start, &line_effective, &line_starts);
+
     let mut symbols = Vec::new();
 
     for caps in CS_TYPE.captures_iter(&stripped) {
-        if let Some(name) = caps.get(1) {
+        if let Some(name) = caps.get(1)
+            && is_effective_public(caps.get(0).unwrap().start())
+        {
             symbols.push(name.as_str().to_string());
         }
     }
 
     for caps in CS_DELEGATE.captures_iter(&stripped) {
-        if let Some(name) = caps.get(1) {
+        if let Some(name) = caps.get(1)
+            && is_effective_public(caps.get(0).unwrap().start())
+        {
             let n = name.as_str().to_string();
             if !symbols.contains(&n) {
                 symbols.push(n);
@@ -113,7 +192,9 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     }
 
     for caps in CS_MEMBER.captures_iter(&stripped) {
-        if let Some(name) = caps.get(1) {
+        if let Some(name) = caps.get(1)
+            && is_effective_public(caps.get(0).unwrap().start())
+        {
             let n = name.as_str().to_string();
             if !symbols.contains(&n) {
                 symbols.push(n);
@@ -122,9 +203,15 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     }
 
     // Interface members are implicitly public and never carry their own `public`
-    // keyword, so scan each interface's body separately from CS_MEMBER.
+    // keyword, so scan each interface's body separately from CS_MEMBER. Only walk
+    // interfaces whose own header line is itself reachable from a fully-public chain
+    // -- a `public` interface nested inside an `internal`/`private` type is no more
+    // reachable than a `public` method would be in the same position.
     let bytes = stripped.as_bytes();
     for m in CS_INTERFACE_START.find_iter(&stripped) {
+        if !is_effective_public(m.start()) {
+            continue;
+        }
         let after = m.end();
         if let Some(rel_open) = stripped[after..].find('{') {
             let open_pos = after + rel_open;
@@ -507,5 +594,74 @@ public abstract class Repository {
         // `_cadence` and `_speed` are private/default-visibility fields.
         assert!(!symbols.contains(&"_cadence".to_string()));
         assert!(!symbols.contains(&"_speed".to_string()));
+    }
+
+    #[test]
+    fn test_csharp_members_of_internal_class_not_exported() {
+        // Bug found via adversarial probing: C# had no concept of type-nesting
+        // visibility at all -- CS_TYPE/CS_MEMBER only checked whether the literal
+        // word `public` appeared on the *member's own* line, never whether the
+        // enclosing type itself was reachable. A `public` method or nested `public`
+        // enum declared inside a non-public (default/`internal`/`private`/
+        // `protected`) class is not actually part of the assembly's public surface --
+        // outside code can't even name the containing type to reach them -- yet both
+        // leaked out as exported.
+        let src = r#"
+internal class Hidden {
+    public void Leak() {}
+    public enum Status { A, B }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(!symbols.contains(&"Hidden".to_string()));
+        assert!(
+            !symbols.contains(&"Leak".to_string()),
+            "method of an internal class must not be exported: {symbols:?}"
+        );
+        assert!(
+            !symbols.contains(&"Status".to_string()),
+            "nested public enum inside an internal class must not be exported: {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_csharp_nested_private_class_members_not_exported() {
+        // Same bug class as above, one level deeper: a `private` nested class inside
+        // an otherwise fully-public outer class also breaks the chain for its own
+        // members, even though every individual line involved says `public`.
+        let src = r#"
+public class Outer {
+    private class Inner {
+        public void AlsoLeak() {}
+    }
+    public void VisibleMethod() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Outer".to_string()));
+        assert!(symbols.contains(&"VisibleMethod".to_string()));
+        assert!(
+            !symbols.contains(&"AlsoLeak".to_string()),
+            "method of a private nested class must not be exported: {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_csharp_generic_class_with_where_clause_and_attribute() {
+        // Documents correct (already-working) behavior: a `[Serializable]`-style
+        // attribute line immediately preceding a class header doesn't interfere with
+        // CS_TYPE_HEADER's nesting tracking, and a generic class constrained with a
+        // `where` clause is captured the same as a non-generic one -- exercising
+        // real-world syntax breadth for the type-nesting fix above, not previously
+        // covered for *classes* (only for interfaces).
+        let src = r#"
+[Serializable]
+public class Repo<TEntity> where TEntity : class {
+    public TEntity Find(int id) => default;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Repo".to_string()));
+        assert!(symbols.contains(&"Find".to_string()));
     }
 }

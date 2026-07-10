@@ -132,6 +132,20 @@ static ROXYGEN_TAGGED_DECL: LazyLock<Regex> = LazyLock::new(|| {
         .unwrap()
 });
 
+/// Same idea as `ROXYGEN_TAGGED_DECL`, but for R's S4 object system, which declares a
+/// generic/class/method by *calling* `setGeneric`/`setClass`/`setRefClass` with the
+/// name as its first (quoted) argument, rather than via a `name <- function(...)`
+/// assignment. This is a common, idiomatic real-world pattern (the Bioconductor
+/// ecosystem in particular is heavily S4-based) that the assignment-only pattern above
+/// doesn't fit at all -- an S4 generic with an explicit `#' @export` tag was previously
+/// silently dropped outright.
+static ROXYGEN_TAGGED_S4_DECL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?m)^((?:#'[^\n]*\n)+)(?:setGeneric|setClass|setRefClass)\s*\(\s*["']([.\w]+)["']"#,
+    )
+    .unwrap()
+});
+
 /// Fallback (no `@export` tags anywhere in the file): top-level function
 /// assignment via `<-` or `=`, to either `function(...)` or the `\(...)`
 /// lambda shorthand. Anchored at the start of a line so indented (nested)
@@ -150,8 +164,15 @@ static TOP_LEVEL_FUNCTION_DECL: LazyLock<Regex> = LazyLock::new(|| {
 /// naming convention: top-level function assignments are public unless
 /// their name starts with `.`, which conventionally marks them internal.
 pub fn extract_exports(content: &str) -> Vec<String> {
-    let stripped = strip_raw_strings(content);
-    let stripped = STRING_LITERAL.replace_all(&stripped, "");
+    let raw_stripped = strip_raw_strings(content);
+    // The S4 declaration forms (`setGeneric("name", ...)` etc.) need their quoted
+    // name *argument* to survive, so they're matched against `raw_stripped` --
+    // before the blanket string-literal stripping below, which exists to protect
+    // the *other* patterns (a `name <- function(...)` assignment never has its own
+    // name inside a string) from being confused by unrelated string content
+    // elsewhere in the file, but would just as surely destroy the one piece of
+    // text the S4 patterns actually need to read.
+    let stripped = STRING_LITERAL.replace_all(&raw_stripped, "");
 
     if EXPORT_TAG_LINE.is_match(&stripped) {
         let mut symbols: Vec<String> = Vec::new();
@@ -162,6 +183,18 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             }
             if let Some(name) = caps.get(2) {
                 let n = name.as_str().trim_matches('`').to_string();
+                if !symbols.contains(&n) {
+                    symbols.push(n);
+                }
+            }
+        }
+        for caps in ROXYGEN_TAGGED_S4_DECL.captures_iter(&raw_stripped) {
+            let block = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+            if !EXPORT_TAG_LINE.is_match(block) {
+                continue;
+            }
+            if let Some(name) = caps.get(2) {
+                let n = name.as_str().to_string();
                 if !symbols.contains(&n) {
                     symbols.push(n);
                 }
@@ -231,6 +264,52 @@ also_public_looking <- function() {
 "#;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec![".weirdly_named"]);
+    }
+
+    #[test]
+    fn test_r_s4_setgeneric_with_export_tag_captured() {
+        // Regression test: R's S4 object system declares a generic/class/method by
+        // *calling* `setGeneric`/`setClass`/`setRefClass` with the name as its first
+        // quoted argument, not via a `name <- function(...)` assignment. This is a
+        // common real-world pattern (heavily used in Bioconductor-style packages) that
+        // was previously silently dropped entirely, even with an explicit `@export` tag.
+        let src = r#"
+#' My generic
+#' @export
+setGeneric("myMethod", function(x) standardGeneric("myMethod"))
+
+#' My class
+#' @export
+setClass("MyClass", representation(x = "numeric"))
+
+#' Not tagged
+setGeneric("internalOnly", function(x) standardGeneric("internalOnly"))
+
+#' Plain function
+#' @export
+myFunc <- function(x) x
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"myMethod".to_string()));
+        assert!(symbols.contains(&"MyClass".to_string()));
+        assert!(symbols.contains(&"myFunc".to_string()));
+        assert!(!symbols.contains(&"internalOnly".to_string()));
+    }
+
+    #[test]
+    fn test_r_s4_setgeneric_without_export_tag_not_exported_by_convention() {
+        // Unlike a plain `name <- function(...)` assignment, an S4 declaration with
+        // no `@export` tag at all (or only an unrelated tag like `@exportClass`) is
+        // NOT exported by naming convention -- established behavior (see
+        // `test_export_tag_variant_like_export_class_is_not_treated_as_export` above),
+        // matching real-world R practice where S4 class/generic registrations are
+        // often internal implementation details even when undocumented.
+        let src = r#"
+setGeneric("publicLooking", function(x) standardGeneric("publicLooking"))
+regularFunc <- function(x) x
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["regularFunc".to_string()]);
     }
 
     #[test]

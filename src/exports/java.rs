@@ -31,7 +31,16 @@ static JAVA_TYPE_HEADER: LazyLock<Regex> = LazyLock::new(|| {
 /// before `static` — is equally valid to the canonical `public static synchronized`, but
 /// a hardcoded fixed order previously rejected anything other than the one sequence it
 /// hardcoded).
-const JAVA_MEMBER_TAIL: &str = r"(?:(?:static|final|default|synchronized|abstract|native|strictfp)\s+)*(?:<[^>]+>\s+)?(?:\w+(?:<[^>]*>)?(?:\[\])*)\s+(\w+)\s*[({;=]";
+///
+/// The leading generic-method type-parameter list allows one level of nested angle
+/// brackets (`<(?:[^<>]|<[^<>]*>)*>`), not a flat `<[^>]+>`: a bounded type parameter
+/// like `<T extends Comparable<T>>` (an extremely common generic-method idiom) has its
+/// own nested `<T>` closing before the parameter list's real `>`, so a flat pattern
+/// stopped at that inner `>` and left the trailing mandatory `\s+` unable to match
+/// (the next character is the *outer* `>`, not whitespace) -- backtracking then
+/// dropped the optional group entirely, but the following return-type group can't
+/// start with `<` either, so the whole member declaration silently failed to match.
+const JAVA_MEMBER_TAIL: &str = r"(?:(?:static|final|default|synchronized|abstract|native|strictfp)\s+)*(?:<(?:[^<>]|<[^<>]*>)*>\s+)?(?:\w+(?:<[^>]*>)?(?:\[\])*)\s+(\w+)\s*[({;=]";
 
 /// Java public methods and fields (explicit `public` keyword required).
 static JAVA_MEMBER: LazyLock<Regex> =
@@ -526,6 +535,93 @@ public class Config {
         assert!(
             symbols.contains(&"VERSION".to_string()),
             "public final static (reversed order): {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_java_bounded_generic_method_type_parameter_captured() {
+        // Bug found via adversarial probing: `JAVA_MEMBER_TAIL`'s generic-method
+        // type-parameter group was a flat `<[^>]+>`, which can never contain a `>`. A
+        // bounded type parameter like `<T extends Comparable<T>>` (a common generic-
+        // method idiom, e.g. `Collections.max`-style signatures) has its own nested
+        // `<T>` closing before the parameter list's real outer `>`, so the flat
+        // pattern stopped at the inner `>`, leaving the mandatory trailing whitespace
+        // unmatched at that position; the whole optional group was then dropped by
+        // backtracking, but the following return-type group can't start with `<`
+        // either, so the entire member declaration silently failed to match and
+        // `max` was dropped.
+        let src = r#"
+public class Generics {
+    public <T extends Comparable<T>> T max(T a, T b) { return a; }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Generics".to_string()));
+        assert!(
+            symbols.contains(&"max".to_string()),
+            "expected max in {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_java_public_method_inside_package_private_class_still_exported() {
+        // Documents established, intentional behavior (matching the precedent set by
+        // `test_java_learnxinyminutes_bicycle_class`, whose top-level `class Bicycle`
+        // also carries no `public` modifier): this backend deliberately keys
+        // exportedness off a member's *own* modifier, not full reachability through
+        // every enclosing type. A package-private top-level class's `public` members
+        // (and any `public` nested type within it) are still reported as exported.
+        // This is a deliberate simplification, not a gap -- flipping it would
+        // contradict the already-accepted Bicycle-class behavior.
+        let src = r#"
+class PackagePrivateOuter {
+    public void doWork() {}
+    public static class NestedPublic {
+        public void helper() {}
+    }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"doWork".to_string()));
+        assert!(symbols.contains(&"NestedPublic".to_string()));
+        assert!(symbols.contains(&"helper".to_string()));
+    }
+
+    #[test]
+    fn test_java_public_method_inside_private_nested_class_still_exported() {
+        // Same documented convention as above, one level deeper: a `private` nested
+        // class's own `public` members are still reported as exported, consistent
+        // with member-level modifiers being authoritative throughout this backend.
+        let src = r#"
+public class Outer {
+    private static class Helper {
+        public void helperMethod() {}
+    }
+    public void visibleMethod() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Outer".to_string()));
+        assert!(symbols.contains(&"visibleMethod".to_string()));
+        assert!(symbols.contains(&"helperMethod".to_string()));
+    }
+
+    #[test]
+    fn test_java_public_method_inside_enum_body_captured() {
+        // Not previously exercised: a `public` method declared directly in an enum's
+        // body (after the constant list) is an ordinary member declaration and must
+        // be captured the same as inside a class.
+        let src = r#"
+public enum Status {
+    ACTIVE, INACTIVE;
+    public String label() { return name(); }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Status".to_string()));
+        assert!(
+            symbols.contains(&"label".to_string()),
+            "expected label in {symbols:?}"
         );
     }
 }

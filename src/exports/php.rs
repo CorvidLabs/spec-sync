@@ -8,9 +8,14 @@ static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?
 static COMMENT_HASH: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)#[^\[].*$").unwrap());
 
 /// PHP public type declarations: class, interface, trait, enum
+///
+/// `(?i)` makes the keyword literals case-insensitive to match PHP's own
+/// case-insensitive keyword rules (e.g. `CLASS Foo {}` and `Class Foo {}`
+/// are both valid PHP); the captured name in group 1 still preserves its
+/// original source casing since only literal keyword matching is affected.
 static PHP_TYPE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*(?:abstract\s+|final\s+)?(?:readonly\s+)?(?:class|interface|trait|enum)\s+(\w+)",
+        r"(?im)^[^\S\n]*(?:abstract\s+|final\s+)?(?:readonly\s+)?(?:class|interface|trait|enum)\s+(\w+)",
     )
     .unwrap()
 });
@@ -26,28 +31,36 @@ const PHP_MODIFIER: &str = r"(?:abstract|final|public|private|protected|static|r
 /// the full leading modifier run (group 1) so callers can inspect it for
 /// private/protected regardless of where public/static/abstract/final sit relative
 /// to it, and the function name (group 2).
+///
+/// `(?i)` makes the modifier and `function` keyword literals case-insensitive
+/// (PHP keywords are case-insensitive, so `PUBLIC FUNCTION bar()` is valid PHP);
+/// the captured modifier run and function name preserve their original casing.
 static PHP_FUNCTION: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(
-        r"(?m)^[^\S\n]*((?:{PHP_MODIFIER}\s+)*)function\s+(\w+)"
+        r"(?im)^[^\S\n]*((?:{PHP_MODIFIER}\s+)*)function\s+(\w+)"
     ))
     .unwrap()
 });
 
 /// PHP const declarations at class or top level. Captures the full leading modifier
 /// run (group 1) and the constant name (group 2); see `PHP_FUNCTION` for why the
-/// modifier run is captured as a whole rather than matched in a fixed order.
+/// modifier run is captured as a whole rather than matched in a fixed order, and
+/// for why the keyword literals are matched case-insensitively via `(?i)`.
 static PHP_CONST: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(
-        r"(?m)^[^\S\n]*((?:{PHP_MODIFIER}\s+)*)const\s+(\w+)"
+        r"(?im)^[^\S\n]*((?:{PHP_MODIFIER}\s+)*)const\s+(\w+)"
     ))
     .unwrap()
 });
 
-/// True if a captured modifier run contains `private` or `protected`.
+/// True if a captured modifier run contains `private` or `protected`. PHP
+/// modifier keywords are case-insensitive (e.g. `PRIVATE function hidden()`),
+/// so each token is compared ASCII-case-insensitively rather than by exact
+/// equality.
 fn has_non_public_modifier(modifiers: &str) -> bool {
     modifiers
         .split_whitespace()
-        .any(|m| m == "private" || m == "protected")
+        .any(|m| m.eq_ignore_ascii_case("private") || m.eq_ignore_ascii_case("protected"))
 }
 
 /// Extract public symbols from PHP source code.
@@ -435,5 +448,158 @@ final class Point {
         // must not be spuriously picked up as top-level symbols.
         assert!(!symbols.contains(&"x".to_string()));
         assert!(!symbols.contains(&"y".to_string()));
+    }
+
+    /// Regression test for a bug where PHP_TYPE/PHP_FUNCTION/PHP_CONST only
+    /// matched lowercase keyword literals even though PHP keywords are
+    /// case-insensitive. Before the `(?i)` fix, `CLASS Foo { PUBLIC FUNCTION
+    /// bar() {} PRIVATE FUNCTION hidden() {} }` produced an empty symbol
+    /// list: neither "CLASS" nor "FUNCTION" matched the all-lowercase
+    /// regexes, so every declaration silently vanished (not just failed to
+    /// be excluded, but was dropped from the output entirely). This test
+    /// would have failed outright (empty/missing results) on the buggy
+    /// code and catches any future regression that reintroduces
+    /// case-sensitive keyword matching.
+    #[test]
+    fn test_php_case_insensitive_keywords() {
+        let src = r#"<?php
+CLASS Foo {
+    PUBLIC FUNCTION bar() {}
+    PRIVATE FUNCTION hidden() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(symbols.contains(&"bar".to_string()));
+        assert!(!symbols.contains(&"hidden".to_string()));
+    }
+
+    /// Companion to `test_php_case_insensitive_keywords`, exercising mixed
+    /// (not just all-caps) casing on `const` and modifier keywords, plus a
+    /// case-varied `readonly`/`final` type declaration. Also guards the
+    /// `has_non_public_modifier` string comparison: before the fix it used
+    /// exact `==` against lowercase literals, so `Protected` or `PRIVATE`
+    /// modifiers would fail to be recognized as non-public and the member
+    /// would have leaked into the export list instead of being excluded
+    /// (the opposite failure mode from the dropped-entirely case above).
+    #[test]
+    fn test_php_case_insensitive_const_and_modifiers() {
+        let src = r#"<?php
+Final Readonly Class Money {
+    Public Const CURRENCY = 'USD';
+    Protected Const INTERNAL_RATE = 1;
+    PRIVATE CONST SECRET = 'x';
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Money".to_string()));
+        assert!(symbols.contains(&"CURRENCY".to_string()));
+        assert!(!symbols.contains(&"INTERNAL_RATE".to_string()));
+        assert!(!symbols.contains(&"SECRET".to_string()));
+    }
+
+    /// Anonymous classes (`new class extends Foo implements Bar {}`) must
+    /// never leak `extends`/`implements` targets, or the `class`/`extends`
+    /// keywords themselves, as bogus type names. The `class` keyword here
+    /// is preceded by `new` on the same line, so it never lands at the
+    /// line-start position PHP_TYPE requires and is correctly skipped
+    /// entirely; only the real named function inside the anonymous class
+    /// body should surface.
+    #[test]
+    fn test_php_anonymous_class_no_bogus_type_name() {
+        let src = r#"<?php
+function makeLogger(): LoggerInterface {
+    return new class extends BaseLogger implements LoggerInterface {
+        public function log(string $msg): void {
+            echo $msg;
+        }
+    };
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"makeLogger".to_string()));
+        assert!(symbols.contains(&"log".to_string()));
+        assert!(!symbols.contains(&"extends".to_string()));
+        assert!(!symbols.contains(&"implements".to_string()));
+        assert!(!symbols.contains(&"BaseLogger".to_string()));
+        assert!(!symbols.contains(&"LoggerInterface".to_string()));
+    }
+
+    /// Inline closures (`function ($x) {...}`) and arrow functions
+    /// (`fn($x) => ...`) assigned to a variable must not be treated as
+    /// named public declarations: PHP_FUNCTION requires `function` (or,
+    /// deliberately, never matches `fn`) to be followed by whitespace and
+    /// then an identifier, and an anonymous `function (` has no identifier
+    /// there, so it cannot match. The assigned variable names must not
+    /// leak in either.
+    #[test]
+    fn test_php_closures_and_arrow_functions_not_captured() {
+        let src = r#"<?php
+class Calculator {
+    public function build(): callable {
+        $add = function ($x, $y) {
+            return $x + $y;
+        };
+        $inc = fn($x) => $x + 1;
+        return $add;
+    }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Calculator".to_string()));
+        assert!(symbols.contains(&"build".to_string()));
+        assert!(!symbols.contains(&"add".to_string()));
+        assert!(!symbols.contains(&"inc".to_string()));
+        assert!(!symbols.contains(&"x".to_string()));
+        assert!(!symbols.contains(&"y".to_string()));
+        assert!(!symbols.contains(&"fn".to_string()));
+    }
+
+    /// PHP 8.2 allows combining `final` and `readonly` on a class
+    /// declaration (`final readonly class Foo`). PHP_TYPE's optional
+    /// `abstract|final` then optional `readonly` prefix groups must both
+    /// apply together, not just individually, for the class name to be
+    /// captured.
+    #[test]
+    fn test_php_final_readonly_class_combo() {
+        let src = r#"<?php
+final readonly class ImmutablePoint {
+    public function __construct(
+        public float $x,
+        public float $y,
+    ) {}
+
+    public function distanceFromOrigin(): float {
+        return sqrt($this->x ** 2 + $this->y ** 2);
+    }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"ImmutablePoint".to_string()));
+        assert!(symbols.contains(&"distanceFromOrigin".to_string()));
+        assert!(!symbols.contains(&"__construct".to_string()));
+    }
+
+    /// `define('FOO', 1)` is a runtime function call, not a `const`
+    /// declaration, and must intentionally not be captured as one:
+    /// PHP_CONST only matches the literal `const` keyword, and `define`
+    /// is a different identifier entirely, so no match should ever occur
+    /// regardless of arguments or casing.
+    #[test]
+    fn test_php_define_call_not_captured_as_const() {
+        let src = r#"<?php
+define('FOO', 1);
+DEFINE('BAR', 2);
+
+class Config {
+    public const REAL_CONST = 3;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Config".to_string()));
+        assert!(symbols.contains(&"REAL_CONST".to_string()));
+        assert!(!symbols.contains(&"FOO".to_string()));
+        assert!(!symbols.contains(&"BAR".to_string()));
+        assert!(!symbols.contains(&"define".to_string()));
     }
 }

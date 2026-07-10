@@ -222,10 +222,10 @@ fn handle_export_equals(node: &tree_sitter::Node, src: &[u8], symbols: &mut Vec<
             | "function_expression"
             | "generator_function"
             | "arrow_function" => {
-                if let Some(name) = get_child_by_field(&child, "name", src) {
-                    if !name.is_empty() {
-                        symbols.push(name);
-                    }
+                if let Some(name) = get_child_by_field(&child, "name", src)
+                    && !name.is_empty()
+                {
+                    symbols.push(name);
                 }
                 return;
             }

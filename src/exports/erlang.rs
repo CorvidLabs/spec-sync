@@ -51,10 +51,10 @@ pub fn extract_exports(content: &str) -> Vec<String> {
                 .get(1)
                 .or_else(|| caps.get(2))
                 .map(|m| m.as_str().to_string());
-            if let Some(n) = name {
-                if !symbols.contains(&n) {
-                    symbols.push(n);
-                }
+            if let Some(n) = name
+                && !symbols.contains(&n)
+            {
+                symbols.push(n);
             }
         }
     }

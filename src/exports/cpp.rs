@@ -92,10 +92,9 @@ pub fn extract_exports(content: &str) -> Vec<String> {
                 if !full_match.contains("static")
                     && !full_match.contains("private:")
                     && !full_match.contains("protected:")
+                    && !symbols.contains(&n)
                 {
-                    if !symbols.contains(&n) {
-                        symbols.push(n);
-                    }
+                    symbols.push(n);
                 }
             }
         }

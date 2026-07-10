@@ -37,10 +37,8 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     for child in root.children(&mut cursor) {
         match child.kind() {
             "export_attribute" => collect_export_funs(&child, src, &mut symbols),
-            "compile_options_attribute" => {
-                if compile_options_has_export_all(&child, src) {
-                    export_all = true;
-                }
+            "compile_options_attribute" if compile_options_has_export_all(&child, src) => {
+                export_all = true;
             }
             _ => {}
         }

@@ -100,10 +100,8 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             let n = name.as_str().to_string();
             if !keywords.contains(n.as_str()) {
                 let full_match = caps.get(0).unwrap().as_str();
-                if !full_match.contains("static") {
-                    if !symbols.contains(&n) {
-                        symbols.push(n);
-                    }
+                if !full_match.contains("static") && !symbols.contains(&n) {
+                    symbols.push(n);
                 }
             }
         }

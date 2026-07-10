@@ -33,6 +33,7 @@ static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?
 /// Stripped before comment removal (rather than after) so a URL-shaped string like
 /// `@"http://example.com"` — which contains `//` — can't be misread as starting a `//`
 /// comment either.
+#[allow(clippy::doc_lazy_continuation)]
 static STRING_LITERAL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"@?"(?:[^"\\\n]|\\.)*""#).unwrap());
 
@@ -118,6 +119,7 @@ static PAREN_GROUP: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\([^()]*\)")
 /// String literals (`@"..."` and `"..."`) are stripped up front, alongside comments —
 /// see `STRING_LITERAL` for why: log/documentation text that happens to mention
 /// `@interface`/`@end` as plain words would otherwise be misread as real directives.
+#[allow(clippy::doc_lazy_continuation)]
 pub fn extract_exports(content: &str) -> Vec<String> {
     let stripped = STRING_LITERAL.replace_all(content, "");
     let stripped = COMMENT_SINGLE.replace_all(&stripped, "");
@@ -188,9 +190,7 @@ fn extract_block_methods(block: &str) -> Vec<String> {
     let mut out = Vec::new();
     for m in METHOD_HEADER.find_iter(block) {
         let rest = &block[m.end()..];
-        let sig_end = rest
-            .find(|c: char| c == '{' || c == ';')
-            .unwrap_or(rest.len());
+        let sig_end = rest.find(['{', ';']).unwrap_or(rest.len());
         let selector = parse_selector(&rest[..sig_end]);
         if !selector.is_empty() {
             out.push(selector);

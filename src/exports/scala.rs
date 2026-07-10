@@ -67,15 +67,15 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             // Scala 3 enum case lines don't match SCALA_DECL at all (no
             // leading keyword), so try the dedicated case pattern. Lines
             // containing `=>` are match arms, not case declarations.
-            if let Some(caps) = SCALA_ENUM_CASE.captures(line) {
-                if let Some(names) = caps.get(1) {
-                    for raw in names.as_str().split(',') {
-                        let case_name = raw.trim();
-                        if !case_name.is_empty() && case_name != "_" {
-                            let n = case_name.to_string();
-                            if !symbols.contains(&n) {
-                                symbols.push(n);
-                            }
+            if let Some(caps) = SCALA_ENUM_CASE.captures(line)
+                && let Some(names) = caps.get(1)
+            {
+                for raw in names.as_str().split(',') {
+                    let case_name = raw.trim();
+                    if !case_name.is_empty() && case_name != "_" {
+                        let n = case_name.to_string();
+                        if !symbols.contains(&n) {
+                            symbols.push(n);
                         }
                     }
                 }

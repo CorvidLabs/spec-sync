@@ -23,12 +23,12 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         if ELIXIR_PRIVATE.is_match(line) {
             continue;
         }
-        if let Some(caps) = ELIXIR_DECL.captures(line) {
-            if let Some(name) = caps.get(1) {
-                let n = name.as_str().to_string();
-                if !symbols.contains(&n) {
-                    symbols.push(n);
-                }
+        if let Some(caps) = ELIXIR_DECL.captures(line)
+            && let Some(name) = caps.get(1)
+        {
+            let n = name.as_str().to_string();
+            if !symbols.contains(&n) {
+                symbols.push(n);
             }
         }
     }

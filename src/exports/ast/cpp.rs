@@ -142,13 +142,12 @@ fn walk_field_list(node: &Node, src: &[u8], mut vis: Visibility, symbols: &mut V
                     walk(&child, src, symbols);
                 }
             }
-            "alias_declaration" => {
+            "alias_declaration"
                 // `using Pixel = std::uint32_t;` inside a class body is a
                 // type alias member; treat it like any other public member.
-                if vis == Visibility::Public {
+                if vis == Visibility::Public => {
                     add_type_name(&child, src, symbols);
                 }
-            }
             _ => {}
         }
     }

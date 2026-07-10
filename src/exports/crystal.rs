@@ -35,12 +35,12 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         if CRYSTAL_PRIVATE.is_match(line) {
             continue;
         }
-        if let Some(caps) = CRYSTAL_DECL.captures(line) {
-            if let Some(name) = caps.get(1) {
-                let n = name.as_str().to_string();
-                if !symbols.contains(&n) {
-                    symbols.push(n);
-                }
+        if let Some(caps) = CRYSTAL_DECL.captures(line)
+            && let Some(name) = caps.get(1)
+        {
+            let n = name.as_str().to_string();
+            if !symbols.contains(&n) {
+                symbols.push(n);
             }
         }
     }

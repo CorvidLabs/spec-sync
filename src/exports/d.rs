@@ -172,7 +172,7 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         // though the type itself was correctly excluded.
         let is_exportable_here = in_exportable_scope
             && !explicit_visibility
-            && !(label_hides && !trimmed.starts_with("public"));
+            && (!label_hides || trimmed.starts_with("public"));
 
         if is_exportable_here {
             if let Some(caps) = D_DECL.captures(line) {
@@ -196,12 +196,12 @@ pub fn extract_exports(content: &str) -> Vec<String> {
                         symbols.push(n);
                     }
                 }
-            } else if let Some(caps) = D_FIELD_DECL.captures(line) {
-                if let Some(name) = caps.get(1) {
-                    let n = name.as_str().to_string();
-                    if !is_reserved_word(&n) && !symbols.contains(&n) {
-                        symbols.push(n);
-                    }
+            } else if let Some(caps) = D_FIELD_DECL.captures(line)
+                && let Some(name) = caps.get(1)
+            {
+                let n = name.as_str().to_string();
+                if !is_reserved_word(&n) && !symbols.contains(&n) {
+                    symbols.push(n);
                 }
             }
         }

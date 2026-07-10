@@ -772,4 +772,3 @@ fn fix_backup_preserves_original_on_success() {
         "Backup should contain the original spec content before --fix modifications"
     );
 }
-

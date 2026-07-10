@@ -1,7 +1,7 @@
 // ─── Helpers ─────────────────────────────────────────────────────────────
 use assert_cmd::Command;
-use tempfile::TempDir;
 use std::fs;
+use tempfile::TempDir;
 
 pub fn specsync() -> Command {
     let mut cmd = Command::cargo_bin("specsync").unwrap();
@@ -133,7 +133,10 @@ pub fn setup_minimal_project(tmp: &TempDir) -> std::path::PathBuf {
 }
 
 /// Send JSON-RPC requests to the MCP server via stdin and capture stdout.
-pub fn mcp_request(root: &std::path::Path, requests: &[serde_json::Value]) -> Vec<serde_json::Value> {
+pub fn mcp_request(
+    root: &std::path::Path,
+    requests: &[serde_json::Value],
+) -> Vec<serde_json::Value> {
     let input: String = requests
         .iter()
         .map(|r| serde_json::to_string(r).unwrap())
@@ -157,7 +160,6 @@ pub fn mcp_request(root: &std::path::Path, requests: &[serde_json::Value]) -> Ve
         .collect()
 }
 
-
 /// Write a specsync.json with custom rules.
 pub fn write_config_with_custom_rules(root: &std::path::Path, custom_rules_json: &str) {
     let config = format!(
@@ -172,7 +174,6 @@ pub fn write_config_with_custom_rules(root: &std::path::Path, custom_rules_json:
     );
     fs::write(root.join("specsync.json"), config).unwrap();
 }
-
 
 /// Set up a valid 3.x project with lifecycle_log in frontmatter.
 pub fn setup_v3_project(root: &std::path::Path) {
@@ -278,7 +279,6 @@ pub fn write_toml_config(root: &std::path::Path, extra: &str) {
     fs::write(root.join(".specsync/version"), "4.0.0").unwrap();
 }
 
-
 /// Set up a minimal v4 project (TOML config) with one source module and no spec.
 pub fn setup_v4_unspecced(tmp: &TempDir, config_extra: &str) -> std::path::PathBuf {
     let root = tmp.path().to_path_buf();
@@ -292,7 +292,6 @@ pub fn setup_v4_unspecced(tmp: &TempDir, config_extra: &str) -> std::path::PathB
     fs::create_dir_all(root.join("specs")).unwrap();
     root
 }
-
 
 /// Build a two-module project where `api` imports `db` without declaring it.
 pub fn setup_undeclared_import_project(root: &std::path::Path) {
@@ -318,5 +317,3 @@ pub fn setup_undeclared_import_project(root: &std::path::Path) {
     )
     .unwrap();
 }
-
-

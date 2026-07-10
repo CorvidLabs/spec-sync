@@ -1556,4 +1556,3 @@ fn migrate_preserves_explicitly_empty_arrays() {
         "explicit empty exclude_dirs must be written:\n{migrated}"
     );
 }
-

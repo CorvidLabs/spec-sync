@@ -1086,4 +1086,3 @@ fn check_require_coverage_gate_fails_on_warm_cache() {
         .assert()
         .failure();
 }
-

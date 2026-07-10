@@ -235,4 +235,3 @@ fn mcp_score_tool_returns_grades() {
     assert!(score_json["average_score"].is_number());
     assert!(score_json["grade"].is_string());
 }
-

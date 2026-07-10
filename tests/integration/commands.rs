@@ -1004,7 +1004,6 @@ fn diff_detects_spec_file_only_changes() {
 
 // ─── specsync migrate ──────────────────────────────────────────────────
 
-
 #[test]
 fn migrate_full_v3_to_v4() {
     let tmp = TempDir::new().unwrap();

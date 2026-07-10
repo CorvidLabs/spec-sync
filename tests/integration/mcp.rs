@@ -42,6 +42,7 @@ fn mcp_tools_list_returns_all_tools() {
         })],
     );
 
+    assert_eq!(responses.len(), 1);
     let tools = responses[0]["result"]["tools"].as_array().unwrap();
     let tool_names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert!(tool_names.contains(&"specsync_check"));
@@ -69,6 +70,7 @@ fn mcp_tool_check_validates_specs() {
         })],
     );
 
+    assert_eq!(responses.len(), 1);
     let content = &responses[0]["result"]["content"][0]["text"];
     let result: serde_json::Value = serde_json::from_str(content.as_str().unwrap()).unwrap();
     assert!(result["passed"].as_bool().unwrap());
@@ -229,6 +231,7 @@ fn mcp_score_tool_returns_grades() {
         ],
     );
 
+    assert_eq!(responses.len(), 2);
     let score_result = &responses[1]["result"]["content"][0]["text"];
     let score_json: serde_json::Value =
         serde_json::from_str(score_result.as_str().unwrap()).unwrap();

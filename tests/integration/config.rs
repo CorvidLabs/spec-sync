@@ -178,7 +178,10 @@ fn custom_rule_require_section_triggers_warning() {
     .unwrap();
 
     let output = specsync()
-        .args(["check", "--root", root.to_str().unwrap(), "--force"])
+        .arg("check")
+        .arg("--root")
+        .arg(&root)
+        .arg("--force")
         .output()
         .unwrap();
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -938,7 +941,10 @@ fn scaffold_rejects_module_name_path_traversal() {
 
     for sub in ["new", "add-spec", "scaffold"] {
         let output = specsync()
-            .args([sub, "../../escape/evil", "--root", root.to_str().unwrap()])
+            .arg(sub)
+            .arg("../../escape/evil")
+            .arg("--root")
+            .arg(root)
             .output()
             .unwrap();
         assert!(

@@ -7,6 +7,11 @@ pub fn specsync() -> Command {
     let mut cmd = Command::cargo_bin("specsync").unwrap();
     cmd.env_remove("GITHUB_EVENT_NAME");
     cmd.env_remove("GITHUB_BASE_REF");
+    for (key, _) in std::env::vars() {
+        if key.starts_with("SPECSYNC_") {
+            cmd.env_remove(key);
+        }
+    }
     cmd
 }
 

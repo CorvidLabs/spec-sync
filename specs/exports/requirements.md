@@ -6,7 +6,7 @@ spec: exports.spec.md
 
 - As a developer, I want spec-sync to extract public exports from my source files automatically so that I can validate my specs against actual code
 - As a TypeScript developer, I want all export forms recognized (named, default, re-exports, wildcard) so that nothing is missed
-- As a Rust developer, I want `pub` items extracted including `pub(crate)` visibility so that my module's public API is accurately captured
+- As a Rust developer, I want externally public `pub` items extracted while restricted `pub(crate)`/`pub(super)`/`pub(self)`/`pub(in ...)` items are excluded so that my module's public API is accurately captured
 - As a Python developer, I want `__all__` respected when present, with fallback to top-level definitions, so that my intended public API is what gets checked
 - As a Go developer, I want uppercase identifiers recognized as exports so that Go's visibility convention is supported
 - As a polyglot team, I want export extraction for all 33 supported languages so that spec-sync works across our entire codebase

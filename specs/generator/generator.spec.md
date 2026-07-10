@@ -1,6 +1,6 @@
 ---
 module: generator
-version: 4
+version: 5
 status: stable
 files:
   - src/generator.rs
@@ -113,6 +113,7 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 
 | Date | Change |
 |------|--------|
+| 2026-07-10 | v5: keep module-discovery test fixtures warning-free under current stable Clippy |
 | 2026-03-25 | Initial spec |
 | 2026-04-07 | Document find_files_for_module, generate_spec, generate_spec_from_custom_template, generate_companion_files_from_template |
 | 2026-04-12 | Update companion files list to include requirements.md, testing.md, and opt-in design.md; add design_enabled parameter |

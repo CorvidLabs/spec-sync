@@ -10,6 +10,7 @@ spec: config.spec.md
 
 ## Done
 
+- [x] Keep config round-trip fixtures warning-free under current stable Clippy
 - [x] JSON config loading with field defaults (camelCase keys, unknown-key warnings)
 - [x] TOML config loading (zero-dependency parser) incl. `[rules]`, `[github]`, `[lifecycle]`, `[lifecycle.max_age]`, `[lifecycle.guards."x→y"]`, `[companions]` sections
 - [x] v4 layout config precedence: `.specsync/config.toml` > `.specsync/config.json` > `.specsync.toml` > `specsync.json`

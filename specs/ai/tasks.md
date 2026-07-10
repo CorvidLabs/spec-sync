@@ -11,6 +11,7 @@ spec: ai.spec.md
 
 ## Done
 
+- [x] Keep provider-resolution test fixtures warning-free under current stable Clippy
 - [x] Migrate all API HTTP calls to the shared `corvid-ai` crate (`corvid_ai::complete`); remove hand-rolled `call_anthropic_api` / `call_openai_api` / `call_gemini_api`
 - [x] Collapse `ResolvedProvider` to `Cli(String)` | `Api(corvid_ai::Settings)` with key-redacting `Debug`
 - [x] Add API providers `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, and `ollama` (OpenAI-compatible HTTP)

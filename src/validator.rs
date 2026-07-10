@@ -849,6 +849,7 @@ pub fn source_within_root(root: &Path, file: &str) -> bool {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
 
@@ -862,9 +863,11 @@ mod tests {
         fs::create_dir_all(&src).unwrap();
         fs::write(src.join("a.ts"), "export function a() {}").unwrap();
 
-        let mut config = SpecSyncConfig::default();
-        config.source_dirs = vec!["src".to_string()];
-        config.exclude_patterns = vec!["**/**".to_string()];
+        let mut config = SpecSyncConfig {
+            source_dirs: vec!["src".to_string()],
+            exclude_patterns: vec!["**/**".to_string()],
+            ..SpecSyncConfig::default()
+        };
 
         // Must not panic; `**/**` excludes all source files.
         let report = compute_coverage(tmp.path(), &[], &config);

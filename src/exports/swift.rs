@@ -964,12 +964,13 @@ public prefix func !!! (shape: inout Square) -> Square {
                 .filter_map(|e| e.ok())
             {
                 let p = entry.path();
-                if p.is_file() && p.extension().and_then(|ext| ext.to_str()) == Some("swift") {
-                    if let Ok(content) = std::fs::read_to_string(p) {
-                        let symbols = extract_exports(&content);
-                        file_count += 1;
-                        symbol_count += symbols.len();
-                    }
+                if p.is_file()
+                    && p.extension().and_then(|ext| ext.to_str()) == Some("swift")
+                    && let Ok(content) = std::fs::read_to_string(p)
+                {
+                    let symbols = extract_exports(&content);
+                    file_count += 1;
+                    symbol_count += symbols.len();
                 }
             }
         }

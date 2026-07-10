@@ -1,6 +1,6 @@
 ---
 module: config
-version: 2
+version: 3
 status: stable
 files:
   - src/config.rs
@@ -114,6 +114,7 @@ The configuration file supports the following top-level sections:
 
 | Date | Change |
 |------|--------|
+| 2026-07-10 | v3: keep configuration round-trip tests warning-free under current stable Clippy |
 | 2026-03-25 | Initial spec |
 | 2026-03-28 | Document discover_manifest_modules |
 | 2026-04-06 | Document github config section, rules section, and full config file structure |

@@ -189,8 +189,8 @@ Re-validates on every file change (500ms debounce). Useful during active develop
 ### Diffing against a ref
 
 ```bash
-specsync diff main
-specsync diff HEAD~5
+specsync diff --base main
+specsync diff --base HEAD~5
 ```
 
 Shows API changes since a git ref — what was added, removed, or changed. Good for reviewing what spec updates a PR needs.
@@ -356,7 +356,7 @@ specsync coverage                       # confirm it shows up
 ### Reviewing spec drift in a PR
 
 ```bash
-specsync diff main                      # what changed since main
+specsync diff --base main               # what changed since main
 specsync check                          # any drift?
 specsync check --fix                    # auto-stub new exports
 # Review generated rows and finalize descriptions

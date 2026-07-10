@@ -375,9 +375,9 @@ specsync lifecycle enforce --allowed       # check specs are in allowed statuses
 Show API changes since a git ref.
 
 ```bash
-specsync diff main                      # changes since main branch
-specsync diff HEAD~5                    # changes in last 5 commits
-specsync diff v1.0.0 --json            # machine-readable output
+specsync diff --base main               # changes since main branch
+specsync diff --base HEAD~5             # changes in last 5 commits
+specsync diff --base v1.0.0 --json     # machine-readable output
 ```
 
 ### `init`

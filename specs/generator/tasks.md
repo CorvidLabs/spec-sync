@@ -11,6 +11,7 @@ spec: generator.spec.md
 
 ## Done
 
+- [x] Keep module-discovery test fixtures warning-free under current stable Clippy
 - [x] Template-based spec generation with language-aware templates (Rust, Swift, Kotlin/Java, Go, Python; default for the rest)
 - [x] AI-powered spec generation delegated to `ai::generate_spec_with_ai`, with fallback to template on failure
 - [x] Carry the new `corvid-ai`-backed `ResolvedProvider` (passed in as `Option<&ResolvedProvider>`) through generation — no provider-specific logic lives in the generator

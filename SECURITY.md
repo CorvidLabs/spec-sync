@@ -4,7 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| 3.x     | Yes       |
+| 4.x     | Yes       |
+| 3.x     | No        |
 | < 3.0   | No        |
 
 ## Reporting a Vulnerability
@@ -46,6 +47,6 @@ SpecSync is a local CLI tool and GitHub Action. The primary security concerns ar
 
 ## Security Best Practices for Users
 
-- Pin SpecSync to a specific version in CI (`uses: CorvidLabs/spec-sync@v3`)
+- Pin SpecSync to the current major version in CI (`uses: CorvidLabs/spec-sync@v4`), or to a full release tag/commit for stronger reproducibility
 - Review spec files from untrusted sources before running validation
-- Use `--no-cross-project` if you don't need cross-project references in CI
+- Remote cross-project validation is opt-in; only pass `resolve --remote` or `resolve --verify` when network-backed reference checks are required

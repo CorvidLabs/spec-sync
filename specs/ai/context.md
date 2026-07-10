@@ -22,7 +22,7 @@ spec: ai.spec.md
 
 ## Current Status
 
-Fully implemented and stable. API providers (`anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, `ollama`) all go through corvid-ai. Deprecated paths: `claude` (→ anthropic API), `copilot`, `cursor` (legacy CLI), plus the explicit `aiCommand` shell hatch. Auto-detect defaults to keyless local Ollama. MSRV 1.89.
+Fully implemented and stable. API providers (`anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, `ollama`) all go through corvid-ai. Deprecated paths: `claude` (→ anthropic API), `copilot`, `cursor` (legacy CLI), plus the explicit `aiCommand` shell hatch. Auto-detect defaults to keyless local Ollama. MSRV 1.89. Test configuration construction is kept warning-free against the current stable Clippy gate used by CI.
 
 ## Notes
 

@@ -11,6 +11,8 @@ spec: exports.spec.md
 
 ## Done
 
+- [x] Support Android/Kotlin Multiplatform declaration modifiers, same-line annotations, and value classes
+- [x] Keep optional real-world Swift verification warning-free under current stable Clippy
 - [x] Implement regex export extraction for all 33 languages (TS, Python, Rust, Go, Java, Kotlin, Swift, Dart, C#, PHP, Ruby, YAML, C, C++, Scala, Crystal, Nim, Erlang, Elixir, Perl, Lisp, Haskell, Lua, R, OCaml, Groovy, F#, Clojure, D, Objective-C, Bash, PowerShell, Vala)
 - [x] Comprehensive multi-agent audit of all 21 pre-existing language backends against realistic code (the "container members don't repeat the container's visibility keyword" bug class, first found in Swift protocols) — 59 confirmed bugs found and fixed across every single language
 - [x] 12 new languages implemented with language-correct visibility semantics (not a naive "look for a public keyword" assumption) and adversarially verified — 11 of 12 needed real fixes during independent verification

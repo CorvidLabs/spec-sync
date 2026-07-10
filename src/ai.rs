@@ -1199,8 +1199,10 @@ mod tests {
         unsafe {
             std::env::remove_var("SPECSYNC_AI_COMMAND");
         }
-        let mut config = SpecSyncConfig::default();
-        config.ai_command = Some("my-custom-ai".to_string());
+        let config = SpecSyncConfig {
+            ai_command: Some("my-custom-ai".to_string()),
+            ..SpecSyncConfig::default()
+        };
         let result = resolve_ai_provider(&config, None).unwrap();
         match result {
             ResolvedProvider::Cli(cmd) => assert_eq!(cmd, "my-custom-ai"),
@@ -1251,8 +1253,10 @@ mod tests {
 
     #[test]
     fn resolve_ai_command_returns_cli_string() {
-        let mut config = SpecSyncConfig::default();
-        config.ai_command = Some("test-cmd".to_string());
+        let config = SpecSyncConfig {
+            ai_command: Some("test-cmd".to_string()),
+            ..SpecSyncConfig::default()
+        };
         let result = resolve_ai_command(&config, None).unwrap();
         assert_eq!(result, "test-cmd");
     }

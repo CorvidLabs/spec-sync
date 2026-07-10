@@ -25,14 +25,18 @@ static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?
 /// Then exclude lines that start with private/internal/protected.
 static KT_DECL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*(?:(?:public|internal|private|protected)\s+)?(?:override\s+)?(?:suspend\s+)?(?:inline\s+)?(?:tailrec\s+)?(?:data\s+|sealed\s+|enum\s+|annotation\s+|abstract\s+|open\s+)?(?:const\s+)?(?:infix\s+)?(?:operator\s+)?(?:fun|class|object|interface|typealias|val|var)\s+(?:<(?:[^<>]|<[^<>]*>)*>\s+)?(?:[A-Za-z_]\w*(?:<(?:[^<>]|<[^<>]*>)*>)?\??\.)?(\w+)",
+        r"(?m)^[^\S\n]*(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:public|internal|private|protected|override|suspend|inline|tailrec|const|infix|operator|abstract|open|final|expect|actual|external|lateinit)\s+)*(?:(?:data|sealed|enum|annotation|value)\s+)?(?:fun|class|object|interface|typealias|val|var)\s+(?:<(?:[^<>]|<[^<>]*>)*>\s+)?(?:[A-Za-z_]\w*(?:<(?:[^<>]|<[^<>]*>)*>)?\??\.)?(\w+)",
     )
     .unwrap()
 });
 
 /// Detect visibility — private/internal/protected lines should be excluded
-static PRIVATE_LINE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*(?:private|internal|protected)\s+").unwrap());
+static PRIVATE_LINE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+            r"(?m)^[^\S\n]*(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:public|override|suspend|inline|tailrec|const|infix|operator|abstract|open|final|expect|actual|external|lateinit)\s+)*(?:private|internal|protected)\s+",
+        )
+        .unwrap()
+});
 
 /// Detect a line that opens a "type body" scope (class/object/interface, optionally a companion
 /// object), as opposed to a function body or any other block. Declarations directly inside a type
@@ -41,7 +45,7 @@ static PRIVATE_LINE: LazyLock<Regex> =
 /// regardless of whether they happen to use `val`/`var`/`fun`.
 static TYPE_BODY_OPEN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*(?:companion\s+)?(?:(?:public|internal|private|protected)\s+)?(?:(?:data|sealed|enum|annotation|abstract|open)\s+)*(?:class|object|interface)\b",
+        r"(?m)^[^\S\n]*(?:@\w+(?:\([^)]*\))?\s+)*(?:companion\s+)?(?:(?:public|internal|private|protected|abstract|open|final|expect|actual)\s+)*(?:(?:data|sealed|enum|annotation|value)\s+)*(?:class|object|interface)\b",
     )
     .unwrap()
 });
@@ -145,6 +149,29 @@ fun defaultPublicFun() {}
         assert!(!symbols.contains(&"internalFun".to_string()));
         assert!(!symbols.contains(&"protectedFun".to_string()));
         assert!(!symbols.contains(&"privateFun".to_string()));
+    }
+
+    #[test]
+    fn test_kotlin_android_and_multiplatform_modifiers() {
+        let src = r#"
+@JvmInline value class UserId(val raw: String)
+@Composable fun Greeting(name: String) = Unit
+expect class PlatformClock
+actual public class AndroidClock
+actual inline suspend fun loadUser(): UserId = UserId("1")
+external fun nativeVersion(): String
+actual internal class InternalAndroidClock
+@PublishedApi internal fun internalBridge() = Unit
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"UserId".to_string()));
+        assert!(symbols.contains(&"Greeting".to_string()));
+        assert!(symbols.contains(&"PlatformClock".to_string()));
+        assert!(symbols.contains(&"AndroidClock".to_string()));
+        assert!(symbols.contains(&"loadUser".to_string()));
+        assert!(symbols.contains(&"nativeVersion".to_string()));
+        assert!(!symbols.contains(&"InternalAndroidClock".to_string()));
+        assert!(!symbols.contains(&"internalBridge".to_string()));
     }
 
     #[test]

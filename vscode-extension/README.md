@@ -35,4 +35,4 @@ Or download a prebuilt binary from [GitHub Releases](https://github.com/CorvidLa
 - **SpecSync: Show Coverage** — open coverage report
 - **SpecSync: Score Spec Quality** — open quality report
 - **SpecSync: Generate Missing Specs** — scaffold new specs
-- **SpecSync: Initialize Config** — create `specsync.json`
+- **SpecSync: Initialize Config** — create the `.specsync/` v4 project layout

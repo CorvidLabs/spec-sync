@@ -2279,8 +2279,10 @@ verify_issues = false
     fn test_config_to_toml_roundtrips_ai_provider_custom() {
         // `custom` used to write `ai_provider = "custom"` but reload as None
         // (from_str_loose had no arm) — a silent drop on migrate.
-        let mut config = SpecSyncConfig::default();
-        config.ai_provider = Some(crate::types::AiProvider::Custom);
+        let config = SpecSyncConfig {
+            ai_provider: Some(crate::types::AiProvider::Custom),
+            ..SpecSyncConfig::default()
+        };
         assert_eq!(
             roundtrip_toml(&config).ai_provider,
             Some(crate::types::AiProvider::Custom)
@@ -2289,8 +2291,10 @@ verify_issues = false
 
     #[test]
     fn test_config_to_toml_roundtrips_parse_mode() {
-        let mut config = SpecSyncConfig::default();
-        config.parse_mode = crate::types::ParseMode::Ast;
+        let mut config = SpecSyncConfig {
+            parse_mode: crate::types::ParseMode::Ast,
+            ..SpecSyncConfig::default()
+        };
         assert!(config_to_toml(&config).contains("parse_mode = \"ast\""));
         assert_eq!(
             roundtrip_toml(&config).parse_mode,
@@ -2367,8 +2371,10 @@ verify_issues = false
     fn test_config_to_toml_roundtrips_schema_pattern_regex() {
         // A regex with backslash escapes (\s \w) used to reload with doubled
         // backslashes — a broken/different regex silently persisted by migrate.
-        let mut config = SpecSyncConfig::default();
-        config.schema_pattern = Some(r"CREATE TABLE\s+(\w+)".to_string());
+        let config = SpecSyncConfig {
+            schema_pattern: Some(r"CREATE TABLE\s+(\w+)".to_string()),
+            ..SpecSyncConfig::default()
+        };
         assert_eq!(
             roundtrip_toml(&config).schema_pattern.as_deref(),
             Some(r"CREATE TABLE\s+(\w+)")
@@ -2408,10 +2414,12 @@ verify_issues = false
         // required_sections / exclude_dirs / exclude_patterns default to NON-empty,
         // so an explicit [] (opting out) must survive rather than silently reverting
         // to the defaults on migrate.
-        let mut config = SpecSyncConfig::default();
-        config.required_sections = vec![];
-        config.exclude_dirs = vec![];
-        config.exclude_patterns = vec![];
+        let config = SpecSyncConfig {
+            required_sections: vec![],
+            exclude_dirs: vec![],
+            exclude_patterns: vec![],
+            ..SpecSyncConfig::default()
+        };
 
         let toml_str = config_to_toml(&config);
         assert!(toml_str.contains("required_sections = []"));

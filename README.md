@@ -179,11 +179,11 @@ All commands at a glance. Run `specsync <command> --help` for details.
 ```bash
 specsync migrate                           # Upgrade from 3.x to 4.0.0 (.specsync/ layout)
 specsync migrate --dry-run                 # Preview migration without changes
-specsync init                              # Create specsync.json config
+specsync init                              # Create the .specsync/ v4 project layout
 specsync check                             # Validate specs against code
 specsync check --fix                       # Auto-add undocumented exports as stubs
 specsync diff                              # Show exports added/removed since HEAD
-specsync diff HEAD~5                       # Compare against a specific ref
+specsync diff --base HEAD~5                # Compare against a specific ref
 specsync coverage                          # Show file/module coverage
 specsync report                            # Per-module coverage with stale detection
 specsync generate                          # Scaffold specs for unspecced modules
@@ -247,7 +247,7 @@ depends_on:                                 # Other spec paths, validated for ex
 
 ### Required Sections
 
-Every spec must include these `##` sections (configurable in `specsync.json`):
+Every spec must include these `##` sections (configurable in `.specsync/config.toml`):
 
 Purpose, Public API, Invariants, Behavioral Examples, Error Cases, Dependencies, Change Log
 
@@ -398,7 +398,7 @@ specsync [command] [flags]
 | `hooks` | Install/uninstall agent instructions and git hooks (`install`, `uninstall`, `status`) |
 | `agents` | Install/uninstall native AI-tool skills and slash commands for Claude Code, Cursor, Codex, and Gemini CLI (`install`, `uninstall`, `status`) |
 | `mcp` | Start MCP server for AI agent integration (Claude Code, Cursor, etc.) |
-| `init` | Create default `specsync.json` |
+| `init` | Create the default `.specsync/` v4 layout and config |
 | `watch` | Live validation on file changes (500ms debounce) |
 
 ### Flags
@@ -661,7 +661,7 @@ code --install-extension corvidlabs.specsync
 - `SpecSync: Show Coverage` — open coverage report
 - `SpecSync: Score Spec Quality` — open scoring report
 - `SpecSync: Generate Missing Specs` — scaffold specs for unspecced modules
-- `SpecSync: Initialize Config` — create `specsync.json`
+- `SpecSync: Initialize Config` — create the `.specsync/` v4 project layout
 
 ### Settings
 
@@ -671,7 +671,7 @@ code --install-extension corvidlabs.specsync
 | `specsync.validateOnSave` | `true` | Run validation on file save |
 | `specsync.showInlineScores` | `true` | Show CodeLens quality scores |
 
-The extension activates automatically in workspaces containing `specsync.json`, `.specsync.toml`, or a `specs/` directory. Requires the `specsync` CLI binary to be installed and on your PATH (or configured via `specsync.binaryPath`).
+The extension activates automatically in workspaces containing `.specsync/config.toml`, legacy `specsync.json`/`.specsync.toml`, or a `specs/` directory. Requires the `specsync` CLI binary to be installed and on your PATH (or configured via `specsync.binaryPath`).
 
 ---
 
@@ -737,43 +737,41 @@ When `comment: 'true'` is set, SpecSync posts (or updates) a PR comment showing 
 
 ## Configuration
 
-Create `specsync.json` or `.specsync.toml` in your project root (or run `specsync init`):
+Run `specsync init` to create `.specsync/config.toml`. Legacy `specsync.json` and `.specsync.toml` files remain readable for migration:
 
-```json
-{
-  "specsDir": "specs",
-  "sourceDirs": ["src"],
-  "schemaDir": "db/migrations",
-  "requiredSections": ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"],
-  "excludeDirs": ["__tests__"],
-  "excludePatterns": ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"],
-  "sourceExtensions": [],
-  "aiTimeout": 120
-}
+```toml
+specs_dir = "specs"
+source_dirs = ["src"]
+schema_dir = "db/migrations"
+required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
+exclude_dirs = ["__tests__"]
+exclude_patterns = ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"]
+source_extensions = []
+ai_timeout = 120
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `specsDir` | `string` | `"specs"` | Directory containing `*.spec.md` files |
-| `sourceDirs` | `string[]` | `["src"]` | Source directories for coverage analysis |
-| `schemaDir` | `string?` | — | SQL schema dir for `db_tables` validation |
-| `schemaPattern` | `string?` | `CREATE TABLE` regex | Custom regex for table name extraction |
-| `requiredSections` | `string[]` | 7 defaults | Markdown sections every spec must include |
-| `excludeDirs` | `string[]` | `["__tests__"]` | Directories excluded from coverage |
-| `excludePatterns` | `string[]` | Common test globs | File patterns excluded from coverage |
-| `sourceExtensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |
-| `parseMode` | `string` | `"regex"` | Parser backend: `"regex"` (default) or `"ast"` (tree-sitter, opt-in for TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, Lisp) |
-| `aiProvider` | `string?` | — | AI provider: `anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, `ollama` (deprecated: `claude`/`copilot`) |
-| `aiModel` | `string?` | provider default | Model id (e.g. `claude-sonnet-4-6`; `openai`/`together` require one) |
-| `aiApiKey` | `string?` | env | API key; falls back to `<PROVIDER>_API_KEY`. Never written back to config |
-| `aiBaseUrl` | `string?` | — | Override the provider endpoint (self-hosted / proxy gateways) |
-| `aiCommand` | `string?` | — | Deprecated, trusted shell escape hatch (reads stdin prompt, writes stdout markdown); never auto-selected |
-| `aiTimeout` | `number?` | `120` | Seconds before AI generation times out per module |
+| `specs_dir` | `string` | `"specs"` | Directory containing `*.spec.md` files |
+| `source_dirs` | `string[]` | `["src"]` | Source directories for coverage analysis |
+| `schema_dir` | `string?` | — | SQL schema dir for `db_tables` validation |
+| `schema_pattern` | `string?` | `CREATE TABLE` regex | Custom regex for table name extraction |
+| `required_sections` | `string[]` | 7 defaults | Markdown sections every spec must include |
+| `exclude_dirs` | `string[]` | `["__tests__"]` | Directories excluded from coverage |
+| `exclude_patterns` | `string[]` | Common test globs | File patterns excluded from coverage |
+| `source_extensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |
+| `parse_mode` | `string` | `"regex"` | Parser backend: `"regex"` (default) or `"ast"` (tree-sitter, opt-in for TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, Lisp) |
+| `ai_provider` | `string?` | — | AI provider: `anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, `ollama` (deprecated: `claude`/`copilot`) |
+| `ai_model` | `string?` | provider default | Model id (e.g. `claude-sonnet-4-6`; `openai`/`together` require one) |
+| `ai_api_key` | `string?` | env | API key; falls back to `<PROVIDER>_API_KEY`. Never written back to config |
+| `ai_base_url` | `string?` | — | Override the provider endpoint (self-hosted / proxy gateways) |
+| `ai_command` | `string?` | — | Deprecated, trusted shell escape hatch (reads stdin prompt, writes stdout markdown); committed values are ignored for security |
+| `ai_timeout` | `number?` | `120` | Seconds before AI generation times out per module |
 
-### TOML alternative
+### Legacy root-level TOML
 
 ```toml
-# .specsync.toml
+# .specsync.toml (legacy; migrate to .specsync/config.toml)
 specs_dir = "specs"
 source_dirs = ["src", "lib"]
 required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
@@ -796,28 +794,24 @@ This file is merged on top of the shared config and only supports `ai_*` keys. A
 
 ### Lifecycle Guards
 
-Configure transition guards in `specsync.json` to enforce quality gates before specs can be promoted:
+Configure transition guards in `.specsync/config.toml` to enforce quality gates before specs can be promoted:
 
-```json
-{
-  "lifecycle": {
-    "trackHistory": true,
-    "guards": {
-      "review→active": {
-        "minScore": 70,
-        "requireSections": ["Public API", "Invariants"]
-      },
-      "active→stable": {
-        "minScore": 85,
-        "noStale": true,
-        "requireSections": ["Public API", "Behavioral Examples", "Error Cases"]
-      },
-      "*→stable": {
-        "minScore": 85,
-        "message": "Stable specs require high quality scores"
-      }
-    }
-  }
+```toml
+[lifecycle]
+track_history = true
+
+[lifecycle.guards."review→active"]
+min_score = 70
+require_sections = ["Public API", "Invariants"]
+
+[lifecycle.guards."active→stable"]
+min_score = 85
+no_stale = true
+require_sections = ["Public API", "Behavioral Examples", "Error Cases"]
+
+[lifecycle.guards."*→stable"]
+min_score = 85
+message = "Stable specs require high quality scores"
 }
 ```
 
@@ -859,24 +853,21 @@ specsync lifecycle enforce --max-age       # flag stale statuses
 specsync lifecycle enforce --allowed       # check allowed statuses
 ```
 
-Configure enforcement rules in `specsync.json`:
+Configure enforcement rules in `.specsync/config.toml`:
 
-```json
-{
-  "lifecycle": {
-    "maxAge": {
-      "draft": 30,
-      "review": 14
-    },
-    "allowedStatuses": ["draft", "review", "active", "stable"]
-  }
-}
+```toml
+[lifecycle]
+allowed_statuses = ["draft", "review", "active", "stable"]
+
+[lifecycle.max_age]
+draft = 30
+review = 14
 ```
 
 | Config Key | Type | Description |
 |-----------|------|-------------|
-| `maxAge` | `object` | Maximum days a spec may stay in each status (e.g., `"draft": 30`) |
-| `allowedStatuses` | `string[]` | Restrict specs to these statuses only |
+| `max_age` | `table` | Maximum days a spec may stay in each status (e.g., `draft = 30`) |
+| `allowed_statuses` | `string[]` | Restrict specs to these statuses only |
 
 **GitHub Action** — add `lifecycle-enforce: 'true'` to the spec-sync action to enforce lifecycle rules in CI:
 
@@ -954,7 +945,7 @@ Every output format is designed for machine consumption:
 // specsync coverage --json
 { "file_coverage": 85.33, "files_covered": 23, "files_total": 27, "loc_coverage": 79.12, "loc_covered": 4200, "loc_total": 5308, "modules": [...] }
 
-// specsync diff HEAD~3 --json
+// specsync diff --base HEAD~3 --json
 { "added": ["newFunction", "NewType"], "removed": ["oldHelper"], "spec": "specs/auth/auth.spec.md" }
 ```
 
@@ -977,8 +968,8 @@ This turns spec maintenance from manual table editing into a review-and-refine w
 
 ```bash
 specsync diff                     # Changes since HEAD (staged + unstaged)
-specsync diff HEAD~5              # Changes since 5 commits ago
-specsync diff v2.1.0              # Changes since a tag
+specsync diff --base HEAD~5       # Changes since 5 commits ago
+specsync diff --base v2.1.0       # Changes since a tag
 ```
 
 Shows exports added and removed per spec file since the given git ref. Useful for code review, release notes, and CI drift detection.
@@ -996,7 +987,7 @@ src/
 ├── changelog.rs       Changelog generation between git refs
 ├── comment.rs         PR comment generation with spec links
 ├── compact.rs         Changelog entry compaction in spec files
-├── config.rs          specsync.json / .specsync.toml loading
+├── config.rs          v4 and legacy config loading
 ├── deps.rs            Cross-module dependency graph validation
 ├── generator.rs       Spec + companion file scaffolding
 ├── github.rs          GitHub API integration (issues, PRs)

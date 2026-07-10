@@ -697,10 +697,7 @@ fn tool_generate(root: &Path, arguments: &Value) -> Result<Value, String> {
 
     let resolved_provider = if ai {
         let provider_str = arguments.get("provider").and_then(|p| p.as_str());
-        match ai::resolve_ai_provider(&config, provider_str) {
-            Ok(p) => Some(p),
-            Err(e) => return Err(e),
-        }
+        Some(ai::resolve_ai_provider(&config, provider_str)?)
     } else {
         None
     };

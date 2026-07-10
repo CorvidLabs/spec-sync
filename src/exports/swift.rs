@@ -951,7 +951,10 @@ public prefix func !!! (shape: inout Square) -> Square {
         use std::path::Path;
         let mut file_count = 0;
         let mut symbol_count = 0;
-        for dir in &["/Users/leif/Development/AppState", "/Users/leif/Development/Cache"] {
+        for dir in &[
+            "/Users/leif/Development/AppState",
+            "/Users/leif/Development/Cache",
+        ] {
             let path = Path::new(dir);
             if !path.exists() {
                 continue;
@@ -970,9 +973,15 @@ public prefix func !!! (shape: inout Square) -> Square {
                 }
             }
         }
-        println!("Verified on {} real-world Swift files, extracted {} public symbols.", file_count, symbol_count);
+        println!(
+            "Verified on {} real-world Swift files, extracted {} public symbols.",
+            file_count, symbol_count
+        );
         if file_count > 0 {
-            assert!(symbol_count > 0, "Should have found some public Swift symbols in real projects!");
+            assert!(
+                symbol_count > 0,
+                "Should have found some public Swift symbols in real projects!"
+            );
         }
     }
 }

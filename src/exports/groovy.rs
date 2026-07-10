@@ -198,8 +198,15 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         }
 
         let in_exportable_scope = scope_stack.last().copied().unwrap_or(true);
+        // Whether *this* declaration line itself sits in exported territory. A type body
+        // that opens here should only be treated as an export-worthy scope (see
+        // `opens_type_body` below) when this line itself qualifies -- otherwise members of
+        // a `private`/`protected`/`@PackageScope`-narrowed type would incorrectly leak as
+        // exports even though the type itself was correctly excluded.
+        let is_exportable_here =
+            in_exportable_scope && !is_package_scoped && !PRIVATE_LINE.is_match(decl_line);
 
-        if in_exportable_scope && !is_package_scoped && !PRIVATE_LINE.is_match(decl_line) {
+        if is_exportable_here {
             if let Some(caps) = GROOVY_TYPE_DECL.captures(decl_line)
                 && let Some(name) = caps.get(1)
             {
@@ -226,7 +233,12 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             }
         }
 
-        let opens_type_body = TYPE_BODY_OPEN.is_match(decl_line);
+        // Only treat a freshly-opened type body as an "exportable scope" (and thus a
+        // candidate for its members to be captured) if the opening declaration itself was
+        // in exported territory -- otherwise a `private class Hidden { ... }` (or one
+        // narrowed via `@PackageScope`) would still push `true`, leaking its members as
+        // exports even though the type itself is correctly excluded above.
+        let opens_type_body = is_exportable_here && TYPE_BODY_OPEN.is_match(decl_line);
         for ch in decl_line.chars() {
             match ch {
                 '{' => scope_stack.push(opens_type_body),
@@ -350,6 +362,29 @@ trait Flyable {
         assert!(symbols.contains(&"airborne".to_string()));
         assert!(symbols.contains(&"fly".to_string()));
         assert!(!symbols.contains(&"groundCheck".to_string()));
+    }
+
+    #[test]
+    fn test_groovy_private_class_members_not_leaked() {
+        // Regression test: members of a `private` class must not be treated as exported
+        // just because they sit inside a "type body" scope. Only the outer declaration's
+        // own visibility should gate whether its body counts as exportable.
+        let src = r#"
+private class Hidden {
+    void method() {}
+    int secretField
+}
+
+class Visible {
+    void publicMethod() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(!symbols.contains(&"Hidden".to_string()));
+        assert!(!symbols.contains(&"method".to_string()));
+        assert!(!symbols.contains(&"secretField".to_string()));
+        assert!(symbols.contains(&"Visible".to_string()));
+        assert!(symbols.contains(&"publicMethod".to_string()));
     }
 
     #[test]

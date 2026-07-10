@@ -1,7 +1,11 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r";.*$").unwrap());
+// `(?m)` is required so `$` anchors to each line's end, not just the end of
+// the whole (potentially multi-line) source string: without it, `.` (which
+// never crosses `\n`) can only ever reach `$` on the file's literal last
+// line, so a `;` comment on any earlier line is left completely unstripped.
+static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m);.*$").unwrap());
 
 /// Common Lisp `#| ... |#` block comments (non-nested — nesting is rare in
 /// practice and not worth a hand-rolled balanced-delimiter scanner here).
@@ -48,6 +52,19 @@ mod tests {
         let src = "#|\nOld implementation, kept for reference:\n(defun legacy-parse (x) (parse-legacy x))\n(defparameter *old-limit* 10)\n|#\n(defun real-parse (x) (parse x))\n";
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["real-parse"]);
+    }
+
+    #[test]
+    fn test_lisp_commented_out_defun_on_non_last_line_not_leaked() {
+        // Regression test: `COMMENT_SINGLE` previously lacked `(?m)`, so `$` only
+        // anchored to the end of the whole file, not each line -- a `;` comment was
+        // only ever stripped if it happened to be on the file's literal last line. A
+        // commented-out `(defun fake ...)` on any earlier line leaked straight through
+        // since `LISP_DEF` searches unanchored.
+        let src = "; (defun fake (x) x)\n(defun real-fn (x) (+ x 1))\n";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"real-fn".to_string()));
+        assert!(!symbols.contains(&"fake".to_string()));
     }
 
     #[test]

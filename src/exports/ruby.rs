@@ -66,6 +66,33 @@ static VISIBILITY_PRIVATE_SYMBOLS: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
+/// Keywords that open a Ruby block requiring a matching `end`, other than
+/// `class`/`module` (handled separately below since they also carry the
+/// visibility state that needs restoring on close). Anchored to the line's
+/// first token so a statement-modifier form (`do_thing if condition`) never
+/// matches -- only a true multi-line block header does.
+static BLOCK_OPENER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^[^\S\n]*(?:def|do\b|begin|case|if|unless|while|until|for)\b").unwrap()
+});
+
+/// A Ruby 3.0+ "endless method" (`def name(...) = expr` or `def name = expr`)
+/// has no body block and needs no matching `end` at all. Distinguishing it
+/// from an ordinary `def` with a default-parameter `=` (`def foo(x = 1)`)
+/// matters: the endless form's `=` sits *after* the parameter list closes
+/// (or after the bare name, if there's no parameter list), not inside it.
+static ENDLESS_DEF: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^[^\S\n]*def\s+[\w.?!]+[^\S\n]*(?:\([^)]*\))?[^\S\n]*=[^=]").unwrap()
+});
+
+/// A bare `end` keyword closing the innermost open block.
+static BLOCK_END: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*end\b").unwrap());
+
+/// Detects a same-line closing `end` (e.g. a one-line `if x then y end` or
+/// `def foo; end`), so a self-contained one-liner is never pushed onto the
+/// block stack in the first place -- its matching `end` will never appear on
+/// a later line for `BLOCK_END` to pop.
+static INLINE_END: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\bend\b").unwrap());
+
 /// Compact namespaced declarations (`class Api::V1::UsersController`) capture
 /// the whole `A::B::C` path, but only the last segment is the type actually
 /// being declared here — the outer segments are references to an
@@ -133,11 +160,35 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     // innermost class/module: entering a new `class`/`module` line resets
     // the state back to public, so a `private` toggle inside one
     // class/module does not leak into sibling classes/modules later in the
-    // same file.
+    // same file. `scope_stack` remembers, for each currently-open block,
+    // what to restore `public` to when that block's `end` is reached:
+    // `Some(prev)` for a class/module body (restore the enclosing scope's
+    // visibility), `None` for any other block (def/if/case/do/... — these
+    // don't carry their own visibility state, so a `private` toggle set
+    // before entering one still applies to a `def` that happens to sit
+    // inside a nested `if`/`case`). Without this stack, a `private` toggle
+    // set before a nested class/module would incorrectly stay in effect
+    // forever after that nested scope's `end` closes it (visibility was
+    // reset to public on entry but never restored on exit).
     let mut public = true;
+    let mut scope_stack: Vec<Option<bool>> = Vec::new();
     for line in stripped.lines() {
-        if RUBY_CLASS.is_match(line) || RUBY_MODULE.is_match(line) {
+        let is_class_or_module = RUBY_CLASS.is_match(line) || RUBY_MODULE.is_match(line);
+        let has_inline_end = INLINE_END.is_match(line);
+
+        if is_class_or_module {
+            if !has_inline_end {
+                scope_stack.push(Some(public));
+            }
             public = true;
+        } else if !ENDLESS_DEF.is_match(line) && BLOCK_OPENER.is_match(line) && !has_inline_end {
+            scope_stack.push(None);
+        }
+
+        if BLOCK_END.is_match(line)
+            && let Some(Some(prev_public)) = scope_stack.pop()
+        {
+            public = prev_public;
         }
 
         if VISIBILITY_PRIVATE.is_match(line) {
@@ -290,6 +341,56 @@ end
         assert!(symbols.contains(&"public_again".to_string()));
         assert!(!symbols.contains(&"secret_one".to_string()));
         assert!(!symbols.contains(&"also_hidden".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_visibility_restored_after_nested_module_closes() {
+        // Regression test: a `private` toggle set in an outer class body must resume
+        // after a nested `module`/`class`'s `end` closes it -- previously, entering the
+        // nested type unconditionally reset visibility to public and nothing ever
+        // restored it, so `secret` (declared after `Inner` closes) incorrectly leaked.
+        let src = r#"
+class Outer
+  private
+
+  module Inner
+    def pub
+    end
+  end
+
+  def secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Outer".to_string()));
+        assert!(symbols.contains(&"Inner".to_string()));
+        assert!(symbols.contains(&"pub".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_visibility_persists_across_nested_if_block() {
+        // A `private` toggle must still apply to a `def` that happens to sit inside a
+        // nested `if`/`case`/`begin` block within the class body -- these blocks don't
+        // carry their own visibility state, unlike `class`/`module`.
+        let src = r#"
+class Config
+  private
+
+  if RUBY_VERSION >= "3.0"
+    def conditional_method
+    end
+  end
+
+  def another_secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Config".to_string()));
+        assert!(!symbols.contains(&"conditional_method".to_string()));
+        assert!(!symbols.contains(&"another_secret".to_string()));
     }
 
     #[test]

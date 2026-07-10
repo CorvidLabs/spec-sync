@@ -1,7 +1,11 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"%.*$").unwrap());
+// `(?m)` is required so `$` anchors to each line's end, not just the end of
+// the whole (potentially multi-line) source string: without it, `.` (which
+// never crosses `\n`) can only ever reach `$` on the file's literal last
+// line, so a `%` comment on any earlier line is left completely unstripped.
+static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)%.*$").unwrap());
 
 /// Erlang export attribute: -export([f1/1, f2/2]).
 static ERL_EXPORT_ATTR: LazyLock<Regex> =
@@ -87,6 +91,26 @@ helper() -> ok.
         assert!(symbols.contains(&"mul".to_string()));
         assert!(symbols.contains(&"DummyClass".to_string()));
         assert!(!symbols.contains(&"helper".to_string()));
+    }
+
+    #[test]
+    fn test_erlang_commented_out_export_on_non_last_line_not_leaked() {
+        // Regression test: `COMMENT_SINGLE` previously lacked `(?m)`, so `$` only
+        // anchored to the end of the whole file, not each line -- a `%` comment was
+        // only ever stripped if it happened to be on the file's literal last line.
+        // A commented-out `-export([fake_fn/1]).` on any earlier line leaked straight
+        // through since `ERL_EXPORT_ATTR` searches unanchored.
+        let src = r#"
+-module(math_utils).
+% -export([fake_fn/1]).
+-export([real_fn/1]).
+
+real_fn(X) -> X.
+fake_fn(X) -> X.
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"real_fn".to_string()));
+        assert!(!symbols.contains(&"fake_fn".to_string()));
     }
 
     #[test]

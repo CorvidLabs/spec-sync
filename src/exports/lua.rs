@@ -153,9 +153,16 @@ fn extract_top_level_table_keys(block: &str) -> Vec<String> {
 /// 1. Named module table: `local M = {}` with members attached via
 ///    `function M.foo(...)`, `function M:foo(...)`, or `M.foo = ...`,
 ///    confirmed by a top-level `return M`.
-/// 2. Same named-module-table pattern without a confirming `return`
+/// 2. Anonymous table literal returned directly: `return { foo = foo, ... }`.
+///    Checked *before* the unconfirmed named-module-table fallback below:
+///    both (1) and (2) are confirmed by an actual `return` statement, just in
+///    named-variable vs. anonymous-literal style, so either one is strictly
+///    more authoritative than a table that merely exists with no return at
+///    all. Checking this after that fallback let an unrelated local table
+///    that happens to have members attached (e.g. an internal `cache`) win
+///    outright and hijack the real, returned anonymous table's export list.
+/// 3. Same named-module-table pattern without a confirming `return`
 ///    (partial files/fragments still following the convention).
-/// 3. Anonymous table literal returned directly: `return { foo = foo, ... }`.
 /// 4. Plain global-function-style scripts: every non-`local` top-level
 ///    `function foo() ... end` is public; `local function helper()` is not.
 pub fn extract_exports(content: &str) -> Vec<String> {
@@ -177,7 +184,17 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         }
     }
 
-    // 2. No confirmed `return M`, but a `local M = {}` table with members
+    // 2. Anonymous table literal returned directly. An explicit `return`,
+    //    named or anonymous, always outranks an unconfirmed table below.
+    if let Some(caps) = RETURN_TABLE_BLOCK.captures(&stripped) {
+        let block = caps.get(1).unwrap().as_str();
+        let symbols = extract_top_level_table_keys(block);
+        if !symbols.is_empty() {
+            return symbols;
+        }
+    }
+
+    // 3. No confirmed `return M`, but a `local M = {}` table with members
     //    attached anyway (e.g. a file fragment, or an unconventional file
     //    that never returns its module table).
     for caps in MODULE_TABLE_DECL.captures_iter(&stripped) {
@@ -185,16 +202,6 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         let members = collect_module_members(&stripped, module_name);
         if !members.is_empty() {
             return members;
-        }
-    }
-
-    // 3. Anonymous table literal returned directly, with no named module
-    //    table at all.
-    if let Some(caps) = RETURN_TABLE_BLOCK.captures(&stripped) {
-        let block = caps.get(1).unwrap().as_str();
-        let symbols = extract_top_level_table_keys(block);
-        if !symbols.is_empty() {
-            return symbols;
         }
     }
 
@@ -443,6 +450,32 @@ return M
 "#;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["get"]);
+        assert!(!symbols.contains(&"hits".to_string()));
+        assert!(!symbols.contains(&"misses".to_string()));
+    }
+
+    #[test]
+    fn test_lua_unrelated_local_table_does_not_hijack_anonymous_return() {
+        // Regression test: an unrelated local table with members attached (tier 3, the
+        // "unconfirmed named module table" fallback) previously ran *before* the
+        // anonymous `return { ... }` check (tier 2), so a `cache` table that merely
+        // exists with attached fields incorrectly won outright and hijacked the real,
+        // returned anonymous table's export list.
+        let src = r#"
+local cache = {}
+cache.hits = 0
+cache.misses = 0
+
+local function connect()
+    return true
+end
+
+return {
+    connect = connect,
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["connect"]);
         assert!(!symbols.contains(&"hits".to_string()));
         assert!(!symbols.contains(&"misses".to_string()));
     }

@@ -54,6 +54,26 @@ static CPP_FUNCTION: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
+/// `CPP_FUNCTION`'s "one-or-more word-then-space" prefix is meant to match a
+/// return-type (and qualifiers like `static`/`const`) before a function name,
+/// but a bare `return someFunc(a, b);` or `throw makeError(a, b);` statement
+/// has exactly the same shape — `return`/`throw` satisfies the prefix, and
+/// `someFunc`/`makeError` gets captured as if it were a declared function
+/// name, leaking whatever it calls (even a `private:`/`static` function) as
+/// an export. Unlike the keyword filter on the *captured name*, this checks
+/// whether `return`/`throw` is what's actually filling the prefix slot.
+fn starts_with_return_or_throw(full_match: &str) -> bool {
+    let trimmed = full_match.trim_start();
+    for kw in ["return", "throw"] {
+        if let Some(rest) = trimmed.strip_prefix(kw)
+            && rest.starts_with(|c: char| c.is_whitespace())
+        {
+            return true;
+        }
+    }
+    false
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum Visibility {
     Public,
@@ -158,6 +178,7 @@ pub fn extract_exports(content: &str) -> Vec<String> {
                 if !keywords.contains(n.as_str()) {
                     let full_match = caps.get(0).unwrap().as_str();
                     if !full_match.contains("static")
+                        && !starts_with_return_or_throw(full_match)
                         && current_visibility == Visibility::Public
                         && !symbols.contains(&n)
                     {
@@ -279,6 +300,37 @@ private:
         let symbols = extract_exports(src);
         assert!(symbols.contains(&"Inner".to_string()));
         assert!(symbols.contains(&"innerMethod".to_string()));
+    }
+
+    #[test]
+    fn test_return_and_throw_call_not_misparsed_as_declaration() {
+        // Regression test: `CPP_FUNCTION`'s "one-or-more word-then-space" prefix (meant
+        // to match a return type/qualifiers) is also satisfied by the single word
+        // `return`/`throw`, so `return helperSum(a, b);` or `throw makeError(x);` was
+        // misparsed as a declaration -- leaking the called function even when it's
+        // `static` at namespace scope or `private:` inside a class.
+        let src = r#"
+static int helperSum(int a, int b) {
+    return a + b;
+}
+
+int publicWrapper(int a, int b) {
+    return helperSum(a, b);
+}
+
+class Widget {
+private:
+    void secretHelper() {}
+public:
+    void reveal() {
+        throw secretHelper();
+    }
+};
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"publicWrapper".to_string()));
+        assert!(!symbols.contains(&"helperSum".to_string()));
+        assert!(!symbols.contains(&"secretHelper".to_string()));
     }
 
     #[test]

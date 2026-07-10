@@ -1,7 +1,14 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"//.*$").unwrap());
+// `(?m)` is required so `$` anchors to each line's end, not just the end of
+// the whole (potentially multi-line) source string: without it, `.` (which
+// never crosses `\n`) can only ever reach `$` on the file's literal last
+// line, so a `//` comment on any earlier line is left completely unstripped.
+// This is more dangerous here than in most sibling backends since
+// `SWIFT_DECL` has no line-start anchor at all, so an unstripped commented-
+// out `public`/`open` declaration matches from anywhere in the file.
+static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)//.*$").unwrap());
 
 static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
 
@@ -278,6 +285,23 @@ public actor SessionManager {}
         assert!(symbols.contains(&"BaseController".to_string()));
         assert!(symbols.contains(&"SessionManager".to_string()));
         assert!(!symbols.contains(&"internalCheck".to_string()));
+    }
+
+    #[test]
+    fn test_swift_commented_out_declaration_on_non_last_line_not_leaked() {
+        // Regression test: `COMMENT_SINGLE` previously lacked `(?m)`, so `$` only
+        // anchored to the end of the whole file, not each line -- a `//` comment was
+        // only ever stripped if it happened to be on the file's literal last line.
+        // This is worse here than in most sibling backends since `SWIFT_DECL` has no
+        // line-start anchor at all, so an unstripped commented-out `public func`
+        // matched from anywhere in the file.
+        let src = r#"
+// public func fakeExport() {}
+public func realExport() {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"realExport".to_string()));
+        assert!(!symbols.contains(&"fakeExport".to_string()));
     }
 
     #[test]

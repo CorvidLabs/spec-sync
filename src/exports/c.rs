@@ -35,6 +35,20 @@ static C_FUNCTION: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)^[^\S\n]*(?:[\w*&]+\s+)+\*?(\w+)\s*\([^)]*\)\s*[{;]").unwrap()
 });
 
+/// `C_FUNCTION`'s "one-or-more word-then-space" prefix is meant to match a return-type
+/// (and qualifiers like `static`/`const`) before a function name, but a bare `return
+/// someFunc(a, b);` statement has exactly the same shape — `return` satisfies the
+/// prefix, and `someFunc` gets captured as if it were a declared function name, leaking
+/// whatever it calls (even a `static`/file-private function) as an export. Unlike the
+/// keyword filter on the *captured name*, this checks whether `return` is what's
+/// actually filling the prefix slot.
+fn starts_with_return(full_match: &str) -> bool {
+    full_match
+        .trim_start()
+        .strip_prefix("return")
+        .is_some_and(|rest| rest.starts_with(|c: char| c.is_whitespace()))
+}
+
 /// Extract public symbols from C source code.
 pub fn extract_exports(content: &str) -> Vec<String> {
     let stripped = COMMENT_SINGLE.replace_all(content, "");
@@ -100,7 +114,10 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             let n = name.as_str().to_string();
             if !keywords.contains(n.as_str()) {
                 let full_match = caps.get(0).unwrap().as_str();
-                if !full_match.contains("static") && !symbols.contains(&n) {
+                if !full_match.contains("static")
+                    && !starts_with_return(full_match)
+                    && !symbols.contains(&n)
+                {
                     symbols.push(n);
                 }
             }
@@ -178,6 +195,26 @@ struct Shape {
         let symbols = extract_exports(src);
         assert!(symbols.contains(&"Shape".to_string()));
         assert!(!symbols.contains(&"area".to_string()));
+    }
+
+    #[test]
+    fn test_return_call_not_misparsed_as_declaration() {
+        // Regression test: `C_FUNCTION`'s "one-or-more word-then-space" prefix (meant to
+        // match a return type/qualifiers) is also satisfied by the single word `return`,
+        // so `return helper_sum(a, b);` was misparsed as a declaration of `helper_sum`
+        // -- leaking it as exported even though it's `static` (file-private).
+        let src = r#"
+static int helper_sum(int a, int b) {
+    return a + b;
+}
+
+int public_wrapper(int a, int b) {
+    return helper_sum(a, b);
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"public_wrapper".to_string()));
+        assert!(!symbols.contains(&"helper_sum".to_string()));
     }
 
     #[test]

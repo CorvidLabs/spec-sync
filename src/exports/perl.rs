@@ -8,6 +8,26 @@ static PERL_SUB: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)^[^\S\n]*(?:our\s+)?sub\s+(\w+)(?:\s+is\s+export)?").unwrap()
 });
 
+/// `Exporter`'s public-API arrays: `our @EXPORT = qw(foo bar);` (always exported when the
+/// module is `use`d) or `our @EXPORT_OK = qw(...);` (exportable on request). Supports the
+/// common `qw(...)`/`qw[...]`/`qw{...}`/`qw/.../` bareword-list delimiters as well as a
+/// plain quoted list (`('foo', 'bar')`). When either array is present, only the names
+/// actually listed make up the module's public surface, mirroring how an explicit export
+/// list is already the authoritative source of truth for Haskell and Erlang elsewhere in
+/// this codebase (rather than "every sub found, minus a naming convention").
+static EXPORT_ARRAY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?s)@EXPORT(?:_OK)?\s*=\s*(?:qw\s*\(([^)]*)\)|qw\s*\[([^\]]*)\]|qw\s*\{([^}]*)\}|qw\s*/([^/]*)/|\(([^)]*)\))",
+    )
+    .unwrap()
+});
+
+/// An identifier-shaped token within an `EXPORT_ARRAY` body — deliberately ignores
+/// surrounding quotes/commas/whitespace so it works uniformly across both the bareword
+/// `qw(...)` form and the quoted-list `('foo', 'bar')` form without needing separate
+/// per-delimiter tokenizers.
+static EXPORT_ARRAY_TOKEN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[A-Za-z_]\w*").unwrap());
+
 /// Strip Perl POD documentation blocks (`=head1` ... `=cut`, `=pod` ... `=cut`,
 /// `=item`, `=over`/`=back`, etc.) before scanning for code.
 ///
@@ -45,17 +65,44 @@ fn strip_pod(content: &str) -> String {
 }
 
 /// Extract public symbols from Perl source code.
+///
+/// Perl has no native visibility keyword: without an `Exporter` `@EXPORT`/`@EXPORT_OK`
+/// array, every `sub` is technically callable via full package qualification. This
+/// mirrors Perl's own real-world convention (used throughout CPAN and this project's
+/// sibling backends) in two steps: if the module declares `@EXPORT`/`@EXPORT_OK`, those
+/// listed names ARE the public API, full stop; otherwise, fall back to the leading-
+/// underscore-is-private naming convention shared with Python/Bash.
 pub fn extract_exports(content: &str) -> Vec<String> {
     let no_pod = strip_pod(content);
     let stripped = COMMENT_SINGLE.replace_all(&no_pod, "");
+
+    let mut export_list: Vec<String> = Vec::new();
+    for caps in EXPORT_ARRAY.captures_iter(&stripped) {
+        let body = caps
+            .iter()
+            .skip(1)
+            .find_map(|m| m)
+            .map(|m| m.as_str())
+            .unwrap_or("");
+        for tok in EXPORT_ARRAY_TOKEN.find_iter(body) {
+            let n = tok.as_str().to_string();
+            if !export_list.contains(&n) {
+                export_list.push(n);
+            }
+        }
+    }
+
+    if !export_list.is_empty() {
+        return export_list;
+    }
 
     let mut symbols = Vec::new();
 
     for caps in PERL_SUB.captures_iter(&stripped) {
         if let Some(name) = caps.get(1) {
-            let n = name.as_str().to_string();
-            if !symbols.contains(&n) {
-                symbols.push(n);
+            let n = name.as_str();
+            if !n.starts_with('_') && !symbols.contains(&n.to_string()) {
+                symbols.push(n.to_string());
             }
         }
     }
@@ -87,6 +134,77 @@ sub another_one is export {
         assert!(symbols.contains(&"my_function".to_string()));
         assert!(symbols.contains(&"exported_function".to_string()));
         assert!(symbols.contains(&"another_one".to_string()));
+    }
+
+    #[test]
+    fn test_export_ok_array_restricts_to_listed_names() {
+        // Regression test: Perl previously had no visibility filtering at all -- every
+        // `sub` was captured unconditionally, regardless of `@EXPORT_OK` or a
+        // leading-underscore "private by convention" name. When `@EXPORT`/`@EXPORT_OK`
+        // is present, only the names it actually lists make up the public surface.
+        let src = r#"
+package MyModule;
+our @EXPORT_OK = qw(public_api another_public);
+
+sub public_api {
+    return 1;
+}
+
+sub another_public {
+    return 2;
+}
+
+sub _helper {
+    return 3;
+}
+
+sub undocumented_internal {
+    return 4;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec!["public_api".to_string(), "another_public".to_string()]
+        );
+        assert!(!symbols.contains(&"_helper".to_string()));
+        assert!(!symbols.contains(&"undocumented_internal".to_string()));
+    }
+
+    #[test]
+    fn test_leading_underscore_sub_excluded_without_export_array() {
+        // Regression test: without any `@EXPORT`/`@EXPORT_OK` declaration, Perl's
+        // real-world naming convention (shared with Python/Bash) treats a leading
+        // underscore as "private" -- previously every `sub` leaked unfiltered.
+        let src = r#"
+package MyModule;
+
+sub public_helper {
+    return 1;
+}
+
+sub _private_helper {
+    return 2;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"public_helper".to_string()));
+        assert!(!symbols.contains(&"_private_helper".to_string()));
+    }
+
+    #[test]
+    fn test_export_array_quoted_list_form() {
+        // `@EXPORT` can also be written as a plain quoted list rather than `qw(...)`.
+        let src = r#"
+package MyModule;
+our @EXPORT = ('foo', 'bar');
+
+sub foo { return 1; }
+sub bar { return 2; }
+sub baz { return 3; }
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["foo".to_string(), "bar".to_string()]);
     }
 
     #[test]

@@ -9,12 +9,35 @@ static ALL_DECL: LazyLock<Regex> =
 static TOP_LEVEL_DECL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^(?:def|class|async def)\s+(\w+)").unwrap());
 
-/// Top-level constant/variable assignment: `NAME = ...` or `NAME: Type = ...`.
-/// The trailing `(?:[^=]|$)` guards against matching `==` comparisons (the
-/// `regex` crate has no look-around support, so the guard is folded into the
-/// match itself instead of a lookahead).
-static TOP_LEVEL_VAR: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)^(\w+)\s*(?::[^=\n]+)?=(?:[^=]|$)").unwrap());
+/// One assignment target at the start of a (possibly chained) top-level
+/// assignment: `NAME = ` or `NAME: Type = `. Used by `chained_assignment_targets`
+/// to walk `x = y = z = value` one target at a time — a single anchored,
+/// non-repeating regex can only ever capture the first target (`x`), silently
+/// dropping every other name in the chain.
+static ASSIGN_TARGET: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(\w+)\s*(?::[^=\n]+)?=").unwrap());
+
+/// Walks a top-level (column-0) line for every `NAME =` assignment target,
+/// left to right, so a chained assignment (`x = y = z = 5`) yields all of
+/// `x`, `y`, `z` instead of just the first. Rejects `==` comparisons: the
+/// character immediately after the matched `=` must not itself be `=` (the
+/// `regex` crate has no look-around, so this is checked manually instead of
+/// via a lookahead). Returns an empty vec for any line that isn't a bare
+/// column-0 assignment at all (e.g. indented code, a `def`/`class` line, or a
+/// plain expression statement).
+fn chained_assignment_targets(line: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut rest = line;
+    while let Some(caps) = ASSIGN_TARGET.captures(rest) {
+        let whole = caps.get(0).unwrap();
+        if rest[whole.end()..].starts_with('=') {
+            break;
+        }
+        names.push(caps[1].to_string());
+        rest = rest[whole.end()..].trim_start();
+    }
+    names
+}
 
 /// Quoted string in __all__
 static QUOTED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"["'](\w+)["']"#).unwrap());
@@ -60,13 +83,15 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             }
         }
     }
-    for caps in TOP_LEVEL_VAR.captures_iter(&stripped) {
-        if let Some(name) = caps.get(1) {
-            let n = name.as_str();
+    let mut offset = 0usize;
+    for line in stripped.split_inclusive('\n') {
+        let bare = line.trim_end_matches(['\n', '\r']);
+        for n in chained_assignment_targets(bare) {
             if !n.starts_with('_') {
-                hits.push((name.start(), n.to_string()));
+                hits.push((offset, n));
             }
         }
+        offset += line.len();
     }
     hits.sort_by_key(|(pos, _)| *pos);
 
@@ -471,6 +496,27 @@ def real_func():
 "#;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["CODEGEN_TEMPLATE", "real_func"]);
+    }
+
+    #[test]
+    fn test_python_chained_assignment_captures_all_targets() {
+        // Regression test: `TOP_LEVEL_VAR` was a single anchored (non-repeating) regex,
+        // so a chained assignment (`x = y = 5`) only ever captured the first target --
+        // `y`'s module-level exposure was silently missed.
+        let src = r#"
+x = y = z = 5
+MAX = MIN = 10
+
+def connect():
+    pass
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"x".to_string()));
+        assert!(symbols.contains(&"y".to_string()));
+        assert!(symbols.contains(&"z".to_string()));
+        assert!(symbols.contains(&"MAX".to_string()));
+        assert!(symbols.contains(&"MIN".to_string()));
+        assert!(symbols.contains(&"connect".to_string()));
     }
 
     #[test]

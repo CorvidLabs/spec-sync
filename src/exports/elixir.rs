@@ -1,7 +1,15 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"#.*$").unwrap());
+// `(?m)` is required so `$` anchors to each line's end, not just the end of
+// the whole (potentially multi-line) source string: without it, `.` (which
+// never crosses `\n`) can only ever reach `$` on the file's literal last
+// line, so a `#` comment on any earlier line is left completely unstripped.
+// Not currently exploitable here since `ELIXIR_DECL` requires its keyword at
+// true line-start (a leading `#` always blocks that match regardless), but
+// fixed for consistency/defense-in-depth with the sibling backends that
+// share this exact defect.
+static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)#.*$").unwrap());
 
 /// Elixir public declarations: defmodule, def, defmacro, defprotocol, @callback
 static ELIXIR_DECL: LazyLock<Regex> = LazyLock::new(|| {

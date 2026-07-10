@@ -61,6 +61,16 @@ const DART_KEYWORDS: &[&str] = &[
     "yield", "assert", "new", "throw", "with", "on",
 ];
 
+/// Detect a line that opens a container body (class/mixin/enum/extension), as
+/// opposed to a function/method/getter/setter body or any other block
+/// (if/for/while/closure). Declarations directly inside a container body are
+/// real export candidates; declarations nested inside a function/method body
+/// are locals and are never exported, regardless of whether they happen to
+/// look like a typed top-level declaration.
+static CONTAINER_BODY_OPEN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^[^\S\n]*(?:abstract\s+)?(?:class|mixin|enum|extension)\b").unwrap()
+});
+
 /// Extract public symbols from Dart source code.
 /// In Dart, identifiers starting with _ are private; everything else is public.
 pub fn extract_exports(content: &str) -> Vec<String> {
@@ -68,42 +78,69 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     let stripped = COMMENT_MULTI.replace_all(&stripped, "");
 
     let mut symbols = Vec::new();
+    // Tracks nested `{ }` scopes: true = a class/mixin/enum/extension body
+    // (member declarations are legitimate export candidates), false = a
+    // function/method/getter/setter body or any other block (declarations
+    // inside are local and never exported). An empty stack means top level.
+    let mut scope_stack: Vec<bool> = Vec::new();
 
-    for caps in DART_TYPE.captures_iter(&stripped) {
-        if let Some(name) = caps.get(1) {
-            let n = name.as_str();
-            if !n.starts_with('_') {
-                symbols.push(n.to_string());
+    for line in stripped.lines() {
+        let in_exportable_scope = scope_stack.last().copied().unwrap_or(true);
+
+        if in_exportable_scope {
+            for caps in DART_TYPE.captures_iter(line) {
+                if let Some(name) = caps.get(1) {
+                    let n = name.as_str();
+                    if !n.starts_with('_') && !symbols.contains(&n.to_string()) {
+                        symbols.push(n.to_string());
+                    }
+                }
+            }
+
+            for caps in DART_CONST.captures_iter(line) {
+                if let Some(name) = caps.get(1) {
+                    let n = name.as_str();
+                    if !n.starts_with('_') && !symbols.contains(&n.to_string()) {
+                        symbols.push(n.to_string());
+                    }
+                }
+            }
+
+            for caps in DART_TOPLEVEL.captures_iter(line) {
+                if let Some(name) = caps.get(1) {
+                    let n = name.as_str();
+                    if !n.starts_with('_') && !symbols.contains(&n.to_string()) {
+                        symbols.push(n.to_string());
+                    }
+                }
+            }
+
+            for caps in DART_BARE_FUNCTION.captures_iter(line) {
+                if let Some(name) = caps.get(1) {
+                    let n = name.as_str();
+                    if !n.starts_with('_')
+                        && !DART_KEYWORDS.contains(&n)
+                        && !symbols.contains(&n.to_string())
+                    {
+                        symbols.push(n.to_string());
+                    }
+                }
             }
         }
-    }
 
-    for caps in DART_CONST.captures_iter(&stripped) {
-        if let Some(name) = caps.get(1) {
-            let n = name.as_str();
-            if !n.starts_with('_') && !symbols.contains(&n.to_string()) {
-                symbols.push(n.to_string());
-            }
-        }
-    }
-
-    for caps in DART_TOPLEVEL.captures_iter(&stripped) {
-        if let Some(name) = caps.get(1) {
-            let n = name.as_str();
-            if !n.starts_with('_') && !symbols.contains(&n.to_string()) {
-                symbols.push(n.to_string());
-            }
-        }
-    }
-
-    for caps in DART_BARE_FUNCTION.captures_iter(&stripped) {
-        if let Some(name) = caps.get(1) {
-            let n = name.as_str();
-            if !n.starts_with('_')
-                && !DART_KEYWORDS.contains(&n)
-                && !symbols.contains(&n.to_string())
-            {
-                symbols.push(n.to_string());
+        // Only treat a freshly-opened body as an "exportable scope" (and thus a candidate
+        // for its members to be captured) if it's a container body, not a function/method
+        // body -- without this, a local variable declared inside an ordinary function body
+        // (`void doWork() { String result = compute(); }`) would be treated as sitting
+        // directly in an exportable scope and leak as a top-level export.
+        let opens_container_body = in_exportable_scope && CONTAINER_BODY_OPEN.is_match(line);
+        for ch in line.chars() {
+            match ch {
+                '{' => scope_stack.push(opens_container_body),
+                '}' => {
+                    scope_stack.pop();
+                }
+                _ => {}
             }
         }
     }
@@ -233,6 +270,32 @@ final String apiVersion = "1.0";
         assert!(symbols.contains(&"AuthCallback".to_string()));
         assert!(symbols.contains(&"defaultTtl".to_string()));
         assert!(symbols.contains(&"apiVersion".to_string()));
+    }
+
+    #[test]
+    fn test_dart_locals_inside_function_body_not_exported() {
+        // Regression test: a plain typed local variable declared inside a function or
+        // method body must not leak as a top-level export just because it has the same
+        // "Type name = ..." shape as a real field/top-level variable declaration.
+        let src = r#"
+void doWork() {
+  String result = compute();
+  int count = 0;
+}
+
+class Service {
+  void process() {
+    String localValue = "temp";
+  }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"doWork".to_string()));
+        assert!(symbols.contains(&"Service".to_string()));
+        assert!(symbols.contains(&"process".to_string()));
+        assert!(!symbols.contains(&"result".to_string()));
+        assert!(!symbols.contains(&"count".to_string()));
+        assert!(!symbols.contains(&"localValue".to_string()));
     }
 
     #[test]

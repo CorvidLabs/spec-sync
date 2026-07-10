@@ -67,50 +67,103 @@ static VALA_MEMBER: LazyLock<Regex> = LazyLock::new(|| {
 static VALA_CTOR: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*public\s+(\w+)(?:\.(\w+))?\s*\(").unwrap());
 
+/// Detect a line that opens a type body (class/struct/interface). A member declared as
+/// `public` only counts as part of the public surface if its *enclosing* type is itself
+/// exported -- a `public` method on a non-`public` (and thus non-exported) class is not
+/// reachable from outside the module, so it must not leak just because the member's own
+/// line happens to say `public`.
+static VALA_TYPE_BODY_OPEN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?m)^[^\S\n]*(?:public\s+)?(?:abstract\s+)?(?:compact\s+)?(?:class|struct|interface)\b",
+    )
+    .unwrap()
+});
+
 /// Extract public symbols from Vala source code.
 pub fn extract_exports(content: &str) -> Vec<String> {
     let stripped = COMMENT_SINGLE.replace_all(content, "");
     let stripped = COMMENT_MULTI.replace_all(&stripped, "");
 
     let mut symbols = Vec::new();
+    // Tracks nested `{ }` scopes: true = a `public` class/struct/interface body (member
+    // declarations are legitimate export candidates), false = a non-public type body, a
+    // method body, or any other block. An empty stack means top level (namespace scope),
+    // which is exportable.
+    let mut scope_stack: Vec<bool> = Vec::new();
 
-    for caps in VALA_TYPE.captures_iter(&stripped) {
-        if let Some(name) = caps.get(1) {
-            let n = name.as_str().to_string();
-            if !symbols.contains(&n) {
-                symbols.push(n);
+    for line in stripped.lines() {
+        let in_exportable_scope = scope_stack.last().copied().unwrap_or(true);
+
+        if in_exportable_scope {
+            if let Some(caps) = VALA_TYPE.captures(line)
+                && let Some(name) = caps.get(1)
+            {
+                let n = name.as_str().to_string();
+                if !symbols.contains(&n) {
+                    symbols.push(n);
+                }
+            }
+
+            if let Some(caps) = VALA_DELEGATE.captures(line)
+                && let Some(name) = caps.get(1)
+            {
+                let n = name.as_str().to_string();
+                if !symbols.contains(&n) {
+                    symbols.push(n);
+                }
+            }
+
+            if let Some(caps) = VALA_MEMBER.captures(line)
+                && let Some(name) = caps.get(1)
+            {
+                let n = name.as_str().to_string();
+                if !symbols.contains(&n) {
+                    symbols.push(n);
+                }
+            }
+
+            if let Some(caps) = VALA_CTOR.captures(line) {
+                // Named constructor (`Foo.bar`) captures the constructor name in group 2;
+                // otherwise fall back to group 1, the canonical constructor's identifier
+                // (which is just the class name again -- redundant with `VALA_TYPE`, but
+                // deduped below).
+                let name = caps.get(2).or_else(|| caps.get(1));
+                if let Some(name) = name {
+                    let n = name.as_str().to_string();
+                    if !symbols.contains(&n) {
+                        symbols.push(n);
+                    }
+                }
             }
         }
-    }
 
-    for caps in VALA_DELEGATE.captures_iter(&stripped) {
-        if let Some(name) = caps.get(1) {
-            let n = name.as_str().to_string();
-            if !symbols.contains(&n) {
-                symbols.push(n);
-            }
-        }
-    }
-
-    for caps in VALA_MEMBER.captures_iter(&stripped) {
-        if let Some(name) = caps.get(1) {
-            let n = name.as_str().to_string();
-            if !symbols.contains(&n) {
-                symbols.push(n);
-            }
-        }
-    }
-
-    for caps in VALA_CTOR.captures_iter(&stripped) {
-        // Named constructor (`Foo.bar`) captures the constructor name in group 2;
-        // otherwise fall back to group 1, the canonical constructor's identifier
-        // (which is just the class name again -- redundant with `VALA_TYPE`, but
-        // deduped below).
-        let name = caps.get(2).or_else(|| caps.get(1));
-        if let Some(name) = name {
-            let n = name.as_str().to_string();
-            if !symbols.contains(&n) {
-                symbols.push(n);
+        // Only treat a freshly-opened type body as an exportable scope if the type itself
+        // is in exported territory here -- otherwise a member of a non-`public` class (or
+        // one nested inside a method body) would still be treated as sitting directly in
+        // an exportable scope, leaking it even though its enclosing type is correctly
+        // excluded above.
+        let opens_type_body = in_exportable_scope
+            && VALA_TYPE_BODY_OPEN.is_match(line)
+            && line.trim_start().starts_with("public");
+        // `namespace` bodies don't carry their own visibility -- they're purely
+        // organizational -- so a namespace's `{` inherits whatever scope was already in
+        // effect instead of unconditionally pushing `false` (which would otherwise wall
+        // off every declaration inside a top-level `namespace { ... }` block).
+        let opens_namespace = line.trim_start().starts_with("namespace");
+        for ch in line.chars() {
+            match ch {
+                '{' => {
+                    let push_value = if opens_namespace {
+                        in_exportable_scope
+                    } else {
+                        opens_type_body
+                    };
+                    scope_stack.push(push_value);
+                }
+                '}' => {
+                    scope_stack.pop();
+                }
+                _ => {}
             }
         }
     }
@@ -140,6 +193,28 @@ namespace Example.Auth {
         assert!(symbols.contains(&"instance".to_string()));
         assert!(symbols.contains(&"timeout".to_string()));
         assert!(!symbols.contains(&"internal_check".to_string()));
+    }
+
+    #[test]
+    fn test_vala_public_member_in_non_public_class_not_leaked() {
+        // Regression test: a `public` method is only part of the module's public surface
+        // if its *enclosing* class is itself exported. A `public` method on a class with
+        // no `public` keyword (thus not exported) must not leak just because the member's
+        // own line says `public`.
+        let src = r#"
+class Hidden : Object {
+    public void method () { }
+}
+
+public class Visible : Object {
+    public void reveal () { }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(!symbols.contains(&"Hidden".to_string()));
+        assert!(!symbols.contains(&"method".to_string()));
+        assert!(symbols.contains(&"Visible".to_string()));
+        assert!(symbols.contains(&"reveal".to_string()));
     }
 
     #[test]

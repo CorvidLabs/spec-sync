@@ -5,10 +5,14 @@ static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"//.*$").u
 
 static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
 
-/// C# public/internal types: class, struct, interface, enum, record
+/// C# public/internal types: class, struct, interface, enum, record. The modifier group
+/// is a repeated alternation (not a fixed sequence) since C# allows `static`/`partial`/
+/// `sealed`/`abstract` in any order and any combination (e.g. `public sealed partial
+/// class Config` — `sealed` before `partial` — was previously unmatched by a regex that
+/// hardcoded `static, partial, sealed, abstract` as the only accepted order).
 static CS_TYPE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*public\s+(?:static\s+)?(?:partial\s+)?(?:sealed\s+)?(?:abstract\s+)?(?:class|struct|interface|enum|record)\s+(\w+)",
+        r"(?m)^[^\S\n]*public\s+(?:(?:static|partial|sealed|abstract)\s+)*(?:class|struct|interface|enum|record)\s+(\w+)",
     )
     .unwrap()
 });
@@ -25,17 +29,24 @@ static CS_DELEGATE: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
-/// C# public methods and properties. The optional-modifier alternation also covers
-/// `required` (C# 11 required auto-properties, e.g. `public required string Id {
-/// get; init; }`) and `event` (field-like event declarations, e.g. `public event
-/// EventHandler<EventArgs> Updated;`) — without them the member name is dropped.
-/// The trailing alternation of `(`/`{`/`;`/`=>` covers both regular members and
-/// expression-bodied properties/methods (e.g. `public string LongName => Name +
-/// " speed";`), which have `=>` immediately after the name instead of a brace or
-/// parameter list — without `=>` such members are silently dropped.
+/// C# public methods and properties. The modifier group is a repeated alternation (not a
+/// fixed sequence) since C# allows these in any order and any combination — a hardcoded
+/// order (e.g. requiring `static` before `virtual`) would reject equally valid real-world
+/// orderings like `public sealed override void Foo()`. Covers `required` (C# 11 required
+/// auto-properties, e.g. `public required string Id { get; init; }`), `event` (field-like
+/// event declarations, e.g. `public event EventHandler<EventArgs> Updated;`), and
+/// `readonly` (e.g. `public static readonly Config Empty = ...;`, a common
+/// constant/singleton idiom) — without any of these the member name is dropped. The
+/// trailing character class covers `(` (methods), `{` (block-bodied properties), `;`
+/// (fields/abstract members with no body), and a leading `=` (covering both a plain
+/// field initializer, e.g. `= new Config();`, and an expression-bodied member's `=>`,
+/// since matching just the arrow's first character is enough to recognize either shape)
+/// — a field initializer is exactly the "readonly ... = ..." idiom this pattern exists
+/// to capture, so a terminator that only accepted `=>` (and not a bare `=`) would still
+/// silently drop it even with `readonly` present in the modifier list.
 static CS_MEMBER: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*public\s+(?:static\s+)?(?:virtual\s+)?(?:override\s+)?(?:abstract\s+)?(?:async\s+)?(?:new\s+)?(?:required\s+)?(?:event\s+)?(?:\w+(?:<[^>]*>)?(?:\[\])?(?:\?)?)\s+(\w+)\s*(?:[({;]|=>)",
+        r"(?m)^[^\S\n]*public\s+(?:(?:static|virtual|override|sealed|abstract|async|new|required|readonly|event)\s+)*(?:\w+(?:<[^>]*>)?(?:\[\])?(?:\?)?)\s+(\w+)\s*[({;=]",
     )
     .unwrap()
 });
@@ -55,7 +66,7 @@ static CS_INTERFACE_START: LazyLock<Regex> =
 /// 8+ default interface members) still excludes the member.
 static CS_INTERFACE_MEMBER: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*(private|internal)?\s*(?:public\s+)?(?:static\s+)?(?:abstract\s+)?(?:virtual\s+)?(?:sealed\s+)?(?:async\s+)?(?:new\s+)?(?:event\s+)?(?:\w+(?:<[^>]*>)?(?:\[\])?(?:\?)?)\s+(\w+)\s*(?:[({;]|=>)",
+        r"(?m)^[^\S\n]*(private|internal)?\s*(?:(?:public|static|abstract|virtual|sealed|async|new|readonly|event)\s+)*(?:\w+(?:<[^>]*>)?(?:\[\])?(?:\?)?)\s+(\w+)\s*(?:[({;]|=>)",
     )
     .unwrap()
 });
@@ -248,6 +259,27 @@ public partial class UserService {
         assert!(symbols.contains(&"Instance".to_string()));
         assert!(symbols.contains(&"UserService".to_string()));
         assert!(symbols.contains(&"Create".to_string()));
+    }
+
+    #[test]
+    fn test_csharp_reversed_modifier_order_and_readonly_field() {
+        // Regression test: CS_TYPE/CS_MEMBER previously hardcoded a fixed modifier
+        // order (`static, partial, sealed, abstract` / `static, virtual, override,
+        // abstract, async, new, required, event`), so an equally valid but differently
+        // ordered real-world declaration like `public sealed partial class` failed to
+        // match at all. `readonly` was also missing entirely from CS_MEMBER, silently
+        // dropping the extremely common `public static readonly` constant/singleton
+        // idiom.
+        let src = r#"
+public sealed partial class Config {
+    public static readonly Config Empty = new Config();
+    public sealed override string ToString() => "Config";
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Config".to_string()));
+        assert!(symbols.contains(&"Empty".to_string()));
+        assert!(symbols.contains(&"ToString".to_string()));
     }
 
     #[test]

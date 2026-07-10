@@ -7,6 +7,14 @@ use std::sync::LazyLock;
 // so comments are never stripped from realistic multi-line files.
 static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)#.*$").unwrap());
 
+/// Nim `#[ ... ]#` block comments aren't truly regex-representable when nested (Nim
+/// explicitly allows arbitrary nesting), but a single non-nested pass handles the common
+/// case, matching the same pragmatic approach other backends take with block comments.
+/// Must run *before* `COMMENT_SINGLE`: that single-line pattern would otherwise strip just
+/// the opening `#[` marker (as an ordinary `#`-comment truncated at its own line's end),
+/// destroying the very token this pattern needs to find the block's extent.
+static COMMENT_BLOCK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)#\[.*?\]#").unwrap());
+
 /// Nim exported symbols: name followed by *
 /// Follow-set includes `[` (generics: `name*[T]`) and `,` (comma-separated
 /// multi-identifier declarations: `var a*, b*: T`) in addition to the
@@ -17,7 +25,8 @@ static NIM_EXPORT: LazyLock<Regex> =
 
 /// Extract public symbols from Nim source code.
 pub fn extract_exports(content: &str) -> Vec<String> {
-    let stripped = COMMENT_SINGLE.replace_all(content, "");
+    let stripped = COMMENT_BLOCK.replace_all(content, "");
+    let stripped = COMMENT_SINGLE.replace_all(&stripped, "");
 
     let mut symbols = Vec::new();
 
@@ -61,6 +70,28 @@ const Version* = "1.0"
         assert!(symbols.contains(&"Version".to_string()));
         assert!(!symbols.contains(&"helper".to_string()));
         assert!(!symbols.contains(&"age".to_string()));
+    }
+
+    #[test]
+    fn test_nim_block_commented_out_export_not_leaked() {
+        // Regression test: `#[ ... ]#` block comments were claimed handled (per the
+        // docstring on `test_nim_exports_real_learnxinyminutes_script_has_no_exports`)
+        // but were never actually stripped -- only single-line `#...` comments were.
+        // That test passed only by coincidence (no `word*` pattern happened to appear
+        // in its comment body). This uses a real exported-looking name inside the
+        // block comment to prove it's genuinely excluded.
+        let src = r#"
+#[
+  Old implementation, kept for reference:
+  proc secretProc*(x: int): int =
+    x * 2
+]#
+proc realProc*(x: int): int =
+  x + 1
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"realProc".to_string()));
+        assert!(!symbols.contains(&"secretProc".to_string()));
     }
 
     #[test]

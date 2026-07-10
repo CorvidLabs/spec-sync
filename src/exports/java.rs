@@ -24,11 +24,14 @@ static JAVA_TYPE_HEADER: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
-/// Shared "modifiers + type + name + terminator" tail for member declarations. Allows
-/// `static`/`final` in either order (both are legal Java, e.g. `public final static`)
-/// and `default` (interface default methods), in addition to the previously-supported
-/// modifiers.
-const JAVA_MEMBER_TAIL: &str = r"(?:static\s+final\s+|final\s+static\s+|static\s+|final\s+)?(?:default\s+)?(?:synchronized\s+)?(?:abstract\s+)?(?:native\s+)?(?:strictfp\s+)?(?:<[^>]+>\s+)?(?:\w+(?:<[^>]*>)?(?:\[\])*)\s+(\w+)\s*[({;=]";
+/// Shared "modifiers + type + name + terminator" tail for member declarations. The
+/// modifier group is a repeated alternation (not a fixed sequence), since Java allows
+/// `static`/`final`/`default`/`synchronized`/`abstract`/`native`/`strictfp` in any order
+/// and any combination (e.g. `public synchronized static void bar()` — `synchronized`
+/// before `static` — is equally valid to the canonical `public static synchronized`, but
+/// a hardcoded fixed order previously rejected anything other than the one sequence it
+/// hardcoded).
+const JAVA_MEMBER_TAIL: &str = r"(?:(?:static|final|default|synchronized|abstract|native|strictfp)\s+)*(?:<[^>]+>\s+)?(?:\w+(?:<[^>]*>)?(?:\[\])*)\s+(\w+)\s*[({;=]";
 
 /// Java public methods and fields (explicit `public` keyword required).
 static JAVA_MEMBER: LazyLock<Regex> =
@@ -475,6 +478,23 @@ public class Fruit implements Edible, Digestible {
         // declarations") must never leak through as if it were a real declaration.
         assert!(!symbols.contains(&"Constants".to_string()));
         assert!(!symbols.contains(&"Declarations".to_string()));
+    }
+
+    #[test]
+    fn test_java_synchronized_static_modifier_order() {
+        // Regression test: `JAVA_MEMBER_TAIL` previously only special-cased
+        // `static`/`final` reordering, with every other modifier
+        // (synchronized/abstract/native/strictfp/default) fixed at one position in the
+        // sequence -- `synchronized` before `static` (equally valid Java) failed to
+        // match since the canonical order hardcoded `static` first.
+        let src = r#"
+public class Counter {
+    public synchronized static void increment() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Counter".to_string()));
+        assert!(symbols.contains(&"increment".to_string()));
     }
 
     #[test]

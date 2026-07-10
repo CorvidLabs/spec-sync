@@ -1,6 +1,6 @@
 ---
 module: exports
-version: 2
+version: 3
 status: stable
 files:
   - src/exports/mod.rs
@@ -306,6 +306,7 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 
 | Date | Change |
 |------|--------|
+| 2026-07-10 | v3: parse one-level nested Kotlin annotation arguments and prevent members of annotated non-public types from leaking as exports |
 | 2026-07-10 | v2: support modern Android/Kotlin Multiplatform declarations (`value class`, `expect`/`actual`, `external`), same-line annotations, and flexible modifier ordering |
 | 2026-07-10 | v2: keep the optional real-world Swift verification test warning-free under current stable Clippy |
 | 2026-03-25 | Initial spec |

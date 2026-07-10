@@ -25,7 +25,7 @@ static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?
 /// Then exclude lines that start with private/internal/protected.
 static KT_DECL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:public|internal|private|protected|override|suspend|inline|tailrec|const|infix|operator|abstract|open|final|expect|actual|external|lateinit)\s+)*(?:(?:data|sealed|enum|annotation|value)\s+)?(?:fun|class|object|interface|typealias|val|var)\s+(?:<(?:[^<>]|<[^<>]*>)*>\s+)?(?:[A-Za-z_]\w*(?:<(?:[^<>]|<[^<>]*>)*>)?\??\.)?(\w+)",
+        r"(?m)^[^\S\n]*(?:@\w+(?:\((?:[^()]+|\([^()]*\))*\))?\s+)*(?:(?:public|internal|private|protected|override|suspend|inline|tailrec|const|infix|operator|abstract|open|final|expect|actual|external|lateinit)\s+)*(?:(?:data|sealed|enum|annotation|value)\s+)?(?:fun|class|object|interface|typealias|val|var)\s+(?:<(?:[^<>]|<[^<>]*>)*>\s+)?(?:[A-Za-z_]\w*(?:<(?:[^<>]|<[^<>]*>)*>)?\??\.)?(\w+)",
     )
     .unwrap()
 });
@@ -33,7 +33,7 @@ static KT_DECL: LazyLock<Regex> = LazyLock::new(|| {
 /// Detect visibility — private/internal/protected lines should be excluded
 static PRIVATE_LINE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-            r"(?m)^[^\S\n]*(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:public|override|suspend|inline|tailrec|const|infix|operator|abstract|open|final|expect|actual|external|lateinit)\s+)*(?:private|internal|protected)\s+",
+            r"(?m)^[^\S\n]*(?:@\w+(?:\((?:[^()]+|\([^()]*\))*\))?\s+)*(?:(?:public|override|suspend|inline|tailrec|const|infix|operator|abstract|open|final|expect|actual|external|lateinit)\s+)*(?:private|internal|protected)\s+",
         )
         .unwrap()
 });
@@ -45,7 +45,7 @@ static PRIVATE_LINE: LazyLock<Regex> = LazyLock::new(|| {
 /// regardless of whether they happen to use `val`/`var`/`fun`.
 static TYPE_BODY_OPEN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*(?:@\w+(?:\([^)]*\))?\s+)*(?:companion\s+)?(?:(?:public|internal|private|protected|abstract|open|final|expect|actual)\s+)*(?:(?:data|sealed|enum|annotation|value)\s+)*(?:class|object|interface)\b",
+        r"(?m)^[^\S\n]*(?:@\w+(?:\((?:[^()]+|\([^()]*\))*\))?\s+)*(?:companion\s+)?(?:(?:public|internal|private|protected|abstract|open|final|expect|actual)\s+)*(?:(?:data|sealed|enum|annotation|value)\s+)*(?:class|object|interface)\b",
     )
     .unwrap()
 });
@@ -84,7 +84,8 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         // (a valid, if unusual, Kotlin construct) is not accessible from outside that function,
         // so its members must not leak out as if they were module-level exports even though the
         // line syntactically looks like a type-body opener.
-        let opens_type_body = in_exportable_scope && TYPE_BODY_OPEN.is_match(line);
+        let opens_type_body =
+            in_exportable_scope && TYPE_BODY_OPEN.is_match(line) && !PRIVATE_LINE.is_match(line);
         for ch in line.chars() {
             match ch {
                 '{' => scope_stack.push(opens_type_body),
@@ -172,6 +173,39 @@ actual internal class InternalAndroidClock
         assert!(symbols.contains(&"nativeVersion".to_string()));
         assert!(!symbols.contains(&"InternalAndroidClock".to_string()));
         assert!(!symbols.contains(&"internalBridge".to_string()));
+    }
+
+    #[test]
+    fn test_kotlin_nested_annotation_arguments_and_non_public_annotated_types() {
+        let src = r#"
+@Route(option = Option.Some(1)) fun routed() = Unit
+
+@Keep internal class HiddenService {
+    fun leakedMember() = Unit
+}
+
+@Keep private object HiddenObject {
+    val leakedValue = 1
+}
+
+@Keep protected interface HiddenContract {
+    fun leakedRequirement()
+}
+
+@Route(option = Option.Some(2)) class VisibleService {
+    fun visibleMember() = Unit
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"routed".to_string()));
+        assert!(symbols.contains(&"VisibleService".to_string()));
+        assert!(symbols.contains(&"visibleMember".to_string()));
+        assert!(!symbols.contains(&"HiddenService".to_string()));
+        assert!(!symbols.contains(&"leakedMember".to_string()));
+        assert!(!symbols.contains(&"HiddenObject".to_string()));
+        assert!(!symbols.contains(&"leakedValue".to_string()));
+        assert!(!symbols.contains(&"HiddenContract".to_string()));
+        assert!(!symbols.contains(&"leakedRequirement".to_string()));
     }
 
     #[test]

@@ -11,6 +11,7 @@ spec: exports.spec.md
 
 ## Done
 
+- [x] Handle nested annotation arguments and non-public annotated type bodies in Kotlin
 - [x] Support Android/Kotlin Multiplatform declaration modifiers, same-line annotations, and value classes
 - [x] Keep optional real-world Swift verification warning-free under current stable Clippy
 - [x] Implement regex export extraction for all 33 languages (TS, Python, Rust, Go, Java, Kotlin, Swift, Dart, C#, PHP, Ruby, YAML, C, C++, Scala, Crystal, Nim, Erlang, Elixir, Perl, Lisp, Haskell, Lua, R, OCaml, Groovy, F#, Clojure, D, Objective-C, Bash, PowerShell, Vala)

@@ -812,7 +812,6 @@ require_sections = ["Public API", "Behavioral Examples", "Error Cases"]
 [lifecycle.guards."*→stable"]
 min_score = 85
 message = "Stable specs require high quality scores"
-}
 ```
 
 | Guard Option | Type | Description |

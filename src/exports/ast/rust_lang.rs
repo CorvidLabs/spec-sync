@@ -14,7 +14,14 @@ fn parse_rust(content: &str) -> Option<Tree> {
 /// - `pub fn/struct/enum/trait/type/const/static/mod`
 /// - `pub async fn`, `pub unsafe fn`
 /// - Feature-gated exports (`#[cfg(feature = "...")]`)
-/// - `pub` items nested inside `impl` blocks and inline `mod { ... }` bodies
+/// - `pub` items nested inside `impl` blocks and `mod { ... }` bodies, but
+///   only when the enclosing `mod` is itself genuinely `pub` (a `pub` item
+///   inside a private `mod` is not part of the crate's public API surface)
+/// - `pub use` re-exports: single (`pub use a::B;`), aliased (`... as C`),
+///   grouped/brace-nested (`pub use a::{B, C as D, E::F}`), and a bare
+///   module re-export (`pub use foo;`). Glob re-exports (`pub use a::*;`)
+///   and a bare `self` inside a group are intentionally not expanded, since
+///   neither has a single statically-enumerable name from this file alone.
 /// - Correctly ignores `pub` inside string literals and comments (AST-native)
 ///
 /// Excludes restricted visibility forms such as `pub(crate)`, `pub(super)`,
@@ -55,10 +62,22 @@ fn collect_pub_items(node: &tree_sitter::Node, src: &[u8], symbols: &mut Vec<Str
     let mut cursor = node.walk();
 
     for child in node.children(&mut cursor) {
-        if is_pub_item(&child, src)
-            && let Some(name) = extract_item_name(&child, src)
-        {
-            symbols.push(name);
+        let child_is_pub = is_pub_item(&child, src);
+
+        if child_is_pub {
+            if child.kind() == "use_declaration" {
+                // `pub use ...;` re-exports: the exported name(s) live inside
+                // the `argument` use-tree (a bare path, an `as`-aliased path,
+                // a brace-grouped/nested list, or a glob), not as a `name`
+                // field on the declaration itself. Handled by a dedicated
+                // recursive walk mirroring the regex backend's
+                // PUB_USE_SINGLE/PUB_USE_GROUP semantics.
+                if let Some(argument) = child.child_by_field_name("argument") {
+                    collect_use_tree_names(&argument, src, symbols);
+                }
+            } else if let Some(name) = extract_item_name(&child, src) {
+                symbols.push(name);
+            }
         }
 
         // Recurse into containers whose members carry their own explicit `pub`
@@ -71,13 +90,81 @@ fn collect_pub_items(node: &tree_sitter::Node, src: &[u8], symbols: &mut Vec<Str
         // but Rust forbids visibility modifiers on trait-impl items, so
         // `is_pub_item` never matches there — no risk of false positives.)
         match child.kind() {
-            "impl_item" | "mod_item" => {
+            "impl_item" => {
                 if let Some(body) = child.child_by_field_name("body") {
+                    collect_pub_items(&body, src, symbols);
+                }
+            }
+            "mod_item" => {
+                // A `pub` item declared inside a *private* `mod { ... }` body
+                // is NOT actually reachable from outside the module: Rust's
+                // effective visibility of a path is capped by the
+                // least-visible ancestor module, so nothing beneath a
+                // non-`pub` `mod` is part of the crate's public API surface,
+                // no matter what visibility its own members declare (e.g.
+                // `mod private_helpers { pub fn leaked() {} }` does NOT
+                // export `leaked`). Only descend when the module itself
+                // carries its own bare `pub` keyword; the crate root (this
+                // function's initial caller) has no visibility modifier of
+                // its own and is always the public starting point, so it is
+                // unaffected by this gate.
+                if child_is_pub && let Some(body) = child.child_by_field_name("body") {
                     collect_pub_items(&body, src, symbols);
                 }
             }
             _ => {}
         }
+    }
+}
+
+/// Recursively collect the leaf name(s) introduced by a `use` tree (the
+/// `argument` of a `use_declaration`), covering every shape
+/// tree-sitter-rust produces: a bare path (`foo::Bar` -> `Bar`), an aliased
+/// path (`foo::Bar as Baz` -> `Baz`), a brace-grouped list (`foo::{a, b as
+/// c, d::e}`, arbitrarily nested), and a bare re-export of a single
+/// identifier (`pub use foo;` -> `foo`). Glob re-exports (`foo::*`) and a
+/// bare `self` inside a group (`foo::{self, Bar}`) are intentionally
+/// skipped: neither introduces a single statically-enumerable name, mirroring
+/// the regex backend's PUB_USE_SINGLE/PUB_USE_GROUP, which leave globs
+/// unexpanded and drop bare `self` entries for the same reason.
+fn collect_use_tree_names(node: &tree_sitter::Node, src: &[u8], symbols: &mut Vec<String>) {
+    match node.kind() {
+        "identifier" => {
+            if let Ok(text) = node.utf8_text(src) {
+                symbols.push(text.to_string());
+            }
+        }
+        "scoped_identifier" => {
+            if let Some(name) = get_field_text(node, "name", src) {
+                symbols.push(name);
+            }
+        }
+        "use_as_clause" => {
+            if let Some(alias) = get_field_text(node, "alias", src) {
+                symbols.push(alias);
+            }
+        }
+        "use_list" => {
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                collect_use_tree_names(&child, src, symbols);
+            }
+        }
+        "scoped_use_list" => {
+            // Only the nested `{ ... }` list holds re-exported leaf names;
+            // the leading path (e.g. `a` in `a::{b, c}`) is just a namespace
+            // prefix, not itself an exported symbol.
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() == "use_list" {
+                    collect_use_tree_names(&child, src, symbols);
+                }
+            }
+        }
+        // "use_wildcard" (`foo::*`) and "self" (bare `self` inside a group)
+        // intentionally fall through to the no-op default: neither has a
+        // single statically-enumerable name to contribute.
+        _ => {}
     }
 }
 
@@ -562,6 +649,187 @@ pub fn also_public() {}
         // The regex backend has no such blind spot and recovers everything.
         let regex_symbols = crate::exports::rust_lang::extract_exports(src);
         assert!(regex_symbols.contains(&"also_public".to_string()));
+    }
+
+    #[test]
+    fn test_pub_items_inside_private_mod_are_not_exported() {
+        // Regression: a `pub fn`/`pub struct` nested inside a *private*
+        // `mod { ... }` was previously captured just because the item itself
+        // carried a `pub` keyword. That is wrong: Rust's effective
+        // visibility of a path is capped by the least-visible ancestor
+        // module, so nothing beneath a non-`pub` `mod` is actually reachable
+        // from outside the module -- `mod private_mod { pub fn leaked() {} }`
+        // does NOT put `leaked` on the crate's public API surface. Verified
+        // empirically before the fix: `extract_exports` returned
+        // `["should_not_leak", "AlsoShouldNotLeak", "top_level_ok"]`, i.e. a
+        // wrong-but-nonempty result that would have masked the bug from any
+        // "empty result -> fall back to regex" safety net.
+        let src = r#"
+mod private_mod {
+    pub fn should_not_leak() {}
+    pub struct AlsoShouldNotLeak;
+}
+pub fn top_level_ok() {}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec!["top_level_ok"],
+            "pub items inside a private mod must not be treated as exported: {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_pub_items_inside_nested_private_mod_under_pub_mod_are_not_exported() {
+        // Regression: the private-mod gate must apply at every nesting
+        // level, not just the outermost one. `pub mod outer { mod inner {
+        // pub fn leaked() {} } }` -- `inner` is private even though `outer`
+        // is `pub`, so `leaked` is still not reachable from outside the
+        // crate.
+        let src = r#"
+pub mod outer {
+    mod inner {
+        pub fn leaked() {}
+    }
+    pub fn visible() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["outer", "visible"]);
+    }
+
+    #[test]
+    fn test_pub_use_single_reexport_captured() {
+        // Regression: `pub use` re-exports were not recognized at all by the
+        // AST backend (`use_declaration` was entirely absent from
+        // `extract_item_name`'s match), even though re-exporting a
+        // submodule's type at the crate root (`pub use crate::foo::Bar;`) is
+        // one of the most common Rust public-API patterns (idiomatic in
+        // almost every `lib.rs`). This silently under-reported exports on
+        // any file containing at least one other captured item, since the
+        // result was nonempty and so never triggered the regex fallback.
+        let src = r#"
+pub use crate::foo::Bar;
+pub use super::baz::Qux as Renamed;
+pub fn also_here() {}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Bar", "Renamed", "also_here"]);
+    }
+
+    #[test]
+    fn test_pub_use_bare_module_reexport_captured() {
+        // `pub use foo;` (no path segments) re-exports the identifier itself.
+        let src = "pub use foo;\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["foo"]);
+    }
+
+    #[test]
+    fn test_pub_use_grouped_and_nested_reexports_captured() {
+        // Grouped re-exports (`{a, b as c, d::e}`), including arbitrarily
+        // nested groups (`{a::{b, c}, d}`) and a bare `self` entry (which
+        // re-exports the parent path segment itself, not a new name, and
+        // must not appear as a spurious "self" symbol).
+        let src = r#"
+pub use crate::baz::{Qux, Quux as Renamed, mod_a::mod_b};
+pub use crate::nested::{x::{y, z}, w};
+pub use crate::withself::{self, Kept};
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec!["Qux", "Renamed", "mod_b", "y", "z", "w", "Kept"]
+        );
+        assert!(
+            !symbols.iter().any(|s| s == "self"),
+            "bare `self` in a grouped use list must not appear as a symbol: {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_pub_use_glob_not_expanded() {
+        // A glob re-export (`pub use foo::*;`) has no single
+        // statically-enumerable name and must not leak the module segment
+        // ("glob") as a fake export, mirroring the regex backend's
+        // intentionally-unexpanded glob handling.
+        let src = r#"
+pub use crate::glob::*;
+pub fn real_fn() {}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real_fn"]);
+    }
+
+    #[test]
+    fn test_pub_crate_use_reexport_excluded() {
+        // `pub(crate) use ...;` is a restricted-visibility re-export and must
+        // be excluded just like any other `pub(crate)` item.
+        let src = r#"
+pub(crate) use crate::internal::Hidden;
+pub use crate::public::Visible;
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Visible"]);
+    }
+
+    #[test]
+    fn test_pub_use_reexport_inside_private_mod_excluded() {
+        // The private-mod reachability gate applies to `pub use` re-exports
+        // nested inside a private `mod` just as it does to any other `pub`
+        // item: a `pub use` inside a non-`pub` module is not reachable from
+        // outside the crate.
+        let src = r#"
+mod private_mod {
+    pub use crate::foo::Bar;
+}
+pub fn top_level_ok() {}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["top_level_ok"]);
+    }
+
+    #[test]
+    fn test_trait_body_members_never_captured_even_for_pub_trait() {
+        // Rust forbids explicit visibility modifiers on trait body members
+        // (`type Assoc;`, `const BAZ: i32;`, `fn bar(&self);`) -- they are
+        // implicitly public whenever the trait itself is `pub`, but never
+        // carry their own `pub` keyword, and `trait_item` is intentionally
+        // absent from the recursion targets (only `impl_item`/`mod_item`
+        // are descended into). Only the trait's own name should be captured.
+        let src = r#"
+pub trait Foo {
+    type Assoc;
+    const BAZ: i32;
+    fn bar(&self);
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Foo"]);
+    }
+
+    #[test]
+    fn test_doc_hidden_pub_item_still_captured() {
+        // Verified-correct-but-previously-untested: `#[doc(hidden)]` merely
+        // hides an item from generated documentation, it does not change its
+        // actual visibility -- a `#[doc(hidden)] pub fn` is still a real,
+        // callable part of the crate's public API surface (a very common
+        // pattern for "public but not officially documented" internal-use
+        // items), so it must still be captured just like any other `pub`
+        // item preceded by an attribute (mirrors the existing `#[cfg(...)]`
+        // handling).
+        let src = r#"
+#[doc(hidden)]
+pub fn undocumented_but_public() {}
+
+pub fn normal_fn() {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"undocumented_but_public".to_string()),
+            "doc(hidden) pub items are still part of the public API: {symbols:?}"
+        );
+        assert!(symbols.contains(&"normal_fn".to_string()));
     }
 
     #[test]

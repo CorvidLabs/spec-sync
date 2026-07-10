@@ -140,10 +140,20 @@ fn collect_type_name(node: &Node, src: &[u8], symbols: &mut Vec<String>) {
             // struct/union/enum is anonymous, and it's the *real* public name
             // (as opposed to the internal tag) when the tag and alias differ,
             // e.g. `typedef struct Foo_s { ... } Foo;`.
-            if let Some(declarator) = node.child_by_field_name("declarator")
-                && let Some(alias) = typedef_alias_name(&declarator, src)
-            {
-                symbols.push(alias);
+            //
+            // A `type_definition` can carry *multiple* `declarator`-field
+            // children — e.g. `typedef struct { ... } A, B;` or `typedef
+            // struct { ... } Point, *PointPtr;` — since tree-sitter-c's
+            // grammar allows a comma-separated list of declarators here, all
+            // sharing the same `declarator` field name. Using
+            // `child_by_field_name` (first match only) silently dropped
+            // every alias after the first comma; `children_by_field_name`
+            // visits all of them.
+            let mut cursor = node.walk();
+            for declarator in node.children_by_field_name("declarator", &mut cursor) {
+                if let Some(alias) = typedef_alias_name(&declarator, src) {
+                    symbols.push(alias);
+                }
             }
         }
         "declaration" | "function_definition" => {
@@ -652,5 +662,143 @@ int real_fn(void) {
         assert!(!symbols.contains(&"fake_comment_fn".to_string()));
         assert!(!symbols.contains(&"FakeString".to_string()));
         assert!(!symbols.contains(&"fake_string_fn".to_string()));
+    }
+
+    #[test]
+    fn test_typedef_multi_declarator_all_aliases_captured() {
+        // Regression: `typedef struct { ... } A, B;` declares TWO public
+        // aliases in one statement (verified empirically: tree-sitter-c's
+        // `type_definition` node carries a repeated `declarator` field, one
+        // child per comma-separated name — `children_by_field_name` returns
+        // both `A` and `B`). The code previously used
+        // `child_by_field_name("declarator")`, which only ever returns the
+        // *first* match, silently dropping every alias after the first
+        // comma. This is a real-world idiom (e.g. libc's
+        // `typedef struct __sFILE { ... } FILE;`-style headers commonly
+        // declare `Foo, *FooPtr` together) and the AST backend returned a
+        // nonempty-but-incomplete result, which never triggers the
+        // regex-fallback safety net (that only fires on a fully empty
+        // result).
+        let src = "typedef struct { int x; } A, B;\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["A", "B"], "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_typedef_multi_declarator_with_pointer_alias_captured() {
+        // Regression: same underlying bug as
+        // `test_typedef_multi_declarator_all_aliases_captured`, but the
+        // second declarator is a pointer alias (`*PointPtr`) rather than a
+        // plain name -- confirms the fix's `children_by_field_name` loop
+        // correctly re-drills through `typedef_alias_name` for every
+        // declarator, not just plain `type_identifier` ones.
+        let src = "typedef struct { int x; } Point, *PointPtr;\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Point", "PointPtr"], "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_function_pointer_array_typedef_captured() {
+        // `typedef int (*Callback[10])(int);` declares an array of function
+        // pointers. Verified via real parse tree: the alias `Callback` sits
+        // at the bottom of function_declarator -> parenthesized_declarator
+        // (unnamed child) -> pointer_declarator -> array_declarator
+        // (`declarator` field) -> type_identifier (`declarator` field).
+        // `typedef_alias_name` already drills through all of these kinds
+        // generically; this locks in that it actually works end-to-end.
+        let src = "typedef int (*Callback[10])(int);\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Callback"], "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_array_typedef_captured() {
+        // `typedef char Buffer[256];` — a plain (non-pointer, non-function)
+        // array typedef. The alias sits under a single `array_declarator`
+        // layer with no intervening pointer/function wrapper.
+        let src = "typedef char Buffer[256];\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Buffer"], "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_multidimensional_array_typedef_captured() {
+        // `typedef int Array2D[10][20];` nests two `array_declarator` layers
+        // (one per dimension) around the alias identifier; the recursive
+        // `array_declarator` arm in `typedef_alias_name` must unwrap both.
+        let src = "typedef int Array2D[10][20];\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Array2D"], "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_leading_attribute_macro_prototype_captured() {
+        // A leading `__attribute__((...))` (or similarly-shaped compiler
+        // annotation) is a real, separately-parsed `attribute_specifier`
+        // node inside the `declaration`, not folded into the `type` field --
+        // verified via real parse tree. It must not disturb the `type`
+        // and `declarator` field lookups that locate the function name.
+        let src = "__attribute__((visibility(\"default\"))) int attr_fn(void);\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["attr_fn"], "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_trailing_attribute_macro_prototype_captured() {
+        // A GNU-style trailing `__attribute__((...))` after the parameter
+        // list is nested inside the `function_declarator` itself (as an
+        // extra unfielded child alongside the `declarator`/`parameters`
+        // fields, verified via real parse tree). It must not prevent the
+        // function name from being captured.
+        let src = "void trailing_attr_fn(void) __attribute__((noreturn));\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["trailing_attr_fn"], "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_multi_level_pointer_return_captured() {
+        // `int **double_ptr_fn(void);` — a function returning a
+        // pointer-to-pointer. `function_name_from_declarator`'s loop must
+        // unwrap more than one nested `pointer_declarator` layer before
+        // reaching the `function_declarator`.
+        let src = "int **double_ptr_fn(void);\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["double_ptr_fn"], "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_inline_static_reversed_modifier_order_excluded() {
+        // Unusual-but-legal modifier ordering: `inline static` (storage
+        // class after `inline`) rather than the conventional `static
+        // inline`. `has_static` scans *all* direct children for a
+        // `storage_class_specifier` regardless of position, so both
+        // orderings must be excluded identically -- confirmed empirically
+        // via real parse tree, which shows two sibling
+        // `storage_class_specifier` nodes in either order.
+        let conventional = "static inline int static_inline_fn(void) { return 0; }\n";
+        let reversed = "inline static int inline_static_fn(void) { return 0; }\n";
+        assert!(extract_exports(conventional).is_empty());
+        assert!(extract_exports(reversed).is_empty());
+    }
+
+    #[test]
+    fn test_mixed_multi_declarator_prototype_not_captured() {
+        // `int foo(void), *bar(void);` -- a comma-separated multi-declarator
+        // statement where the declarators have different shapes (a plain
+        // function and a pointer-returning function). Like the simpler
+        // `int foo(), bar();` case, the `declaration` node carries two
+        // `declarator`-field children, so the declarator-count guard in
+        // `function_name_from_declarator` must reject it entirely rather
+        // than capturing just the first one -- verified this also matches
+        // the reference regex backend (which requires `{`/`;` immediately
+        // after the closing paren and so never matches either name here).
+        let src = "int foo(void), *bar(void);\n";
+        let symbols = extract_exports(src);
+        let regex_symbols = crate::exports::c::extract_exports(src);
+        assert!(symbols.is_empty(), "got {symbols:?}");
+        assert!(
+            regex_symbols.is_empty(),
+            "expected regex parity (both empty), regex got {regex_symbols:?}"
+        );
     }
 }

@@ -253,7 +253,15 @@ fn find_child_kind<'tree>(node: Node<'tree>, kind: &str) -> Option<Node<'tree>> 
 }
 
 /// `(defvar name ...)` / `(defparameter name ...)`: head + name are the
-/// first two `value`-field children of a plain list node.
+/// first two `value`-field children of a plain list node. The name must be a
+/// plain `sym_lit` -- a pipe-escaped name like `(defvar |a b| 1)` parses as a
+/// `fancy_literal` node whose `utf8_text` includes the literal `|` quoting
+/// characters, e.g. `"|a b|"`. The regex reference's `[\w\-*!?<>]+` pattern
+/// never matches `|` or embedded whitespace, so it can't match this form at
+/// all (produces no capture); requiring `sym_lit` here keeps this AST path
+/// in the same parity, instead of emitting the pipe-quoted text verbatim as
+/// a bogus "export" (confirmed via `parse_commonlisp(..).root_node().to_sexp()`
+/// showing `fancy_literal "|a b|"` in place of `sym_lit`).
 fn capture_value_field_pair(node: Node, src: &[u8], symbols: &mut Vec<String>) {
     let mut values = Vec::new();
     let mut cursor = node.walk();
@@ -273,6 +281,7 @@ fn capture_value_field_pair(node: Node, src: &[u8], symbols: &mut Vec<String>) {
     if values.len() == 2
         && let (Ok(head), Ok(name)) = (values[0].utf8_text(src), values[1].utf8_text(src))
         && is_target_keyword(head)
+        && values[1].kind() == "sym_lit"
     {
         push_unique(symbols, name.to_string());
     }
@@ -370,6 +379,15 @@ fn capture_define_record_type(node: Node, src: &[u8], symbols: &mut Vec<String>)
 
 /// First two `symbol`-kind children of a list node: head keyword + name.
 /// Also used as the Emacs Lisp `list` fallback (same shape).
+///
+/// Scheme's grammar (unlike Common Lisp's) has no dedicated node kind for
+/// R7RS `|...|` delimited identifiers -- `(defvar |a b| 1)` parses as two
+/// plain `symbol` nodes, `|a` and `b|` (confirmed via
+/// `parse_scheme(..).root_node().to_sexp()`), so a name starting with `|`
+/// means the real identifier got split/truncated by the tokenizer rather
+/// than cleanly resolved. The regex reference's `[\w\-*!?<>]+` pattern can
+/// never match a leading `|` either (produces no capture there), so skip
+/// pushing such a fragment instead of emitting the garbled partial text.
 fn capture_symbol_pair(node: Node, src: &[u8], symbols: &mut Vec<String>) {
     let mut cursor = node.walk();
     let syms: Vec<Node> = node
@@ -380,6 +398,7 @@ fn capture_symbol_pair(node: Node, src: &[u8], symbols: &mut Vec<String>) {
     if syms.len() == 2
         && let (Ok(head), Ok(name)) = (syms[0].utf8_text(src), syms[1].utf8_text(src))
         && is_target_keyword(head)
+        && !name.starts_with('|')
     {
         push_unique(symbols, name.to_string());
     }

@@ -526,4 +526,173 @@ class Container[
         assert!(symbols.contains(&"Container".to_string()), "{symbols:?}");
         assert!(symbols.contains(&"map".to_string()), "{symbols:?}");
     }
+
+    #[test]
+    fn test_protected_qualified_access_modifiers_excluded() {
+        // Mirrors `test_private_qualified_access_modifiers_excluded` but for
+        // `protected`/`protected[this]`/`protected[pkg]`. Verified via
+        // `to_sexp()` that all three still nest an `access_modifier` node
+        // reachable by `contains_access_keyword`'s recursive search (the
+        // grammar represents the qualifier as a sibling `access_qualifier`
+        // node, not a different modifier kind), so all three are correctly
+        // excluded — documenting verified-correct behavior for a scenario
+        // the prior hardening pass never exercised.
+        let src = r#"
+class Outer {
+  protected[this] def onlyThis: Int = 1
+  protected[mypkg] def onlyPkg: Int = 2
+  protected def fullyProtected: Int = 3
+  def public: Int = 4
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Outer", "public"], "{symbols:?}");
+    }
+
+    #[test]
+    fn test_case_object_captured_and_private_case_object_excluded() {
+        // `case object` (e.g. the `Nil` singleton case of a sum type) parses
+        // as an `object_definition` just like a plain `object`, and a
+        // `private case object` still carries a `modifiers` child containing
+        // `private` — verified empirically that both existing code paths
+        // (the `object_definition` arm of `decl_name` and
+        // `has_private_or_protected_modifier`) already handle it correctly
+        // with no special-casing needed.
+        let src = r#"
+sealed trait Shape
+case object Circle extends Shape
+private case object Hidden extends Shape
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Shape".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"Circle".to_string()), "{symbols:?}");
+        assert!(!symbols.contains(&"Hidden".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_symbolic_operator_method_names_captured() {
+        // Operator methods (`def +(...)`, `def unary_-`) are idiomatic in
+        // numeric/algebraic Scala types and are real public API surface.
+        // Their `name` field resolves to an `operator_identifier` node
+        // rather than a plain `identifier`, but `get_field_text` doesn't
+        // discriminate on the name node's kind, so the symbolic name is
+        // captured as-is; a `private` symbolic method must still be
+        // excluded like any other private declaration.
+        let src = r#"
+class Vector(x: Int) {
+  def +(other: Vector): Vector = this
+  def unary_- : Vector = this
+  private def -(other: Vector): Vector = this
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"+".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"unary_-".to_string()), "{symbols:?}");
+        assert!(!symbols.contains(&"-".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_opaque_type_captured_and_private_opaque_type_excluded() {
+        // Scala 3 `opaque type` (zero-cost type-safe wrappers, e.g.
+        // `opaque type Meters = Double`) parses as the same `type_definition`
+        // node kind as a plain type alias, with an extra `opaque_modifier`
+        // sibling field that doesn't interfere with the `name` field lookup
+        // or with `private` detection.
+        let src = r#"
+opaque type Meters = Double
+private opaque type Hidden = Int
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Meters".to_string()), "{symbols:?}");
+        assert!(!symbols.contains(&"Hidden".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_implicit_def_class_val_captured_private_implicit_excluded() {
+        // `implicit def`/`implicit class`/`implicit val` are ubiquitous
+        // Scala 2 idioms (type-class evidence, extension-method encodings,
+        // default instances). The `implicit` keyword lives in the same
+        // `modifiers` node as `private`, so this exercises that a
+        // `private implicit val` (both modifiers on one declaration) is
+        // still correctly excluded rather than the `implicit` keyword
+        // masking the `private` one.
+        let src = r#"
+implicit def toFoo(x: Int): Foo = ???
+implicit class RichInt(x: Int) {
+  def double: Int = x * 2
+}
+implicit val defaultFoo: Foo = ???
+private implicit val hiddenFoo: Foo = ???
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"toFoo".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"RichInt".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"double".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"defaultFoo".to_string()), "{symbols:?}");
+        assert!(!symbols.contains(&"hiddenFoo".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_extension_body_private_member_excluded() {
+        // Scala 3 `extension` blocks can contain multiple methods, some of
+        // which may be private helpers not meant to be part of the
+        // extension's public surface. Verified the `private` `function_definition`
+        // nested inside an `extension_definition` body still carries its own
+        // `modifiers` child and is excluded, while the public sibling method
+        // (which calls the private helper) is still captured.
+        let src = r#"
+extension (x: Int)
+  def double: Int = helper(x)
+  private def helper(y: Int): Int = y * 2
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"double".to_string()), "{symbols:?}");
+        assert!(!symbols.contains(&"helper".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_using_clause_methods_captured_private_using_method_excluded() {
+        // Scala 3 context parameters (`(using ctx: Context)`) add a second
+        // `parameters` field to `function_definition` alongside the regular
+        // parameter list. Verified this doesn't shift or hide the `name`
+        // field, and a `private` method with a `using` clause is still
+        // excluded correctly.
+        let src = r#"
+trait Context
+def foo(x: Int)(using ctx: Context): Int = x
+private def hiddenFoo(x: Int)(using ctx: Context): Int = x
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Context".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"foo".to_string()), "{symbols:?}");
+        assert!(!symbols.contains(&"hiddenFoo".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_private_primary_constructor_keeps_class_name_public() {
+        // Regression-style coverage for a genuinely subtle case: Scala's
+        // `class Foo private (x: Int)` syntax marks only the *primary
+        // constructor* as private (forcing callers through a companion
+        // `apply`), while `Foo` itself remains fully public API. Verified
+        // via `to_sexp()` that the constructor-level `private` attaches as a
+        // bare `access_modifier` sibling field directly on `class_definition`
+        // — NOT wrapped in the `modifiers` node that
+        // `has_private_or_protected_modifier` inspects — so the class name
+        // is correctly still captured. Contrast with a class that is
+        // *itself* also marked private (`private class Foo private (...)`),
+        // which does carry a `modifiers` child and is correctly excluded.
+        let src = r#"
+class Foo private (x: Int)
+object Foo {
+  def apply(x: Int): Foo = new Foo(x)
+}
+private class Bar private (y: Int)
+case class Baz private (z: Int)
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"apply".to_string()), "{symbols:?}");
+        assert!(!symbols.contains(&"Bar".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"Baz".to_string()), "{symbols:?}");
+    }
 }

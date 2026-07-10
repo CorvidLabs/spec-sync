@@ -77,6 +77,21 @@ fn handle_node(node: &Node, src: &[u8], symbols: &mut Vec<String>) {
         "enum_specifier" => {
             add_type_name(node, src, symbols);
         }
+        "alias_declaration" => {
+            // `using Pixel = std::uint32_t;` at namespace/top-level scope is
+            // a type alias, just like the equivalent member form already
+            // captured inside a class body (see `walk_field_list`'s
+            // `alias_declaration` arm) -- this scope has no access-specifier
+            // concept to gate on, so it is always captured.
+            add_type_name(node, src, symbols);
+        }
+        "namespace_alias_definition" => {
+            // `namespace Alias = Foo::Bar;` introduces `Alias` as a real,
+            // usable name in this scope, matching the regex extractor's
+            // `CPP_TYPE` pattern (which also matches the `namespace Alias`
+            // prefix here and captures "Alias").
+            add_type_name(node, src, symbols);
+        }
         "function_definition" | "declaration" => {
             handle_nested_type_in_declaration(node, src, symbols);
             if !has_static(node, src) && !is_deleted(node) {
@@ -271,6 +286,19 @@ fn push_name_or_namespace_segments(node: &Node, src: &[u8], symbols: &mut Vec<St
                 push_name_or_namespace_segments(&child, src, symbols);
             }
         }
+    } else if node.kind() == "template_type" {
+        // Bug (wrong-but-nonempty): the grammar's node for a template
+        // specialization's name, e.g. the `Stack<int>` in `template<>
+        // class Stack<int> { ... };` (an explicit specialization) or
+        // `Stack<T*>` in `template<typename T> class Stack<T*> { ... };`
+        // (a partial specialization). Its own `name` field is the plain
+        // `type_identifier` ("Stack"); without unwrapping it here, the
+        // `else` branch below would push the whole node's text --
+        // including the `<...>` template argument list -- verbatim as the
+        // symbol name instead of just the class name.
+        if let Some(inner) = node.child_by_field_name("name") {
+            push_name_or_namespace_segments(&inner, src, symbols);
+        }
     } else {
         symbols.push(node.utf8_text(src).unwrap_or_default().to_string());
     }
@@ -280,26 +308,35 @@ fn push_name_or_namespace_segments(node: &Node, src: &[u8], symbols: &mut Vec<St
 /// function pass). Requires a `type` field to be present, which excludes
 /// constructors/destructors — the regex extractor's function pattern also
 /// requires a return-type token before the name, so it never matches those.
+///
+/// A single declaration can carry more than one `declarator`-field child
+/// sharing one base type, e.g. `int a, b, method();` — tree-sitter attaches
+/// the field name `declarator` to all three of `a`, `b`, and `method()`,
+/// not just the first. Using `child_by_field_name("declarator")` (which
+/// only ever returns the *first* match) would inspect `a` — a plain
+/// `field_identifier`, not a function — and silently miss `method`
+/// entirely. Iterating every `declarator`-field child instead finds
+/// whichever one(s) are actually functions.
 fn add_function_name(node: &Node, src: &[u8], symbols: &mut Vec<String>) {
     if node.child_by_field_name("type").is_none() {
         return;
     }
-    let Some(declarator) = node.child_by_field_name("declarator") else {
-        return;
-    };
-    let Some(func_decl) = find_function_declarator(&declarator) else {
-        return;
-    };
-    let Some(name_node) = func_decl.child_by_field_name("declarator") else {
-        return;
-    };
-    if matches!(
-        name_node.kind(),
-        "identifier" | "field_identifier" | "operator_name"
-    ) {
-        let name = name_node.utf8_text(src).unwrap_or_default().to_string();
-        if !symbols.contains(&name) {
-            symbols.push(name);
+    let mut cursor = node.walk();
+    for declarator in node.children_by_field_name("declarator", &mut cursor) {
+        let Some(func_decl) = find_function_declarator(&declarator) else {
+            continue;
+        };
+        let Some(name_node) = func_decl.child_by_field_name("declarator") else {
+            continue;
+        };
+        if matches!(
+            name_node.kind(),
+            "identifier" | "field_identifier" | "operator_name"
+        ) {
+            let name = name_node.utf8_text(src).unwrap_or_default().to_string();
+            if !symbols.contains(&name) {
+                symbols.push(name);
+            }
         }
     }
 }

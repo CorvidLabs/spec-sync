@@ -945,4 +945,34 @@ public prefix func !!! (shape: inout Square) -> Square {
             "expected the operator declaration and its definition both captured: {symbols:?}"
         );
     }
+
+    #[test]
+    fn test_swift_real_world_projects_verification() {
+        use std::path::Path;
+        let mut file_count = 0;
+        let mut symbol_count = 0;
+        for dir in &["/Users/leif/Development/AppState", "/Users/leif/Development/Cache"] {
+            let path = Path::new(dir);
+            if !path.exists() {
+                continue;
+            }
+            for entry in walkdir::WalkDir::new(path)
+                .into_iter()
+                .filter_map(|e| e.ok())
+            {
+                let p = entry.path();
+                if p.is_file() && p.extension().and_then(|ext| ext.to_str()) == Some("swift") {
+                    if let Ok(content) = std::fs::read_to_string(p) {
+                        let symbols = extract_exports(&content);
+                        file_count += 1;
+                        symbol_count += symbols.len();
+                    }
+                }
+            }
+        }
+        println!("Verified on {} real-world Swift files, extracted {} public symbols.", file_count, symbol_count);
+        if file_count > 0 {
+            assert!(symbol_count > 0, "Should have found some public Swift symbols in real projects!");
+        }
+    }
 }

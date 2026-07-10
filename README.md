@@ -8,8 +8,7 @@
 [![Crates.io](https://img.shields.io/crates/v/specsync.svg)](https://crates.io/crates/specsync)
 [![Downloads](https://img.shields.io/crates/d/specsync.svg)](https://crates.io/crates/specsync)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-
-**Bidirectional spec-to-code validation with cross-project references, dependency graphs, and AI-powered generation.** Written in Rust. Single binary. 12 languages. VS Code extension.
+**Bidirectional spec-to-code validation with cross-project references, dependency graphs, and AI-powered generation.** Written in Rust. Single binary. 33 languages (with AST support for 10). VS Code extension.
 
 [5-Minute Start](#get-started-in-5-minutes) &bull; [Spec Format](#spec-format) &bull; [CLI](#cli-reference) &bull; [VS Code Extension](#vs-code-extension) &bull; [Cross-Project Refs](#cross-project-references) &bull; [GitHub Action](#github-action) &bull; [Config](#configuration) &bull; [Docs Site](https://corvidlabs.github.io/spec-sync)
 
@@ -38,10 +37,10 @@ Auto-detected from file extensions. Same spec format for all.
 
 | Language | Exports Detected | Test Exclusions |
 |----------|-----------------|-----------------|
-| **TypeScript/JS** | `export function/class/type/const/enum`, re-exports, `export *` wildcard resolution | `.test.ts`, `.spec.ts`, `.d.ts` |
-| **Rust** | `pub fn/struct/enum/trait/type/const/static/mod` | `#[cfg(test)]` modules |
+| **TypeScript/JS** | `export function/class/type/const/enum`, re-exports, `export *` wildcard resolution, CommonJS `export =` (AST supported) | `.test.ts`, `.spec.ts`, `.d.ts` |
+| **Rust** | `pub fn/struct/enum/trait/type/const/static/mod`, filters restricted visibility (AST supported) | `#[cfg(test)]` modules |
 | **Go** | Uppercase `func/type/var/const`, methods | `_test.go` |
-| **Python** | `__all__`, or top-level `def/class` (no `_` prefix) | `test_*.py`, `*_test.py` |
+| **Python** | `__all__`, or top-level `def/class` (no `_` prefix) (AST supported) | `test_*.py`, `*_test.py` |
 | **Swift** | `public/open` func/class/struct/enum/protocol/actor | `*Tests.swift` |
 | **Kotlin** | Top-level declarations (excludes private/internal) | `*Test.kt`, `*Spec.kt` |
 | **Java** | `public` class/interface/enum/record/methods | `*Test.java`, `*Tests.java` |
@@ -50,6 +49,27 @@ Auto-detected from file extensions. Same spec format for all.
 | **PHP** | `class/interface/trait/enum`, `public` function/const, skips `private/protected` and `__` magic methods | `*Test.php` |
 | **Ruby** | `class`/`module`, `public` methods with visibility tracking, `attr_accessor`/`attr_reader`/`attr_writer`, constants | `*_test.rb`, `*_spec.rb` |
 | **YAML** | Top-level mapping keys (anchors, aliases supported) | — |
+| **C** | Non-static function declarations/definitions, struct/union/enum names (AST supported) | `_test.c`, `test_` |
+| **C++** | Public methods, classes, structs, unions, enums, namespaces (AST supported) | `_test.cpp`, `test_` |
+| **Scala** | Classes, objects, traits, defs, vals, vars (AST supported) | `Spec.scala`, `Suite.scala`, `Test.scala` |
+| **Crystal** | Classes, modules, structs, enums, defs, aliases | `_spec.cr` |
+| **Nim** | Explicitly exported symbols marked with `*` | `t`, `test` |
+| **Erlang** | Functions declared in `-export([...])` attributes (AST supported) | `_tests.erl` |
+| **Elixir** | Public modules, functions, macros (AST supported) | `_test.exs` |
+| **Perl** | All subroutine declarations (AST supported) | `_test.pl`, `.t` |
+| **Lisp** | Dialects (Common Lisp, Scheme, Emacs Lisp) dispatched by extension: definitions, macros, structures (AST supported) | `test.lisp`, `test.scm` |
+| **Haskell** | Exports in module header list, or all top-level symbols | `Spec.hs`, `Test.hs`, `Tests.hs` |
+| **Lua** | Module tables (`local M = {}`), return tables, or top-level functions | `_spec.lua`, `_test.lua`, `spec.lua` |
+| **R** | Roxygen2 `#' @export` tags, or top-level non-`.`-prefixed functions | `test-`, `test_` |
+| **OCaml** | Top-level let bindings, types, modules, exceptions | `_test.ml`, `test_` |
+| **Groovy** | Classes, interfaces, traits, enums, public methods | `Test.groovy`, `Tests.groovy`, `Spec.groovy` |
+| **F#** | Let and type bindings | `Tests.fs`, `Test.fs`, `Spec.fs` |
+| **Clojure** | Public defn/def/defrecord/deftype forms | `_test.clj`, `_test.cljs`, `_test.cljc` |
+| **D** | Module-scope public classes, structs, functions | `_test.d`, `test_` |
+| **Objective-C** | Class interfaces, protocols, and implementation methods | `Tests.m`, `Test.m`, `Spec.m` |
+| **Bash** | `export -f` functions, or non-`_` functions | `_test.sh`, `test_` |
+| **PowerShell** | `Export-ModuleMember` functions, or all functions | `Tests.ps1`, `.Tests.ps1` |
+| **Vala** | Public classes, structs, interfaces, methods | `Test.vala`, `Tests.vala` |
 
 ---
 
@@ -742,6 +762,7 @@ Create `specsync.json` or `.specsync.toml` in your project root (or run `specsyn
 | `excludeDirs` | `string[]` | `["__tests__"]` | Directories excluded from coverage |
 | `excludePatterns` | `string[]` | Common test globs | File patterns excluded from coverage |
 | `sourceExtensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |
+| `parseMode` | `string` | `"regex"` | Parser backend: `"regex"` (default) or `"ast"` (tree-sitter, opt-in for TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, Lisp) |
 | `aiProvider` | `string?` | — | AI provider: `anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, `ollama` (deprecated: `claude`/`copilot`) |
 | `aiModel` | `string?` | provider default | Model id (e.g. `claude-sonnet-4-6`; `openai`/`together` require one) |
 | `aiApiKey` | `string?` | env | API key; falls back to `<PROVIDER>_API_KEY`. Never written back to config |

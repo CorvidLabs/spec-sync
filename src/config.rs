@@ -150,7 +150,7 @@ fn dir_contains_source_files(dir: &Path, ignored: &HashSet<&str>, max_depth: usi
 /// becomes an unknown key and is silently ignored) or breaks JSON parsing entirely.
 /// Stripping a leading BOM is lossless. Returns None when the file can't be read.
 /// Avoids allocating when there is no BOM (the common case).
-pub(crate) fn read_config_file(path: &Path) -> Option<String> {
+pub fn read_config_file(path: &Path) -> Option<String> {
     let content = fs::read_to_string(path).ok()?;
     let trimmed = content.trim_start_matches('\u{feff}');
     Some(if trimmed.len() == content.len() {

@@ -78,7 +78,7 @@ pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConf
 /// misses. Control characters are rejected so a name cannot inject into the generated
 /// YAML frontmatter or create a control-char directory. Returns `Err` (to be printed and
 /// exited on) rather than writing outside the project.
-pub(crate) fn validate_module_name(module_name: &str) -> Result<(), String> {
+pub fn validate_module_name(module_name: &str) -> Result<(), String> {
     let single_normal_segment = {
         let mut components = Path::new(module_name).components();
         matches!(components.next(), Some(std::path::Component::Normal(_)))

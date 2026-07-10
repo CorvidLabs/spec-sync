@@ -87,7 +87,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
       - name: Install tarpaulin
-        run: cargo install cargo-tarpaulin --version 0.37.0 --locked
+        run: cargo install cargo-tarpaulin --version 0.35.2 --locked --no-default-features
       - name: Run coverage
         run: cargo tarpaulin --skip-clean --fail-under 50
 

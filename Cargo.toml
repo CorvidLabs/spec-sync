@@ -1,9 +1,9 @@
 [package]
 name = "specsync"
-version = "4.7.1"
+version = "4.8.0"
 edition = "2024"
 rust-version = "1.89"
-description = "Bidirectional spec-to-code validation with schema column checking — 11 languages, single binary"
+description = "Bidirectional spec-to-code validation with schema column checking — 33 languages, single binary"
 license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/CorvidLabs/spec-sync"

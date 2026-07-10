@@ -86,10 +86,10 @@ Docs content lives in `site/src/content/docs/`. The site is deployed automatical
 
 ### Adding a Language Parser
 
-SpecSync supports 11 languages via parsers in `src/parser/`. To add a new one:
+SpecSync supports 33 languages via extractors in `src/exports/`. To add a new one:
 
-1. Create `src/parser/<language>.rs` implementing the `Parser` trait
-2. Register the parser in `src/parser/mod.rs` with its file extensions
+1. Create `src/exports/<language>.rs` implementing an `extract_exports(content: &str) -> Vec<String>` function
+2. Register the extractor in `src/exports/mod.rs` and update the `Language` enum in `src/types.rs`
 3. Add test fixtures in `tests/fixtures/<language>/`
 4. Add tests covering:
    - Export detection (functions, classes, types, constants)

@@ -29,6 +29,8 @@
     "lint"
   ],
   "activationEvents": [
+    "workspaceContains:.specsync/config.toml",
+    "workspaceContains:.specsync/config.json",
     "workspaceContains:specsync.json",
     "workspaceContains:.specsync.toml",
     "workspaceContains:specs/"
@@ -92,7 +94,7 @@
   "scripts": {
     "build": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=es2022 --sourcemap",
     "watch": "npm run build -- --watch",
-    "package": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=es2022 --minify && vsce package",
+    "package": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=es2022 --minify && vsce package --no-dependencies --no-yarn",
     "compile": "tsc -p ./ --noEmit"
   },
   "devDependencies": {

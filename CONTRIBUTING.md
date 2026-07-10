@@ -6,7 +6,7 @@ Thank you for your interest in contributing to SpecSync! This guide will help yo
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) (stable, 1.85+)
+- [Rust](https://rustup.rs/) 1.89 or newer (the CI toolchain is pinned; see `rust-toolchain.toml`)
 - Git
 
 ### Development Setup
@@ -33,13 +33,13 @@ cargo fmt
 
 ```bash
 # Validate specs in the current directory
-cargo run -- validate
+cargo run -- check
 
-# Generate a spec from source files
-cargo run -- generate src/parser.rs
+# Generate specs for uncovered modules
+cargo run -- generate --uncovered
 
-# Check with verbose output
-cargo run -- validate --verbose
+# Run strict validation and bypass the incremental cache
+cargo run -- check --strict --force
 ```
 
 ## How to Contribute
@@ -118,15 +118,17 @@ Write clear, concise commit messages. Use the imperative mood:
 
 ```
 src/
-  parser/       # Language parsers (one per language)
-  validator/    # Spec validation logic
-  generator/    # Spec generation from source
-  reporter/     # Output formatting (text, JSON, SARIF)
-  config/       # Configuration loading
+  commands/     # CLI command implementations
+  exports/      # Language export extractors and AST backends
+  parser.rs     # Spec markdown/frontmatter parsing
+  validator.rs  # Bidirectional validation and coverage
+  generator.rs  # Spec and companion generation
+  config.rs     # Configuration loading and migration serialization
 tests/
-  fixtures/     # Test fixture files per language
-  integration/  # Integration tests
+  integration/  # CLI and MCP integration-test modules
+specs/          # Module contracts and companion files
 site/           # Documentation marketing site (Astro + MDX)
+vscode-extension/ # VS Code integration
 ```
 
 ## License

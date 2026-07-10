@@ -1498,8 +1498,10 @@ mod tests {
         fs::write(mod_dir.join("service.ts"), "export function login() {}").unwrap();
         fs::write(mod_dir.join("types.ts"), "export interface User {}").unwrap();
 
-        let mut config = SpecSyncConfig::default();
-        config.source_extensions = vec!["ts".to_string()];
+        let config = SpecSyncConfig {
+            source_extensions: vec!["ts".to_string()],
+            ..SpecSyncConfig::default()
+        };
         let files = find_files_for_module(root, "auth", &config);
         assert_eq!(files.len(), 2);
     }
@@ -1513,8 +1515,10 @@ mod tests {
         fs::write(src_dir.join("auth.ts"), "export function login() {}").unwrap();
         fs::write(src_dir.join("auth.test.ts"), "test('login', () => {})").unwrap();
 
-        let mut config = SpecSyncConfig::default();
-        config.source_extensions = vec!["ts".to_string()];
+        let config = SpecSyncConfig {
+            source_extensions: vec!["ts".to_string()],
+            ..SpecSyncConfig::default()
+        };
         let files = find_files_for_module(root, "auth", &config);
         assert_eq!(files.len(), 1);
         assert!(!files[0].contains("test"));
@@ -1570,8 +1574,10 @@ mod tests {
         fs::write(src_dir.join("lib.ts"), "export function greet() {}").unwrap();
         fs::write(src_dir.join("lib.test.ts"), "test('greet', () => {})").unwrap();
 
-        let mut config = SpecSyncConfig::default();
-        config.source_extensions = vec!["ts".to_string()];
+        let config = SpecSyncConfig {
+            source_extensions: vec!["ts".to_string()],
+            ..SpecSyncConfig::default()
+        };
         let file = find_single_source_fallback(root, &config);
         assert_eq!(file.as_deref(), Some("src/lib.ts"));
     }

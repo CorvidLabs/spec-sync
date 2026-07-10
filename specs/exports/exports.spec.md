@@ -1,6 +1,6 @@
 ---
 module: exports
-version: 1
+version: 3
 status: stable
 files:
   - src/exports/mod.rs
@@ -117,7 +117,7 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 | Rust | `rust_lang.rs` | `pub fn/struct/enum/trait/type/const/static/mod` including `pub async/unsafe`; excludes restricted visibility `pub(crate)`, `pub(super)`, `pub(self)`, and `pub(in path::to::mod)`; strips comments |
 | Go | `go.rs` | Top-level `func/type/var/const` starting with uppercase letter; also exported methods `func (receiver) Name()`; strips comments |
 | Java | `java.rs` | `public class/interface/enum/record/@interface` types and `public` methods/fields; handles `static`, `final`, `abstract`, `sealed` modifiers |
-| Kotlin | `kotlin.rs` | All top-level `fun/class/object/interface/typealias/val/var/enum class/data class/sealed class` unless marked `private`/`internal`/`protected`; handles `suspend`/`inline` modifiers |
+| Kotlin | `kotlin.rs` | Top-level and public type-member `fun/class/object/interface/typealias/val/var` declarations unless marked `private`/`internal`/`protected`; handles flexible modifier ordering, same-line annotations, `value class`, `expect`/`actual`, and common function modifiers |
 | Swift | `swift.rs` | `public`/`open` declarations: `func/class/struct/enum/protocol/typealias/var/let/actor`; detects `public init` and `public subscript` separately; recognizes that protocol requirements and `public extension` members don't repeat the container's access keyword — scans protocol/extension/enum bodies (associatedtype, subscript, func, var/let, `case` lines) at brace-depth 0, descending past nested blocks without scanning inside them; handles `static class func` |
 | Dart | `dart.rs` | `class/mixin/enum/extension/typedef` types, `final`/`const` declarations, top-level functions; excludes `_`-prefixed private identifiers |
 | C# | `csharp.rs` | `public class/struct/interface/enum/record/delegate` types and `public` members; handles `static`, `partial`, `sealed`, `abstract`, `virtual`, `override`, `async` modifiers |
@@ -188,7 +188,7 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 
 ### Scenario: Unsupported file type
 
-- **Given** an unsupported file (e.g., `.lua`)
+- **Given** an unsupported file (e.g., `.txt`)
 - **When** `get_exported_symbols(path)` is called
 - **Then** returns an empty vector
 
@@ -306,6 +306,9 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 
 | Date | Change |
 |------|--------|
+| 2026-07-10 | v3: parse one-level nested Kotlin annotation arguments and prevent members of annotated non-public types from leaking as exports |
+| 2026-07-10 | v2: support modern Android/Kotlin Multiplatform declarations (`value class`, `expect`/`actual`, `external`), same-line annotations, and flexible modifier ordering |
+| 2026-07-10 | v2: keep the optional real-world Swift verification test warning-free under current stable Clippy |
 | 2026-03-25 | Initial spec |
 | 2026-03-28 | Document get_exported_symbols_with_level |
 | 2026-03-29 | Add PHP and Ruby language support |

@@ -21,7 +21,7 @@ spec: config.spec.md
 
 ## Current Status
 
-Fully implemented for spec-sync 4.4.0. JSON and TOML loading work with unknown-key warnings, v4 layout precedence, and the `config.local.toml` AI override merge. AI config is aligned with the reworked corvid-ai providers (anthropic, openai, openrouter, gemini, deepseek, groq, mistral, xai, together, ollama; deprecated claude/copilot/cursor; plus `ai_command` shell hatch). Auto-detection covers the supported languages and delegates manifest discovery to the manifest module.
+Fully implemented for spec-sync 4.4.0. JSON and TOML loading work with unknown-key warnings, v4 layout precedence, and the `config.local.toml` AI override merge. AI config is aligned with the reworked corvid-ai providers (anthropic, openai, openrouter, gemini, deepseek, groq, mistral, xai, together, ollama; deprecated claude/copilot/cursor; plus `ai_command` shell hatch). Auto-detection covers the supported languages and delegates manifest discovery to the manifest module. Round-trip test fixtures pass the current stable Clippy gate without warnings.
 
 ## Notes
 

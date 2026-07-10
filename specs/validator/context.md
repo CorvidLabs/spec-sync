@@ -19,7 +19,7 @@ spec: validator.spec.md
 
 ## Current Status
 
-Fully implemented. The validator is the heart of spec-sync — it powers `specsync check`, `specsync coverage`, and is exposed via MCP.
+Fully implemented. The validator is the heart of spec-sync — it powers `specsync check`, `specsync coverage`, and is exposed via MCP. Its in-file regression-test module intentionally precedes coverage helpers, so the narrow `items_after_test_module` Clippy allowance is localized to that test module rather than weakening project-wide lint policy.
 
 ## Notes
 

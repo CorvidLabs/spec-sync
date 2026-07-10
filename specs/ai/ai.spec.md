@@ -1,6 +1,6 @@
 ---
 module: ai
-version: 1
+version: 2
 status: stable
 files:
   - src/ai.rs
@@ -116,6 +116,7 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 
 | Date | Change |
 |------|--------|
+| 2026-07-10 | v2: keep provider-resolution tests clean under current stable Clippy by constructing test configs directly |
 | 2026-03-25 | Initial spec |
 | 2026-06-07 | Route API providers through the shared `corvid-ai` client; `ResolvedProvider` API variants collapse to `Api(corvid_ai::Settings)` and the per-provider `call_*_api` HTTP code is removed |
 | 2026-06-07 | API-first/API-only auto-detection (no CLI shell-out); default to keyless local Ollama when no key is set; `claude` routes to the `anthropic` API; add `openrouter` + `ollama` (HTTP) providers |

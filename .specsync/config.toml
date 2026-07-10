@@ -7,7 +7,6 @@ exclude_dirs = ["__tests__"]
 exclude_patterns = ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts", "**/tests.rs"]
 required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
 enforcement = "strict"
-ai_command = "claude -p --output-format text"
 ai_timeout = 300
 
 [lifecycle]

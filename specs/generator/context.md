@@ -22,7 +22,7 @@ spec: generator.spec.md
 
 ## Current Status
 
-Fully implemented and stable. Template-based and AI-powered generation both work; AI generation now flows entirely through the `ai` module's corvid-ai-backed provider. Companion files (tasks/context/requirements/testing, plus opt-in design) are created by `generate_specs_for_unspecced_modules` and exposed via `generate_companion_files_for_spec`.
+Fully implemented and stable. Template-based and AI-powered generation both work; AI generation now flows entirely through the `ai` module's corvid-ai-backed provider. Companion files (tasks/context/requirements/testing, plus opt-in design) are created by `generate_specs_for_unspecced_modules` and exposed via `generate_companion_files_for_spec`. Module-discovery test fixtures pass the current stable Clippy gate without warnings.
 
 ## Notes
 

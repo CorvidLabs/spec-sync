@@ -11,6 +11,7 @@ spec: validator.spec.md
 
 ## Done
 
+- [x] Keep coverage regression fixtures warning-free under current stable Clippy
 - [x] Bidirectional API surface validation (spec ↔ code exports)
 - [x] Frontmatter field validation (module, version, status, files)
 - [x] Source file existence checking with Levenshtein suggestions

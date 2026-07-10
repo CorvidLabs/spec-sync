@@ -1,9 +1,4 @@
 // Integration test suite for specsync
-use assert_cmd::Command;
-use predicates::prelude::*;
-use std::fs;
-use tempfile::TempDir;
-
 #[path = "integration/helpers.rs"]
 pub mod helpers;
 

@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 4
+version: 5
 status: stable
 files:
   - src/validator.rs
@@ -110,6 +110,7 @@ Core validation engine for spec-sync. Validates individual spec files against so
 
 | Date | Change |
 |------|--------|
+| 2026-07-10 | v5: keep coverage regression fixtures warning-free under current stable Clippy and document the intentionally in-file test-module layout |
 | 2026-07-02 | v4: add `source_within_root` — shared guard rejecting `files:` paths that escape the project root (absolute/`..`/symlink); applied in `validate_spec` and every export-extraction site (score, check --fix, diff, new) to close an out-of-root identifier-disclosure vector |
 | 2026-06-11 | v3: `validate_spec` populates `ValidationResult.status` with the parsed lifecycle status so callers can report draft skips |
 | 2026-06-07 | Update draft-only section warning wording |

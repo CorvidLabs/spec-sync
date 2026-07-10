@@ -11,6 +11,25 @@ static PUB_DECL: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
+/// `pub use path::to::{A, B as C};` — a grouped re-export. Real bug found this
+/// session: `pub use` re-exports were not recognized AT ALL, even though they
+/// are one of the most common ways a Rust crate re-exports a submodule's type
+/// at the crate root (e.g. `pub use crate::foo::Bar;` in `lib.rs`), making them
+/// squarely part of the crate's public API surface. `[^}]*` spans newlines (no
+/// `(?s)` needed: a character class excluding only `}` already matches `\n`),
+/// so a rustfmt-wrapped multi-line brace list is still captured whole.
+static PUB_USE_GROUP: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"pub(\([^)]*\))?\s+use\s+[\w:]+::\{([^}]*)\}").unwrap());
+
+/// `pub use path::to::Name;` or `pub use path::to::Name as Alias;` — a
+/// single-item re-export. The glob form `pub use path::*;` is intentionally
+/// NOT matched (no resolver to expand it here, mirroring how `export * from`
+/// is only expanded in typescript.rs when a resolver is supplied) — left for
+/// future work.
+static PUB_USE_SINGLE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"pub(\([^)]*\))?\s+use\s+(?:\w+::)*(\w+)(?:\s+as\s+(\w+))?\s*;").unwrap()
+});
+
 /// Extract public symbols from Rust source code.
 /// Looks for `pub fn`, `pub struct`, `pub enum`, `pub trait`, `pub type`,
 /// `pub const`, `pub static`, and `pub mod` declarations.
@@ -33,6 +52,39 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         }
         if let Some(name) = caps.get(2) {
             symbols.push(name.as_str().to_string());
+        }
+    }
+
+    // Grouped re-export: pub use path::{A, B as C};
+    for caps in PUB_USE_GROUP.captures_iter(&stripped) {
+        if caps.get(1).is_some() {
+            continue; // restricted visibility, e.g. pub(crate) use
+        }
+        if let Some(names) = caps.get(2) {
+            for item in names.as_str().split(',') {
+                let item = item.trim();
+                if item.is_empty() || item == "self" {
+                    continue;
+                }
+                let final_name = item.split(" as ").last().unwrap_or(item).trim();
+                if !final_name.is_empty() && final_name != "*" {
+                    symbols.push(final_name.to_string());
+                }
+            }
+        }
+    }
+
+    // Single re-export: pub use path::Name; or pub use path::Name as Alias;
+    for caps in PUB_USE_SINGLE.captures_iter(&stripped) {
+        if caps.get(1).is_some() {
+            continue; // restricted visibility, e.g. pub(crate) use
+        }
+        let name = caps
+            .get(3)
+            .map(|m| m.as_str())
+            .or_else(|| caps.get(2).map(|m| m.as_str()));
+        if let Some(name) = name {
+            symbols.push(name.to_string());
         }
     }
 
@@ -480,6 +532,77 @@ fn main() {
             symbols.is_empty(),
             "no pub items in this excerpt, but got: {symbols:?}"
         );
+    }
+
+    #[test]
+    fn test_pub_use_reexport() {
+        // Real bug found this session: `pub use` re-exports were not
+        // recognized at all. Re-exporting a submodule's type at the crate
+        // root (`pub use crate::foo::Bar;`) is one of the most common Rust
+        // public-API patterns (idiomatic in every `lib.rs`), and missing it
+        // meant a removed/renamed re-export produced zero diff. Covers a
+        // single-item re-export, a grouped brace list with an `as` alias,
+        // `pub(crate) use` (restricted visibility, must be excluded like
+        // other `pub(...)` forms), and a glob re-export (intentionally not
+        // expanded here, mirroring typescript.rs's resolver-less `export *`).
+        let src = r#"
+pub use crate::foo::Bar;
+pub use crate::baz::{Qux, Quux as Renamed};
+pub(crate) use crate::internal::Hidden;
+pub use crate::glob::*;
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Bar".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"Qux".to_string()), "{symbols:?}");
+        assert!(
+            symbols.contains(&"Renamed".to_string()),
+            "aliased grouped item: {symbols:?}"
+        );
+        assert!(
+            !symbols.contains(&"Hidden".to_string()),
+            "pub(crate) use must be excluded: {symbols:?}"
+        );
+        assert!(
+            !symbols.contains(&"glob".to_string()),
+            "glob re-export must not leak the module segment: {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_pub_use_single_with_alias_and_multiline_group() {
+        // A single-item re-export aliased with `as`, and a grouped brace list
+        // wrapped across multiple lines (common rustfmt output for long
+        // lists) -- `[^}]*` must span the newlines to capture the whole list.
+        let src = "
+pub use crate::config::Settings as Config;
+pub use crate::models::{\n    User,\n    Account as Acct,\n    self,\n};
+";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Config".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"User".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"Acct".to_string()), "{symbols:?}");
+        assert!(
+            !symbols.contains(&"self".to_string()),
+            "bare `self` in a grouped use list is not a named export"
+        );
+    }
+
+    #[test]
+    fn test_doc_comment_code_example_not_captured() {
+        // Verified-correct behavior: a rustdoc code-fence example containing
+        // sample `pub fn` text is just `///`-prefixed lines, i.e. ordinary
+        // line comments to strip_strings_and_comments (handled character by
+        // character, not via a `$`-anchored regex, so it is immune to the
+        // "comment regex missing (?m)" bug class fixed elsewhere this
+        // session). Only the real declaration after the doc block is captured.
+        let src = r#"
+/// ```
+/// pub fn documented_example() {}
+/// ```
+pub fn real_after_doc_example() {}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real_after_doc_example"]);
     }
 
     #[test]

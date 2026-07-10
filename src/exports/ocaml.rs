@@ -37,6 +37,21 @@ static OCAML_DECL: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
+/// Top-level operator definition, e.g. `let (>>=) m f = ...`, `let rec (>>=) ...`,
+/// or a mutually-recursive continuation `and (<|>) ...`. Custom infix operators
+/// are extremely common in real-world OCaml (monadic `>>=`, applicative `<*>`,
+/// pipeline `|>`-style combinators, ...) and are just as public as any other
+/// top-level `let` binding, but `OCAML_DECL` above can never match them: its
+/// `let\s+(\w+)` alternative requires a `\w` (word) character immediately
+/// after the keyword, and `(` is not one. The character class here is
+/// OCaml's own operator-symbol alphabet, so `let () = ...` (the conventional
+/// unit-pattern entry point, deliberately treated as a non-export) is safely
+/// excluded: empty parens contain zero operator characters, so the `+`
+/// quantifier never matches.
+static OCAML_OPERATOR_DECL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^(?:let\s+rec\s+|let\s+|and\s+)\(([!$%&*+\-./:<=>?@^|~]+)\)").unwrap()
+});
+
 /// OCaml attribute payloads — `[@attr]`, `[@@attr]`, `[@@@attr]` — blanked out (with a
 /// single space) before `OCAML_DECL` runs. An attribute can sit directly between a
 /// keyword and its name (`let[@inline] compute x = ...`), and without stripping it
@@ -54,7 +69,7 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     let stripped = strip_comments_and_strings(content);
     let stripped = ATTRIBUTE.replace_all(&stripped, " ");
 
-    let mut symbols = Vec::new();
+    let mut hits: Vec<(usize, String)> = Vec::new();
 
     for caps in OCAML_DECL.captures_iter(&stripped) {
         for i in 1..=6 {
@@ -65,17 +80,37 @@ pub fn extract_exports(content: &str) -> Vec<String> {
                 // scope forms that also start with `let`; since none of `module`/
                 // `open`/`exception` can ever be a real OCaml identifier, a capture
                 // of exactly that keyword here means we matched one of those forms
-                // rather than a bound name, and should be dropped.
+                // rather than a bound name, and should be dropped. `rec` is
+                // excluded for the same reason but a different route: it's always
+                // a reserved keyword, never a legal binding name, so a plain-`let`
+                // capture of literally "rec" only ever happens when the dedicated
+                // `let\s+rec\s+(\w+)` alternative failed to match a following
+                // identifier -- e.g. `let rec (>>>) f g x = ...`, where the bound
+                // name is an operator handled separately by
+                // `OCAML_OPERATOR_DECL`. Without this, that line would additionally
+                // (and wrongly) report a top-level binding literally named "rec".
                 let is_local_scope_keyword =
-                    i == 2 && matches!(name, "module" | "open" | "exception");
+                    i == 2 && matches!(name, "module" | "open" | "exception" | "rec");
                 if !is_local_scope_keyword {
-                    push(name, &mut symbols);
+                    hits.push((m.start(), name.to_string()));
                 }
                 break;
             }
         }
     }
 
+    for caps in OCAML_OPERATOR_DECL.captures_iter(&stripped) {
+        if let Some(m) = caps.get(1) {
+            hits.push((m.start(), m.as_str().to_string()));
+        }
+    }
+
+    hits.sort_by_key(|(pos, _)| *pos);
+
+    let mut symbols = Vec::new();
+    for (_, name) in hits {
+        push(&name, &mut symbols);
+    }
     symbols
 }
 
@@ -447,6 +482,72 @@ type t = int [@@deriving show, eq]
             "{symbols:?}"
         );
         assert!(symbols.contains(&"t".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_ocaml_operator_definitions_are_exported() {
+        // REGRESSION: `OCAML_DECL`'s plain-`let` alternative requires a `\w`
+        // (word) character right after `let`, so `let (>>=) m f = ...` never
+        // matched at all -- custom infix operators (monadic bind, `<|>`,
+        // pipeline combinators, ...) are extremely common in real OCaml and
+        // were previously dropped from the export list entirely. Before the
+        // fix this returned `["value"]`, silently missing ">>=".
+        let src = r#"
+let (>>=) m f = match m with
+  | None -> None
+  | Some x -> f x
+
+let rec (>>>) f g x = g (f x)
+
+let value = 42
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec![">>=", ">>>", "value"]);
+    }
+
+    #[test]
+    fn test_ocaml_operator_unit_pattern_still_excluded() {
+        // The operator-definition fix must not accidentally start matching
+        // the conventional `let () = ...` entry-point idiom -- empty parens
+        // hold zero operator-symbol characters, so it stays excluded.
+        let src = r#"
+let () =
+  print_endline "starting"
+
+let real_binding = 1
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real_binding"]);
+        assert!(!symbols.contains(&"()".to_string()));
+    }
+
+    #[test]
+    fn test_ocaml_mutually_recursive_operator_and_value() {
+        // `and` can continue a `let rec` group into an operator definition,
+        // just as it can for plain names -- exercised separately from
+        // `test_ocaml_mutually_recursive_let_and_type` since operators use a
+        // dedicated matcher (`OCAML_OPERATOR_DECL`), not `OCAML_DECL`.
+        let src = r#"
+let rec is_zero n = n = 0
+
+and (=~=) a b = is_zero (a - b)
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["is_zero", "=~="]);
+    }
+
+    #[test]
+    fn test_ocaml_comment_containing_unmatched_quote_and_parens() {
+        // A doc comment mentioning quoted code or example syntax (including
+        // an unmatched `"` and a `(*`-shaped substring) must be stripped as
+        // one unit without desyncing the string/comment scanner, regardless
+        // of what punctuation it contains.
+        let src = r#"
+(* Don't use "let x = 1" here; see also the (* nested example *) above. *)
+let real_export = 1
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real_export"]);
     }
 
     #[test]

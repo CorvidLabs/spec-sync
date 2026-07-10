@@ -19,18 +19,99 @@ use std::sync::LazyLock;
 static STRING_LITERAL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(?s)"(?:[^"\\]|\\.)*""#).unwrap());
 
-/// Any roxygen2 `#'` doc comment anywhere in the file containing an
-/// `@export` tag. Presence of even one of these means the file is a
-/// documented package and roxygen tags — not the naming convention — are
-/// the authoritative signal for public API (mirrors Python's `__all__`
-/// precedence rule).
+/// Blank R 4.0+ raw strings — `r"(...)"`, `R"[...]"`, `r"{...}"`, or with
+/// any number of `-` between the quote and the bracket (`r"---(...)---"`,
+/// used when the content itself contains the plain closing sequence) —
+/// *before* [`STRING_LITERAL`] runs.
 ///
+/// This must run first because `STRING_LITERAL` has no concept of the raw
+/// string's real delimiter (`)"`/`]"`/`}"`, optionally with dashes); it just
+/// toggles on bare `"` characters. A raw string that happens to contain an
+/// *odd* number of embedded, unescaped `"` characters — completely legal
+/// inside a raw string, since that's the whole point of the feature (e.g.
+/// `r"(She said "hello")"`)- desyncs `STRING_LITERAL`'s naive quote-pairing:
+/// consecutive quotes get paired left-to-right regardless of which raw
+/// string they actually belong to, and the *gap* between two such pairs can
+/// land on a real line of source, leaking it back out unstripped as if it
+/// were top-level code. Recognizing the true raw-string delimiter up front
+/// and blanking the whole literal (including its embedded quotes) prevents
+/// `STRING_LITERAL` from ever seeing those quotes at all.
+///
+/// The `r`/`R` prefix immediately adjacent to a `"`/`'` with no operator
+/// between is unambiguous in valid R syntax — juxtaposing an identifier and
+/// a string literal with nothing between them is otherwise a syntax error —
+/// so this is checked defensively (requiring the preceding character, if
+/// any, not be part of a longer identifier) rather than needing lookaround.
+fn strip_raw_strings(s: &str) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    let n = chars.len();
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < n {
+        let is_prefix_letter = chars[i] == 'r' || chars[i] == 'R';
+        let prev_is_ident =
+            i > 0 && (chars[i - 1].is_alphanumeric() || chars[i - 1] == '_' || chars[i - 1] == '.');
+        if is_prefix_letter
+            && !prev_is_ident
+            && i + 1 < n
+            && (chars[i + 1] == '"' || chars[i + 1] == '\'')
+        {
+            let quote = chars[i + 1];
+            let mut j = i + 2;
+            let dash_start = j;
+            while j < n && chars[j] == '-' {
+                j += 1;
+            }
+            let dash_count = j - dash_start;
+            if j < n && matches!(chars[j], '(' | '[' | '{') {
+                let close_bracket = match chars[j] {
+                    '(' => ')',
+                    '[' => ']',
+                    '{' => '}',
+                    _ => unreachable!(),
+                };
+                let mut k = j + 1;
+                let mut end = None;
+                while k < n {
+                    if chars[k] == close_bracket {
+                        let dashes_ok = (0..dash_count).all(|d| chars.get(k + 1 + d) == Some(&'-'));
+                        if dashes_ok && chars.get(k + 1 + dash_count) == Some(&quote) {
+                            end = Some(k + 1 + dash_count + 1);
+                            break;
+                        }
+                    }
+                    k += 1;
+                }
+                let end = end.unwrap_or(n);
+                for &ch in &chars[i..end] {
+                    out.push(if ch == '\n' { '\n' } else { ' ' });
+                }
+                i = end;
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
+/// A single roxygen2 comment line whose content is (only) the `@export`
+/// tag — i.e. `@export` is the very first thing after `#'` and optional
+/// leading whitespace, not merely a substring appearing later in a
+/// descriptive sentence. Real roxygen2 tags always begin the comment line;
+/// `@export` itself takes no argument, so nothing meaningful legitimately
+/// follows it on the same line. Anchoring this way avoids a false positive
+/// on prose that happens to mention `@export` in passing, e.g. `#' See
+/// ?other_export for docs on @export usage elsewhere.` — that line is not a
+/// real export tag and must not flip the file into "tag mode" (nor count
+/// toward a specific function's tagged block below).
 /// Anchored at column 0: roxygen2 only ever attaches doc blocks to
 /// top-level objects, so an indented `#'`-prefixed comment (e.g. sitting
 /// above a nested helper inside another function's body) carries no real
 /// `@export` meaning and must not flip the whole file into tag mode.
-static HAS_EXPORT_TAG: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)^#'.*@export\b").unwrap());
+static EXPORT_TAG_LINE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^#'\s*@export\b").unwrap());
 
 /// A contiguous roxygen `#'` comment block (captured in group 1, so its text
 /// can be checked for `@export`) immediately followed by a top-level
@@ -69,13 +150,14 @@ static TOP_LEVEL_FUNCTION_DECL: LazyLock<Regex> = LazyLock::new(|| {
 /// naming convention: top-level function assignments are public unless
 /// their name starts with `.`, which conventionally marks them internal.
 pub fn extract_exports(content: &str) -> Vec<String> {
-    let stripped = STRING_LITERAL.replace_all(content, "");
+    let stripped = strip_raw_strings(content);
+    let stripped = STRING_LITERAL.replace_all(&stripped, "");
 
-    if HAS_EXPORT_TAG.is_match(&stripped) {
+    if EXPORT_TAG_LINE.is_match(&stripped) {
         let mut symbols: Vec<String> = Vec::new();
         for caps in ROXYGEN_TAGGED_DECL.captures_iter(&stripped) {
             let block = caps.get(1).map(|m| m.as_str()).unwrap_or("");
-            if !block.contains("@export") {
+            if !EXPORT_TAG_LINE.is_match(block) {
                 continue;
             }
             if let Some(name) = caps.get(2) {
@@ -317,6 +399,89 @@ wrapper <- function() {
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["wrapper"]);
         assert!(!symbols.contains(&"inner_helper".to_string()));
+    }
+
+    #[test]
+    fn test_export_mentioned_in_prose_is_not_a_real_tag() {
+        // Regression: `HAS_EXPORT_TAG` previously matched `@export` as a
+        // substring anywhere on a `#'` line, so a doc line merely
+        // *mentioning* `@export` in a sentence (not as a standalone tag)
+        // incorrectly flipped the whole file into "tag mode", where a real
+        // roxygen2 tag is authoritative over the naming convention. Using a
+        // dot-prefixed (normally-private) name makes the bug observable:
+        // under the old behavior tag-mode treated the block as tagged
+        // (block text contains the substring "@export") and reported
+        // `.not_tagged` as exported anyway, ignoring the leading-dot
+        // convention entirely. With the fix, this file has no real tag
+        // anywhere, so it correctly falls back to the naming convention and
+        // excludes the dot-prefixed name.
+        let src = r#"
+#' Do the thing. See ?other_export for docs on @export usage elsewhere.
+.not_tagged <- function() {
+  TRUE
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            !symbols.contains(&".not_tagged".to_string()),
+            "prose mention of @export wrongly treated as a real tag, got {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_raw_string_with_embedded_quote_does_not_break_parsing() {
+        // Verified-correct existing behavior in this shape (kept as a
+        // regression guard): an R 4.0+ raw string containing an escaped-free
+        // embedded quote pair.
+        let src = r#"
+msg <- r"(She said "hello" to me)"
+
+real_func <- function() {
+  TRUE
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real_func"]);
+    }
+
+    #[test]
+    fn test_raw_string_odd_quote_count_no_longer_leaks_fake_decl() {
+        // Regression: a raw string whose embedded, unescaped quotes desync
+        // the naive `STRING_LITERAL` quote-pairing (consecutive quotes
+        // paired left-to-right, ignoring which raw string they belong to)
+        // could leave a real-looking declaration in the *gap* between two
+        // such pairs unstripped -- and that gap could start a fresh line,
+        // making it look like genuine top-level code. Before
+        // `strip_raw_strings` existed this produced
+        // `["fake_leak", "real_func"]`.
+        let src = "msg <- r\"(a \"\nfake_leak <- function(x) x\n\" b)\"\n\nreal_func <- function() {\n  TRUE\n}\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real_func"]);
+        assert!(
+            !symbols.contains(&"fake_leak".to_string()),
+            "raw string content leaked as a fake top-level declaration, got {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_export_tag_variant_like_export_class_is_not_treated_as_export() {
+        // Verified-correct existing behavior (the `\b` word boundary after
+        // `@export` already handled this correctly, both before and after
+        // the anchoring fix above): `@exportClass`/`@exportMethod` are
+        // distinct roxygen2 directives, not the plain `@export` tag, so
+        // they must not flip the file into tag mode. With no real `@export`
+        // tag anywhere, this file falls back to the naming convention, and
+        // the undocumented (non-dot) function is correctly reported.
+        let src = r#"
+#' @exportClass MyClass
+setClass("MyClass", representation(x = "numeric"))
+
+undocumented <- function() {
+  TRUE
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["undocumented"], "got {symbols:?}");
     }
 
     #[test]

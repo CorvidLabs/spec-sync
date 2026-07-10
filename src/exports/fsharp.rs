@@ -68,6 +68,22 @@ static MODULE_DECL: LazyLock<Regex> = LazyLock::new(|| {
         .unwrap()
 });
 
+/// A `let` member written inline after a one-liner module's own `=`, e.g.
+/// `module Bar = let x = 1`, as opposed to the far more common shape where the `=`
+/// ends the line and the member sits on its own, more-indented, line below (which the
+/// scope-stack walk below already handles). Because the walk below dispatches each
+/// *line* through a single if-else chain, a line matched by `MODULE_DECL` never also
+/// gets a chance to match `LET_DECL` — without this, `x` would be silently dropped
+/// even though it's a real public member of a public module. Anchored (no `(?m)`) to
+/// the start of the remainder of the line *right after* the module match, with only
+/// whitespace and the `=` permitted in between, so it can't misfire on an unrelated
+/// local `let` buried later in some other kind of line (e.g. `let x = let y = 1 in y`,
+/// where `y` is a genuinely local binding regardless of `x`'s own visibility).
+static MODULE_INLINE_LET: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\s*=\s*let\s+((?:(?:rec|private|internal|inline|mutable)\s+)*)([A-Za-z_][\w']*)")
+        .unwrap()
+});
+
 /// True if the captured modifier blob contains an explicit `private`/`internal`.
 fn has_private_modifier(modifiers: &str) -> bool {
     modifiers
@@ -174,8 +190,25 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             {
                 push_symbol(&mut symbols, name.as_str());
             }
+            let module_exportable = exportable && !is_private;
+            // A one-liner module body's inline member is exportable only if both the
+            // enclosing module is exportable AND the member itself isn't separately
+            // marked `private`/`internal` (e.g. `module Bar = let private x = 1`).
+            if let Some(inline_caps) =
+                MODULE_INLINE_LET.captures(&line[caps.get(0).unwrap().end()..])
+            {
+                let inline_is_private = inline_caps
+                    .get(1)
+                    .is_some_and(|m| has_private_modifier(m.as_str()));
+                if module_exportable
+                    && !inline_is_private
+                    && let Some(name) = inline_caps.get(2)
+                {
+                    push_symbol(&mut symbols, name.as_str());
+                }
+            }
             // A private/internal module hides everything nested under it too.
-            scope_stack.push((indent, exportable && !is_private));
+            scope_stack.push((indent, module_exportable));
         } else if let Some(caps) = TYPE_DECL.captures(line) {
             let is_private = caps
                 .get(1)
@@ -441,5 +474,233 @@ type Vector2 = { X: float; Y: float }
         let symbols = extract_exports(src);
         assert!(symbols.contains(&"Vector2".to_string()));
         assert!(symbols.contains(&"kg".to_string()));
+    }
+
+    #[test]
+    fn test_fsharp_active_pattern_private_and_internal_variants_excluded() {
+        // Like plain `let`/`type`, an active pattern's own case labels must respect an
+        // explicit `private`/`internal` modifier on the defining `let`, even though the
+        // exported names (the case labels) are extracted from inside the banana
+        // brackets rather than being the `let`-bound identifier itself.
+        let src = r#"
+let private (|Even|Odd|) n =
+    if n % 2 = 0 then Even else Odd
+
+let (|Parseable|_|) (s: string) =
+    match System.Int32.TryParse(s) with
+    | true, v -> Some v
+    | _ -> None
+
+let internal (|Hidden|_|) s = Some s
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Parseable".to_string()]);
+        assert!(!symbols.contains(&"Even".to_string()));
+        assert!(!symbols.contains(&"Odd".to_string()));
+        assert!(!symbols.contains(&"Hidden".to_string()));
+    }
+
+    #[test]
+    fn test_fsharp_computation_expression_locals_not_exported() {
+        // A computation-expression body (`maybe { ... }`) is, from this extractor's
+        // point of view, just more-indented code inside whatever `let`/`type` opened
+        // it — the CE's `{ }` braces aren't tracked at all (this backend is purely
+        // indentation-driven), so `let`s inside the CE body fall out as local the same
+        // way any other nested `let` would. Only the builder type, the builder
+        // instance, and the two outer bindings that hold CE results are top-level.
+        let src = r#"
+type MaybeBuilder() =
+    member this.Bind(x, f) = Option.bind f x
+    member this.Return(x) = Some x
+
+let maybe = MaybeBuilder()
+
+let result =
+    maybe {
+        let x = Some 1
+        let y = Some 2
+        return x + y
+    }
+
+let inlineResult = maybe { let z = Some 3 in return z }
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec![
+                "MaybeBuilder".to_string(),
+                "maybe".to_string(),
+                "result".to_string(),
+                "inlineResult".to_string(),
+            ]
+        );
+        assert!(!symbols.contains(&"x".to_string()));
+        assert!(!symbols.contains(&"y".to_string()));
+        assert!(
+            !symbols.contains(&"z".to_string()),
+            "z is a same-line CE-local, not a sibling top-level let"
+        );
+    }
+
+    #[test]
+    fn test_fsharp_deeply_nested_private_module_hides_public_looking_members() {
+        // A `let` that would look exported in isolation is still hidden when the
+        // *module* it lives in is `private` — visibility of a nested scope is
+        // determined by walking outward, not by the innermost declaration's own
+        // (lack of a) modifier. `Outer` itself stays visible, and a sibling `let`
+        // declared back at `Outer`'s own indentation after the private nested module
+        // closes must still be exported (dedenting out of `Inner` must not also pop
+        // `Outer`'s frame).
+        let src = r#"
+module Outer =
+    module private Inner =
+        let publicLookingButHidden = 1
+        type AlsoHidden = { X: int }
+    let visible = 2
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Outer".to_string(), "visible".to_string()]);
+        assert!(!symbols.contains(&"Inner".to_string()));
+        assert!(!symbols.contains(&"publicLookingButHidden".to_string()));
+        assert!(!symbols.contains(&"AlsoHidden".to_string()));
+    }
+
+    #[test]
+    fn test_fsharp_module_rec_and_autoopen_attribute() {
+        // `[<AutoOpen>]` is just an attribute (already stripped by `ATTRIBUTE` before
+        // keyword matching) and `module rec` is a recognized modifier prefix on
+        // `MODULE_DECL` — neither should prevent the module name or its members from
+        // being treated as an ordinary exportable module.
+        let src = r#"
+[<AutoOpen>]
+module Extensions =
+    let extend x = x
+
+module rec Recursive =
+    let a x = if x = 0 then 0 else b (x - 1)
+    let b x = a x
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec![
+                "Extensions".to_string(),
+                "extend".to_string(),
+                "Recursive".to_string(),
+                "a".to_string(),
+                "b".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_fsharp_multiline_signature_wrapping_before_equals() {
+        // A signature that wraps its parameter list (and return-type annotation) onto
+        // several lines before the `=` must still be recognized by the name captured
+        // on the declaration's *first* line — the continuation lines are just more
+        // deeply indented and never match any declaration keyword themselves, so they
+        // fall out as harmless non-matching lines rather than confusing the scope
+        // tracker into treating them as siblings.
+        let src = r#"
+let processData
+    (items: seq<int>)
+    (predicate: int -> bool)
+    : seq<int> =
+    items |> Seq.filter predicate
+
+let private hiddenMultiline
+    (x: int)
+    : int =
+    x
+
+let bar y = y
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["processData".to_string(), "bar".to_string()]);
+        assert!(!symbols.contains(&"hiddenMultiline".to_string()));
+    }
+
+    #[test]
+    fn test_fsharp_oneliner_module_inline_public_member_exported() {
+        // Regression test for a real bug: `module Bar = let x = 1` puts the member on
+        // the *same* line as the module's own `=`, rather than on a separate,
+        // more-indented line below (the far more common shape). Because each line is
+        // dispatched through a single if-else chain of regexes, `MODULE_DECL` used to
+        // claim the whole line and the inline `let x = 1` was silently dropped
+        // entirely — even though `x` is exactly as public as `Bar` itself. This is now
+        // handled by `MODULE_INLINE_LET` matching the remainder of the line right
+        // after the module's `=`.
+        let src = r#"
+module Bar = let x = 1
+
+let after = 2
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec!["Bar".to_string(), "x".to_string(), "after".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_fsharp_oneliner_module_private_hides_module_and_inline_member() {
+        // The mirror image of the previous test: when the *module* itself is
+        // `private`, the inline member must be hidden too (a public-looking `let`
+        // cannot escape a private enclosing module just by being written inline).
+        let src = r#"
+module private Bar = let x = 1
+
+let after = 2
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["after".to_string()]);
+        assert!(!symbols.contains(&"Bar".to_string()));
+        assert!(!symbols.contains(&"x".to_string()));
+    }
+
+    #[test]
+    fn test_fsharp_oneliner_module_public_but_inline_member_itself_private() {
+        // The inline member's own modifier is independent of the module's: even when
+        // `Bar` is public, `module Bar = let private x = 1` must still hide `x`.
+        let src = r#"
+module Bar = let private x = 1
+
+let after = 2
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Bar".to_string(), "after".to_string()]);
+        assert!(!symbols.contains(&"x".to_string()));
+    }
+
+    #[test]
+    fn test_fsharp_dedented_looking_string_inside_nested_module_scope() {
+        // The triple-quote-stripping tests above cover a top-level string; this
+        // exercises the same hazard one level deeper, where a bug in indentation
+        // tracking could plausibly manifest differently (e.g. by popping the
+        // enclosing module's scope frame instead of just failing to find fake
+        // exports). The embedded fake `type`/`let` lines start at column 0 — more
+        // dedented than even the enclosing `module Outer =` — and must not be mistaken
+        // for a dedent back to real top-level content, nor confuse recognition of the
+        // real `let realNested` sibling that follows.
+        let src = r#"
+module Outer =
+    let template =
+        """
+type FakeNestedType = { X: int }
+let fakeNestedLet x = x
+"""
+    let realNested = 3
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec![
+                "Outer".to_string(),
+                "template".to_string(),
+                "realNested".to_string()
+            ]
+        );
+        assert!(!symbols.contains(&"FakeNestedType".to_string()));
+        assert!(!symbols.contains(&"fakeNestedLet".to_string()));
     }
 }

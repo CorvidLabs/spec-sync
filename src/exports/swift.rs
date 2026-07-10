@@ -1,16 +1,115 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-// `(?m)` is required so `$` anchors to each line's end, not just the end of
-// the whole (potentially multi-line) source string: without it, `.` (which
-// never crosses `\n`) can only ever reach `$` on the file's literal last
-// line, so a `//` comment on any earlier line is left completely unstripped.
-// This is more dangerous here than in most sibling backends since
-// `SWIFT_DECL` has no line-start anchor at all, so an unstripped commented-
-// out `public`/`open` declaration matches from anywhere in the file.
-static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)//.*$").unwrap());
+/// Strips `/* ... */` block comments, tracking nesting depth.
+///
+/// Swift block comments genuinely nest (`/* /* */ */` is one comment, not one
+/// comment followed by a stray ` */`), but a naive non-greedy regex like
+/// `/\*.*?\*/` closes on the *first* `*/` it sees — i.e. the inner comment's
+/// closer — leaving everything between that point and the real, outer closer
+/// (which may include live `public`/`open` declarations someone nested inside
+/// a commented-out block) completely unstripped. A depth-counting scan is the
+/// only correct way to find the true matching close.
+///
+/// Must run before `strip_line_comments`: if line-comment stripping ran
+/// first, a `//` appearing inside a block comment (e.g. `/* note: // see */`)
+/// would truncate that physical line — including the block comment's own
+/// closing `*/` — desyncing the two passes.
+fn strip_block_comments(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    let mut depth: u32 = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'/' && i + 1 < bytes.len() && bytes[i + 1] == b'*' {
+            depth += 1;
+            i += 2;
+            continue;
+        }
+        if depth > 0 && bytes[i] == b'*' && i + 1 < bytes.len() && bytes[i + 1] == b'/' {
+            depth -= 1;
+            i += 2;
+            continue;
+        }
+        if depth > 0 {
+            // Byte-at-a-time is safe even mid-multibyte-UTF8-char: we never
+            // split a copied run, we only ever fully skip or fully copy each
+            // byte, so a discarded multibyte comment character just loses
+            // all of its bytes across successive iterations.
+            i += 1;
+            continue;
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8(out).unwrap_or_else(|_| text.to_string())
+}
 
-static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
+/// Strips `//` line comments, but only when the `//` occurs outside a plain
+/// `"..."` string literal on that line.
+///
+/// A naive `//.*$` regex treats *any* `//` as a comment starter, including
+/// one embedded in string data — most commonly a URL literal like
+/// `public let helpURL = "http://example.com"; public func realFn() {}`.
+/// Truncating from that `//` to end-of-line doesn't just mangle the string,
+/// it silently deletes any further code on the same physical line, including
+/// a real public declaration after a `;`. Tracking string state (with basic
+/// backslash-escape handling) lets a `//` inside quotes pass through
+/// untouched.
+///
+/// String-tracking state resets at every `\n`: ordinary Swift string
+/// literals cannot contain a literal newline, so nothing is lost by not
+/// carrying `in_string` across lines. This deliberately does not attempt to
+/// model triple-quoted (`"""`) multi-line strings — those already can't
+/// contain top-level public declarations, and per-line reset keeps any
+/// misdetection from leaking beyond a single line.
+fn strip_line_comments(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut skipping = false;
+    for (idx, ch) in text.char_indices() {
+        if skipping {
+            if ch == '\n' {
+                skipping = false;
+                out.push(ch);
+            }
+            continue;
+        }
+        if escaped {
+            escaped = false;
+            out.push(ch);
+            continue;
+        }
+        match ch {
+            '\n' => {
+                in_string = false;
+                out.push(ch);
+            }
+            '\\' if in_string => {
+                escaped = true;
+                out.push(ch);
+            }
+            '"' => {
+                in_string = !in_string;
+                out.push(ch);
+            }
+            '/' if !in_string && text[idx..].starts_with("//") => {
+                skipping = true;
+            }
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+/// Attribute token (e.g. `@objc`, `@available(iOS 13, *)`, `@MainActor`) that
+/// may appear between the access keyword and the declaration keyword, as in
+/// `public @objc func foo()`. Without this alternative in the modifier run,
+/// the attribute is neither a recognized modifier nor the declaration
+/// keyword itself, so the whole regex fails to match at that position and
+/// the declaration is silently dropped entirely — not just misnamed.
+const ATTRIBUTE: &str = r"@\w+(?:\([^()]*\))?";
 
 /// Swift public/open declarations:
 /// public/open func, class, struct, enum, protocol, typealias, var, let, actor.
@@ -26,9 +125,9 @@ static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?
 /// they're ambiguous with a directly-adjacent generic parameter list (e.g. `func <-><T:
 /// Equatable>(...)`); operators built only from `<`/`>` are a rarer, accepted gap.
 static SWIFT_DECL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"(?m)(?:public|open)\s+(?:(?:final|static|class|override|mutating|nonmutating|lazy|weak|unowned|dynamic|nonisolated|prefix|postfix)\s+)*(?:func|class|struct|enum|protocol|typealias|var|let|actor|init|operator)\s+(\w+|[-+*/=!&|^~%.?]+)",
-    )
+    Regex::new(&format!(
+        r"(?m)(?:public|open)\s+(?:(?:final|static|class|override|mutating|nonmutating|lazy|weak|unowned|dynamic|nonisolated|prefix|postfix|{ATTRIBUTE})\s+)*(?:func|class|struct|enum|protocol|typealias|var|let|actor|init|operator)\s+(\w+|[-+*/=!&|^~%.?]+)",
+    ))
     .unwrap()
 });
 
@@ -59,9 +158,9 @@ static SWIFT_ENUM: LazyLock<Regex> =
 /// `internal(set)` — that only restricts the setter, the property itself is still
 /// exported at the container's level.
 static MEMBER_VAR: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"^(?:(?:private|fileprivate|internal)\(set\)\s+)?(?:(?:static|class|final|override|mutating|nonmutating|lazy|weak|unowned|dynamic|nonisolated)\s+)*(?:var|let)\s+(\w+)",
-    )
+    Regex::new(&format!(
+        r"^(?:(?:private|fileprivate|internal)\(set\)\s+)?(?:(?:static|class|final|override|mutating|nonmutating|lazy|weak|unowned|dynamic|nonisolated|{ATTRIBUTE})\s+)*(?:var|let)\s+(\w+)",
+    ))
     .unwrap()
 });
 
@@ -70,9 +169,9 @@ static MEMBER_VAR: LazyLock<Regex> = LazyLock::new(|| {
 /// inside a `public extension`) via the same symbol-character name alternative used by
 /// `SWIFT_DECL` — see its doc comment for why `<`/`>` are excluded.
 static MEMBER_FUNC: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"^(?:(?:static|class|final|override|mutating|nonmutating|dynamic|nonisolated|prefix|postfix)\s+)*func\s+(\w+|[-+*/=!&|^~%.?]+)",
-    )
+    Regex::new(&format!(
+        r"^(?:(?:static|class|final|override|mutating|nonmutating|dynamic|nonisolated|prefix|postfix|{ATTRIBUTE})\s+)*func\s+(\w+|[-+*/=!&|^~%.?]+)",
+    ))
     .unwrap()
 });
 
@@ -86,8 +185,8 @@ static MEMBER_ASSOCIATEDTYPE: LazyLock<Regex> =
 
 /// Extract exported (public/open) symbols from Swift source code.
 pub fn extract_exports(content: &str) -> Vec<String> {
-    let stripped = COMMENT_SINGLE.replace_all(content, "");
-    let stripped = COMMENT_MULTI.replace_all(&stripped, "");
+    let stripped = strip_block_comments(content);
+    let stripped = strip_line_comments(&stripped);
 
     let mut symbols = Vec::new();
 
@@ -631,6 +730,123 @@ public class Rect: Shape {
                 "missing {name}: {symbols:?}"
             );
         }
+    }
+
+    #[test]
+    fn test_swift_nested_block_comment_hides_commented_out_declaration() {
+        // Real bug found this session: `COMMENT_MULTI` used to be the
+        // non-greedy regex `/\*.*?\*/`, which closes on the FIRST `*/` it
+        // sees. Swift block comments genuinely nest, so
+        // `/* outer /* inner */ ... */` is ONE comment — but the regex only
+        // stripped up through the inner `*/`, leaving the commented-out
+        // `public func shouldBeHidden()` (and the stray trailing `*/`)
+        // completely unstripped and exposed to `SWIFT_DECL`. Before the fix
+        // (depth-counting `strip_block_comments`), this leaked
+        // "shouldBeHidden" as a false positive.
+        let src = r#"
+/* outer comment
+/* inner */
+public func shouldBeHidden() {}
+*/
+public func realExport() {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"realExport".to_string()));
+        assert!(
+            !symbols.contains(&"shouldBeHidden".to_string()),
+            "nested block comment must fully hide its contents: {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_swift_url_in_string_does_not_swallow_same_line_declaration() {
+        // Real bug found this session: the old `//.*$` comment-stripping
+        // regex had no notion of string literals, so the `//` inside a URL
+        // like `"http://example.com"` was treated as a line-comment starter,
+        // truncating the rest of that physical line — including a second,
+        // real `public func` declared after a `;` on the same line. Before
+        // the fix (string-aware `strip_line_comments`), `realFn` was
+        // silently dropped.
+        let src = r#"public let helpURL = "http://example.com"; public func realFn() {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"helpURL".to_string()));
+        assert!(
+            symbols.contains(&"realFn".to_string()),
+            "declaration after a URL literal on the same line must not be swallowed: {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_swift_attribute_between_access_keyword_and_decl_keyword_exported() {
+        // Real bug found this session: an attribute token directly between
+        // the access keyword and the declaration keyword (`public @objc
+        // func`, `public @MainActor func`) matched neither the modifier
+        // alternation nor the declaration-keyword alternation, so the whole
+        // `SWIFT_DECL` match failed at that position and the declaration was
+        // dropped entirely (not just misnamed). Fixed by adding an `ATTRIBUTE`
+        // alternative to the modifier run.
+        let src = r#"
+public @objc func objcFunc() {}
+public @MainActor func mainActorFunc() {}
+@available(iOS 13, *)
+public func availableFunc() {}
+"#;
+        let symbols = extract_exports(src);
+        for name in ["objcFunc", "mainActorFunc", "availableFunc"] {
+            assert!(
+                symbols.contains(&name.to_string()),
+                "missing {name}: {symbols:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_swift_property_wrapper_before_public_still_exported() {
+        // Verified-correct (not a bug): an attribute/property wrapper on its
+        // own line *before* `public`/`open` never touches `SWIFT_DECL`'s
+        // match at all, since the regex has no line-start anchor and simply
+        // looks for `public`/`open` onward. This is the common SwiftUI/
+        // Combine style (`@Published public var ...`, `@MainActor` before a
+        // type).
+        let src = r#"
+@Published public var count: Int = 0
+@MainActor
+public class ViewModel {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"count".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"ViewModel".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_swift_bare_private_fileprivate_internal_top_level_excluded() {
+        // Verified-correct (not a bug): a top-level declaration whose ONLY
+        // access modifier is `private`/`fileprivate`/`internal` (no
+        // `public`/`open` anywhere) must never be exported — `SWIFT_DECL`
+        // requires the literal `public`/`open` keyword and has no fallback
+        // that could accidentally match these narrower modifiers.
+        let src = r#"
+private func hiddenOne() {}
+fileprivate class HiddenTwo {}
+internal struct HiddenThree {}
+private(set) var hiddenFour: Int = 0
+public func visibleOne() {}
+"#;
+        let symbols = extract_exports(src);
+        for hidden in ["hiddenOne", "HiddenTwo", "HiddenThree", "hiddenFour"] {
+            assert!(
+                !symbols.contains(&hidden.to_string()),
+                "{hidden} must stay excluded: {symbols:?}"
+            );
+        }
+        assert!(symbols.contains(&"visibleOne".to_string()));
+    }
+
+    #[test]
+    fn test_swift_empty_and_comment_only_input_yield_no_symbols() {
+        assert!(extract_exports("").is_empty());
+        assert!(extract_exports("// just a comment\n/* and a block comment */\n").is_empty());
     }
 
     #[test]

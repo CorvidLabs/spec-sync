@@ -50,6 +50,14 @@ fn walk(node: &Node, src: &[u8], symbols: &mut Vec<String>) {
 fn handle_node(node: &Node, src: &[u8], symbols: &mut Vec<String>) {
     match node.kind() {
         "namespace_definition" => {
+            if node.child_by_field_name("name").is_none() {
+                // Anonymous (unnamed) namespace: everything declared inside
+                // has internal linkage confined to this translation unit, so
+                // none of it is part of the file's public API surface —
+                // unlike a named namespace's members, which keep external
+                // linkage. Drop the whole subtree rather than recursing.
+                return;
+            }
             add_type_name(node, src, symbols);
             if let Some(body) = node.child_by_field_name("body") {
                 walk(&body, src, symbols);
@@ -71,7 +79,7 @@ fn handle_node(node: &Node, src: &[u8], symbols: &mut Vec<String>) {
         }
         "function_definition" | "declaration" => {
             handle_nested_type_in_declaration(node, src, symbols);
-            if !has_static(node, src) {
+            if !has_static(node, src) && !is_deleted(node) {
                 add_function_name(node, src, symbols);
             }
             if let Some(body) = node.child_by_field_name("body") {
@@ -103,23 +111,8 @@ fn walk_field_list(node: &Node, src: &[u8], mut vis: Visibility, symbols: &mut V
                     _ => vis,
                 };
             }
-            "field_declaration" | "function_definition" => {
-                // Nested type definitions are captured regardless of the
-                // enclosing section's visibility (matches the regex, which
-                // only line-matches type keywords, not access context).
-                // Note: unlike a bare top-level `class Foo { ... };`, the
-                // C++ grammar always wraps a member type definition (e.g.
-                // `class Inner { ... };` inside a class body) in a
-                // `field_declaration` node with the specifier as its `type`
-                // field — it is never a direct `field_declaration_list`
-                // child, so this must be unwrapped explicitly.
-                handle_nested_type_in_declaration(&child, src, symbols);
-                if vis == Visibility::Public && !has_static(&child, src) {
-                    add_function_name(&child, src, symbols);
-                }
-                if let Some(body) = child.child_by_field_name("body") {
-                    walk(&body, src, symbols);
-                }
+            "field_declaration" | "function_definition" | "declaration" => {
+                handle_member_declaration(&child, src, vis, symbols);
             }
             "class_specifier"
             | "struct_specifier"
@@ -148,8 +141,54 @@ fn walk_field_list(node: &Node, src: &[u8], mut vis: Visibility, symbols: &mut V
                 if vis == Visibility::Public => {
                     add_type_name(&child, src, symbols);
                 }
+            "template_declaration" => {
+                // A templated member (`template<typename T> T convert(T v)
+                // const;`, or a nested template class) wraps its inner
+                // declaration as a plain unnamed child rather than exposing
+                // `type`/`declarator` fields directly on the
+                // `template_declaration` node itself. Notably, the wrapped
+                // node kind for a templated *method* prototype is a bare
+                // `declaration` (not `field_declaration`, unlike a
+                // non-template method prototype) — without unwrapping this,
+                // a class whose only public members are templated methods
+                // silently produced zero symbols.
+                let mut inner_cursor = child.walk();
+                for inner in child.children(&mut inner_cursor) {
+                    match inner.kind() {
+                        "field_declaration" | "function_definition" | "declaration" => {
+                            handle_member_declaration(&inner, src, vis, symbols);
+                        }
+                        "class_specifier" | "struct_specifier" | "union_specifier"
+                        | "enum_specifier" => {
+                            handle_node(&inner, src, symbols);
+                        }
+                        _ => {}
+                    }
+                }
+            }
             _ => {}
         }
+    }
+}
+
+/// Handle a single class/struct/union member declaration node (a
+/// `field_declaration`, `function_definition`, or bare `declaration` — the
+/// last being how a templated method's prototype is wrapped), under the
+/// current access-specifier `vis`. Nested type definitions are captured
+/// regardless of the enclosing section's visibility (matches the regex,
+/// which only line-matches type keywords, not access context). Note: unlike
+/// a bare top-level `class Foo { ... };`, the C++ grammar always wraps a
+/// member type definition (e.g. `class Inner { ... };` inside a class body)
+/// in a `field_declaration` node with the specifier as its `type` field — it
+/// is never a direct `field_declaration_list` child, so this must be
+/// unwrapped explicitly.
+fn handle_member_declaration(node: &Node, src: &[u8], vis: Visibility, symbols: &mut Vec<String>) {
+    handle_nested_type_in_declaration(node, src, symbols);
+    if vis == Visibility::Public && !has_static(node, src) && !is_deleted(node) {
+        add_function_name(node, src, symbols);
+    }
+    if let Some(body) = node.child_by_field_name("body") {
+        walk(&body, src, symbols);
     }
 }
 
@@ -185,11 +224,55 @@ fn has_static(node: &Node, src: &[u8]) -> bool {
     false
 }
 
+/// True if `node` has a direct `delete_method_clause` child (`= delete;`).
+/// A deleted function/method can never actually be called, so despite
+/// otherwise looking like a normal public declaration it isn't really part
+/// of the callable public API surface — matching the regex extractor, whose
+/// `CPP_FUNCTION` pattern only special-cases a pure-virtual `= 0` (not
+/// `= delete`) between the closing `)` and the terminating `;`, so a deleted
+/// method's line never matches at all there.
+fn is_deleted(node: &Node) -> bool {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "delete_method_clause" {
+            return true;
+        }
+    }
+    false
+}
+
 /// Push a class/struct/union/enum/namespace name (no dedup, matching the
-/// regex extractor's type-name pass).
+/// regex extractor's type-name pass). A C++17 nested-namespace-specifier
+/// name (the `A::B::C` in `namespace A::B::C { ... }`) is split into its
+/// individual segments so each is captured on its own.
 fn add_type_name(node: &Node, src: &[u8], symbols: &mut Vec<String>) {
     if let Some(name) = node.child_by_field_name("name") {
-        symbols.push(name.utf8_text(src).unwrap_or_default().to_string());
+        push_name_or_namespace_segments(&name, src, symbols);
+    }
+}
+
+/// Push `node`'s text as a single symbol, unless it's a
+/// `nested_namespace_specifier` (the grammar's node for the `A::B::C` name in
+/// `namespace A::B::C { ... }`), in which case recurse into each
+/// `namespace_identifier` segment and push those individually. Without this,
+/// `add_type_name` would push the single combined string `"A::B::C"` instead
+/// of `"A"`, `"B"`, `"C"` — unlike the equivalent pre-C++17 nested-block form
+/// `namespace A { namespace B { namespace C { ... } } }`, where each level is
+/// its own `namespace_definition` and so already yields three separate
+/// symbols.
+fn push_name_or_namespace_segments(node: &Node, src: &[u8], symbols: &mut Vec<String>) {
+    if node.kind() == "nested_namespace_specifier" {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if matches!(
+                child.kind(),
+                "namespace_identifier" | "nested_namespace_specifier"
+            ) {
+                push_name_or_namespace_segments(&child, src, symbols);
+            }
+        }
+    } else {
+        symbols.push(node.utf8_text(src).unwrap_or_default().to_string());
     }
 }
 
@@ -572,5 +655,154 @@ private:
         assert!(symbols.contains(&"Pixel".to_string()));
         assert!(symbols.contains(&"blend".to_string()));
         assert!(!symbols.contains(&"Internal".to_string()));
+    }
+
+    #[test]
+    fn test_anonymous_namespace_contents_excluded() {
+        // Bug: an unnamed namespace's contents have internal linkage,
+        // confined to this translation unit -- they are not part of the
+        // file's public API surface, unlike a named namespace's members.
+        // Before the fix, `namespace_definition`'s handling always called
+        // `add_type_name` + `walk`, regardless of whether the namespace had
+        // a `name` field, so a free function or even a whole public class
+        // declared inside `namespace { ... }` leaked into the result
+        // identically to a real top-level declaration.
+        let src = r#"
+namespace {
+    void hidden();
+    class Internal {
+    public:
+        void method();
+    };
+}
+void visible();
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"visible".to_string()));
+        assert!(!symbols.contains(&"hidden".to_string()));
+        assert!(!symbols.contains(&"Internal".to_string()));
+        assert!(!symbols.contains(&"method".to_string()));
+    }
+
+    #[test]
+    fn test_cpp17_nested_namespace_specifier_splits_into_segments() {
+        // Bug: `namespace A::B::C { ... }` (the C++17 nested-namespace
+        // shorthand) parses its name as a single `nested_namespace_specifier`
+        // node whose full text is "A::B::C". Before the fix, `add_type_name`
+        // pushed that combined string verbatim as one symbol, so a caller
+        // checking for the namespace name "A", "B", or (most commonly) the
+        // innermost "C" would never find it -- even though the equivalent
+        // pre-C++17 nested-block form `namespace A { namespace B { namespace
+        // C { ... } } }` already yields three separate symbols.
+        let src = "namespace A::B::C { void f(); }";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"A".to_string()));
+        assert!(symbols.contains(&"B".to_string()));
+        assert!(symbols.contains(&"C".to_string()));
+        assert!(!symbols.contains(&"A::B::C".to_string()));
+        assert!(symbols.contains(&"f".to_string()));
+    }
+
+    #[test]
+    fn test_deleted_method_excluded() {
+        // Bug: `void blocked(int) = delete;` cannot actually be called, so
+        // despite otherwise looking like a normal public declaration it is
+        // not really part of the callable public API. Before the fix,
+        // `add_function_name` had no awareness of `delete_method_clause` at
+        // all, so a deleted overload was captured identically to a real
+        // method -- diverging from the regex backend, whose `CPP_FUNCTION`
+        // pattern only special-cases a pure-virtual `= 0` and so never
+        // matches a `= delete` line in the first place.
+        let src = r#"
+class Foo {
+public:
+    void blocked(int) = delete;
+    void allowed(double);
+};
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(symbols.contains(&"allowed".to_string()));
+        assert!(!symbols.contains(&"blocked".to_string()));
+    }
+
+    #[test]
+    fn test_defaulted_operator_still_captured() {
+        // Contrast with the deleted-method case above: a defaulted special
+        // member (`= default`) IS still callable and genuinely part of the
+        // public API, so unlike `= delete` it must not be excluded.
+        let src = r#"
+class Foo {
+public:
+    Foo& operator=(const Foo&) = default;
+};
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(symbols.contains(&"operator=".to_string()));
+    }
+
+    #[test]
+    fn test_template_method_in_class_captured() {
+        // Bug (silent-fallback-masking risk): a templated member method
+        // (`template<typename T> T convert(T value) const;`) wraps its inner
+        // prototype in a `template_declaration` node, which `walk_field_list`
+        // did not special-case at all -- it fell through the wildcard `_ =>
+        // {}` arm with no recursion, so the method was silently dropped. For
+        // a class whose only public members are templated methods, this
+        // means `extract_exports` returned an empty `Vec` on genuinely
+        // exported input, which is exactly the condition that trips the
+        // AST-empty-triggers-regex-fallback policy — masking the AST
+        // backend's own gap instead of surfacing it.
+        let only_template_src = r#"
+class Converter {
+public:
+    template<typename T>
+    T convert(T value) const;
+};
+"#;
+        let symbols = extract_exports(only_template_src);
+        assert!(
+            !symbols.is_empty(),
+            "AST backend must not return empty on a class with a public templated method"
+        );
+        assert!(symbols.contains(&"Converter".to_string()));
+        assert!(symbols.contains(&"convert".to_string()));
+
+        // Also verify a mixed class (templated + non-templated method) picks
+        // up both.
+        let mixed_src = r#"
+class Calculator {
+public:
+    template<typename T>
+    T convert(T value) const;
+    int add(int a, int b);
+};
+"#;
+        let mixed = extract_exports(mixed_src);
+        assert!(mixed.contains(&"Calculator".to_string()));
+        assert!(mixed.contains(&"convert".to_string()));
+        assert!(mixed.contains(&"add".to_string()));
+    }
+
+    #[test]
+    fn test_attributes_between_visibility_and_declaration_captured() {
+        // Verified-correct behavior: a `[[nodiscard]]`/`[[deprecated(...)]]`
+        // attribute sitting between the `public:` section and a method
+        // declaration does not interfere with name extraction, since the
+        // attribute is wrapped as a separate node inside the same
+        // `field_declaration` rather than displacing the `type`/`declarator`
+        // fields.
+        let src = r#"
+class Widget {
+public:
+    [[nodiscard]] int compute() const;
+    [[deprecated("use compute")]] int legacy() const;
+};
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Widget".to_string()));
+        assert!(symbols.contains(&"compute".to_string()));
+        assert!(symbols.contains(&"legacy".to_string()));
     }
 }

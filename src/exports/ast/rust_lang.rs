@@ -27,6 +27,22 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     };
 
     let root = tree.root_node();
+
+    // Once tree-sitter's error recovery is genuinely confused (e.g. leftover
+    // merge-conflict markers, or other severely malformed input) it can
+    // flatten valid, `pub`-tagged declarations into unstructured ERROR-node
+    // tokens with no recoverable `function_item`/`visibility_modifier`
+    // structure at all -- silently under-counting exports *without* the
+    // overall result being empty, so the caller's "empty result -> fall
+    // back to the regex backend" policy never kicks in. Once any parse
+    // error is present anywhere in the tree we can no longer trust the
+    // traversal's completeness, so deliberately return empty here to hand
+    // off to the regex backend (which has no such structural blind spot
+    // since it scans raw text and never requires a balanced/valid parse).
+    if root.has_error() {
+        return Vec::new();
+    }
+
     let src = content.as_bytes();
     let mut symbols = Vec::new();
 
@@ -354,5 +370,237 @@ pub fn truly_public() {}
 "#;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["truly_public"]);
+    }
+
+    #[test]
+    fn test_struct_and_tuple_struct_fields_not_captured() {
+        // A struct's own `pub` fields (including a tuple struct's positional
+        // fields) are not top-level items and must not be captured just
+        // because they carry their own `pub` keyword; only the struct name
+        // itself is exported. Verified empirically: without this guard the
+        // bug would show up as extra entries like "base_url"/"timeout_ms".
+        let src = r#"
+pub struct AuthConfig {
+    pub base_url: String,
+    pub timeout_ms: u64,
+    retries: u8,
+}
+
+pub struct Wrapper(pub i32, i64);
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["AuthConfig", "Wrapper"]);
+    }
+
+    #[test]
+    fn test_deeply_nested_pub_mod_two_levels() {
+        // A `pub mod` nested inside another `pub mod` (two levels deep, not
+        // just the single level the existing test_pub_mod covers) must still
+        // have its inner `pub fn` recovered via recursive descent.
+        let src = r#"
+pub mod a {
+    pub mod b {
+        pub fn c() {}
+    }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn test_multiline_generic_where_clause() {
+        // A `pub fn` with generics and a `where` clause spanning multiple
+        // lines before its body -- the AST must not lose track of the name
+        // just because the signature is not on one line.
+        let src = r#"
+pub fn complex<T>(x: T) -> T
+where
+    T: Clone + std::fmt::Debug,
+{
+    x
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["complex"]);
+    }
+
+    #[test]
+    fn test_const_fn_and_unsafe_extern_fn() {
+        // Unusual modifier orderings/combinations: `pub const fn` and
+        // `pub unsafe extern "C" fn` must both still resolve to a plain
+        // `function_item` with the visibility_modifier as a direct child.
+        let src = r#"
+pub const fn const_fn_example() -> i32 { 1 }
+pub unsafe extern "C" fn ffi_fn() {}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["const_fn_example", "ffi_fn"]);
+    }
+
+    #[test]
+    fn test_raw_string_containing_pub_fn_text_ignored() {
+        // A raw string literal whose contents look like a `pub fn`
+        // declaration must not be read as code (AST-native guarantee).
+        let src = r####"
+pub fn real_fn() {}
+fn other() {
+    let s = r#"pub fn fake_in_raw_string() {}"#;
+}
+"####;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real_fn"]);
+    }
+
+    #[test]
+    fn test_doc_comment_with_code_like_text_ignored() {
+        // A `///` doc comment containing text that looks exactly like a
+        // `pub fn` declaration must not be parsed as one.
+        let src = r#"
+/// pub fn fake_doc_fn() {}
+fn real_private() {}
+
+pub fn real_pub() {}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real_pub"]);
+    }
+
+    #[test]
+    fn test_const_generics_struct_name_captured() {
+        // `pub struct Foo<const N: usize>` -- a const generic parameter must
+        // not confuse extraction of the struct's own name.
+        let src = r#"
+pub struct ArrayWrapper<const N: usize> {
+    data: [i32; N],
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["ArrayWrapper"]);
+    }
+
+    #[test]
+    fn test_assoc_const_and_type_captured_inside_impl() {
+        // Associated `pub const` and `pub type` inside an inherent `impl`
+        // block carry their own explicit `pub` keyword (mirrors the regex
+        // backend, which matches them too since it scans linearly), so they
+        // must be captured alongside the struct name.
+        let src = r#"
+pub struct Foo;
+
+impl Foo {
+    pub const BAR: i32 = 1;
+    pub type Assoc = String;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Foo", "BAR", "Assoc"]);
+    }
+
+    #[test]
+    fn test_pub_in_multi_segment_path_excluded() {
+        // `pub(in crate::a::b::c)` -- a deeper, multi-segment restricted
+        // path (beyond the single-segment `pub(in crate::auth)` already
+        // covered elsewhere) must still be excluded.
+        let src = r#"
+pub(in crate::a::b::c) fn deeply_scoped() {}
+pub fn truly_public() {}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["truly_public"]);
+    }
+
+    #[test]
+    fn test_macro_rules_never_captured() {
+        // Macros are exported via `#[macro_export]`, not `pub` (`pub
+        // macro_rules!` is not valid Rust syntax). Neither an exported nor a
+        // private `macro_rules!` should ever appear in the results, since
+        // "macro_rules_item" is not among the recognized item kinds.
+        let src = r#"
+#[macro_export]
+macro_rules! my_macro {
+    () => {};
+}
+
+macro_rules! private_macro {
+    () => {};
+}
+
+pub fn real_fn() {}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real_fn"]);
+    }
+
+    #[test]
+    fn test_parse_error_anywhere_defers_to_regex_fallback() {
+        // Bug found via adversarial testing: a syntax error earlier in the
+        // file (here, a truncated/unbalanced `pub fn broken(`) can confuse
+        // tree-sitter's error recovery badly enough that a subsequent,
+        // genuinely well-formed top-level `pub fn` loses its
+        // `visibility_modifier` entirely (tree-sitter mis-lexes the second
+        // `pub` token as part of the broken statement before it), so no
+        // traversal-level fix can recover it -- the information is gone
+        // from the tree itself, not merely unreached.
+        //
+        // Before the `root.has_error()` guard in `extract_exports`, this
+        // silently produced an empty result, which happens to coincide with
+        // the caller's fallback trigger here -- but the fix is what makes
+        // that outcome *intentional and guaranteed* rather than incidental,
+        // which matters for the next (nonempty) case below.
+        let src = r#"
+pub fn broken( {
+    let x =
+
+pub fn also_public() {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.is_empty(),
+            "a parse error anywhere must defer entirely to the regex fallback: {symbols:?}"
+        );
+        // The regex backend has no such blind spot and recovers everything.
+        let regex_symbols = crate::exports::rust_lang::extract_exports(src);
+        assert!(regex_symbols.contains(&"also_public".to_string()));
+    }
+
+    #[test]
+    fn test_merge_conflict_markers_defer_to_regex_fallback() {
+        // Bug found via adversarial testing: leftover merge-conflict markers
+        // (a realistic real-world corruption) confuse tree-sitter badly
+        // enough that only the first of four valid `pub fn` declarations
+        // survives as a recognizable `function_item` -- the rest are
+        // flattened into unstructured ERROR-node tokens with no
+        // `visibility_modifier`/`function_item` structure left to recover.
+        // Because the pre-fix result was *nonempty* (`["stable_fn"]`), the
+        // caller's "empty result -> fall back to regex" policy never
+        // triggered, so this silently under-reported exports with no safety
+        // net. The `root.has_error()` guard fixes this by deliberately
+        // returning empty whenever any parse error is present anywhere in
+        // the tree, forcing the caller to use the regex backend instead,
+        // which recovers all four names correctly.
+        let src = r#"
+pub fn stable_fn() {}
+
+<<<<<<< HEAD
+pub fn feature_a() {}
+=======
+pub fn feature_b() {}
+>>>>>>> feature-branch
+
+pub fn another_fn() {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.is_empty(),
+            "a parse error anywhere must defer entirely to the regex fallback: {symbols:?}"
+        );
+        let regex_symbols = crate::exports::rust_lang::extract_exports(src);
+        for name in ["stable_fn", "feature_a", "feature_b", "another_fn"] {
+            assert!(
+                regex_symbols.contains(&name.to_string()),
+                "regex fallback should recover {name}: {regex_symbols:?}"
+            );
+        }
     }
 }

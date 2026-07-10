@@ -313,15 +313,13 @@ pub fn validate_spec(
                         "Re-save `{file}` as UTF-8 (specsync validates UTF-8 source), or remove it from the files list"
                     ));
                 }
-            } else {
-                if let Err(err) = fs::read(&full_path) {
-                    result.errors.push(format!(
-                        "Source file `{file}` could not be read for validation: {err}"
-                    ));
-                    result.fixes.push(format!(
-                        "Remove `{file}` from the files list or fix permissions"
-                    ));
-                }
+            } else if let Err(err) = fs::File::open(&full_path) {
+                result.errors.push(format!(
+                    "Source file `{file}` could not be read for validation: {err}"
+                ));
+                result.fixes.push(format!(
+                    "Remove `{file}` from the files list or fix permissions"
+                ));
             }
         }
     }

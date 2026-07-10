@@ -56,7 +56,15 @@ fn decl_name(node: &Node, src: &[u8]) -> Option<String> {
         | "trait_definition"
         | "enum_definition"
         | "function_definition"
-        | "function_declaration" => get_field_text(node, "name", src),
+        | "function_declaration"
+        // Scala 3 `given` instances (`given intShow: Show[Int] with ...`) are
+        // real, nameable, importable public API (e.g. `import Foo.given`, or
+        // a direct reference to the synthesized name) — the grammar gives
+        // them their own `given_definition` node with a `name` field, just
+        // like `def`/`class`. Anonymous givens (`given Show[Int] with ...`,
+        // no name) simply have no `name` field, so `get_field_text` returns
+        // `None` for them without any special-casing needed.
+        | "given_definition" => get_field_text(node, "name", src),
         // Scala 3 enum cases (`case Red, Green, Blue` and `case Success(value: A)`)
         // each parse as their own node with a `name` field — a bare case list like
         // `case Red, Green, Blue` produces one `simple_enum_case` per name, so no
@@ -383,5 +391,139 @@ def matchEverything(obj: Any): String = obj match {
             symbols.contains(&"matchEverything".to_string()),
             "{symbols:?}"
         );
+    }
+
+    #[test]
+    fn test_private_qualified_access_modifiers_excluded() {
+        // `private[this]` and `private[pkg]` are partial-privacy qualifiers,
+        // not full `private` — but they're still not part of a type/trait's
+        // *public* API surface (they're visible only within the enclosing
+        // instance or a named package, never from an arbitrary external
+        // importer). Verified via `parse_scala(..).root_node().to_sexp()`
+        // that both wrap an `access_modifier` node that still contains a
+        // `private`-kind node regardless of the `[qualifier]` suffix, so
+        // `contains_access_keyword`'s recursive search already excludes them
+        // correctly — this documents verified-correct behavior, not a bug.
+        let src = r#"
+class Outer {
+  private[this] def onlyThis: Int = 1
+  private[mypkg] def onlyPkg: Int = 2
+  private def fullyPrivate: Int = 3
+  def public: Int = 4
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Outer", "public"], "{symbols:?}");
+    }
+
+    #[test]
+    fn test_scala3_given_instance_name_captured() {
+        // Regression test: `given_definition` was previously missing from
+        // `decl_name`'s match arms entirely, so a named Scala 3 `given`
+        // instance (`given intShow: Show[Int] with ...`) was silently
+        // dropped even though the walker still recursed *into* its body
+        // (capturing the nested `show` method) — an inconsistent partial
+        // miss, not a parse failure, so the overall non-empty result never
+        // triggered the regex fallback that would have masked the gap.
+        // `given`-instance names are real, referenceable public API
+        // (`import Foo.given`), and a `private given` must still be
+        // excluded like any other private declaration.
+        let src = r#"
+trait Show[A] {
+  def show(a: A): String
+}
+
+given intShow: Show[Int] with
+  def show(a: Int): String = a.toString
+
+private given hiddenShow: Show[Long] with
+  def show(a: Long): String = a.toString
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"intShow".to_string()), "{symbols:?}");
+        assert!(!symbols.contains(&"hiddenShow".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_scala3_extension_methods_captured_without_extension_name() {
+        // Scala 3 `extension (x: Int) def double: Int = ...` blocks have no
+        // name of their own (only the methods declared inside do) — the
+        // walker must still recurse into the `extension_definition` body and
+        // capture `double` even though `decl_name` returns `None` for the
+        // `extension_definition` node itself.
+        let src = r#"
+extension (x: Int)
+  def double: Int = x * 2
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"double".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_sealed_trait_and_sealed_abstract_class_captured() {
+        // `sealed` restricts *where* subtypes may be defined (same file/
+        // package), but the trait/class name itself remains public API —
+        // the `sealed` modifier must not be confused with `private`/
+        // `protected` and must not block capture.
+        let src = r#"
+sealed trait Animal
+sealed abstract class Shape
+final case class Point(x: Int, y: Int)
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Animal".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"Shape".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"Point".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_package_object_and_companion_object_members_captured() {
+        // `package object` bodies and companion objects sharing a class's
+        // name are both idiomatic, common Scala patterns; their public
+        // members must be captured like any other object's, with private
+        // members still excluded.
+        let src = r#"
+package object util {
+  def helper: Int = 1
+  private def hiddenHelper: Int = 2
+}
+
+class Dog(name: String)
+object Dog {
+  def apply(name: String): Dog = new Dog(name)
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"helper".to_string()), "{symbols:?}");
+        assert!(
+            !symbols.contains(&"hiddenHelper".to_string()),
+            "{symbols:?}"
+        );
+        assert!(symbols.contains(&"Dog".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"apply".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_multiline_variance_and_context_bound_type_params_captured() {
+        // Multi-line type parameter lists with variance annotations
+        // (`+A`/`-B`) and context bounds (`C: Ordering`) must not confuse
+        // the `name` field lookup on the surrounding `class_definition`/
+        // `function_definition` — the type-parameter list is a distinct
+        // field the walker never has to parse to find the declared name.
+        // (Primary-constructor `val` parameters like `val value: A` are a
+        // distinct `class_parameter` node kind not handled by `decl_name`
+        // at all — out of scope here, this test only exercises the
+        // type-parameter-list shape.)
+        let src = r#"
+class Container[
+    +A,
+    -B
+](val value: A) {
+  def map[C: Ordering](f: A => C): Container[C, B] = ???
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Container".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"map".to_string()), "{symbols:?}");
     }
 }

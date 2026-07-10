@@ -22,6 +22,23 @@ static GO_GROUP_OPEN: LazyLock<Regex> =
 /// Leading identifier of a grouped item line (`Name = ...`, `Name Type`, ...).
 static GO_GROUP_ITEM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^([A-Za-z_]\w*)").unwrap());
 
+/// Comma-separated multi-name `var`/`const` declaration at column 0: `var A,
+/// B int` or `const C, D = 1, 2`. GO_DECL's single capture group only ever
+/// sees the FIRST name; Go's classic multi-identifier var/const form (common
+/// for paired/related declarations, e.g. `var MinValue, MaxValue int`) would
+/// otherwise silently drop every name after the first. Requires at least one
+/// comma, so ordinary single-name lines are left to GO_DECL untouched.
+static GO_MULTI_DECL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^(?:var|const)\s+((?:[A-Za-z_]\w*\s*,\s*)+[A-Za-z_]\w*)").unwrap()
+});
+
+/// Comma-separated multi-name item inside a grouped `var (`/`const (` block:
+/// `A, B = 1, 2` sitting on its own line with no keyword prefix. Mirrors
+/// GO_MULTI_DECL for the grouped form. Requires at least one comma so
+/// ordinary single-name grouped items fall through to GO_GROUP_ITEM.
+static GO_GROUP_ITEM_LIST: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^((?:[A-Za-z_]\w*\s*,\s*)+[A-Za-z_]\w*)").unwrap());
+
 /// Opening of a top-level interface body: `type Name interface {` (optionally
 /// with a generic parameter list, e.g. `type Container[T any] interface {`).
 /// Matched on the UN-trimmed line (only trailing whitespace stripped) so it
@@ -57,6 +74,21 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     for caps in GO_DECL.captures_iter(&stripped) {
         if let Some(name) = caps.get(1) {
             symbols.push(name.as_str().to_string());
+        }
+    }
+
+    // Comma-separated multi-name var/const declarations (see GO_MULTI_DECL doc):
+    // GO_DECL above only ever captured the first name in `var A, B int`.
+    for caps in GO_MULTI_DECL.captures_iter(&stripped) {
+        if let Some(list) = caps.get(1) {
+            for name in list.as_str().split(',') {
+                let name = name.trim();
+                if matches!(name.chars().next(), Some(c) if c.is_ascii_uppercase())
+                    && !symbols.contains(&name.to_string())
+                {
+                    symbols.push(name.to_string());
+                }
+            }
         }
     }
 
@@ -107,16 +139,29 @@ pub fn extract_exports(content: &str) -> Vec<String> {
                 prev_continues = false;
                 continue;
             }
-            if at_base
-                && !prev_continues
-                && let Some(caps) = GO_GROUP_ITEM.captures(bt)
-                && let Some(name) = caps.get(1)
-            {
-                let n = name.as_str();
-                if matches!(n.chars().next(), Some(c) if c.is_ascii_uppercase())
-                    && !symbols.contains(&n.to_string())
+            if at_base && !prev_continues {
+                if let Some(caps) = GO_GROUP_ITEM_LIST.captures(bt)
+                    && let Some(list) = caps.get(1)
                 {
-                    symbols.push(n.to_string());
+                    // Comma-separated multi-name grouped item, e.g. `A, B = 1, 2`
+                    // (see GO_GROUP_ITEM_LIST doc).
+                    for name in list.as_str().split(',') {
+                        let name = name.trim();
+                        if matches!(name.chars().next(), Some(c) if c.is_ascii_uppercase())
+                            && !symbols.contains(&name.to_string())
+                        {
+                            symbols.push(name.to_string());
+                        }
+                    }
+                } else if let Some(caps) = GO_GROUP_ITEM.captures(bt)
+                    && let Some(name) = caps.get(1)
+                {
+                    let n = name.as_str();
+                    if matches!(n.chars().next(), Some(c) if c.is_ascii_uppercase())
+                        && !symbols.contains(&n.to_string())
+                    {
+                        symbols.push(n.to_string());
+                    }
                 }
             }
             brace_depth += bt.matches('{').count() as i32 - bt.matches('}').count() as i32;
@@ -931,6 +976,98 @@ func (p pair) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         assert!(!symbols.contains(&"pair".to_string()), "unexported type");
         assert!(!symbols.contains(&"x".to_string()), "struct field");
         assert!(!symbols.contains(&"y".to_string()), "struct field");
+    }
+
+    #[test]
+    fn test_go_comma_separated_multi_name_decl() {
+        // Real bug found this session: GO_DECL's single capture group only ever
+        // matched the FIRST name in Go's comma-separated multi-identifier
+        // var/const form (`var A, B int`), silently dropping every later name.
+        // Also covers the grouped-block form (`A, B = 1, 2` inside `const (`),
+        // plus a mix of exported/unexported names on the same line.
+        let src = "
+package config
+
+var A, B int
+const C, D = 1, 2
+var E, unexportedF string
+
+const (
+    Read, Write = iota, iota + 1
+    unexportedG, H = 2, 3
+)
+";
+        let symbols = extract_exports(src);
+        for name in ["A", "B", "C", "D", "E", "Read", "Write", "H"] {
+            assert!(
+                symbols.contains(&name.to_string()),
+                "missing {name}: {symbols:?}"
+            );
+        }
+        assert!(!symbols.contains(&"unexportedF".to_string()));
+        assert!(!symbols.contains(&"unexportedG".to_string()));
+    }
+
+    #[test]
+    fn test_go_backtick_inside_line_comment_same_line() {
+        // A backtick mentioned inside a `//` line comment must not be
+        // mistaken for the start of a raw string literal (which would
+        // otherwise swallow everything up to the next real backtick,
+        // possibly including a real declaration).
+        let src = "
+package m
+
+// a raw-ish `backtick` mention inside a line comment
+func RealFn() {}
+";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["RealFn"]);
+    }
+
+    #[test]
+    fn test_go_generic_struct_and_slice_type_declaration() {
+        // A generic (non-interface) type declaration, e.g. `type Stack[T any]
+        // struct { ... }`, must still have its name captured: the generic
+        // parameter list sits between the name and `struct`, not between
+        // `type` and the name.
+        let src = "
+package coll
+
+type Stack[T any] struct {
+    items []T
+}
+
+type IDList = []int
+
+func unexportedHelper() {}
+";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Stack".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"IDList".to_string()));
+        assert!(!symbols.contains(&"unexportedHelper".to_string()));
+    }
+
+    #[test]
+    fn test_go_multiline_raw_string_containing_func_keyword_not_leaked() {
+        // A multi-line backtick raw string containing text that looks like a
+        // real top-level declaration (`func`/`type` at the start of an inner
+        // line) must not leak a phantom export; only the genuine declaration
+        // after the string should be captured.
+        let src = "
+package tmpl
+
+const Body = `
+func FakeExport() {}
+type FakeType struct{}
+`
+
+func RealAfterRawString() {}
+";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Body".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"RealAfterRawString".to_string()));
+        assert!(!symbols.contains(&"FakeExport".to_string()));
+        assert!(!symbols.contains(&"FakeType".to_string()));
     }
 
     #[test]

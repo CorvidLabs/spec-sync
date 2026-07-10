@@ -53,6 +53,15 @@ static TOP_LEVEL_OPERATOR_SIG: LazyLock<Regex> =
 static TOP_LEVEL_OPERATOR_BINDING: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^\(([^)\s]+)\)\s*[^=\n]*=(?:[^=]|$)").unwrap());
 
+/// Top-level function definition written in infix backtick form, e.g.
+/// `x \`combine\` y = x ++ y`. The real bound name is the identifier between
+/// the backticks (`combine`), NOT the leading operand (`x`) — without this,
+/// `TOP_LEVEL_BINDING` below would greedily match the same line and wrongly
+/// report the left operand as an exported top-level name. Matched separately
+/// so its line can be excluded from `TOP_LEVEL_BINDING`'s scan.
+static TOP_LEVEL_BACKTICK_BINDING: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^[a-zA-Z_][\w']*\s*`(\w[\w']*)`").unwrap());
+
 /// Haskell keywords that can appear at column 0 and would otherwise be
 /// misidentified as a binding/signature name by the lowercase-leading regexes.
 const KEYWORDS: &[&str] = &[
@@ -116,8 +125,21 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             }
         }
     }
+    let mut backtick_binding_lines: std::collections::HashSet<usize> =
+        std::collections::HashSet::new();
+    for caps in TOP_LEVEL_BACKTICK_BINDING.captures_iter(&stripped) {
+        if let Some(name) = caps.get(1) {
+            let whole_start = caps.get(0).expect("capture 0 always present").start();
+            backtick_binding_lines.insert(whole_start);
+            hits.push((whole_start, name.as_str().to_string()));
+        }
+    }
     for caps in TOP_LEVEL_BINDING.captures_iter(&stripped) {
         if let Some(name) = caps.get(1) {
+            let whole_start = caps.get(0).expect("capture 0 always present").start();
+            if backtick_binding_lines.contains(&whole_start) {
+                continue;
+            }
             let n = name.as_str();
             if !is_keyword(n) {
                 hits.push((name.start(), n.to_string()));
@@ -743,6 +765,79 @@ processData xs = map helper xs
 "#;
         let symbols = extract_exports(src);
         assert!(!symbols.contains(&"helper".to_string()), "got: {symbols:?}");
+    }
+
+    #[test]
+    fn test_haskell_backtick_infix_definition_names_the_function_not_the_operand() {
+        // REGRESSION: before this fix, `TOP_LEVEL_BINDING` matched the whole
+        // line `x `myCombine` y = x ++ y` and wrongly reported "x" (the left
+        // operand) as an exported top-level name, while the real function
+        // name `myCombine` was never captured at all -- giving
+        // `["x", "realOther"]` instead of `["myCombine", "realOther"]`.
+        let src = r#"
+module Foo where
+
+x `myCombine` y = x ++ y
+
+realOther :: Int
+realOther = 5
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["myCombine", "realOther"]);
+        assert!(!symbols.contains(&"x".to_string()));
+    }
+
+    #[test]
+    fn test_haskell_multiline_string_gap_does_not_swallow_following_declaration() {
+        // A Haskell "string gap" (`\` ... whitespace/newline ... `\`) lets a
+        // long string literal span multiple physical lines -- a real, if
+        // slightly old-fashioned, style for wrapping long messages. The
+        // backslash-newline-backslash sequence must not desync the string
+        // scanner and swallow the real declaration that follows.
+        let src = r#"
+module Foo (message, realFunc) where
+
+message :: String
+message = "Hello \
+           \World"
+
+realFunc :: Int -> Int
+realFunc x = x + 1
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["message", "realFunc"]);
+    }
+
+    #[test]
+    fn test_haskell_multi_name_type_signature_both_names_still_exported() {
+        // `x, y :: T` binds one signature to two names at once -- a
+        // legitimate, if less common, top-level Haskell style. Each name
+        // still gets its own defining equation, so both must appear even
+        // though `TOP_LEVEL_SIG` only ever captures the first name on the
+        // signature line itself.
+        let src = r#"
+module Foo where
+
+width, height :: Int
+width = 10
+height = 20
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"width".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"height".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_haskell_empty_input_and_comment_only_input() {
+        // Degenerate inputs must not panic and must simply yield no symbols.
+        assert_eq!(extract_exports(""), Vec::<String>::new());
+
+        let only_comments = r#"
+-- just a top-of-file comment
+{- and a block comment
+   spanning several lines -}
+"#;
+        assert_eq!(extract_exports(only_comments), Vec::<String>::new());
     }
 
     #[test]

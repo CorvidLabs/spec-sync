@@ -65,6 +65,19 @@ static IMPLEMENTATION_NAME: LazyLock<Regex> =
 static PROTOCOL_NAME: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)@protocol\s+(\w+)").unwrap());
 
+/// Matches the tail of a *forward-declaration list* immediately after a `@protocol NAME`
+/// match: either nothing but a semicolon (`@protocol Foo;`) or one or more additional
+/// comma-separated names before the semicolon (`@protocol Foo, Bar;` /
+/// `@protocol Foo, Bar, Baz;`) — Objective-C allows forward-declaring several protocols
+/// in a single statement, exactly like `@class Foo, Bar;` does for classes. Anchored with
+/// `^` so it only matches when this exact tail shape appears *immediately* after the
+/// captured name (mirrors how `after.starts_with(';')` used to be checked before this
+/// regex replaced it). Critically, this must NOT match a real declaration's tail — a real
+/// `@protocol Foo <Bar>` or `@protocol Foo\n...\n@end` never starts with `,` or `;` here,
+/// so neither is mistaken for a forward declaration.
+static PROTOCOL_FORWARD_DECL_TAIL: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?:,\s*\w+\s*)*;").unwrap());
+
 /// The `(ReturnType)` header of an instance (`-`) or class (`+`) method at the start of a
 /// line, e.g. `- (void)` or `+ (instancetype)`. Everything after the closing paren up to
 /// the next `{` (a definition, inside `@implementation`) or `;` (a requirement, inside
@@ -156,11 +169,18 @@ pub fn extract_exports(content: &str) -> Vec<String> {
 
     for caps in PROTOCOL_NAME.captures_iter(&stripped) {
         let full = caps.get(0).unwrap();
-        // Skip bare forward declarations (`@protocol Foo;`) — they don't declare the
-        // protocol's actual contract in this file, just reference a name defined
-        // elsewhere.
+        // Skip bare forward declarations (`@protocol Foo;`) *and* comma-separated
+        // forward-declaration lists (`@protocol Foo, Bar;`) — neither declares the
+        // protocol's actual contract in this file, just references a name defined
+        // elsewhere. The comma-separated form used to slip past a plain
+        // `after.starts_with(';')` check (since the very next character after `Foo` is
+        // `,`, not `;`), which fabricated a "Foo" protocol export and then searched for
+        // the next literal `@end` in the file to harvest as its "requirements" — greedily
+        // spanning into and leaking methods from a completely unrelated, later block
+        // (including declaration-only methods from a private class-extension interface
+        // that are never otherwise exported).
         let after = stripped[full.end()..].trim_start();
-        if after.starts_with(';') {
+        if PROTOCOL_FORWARD_DECL_TAIL.is_match(after) {
             continue;
         }
         if let Some(name) = caps.get(1) {
@@ -532,6 +552,279 @@ static NSString *formatLabel(NSInteger value) {
         );
         assert!(symbols.contains(&"Logger".to_string()));
         assert!(symbols.contains(&"printHelp".to_string()));
+    }
+
+    #[test]
+    fn test_objc_comma_separated_protocol_forward_declaration_excluded() {
+        // REGRESSION (real bug found via adversarial testing): `@protocol Foo, Bar;` is
+        // the multi-name forward-declaration form (like `@class Foo, Bar;` for classes).
+        // The exclusion check used to be a plain `after.starts_with(';')`, but the text
+        // immediately following "Foo" here is ", Bar;" — not ";" — so the check failed to
+        // recognize this as a forward declaration and fabricated a "Foo" protocol export
+        // that doesn't exist in this file.
+        let src = r#"
+@protocol Foo, Bar;
+
+@implementation Unrelated
+- (void)someMethod {
+}
+@end
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            !symbols.contains(&"Foo".to_string()),
+            "comma-separated forward declaration must not fabricate a protocol: {symbols:?}"
+        );
+        assert!(
+            !symbols.contains(&"Bar".to_string()),
+            "comma-separated forward declaration must not fabricate a protocol: {symbols:?}"
+        );
+        assert!(symbols.contains(&"Unrelated".to_string()));
+        assert!(symbols.contains(&"someMethod".to_string()));
+    }
+
+    #[test]
+    fn test_objc_comma_separated_protocol_forward_decl_does_not_leak_private_declaration() {
+        // REGRESSION (real bug, more severe consequence of the same root cause): once
+        // "Foo" was fabricated as a protocol name, the code searched for the next literal
+        // "@end" in the whole file to harvest as its "requirements" — greedily spanning
+        // into and scanning a completely unrelated, later block. Here that block is a
+        // private class-extension interface (`@interface Widget ()`), whose
+        // declaration-only method is never otherwise exported (see
+        // `test_objc_class_extension_private_methods_not_scanned_from_interface`). Before
+        // the fix, that private method leaked into the export list anyway, as a fake
+        // "requirement" of the phantom "Foo" protocol.
+        let src = r#"
+@protocol Foo, Bar;
+
+@interface Widget ()
+- (void)privateHelperDeclaredOnly;
+@end
+
+@implementation Widget
+- (void)publicMethod {
+}
+@end
+"#;
+        let symbols = extract_exports(src);
+        assert!(!symbols.contains(&"Foo".to_string()), "{symbols:?}");
+        assert!(
+            !symbols.contains(&"privateHelperDeclaredOnly".to_string()),
+            "private declaration-only method must not leak via a fabricated protocol \
+             block scan: {symbols:?}"
+        );
+        assert!(symbols.contains(&"Widget".to_string()));
+        assert!(symbols.contains(&"publicMethod".to_string()));
+    }
+
+    #[test]
+    fn test_objc_category_implementation_exports_base_class_name_and_methods() {
+        // `@implementation ClassName (CategoryName)` names the category, not a new type —
+        // the exported symbol should be the base class name, and methods defined in the
+        // category should be attributed to it (matching how `@interface NSString
+        // (URLEncoding)` already behaves for the interface form).
+        let src = r#"
+@implementation NSString (URLEncoding)
+
+- (NSString *)urlEncoded {
+    return self;
+}
+
+@end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"NSString".to_string()), "{symbols:?}");
+        assert!(
+            !symbols.contains(&"URLEncoding".to_string()),
+            "category name itself must not be exported as a separate type: {symbols:?}"
+        );
+        assert!(symbols.contains(&"urlEncoded".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_objc_protocol_with_comma_separated_conformance_list() {
+        // A protocol declaring conformance to *multiple* other protocols
+        // (`<NSObject, UITableViewDataSource>`) is a real declaration, not a forward
+        // reference, even though its tail also contains commas — it must not be
+        // mistaken for the comma-separated forward-declaration form fixed above (the
+        // distinguishing feature is the `<` immediately after the name instead of `,`
+        // or `;`).
+        let src = r#"
+@protocol MultiDelegate <NSObject, UITableViewDataSource>
+
+@required
+- (void)didSelectRow:(NSInteger)row;
+
+@optional
+- (void)willReload;
+
+@end
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"MultiDelegate".to_string()),
+            "{symbols:?}"
+        );
+        assert!(
+            symbols.contains(&"didSelectRow:".to_string()),
+            "{symbols:?}"
+        );
+        assert!(symbols.contains(&"willReload".to_string()), "{symbols:?}");
+        // The conformance list names are referenced protocols, not declared here.
+        assert!(!symbols.contains(&"NSObject".to_string()));
+        assert!(!symbols.contains(&"UITableViewDataSource".to_string()));
+    }
+
+    #[test]
+    fn test_objc_multiline_interface_header_with_protocol_list_before_first_member() {
+        // A common real-world formatting style: the superclass and protocol-conformance
+        // list wrap across multiple lines before the first `@property`/method. The class
+        // name must still be captured correctly regardless of what follows on later
+        // lines.
+        let src = r#"
+@interface MyView : UIView <
+    UITableViewDelegate,
+    UITableViewDataSource
+>
+
+- (void)reload;
+
+@end
+
+@implementation MyView
+- (void)reload {
+}
+@end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"MyView".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"reload".to_string()), "{symbols:?}");
+        assert!(!symbols.contains(&"UITableViewDelegate".to_string()));
+        assert!(!symbols.contains(&"UITableViewDataSource".to_string()));
+    }
+
+    #[test]
+    fn test_objc_lightweight_generics_and_protocol_typed_params_do_not_break_selectors() {
+        // Lightweight generics (`NSArray<NSString *> *`) and the `id<Protocol>` existential
+        // syntax both use angle brackets, which must not be confused with the parens that
+        // `parse_selector` strips, nor with a protocol conformance list. Both appear as
+        // ordinary `(Type)` parameter annotations here and should be stripped as a single
+        // non-nested paren group each.
+        let src = r#"
+@implementation Container
+
+- (void)setItems:(NSArray<NSString *> *)items delegate:(id<ContainerDelegate>)delegate {
+    _items = items;
+    _delegate = delegate;
+}
+
+- (NSArray<NSString *> *)items {
+    return _items;
+}
+
+@end
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"setItems:delegate:".to_string()),
+            "{symbols:?}"
+        );
+        assert!(symbols.contains(&"items".to_string()), "{symbols:?}");
+        // Sanity: nothing derived from inside the angle brackets should leak out as a
+        // bogus separate selector/keyword.
+        assert!(!symbols.contains(&"NSString".to_string()));
+        assert!(!symbols.contains(&"ContainerDelegate".to_string()));
+    }
+
+    #[test]
+    fn test_objc_multiline_keyword_selector_across_lines() {
+        // Multi-keyword selectors are often wrapped across lines for readability. The
+        // full colon-joined selector must still be reconstructed correctly since
+        // `parse_selector` splits on any whitespace (including newlines), not just
+        // spaces.
+        let src = r#"
+@implementation Requester
+
+- (void)sendRequestWithPath:(NSString *)path
+                      query:(NSDictionary *)query
+                 completion:(void (^)(id response))completion {
+    completion(nil);
+}
+
+@end
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"sendRequestWithPath:query:completion:".to_string()),
+            "expected full multi-line selector in {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_objc_two_class_extension_implementation_pairs_do_not_cross_contaminate() {
+        // Two entirely independent class-extension + implementation pairs in the same
+        // file: each class's private, declaration-only helper must stay invisible, and
+        // each class's real public method must be attributed correctly — with no bleed
+        // between the two blocks' `@end` scans.
+        let src = r#"
+@interface Foo ()
+- (void)fooPrivateHelper;
+@end
+
+@implementation Foo
+- (void)fooPublicMethod {
+}
+@end
+
+@interface Bar ()
+- (void)barPrivateHelper;
+@end
+
+@implementation Bar
+- (void)barPublicMethod {
+}
+@end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(symbols.contains(&"Bar".to_string()));
+        assert!(symbols.contains(&"fooPublicMethod".to_string()));
+        assert!(symbols.contains(&"barPublicMethod".to_string()));
+        assert!(
+            !symbols.contains(&"fooPrivateHelper".to_string()),
+            "{symbols:?}"
+        );
+        assert!(
+            !symbols.contains(&"barPrivateHelper".to_string()),
+            "{symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_objc_same_class_multiple_category_implementations_merge_methods() {
+        // Documents the deliberate over-approximation (see module docs): methods defined
+        // across *multiple* `@implementation ClassName (Category) ... @end` blocks for
+        // the same base class are all attributed to that one class name, and the class
+        // name itself is only listed once (deduplicated).
+        let src = r#"
+@implementation Widget (Networking)
+- (void)fetchData {
+}
+@end
+
+@implementation Widget (Persistence)
+- (void)saveData {
+}
+@end
+"#;
+        let symbols = extract_exports(src);
+        let widget_count = symbols.iter().filter(|s| *s == "Widget").count();
+        assert_eq!(
+            widget_count, 1,
+            "class name must be deduplicated: {symbols:?}"
+        );
+        assert!(symbols.contains(&"fetchData".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"saveData".to_string()), "{symbols:?}");
     }
 
     #[test]

@@ -111,8 +111,34 @@ fn handle_export_statement(
             "ambient_declaration" => {
                 let mut ambient_cursor = child.walk();
                 for ambient_child in child.children(&mut ambient_cursor) {
-                    handle_declaration_child(&ambient_child, src, symbols);
+                    match ambient_child.kind() {
+                        // `export declare namespace Foo { ... }` / `export
+                        // declare module "path" { ... }` — see the
+                        // `internal_module` | `module` arm below for why this
+                        // needs its own recursive handling instead of the
+                        // flat `handle_declaration_child` dispatch.
+                        "internal_module" | "module" => {
+                            handle_module_or_namespace(&ambient_child, src, symbols, resolver);
+                        }
+                        _ => handle_declaration_child(&ambient_child, src, symbols),
+                    }
                 }
+            }
+            // `export namespace Foo { ... }` (identifier-named, `internal_module`)
+            // or `export module "path" { ... }` (string-named ambient external
+            // module, `module`). Bug fix: before this arm existed, both kinds
+            // fell through to the wildcard `_ => {}` case below with no
+            // recursion at all, so `export namespace Foo { export function
+            // bar(): void; }` produced a completely empty result — despite
+            // being fully valid, common TypeScript — which is exactly the
+            // condition that trips the AST-empty-triggers-regex-fallback
+            // policy elsewhere in the codebase (masking this gap instead of
+            // surfacing it). The regex fallback only "works" here by
+            // accident, since it text-scans for `export function ...`
+            // anywhere in the file with no namespace-scoping and so also
+            // misses the namespace's own name.
+            "internal_module" | "module" => {
+                handle_module_or_namespace(&child, src, symbols, resolver);
             }
             // `export function name() {}` etc.
             "function_declaration" | "generator_function_declaration" | "function_signature" => {
@@ -199,6 +225,36 @@ fn handle_export_statement(
     // Handle CommonJS-style `export = Name`
     if has_equals {
         handle_export_equals(node, src, symbols);
+    }
+}
+
+/// Handle an `internal_module` (`namespace Foo { ... }` / legacy `module Foo
+/// { ... }`) or `module` (ambient external module, `module "path" { ... }`)
+/// node reached via an `export`/`export declare` statement.
+///
+/// Pushes the namespace's own name (an `internal_module`'s `name` field is an
+/// `identifier`, a real importable symbol) but not an ambient external
+/// module's (its `name` field is a `string` literal path, not a symbol), then
+/// recurses into the body to find further nested `export` statements —
+/// mirroring how a bare, non-exported `module Foo { ... }` block already
+/// gets its body scanned via `collect_exports`'s generic-recursion fallback.
+#[allow(clippy::type_complexity)]
+fn handle_module_or_namespace(
+    node: &tree_sitter::Node,
+    src: &[u8],
+    symbols: &mut Vec<String>,
+    resolver: Option<&dyn Fn(&str) -> Option<String>>,
+) {
+    if let Some(name) = node.child_by_field_name("name")
+        && name.kind() != "string"
+    {
+        let text = name.utf8_text(src).unwrap_or_default();
+        if !text.is_empty() {
+            symbols.push(text.to_string());
+        }
+    }
+    if let Some(body) = node.child_by_field_name("body") {
+        collect_exports(&body, src, symbols, resolver);
     }
 }
 
@@ -668,5 +724,149 @@ export = AuthService;
         let src = r#"export = function createAuth() {};"#;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["createAuth"]);
+    }
+
+    #[test]
+    fn test_export_namespace_recurses_and_captures_own_name() {
+        // Bug (silent-fallback-masking): `export namespace Foo { ... }`
+        // wraps its body in an `internal_module` node exposed as the
+        // `export_statement`'s `declaration` field. Before this fix, that
+        // node kind wasn't handled at all in `handle_export_statement`'s
+        // flat match, so it silently fell through the wildcard `_ => {}`
+        // arm with *no recursion whatsoever* -- unlike a bare, non-exported
+        // `module Foo { ... }` block (see
+        // `test_learnxinyminutes_module_namespace_export` below), which
+        // still gets its body scanned via `collect_exports`'s generic
+        // recursion fallback. The result: this fully valid, common
+        // TypeScript pattern produced a completely empty `Vec`, which is
+        // exactly the condition that trips the AST-empty-triggers-
+        // regex-fallback policy elsewhere in the codebase. The regex
+        // fallback only "half-recovers" here by accident (it text-scans for
+        // `export function ...` with no namespace-scoping), and even then it
+        // misses the namespace's own name `Foo` entirely.
+        let src = r#"
+export namespace Foo {
+    export function bar(): void;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            !symbols.is_empty(),
+            "AST backend must not return empty for `export namespace Foo {{ ... }}`"
+        );
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(symbols.contains(&"bar".to_string()));
+    }
+
+    #[test]
+    fn test_export_declare_namespace_recurses_and_captures_own_name() {
+        // Same underlying bug as the non-declare case above, but reached via
+        // the `ambient_declaration` unwrap path instead: `export declare
+        // namespace Foo { ... }` nests its `internal_module` one level
+        // deeper (inside `ambient_declaration`), and that per-child loop
+        // dispatched exclusively through the non-recursive
+        // `handle_declaration_child`, which also had no case for
+        // `internal_module` -- so an ambient exported namespace with
+        // multiple exported members inside it produced nothing at all.
+        let src = r#"
+export declare namespace Foo {
+    export function bar(): void;
+    export const baz: string;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            !symbols.is_empty(),
+            "AST backend must not return empty for `export declare namespace Foo {{ ... }}`"
+        );
+        assert_eq!(symbols, vec!["Foo", "bar", "baz"]);
+    }
+
+    #[test]
+    fn test_declare_module_string_ambient_external_module() {
+        // Verified-correct behavior (not a bug, but previously untested): a
+        // bare (non-exported) `declare module "path" { ... }` ambient
+        // external module augmentation is a top-level `ambient_declaration`
+        // node reached directly by `collect_exports`'s generic recursion
+        // fallback, so its nested exports were already found correctly. Its
+        // `name` field is a string literal path, not an identifier, so
+        // (unlike `export namespace Foo`) there is no symbol name of its own
+        // to push -- only the members exported from inside it.
+        let src = r#"
+declare module "my-lib" {
+    export function doThing(): void;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["doThing"]);
+        assert!(!symbols.contains(&"my-lib".to_string()));
+    }
+
+    #[test]
+    fn test_anonymous_default_export_yields_no_symbol() {
+        // Verified-correct (not a bug): `export default <anonymous
+        // expression>` (an arrow function, an unnamed `function`
+        // expression, or an unnamed `class`) has no declared name to
+        // report at all -- there is nothing for a spec/doc reference to
+        // call this symbol by. Both the AST and regex backends agree this
+        // yields an empty result; this is a fundamentally different
+        // situation from the `export namespace`/`export declare namespace`
+        // cases above, where a real name (the namespace's own, plus its
+        // members) existed but was being silently dropped.
+        for src in [
+            "export default () => {};\n",
+            "export default function() {};\n",
+            "export default class {};\n",
+        ] {
+            let symbols = extract_exports(src);
+            assert!(
+                symbols.is_empty(),
+                "anonymous default export {src:?} should yield no symbol, got {symbols:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_decorated_export_class_captured() {
+        // Verified-correct behavior: a decorator (`@Injectable()`) sitting
+        // between nothing and `export class Foo {}` is exposed as a
+        // separate `decorator` field on the `export_statement` node and
+        // does not displace the `class_declaration`'s own `name` field, so
+        // name extraction is unaffected.
+        let src = "@Injectable()\nexport class FooService {}\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["FooService"]);
+    }
+
+    #[test]
+    fn test_export_specifier_level_type_prefix_not_captured_as_name() {
+        // Verified-correct behavior: `export { type Bar } from './bar'`
+        // marks a single specifier as type-only (as opposed to `export type
+        // { Foo }`, which marks the whole clause type-only). Tree-sitter
+        // exposes the specifier's `name` field as a plain `identifier`
+        // ("Bar") with the `type` keyword as a separate sibling token, so
+        // unlike the regex backend (which must explicitly
+        // `strip_prefix("type ")`), the AST backend never risks capturing
+        // the literal text "type Bar" as a symbol name.
+        let src = "export type { Foo } from './foo';\nexport { type Bar } from './bar';\n";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(symbols.contains(&"Bar".to_string()));
+        assert!(!symbols.iter().any(|s| s.contains("type")));
+    }
+
+    #[test]
+    fn test_multiline_generic_constraint_and_template_literal_type() {
+        // Verified-correct behavior: a generic type parameter whose
+        // constraint spans multiple lines, and a template literal type
+        // (`` `hello ${string}` ``) as a type alias's value, don't disturb
+        // the surrounding declaration's `name` field lookup.
+        let generic_src = "export function identity<\n    T extends Record<string, unknown>\n>(value: T): T {\n    return value;\n}\n";
+        let symbols = extract_exports(generic_src);
+        assert_eq!(symbols, vec!["identity"]);
+
+        let template_literal_src = "export type Greeting = `hello ${string}`;\n";
+        let symbols = extract_exports(template_literal_src);
+        assert_eq!(symbols, vec!["Greeting"]);
     }
 }

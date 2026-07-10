@@ -4,15 +4,33 @@ use std::sync::LazyLock;
 /// Clojure top-level defining forms. Group 1 is the head keyword — it captures
 /// the private-suffix convention directly (`defn-`, `def-`) since Clojure marks
 /// privacy on the *defining form*, not the name: `(defn- foo ...)` defines a
-/// private function literally named `foo`. Group 2 is any `^:private` /
-/// `^{:private true}` metadata preceding the name (the equivalent long-hand
-/// way to mark `defn`/`def` private). Group 3 is the name itself.
-/// `defrecord`/`deftype`/`defprotocol`/`defmacro` have no private convention in
-/// common use, so they're always treated as public. `defmulti`/`defonce` behave
-/// like `def` (public unless dash-suffixed or `^:private`-tagged).
+/// private function literally named `foo`. Group 2 is any metadata preceding
+/// the name: `^:private` / `^{:private true}` (the equivalent long-hand way to
+/// mark `defn`/`def` private), or a bare/namespaced type-hint symbol like
+/// `^String`, `^long`, or `^java.lang.String` (e.g. `(defn ^String greeting
+/// [x] ...)`). Type hints are extremely common on `defn` return values and
+/// must not prevent the name itself (group 3) from matching — a version of
+/// this regex that only recognized `^{...}`/`^:kw` metadata (not bare symbol
+/// hints) failed to match the whole form at all for a hinted `defn`, silently
+/// dropping the function from the export list entirely.
+///
+/// The hint after `^` is deliberately *optional* (not just an alternation of
+/// required forms): a string-form type hint like `^"[Ljava.lang.String;"`
+/// (used for Java array types) is itself a string literal, so it gets fully
+/// erased — quotes and all — by [`strip_comments_and_strings`] before this
+/// regex ever runs, leaving a bare dangling `^` with nothing recognizable
+/// after it. Requiring one of `{...}`/`:kw`/symbol to follow `^` would make
+/// the whole match fail on exactly that (rare but real) case; treating the
+/// hint as optional lets a content-less `^` still be consumed as one
+/// (now-empty) metadata token so the name after it is never lost.
+///
+/// Group 3 is the name itself. `defrecord`/`deftype`/`defprotocol`/`defmacro`
+/// have no private convention in common use, so they're always treated as
+/// public. `defmulti`/`defonce` behave like `def` (public unless
+/// dash-suffixed or `^:private`-tagged).
 static CLOJURE_DEF: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"\(\s*(defn-|defn|def-|def|defmacro|defrecord|deftype|defprotocol|defmulti|defonce)\s+((?:\^(?:\{[^}]*\}|:\S+)\s+)*)([A-Za-z0-9_*+!?<>=.\-]+)",
+        r"\(\s*(defn-|defn|def-|def|defmacro|defrecord|deftype|defprotocol|defmulti|defonce)\s+((?:\^(?:\{[^}]*\}|:\S+|[A-Za-z_][\w.]*)?\s+)*)([A-Za-z0-9_*+!?<>=.\-]+)",
     )
     .unwrap()
 });
@@ -469,6 +487,73 @@ mod tests {
         let symbols = extract_exports(src);
         assert!(symbols.contains(&"*config*".to_string()));
         assert!(symbols.contains(&"-main".to_string()), "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_bare_symbol_type_hint_does_not_hide_the_def() {
+        // Regression: `(defn ^String greeting ...)` is a very common
+        // real-world shape (return-type hint on a public function). Before
+        // the fix, the metadata group only recognized `^{...}`/`^:kw` forms,
+        // so a bare symbol type hint like `^String` made the *entire* regex
+        // fail to match at this position -- silently dropping `greeting`
+        // and `compute` from the export list rather than just misreading
+        // the hint.
+        let src = "(defn ^String greeting [x] (str \"Hi \" x))\n(defn ^long compute [x] (* x 2))\n";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"greeting".to_string()), "got {symbols:?}");
+        assert!(symbols.contains(&"compute".to_string()), "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_namespaced_and_string_form_type_hints() {
+        // Namespaced symbol hints (`^java.lang.String`) are valid Clojure
+        // metadata shorthand and must not swallow the name. The string-form
+        // hint used for Java array types (`^"[Ljava.lang.String;"`) is a
+        // string literal, so `strip_comments_and_strings` erases it (quotes
+        // and all) before `CLOJURE_DEF` ever runs, leaving a bare `^`; the
+        // name after it must still be found rather than the whole match
+        // failing.
+        let src = r#"
+(defn ^java.lang.String full-name [x] x)
+(defn ^"[Ljava.lang.String;" string-array [x] x)
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"full-name".to_string()),
+            "got {symbols:?}"
+        );
+        assert!(
+            symbols.contains(&"string-array".to_string()),
+            "got {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_type_hint_stacked_with_private_metadata_still_excluded() {
+        // A type hint stacked together with `^:private` metadata (order:
+        // type hint first, then the privacy tag) must still be recognized
+        // as private -- the hint alone shouldn't distract from the
+        // `contains("private")` check on the whole metadata group.
+        let src = "(defn ^String ^:private secret-greeting [x] x)\n(defn ^String public-greeting [x] x)\n";
+        let symbols = extract_exports(src);
+        assert!(
+            !symbols.contains(&"secret-greeting".to_string()),
+            "got {symbols:?}"
+        );
+        assert!(
+            symbols.contains(&"public-greeting".to_string()),
+            "got {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_multiple_defs_on_same_line() {
+        // Verified-correct existing behavior: the regex is unanchored, so
+        // two top-level forms sharing one physical line are both found.
+        let src = "(def a 1) (def b 2)\n";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"a".to_string()), "got {symbols:?}");
+        assert!(symbols.contains(&"b".to_string()), "got {symbols:?}");
     }
 
     #[test]

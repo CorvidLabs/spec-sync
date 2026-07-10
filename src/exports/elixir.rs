@@ -11,15 +11,22 @@ use std::sync::LazyLock;
 // share this exact defect.
 static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)#.*$").unwrap());
 
-/// Elixir public declarations: defmodule, def, defmacro, defprotocol, @callback
+/// Elixir public declarations: defmodule, def, defmacro, defprotocol,
+/// defguard, defdelegate, @callback. `defguard` defines a public
+/// guard-usable macro (e.g. Elixir's own `Enum`/`Kernel` modules use it
+/// alongside `defguardp`), and `defdelegate` defines a real callable public
+/// function that forwards to another module's implementation — both are
+/// just as much a public export as a plain `def`.
 static ELIXIR_DECL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^[^\S\n]*(?:defmodule|def|defmacro|defprotocol|@callback)\s+([\w.!?]+)")
-        .unwrap()
+    Regex::new(
+        r"(?m)^[^\S\n]*(?:defmodule|defdelegate|defguard|defmacro|defprotocol|def|@callback)\s+([\w.!?]+)",
+    )
+    .unwrap()
 });
 
 /// Exclude private declarations
 static ELIXIR_PRIVATE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[^\S\n]*(?:defp|defmacrop)\b").unwrap());
+    LazyLock::new(|| Regex::new(r"^[^\S\n]*(?:defp|defmacrop|defguardp)\b").unwrap());
 
 /// Extract public symbols from Elixir source code.
 pub fn extract_exports(content: &str) -> Vec<String> {
@@ -160,6 +167,74 @@ end
         assert!(!symbols.contains(&"do_sum".to_string()));
         assert!(symbols.contains(&"Geometry".to_string()));
         assert!(symbols.contains(&"area".to_string()));
+    }
+
+    #[test]
+    fn test_elixir_defguard_and_defdelegate_are_exported() {
+        // REGRESSION: `ELIXIR_DECL` previously had no `defguard` or
+        // `defdelegate` alternative at all, so a public `defguard` (a
+        // guard-usable macro, just as public as `defmacro`) and a
+        // `defdelegate` (a real callable forwarding function) were silently
+        // dropped from the export list entirely. Before the fix this
+        // returned only `["Validators"]`; `defguardp` must stay excluded,
+        // mirroring `defp`/`defmacrop`.
+        let src = r#"
+defmodule Validators do
+  defguard is_positive(x) when is_number(x) and x > 0
+  defguardp is_internal(x) when x < 0
+  defdelegate reply(pid, msg), to: GenServer, as: :cast
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"is_positive".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"reply".to_string()), "{symbols:?}");
+        assert!(!symbols.contains(&"is_internal".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_elixir_comment_with_dollar_dot_and_quotes_on_non_final_line() {
+        // Regression-adjacent confirmation: the `(?m)` fix on `COMMENT_SINGLE`
+        // means `#`-comments are stripped per-line, not just on the file's
+        // last line. Exercise a comment containing `$`, `.`, and quote
+        // characters sitting on a non-final line, followed by more real
+        // declarations on subsequent lines, to confirm nothing leaks through
+        // and nothing after it is swallowed.
+        let src = r#"
+defmodule Billing do
+  # Price is $5.00 for the 'basic' tier, see billing.md.
+  def real_fn(x), do: x
+  # Another note: don't trust "free" tiers.
+  def real_fn2(x), do: x * 2
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Billing".to_string()));
+        assert!(symbols.contains(&"real_fn".to_string()));
+        assert!(symbols.contains(&"real_fn2".to_string()));
+    }
+
+    #[test]
+    fn test_elixir_nested_string_interpolation_does_not_hide_following_def() {
+        // Doubly-nested `#{"#{...}"}` interpolation is unusual but legal, and
+        // its inner `#` characters must not be mistaken for the start of a
+        // `#` comment in a way that corrupts the line enough to affect
+        // subsequent extraction. This is the same "string containing
+        // comment-like sequence" hazard the `%`/`#` comment-stripping fix
+        // targeted, applied to Elixir's interpolation syntax specifically.
+        let src = r#"
+defmodule Greeter do
+  def label(x), do: "outer #{"inner #{x}"} done"
+
+  def after_interpolation(y), do: y
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Greeter".to_string()));
+        assert!(symbols.contains(&"label".to_string()));
+        assert!(
+            symbols.contains(&"after_interpolation".to_string()),
+            "{symbols:?}"
+        );
     }
 
     /// Real excerpt from learnxinyminutes.com's Elixir tutorial (the

@@ -73,6 +73,17 @@ fn push_unique(symbols: &mut Vec<String>, name: String) {
 // `keyword`/`function_name` fields. `defvar`/`defparameter` have no special
 // node — they parse as a plain `list_lit` with `value`-field children.
 fn walk_commonlisp(node: Node, src: &[u8], symbols: &mut Vec<String>) {
+    if node.kind() == "quoting_lit" || node.kind() == "syn_quoting_lit" {
+        // Quoted (`'(...)`) and quasiquoted (`` `(...) ``) forms are
+        // data/templates, not executable code: a `(defun fake ...)` written
+        // inside one never actually defines anything at runtime, so don't
+        // recurse into it hunting for definitions — doing so previously
+        // produced a false-positive export from otherwise-dead/template
+        // code (verified via `parse_commonlisp(..).root_node().to_sexp()`:
+        // the quoted list is a real nested `defun` node in the grammar,
+        // indistinguishable from a live one without this check).
+        return;
+    }
     if node.kind() == "defun" {
         if let Some(header) = find_child_kind(node, "defun_header") {
             let keyword_text = header
@@ -272,6 +283,13 @@ fn capture_value_field_pair(node: Node, src: &[u8], symbols: &mut Vec<String>) {
 // Everything is a plain `list` node of `symbol` children with no field
 // names: `(defun name ...)` -> symbol("defun"), symbol("name"), ...
 fn walk_symbol_list(node: Node, src: &[u8], symbols: &mut Vec<String>) {
+    if node.kind() == "quote" || node.kind() == "quasiquote" {
+        // Same rationale as Common Lisp's `quoting_lit`/`syn_quoting_lit`
+        // check above: quoted/quasiquoted data is never executed, so a
+        // `(defun fake ...)` written inside `'(...)` or `` `(...) `` must
+        // not be treated as a real definition.
+        return;
+    }
     if node.kind() == "list" {
         capture_symbol_pair(node, src, symbols);
         capture_define_record_type(node, src, symbols);
@@ -376,6 +394,14 @@ fn capture_symbol_pair(node: Node, src: &[u8], symbols: &mut Vec<String>) {
 // defining-shaped (including a stray `defparameter`) falls back to a plain
 // `list`, same shape as Scheme.
 fn walk_elisp(node: Node, src: &[u8], symbols: &mut Vec<String>) {
+    if node.kind() == "quote" {
+        // The Elisp grammar uses the same `quote` node kind for both `'` and
+        // `` ` `` (backquote/quasiquote) — see the Common Lisp/Scheme
+        // walkers above for the same rationale: quoted data is never
+        // executed, so a `(defun fake ...)` written inside one must not be
+        // treated as a real definition.
+        return;
+    }
     match node.kind() {
         "function_definition" => {
             // The grammar's `function_definition` node covers BOTH `defun`
@@ -791,6 +817,137 @@ mod tests {
         assert!(symbols.contains(&"my-package-item-value".to_string()));
         assert!(symbols.contains(&"my-package-entry-point".to_string()));
         assert!(!symbols.contains(&"my-package-render".to_string()));
+    }
+
+    #[test]
+    fn test_nested_defun_inside_let_captured_all_dialects() {
+        // Deliberate parity with the reference regex, per `extract_exports`'s
+        // doc comment: it scans the whole tree at any nesting depth, so a
+        // `defun` nested inside a `let`/`progn` body (not just top-level
+        // forms) must still be captured, in all three dialects.
+        let src = "(let ((x 1)) (defun nested-fn (a) a))\n(defun top-fn (b) b)\n";
+        for ext in ["lisp", "scm", "el"] {
+            let symbols = extract_exports(src, ext);
+            assert!(
+                symbols.contains(&"nested-fn".to_string()),
+                "ext={ext}: {symbols:?}"
+            );
+            assert!(
+                symbols.contains(&"top-fn".to_string()),
+                "ext={ext}: {symbols:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_commonlisp_quoted_and_quasiquoted_defun_not_exported() {
+        // Regression test: before the `quoting_lit`/`syn_quoting_lit` guard
+        // was added to `walk_commonlisp`, a `(defun fake-fn ...)` written
+        // inside a quoted (`'(...)`) or quasiquoted (`` `(...) ``) form was
+        // captured as a real export — confirmed via
+        // `parse_commonlisp(..).root_node().to_sexp()`, which shows the
+        // grammar still emits a real nested `defun` node inside the
+        // `quoting_lit`/`syn_quoting_lit` wrapper. Quoted code is data, not
+        // an executable definition, and must not be captured; the macro's
+        // own name (`make-it`) must still be captured since that's read from
+        // the macro's own header, not from recursing into its templated
+        // body.
+        let quoted = "(defun real-fn (x) x)\n(setf tmpl '(defun fake-fn (x) x))\n";
+        let symbols = extract_exports(quoted, "lisp");
+        assert_eq!(symbols, vec!["real-fn"]);
+        assert!(!symbols.contains(&"fake-fn".to_string()));
+
+        let quasiquoted = "(defmacro make-it () `(defun fake-fn2 (x) x))\n(defun real-fn2 (x) x)\n";
+        let symbols = extract_exports(quasiquoted, "lisp");
+        assert_eq!(symbols, vec!["make-it", "real-fn2"]);
+        assert!(!symbols.contains(&"fake-fn2".to_string()));
+    }
+
+    #[test]
+    fn test_scheme_quoted_and_quasiquoted_defun_not_exported() {
+        // Same bug/fix as `test_commonlisp_quoted_and_quasiquoted_defun_not_exported`,
+        // Scheme dialect: the grammar wraps quoted/quasiquoted lists in
+        // dedicated `quote`/`quasiquote` node kinds (confirmed via
+        // `parse_scheme(..).root_node().to_sexp()`), which `walk_symbol_list`
+        // must skip recursing into.
+        let quoted = "(define x '(defun fake-fn (a) a))\n(defun real-fn (b) b)\n";
+        let symbols = extract_exports(quoted, "scm");
+        assert_eq!(symbols, vec!["real-fn"]);
+
+        let quasiquoted = "(define x `(defun fake-fn (a) a))\n(defun real-fn (b) b)\n";
+        let symbols = extract_exports(quasiquoted, "scm");
+        assert_eq!(symbols, vec!["real-fn"]);
+    }
+
+    #[test]
+    fn test_elisp_quoted_and_quasiquoted_defun_not_exported() {
+        // Same bug/fix as `test_commonlisp_quoted_and_quasiquoted_defun_not_exported`,
+        // Elisp dialect: the grammar uses one `quote` node kind for both `'`
+        // and `` ` `` (confirmed via
+        // `parse_elisp(..).root_node().to_sexp()`), which `walk_elisp` must
+        // skip recursing into.
+        let quoted = "(setq x '(defun fake-fn (a) a))\n(defun real-fn (b) b)\n";
+        let symbols = extract_exports(quoted, "el");
+        assert_eq!(symbols, vec!["real-fn"]);
+
+        let quasiquoted = "(setq x `(defun fake-fn (a) a))\n(defun real-fn (b) b)\n";
+        let symbols = extract_exports(quasiquoted, "el");
+        assert_eq!(symbols, vec!["real-fn"]);
+    }
+
+    #[test]
+    fn test_elisp_defparameter_falls_back_to_plain_list_capture() {
+        // `defparameter` isn't a recognized Elisp special form (only
+        // `defvar` gets a dedicated `special_form` node), so it parses as a
+        // plain `list`, same shape as Scheme. The regex reference matches
+        // `defparameter` unconditionally regardless of dialect, so the
+        // Elisp AST walker must still capture it via the `capture_symbol_pair`
+        // plain-`list` fallback to stay in parity.
+        let src = "(defparameter my-var 42)\n(defun real-fn (x) x)\n";
+        let symbols = extract_exports(src, "el");
+        assert!(symbols.contains(&"my-var".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"real-fn".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_elisp_defvar_local_excluded() {
+        // `defvar-local` is a real, common Elisp idiom for buffer-local
+        // variables, but the regex reference's `defvar\s+` requires
+        // whitespace immediately after the literal `defvar` token, so
+        // `defvar-local` (which has `-local` immediately after `defvar`,
+        // not whitespace) never matches it. Verified the Elisp grammar
+        // doesn't give `defvar-local` a `special_form` node with a `defvar`-
+        // kind keyword child either, so `is_target_keyword` correctly never
+        // sees a match — this documents intentional parity, not a bug.
+        let src = "(defvar-local my-local-var nil)\n(defun real-fn (x) x)\n";
+        let symbols = extract_exports(src, "el");
+        assert_eq!(symbols, vec!["real-fn"]);
+        assert!(!symbols.contains(&"my-local-var".to_string()));
+    }
+
+    #[test]
+    fn test_commonlisp_multiline_lambda_list_with_optional_rest_key() {
+        // Real-world multi-line `defun` signatures using `&optional`,
+        // `&rest`, and `&key` markers (common in idiomatic Common Lisp) must
+        // not confuse the `defun_header`/`function_name` field lookup, which
+        // only cares about the header shape, not how the lambda list is
+        // formatted or how many lines it spans.
+        let src = "(defun complex-fn (a b\n                    &optional (c 1) (d 2)\n                    &rest more\n                    &key (e 3) (f 4))\n  (list a b c d e f more))\n";
+        let symbols = extract_exports(src, "lisp");
+        assert_eq!(symbols, vec!["complex-fn"]);
+    }
+
+    #[test]
+    fn test_ignores_defun_text_in_string_literal_elisp() {
+        // Extends `test_ignores_defun_text_in_string_literal` (Common Lisp)
+        // coverage to the Elisp dialect: text that merely *looks* like a
+        // definition inside a string literal must not be captured there
+        // either.
+        let src = "(defun real-fn (x) x)\n(defvar my-doc \"(defun fake-fn (x) x)\")\n";
+        let symbols = extract_exports(src, "el");
+        assert!(symbols.contains(&"real-fn".to_string()));
+        assert!(symbols.contains(&"my-doc".to_string()));
+        assert!(!symbols.contains(&"fake-fn".to_string()));
     }
 
     #[test]

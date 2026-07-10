@@ -58,16 +58,62 @@ pub fn extract_exports(content: &str) -> Vec<String> {
 
 /// Collect exported function names from an `export_attribute` node's `fa`
 /// (function/arity) children.
+///
+/// A `?MACRO` placeholder used as an export-list entry (e.g.
+/// `-export([add/2, ?SOME_MACRO, sub/2]).`) cannot be statically resolved to
+/// a real function name, and tree-sitter-erlang represents it as a
+/// `macro_call_expr` in the `fun` field rather than a plain `atom` -- it must
+/// never be pushed as a symbol name verbatim (that would report a literal
+/// `"?SOME_MACRO"` as an exported function, which is never a real, callable
+/// name). Worse, the presence of that macro token can corrupt the parse of
+/// the *next* list entry into an `ERROR` node attached to the same `fa`
+/// (observed: `sub/2` following `?SOME_MACRO` gets folded into
+/// `fa fun: (macro_call_expr) (ERROR (atom))`), which would otherwise silently
+/// drop a legitimate, real export. To recover it without over-trusting
+/// `ERROR` node internals, any `atom` node found nested inside such an
+/// `ERROR` child is treated as an additional recovered name -- mirroring the
+/// regex reference, which token-matches `name/arity` shapes and is
+/// unaffected by this parse corruption.
 fn collect_export_funs(export_attr: &Node, src: &[u8], symbols: &mut Vec<String>) {
     let mut cursor = export_attr.walk();
     for fa in export_attr.children_by_field_name("funs", &mut cursor) {
-        if let Some(fun) = fa.child_by_field_name("fun") {
-            let text = fun.utf8_text(src).unwrap_or_default();
-            let name = text.trim_matches('\'').to_string();
-            if !symbols.contains(&name) {
-                symbols.push(name);
+        match fa.child_by_field_name("fun") {
+            Some(fun) if fun.kind() == "atom" => {
+                let text = fun.utf8_text(src).unwrap_or_default();
+                let name = text.trim_matches('\'').to_string();
+                if !symbols.contains(&name) {
+                    symbols.push(name);
+                }
+            }
+            _ => {
+                // Not a plain atom (e.g. a `?MACRO` placeholder) -- don't
+                // emit its raw text as a name, but recover any real atom
+                // that got swallowed into a sibling ERROR node.
+                let mut inner = fa.walk();
+                for descendant in fa.children(&mut inner) {
+                    if descendant.kind() == "ERROR" {
+                        collect_error_atoms(&descendant, src, symbols);
+                    }
+                }
             }
         }
+    }
+}
+
+/// Recover plain `atom` names nested inside an `ERROR` node (see
+/// `collect_export_funs` for why this happens).
+fn collect_error_atoms(node: &Node, src: &[u8], symbols: &mut Vec<String>) {
+    if node.kind() == "atom" {
+        let text = node.utf8_text(src).unwrap_or_default();
+        let name = text.trim_matches('\'').to_string();
+        if !name.is_empty() && !symbols.contains(&name) {
+            symbols.push(name);
+        }
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_error_atoms(&child, src, symbols);
     }
 }
 
@@ -244,5 +290,93 @@ describe_internal() -> ok.
         assert!(symbols.contains(&"handle_call".to_string()));
         assert!(!symbols.contains(&"describe".to_string()));
         assert!(!symbols.contains(&"describe_internal".to_string()));
+    }
+
+    #[test]
+    fn test_export_type_attribute_is_not_a_function_export() {
+        // `-export_type([...])` exports a *type*, a distinct grammar node
+        // (`export_type_attribute`) from `export_attribute`; it must never be
+        // conflated with a function export.
+        let src = r#"
+-module(m).
+-export_type([my_type/0]).
+-type my_type() :: integer().
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.is_empty(), "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_export_list_with_comment_between_entries() {
+        let src = "-module(m).\n-export([\n    add/2,\n    %% sub is deprecated\n    sub/2\n]).\nadd(A,B)->A+B.\nsub(A,B)->A-B.\n";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"add".to_string()));
+        assert!(symbols.contains(&"sub".to_string()));
+    }
+
+    #[test]
+    fn test_multi_clause_function_name_deduped_under_export_all() {
+        // Semicolon-separated clauses of the same function share one
+        // top-level `fun_decl`, so this isn't really a dedup test of the
+        // *walk* so much as confirmation that a multi-clause function under
+        // `-compile(export_all)` is reported exactly once.
+        let src = "-module(m).\n-compile(export_all).\nfoo(0) -> zero;\nfoo(N) -> N.\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols.iter().filter(|s| *s == "foo").count(), 1);
+    }
+
+    #[test]
+    fn test_record_and_define_are_not_exports() {
+        let src = "-module(m).\n-compile(export_all).\n-record(foo, {a,b}).\n-define(BAR, 1).\nreal() -> ok.\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real".to_string()]);
+    }
+
+    #[test]
+    fn test_ifdef_wrapped_export_attribute_still_captured() {
+        // tree-sitter-erlang doesn't implement conditional compilation --
+        // `-ifdef`/`-endif` are flat sibling directives, not wrapper nodes --
+        // so an `-export` "inside" one is still a direct child of the root
+        // and must still be found by the top-level scan.
+        let src = "-module(m).\n-ifdef(TEST).\n-export([test_helper/0]).\n-endif.\ntest_helper() -> ok.\n";
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"test_helper".to_string()),
+            "got {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_macro_placeholder_in_export_list_does_not_break_other_entries() {
+        // Regression test: a `?MACRO` placeholder used as an export-list
+        // entry (`-export([add/2, ?SOME_MACRO, sub/2]).`) is represented by
+        // tree-sitter-erlang as a `macro_call_expr` in the `fun` field of its
+        // `fa` node, not a plain `atom`. Before the fix, the code blindly
+        // used `fun.utf8_text()` regardless of node kind, so it (a) reported
+        // the literal garbage name `"?SOME_MACRO"` as if it were a real
+        // export, and (b) lost the following real entry `sub/2` entirely --
+        // the malformed macro token corrupts the grammar's parse of the next
+        // list item into an `ERROR` node attached to the same `fa`, and nothing
+        // recovered it. Both are now fixed: non-atom `fun` fields are skipped
+        // (no more garbage name), and atoms found inside a sibling `ERROR`
+        // node are recovered as real names.
+        let src = "-module(m).\n-export([add/2, ?SOME_MACRO, sub/2]).\nadd(A,B) -> A+B.\nsub(A,B) -> A-B.\n";
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"add".to_string()), "got {symbols:?}");
+        assert!(symbols.contains(&"sub".to_string()), "got {symbols:?}");
+        assert!(
+            !symbols.iter().any(|s| s.contains("SOME_MACRO")),
+            "must not leak the raw macro placeholder as a name: {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_export_reports_name_regardless_of_defined_arity() {
+        // The `-export` list is the sole authority on what's public --
+        // there's no cross-check against the arity of an actual `fun_decl`
+        // in the module body, matching the regex reference's behavior.
+        let src = "-module(m).\n-export([foo/1]).\nfoo(A, B) -> A + B.\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["foo".to_string()]);
     }
 }

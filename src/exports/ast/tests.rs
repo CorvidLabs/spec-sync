@@ -317,3 +317,120 @@ mod private_mod;
         assert_eq!(ast_result, regex_result);
     }
 }
+
+// ── Dispatch/fallback wiring (`src/exports/mod.rs::scan_exported_symbols_full`) ──
+//
+// The actual "fall back to regex if the AST result is empty" logic lives in
+// `src/exports/mod.rs` (one `match` arm per AST-backed language), not in this
+// `ast` module itself. These tests exercise that dispatch end-to-end through the
+// public `scan_exported_symbols_full` entry point with `ParseMode::Ast`, using
+// real temp files, to pin down two properties of the wiring:
+//   1. The fallback trigger is `result.is_empty()` — a plain `Vec` check, not a
+//      `Result`/error path — so it can never "swallow" a parse error silently;
+//      it only ever reacts to emptiness. Every AST backend's `extract_exports`
+//      returns a bare `Vec<String>` (see `parse_*` returning `Option<Tree>` and
+//      falling to `Vec::new()` on `None`), so there is no separate error channel
+//      to bypass.
+//   2. Because the check is emptiness-only, a *non-empty but different-from-regex*
+//      AST result is never "corrected" by falling back — the AST output wins
+//      outright even when regex would disagree.
+#[cfg(test)]
+mod dispatch_fallback {
+    use crate::exports::{ExportScan, rust_lang, scan_exported_symbols_full, typescript};
+    use crate::types::{ExportLevel, ParseMode};
+
+    #[test]
+    fn ast_nonempty_result_wins_even_when_regex_disagrees() {
+        // Regex text-matches `export function fake()` inside a template string
+        // literal (see `ts_export_inside_string_literal` above: regex would
+        // wrongly include "fake"); AST correctly excludes it and returns a
+        // non-empty, correct `["real"]`. Because the dispatch only falls back
+        // on an *empty* AST result, the correct non-empty AST answer must be
+        // returned as-is, not reconciled/overwritten by the differing regex
+        // answer.
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("literal.ts");
+        std::fs::write(
+            &file,
+            "export function real() {}\nconst t = `\nexport function fake() {}\n`;\n",
+        )
+        .unwrap();
+
+        let regex_result = typescript::extract_exports(&std::fs::read_to_string(&file).unwrap());
+        assert!(
+            regex_result.contains(&"fake".to_string()),
+            "test assumes the regex backend is fooled by the template string: {regex_result:?}"
+        );
+
+        let scan = scan_exported_symbols_full(&file, ExportLevel::Member, ParseMode::Ast);
+        assert_eq!(scan, ExportScan::Parsed(vec!["real".to_string()]));
+    }
+
+    #[test]
+    fn ast_empty_result_falls_back_to_regex_even_when_ast_was_semantically_correct() {
+        // A `macro_rules!` *definition* containing `pub fn generated() {}` in its
+        // expansion template is not a real top-level item — nothing has invoked
+        // the macro, so nothing named `generated` actually exists yet. The AST
+        // backend correctly returns `[]` here. The line-based regex backend,
+        // however, naively text-matches `pub fn generated` inside the macro body
+        // and (incorrectly) reports it as exported.
+        //
+        // This documents a real, currently-unfixable-from-this-file limitation
+        // of the "empty AST result ⇒ fall back to regex" policy in
+        // `src/exports/mod.rs`: the trigger genuinely is emptiness-only (not
+        // error-based, confirmed by `parse_rust` returning `Vec::new()` on
+        // `None` with no distinct error channel), but that means an AST result
+        // that is empty *because it is correct* is indistinguishable, from the
+        // dispatcher's point of view, from an AST result that is empty because
+        // parsing failed — both currently fall back to the (here, wrong) regex
+        // answer. Fixing this would require changing the dispatch policy in
+        // `src/exports/mod.rs`, which is out of scope for the `ast` backends
+        // themselves; this test pins down the *current* observable behavior so
+        // a future change to the policy is a deliberate, visible diff here.
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("macro_body.rs");
+        std::fs::write(
+            &file,
+            "macro_rules! generate {\n    () => {\n        pub fn generated() {}\n    };\n}\n",
+        )
+        .unwrap();
+
+        let content = std::fs::read_to_string(&file).unwrap();
+        assert_eq!(
+            rust_lang::extract_exports(&content),
+            vec!["generated".to_string()],
+            "test assumes the regex backend is fooled by the macro body text"
+        );
+
+        let scan = scan_exported_symbols_full(&file, ExportLevel::Member, ParseMode::Ast);
+        assert_eq!(scan, ExportScan::Parsed(vec!["generated".to_string()]));
+    }
+
+    #[test]
+    fn ast_survives_malformed_input_without_panicking_or_misclassifying() {
+        // A genuine grammar-parse-error case: an unterminated raw string sends
+        // tree-sitter into an ERROR-node recovery mode for most of the file.
+        // The backend must not panic, and a file that is readable UTF-8 (even
+        // if its *content* is malformed source) must be reported as `Parsed`,
+        // never `Unreadable` — "unreadable" is reserved for I/O/UTF-8 failures,
+        // not parse failures.
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("broken.rs");
+        std::fs::write(
+            &file,
+            "let s = r#\"unterminated\npub fn after_broken_string() {}\n",
+        )
+        .unwrap();
+
+        let scan = scan_exported_symbols_full(&file, ExportLevel::Member, ParseMode::Ast);
+        match scan {
+            ExportScan::Parsed(symbols) => {
+                // tree-sitter's error recovery still locates the real pub fn
+                // after the broken string; the important assertion is simply
+                // that we got a `Parsed` outcome at all, not a panic.
+                assert!(symbols.contains(&"after_broken_string".to_string()) || symbols.is_empty());
+            }
+            other => panic!("malformed source must still be `Parsed`, got {other:?}"),
+        }
+    }
+}

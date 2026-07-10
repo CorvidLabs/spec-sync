@@ -15,9 +15,14 @@ static COMMENT_NESTING: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\+.
 /// class, struct, interface, enum, union, template, and function/variable declarations
 /// (`ReturnType name(...)`, `auto name(...)`, or a template `T name(T)(...)`).
 /// Then exclude lines that start with private/protected/package.
+///
+/// `template` is included alongside class/struct/interface/union/enum here: a bare
+/// `template Name(Args) { ... }` block declares a named symbol the same way a class does
+/// (distinct from a *templated function* like `T max(T)(T a, T b) { ... }`, which is already
+/// captured by `D_FUNC_DECL` below).
 static D_DECL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*(?:(?:public|private|protected|package)\s+)?(?:(?:static|final|abstract|override|synchronized|const|immutable|nothrow|pure|@safe|@trusted|@system|@nogc)\s+)*(?:class|struct|interface|union|enum)\s+(\w+)",
+        r"(?m)^[^\S\n]*(?:(?:public|private|protected|package)\s+)?(?:(?:static|final|abstract|override|synchronized|const|immutable|nothrow|pure|@safe|@trusted|@system|@nogc)\s+)*(?:class|struct|interface|union|enum|template)\s+(\w+)",
     )
     .unwrap()
 });
@@ -25,9 +30,13 @@ static D_DECL: LazyLock<Regex> = LazyLock::new(|| {
 /// Function declarations, including templated functions like `T foo(T)(T x) { ... }` and
 /// `auto`-returning functions. Captures the function name (the identifier immediately
 /// preceding the first `(`), not the return type.
+///
+/// `extern(C)`/`extern(C++)` (with an optional linkage argument in parens) is accepted as a
+/// modifier so that bare `extern(C) void foo();`-style single-line declarations — common for
+/// C-interop code — are recognized like any other function declaration.
 static D_FUNC_DECL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*(?:(?:public|private|protected|package)\s+)?(?:(?:static|final|abstract|override|synchronized|const|immutable|nothrow|pure|@safe|@trusted|@system|@nogc)\s+)*(?:[A-Za-z_]\w*(?:!\([^)]*\)|\!\w+)?(?:\[\])?(?:\s*\*)?)\s+(\w+)\s*(?:\([^)]*\))?\s*\(",
+        r"(?m)^[^\S\n]*(?:(?:public|private|protected|package)\s+)?(?:(?:static|final|abstract|override|synchronized|const|immutable|nothrow|pure|@safe|@trusted|@system|@nogc|extern(?:\s*\([^)]*\))?)\s+)*(?:[A-Za-z_]\w*(?:!\([^)]*\)|\!\w+)?(?:\[\])?(?:\s*\*)?)\s+(\w+)\s*(?:\([^)]*\))?\s*\(",
     )
     .unwrap()
 });
@@ -43,7 +52,7 @@ static D_MANIFEST_CONST: LazyLock<Regex> =
 /// (distinct from `D_FUNC_DECL`, which requires a parameter list).
 static D_FIELD_DECL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*(?:(?:public|private|protected|package)\s+)?(?:(?:static|final|abstract|override|const|immutable|shared|__gshared|nothrow|pure)\s+)*[A-Za-z_]\w*(?:!\([^)]*\)|\!\w+)?(?:\[\])?(?:\s*\*)*\s+(\w+)\s*(?:=[^;]*)?;",
+        r"(?m)^[^\S\n]*(?:(?:public|private|protected|package)\s+)?(?:(?:static|final|abstract|override|const|immutable|shared|__gshared|nothrow|pure|extern(?:\s*\([^)]*\))?)\s+)*[A-Za-z_]\w*(?:!\([^)]*\)|\!\w+)?(?:\[\])?(?:\s*\*)*\s+(\w+)\s*(?:=[^;]*)?;",
     )
     .unwrap()
 });
@@ -122,16 +131,26 @@ static VISIBILITY_LABEL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)^[^\S\n]*(private|protected|package|public)\s*:\s*$").unwrap()
 });
 
-/// Detect a line that opens a "type body" scope (class/struct/interface/union/enum), as
+/// Detect a line that opens a "type body" scope (class/struct/interface/union/enum/template), as
 /// opposed to a function body or any other block. Declarations directly inside a type body
 /// are real export candidates; declarations nested inside a function body — or any other
-/// block, like a `for`/`if`/lambda — are local and are never exported.
+/// block, like a `for`/`if`/lambda — are local and are never exported. `template` is included
+/// here to match `D_DECL` — a `template Name(Args) { ... }` block's own members are exportable
+/// under the same rules as a class/struct's members.
 static TYPE_BODY_OPEN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[^\S\n]*(?:(?:public|private|protected|package)\s+)?(?:(?:static|final|abstract)\s+)*(?:class|struct|interface|union|enum)\b",
+        r"(?m)^[^\S\n]*(?:(?:public|private|protected|package)\s+)?(?:(?:static|final|abstract)\s+)*(?:class|struct|interface|union|enum|template)\b",
     )
     .unwrap()
 });
+
+/// Detect an `extern(C)`/`extern(C++)` linkage block opener, e.g. `extern(C) {` (optionally
+/// with the brace on the same line). Unlike a class/struct body, this block is *transparent*:
+/// it doesn't declare a named type of its own, so declarations inside it should inherit the
+/// exportability of the surrounding scope rather than being force-classified as a non-exported
+/// function-body-like scope.
+static EXTERN_BLOCK_OPEN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*extern\s*\([^)]*\)\s*\{?\s*$").unwrap());
 
 /// Extract exported symbols from D source code.
 /// In D, everything at module scope is public by default unless marked private/protected/package.
@@ -148,6 +167,14 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     // Tracks the "label" visibility (`private:` / `public:` etc) currently in effect for each
     // scope level; `true` means the label default is non-public.
     let mut label_stack: Vec<bool> = vec![false];
+    // Carries the most recently computed "does this opening brace start an exportable-member
+    // scope?" verdict across lines. This matters for Allman-style brace placement, where the
+    // `{` that actually opens the scope sits on its own line, separate from the `class Foo`/
+    // `extern(C)` line that determined whether the resulting scope should be treated as a type
+    // body. Without carrying this forward, a brace-only line would be judged in isolation —
+    // never matching `TYPE_BODY_OPEN`/`EXTERN_BLOCK_OPEN` — and the class/extern-block's own
+    // members would be wrongly classified as living inside a plain (non-exportable) block.
+    let mut last_scope_open_value = false;
 
     for line in stripped.lines() {
         let trimmed = line.trim();
@@ -211,7 +238,28 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         // territory. Without this guard, a `private struct Foo { ... }` or a struct declared
         // inside a function body would still push `true`, leaking its members as exports even
         // though the type itself is correctly excluded above.
-        let opens_type_body = is_exportable_here && TYPE_BODY_OPEN.is_match(line);
+        //
+        // A blank line, or a line consisting only of brace characters (and whitespace),
+        // carries no declaration content of its own — it's classified purely by whatever the
+        // most recent "real" line determined (see `last_scope_open_value` above), so
+        // Allman-style brace placement (and any blank lines separating a declaration from its
+        // opening brace) doesn't lose the scope classification made on the declaration line
+        // above it.
+        let is_trivial_line = trimmed.is_empty() || trimmed.chars().all(|c| c == '{' || c == '}');
+        let opens_type_body = if is_trivial_line {
+            last_scope_open_value
+        } else {
+            // `EXTERN_BLOCK_OPEN` (a transparent `extern(C) { ... }` linkage block) is folded
+            // into the same "is this a scope-opening line?" check as `TYPE_BODY_OPEN`: since
+            // `is_exportable_here` already captures this line's own visibility gating, treating
+            // the extern block the same way as a type body means its contents simply inherit
+            // whatever exportability this line already had — exactly the transparent behavior
+            // `extern(C)` should have (it declares no type of its own).
+            let value = is_exportable_here
+                && (TYPE_BODY_OPEN.is_match(line) || EXTERN_BLOCK_OPEN.is_match(line));
+            last_scope_open_value = value;
+            value
+        };
         // Strip (simple, non-nested) double-quoted string and single-quoted char literal
         // contents before counting braces, so a stray `{`/`}` inside a literal — e.g.
         // `writefln("Value: %s}", x);` or `if (c == '{') {` — can't desynchronize the scope
@@ -513,5 +561,242 @@ void afterEverything() {}
         let symbols = extract_exports(src);
         assert!(symbols.contains(&"add".to_string()));
         assert!(symbols.contains(&"freeStanding".to_string()));
+    }
+
+    #[test]
+    fn test_d_public_template_block_and_members_are_exported() {
+        // Bug found via adversarial testing: a `template Name(Args) { ... }` block (distinct
+        // from a *templated function* like `T max(T)(T a, T b) { ... }`, which already worked)
+        // was not recognized at all — neither the template's own name, nor its members, were
+        // captured — because `template` was missing from both `D_DECL`'s and
+        // `TYPE_BODY_OPEN`'s keyword alternation, despite the doc comment on `D_DECL` already
+        // (incorrectly) claiming templates were matched. Fixed by adding `template` to both.
+        let src = r#"
+public template Bar(T) {
+    void baz() {
+        int local = 1;
+    }
+    int width;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Bar".to_string()));
+        assert!(symbols.contains(&"baz".to_string()));
+        assert!(symbols.contains(&"width".to_string()));
+        assert!(!symbols.contains(&"local".to_string()));
+    }
+
+    #[test]
+    fn test_d_private_template_block_and_members_are_excluded() {
+        // Companion to the public-template fix above: a `private template Foo(T) { ... }`
+        // must have its name and its members excluded, the same way a private class/struct is.
+        let src = r#"
+private template Foo(T) {
+    void hidden() {}
+    int secretField;
+}
+
+void publicFn() {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(!symbols.contains(&"Foo".to_string()));
+        assert!(!symbols.contains(&"hidden".to_string()));
+        assert!(!symbols.contains(&"secretField".to_string()));
+        assert!(symbols.contains(&"publicFn".to_string()));
+    }
+
+    #[test]
+    fn test_d_allman_style_class_members_are_exported() {
+        // Real bug found via adversarial testing: when a class/struct is written Allman-style
+        // (opening `{` alone on its own line, not on the same line as `class Foo`), the
+        // per-line `opens_type_body` check was recomputed fresh against the brace-only line —
+        // which never matches `TYPE_BODY_OPEN` (it has no `class`/`struct` keyword on it) — so
+        // the scope was wrongly pushed as a non-exportable "function body" scope. That silently
+        // dropped every member of an Allman-style-formatted public type from the export list,
+        // even though the identical class in K&R style worked fine. Fixed by carrying the most
+        // recently computed scope-open verdict forward across brace-only (and blank) lines.
+        let src = r#"
+class Widget
+{
+    void render() {}
+    int width;
+}
+
+struct Point
+{
+    int x;
+    int y;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Widget".to_string()));
+        assert!(symbols.contains(&"render".to_string()));
+        assert!(symbols.contains(&"width".to_string()));
+        assert!(symbols.contains(&"Point".to_string()));
+        assert!(symbols.contains(&"x".to_string()));
+        assert!(symbols.contains(&"y".to_string()));
+    }
+
+    #[test]
+    fn test_d_allman_style_private_class_members_still_excluded() {
+        // Companion to the Allman-brace fix above: confirm the carried-forward scope
+        // classification still correctly excludes members of a `private` Allman-style class —
+        // the fix must not accidentally make everything exportable regardless of visibility.
+        let src = r#"
+private class Hidden
+{
+    void secretMethod() {}
+    int secretField;
+}
+
+void publicApi() {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(!symbols.contains(&"Hidden".to_string()));
+        assert!(!symbols.contains(&"secretMethod".to_string()));
+        assert!(!symbols.contains(&"secretField".to_string()));
+        assert!(symbols.contains(&"publicApi".to_string()));
+    }
+
+    #[test]
+    fn test_d_extern_c_block_members_are_exported() {
+        // Real bug found via adversarial testing: an `extern(C) { ... }` linkage block doesn't
+        // declare a type of its own — it's transparent — but it was being treated like any
+        // other non-type brace block (function body, `if`/`for`, etc), so its member function
+        // declarations were force-classified as local and dropped from the export list even
+        // though they sit at effectively module (top-level) scope. Fixed by recognizing
+        // `extern(C)`-style linkage block openers and having their contents inherit the
+        // enclosing scope's exportability instead of being marked non-exportable.
+        let src = r#"
+extern(C) {
+    void cFunction();
+    int cGlobal;
+}
+
+void afterExternBlock() {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"cFunction".to_string()));
+        assert!(symbols.contains(&"cGlobal".to_string()));
+        assert!(symbols.contains(&"afterExternBlock".to_string()));
+    }
+
+    #[test]
+    fn test_d_extern_c_bare_single_line_declaration_is_exported() {
+        // Real bug found via adversarial testing: a bare, un-blocked `extern(C) void foo();`
+        // declaration (very common for one-off C-interop bindings) failed to match
+        // `D_FUNC_DECL` at all, because `extern(C)` wasn't recognized as an optional modifier
+        // token, so the regex's required "type name(" shape never lined up. Fixed by adding
+        // `extern(?:\s*\([^)]*\))?` to the modifier alternation in `D_FUNC_DECL`/`D_FIELD_DECL`.
+        let src = r#"
+extern(C) void cConnect();
+extern (C++) int cAdd(int a, int b);
+private extern(C) void cHiddenHelper();
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"cConnect".to_string()));
+        assert!(symbols.contains(&"cAdd".to_string()));
+        assert!(!symbols.contains(&"cHiddenHelper".to_string()));
+    }
+
+    #[test]
+    fn test_d_visibility_label_restored_after_nested_scope_closes() {
+        // Verified-correct (not a bug): a `private:` label's effect is scoped to the block it
+        // appears in. A nested scope (e.g. a locally-declared struct) starts with its own
+        // fresh default (public) label, and once that nested scope closes, the outer `private:`
+        // label must still be in effect for subsequent declarations in the outer scope.
+        let src = r#"
+class Widget {
+private:
+    void hiddenBefore() {}
+    struct Inner {
+        void innerMethod() {}
+    }
+    void hiddenAfter() {}
+public:
+    void visible() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Widget".to_string()));
+        assert!(symbols.contains(&"visible".to_string()));
+        assert!(!symbols.contains(&"hiddenBefore".to_string()));
+        assert!(!symbols.contains(&"hiddenAfter".to_string()));
+        assert!(!symbols.contains(&"Inner".to_string()));
+        assert!(!symbols.contains(&"innerMethod".to_string()));
+    }
+
+    #[test]
+    fn test_d_nested_free_function_inside_function_not_leaked() {
+        // Verified-correct (not a bug): a UFCS-style free function declared *inside* another
+        // function's body is local to that function and must never be treated as a top-level
+        // export, unlike a genuine top-level free function operating on the same type.
+        let src = r#"
+void outer() {
+    void innerHelper() {
+        int x = 1;
+    }
+    innerHelper();
+}
+
+void topLevelHelper() {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(!symbols.contains(&"innerHelper".to_string()));
+        assert!(symbols.contains(&"outer".to_string()));
+        assert!(symbols.contains(&"topLevelHelper".to_string()));
+    }
+
+    #[test]
+    fn test_d_multiline_template_constrained_function_signature() {
+        // Verified-correct (not a bug): a templated function whose constraint clause
+        // (`if (...)`) spans a separate line from the parameter list, with the body brace on
+        // yet another line, must still have its name captured and must not have the
+        // constraint clause's own `if (...)` misparsed as a nested declaration.
+        let src = r#"
+T combine(T)(T a, T b)
+if (is(T == int) || is(T == float))
+{
+    return a + b;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["combine".to_string()]);
+    }
+
+    #[test]
+    fn test_d_one_liner_type_stubs() {
+        // Verified-correct (not a bug): fully one-line, empty-body type stubs (a common
+        // placeholder/forward-declaration idiom) must still have their own name captured, and
+        // a `private` one-liner stub must still be excluded, without either desyncing the
+        // scope stack for declarations that follow.
+        let src = r#"
+class Foo {}
+struct Bar {}
+private class Hidden {}
+void afterStubs() {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(symbols.contains(&"Bar".to_string()));
+        assert!(!symbols.contains(&"Hidden".to_string()));
+        assert!(symbols.contains(&"afterStubs".to_string()));
+    }
+
+    #[test]
+    fn test_d_label_like_text_inside_string_literal_does_not_desync_labels() {
+        // Verified-correct (not a bug): a string literal that happens to contain
+        // label-like text (e.g. `"public: fake label"`) must not be mistaken for a real
+        // `VISIBILITY_LABEL` line, since the label regex only matches when the *entire*
+        // trimmed line is just `keyword\s*:\s*$` — not when that text is embedded mid-line
+        // inside a string.
+        let src = r#"
+string label = "public: fake label";
+private class Hidden {}
+void afterFakeLabel() {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(!symbols.contains(&"Hidden".to_string()));
+        assert!(symbols.contains(&"afterFakeLabel".to_string()));
     }
 }

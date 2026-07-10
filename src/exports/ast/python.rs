@@ -100,13 +100,23 @@ fn find_dunder_all(root: &tree_sitter::Node, src: &[u8]) -> Option<Vec<String>> 
             let mut stmt_cursor = child.walk();
             for stmt_child in child.children(&mut stmt_cursor) {
                 if stmt_child.kind() == "assignment" {
-                    let left = stmt_child.child_by_field_name("left")?;
+                    // Use `continue` rather than `?` on a missing field: a
+                    // single malformed/ERROR-recovered assignment node must
+                    // not abort scanning the rest of the file for a later,
+                    // well-formed `__all__` assignment.
+                    let Some(left) = stmt_child.child_by_field_name("left") else {
+                        continue;
+                    };
                     let left_text = left.utf8_text(src).unwrap_or_default();
 
                     if left_text == "__all__" {
-                        let right = stmt_child.child_by_field_name("right")?;
-                        if right.kind() == "list" {
-                            return Some(extract_string_list(&right, src));
+                        let Some(right) = stmt_child.child_by_field_name("right") else {
+                            continue;
+                        };
+                        let mut names = Vec::new();
+                        collect_list_literals(&right, src, &mut names);
+                        if !names.is_empty() {
+                            return Some(names);
                         }
                     }
                 }
@@ -115,6 +125,30 @@ fn find_dunder_all(root: &tree_sitter::Node, src: &[u8]) -> Option<Vec<String>> 
     }
 
     None
+}
+
+/// Recursively harvest string-literal entries from every `list` node
+/// reachable within `node`.
+///
+/// Handles a dynamically-built `__all__`, e.g. `__all__ = ["a"] + other`
+/// (a `binary_operator` node whose left operand is a real list literal):
+/// the visible list literal(s) still contribute their names even though a
+/// bare identifier operand (`other`) can't be statically resolved. Without
+/// this, any `__all__` built via concatenation was invisible to
+/// `find_dunder_all` entirely (its RHS is a `binary_operator`, not a
+/// `list`), silently discarding the explicit export restriction and falling
+/// back to scanning every top-level public def/class -- including names
+/// the module never intended to export.
+fn collect_list_literals(node: &tree_sitter::Node, src: &[u8], names: &mut Vec<String>) {
+    if node.kind() == "list" {
+        names.extend(extract_string_list(node, src));
+        return;
+    }
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_list_literals(&child, src, names);
+    }
 }
 
 /// Extract string values from a list literal: `["foo", "bar"]`.
@@ -462,5 +496,199 @@ def connect():
 "#;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["MAX_RETRIES", "DEFAULT_TIMEOUT", "connect"]);
+    }
+
+    #[test]
+    fn test_dunder_all_built_via_concatenation_extracts_visible_literal() {
+        // Regression test: `__all__ = ["a"] + _other` previously made
+        // `find_dunder_all` return `None` outright (its RHS is a
+        // `binary_operator`, not a `list`), so `extract_exports` silently
+        // fell back to scanning every top-level public def/class -- which
+        // leaked `not_in_all` even though the module's explicit `__all__`
+        // never listed it. The visible list literal (`["a"]`) is now
+        // harvested even though the `_other` operand can't be statically
+        // resolved, so the export surface stays restricted to what's
+        // actually spelled out in source.
+        let src = r#"
+_other = ["b"]
+__all__ = ["a"] + _other
+
+def a():
+    pass
+
+def b():
+    pass
+
+def not_in_all():
+    pass
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["a".to_string()]);
+        assert!(!symbols.contains(&"not_in_all".to_string()));
+    }
+
+    #[test]
+    fn test_dunder_all_concatenation_of_two_list_literals() {
+        // Both operands of the concatenation are real list literals: every
+        // name from both contributes, in left-to-right order.
+        let src = r#"
+__all__ = ["a"] + ["b", "c"]
+
+def a():
+    pass
+
+def b():
+    pass
+
+def c():
+    pass
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_dunder_all_non_list_expression_falls_back_to_scan() {
+        // Verified-correct (unchanged) behavior: when `__all__`'s value
+        // contains no list literal at all (e.g. built entirely from a
+        // function call), there is nothing to harvest, so `find_dunder_all`
+        // still returns `None` and `extract_exports` falls back to the
+        // normal top-level scan (which still applies the leading-underscore
+        // convention).
+        let src = r#"
+__all__ = tuple(_registry.keys())
+
+def real_pub():
+    pass
+
+def _hidden():
+    pass
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real_pub".to_string()]);
+    }
+
+    #[test]
+    fn test_multiline_decorator_with_arguments_still_captures_definition() {
+        // A decorator whose call arguments span several lines
+        // (`@app.route(\n    "/api",\n    methods=["GET"],\n)`) must not
+        // interfere with resolving the decorated function's name -- only
+        // the sibling `function_definition`/`class_definition` field is
+        // inspected, regardless of how complex the decorator expression is.
+        let src = r#"
+@app.route(
+    "/api",
+    methods=["GET"],
+)
+def handler():
+    pass
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["handler".to_string()]);
+    }
+
+    #[test]
+    fn test_conditional_top_level_def_under_if_else_not_captured() {
+        // Verified-correct (documented) current behavior: a `def` nested
+        // inside an `if`/`else` block (e.g. version-gated compatibility
+        // shims) is not a direct child of the module root in the AST, so
+        // neither branch's definition is captured -- consistent with the
+        // module doc comment's stated policy of not exporting from
+        // conditional blocks (originally written with `TYPE_CHECKING`
+        // guards in mind), and consistent with the regex backend, whose
+        // `^`-anchored, column-0 regex also can't match an indented `def`.
+        // Statically choosing one branch as "the" export would require
+        // resolving `sys.version_info` at analysis time, which neither
+        // backend attempts.
+        let src = r#"
+import sys
+
+if sys.version_info >= (3, 10):
+    def foo():
+        return 1
+else:
+    def foo():
+        return 2
+
+def real_top_level():
+    pass
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real_top_level".to_string()]);
+        assert!(!symbols.contains(&"foo".to_string()));
+    }
+
+    #[test]
+    fn test_def_inside_main_guard_not_captured() {
+        // A `def` inside `if __name__ == "__main__":` is indented source,
+        // and (like every other `if`-nested def) is not a direct child of
+        // the module root, so it is excluded the same way -- this matches
+        // real-world intent, since such defs are script entry points, not
+        // public API.
+        let src = r#"
+def real_public():
+    pass
+
+if __name__ == "__main__":
+    def helper():
+        pass
+    real_public()
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real_public".to_string()]);
+        assert!(!symbols.contains(&"helper".to_string()));
+    }
+
+    #[test]
+    fn test_triple_quoted_string_with_fake_def_not_captured() {
+        // AST-native: unlike the regex backend (which must explicitly strip
+        // triple-quoted strings before scanning), a module-level string
+        // literal is just an opaque `string` node to tree-sitter -- text
+        // inside it that merely looks like `def fake():`/`class Fake:` is
+        // never visited as a sibling declaration in the first place.
+        let src = r#"
+"""
+def fake():
+    pass
+
+class FakeClass:
+    pass
+"""
+
+def real_func():
+    pass
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["real_func".to_string()]);
+    }
+
+    #[test]
+    fn test_match_statement_and_walrus_do_not_crash_or_leak() {
+        // Adversarial parser-robustness check: `match`/`case` and the
+        // walrus operator (`:=`) are newer syntax the grammar must still
+        // parse cleanly (no panics), and neither should leak a spurious
+        // top-level symbol (the walrus target lives inside a
+        // `parenthesized_expression` condition, not a top-level
+        // `expression_statement` assignment).
+        let src = r#"
+def handle(x):
+    match x:
+        case 1:
+            return "one"
+        case _:
+            return "other"
+
+if (n := 10) > 5:
+    pass
+
+class Real:
+    pass
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["handle".to_string(), "Real".to_string()]);
+        assert!(!symbols.contains(&"n".to_string()));
     }
 }

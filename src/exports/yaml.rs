@@ -1,9 +1,23 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-/// Top-level key: a line starting at column 0 with `key:` followed by space, newline, or EOF
-static TOP_LEVEL_KEY: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)^([a-zA-Z_][a-zA-Z0-9_-]*):(?:\s|$)").unwrap());
+/// Top-level key: a line starting at column 0 with `key:` followed by space, newline, or EOF.
+///
+/// The key name may optionally be wrapped in matching double or single quotes
+/// (`"name": "CI"` / `'name': "CI"`), which is valid YAML and common in
+/// GitHub Actions workflows specifically for the `on:` key — unquoted `on` is
+/// parsed as the boolean `true` under YAML 1.1, so `"on":` is the
+/// recommended, and frequently seen, spelling. Without this, such keys were
+/// silently missing from the top-level symbol list. Only identifier-shaped
+/// quoted contents are matched (not arbitrary quoted strings containing
+/// spaces/punctuation) to keep this from over-matching prose-like quoted
+/// keys such as `'Keys can be quoted too.':`.
+static TOP_LEVEL_KEY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?m)^(?:"([a-zA-Z_][a-zA-Z0-9_-]*)"|'([a-zA-Z_][a-zA-Z0-9_-]*)'|([a-zA-Z_][a-zA-Z0-9_-]*)):(?:\s|$)"#,
+    )
+    .unwrap()
+});
 
 /// YAML anchor: `&anchor-name`
 ///
@@ -45,7 +59,12 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     // separated by `---` repeat the same top-level key names once per document).
     let top_level_keys: Vec<String> = TOP_LEVEL_KEY
         .captures_iter(content)
-        .filter_map(|caps| caps.get(1).map(|m| m.as_str().to_string()))
+        .filter_map(|caps| {
+            caps.get(1)
+                .or_else(|| caps.get(2))
+                .or_else(|| caps.get(3))
+                .map(|m| m.as_str().to_string())
+        })
         .collect();
 
     for key in &top_level_keys {
@@ -505,6 +524,114 @@ jobs:
         assert!(symbols.contains(&"jobs.deploy".to_string()));
         assert!(symbols.contains(&"outputs.artifact-name".to_string()));
         assert!(symbols.contains(&"outputs.version".to_string()));
+    }
+
+    #[test]
+    fn test_quoted_top_level_keys_extracted() {
+        // Real bug found this session: `TOP_LEVEL_KEY` required the key to
+        // start directly with an identifier character, so a quoted top-level
+        // key like `"name":` or `"on":` was never captured at all. This
+        // matters specifically for GitHub Actions workflows: unquoted `on`
+        // is parsed as the boolean `true` under YAML 1.1, so linters/editors
+        // commonly recommend (and real-world workflow files use) `"on":`
+        // instead — meaning the single most identifying top-level key of a
+        // CI workflow could be silently missing from its exported symbols.
+        // Fixed by allowing an optional matching pair of double or single
+        // quotes around an otherwise-identifier-shaped key.
+        let content = r#""name": "CI"
+'on': push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+"#;
+        let symbols = extract_exports(content);
+        assert!(symbols.contains(&"name".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"on".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"jobs".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"jobs.test".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_quoted_non_identifier_top_level_key_not_matched() {
+        // Verified-correct (not a bug): a quoted top-level key whose content
+        // isn't identifier-shaped (contains spaces/punctuation) must
+        // continue to be skipped rather than partially matched or corrupted
+        // — the fix for quoted identifier keys must not start capturing
+        // arbitrary quoted prose as a symbol.
+        let content = r#"'Keys can be quoted too.': "Useful if you want a colon."
+plain_key: value
+"#;
+        let symbols = extract_exports(content);
+        assert!(symbols.contains(&"plain_key".to_string()));
+        assert!(
+            !symbols.iter().any(|s| s.contains("Keys can be quoted")),
+            "{symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_flow_style_mapping_under_well_known_parent_not_expanded() {
+        // Documents a known, accepted limitation rather than a bug: this
+        // backend's nested-child scan under `NESTED_SYMBOL_PARENTS` is
+        // line-based (it looks at indentation of subsequent lines), so an
+        // entirely flow-style value (`services: {web: {...}, db: {...}}`)
+        // on a single line has no "subsequent lines" to scan. The top-level
+        // key itself is still correctly found; the flow-style children are
+        // simply not expanded into `services.web` / `services.db`. This is
+        // an acceptable gap for a regex/line-oriented extractor targeting
+        // real-world CI/compose files, which are overwhelmingly block-style
+        // for these particular keys — but must not panic or produce a
+        // false-positive substitute symbol either.
+        let content = "services: {web: {image: nginx}, db: {image: postgres}}\n";
+        let symbols = extract_exports(content);
+        assert!(symbols.contains(&"services".to_string()));
+        assert!(!symbols.contains(&"services.web".to_string()));
+        assert!(!symbols.contains(&"services.db".to_string()));
+    }
+
+    #[test]
+    fn test_hash_and_colon_inside_quoted_child_value_do_not_break_extraction() {
+        // Verified-correct (not a bug): a nested child's quoted scalar value
+        // containing both a `:` and a `#` (`"Hello: World # not a comment"`)
+        // must not be mistaken for a comment (stopping the child scan early)
+        // or for additional nested structure — only the child *key* before
+        // the first top-level `:` on its line matters.
+        let content = r#"jobs:
+  build:
+    outputs:
+      greeting: "Hello: World # not a comment"
+      other: value
+"#;
+        let symbols = extract_exports(content);
+        assert!(
+            symbols.contains(&"outputs.greeting".to_string()),
+            "{symbols:?}"
+        );
+        assert!(
+            symbols.contains(&"outputs.other".to_string()),
+            "{symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_anchor_dedupes_across_multi_document_yaml() {
+        // Genuinely new case beyond the existing top-level-key dedup test:
+        // the same anchor NAME reused in two `---`-separated documents (a
+        // common pattern — e.g. redefining `&defaults` per environment in a
+        // multi-doc Kubernetes/CI file) must be deduped the same way
+        // top-level keys already are, not emitted once per document.
+        let content = r#"defaults: &defaults
+  timeout: 30
+---
+defaults: &defaults
+  timeout: 60
+"#;
+        let symbols = extract_exports(content);
+        assert_eq!(
+            symbols.iter().filter(|s| *s == "defaults").count(),
+            1,
+            "{symbols:?}"
+        );
     }
 
     #[test]

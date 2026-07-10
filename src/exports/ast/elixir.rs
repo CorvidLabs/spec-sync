@@ -122,8 +122,27 @@ fn extract_name_from_signature(node: &Node, src: &[u8]) -> Option<String> {
             .child_by_field_name("target")
             .map(|n| n.utf8_text(src).unwrap_or_default().to_string()),
         "binary_operator" => {
-            let left = node.child_by_field_name("left")?;
-            extract_name_from_signature(&left, src)
+            // `binary_operator` covers several unrelated shapes that all share
+            // this node kind: a `when`-guarded def (`name(args) when guard`),
+            // a `@callback`/`@spec` return-type annotation (`name(args) ::
+            // ReturnType`), AND a custom infix operator definition (`def a
+            // <|> b do ... end`, a real pattern e.g. in Witchcraft/Algae).
+            // Only `when` and `::` are reserved, non-overridable operators
+            // where the *left* operand is the actual defined name/signature;
+            // for every other operator token, the operator itself IS the
+            // defined name and must not be skipped in favor of its left
+            // operand (which is just the first argument).
+            let operator = node
+                .child_by_field_name("operator")
+                .and_then(|n| n.utf8_text(src).ok())
+                .unwrap_or_default();
+            if operator == "when" || operator == "::" {
+                let left = node.child_by_field_name("left")?;
+                extract_name_from_signature(&left, src)
+            } else {
+                node.child_by_field_name("operator")
+                    .map(|n| n.utf8_text(src).unwrap_or_default().to_string())
+            }
         }
         _ => None,
     }
@@ -321,5 +340,87 @@ end
         assert!(symbols.contains(&"run".to_string()));
         assert!(!symbols.contains(&"fun".to_string()));
         assert!(!symbols.contains(&"callback".to_string()));
+    }
+
+    #[test]
+    fn test_custom_infix_operator_def_uses_operator_as_name() {
+        // Regression test: `def a <|> b do ... end` (a custom infix operator
+        // definition, a real pattern in libraries like Witchcraft/Algae)
+        // shares the `binary_operator` node kind with `when`-guarded defs and
+        // `@callback ... :: ReturnType` typespecs. Before the fix, the code
+        // unconditionally recursed into `left` assuming it was always a
+        // guard, so it wrongly returned the *argument* `a` instead of the
+        // real defined name `<|>`.
+        let src = r#"
+defmodule Foo do
+  def a <|> b do
+    a
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"<|>".to_string()), "got {symbols:?}");
+        assert!(!symbols.contains(&"a".to_string()), "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_ignores_def_like_text_inside_sigils() {
+        // Sigils (~s, ~r) are opaque text nodes in the grammar; a `def`-
+        // looking string inside one must not be mistaken for a real def.
+        let src = r#"
+defmodule Real do
+  def real_func do
+    ~s(def fake_func do end)
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"real_func".to_string()));
+        assert!(!symbols.contains(&"fake_func".to_string()));
+    }
+
+    #[test]
+    fn test_defdelegate_and_defstruct_are_not_exports() {
+        // `defdelegate`/`defstruct` are ordinary macro calls like `def`, but
+        // they don't introduce a new *function* export the same way `def`
+        // does in this extractor's model (no case here currently handles
+        // them at all) -- document the current, verified-correct behavior so
+        // a future change is a deliberate diff, not a silent regression.
+        let src = r#"
+defmodule Real do
+  defstruct [:name, :age]
+  defdelegate greet(name), to: OtherModule
+  def real_func do
+    :ok
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Real".to_string()));
+        assert!(symbols.contains(&"real_func".to_string()));
+        assert!(!symbols.contains(&"defstruct".to_string()));
+        assert!(!symbols.contains(&"greet".to_string()));
+    }
+
+    #[test]
+    fn test_nested_defmodule_captures_both_levels() {
+        let src = r#"
+defmodule Outer do
+  defmodule Inner do
+    def inner_func do
+      :ok
+    end
+  end
+
+  def outer_func do
+    :ok
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Outer".to_string()));
+        assert!(symbols.contains(&"Inner".to_string()));
+        assert!(symbols.contains(&"inner_func".to_string()));
+        assert!(symbols.contains(&"outer_func".to_string()));
     }
 }

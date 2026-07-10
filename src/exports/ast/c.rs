@@ -17,6 +17,10 @@ fn parse_c(content: &str) -> Option<Tree> {
 /// - Function-pointer typedefs (`typedef int (*Callback)(int);` -> `Callback`)
 /// - Top-level non-`static` function definitions and prototypes (declarations)
 /// - Pointer-returning functions (e.g. `char* get_name()`)
+/// - Declarations wrapped in `#ifdef`/`#ifndef`/`#elif`/`#else` preprocessor
+///   conditionals and in `extern "C" { ... }` linkage-specification blocks
+///   (including nested combinations of the two), both extremely common in
+///   real C headers
 /// - Correctly ignores text inside string/comment literals (AST-native)
 pub fn extract_exports(content: &str) -> Vec<String> {
     let tree = match parse_c(content) {
@@ -28,14 +32,22 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     let src = content.as_bytes();
     let mut symbols = Vec::new();
 
-    let mut cursor = root.walk();
-    for child in root.children(&mut cursor) {
-        collect_type_name(&child, src, &mut symbols);
+    // Flatten out preprocessor-conditional and `extern "C"` wrapper nodes so
+    // declarations nested inside them (at any depth) are visited exactly
+    // like true top-level declarations. Without this, a header's routine
+    // `#ifdef __cplusplus` / `extern "C" { ... }` guard -- or any declaration
+    // guarded by a plain `#ifdef FEATURE_X` -- silently hid every
+    // declaration inside it, since the loops below only ever walked `root`'s
+    // direct children.
+    let mut top_level = Vec::new();
+    collect_effective_top_level(root, &mut top_level);
+
+    for child in &top_level {
+        collect_type_name(child, src, &mut symbols);
     }
 
-    let mut cursor = root.walk();
-    for child in root.children(&mut cursor) {
-        collect_function_name(&child, src, &mut symbols);
+    for child in &top_level {
+        collect_function_name(child, src, &mut symbols);
     }
 
     // Recover function definitions that tree-sitter's error recovery nested
@@ -54,6 +66,32 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     collect_nested_function_names(&root, false, src, &mut symbols);
 
     symbols
+}
+
+/// Recursively expand `node`'s children into `out`, treating preprocessor
+/// conditional branches (`preproc_ifdef` -- covers both `#ifdef` and
+/// `#ifndef`, plus any `preproc_elif`/`preproc_else` alternative branch) and
+/// `extern "C" { ... }` linkage-specification blocks as transparent: their
+/// contents are still genuinely top-level declarations, just textually
+/// wrapped, so they must be visited exactly like any other top-level node.
+/// Handles arbitrary nesting (an `extern "C"` block inside an `#ifdef`, an
+/// `#ifdef` inside an `extern "C"` block, `#ifdef`s nested inside each
+/// other, etc.) since each expansion recurses back into this same function.
+fn collect_effective_top_level<'tree>(node: Node<'tree>, out: &mut Vec<Node<'tree>>) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            "preproc_ifdef" | "preproc_elif" | "preproc_else" => {
+                collect_effective_top_level(child, out);
+            }
+            "linkage_specification" => {
+                if let Some(body) = child.child_by_field_name("body") {
+                    collect_effective_top_level(body, out);
+                }
+            }
+            _ => out.push(child),
+        }
+    }
 }
 
 /// Recursively look for `function_definition` nodes nested inside another
@@ -225,6 +263,191 @@ fn get_field_text(node: &Node, field: &str, src: &[u8]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_ifdef_wrapped_declarations_captured() {
+        // Bug found via adversarial testing: declarations guarded by a plain
+        // `#ifdef FEATURE_X` (an extremely common real-world header idiom)
+        // were silently dropped entirely. tree-sitter-c nests them under a
+        // `preproc_ifdef` node's own direct children (no "body" field), and
+        // the extraction loops previously only ever walked `root`'s direct
+        // children, so `preproc_ifdef` itself was invisible to both
+        // `collect_type_name` and `collect_function_name` and everything
+        // inside it vanished. Fixed by flattening `preproc_ifdef` (and
+        // `linkage_specification`) children into the effective top level
+        // before running either pass.
+        let src = r#"
+#ifdef FEATURE_X
+int feature_x_fn(void) {
+    return 1;
+}
+struct FeatureXStruct { int a; };
+#endif
+
+int always_present(void) {
+    return 0;
+}
+"#;
+        let symbols = extract_exports(src);
+        for name in ["feature_x_fn", "FeatureXStruct", "always_present"] {
+            assert!(
+                symbols.contains(&name.to_string()),
+                "missing {name}: {symbols:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_extern_c_block_declarations_captured() {
+        // Bug found via adversarial testing: the routine C/C++ interop idiom
+        // `#ifdef __cplusplus / extern "C" { ... } / #endif` (present in
+        // most real-world public C headers) silently dropped every
+        // declaration inside it -- `extern "C" { ... }` parses as a
+        // `linkage_specification` node with its own `body` field, doubly
+        // nested inside the `preproc_ifdef` guard, so neither extraction
+        // pass ever reached `exported_fn`. Fixed alongside the `#ifdef` bug
+        // above; the fix handles arbitrary nesting of the two wrapper kinds.
+        let src = r#"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void exported_fn(int x);
+
+#ifdef __cplusplus
+}
+#endif
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"exported_fn".to_string()),
+            "expected exported_fn in {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_preproc_else_branch_declarations_captured() {
+        // Both branches of an `#ifdef ... #else ... #endif` are real,
+        // reachable (under different build configurations) top-level
+        // declarations and must both be captured, not just the `#ifdef`
+        // branch.
+        let src = r#"
+#ifdef USE_FAST_PATH
+int compute(void) { return 1; }
+#else
+int compute(void) { return 2; }
+#endif
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"compute".to_string()),
+            "expected compute in {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_kr_style_function_definition_captured() {
+        // Old K&R-style function definition: parameter names appear bare in
+        // the parameter list, with their types declared separately between
+        // the parameter list and the body.
+        let src = r#"
+int add(a, b)
+    int a;
+    int b;
+{
+    return a + b;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"add".to_string()), "got {symbols:?}");
+    }
+
+    #[test]
+    fn test_inline_without_static_is_captured() {
+        // A plain `inline` (no `static`) function still has external linkage
+        // in C, so it must be captured -- only `static` excludes a
+        // definition, not `inline` on its own.
+        let src = "inline int add(int a, int b) { return a + b; }\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["add"]);
+    }
+
+    #[test]
+    fn test_anonymous_union_member_not_misattributed() {
+        // An anonymous union nested as a struct member has no name of its
+        // own and must not produce a spurious symbol; only the struct name
+        // is captured.
+        let src = r#"
+struct Msg {
+    int type;
+    union {
+        int i;
+        float f;
+    };
+};
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["Msg"]);
+    }
+
+    #[test]
+    fn test_explicit_extern_prototype_captured() {
+        // A redundant-but-common explicit `extern` on a prototype is not
+        // `static`, so it must still be captured as exported.
+        let src = "extern int explicit_extern_fn(int x);\n";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["explicit_extern_fn"]);
+    }
+
+    #[test]
+    fn test_macro_annotated_prototype_still_captured() {
+        // A common "export macro" idiom (e.g. a `MODULE_EXPORT`/
+        // `__declspec(dllexport)`-style macro prefixing a prototype), left
+        // unexpanded since no preprocessor runs. The leading unknown
+        // identifier must not prevent the real function name from being
+        // captured.
+        let src = "MODULE_EXPORT int module_fn(int x);\n";
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"module_fn".to_string()),
+            "got {symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_pointer_array_variable_not_captured_as_function() {
+        // `int *arr[10];` is a top-level variable declaration (an array of
+        // pointers), not a function -- its declarator is an
+        // `array_declarator`, not a `function_declarator`, so it must not be
+        // captured.
+        let src = "int *arr[10];\n";
+        let symbols = extract_exports(src);
+        assert!(symbols.is_empty(), "expected no symbols, got {symbols:?}");
+    }
+
+    #[test]
+    fn test_signal_style_declarator_matches_regex_parity() {
+        // The classic convoluted libc `signal()` prototype: a function
+        // returning a pointer to a function, itself taking a function
+        // pointer parameter. `function_name_from_declarator` only unwraps
+        // `pointer_declarator` layers before requiring a `function_declarator`
+        // wrapping a plain `identifier`; here the outer `function_declarator`
+        // (for `signal` itself) wraps a `parenthesized_declarator` around a
+        // `pointer_declarator` around the inner `function_declarator`, so it
+        // does not match and nothing is captured. Verified this is not a
+        // regression: the reference regex backend also fails to match this
+        // line (its declarator-less pattern can't handle it either), so
+        // returning empty here preserves parity rather than diverging from
+        // it.
+        let src = "int (*signal(int sig, void (*func)(int)))(int);\n";
+        let symbols = extract_exports(src);
+        let regex_symbols = crate::exports::c::extract_exports(src);
+        assert!(symbols.is_empty(), "got {symbols:?}");
+        assert!(
+            regex_symbols.is_empty(),
+            "expected regex parity (both empty), regex got {regex_symbols:?}"
+        );
+    }
 
     #[test]
     fn test_function_pointer_variable_not_captured_as_garbage() {

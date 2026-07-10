@@ -1,10 +1,6 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)//.*$").unwrap());
-
-static COMMENT_MULTI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/").unwrap());
-
 /// export function/class/interface/type/const/enum name
 ///
 /// The `const\s+enum` alternative must be listed before the bare `const`
@@ -64,9 +60,14 @@ pub fn extract_exports_with_resolver(
     content: &str,
     resolver: Option<&ImportResolver<'_>>,
 ) -> Vec<String> {
-    // Strip comments
-    let stripped = COMMENT_SINGLE.replace_all(content, "");
-    let stripped = COMMENT_MULTI.replace_all(&stripped, "");
+    // Strip `//` and `/* */` comments while leaving string/template-literal
+    // CONTENT untouched (see strip_comments_preserving_strings doc): a naive
+    // `//.*$` / `/\*.*?\*/` regex pair (as this used to be) reads INSIDE
+    // quoted strings too, so a `//` in a URL string (`"http://..."`) could
+    // truncate a real export sharing that line, and a `/*`-like sequence in
+    // any string could merge with a later real `*/` and swallow every real
+    // export in between.
+    let stripped = strip_comments_preserving_strings(content);
 
     let mut symbols = Vec::new();
 
@@ -157,6 +158,97 @@ pub fn extract_exports_with_resolver(
     }
 
     symbols
+}
+
+/// Strip `//` line comments and `/* */` block comments in one linear pass
+/// while treating single-quoted, double-quoted, and backtick template-literal
+/// CONTENT as opaque: a comment-like sequence (`//`, `/*`) inside a string is
+/// never mistaken for a real comment delimiter. Unlike the Go/Rust backends'
+/// string handling, string/template content is copied through UNCHANGED
+/// (not blanked) -- downstream regexes here (WILDCARD_EXPORT, RE_EXPORT's
+/// `from '...'` clause) depend on the quoted import path text surviving
+/// verbatim. `\` escapes are honored; a single/double-quoted string bails at
+/// a raw newline (JS string literals cannot contain one), so a genuinely
+/// unterminated quote cannot swallow the rest of the file. A template literal
+/// may span multiple lines. Nested `${ ... }` interpolation containing
+/// further backticks/comments is not specially tracked (rare, left for
+/// future work).
+fn strip_comments_preserving_strings(content: &str) -> String {
+    let chars: Vec<char> = content.chars().collect();
+    let n = chars.len();
+    let mut out = String::with_capacity(content.len());
+    let mut i = 0;
+    while i < n {
+        let c = chars[i];
+        // Line comment: skip to end of line (keep the newline).
+        if c == '/' && i + 1 < n && chars[i + 1] == '/' {
+            i += 2;
+            while i < n && chars[i] != '\n' {
+                i += 1;
+            }
+            continue;
+        }
+        // Block comment (does not nest in JS/TS).
+        if c == '/' && i + 1 < n && chars[i + 1] == '*' {
+            i += 2;
+            while i < n {
+                if chars[i] == '*' && i + 1 < n && chars[i + 1] == '/' {
+                    i += 2;
+                    break;
+                }
+                if chars[i] == '\n' {
+                    out.push('\n');
+                }
+                i += 1;
+            }
+            continue;
+        }
+        // Single/double-quoted string: copied through verbatim, just scanned
+        // over so a `//`/`/*` inside it is never treated as a real comment.
+        if c == '\'' || c == '"' {
+            let quote = c;
+            out.push(c);
+            i += 1;
+            while i < n {
+                if chars[i] == '\\' && i + 1 < n {
+                    out.push(chars[i]);
+                    out.push(chars[i + 1]);
+                    i += 2;
+                    continue;
+                }
+                out.push(chars[i]);
+                let ended = chars[i] == quote || chars[i] == '\n';
+                i += 1;
+                if ended {
+                    break;
+                }
+            }
+            continue;
+        }
+        // Backtick template literal: copied through verbatim; may span lines.
+        if c == '`' {
+            out.push(c);
+            i += 1;
+            while i < n {
+                if chars[i] == '\\' && i + 1 < n {
+                    out.push(chars[i]);
+                    out.push(chars[i + 1]);
+                    i += 2;
+                    continue;
+                }
+                out.push(chars[i]);
+                let ended = chars[i] == '`';
+                i += 1;
+                if ended {
+                    break;
+                }
+            }
+            continue;
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
 }
 
 #[cfg(test)]
@@ -370,6 +462,105 @@ let s2 = new G.Square(10);
 "#;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["Square"]);
+    }
+
+    #[test]
+    fn test_string_containing_slash_star_does_not_swallow_real_export() {
+        // Real bug found this session: the old comment stripping was two bare
+        // regexes (`//.*$`, `/\*.*?\*/`) run directly on raw source with NO
+        // string-literal awareness. A string containing a `/*`-like sequence,
+        // with a LATER real block comment elsewhere in the file, let the
+        // string's `/*` merge with the real comment's `*/` and swallow every
+        // real export in between -- `shouldBeFound` was silently dropped.
+        let src = r#"
+const pattern = "/* this looks like a comment start";
+export function shouldBeFound() {}
+/* a real comment */
+export function afterRealComment() {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"shouldBeFound".to_string()),
+            "{symbols:?}"
+        );
+        assert!(
+            symbols.contains(&"afterRealComment".to_string()),
+            "{symbols:?}"
+        );
+    }
+
+    #[test]
+    fn test_url_string_same_line_as_export_not_truncated() {
+        // Real bug found this session: a `//` inside a URL string
+        // (extremely common: fetch calls, import paths, doc links), with a
+        // real export on the SAME line after it, was misread as a line
+        // comment by the old non-string-aware COMMENT_SINGLE regex,
+        // truncating the rest of the line and dropping `afterUrl` entirely.
+        let src = r#"const API_URL = "http://example.com"; export function afterUrl() {}"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"afterUrl".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_template_literal_with_comment_markers_does_not_hide_export() {
+        // A backtick template literal (SQL/GraphQL) containing text that
+        // looks like comment syntax (`--`, `/* */`) must not corrupt parsing
+        // of the real export that follows.
+        let src = r#"
+const sql = `select * from t -- /* not a real comment */`;
+export function afterTemplate() {}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["afterTemplate"]);
+    }
+
+    #[test]
+    fn test_multiline_template_literal_with_unterminated_fake_comment() {
+        // A multi-line template literal whose body contains an UNCLOSED
+        // `/*`-like sequence (never matched by a `*/` inside the template)
+        // must not merge with a real block comment appearing later in the
+        // file and swallow the real export between them -- the template's
+        // own closing backtick, not a `*/`, is what ends it.
+        let src = "
+const doc = `
+This block mentions /* an opening marker with no matching close
+inside the template.
+`;
+export function realExport() {}
+/* genuinely unrelated trailing comment */
+";
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["realExport"]);
+    }
+
+    #[test]
+    fn test_escaped_quote_in_string_does_not_confuse_scanner() {
+        // A string containing an escaped quote followed by a `//`-like
+        // sequence, with a real export on the same line, must not have the
+        // escaped quote mistaken for the string's terminator (which would
+        // leave the scanner still "inside" a string one character early,
+        // misreading the true closing quote as raw text and then the real
+        // `//` as a genuine comment).
+        let src =
+            r#"const s = "she said \"hi\" // not a comment"; export function afterEscaped() {}"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"afterEscaped".to_string()), "{symbols:?}");
+    }
+
+    #[test]
+    fn test_wildcard_export_import_path_survives_string_aware_stripping() {
+        // The new string-aware comment stripper must NOT blank out quoted
+        // import-path text (only the old naive regex-based approach would
+        // have been safe to blank strings entirely) -- WILDCARD_EXPORT and
+        // RE_EXPORT depend on `from '...'` surviving verbatim so the path can
+        // still be captured/resolved.
+        let src = r#"
+export * as Utils from './utils';
+export { Foo } from './module';
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Utils".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"Foo".to_string()), "{symbols:?}");
     }
 
     #[test]

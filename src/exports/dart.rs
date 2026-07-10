@@ -61,15 +61,32 @@ const DART_KEYWORDS: &[&str] = &[
     "yield", "assert", "new", "throw", "with", "on",
 ];
 
-/// Detect a line that opens a container body (class/mixin/enum/extension), as
-/// opposed to a function/method/getter/setter body or any other block
-/// (if/for/while/closure). Declarations directly inside a container body are
-/// real export candidates; declarations nested inside a function/method body
-/// are locals and are never exported, regardless of whether they happen to
-/// look like a typed top-level declaration.
-static CONTAINER_BODY_OPEN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^[^\S\n]*(?:abstract\s+)?(?:class|mixin|enum|extension)\b").unwrap()
-});
+/// Detect a *header buffer* (the raw text accumulated since the last `{`/`}`
+/// token, which may span multiple lines) that opens a container body
+/// (class/mixin/enum/extension), as opposed to a function/method/getter/
+/// setter body or any other block (if/for/while/closure). Declarations
+/// directly inside a container body are real export candidates; declarations
+/// nested inside a function/method body are locals and are never exported,
+/// regardless of whether they happen to look like a typed top-level
+/// declaration.
+///
+/// Unlike the old per-line check this replaced, this is intentionally NOT
+/// anchored to the start of a source line: classification happens per-brace
+/// (see `extract_exports`), and the header text handed to this regex has
+/// already been trimmed of leading whitespace, so `^` here means "start of
+/// the accumulated header," not "start of a source line." This is required
+/// for two real cases the old per-line flag got wrong:
+///   - A container and a nested body opening on the SAME line, e.g.
+///     `class Foo { void method() {` — the two `{` must be classified
+///     independently (container, then not-container), not both flagged by
+///     one whole-line boolean.
+///   - A class header whose `extends`/`with`/`implements` clauses span
+///     MULTIPLE lines before the `{`, e.g.
+///     `class Foo<T extends Bar<T>> extends Baz<T>\n    implements Other {`
+///     — the continuation line alone doesn't start with `class`, but the
+///     accumulated header (spanning both lines) does.
+static CONTAINER_HEADER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?:abstract\s+)?(?:class|mixin|enum|extension)\b").unwrap());
 
 /// Extract public symbols from Dart source code.
 /// In Dart, identifiers starting with _ are private; everything else is public.
@@ -83,6 +100,14 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     // function/method/getter/setter body or any other block (declarations
     // inside are local and never exported). An empty stack means top level.
     let mut scope_stack: Vec<bool> = Vec::new();
+    // Raw text accumulated since the last `{`/`}` token, reset on every brace
+    // and may span multiple lines. Used to classify the NEXT brace
+    // encountered (see CONTAINER_HEADER docs) -- classification must happen
+    // per-brace rather than once per whole line, since a single line can
+    // open more than one scope (`class Foo { void method() {`) and a
+    // container header's `extends`/`with`/`implements` clauses can span
+    // multiple lines before the `{` that this buffer is classifying.
+    let mut header_buf = String::new();
 
     for line in stripped.lines() {
         let in_exportable_scope = scope_stack.last().copied().unwrap_or(true);
@@ -128,21 +153,33 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             }
         }
 
-        // Only treat a freshly-opened body as an "exportable scope" (and thus a candidate
-        // for its members to be captured) if it's a container body, not a function/method
-        // body -- without this, a local variable declared inside an ordinary function body
-        // (`void doWork() { String result = compute(); }`) would be treated as sitting
-        // directly in an exportable scope and leak as a top-level export.
-        let opens_container_body = in_exportable_scope && CONTAINER_BODY_OPEN.is_match(line);
+        // Classify EACH brace on this line independently by inspecting the text
+        // accumulated since the previous brace (`header_buf`), rather than computing
+        // one flag for the whole line -- without this, a local variable declared
+        // inside an ordinary function body on the SAME line as its enclosing
+        // container (`class Foo { void method() { String result = compute(); } }`)
+        // would incorrectly inherit the container's "exportable" classification and
+        // leak as a top-level export. See CONTAINER_HEADER docs for the full
+        // rationale, including the multi-line class-header case this also fixes.
         for ch in line.chars() {
             match ch {
-                '{' => scope_stack.push(opens_container_body),
+                '{' => {
+                    let opens_container_body = CONTAINER_HEADER.is_match(header_buf.trim_start());
+                    scope_stack.push(opens_container_body);
+                    header_buf.clear();
+                }
                 '}' => {
                     scope_stack.pop();
+                    header_buf.clear();
                 }
-                _ => {}
+                _ => header_buf.push(ch),
             }
         }
+        // A newline separator so a keyword at the end of one line can't fuse with
+        // a token at the start of the next (e.g. `...implements\nOther {` must not
+        // read as one token `implementsOther`), while still letting a header that
+        // spans multiple lines accumulate into one buffer for CONTAINER_HEADER.
+        header_buf.push('\n');
     }
 
     symbols
@@ -151,6 +188,221 @@ pub fn extract_exports(content: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_dart_same_line_container_and_method_open_no_leak() {
+        // REAL BUG (found via adversarial probing): the scope tracker used to
+        // compute a single `opens_container_body` boolean per LINE and apply it
+        // to every `{` on that line. When a class header and a nested method
+        // body both open on the same line (`class Foo { void method() {`),
+        // both braces were incorrectly classified as "container body" (true),
+        // so a local variable declared one line later inside `method` was
+        // treated as sitting directly in an exportable scope and leaked as a
+        // top-level export. Confirmed via probe: symbols were
+        // `["Foo", "result"]` before the fix (should never contain "result").
+        // Fixed by classifying each brace independently against the header
+        // text accumulated since the PREVIOUS brace (CONTAINER_HEADER).
+        let src = r#"
+class Foo { void method() {
+  String result = compute();
+}}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        // Note: `method` itself is NOT expected here. That's a separate,
+        // pre-existing limitation unrelated to scope tracking: DART_TOPLEVEL/
+        // DART_BARE_FUNCTION are deliberately anchored to (near) column 0 of a
+        // line (see their doc comments), so a declaration appearing mid-line
+        // after `class Foo { ` was never going to be matched by the
+        // extraction regexes regardless of how the scope stack classifies the
+        // surrounding braces. The bug this test guards against is narrower
+        // and more serious: a LOCAL variable leaking as a top-level export.
+        assert!(
+            !symbols.contains(&"result".to_string()),
+            "local var inside a method body opened same-line as its class must not leak"
+        );
+    }
+
+    #[test]
+    fn test_dart_multiline_class_header_before_brace() {
+        // REAL BUG (found via adversarial probing): a class header whose
+        // `extends`/`with`/`implements` clauses span multiple lines before the
+        // opening `{` was misclassified, because the old per-line check only
+        // tested whether THAT line started with `class`/`mixin`/etc -- the
+        // continuation line (`implements Other {`) doesn't, so the class body
+        // was wrongly treated as a non-exportable scope. Confirmed via probe:
+        // symbols were `["Foo"]` (missing "method") before the fix. Fixed by
+        // accumulating header text across lines (header_buf) so
+        // CONTAINER_HEADER sees the whole header regardless of line breaks.
+        let src = r#"
+class Foo<T extends Bar<T>> extends Baz<T> with Mixin<T> implements Iface<T>
+    implements Other {
+  void method() {
+    String result = compute();
+  }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(
+            symbols.contains(&"method".to_string()),
+            "member of a class whose header spans multiple lines must still be captured"
+        );
+        assert!(!symbols.contains(&"result".to_string()));
+    }
+
+    #[test]
+    fn test_dart_brace_in_string_interpolation_and_triple_quoted_string() {
+        // Verified-correct (not a bug): brace characters inside string
+        // interpolation (`'${foo({'a':1})}'`) and inside a multi-line
+        // triple-quoted string containing a literal JSON-like snippet don't
+        // desync the brace counter here, because within a single source file
+        // the braces contributed by such a string are balanced (equal '{' and
+        // '}' count), even though the tracker has no awareness that it's
+        // inside a string literal. Net push/pop stays balanced, so scope
+        // depth correctly returns to top level afterward and a class declared
+        // immediately after the string is still recognized.
+        let src = r#"
+class Foo {
+  String bar() => '${foo({'a':1})}';
+}
+
+const jsonExample = '''
+{
+  "key": "value"
+}
+''';
+
+class AfterString {}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(
+            symbols.contains(&"bar".to_string()),
+            "method survives brace-balanced string interpolation on its line"
+        );
+        assert!(symbols.contains(&"jsonExample".to_string()));
+        assert!(
+            symbols.contains(&"AfterString".to_string()),
+            "scope depth returns to top level after a multi-line string containing literal braces"
+        );
+    }
+
+    #[test]
+    fn test_dart_one_liner_class_stubs_reset_depth() {
+        // One-liner container stubs (`class Foo {}`) must open AND close their
+        // scope within the same line, correctly resetting depth to baseline so
+        // a subsequent private one-liner class doesn't inherit any leftover
+        // scope state, and `_Private` stays excluded by the leading-underscore
+        // check regardless of scope.
+        let src = r#"
+class Foo {}
+class _Private {}
+class AfterBoth {
+  void method() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(!symbols.contains(&"_Private".to_string()));
+        assert!(symbols.contains(&"AfterBoth".to_string()));
+        assert!(
+            symbols.contains(&"method".to_string()),
+            "depth correctly reset to baseline after two one-liner stubs"
+        );
+    }
+
+    #[test]
+    fn test_dart_underscore_method_nested_in_public_class_excluded() {
+        // An underscore-prefixed method nested inside an otherwise-public
+        // class must never leak, while its public sibling in the same body
+        // is captured.
+        let src = r#"
+class Service {
+  void _privateHelper() {
+    print('internal');
+  }
+  void publicMethod() {
+    _privateHelper();
+  }
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Service".to_string()));
+        assert!(symbols.contains(&"publicMethod".to_string()));
+        assert!(!symbols.contains(&"_privateHelper".to_string()));
+    }
+
+    #[test]
+    fn test_dart_library_and_part_directives_not_exported() {
+        // `library`/`part`/`part of` directives are not declarations at all
+        // and must never appear as, or be mistaken for, top-level exports;
+        // they also must not perturb brace-depth tracking since they contain
+        // no braces.
+        let src = r#"
+library my_app.models;
+part 'user.g.dart';
+part of 'shared.dart';
+
+class RealModel {}
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["RealModel".to_string()]);
+    }
+
+    #[test]
+    fn test_dart_generic_extension_declaration() {
+        // A generic `extension` with type-parameter constraints and an `on`
+        // clause before the body brace must still be recognized as a
+        // container header (so its members are captured) and its own name
+        // extracted despite the trailing generic/`on` syntax.
+        let src = r#"
+extension NumExtensions<T extends num> on T {
+  T doubled() => (this + this) as T;
+  T _helper() => this;
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"NumExtensions".to_string()));
+        assert!(symbols.contains(&"doubled".to_string()));
+        assert!(!symbols.contains(&"_helper".to_string()));
+    }
+
+    #[test]
+    fn test_dart_deeply_nested_blocks_inside_class_never_leak() {
+        // Three-to-four levels of nested non-container blocks (method -> if
+        // -> for -> closure) inside a public class body: every local declared
+        // at any depth must stay excluded, while the enclosing class/method
+        // names remain captured, and depth must correctly unwind back to the
+        // class-body level (not top level, not stuck deeper) once the nested
+        // blocks close, so a sibling method declared afterward is still
+        // captured too.
+        let src = r#"
+class Worker {
+  void run() {
+    if (true) {
+      for (var i = 0; i < 10; i++) {
+        void Function() closure = () {
+          String deepLocal = "nested";
+        };
+        closure();
+      }
+    }
+  }
+
+  void afterNesting() {}
+}
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Worker".to_string()));
+        assert!(symbols.contains(&"run".to_string()));
+        assert!(
+            symbols.contains(&"afterNesting".to_string()),
+            "depth must unwind back to class-body level after deeply nested blocks close"
+        );
+        assert!(!symbols.contains(&"closure".to_string()));
+        assert!(!symbols.contains(&"deepLocal".to_string()));
+    }
 
     #[test]
     fn test_dart_abstract_class_interface_members() {

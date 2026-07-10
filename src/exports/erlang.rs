@@ -163,6 +163,73 @@ add(A, B) -> A + B.
     }
 
     #[test]
+    fn test_erlang_comment_with_dollar_dot_and_quotes_on_non_final_line() {
+        // Confirms the `(?m)` fix: a `%` comment containing `$`, `.`, and
+        // quote characters, sitting on a non-final line, must be fully
+        // stripped without leaking into the export list, and real
+        // `-export` attributes/functions on later lines must still be seen.
+        let src = r#"
+-module(billing).
+% This costs $5.00, see the 'pricing' doc, e.g. plans.md.
+-export([real_fn/1]).
+% Another note: don't trust "free" tiers.
+-export([real_fn2/2]).
+
+real_fn(X) -> X.
+real_fn2(A, B) -> A + B.
+fake_fn(X) -> X.
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"real_fn".to_string()));
+        assert!(symbols.contains(&"real_fn2".to_string()));
+        assert!(!symbols.contains(&"fake_fn".to_string()));
+    }
+
+    #[test]
+    fn test_erlang_inline_trailing_comment_inside_multiline_export_list() {
+        // A trailing `%` comment after individual entries inside a
+        // multi-line `-export([...]).` list -- a very common real-world
+        // formatting style -- must not corrupt the entries that follow it
+        // on subsequent lines, even when the comment itself contains a
+        // stray `%` and quote characters.
+        let src = r#"
+-module(math_utils).
+-export([
+    add/2, % adds two numbers, costs $0.02 e.g. "cheap"
+    sub/2  % subtracts, see note % above
+]).
+
+add(A, B) -> A + B.
+sub(A, B) -> A - B.
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"add".to_string()));
+        assert!(symbols.contains(&"sub".to_string()));
+    }
+
+    #[test]
+    fn test_erlang_export_all_includes_underscore_prefixed_names() {
+        // Erlang has no naming-convention-based visibility (unlike, say,
+        // Python's leading-underscore convention) -- with
+        // `-compile(export_all)`, a function named with a leading
+        // underscore is exported exactly like any other, and must not be
+        // silently filtered out for "looking private".
+        let src = r#"
+-module(scratch).
+-compile(export_all).
+
+_private_looking(X) -> X.
+normal_fn(X) -> X * 2.
+"#;
+        let symbols = extract_exports(src);
+        assert!(
+            symbols.contains(&"_private_looking".to_string()),
+            "{symbols:?}"
+        );
+        assert!(symbols.contains(&"normal_fn".to_string()));
+    }
+
+    #[test]
     fn test_erlang_export_list_and_callback_in_behaviour_module() {
         // A realistic multi-export, multi-behaviour module: -callback specs
         // declare a contract but are not themselves exports, and must not

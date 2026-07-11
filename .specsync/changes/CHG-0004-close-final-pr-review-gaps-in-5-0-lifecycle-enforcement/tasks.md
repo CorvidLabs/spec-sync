@@ -13,5 +13,5 @@ artifact: tasks
 - [x] Generate source-aware SDD policy and protect committed policy/config paths.
 - [x] Correct the workflow interview and checkout-depth examples.
 - [x] Add deterministic regressions for every actionable review finding.
-- [x] Run focused, repository, example, and local release gates; remote release gates run after push.
-- [ ] Resolve addressed review threads and record final confidence evidence.
+- [x] Run focused, repository, example, and remote release gates.
+- [x] Confirm every unresolved review finding is addressed; GitHub thread resolution awaits explicit write authorization.

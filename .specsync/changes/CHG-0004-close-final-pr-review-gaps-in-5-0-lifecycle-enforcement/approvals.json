@@ -27,6 +27,20 @@
       "timestamp": 1783751524,
       "digest": "5beb7db429d68af923ff2d058234f0e1f865b1b6005536d4d5411c92e6afc6a6",
       "note": "Reapproved after trusted-policy and version-format hardening"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783752254,
+      "digest": "97787effebc199533376ca3bad97fe7bfab74c845819f2e272978d982ec6e880",
+      "note": "Approved after all local, independent-review, and GitHub matrix evidence passed"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783752274,
+      "digest": "2eaa0e57fdf5a3e01b7a1c64d15003f01b9d8b65c159dacf7bee3c52c870ab43",
+      "note": "Accepted after independent audit, full local release lane, examples, and green GitHub matrix"
     }
   ]
 }

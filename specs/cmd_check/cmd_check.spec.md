@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 5
+version: 6
 status: stable
 files:
   - src/commands/check.rs
@@ -106,3 +106,4 @@ Implements the `specsync check` command — the primary validation entry point. 
 | 2026-06-11 | v3: `--fix` routes exports to the matching table by kind; unmatched spec filters exit 1 without contradictory output |
 | 2026-06-07 | Document generated review prompts for `--fix` export rows |
 | 2026-04-09 | Initial spec |
+| 2026-07-11 | CHG-0004-close-final-pr-review-gaps-in-5-0-lifecycle-enforcement: Close final PR review gaps in 5.0 lifecycle enforcement |

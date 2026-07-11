@@ -44,3 +44,11 @@ The system SHALL describe and create the same current versioned project layout.
 Acceptance Criteria
 - Canonical initialization documentation identifies the 5.0 layout and TOML configuration.
 - Tests and examples do not describe the removed root JSON initialization path as current behavior.
+
+### REQ-cmd-init-003
+
+Fresh initialization SHALL make detected project source directories and committed SDD policy files meaningful by default.
+
+Acceptance Criteria
+- Detected source directories are merged into the generated policy.
+- Policy/configuration paths cannot disable or weaken SDD coverage without lifecycle coverage.

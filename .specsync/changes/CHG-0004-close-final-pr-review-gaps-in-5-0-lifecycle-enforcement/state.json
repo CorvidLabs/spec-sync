@@ -5,10 +5,10 @@
   "title": "Close final PR review gaps in 5.0 lifecycle enforcement",
   "description": "Close final PR review gaps in 5.0 lifecycle enforcement",
   "kind": "bug_fix",
-  "state": "implementing",
+  "state": "accepted",
   "base_commit": "542d2c6a4aee56446d03febc98d80c1df1d2c9d8",
   "created_at": 1783750105,
-  "updated_at": 1783751524,
+  "updated_at": 1783752274,
   "affected_specs": [
     "change",
     "cmd_check",

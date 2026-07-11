@@ -1,6 +1,6 @@
 ---
 id: CHG-0004-close-final-pr-review-gaps-in-5-0-lifecycle-enforcement
-state: implementing
+state: accepted
 type: bug_fix
 base_commit: 542d2c6a4aee56446d03febc98d80c1df1d2c9d8
 ---

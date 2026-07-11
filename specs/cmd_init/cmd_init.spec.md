@@ -1,6 +1,6 @@
 ---
 module: cmd_init
-version: 5
+version: 6
 status: stable
 files:
   - src/commands/init.rs
@@ -77,3 +77,4 @@ Implements `specsync init`. Creates the 5.0 `.specsync/` layout with detected so
 | 2026-06-11 | v2: Init the v4 `.specsync/` layout instead of the legacy `specsync.json` so a fresh project never sees the migration nag |
 | 2026-07-11 | CHG-0002-harden-specsync-5-0-lifecycle-safety-and-release-validation: Harden SpecSync 5.0 lifecycle safety and release validation |
 | 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
+| 2026-07-11 | CHG-0004-close-final-pr-review-gaps-in-5-0-lifecycle-enforcement: Close final PR review gaps in 5.0 lifecycle enforcement |

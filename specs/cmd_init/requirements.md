@@ -36,3 +36,11 @@ The system SHALL initialize local lifecycle coordination files as ignored, recov
 Acceptance Criteria
 - New projects ignore the lifecycle lock and transaction journal.
 - Initialization remains idempotent and does not weaken SDD enforcement.
+
+### REQ-cmd-init-002
+
+The system SHALL describe and create the same current versioned project layout.
+
+Acceptance Criteria
+- Canonical initialization documentation identifies the 5.0 layout and TOML configuration.
+- Tests and examples do not describe the removed root JSON initialization path as current behavior.

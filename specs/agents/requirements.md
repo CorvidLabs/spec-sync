@@ -35,3 +35,11 @@ spec: agents.spec.md
 - Additional slash commands beyond `create-spec` and `create-change` (for example native `check`/`coverage`/`score` commands)
 - Extending native skill/command installation to Copilot or the generic `AGENTS.md` fallback — those remain served by `hooks.rs`'s prose-instruction mechanism
 - Persisting which tools were selected in config so a bare `specsync agents install` remembers prior choices
+
+### REQ-agents-001
+
+The system SHALL keep installed native agent artifacts and their canonical documentation consistent.
+
+Acceptance Criteria
+- Claude, Cursor, and Gemini receive create-spec and create-change commands.
+- Codex receives the project-scoped lifecycle skill without a deprecated command file.

@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 5
+version: 6
 status: stable
 files:
   - src/main.rs
@@ -39,7 +39,7 @@ depends_on:
 
 ## Purpose
 
-The `specsync` command-line interface — the main entry point for all user-facing operations. Parses CLI arguments via `clap`, routes to the appropriate subcommand handler, and orchestrates output formatting (colored text or JSON). Delegates all domain logic to the library modules; main.rs itself is purely a command dispatcher and output formatter.
+The `specsync` command-line entry point parses global options, routes canonical validation and verified SDD lifecycle commands to focused handlers, and preserves equivalent human-readable and structured output without owning domain policy.
 
 ## Public API
 
@@ -357,3 +357,4 @@ Cold start times (first run after boot) may be 2-3x higher due to disk cache war
 | 2026-03-25 | Initial spec |
 | 2026-04-06 | Add compact, archive-tasks, view, merge, issues subcommands; add --force, --create-issues, --format flags; add hash_cache/github/archive/compact/view/merge dependencies |
 | 2026-04-09 | Add scaffold, report, comment, changelog subcommands; add --enforcement and --explain flags; add --agents hook target; add comment/changelog/deps dependencies |
+| 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |

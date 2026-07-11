@@ -1,6 +1,6 @@
 ---
 module: cmd_init
-version: 4
+version: 5
 status: stable
 files:
   - src/commands/init.rs
@@ -14,7 +14,7 @@ depends_on:
 
 ## Purpose
 
-Implements the `specsync init` command. Creates the 5.0 `.specsync/` layout with detected source directories, canonical configuration, SDD policy, version stamp, local-state ignore rules, lifecycle/change/archive directories, and optional guided agent/change bootstrap.
+Implements `specsync init`. Creates the 5.0 `.specsync/` layout with detected source directories, canonical TOML configuration, SDD policy, version stamp, local-state ignore rules, lifecycle/change/archive directories, and optional guided agent/change bootstrap.
 
 ## Public API
 
@@ -76,3 +76,4 @@ Implements the `specsync init` command. Creates the 5.0 `.specsync/` layout with
 | 2026-04-09 | Initial spec |
 | 2026-06-11 | v2: Init the v4 `.specsync/` layout instead of the legacy `specsync.json` so a fresh project never sees the migration nag |
 | 2026-07-11 | CHG-0002-harden-specsync-5-0-lifecycle-safety-and-release-validation: Harden SpecSync 5.0 lifecycle safety and release validation |
+| 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 5
+version: 6
 status: active
 files:
   - src/change.rs
@@ -28,6 +28,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 8. Concurrent deltas follow declared dependency order and canonical Markdown application preserves unrelated sections.
 9. Approval validates complete module-scoped deltas, corrupt state fails closed, and archival failures remain retryable.
 10. Permanent requirement tombstones come only from accepted history, and default path coverage includes root delivery metadata.
+11. Concurrent effective-contract validations use isolated temporary workspaces.
 
 ## Public API
 
@@ -156,3 +157,4 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 | 2026-07-10 | v2: compare meaningful path coverage with the current remote base after rebases |
 | 2026-07-10 | Initial 5.0 verified SDD lifecycle |
 | 2026-07-11 | CHG-0002-harden-specsync-5-0-lifecycle-safety-and-release-validation: Harden SpecSync 5.0 lifecycle safety and release validation |
+| 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |

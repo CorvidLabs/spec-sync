@@ -1,6 +1,6 @@
 ---
 module: commands
-version: 5
+version: 6
 status: stable
 files:
   - src/commands/mod.rs
@@ -20,7 +20,7 @@ depends_on:
 
 ## Purpose
 
-Shared command infrastructure used by all CLI subcommands. Provides config loading, spec discovery, spec filtering, schema column building, the central validation pipeline, exit code computation, and GitHub drift issue creation. Every command module imports from here rather than duplicating this boilerplate.
+Shared command infrastructure and registry used by all CLI subcommands. It centralizes config loading, spec discovery, filtering, schema construction, validation, exit handling, GitHub drift issues, and dispatch modules including the verified 5.0 change lifecycle.
 
 ## Public API
 
@@ -152,3 +152,4 @@ Shared command infrastructure used by all CLI subcommands. Provides config loadi
 | 2026-06-11 | v2: Draft specs report skipped section/export validation explicitly; failing frontmatter renders a negated label |
 | 2026-04-09 | Initial spec |
 | 2026-04-11 | Add lifecycle submodule and filter_by_status function |
+| 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |

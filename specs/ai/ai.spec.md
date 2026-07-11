@@ -1,6 +1,6 @@
 ---
 module: ai
-version: 2
+version: 3
 status: stable
 files:
   - src/ai.rs
@@ -14,7 +14,7 @@ depends_on:
 
 ## Purpose
 
-Resolves and executes AI providers for spec generation. Supports CLI-based providers (Claude, Ollama, Copilot) and direct API providers (Anthropic, OpenAI). Builds prompts from source code, runs the provider, and post-processes the output to ensure valid spec format.
+Provides AI-assisted generation through the shared `corvid-ai` HTTP provider layer, with deterministic provider/model resolution and explicitly deprecated compatibility aliases and trusted command escape hatches retained for the 5.0 major release.
 
 ## Public API
 
@@ -121,3 +121,4 @@ Resolves and executes AI providers for spec generation. Supports CLI-based provi
 | 2026-06-07 | Route API providers through the shared `corvid-ai` client; `ResolvedProvider` API variants collapse to `Api(corvid_ai::Settings)` and the per-provider `call_*_api` HTTP code is removed |
 | 2026-06-07 | API-first/API-only auto-detection (no CLI shell-out); default to keyless local Ollama when no key is set; `claude` routes to the `anthropic` API; add `openrouter` + `ollama` (HTTP) providers |
 | 2026-06-07 | Final resolution ladder (shared with fledge): key-based detection (no probe) — none→keyless local Ollama, one→use it, multiple→prompt (interactive) or deterministic order; Ollama first in that order. `OLLAMA_HOST` + `-cloud` host routing for requests; add `SPECSYNC_AI_PROVIDER` env |
+| 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |

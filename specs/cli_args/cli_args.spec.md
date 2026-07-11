@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 2
+version: 3
 status: stable
 files:
   - src/cli.rs
@@ -14,7 +14,7 @@ depends_on:
 
 ## Purpose
 
-Defines the CLI argument parser using Clap derive macros. Declares all subcommands, their flags, and global options for the `specsync` binary. This is the single source of truth for the CLI surface area — every flag, argument, and subcommand enum variant lives here.
+Defines the complete CLI argument grammar using Clap derive macros, including global options, canonical spec commands, agent integration, and the verified SDD `change` namespace.
 
 ## Public API
 
@@ -103,3 +103,4 @@ Defines the CLI argument parser using Clap derive macros. Declares all subcomman
 | 2026-04-11 | Add LifecycleAction enum and Lifecycle command variant |
 | 2026-07-01 | Add AgentsAction enum and Agents command variant |
 | 2026-07-10 | Add ChangeAction and the 5.0 SDD lifecycle namespace |
+| 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |

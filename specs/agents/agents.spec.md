@@ -1,6 +1,6 @@
 ---
 module: agents
-version: 3
+version: 4
 status: stable
 files:
   - src/agents.rs
@@ -12,7 +12,7 @@ depends_on: []
 
 ## Purpose
 
-Installs native, tool-owned skill and slash-command files for AI coding agents (Claude Code, Cursor, Codex, Gemini CLI), distinct from the prose-instruction-file mechanism in `hooks.rs`. Ships a `SKILL.md` each tool auto-discovers and a `/specsync:create-spec` (or tool-equivalent) slash command that scaffolds a spec from a module name or a natural-language feature description.
+Installs native, tool-owned verified-SDD skills for Claude Code, Cursor, Codex, and Gemini CLI. Where the tool supports project commands, SpecSync installs both create-spec and create-change commands; Codex receives the project skill only because its command mechanism is deprecated/global.
 
 ## Public API
 
@@ -114,3 +114,4 @@ Installs native, tool-owned skill and slash-command files for AI coding agents (
 | 2026-07-10 | codex | v3: teach all four skills the verified SDD lifecycle and add create-change commands where supported |
 | 2026-07-01 | claude | v2: `install_agent` overwrites artifacts whose existing content differs from the current template (content-aware upgrade), instead of only writing missing files |
 | 2026-07-01 | claude | Initial spec — native skill/command installation for Claude Code, Cursor, Codex, Gemini CLI |
+| 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |

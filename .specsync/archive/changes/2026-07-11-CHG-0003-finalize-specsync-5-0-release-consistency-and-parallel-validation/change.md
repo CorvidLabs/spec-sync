@@ -1,6 +1,6 @@
 ---
 id: CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 677bf45868b392724b3833fad3676839e06bc426
 ---

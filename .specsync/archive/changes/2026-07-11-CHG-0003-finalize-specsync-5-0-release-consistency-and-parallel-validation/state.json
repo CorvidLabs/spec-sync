@@ -5,10 +5,10 @@
   "title": "Finalize SpecSync 5.0 release consistency and parallel validation",
   "description": "Finalize SpecSync 5.0 release consistency and parallel validation",
   "kind": "bug_fix",
-  "state": "implementing",
+  "state": "archived",
   "base_commit": "677bf45868b392724b3833fad3676839e06bc426",
   "created_at": 1783748208,
-  "updated_at": 1783749280,
+  "updated_at": 1783749634,
   "affected_specs": [
     "change",
     "agents",

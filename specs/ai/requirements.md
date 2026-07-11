@@ -42,3 +42,11 @@ spec: ai.spec.md
 - Fine-tuning or training custom models
 - Providers requiring OAuth flows
 - `AiProvider::default_model` / `default_base_url` — removed; corvid-ai owns these defaults
+
+### REQ-ai-001
+
+The system SHALL document deprecated AI compatibility paths according to their shipped major-version behavior.
+
+Acceptance Criteria
+- The Claude alias is described as deprecated but retained in 5.0.
+- The trusted `aiCommand` escape hatch is described as deprecated but retained in 5.0.

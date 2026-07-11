@@ -45,3 +45,11 @@ spec: cli.spec.md
 - GUI or web-based interface
 - Daemon mode (watch is foreground only)
 - Package manager plugins (npm, cargo, etc.)
+
+### REQ-cli-001
+
+The system SHALL expose and document the verified SDD lifecycle through the root CLI dispatcher.
+
+Acceptance Criteria
+- The CLI contract lists the `change` namespace and current initialization layout.
+- Dispatch documentation includes the change lifecycle handler.

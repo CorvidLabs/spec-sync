@@ -95,3 +95,11 @@ The system SHALL require lifecycle coverage for common root action, manifest, an
 #### Acceptance Criteria
 - Root Action configuration and supported ecosystem manifest or lockfile changes are meaningful paths.
 - Component-boundary matching continues to exclude similarly prefixed unrelated files.
+
+### REQ-change-011
+
+The system SHALL isolate temporary effective-contract state across concurrent validations.
+
+Acceptance Criteria
+- Parallel validations in one process allocate distinct scratch paths.
+- Each validation removes only its own scratch workspace.

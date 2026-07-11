@@ -1,0 +1,24 @@
+{
+  "timestamp": 1783749599,
+  "commit": "72734f01a7de9d75964d47aefad863e846222a88",
+  "contract_digest": "40f0c68383d3bff5a6b91ff36b415db53068f7792cc25d1ad28d073fa41e500a",
+  "workspace_digest": "7f97024ff9223ac6eb360d45e67bdfb127d5078125b7393e073ebfa8b0a8f3a9",
+  "passed": true,
+  "commands": [
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-agents-001",
+    "REQ-ai-001",
+    "REQ-change-011",
+    "REQ-cli-001",
+    "REQ-cli-args-001",
+    "REQ-cmd-agents-001",
+    "REQ-cmd-init-002",
+    "REQ-commands-001"
+  ]
+}

@@ -31,3 +31,11 @@ spec: cli_args.spec.md
 - Resolving the effective AI provider/model (precedence `flag > env > config`) — handled in `src/commands/generate.rs`
 - Executing subcommands (handled by `src/commands/*` and `src/main.rs`)
 - GUI or web interface; interactive prompts beyond the `wizard` subcommand
+
+### REQ-cli-args-001
+
+The system SHALL declare the complete verified SDD change command grammar in the shared Clap parser.
+
+Acceptance Criteria
+- `Command` includes the `Change` namespace.
+- `ChangeAction` declares every lifecycle, inspection, checking, and adoption operation.

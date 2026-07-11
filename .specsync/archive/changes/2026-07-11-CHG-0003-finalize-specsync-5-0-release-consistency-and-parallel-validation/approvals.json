@@ -27,6 +27,20 @@
       "timestamp": 1783749280,
       "digest": "bd4db6f195cb1cdcd8f1b022888a2bd295e0cf0697d1bf9e69535e340726c7c9",
       "note": "Approved after implementation evidence, release-consistency audit, and clean rebuild"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783749578,
+      "digest": "40f0c68383d3bff5a6b91ff36b415db53068f7792cc25d1ad28d073fa41e500a",
+      "note": "Approved with complete local and green GitHub release evidence"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783749610,
+      "digest": "aa8f0c1593b0a50303ec292c69d7d618932c5f3fc915d09b2d088852a8e509f7",
+      "note": "Accepted after complete local and GitHub release matrix passed"
     }
   ]
 }

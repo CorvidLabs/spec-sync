@@ -11,4 +11,4 @@ artifact: tasks
 - [x] Correct migration, workflow, agent, comparison, and README wording; update PR evidence after CI.
 - [x] Account for unrelated `cmd_score`/`hooks` freshness warnings: strict API validation is green and neither source file changes in this PR.
 - [x] Run focused, CI-style serial/parallel, all executable example, and full repository checks locally; packaged consumer remains independently gated in CI.
-- [ ] Clean generated build artifacts and obtain a fully green PR matrix.
+- [x] Clean generated build artifacts and obtain a fully green PR matrix.

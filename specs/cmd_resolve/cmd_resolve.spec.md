@@ -1,6 +1,6 @@
 ---
 module: cmd_resolve
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/resolve.rs
@@ -120,3 +120,4 @@ Implements the `specsync resolve` command. Resolves dependency references — lo
 |------|--------|
 | 2026-04-10 | v2: Added `--verify` for deep content verification, `--cache-ttl`, drift detection, exit codes |
 | 2026-04-09 | Initial spec |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

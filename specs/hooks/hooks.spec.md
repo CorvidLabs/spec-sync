@@ -1,6 +1,6 @@
 ---
 module: hooks
-version: 1
+version: 2
 status: stable
 files:
   - src/hooks.rs
@@ -110,3 +110,4 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 |------|--------|
 | 2026-03-25 | Initial spec |
 | 2026-03-30 | Add Agents (AGENTS.md) hook target |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

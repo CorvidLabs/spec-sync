@@ -62,6 +62,13 @@
       "timestamp": 1783799782,
       "digest": "00f52e012cd634775cb2d2b79e399508defa5373c34788d7cc40b40da524f09a",
       "note": "Reapproved durable documentation routing and final 5.0 reference corrections"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783799861,
+      "digest": "363c4f33277b3303d711dd7ee91aefa79529c7206c834c75a6f178de0b08e597",
+      "note": "Accepted final durable documentation routing after full verification"
     }
   ]
 }

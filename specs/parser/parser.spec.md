@@ -1,6 +1,6 @@
 ---
 module: parser
-version: 2
+version: 3
 status: stable
 files:
   - src/parser.rs
@@ -19,13 +19,13 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 
 ## Public API
 
-### Exported Structs
+**Exported Structs**
 
 | Type | Description |
 |------|-------------|
 | `ParsedSpec` | Parsed spec file containing `frontmatter: Frontmatter` and `body: String` |
 
-### Exported Functions
+**Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
@@ -34,7 +34,7 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 | `get_missing_sections` | `body: &str, required_sections: &[String]` | `Vec<String>` | Check which required `##` sections are missing from the spec body |
 | `is_export_header` | `header: &str` | `bool` | Returns true if a `###` header denotes an exported-symbols subsection (e.g. `### Exported Functions`) |
 | `section_has_content` | `body: &str, section: &str` | `bool` | Returns true if the `## Section` block contains non-whitespace content beyond the header line |
-| `find_stub_sections` | `body: &str` | `Vec<String>` | Returns section names whose `## Section` blocks are present but contain no substantive content |
+| `find_stub_sections` | `body: &str, required_sections: &[String]` | `Vec<String>` | Returns required section names whose `## Section` blocks are present but contain no substantive content |
 | `find_section_offset` | `body: &str, section: &str` | `Option<usize>` | Returns byte offset of the `## Section` heading line, using anchored regex with trailing-whitespace tolerance |
 | `body_has_section` | `body: &str, section: &str` | `bool` | Returns true if the spec body contains an exact `## Section` heading (delegates to `find_section_offset`) |
 | `get_near_miss_sections` | `body: &str, required_sections: &[String]` | `Vec<(String, String)>` | For each missing required section, returns `(canonical_name, found_heading)` pairs where a `## Heading` exists within Levenshtein distance ≤ 2 — used to detect typos and suggest `--fix` |
@@ -82,14 +82,14 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 
 ## Dependencies
 
-### Consumes
+**Consumes**
 
 | Module | What is used |
 |--------|-------------|
 | types | `Frontmatter` struct |
 | regex | `Regex`, `LazyLock` for compiled patterns |
 
-### Consumed By
+**Consumed By**
 
 | Module | What is used |
 |--------|-------------|
@@ -98,9 +98,14 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 | commands/check | `get_near_miss_sections` (via `fix_near_miss_required_headers`) |
 | mcp | `parse_frontmatter` (for listing specs) |
 
+**Frontmatter Synchronization**
+
+Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/util/util.spec.md`. This YAML frontmatter update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
+
 ## Change Log
 
 | Date | Change |
 |------|--------|
 | 2026-03-25 | Initial spec |
 | 2026-06-11 | Add `get_all_api_table_symbols` so `check --fix` treats symbols documented under any Public API table (e.g. a bare `### Functions` heading) as already documented |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

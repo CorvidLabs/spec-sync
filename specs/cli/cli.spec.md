@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 7
+version: 8
 status: stable
 files:
   - src/main.rs
@@ -161,7 +161,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 20. `cmd_report` flags modules whose specs are N+ commits behind their source files (default threshold: 5)
 21. `cmd_comment` without `--pr` prints the comment body to stdout; with `--pr N` posts via `gh` CLI
 22. `cmd_changelog` requires a git ref range (e.g., `v0.1..v0.2`); exits 1 if range is invalid
-23. `--enforcement` CLI flag overrides the `enforcement` field in specsync.json; `--strict` implies strict enforcement
+23. `--enforcement` CLI flag overrides the effective loaded configuration (`.specsync/config.toml` first, with legacy compatibility fallbacks); `--strict` implies strict enforcement
 
 ## Behavioral Examples
 
@@ -255,7 +255,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 |-----------|----------|
 | Cannot determine cwd | Panics with "Cannot determine cwd" |
 | Retired `--provider` or `--model` flag | Clap rejects the unknown argument |
-| Failed to write `specsync.json` | Panics with "Failed to write specsync.json" |
+| Failed to write the canonical config, SDD policy, or versioned layout during `init` | Prints an actionable error and exits 1 |
 | Failed to create spec directory | Prints error to stderr and exits 1 |
 | Failed to write spec file | Prints error to stderr and exits 1 |
 | Failed to write `specsync-registry.toml` | Prints error to stderr and exits 1 |
@@ -318,11 +318,12 @@ Cold start times (first run after boot) may be 2-3x higher due to disk cache war
 
 ## Dependencies
 
-### Consumes
+**Consumes**
 
 | Module | What is used |
 |--------|-------------|
 | config | `load_config`, `detect_source_dirs` |
+| cli_args | Clap parser types, command/action enums, and global argument projection |
 | parser | `parse_frontmatter` |
 | validator | `validate_spec`, `find_spec_files`, `compute_coverage`, `get_schema_table_names`, `is_cross_project_ref`, `parse_cross_project_ref` |
 | exports | `has_extension`, `get_exported_symbols` (used by auto_fix_specs and cmd_diff) |
@@ -343,11 +344,18 @@ Cold start times (first run after boot) may be 2-3x higher due to disk cache war
 | changelog | `changelog_between_refs` |
 | deps | `validate_deps`, `render_mermaid`, `render_dot` |
 
-### Consumed By
+**Consumed By**
 
 | Module | What is used |
 |--------|-------------|
 | (none) | `main.rs` is the top-level entry point — nothing imports it |
+
+**Frontmatter Synchronization**
+
+Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/agents/agents.spec.md`,
+`specs/cli_args/cli_args.spec.md`, `specs/commands/commands.spec.md`, `specs/git_utils/git_utils.spec.md`,
+`specs/ignore/ignore.spec.md`, `specs/output/output.spec.md`, `specs/util/util.spec.md`. This YAML frontmatter
+update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
 
 ## Change Log
 
@@ -361,3 +369,4 @@ Cold start times (first run after boot) may be 2-3x higher due to disk cache war
 | 2026-04-09 | Add scaffold, report, comment, changelog subcommands; add --enforcement and --explain flags; add --agents hook target; add comment/changelog/deps dependencies |
 | 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

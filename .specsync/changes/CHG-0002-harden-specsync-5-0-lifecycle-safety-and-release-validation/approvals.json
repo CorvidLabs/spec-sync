@@ -1,0 +1,123 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783742180,
+      "digest": "0667b4550a75767dcac0a34f0a89c19af760cc97e8d3aebcbff25efdce6c8070",
+      "note": "Approved by the user after review of the strict 5.0 hardening contract and finding matrix"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783743320,
+      "digest": "f74f2f6dd803a19bcd3fff2e9b5f2abe274bb166895b39edc832ef70330d7107",
+      "note": "Reapproved under the user-approved hardening objective after adding initialization and package coordination scope"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783744424,
+      "digest": "9fecc5799fb19bd6b2ecf53630cf5188860394daf7cfb715112450f229f373e3",
+      "note": "User approved the complete 5.0 hardening and release-validation scope"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783744643,
+      "digest": "8224bdf913cba7176338cd63db5182194c870b3cdb3f2b32b717810a17cd6f59",
+      "note": "User-approved scope with explicit requirement-to-regression evidence"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783745046,
+      "digest": "99603879a461df3889a3695686297479a0b6afb5a8e11cdb51a692d03214c7aa",
+      "note": "User-approved 5.0 hardening scope including all subsequent review findings"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783745737,
+      "digest": "3e04222b519f1f3c88e8183cca8b081bbced8abb65c2ff44f323efb36f4bb1f8",
+      "note": "User-approved CI and Action hardening scope with remote regression evidence"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783747270,
+      "digest": "870f4f6d614547d4f2e42bb2ae8b6a6f3bca601f67d5c14c17fc6f181bda9030",
+      "note": "User-approved 5.0 perfection scope with five-epic local lifecycle proof and archive regression evidence"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783747358,
+      "digest": "4ddf9c0095409f7f37d6a3a69e9276184f9af3f51b2be8e45523f609edce274a",
+      "note": "User-approved 5.0 scope; live remote discovery attempted and explicitly recorded as security-blocked"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783747450,
+      "digest": "348c86075cb33a25b3efbbe57ca13fecfe725621753226c9252a06ad63547283",
+      "note": "Closing approval after five-epic clean-room proof, 1,717 tests, full repository lane, and regression review"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783782217,
+      "digest": "8bddf24c9e096d983822d038a353a10d093cab2a1174a0e10b53885e3be7cb05",
+      "note": "User-authorized 5.0 migration: bind accepted hardening evidence to current scoped delivery inputs"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783782395,
+      "digest": "dde907607244641a8c0642380c74b979fb3fbf8e73fd8d9caa9712c0fcb13f17",
+      "note": "Rebind migrated evidence after final canonical formatting normalization"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783785109,
+      "digest": "dd0358c4604cbeb150c11e4f068239b67e1181e7cd2d02d5ec89eb035210ed87",
+      "note": "User-authorized 5.0 release hardening: rebind accepted evidence after final security, docs, and contract updates"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783786277,
+      "digest": "f4fd191e1a1c699e3b0b768ff88a4df1e011f000c2e84c3915c353ba288a29aa",
+      "note": "User-authorized 5.0 release hardening: rebind accepted evidence after final parser, security, and documentation corrections"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783786717,
+      "digest": "370021670c5e8cf5219b541138274c8650642a2e4827d68621e1d2276d81885f",
+      "note": "Rebind accepted lifecycle evidence to the committed delivery tree after removing retired files"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783787110,
+      "digest": "1bd6175b5ab5734bb44b662fc9ca08acd9d80df0c4627f4c2b84dcd32abc4a3a",
+      "note": "Rebind accepted lifecycle evidence after CHG-0007 atomically applied its canonical deltas"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783788049,
+      "digest": "dbb1359b611415bf946a07a416fe38c4c71e8c629eaad9ba6adf8769c60157f1",
+      "note": "Rebind accepted lifecycle evidence after the user-approved evaluator documentation expansion"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783788192,
+      "digest": "69d5d0c290156bf5de2f0483132bf581d422aceb3353d5c985af8c79a31adccc",
+      "note": "Rebind accepted lifecycle evidence after removing generated documentation build redirects"
+    }
+  ]
+}

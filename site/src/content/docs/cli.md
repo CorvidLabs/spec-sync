@@ -48,32 +48,10 @@ specsync coverage --json
 Scaffold spec files for modules that don't have one. Uses `specs/_template.spec.md` if present.
 
 ```bash
-specsync generate                          # template mode — guided starter specs
-specsync generate --provider anthropic     # AI mode — use the Anthropic API
-specsync generate --provider openai --model gpt-4o   # AI mode — pick provider + model
-specsync generate --provider ollama        # AI mode — keyless local Ollama
+specsync generate                          # deterministic guided starter specs
 ```
 
-With a provider configured, source code is sent to an LLM which generates filled-in specs (Purpose, Public API tables, Invariants, etc.). AI calls go through the shared [`corvid-ai`](https://crates.io/crates/corvid-ai) crate over plain HTTP — no CLI tool required. Just set `<PROVIDER>_API_KEY` and name the provider:
-
-| Provider | How it works |
-|:---------|:-------------|
-| `anthropic` | Anthropic Messages API (`ANTHROPIC_API_KEY`). Default model `claude-sonnet-4-6` |
-| `openai` | OpenAI Chat Completions API (`OPENAI_API_KEY`). Requires an explicit `--model` |
-| `openrouter` | OpenRouter API (`OPENROUTER_API_KEY`) |
-| `gemini` | Google Gemini API (`GEMINI_API_KEY`) |
-| `deepseek` | DeepSeek API (`DEEPSEEK_API_KEY`) |
-| `groq` | Groq API (`GROQ_API_KEY`) |
-| `mistral` | Mistral API (`MISTRAL_API_KEY`) |
-| `xai` | xAI API (`XAI_API_KEY`) |
-| `together` | Together API (`TOGETHER_API_KEY`). Requires an explicit `--model` |
-| `ollama` | Local Ollama HTTP API (`http://localhost:11434`, keyless) or Ollama Cloud (`OLLAMA_API_KEY`). Default model `llama3.3` |
-| `claude` | **Deprecated** — warns and routes to the `anthropic` API |
-| `copilot`, `cursor` | **Deprecated** |
-
-With no provider configured, `generate` auto-detects: no key anywhere falls back to keyless local Ollama; exactly one `<PROVIDER>_API_KEY` selects that provider; multiple keys prompt an interactive picker (TTY) or use a deterministic order. Add `--model <id>` to override the provider default.
-
-See [Configuration](configuration.md) for `aiProvider`, `aiModel`, `aiCommand`, `aiApiKey`, `aiBaseUrl`, and `aiTimeout`.
+Generation is local and deterministic. It never accepts provider or model flags, reads API keys, sends source to a model, or executes an AI command. Use `specsync agents install` or `specsync mcp` for enrichment through your coding agent's own trust boundary.
 
 ### `score`
 
@@ -318,6 +296,27 @@ Display configured validation rules and their current status (built-in rules, cu
 specsync rules                             # show all rules and their configuration
 ```
 
+### `change`
+
+Manage the complete verified SDD delivery lifecycle. Every command supports global `--json` output for agent clients.
+
+```bash
+specsync change new "Add passkeys" --kind feature --spec auth --path src/auth.rs
+specsync change answer CHG-0001-add-passkeys acceptance_criteria "Passkey login works"
+specsync change depend CHG-0002-update-ui CHG-0001-add-passkeys
+specsync change list
+specsync change show CHG-0001-add-passkeys
+specsync change approve CHG-0001-add-passkeys
+specsync change start CHG-0001-add-passkeys
+specsync change verify CHG-0001-add-passkeys
+specsync change accept CHG-0001-add-passkeys
+specsync change archive CHG-0001-add-passkeys
+specsync change check
+specsync change adopt --dry-run
+```
+
+Definition and closing approvals are mandatory and digest-bound. `change adopt` enables SDD for an existing project and can import active/canonical OpenSpec or Spec Kit artifacts.
+
 ### `lifecycle`
 
 Manage spec status transitions. Supports `promote`, `demote`, `set`, `status`, `history`, `guard`, `auto-promote`, and `enforce` subcommands.
@@ -405,8 +404,6 @@ specsync watch
 | `--strict` | Warnings become errors. Recommended for CI. |
 | `--require-coverage N` | Fail if file coverage < N%. |
 | `--root <path>` | Project root directory (default: cwd). |
-| `--provider <name>` | Enable AI-powered generation and select provider: `anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, or `ollama` (deprecated: `claude`→`anthropic`, `copilot`, `cursor`). Without this flag (and no AI config/env), `generate` uses templates only. |
-| `--model <id>` | Override the provider's default model (e.g. `gpt-4o`, `claude-sonnet-4-6`). Resolution is `--model` > `SPECSYNC_AI_MODEL` > `aiModel` config > provider default. |
 | `--format <fmt>` | Output format: `text` (default), `json`, or `markdown`. Markdown produces clean tables suitable for PRs and docs. |
 | `--json` | Shorthand for `--format json`. Structured output, no color codes. |
 | `--fix` | Auto-add undocumented exports as stub rows in spec Public API tables (on `check`). |

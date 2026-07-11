@@ -7,6 +7,7 @@
  */
 import type { APIContext } from 'astro'
 import { getCollection } from 'astro:content'
+import { contentSlug } from '../lib/content'
 
 function xmlEscape(s: string): string {
   return s
@@ -26,7 +27,7 @@ export async function GET(context: APIContext) {
 
   const items = posts
     .map((p) => {
-      const url = `${site}${base}/blog/${p.slug}`
+      const url = `${site}${base}/blog/${contentSlug(p.id)}`
       return `    <item>
       <title>${xmlEscape(p.data.title)}</title>
       <link>${url}</link>

@@ -8,11 +8,61 @@
 [![Crates.io](https://img.shields.io/crates/v/specsync.svg)](https://crates.io/crates/specsync)
 [![Downloads](https://img.shields.io/crates/d/specsync.svg)](https://crates.io/crates/specsync)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-**Bidirectional spec-to-code validation with cross-project references, dependency graphs, and AI-powered generation.** Written in Rust. Single binary. 33 languages (with AST support for 10). VS Code extension.
+**Turn requirements into module contracts that fail CI when code drifts—without throwing away the decisions that explain the fix.** Written in Rust. Single binary. 33 languages.
 
 [5-Minute Start](#get-started-in-5-minutes) &bull; [Spec Format](#spec-format) &bull; [CLI](#cli-reference) &bull; [VS Code Extension](#vs-code-extension) &bull; [Cross-Project Refs](#cross-project-references) &bull; [GitHub Action](#github-action) &bull; [Config](#configuration) &bull; [Docs Site](https://corvidlabs.github.io/spec-sync)
 
 </div>
+
+---
+
+## A contract change in 60 seconds
+
+Start with product intent in `specs/auth/requirements.md`:
+
+```markdown
+### REQ-auth-004
+The system SHALL let a signed-in user revoke every active session.
+```
+
+Refine it into the durable module contract in `specs/auth/auth.spec.md`:
+
+```markdown
+| Name | Kind | Description |
+|---|---|---|
+| `revoke_all_sessions` | function | Revokes every session owned by the current user. |
+```
+
+Now a developer adds a second public export without updating the contract:
+
+```rust
+pub fn revoke_all_sessions(user_id: UserId) -> Result<usize, SessionError> { /* ... */ }
+pub fn revoke_session(session_id: SessionId) -> Result<(), SessionError> { /* new */ }
+```
+
+The same check runs locally and in CI:
+
+```console
+$ specsync check --strict
+specs/auth/auth.spec.md
+  ⚠ undocumented export `revoke_session`
+
+1 warning treated as an error in strict mode
+```
+
+The fix is not just another generated document. The accepted change preserves:
+
+```text
+requirements.md  why the behavior exists and how success is judged
+auth.spec.md      the current module/API contract checked against code
+context.md        decisions, constraints, and files the next agent must know
+testing.md        requirement-to-test evidence
+CHG-*/            approved deltas, verification, and the delivery audit trail
+```
+
+Add the missing contract row—or make the export private—then rerun the check. CI turns green, while the requirement, decision context, evidence, and exact contract change remain reviewable in Git.
+
+[See the adversarial proof](https://corvidlabs.github.io/spec-sync/docs/comparisons/adversarial-proof/) · [Compare Spec Kit](https://corvidlabs.github.io/spec-sync/docs/comparisons/spec-kit/) · [Compare OpenSpec](https://corvidlabs.github.io/spec-sync/docs/comparisons/openspec/) · [Use them together](https://corvidlabs.github.io/spec-sync/docs/comparisons/using-together/)
 
 ---
 
@@ -31,6 +81,31 @@ SpecSync validates markdown module specs (`*.spec.md`) against your source code 
 | Column type mismatch between spec and schema | Warning | Type drift |
 | Required markdown section missing | **Error** | Incomplete spec |
 
+## Full SDD Lifecycle (5.0)
+
+SpecSync 5.0 manages delivery work as versioned change workspaces:
+
+```text
+draft → approved → implementing → verifying → accepted → archived
+```
+
+```bash
+SPECSYNC_BIN=specsync examples/sdd-lifecycle/run.sh
+```
+
+The executable example creates a disposable Git repository and performs every required step: it answers the complete deterministic interview, fills the selected artifacts, records definition approval, implements and commits the change, streams verification, records closing approval, and runs the unified check. For a contract-changing feature, the same gates additionally require a complete semantic delta with module-scoped requirement IDs before definition approval.
+
+```bash
+# merge the delivery branch, then archive when its diff no longer needs coverage
+specsync change archive CHG-0001-add-passkey-authentication
+```
+
+The first and closing approvals are mandatory, portable, digest-bound human gates. During implementation, `specsync check` validates code against canonical specs plus approved semantic deltas. Acceptance requires fresh tests and requirement evidence bound to the tested commit and working-tree inputs, atomically updates canonical requirements/specs, increments spec versions, and records the change ID. Dirty edits after verification invalidate the evidence. Archiving is intentionally post-merge: SpecSync keeps an accepted workspace active while the current delivery diff still depends on its path coverage.
+
+Run the repository's executable [single-change lifecycle](examples/sdd-lifecycle/) and [ordered concurrent changes](examples/sdd-concurrent-changes/) examples to exercise both workflows in disposable projects.
+
+Native Claude, Cursor, Codex, and Gemini integrations conduct the same deterministic interview through JSON commands, so humans and agents are equal clients of one workflow engine.
+
 ## Supported Languages
 
 Auto-detected from file extensions. Same spec format for all.
@@ -38,7 +113,7 @@ Auto-detected from file extensions. Same spec format for all.
 | Language | Exports Detected | Test Exclusions |
 |----------|-----------------|-----------------|
 | **TypeScript/JS** | `export function/class/type/const/enum`, re-exports, `export *` wildcard resolution, CommonJS `export =` (AST supported) | `.test.ts`, `.spec.ts`, `.d.ts` |
-| **Rust** | `pub fn/struct/enum/trait/type/const/static/mod`, filters restricted visibility (AST supported) | `#[cfg(test)]` modules |
+| **Rust** | `pub` and `pub(crate)` fn/struct/enum/trait/type/const/static/mod; narrower restricted visibility excluded (AST supported) | `#[cfg(test)]` modules |
 | **Go** | Uppercase `func/type/var/const`, methods | `_test.go` |
 | **Python** | `__all__`, or top-level `def/class` (no `_` prefix) (AST supported) | `test_*.py`, `*_test.py` |
 | **Swift** | `public/open` func/class/struct/enum/protocol/actor | `*Tests.swift` |
@@ -78,7 +153,7 @@ Auto-detected from file extensions. Same spec format for all.
 ### GitHub Action (recommended)
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v4
+- uses: CorvidLabs/spec-sync@v5
   with:
     strict: 'true'
     require-coverage: '100'
@@ -163,9 +238,9 @@ Expected output:
 That's it. The spec is the contract; if you remove `pub fn greet` from the source, `specsync check` will fail. If you add a new public function and don't list it in the spec, you get a warning. Drift gets caught at CI time, not in code review.
 
 **Next steps:**
-- Add a `CorvidLabs/spec-sync@v4` GitHub Action to your CI — it runs `specsync check` and posts results to PRs.
+- Add a `CorvidLabs/spec-sync@v5` GitHub Action to CI — it validates canonical specs and active change gates.
 - Use `specsync wizard` for an interactive spec-creation experience instead of `new`.
-- Use `specsync generate --provider auto` to AI-generate richer specs from existing code.
+- Use `specsync generate` for deterministic local scaffolds, then let your coding agent refine them.
 - See [`examples/quickstart/`](./examples/quickstart) for the same flow as a committed reference.
 
 For the full list of commands, see [CLI Reference](#cli-reference) below.
@@ -179,7 +254,11 @@ All commands at a glance. Run `specsync <command> --help` for details.
 ```bash
 specsync migrate                           # Upgrade from 3.x to 4.0.0 (.specsync/ layout)
 specsync migrate --dry-run                 # Preview migration without changes
-specsync init                              # Create the .specsync/ v4 project layout
+specsync init                              # Create the .specsync/ v5 project layout
+specsync change new "Add passkeys"         # Start the verified SDD interview
+specsync change status                     # Show active delivery state and next actions
+specsync change verify CHG-0001-add-passkeys # Run tests + requirement evidence gate
+specsync change adopt --dry-run            # Preview 4.x/OpenSpec/Spec Kit adoption
 specsync check                             # Validate specs against code
 specsync check --fix                       # Auto-add undocumented exports as stubs
 specsync diff                              # Show exports added/removed since HEAD
@@ -187,7 +266,7 @@ specsync diff --base HEAD~5                # Compare against a specific ref
 specsync coverage                          # Show file/module coverage
 specsync report                            # Per-module coverage with stale detection
 specsync generate                          # Scaffold specs for unspecced modules
-specsync generate --provider auto           # AI-powered specs (auto-detect provider)
+specsync agents install                     # Install native coding-agent workflows
 specsync scaffold auth                     # Scaffold spec + auto-detect source files
 specsync add-spec auth                     # Add a single spec + companion files
 specsync deps                              # Validate cross-module dependency graph
@@ -214,7 +293,7 @@ specsync lifecycle auto-promote            # Promote all specs that pass guards
 specsync lifecycle enforce --all           # CI: validate lifecycle rules
 specsync hooks install                    # Install agent instructions + git hooks
 specsync hooks status                     # Check what's installed
-specsync agents install                   # Install native skills + /specsync:create-spec commands
+specsync agents install                   # Install native skills + create-spec/create-change commands
 specsync agents status                    # Check what's installed
 specsync mcp                               # Start MCP server for AI agent integration
 specsync watch                             # Re-validate on every file change
@@ -367,7 +446,7 @@ specsync [command] [flags]
 | `diff` | Show exports added/removed since a git ref (default: `HEAD`) |
 | `coverage` | File and module coverage report |
 | `report` | Per-module coverage report with stale and incomplete detection |
-| `generate` | Scaffold specs for modules missing one (`--provider` for AI-powered content) |
+| `generate` | Deterministically scaffold specs for modules missing one |
 | `scaffold <name>` | Scaffold spec + auto-detect source files + register in registry |
 | `add-spec <name>` | Scaffold a single spec + companion files (`requirements.md`, `tasks.md`, `context.md`, `testing.md`, and `design.md` if enabled) |
 | `deps` | Validate cross-module dependency graph (cycles, missing deps, undeclared imports) |
@@ -398,7 +477,7 @@ specsync [command] [flags]
 | `hooks` | Install/uninstall agent instructions and git hooks (`install`, `uninstall`, `status`) |
 | `agents` | Install/uninstall native AI-tool skills and slash commands for Claude Code, Cursor, Codex, and Gemini CLI (`install`, `uninstall`, `status`) |
 | `mcp` | Start MCP server for AI agent integration (Claude Code, Cursor, etc.) |
-| `init` | Create the default `.specsync/` v4 layout and config |
+| `init` | Create the default `.specsync/` 5.0 layout, config, and SDD policy |
 | `watch` | Live validation on file changes (500ms debounce) |
 
 ### Flags
@@ -408,8 +487,6 @@ specsync [command] [flags]
 | `--strict` | Warnings become errors (recommended for CI) |
 | `--require-coverage N` | Fail if file coverage < N% |
 | `--root <path>` | Project root (default: cwd) |
-| `--provider <name>` | AI provider: `anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, `ollama` (or `auto`; deprecated `claude`/`copilot`). With nothing configured, `generate` is template-only. |
-| `--model <id>` | Model id for `generate` (overrides `SPECSYNC_AI_MODEL` and `aiModel` in config) |
 | `--fix` | Auto-add undocumented exports as stub rows in spec Public API tables |
 | `--force` | Skip hash cache and re-validate all specs |
 | `--create-issues` | Create GitHub issues for specs with validation errors (on `check`) |
@@ -661,7 +738,7 @@ code --install-extension corvidlabs.specsync
 - `SpecSync: Show Coverage` — open coverage report
 - `SpecSync: Score Spec Quality` — open scoring report
 - `SpecSync: Generate Missing Specs` — scaffold specs for unspecced modules
-- `SpecSync: Initialize Config` — create the `.specsync/` v4 project layout
+- `SpecSync: Initialize Config` — create the `.specsync/` 5.0 project layout
 
 ### Settings
 
@@ -703,8 +780,10 @@ jobs:
   specsync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v4
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: CorvidLabs/spec-sync@v5
         with:
           strict: 'true'
           require-coverage: '100'
@@ -724,8 +803,10 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v4
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: CorvidLabs/spec-sync@v5
         with:
           strict: 'true'
           comment: 'true'
@@ -747,7 +828,6 @@ required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples
 exclude_dirs = ["__tests__"]
 exclude_patterns = ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"]
 source_extensions = []
-ai_timeout = 120
 ```
 
 | Option | Type | Default | Description |
@@ -761,12 +841,6 @@ ai_timeout = 120
 | `exclude_patterns` | `string[]` | Common test globs | File patterns excluded from coverage |
 | `source_extensions` | `string[]` | All supported | Restrict to specific extensions (e.g., `["ts", "rs"]`) |
 | `parse_mode` | `string` | `"regex"` | Parser backend: `"regex"` (default) or `"ast"` (tree-sitter, opt-in for TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, Lisp) |
-| `ai_provider` | `string?` | — | AI provider: `anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, `ollama` (deprecated: `claude`/`copilot`) |
-| `ai_model` | `string?` | provider default | Model id (e.g. `claude-sonnet-4-6`; `openai`/`together` require one) |
-| `ai_api_key` | `string?` | env | API key; falls back to `<PROVIDER>_API_KEY`. Never written back to config |
-| `ai_base_url` | `string?` | — | Override the provider endpoint (self-hosted / proxy gateways) |
-| `ai_command` | `string?` | — | Deprecated, trusted shell escape hatch (reads stdin prompt, writes stdout markdown); committed values are ignored for security |
-| `ai_timeout` | `number?` | `120` | Seconds before AI generation times out per module |
 
 ### Legacy root-level TOML
 
@@ -775,22 +849,13 @@ ai_timeout = 120
 specs_dir = "specs"
 source_dirs = ["src", "lib"]
 required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
-ai_timeout = 120
 ```
 
 Config resolution order: `.specsync/config.toml` → `.specsync/config.json` → `.specsync.toml` → `specsync.json` → defaults with auto-detected source dirs.
 
-### Per-developer AI config
+### Agent-native enrichment
 
-On multi-agent teams, each contributor may use a different AI provider. To avoid conflicts in the shared config, create a **local override file**:
-
-```toml
-# .specsync/config.local.toml (gitignored automatically)
-ai_provider = "ollama"
-ai_model = "llama3"
-```
-
-This file is merged on top of the shared config and only supports `ai_*` keys. Alternatively, set `SPECSYNC_AI_PROVIDER` / `SPECSYNC_AI_MODEL` (or `SPECSYNC_AI_COMMAND`) env vars, or pass `--provider` / `--model` on the CLI (`flag > env > config`).
+SpecSync 5.0 never accepts provider credentials, sends source to a model, or executes an AI command. Run `specsync generate` for a deterministic local scaffold, then use `specsync agents install` or the MCP server so your existing coding agent can refine the markdown inside that agent's own trust boundary. Legacy AI configuration keys are ignored with migration guidance.
 
 ### Lifecycle Guards
 
@@ -871,7 +936,7 @@ review = 14
 **GitHub Action** — add `lifecycle-enforce: 'true'` to the spec-sync action to enforce lifecycle rules in CI:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v4
+- uses: CorvidLabs/spec-sync@v5
   with:
     lifecycle-enforce: 'true'
 ```
@@ -884,7 +949,6 @@ review = 14
 
 ```bash
 specsync generate                         # Scaffold template specs for all unspecced modules
-specsync generate --provider auto         # Use AI to generate filled-in specs from source code
 specsync coverage                         # See what's still missing
 ```
 
@@ -892,37 +956,19 @@ specsync coverage                         # See what's still missing
 
 Uses your custom template (`specs/_template.spec.md`) or the built-in default. Generates frontmatter plus guided starter sections for review.
 
-### AI mode (`--provider` or a configured provider)
+### Deterministic core, agent-native workflow
 
-Reads your source code, sends it to an LLM, and generates specs with real content — Purpose, Public API tables, Invariants, Error Cases, all filled in from the code. No manual filling required. API calls go through the shared [`corvid-ai`](https://crates.io/crates/corvid-ai) client — plain HTTP, no CLI tool required.
-
-**Providers** — set the matching `<PROVIDER>_API_KEY`:
-`anthropic`, `openai`, `openrouter`, `gemini`, `deepseek`, `groq`, `mistral`, `xai`, `together`, and `ollama` (local & **keyless**, or Ollama Cloud via `OLLAMA_API_KEY`). The `claude` and `copilot` providers are **deprecated** — `claude` now warns and routes to the `anthropic` API (no more `claude -p` shell-out).
-
-**Provider resolution** (`flag > env > config`): `--provider` > `SPECSYNC_AI_PROVIDER` env > `aiProvider` in config. With nothing set, `generate` auto-detects:
-
-- **no key anywhere → local Ollama** (`http://localhost:11434`) — the zero-config default
-- exactly one `<PROVIDER>_API_KEY` set → that provider
-- several keys set → interactive picker (TTY), else a deterministic order
-
-**Model** (`flag > env > config`): `--model` > `SPECSYNC_AI_MODEL` env > `aiModel` in config > the provider's default (`anthropic` → `claude-sonnet-4-6`; `openai`/`together` require an explicit model).
-
-```bash
-specsync generate --model llama3.3                              # local Ollama, zero config
-ANTHROPIC_API_KEY=… specsync generate --provider anthropic     # API provider
-specsync generate --provider openrouter --model anthropic/claude-sonnet-4-6
-```
-
-`aiCommand` (and `SPECSYNC_AI_COMMAND`) remain as an explicit, trusted shell escape hatch — any command that reads a prompt on stdin and writes markdown to stdout — but it is never auto-selected. Set `"aiTimeout"` in config to control the per-module timeout (default: 120 seconds).
+Generation reads local source metadata and writes reviewable templates; it performs no network inference and needs no API key. Install the native integration for Claude Code, Cursor, Codex, or Gemini, or expose the deterministic tools over MCP. The invoking coding agent can then read source and enrich the scaffold under its own permissions and audit boundary.
 
 ### Designed for AI agents
 
-For Claude Code, Cursor, Codex, and Gemini CLI, `specsync agents install` ships native integrations — a `SKILL.md` the tool auto-discovers (all four) and a `/specsync:create-spec` slash command (Claude/Cursor/Gemini — Codex's command mechanism is deprecated and global-only, so it gets the skill only) that scaffolds a spec, optionally with companion files, from either a module name or a natural-language feature description. This is separate from `specsync hooks install`, which remains the prose-instruction-file mechanism (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`, Copilot instructions) for tools without native skill/command support — run both, or whichever applies to your setup.
+For Claude Code, Cursor, Codex, and Gemini CLI, `specsync agents install` writes a project `SKILL.md` in each tool's documented discovery location. Claude, Cursor, and Gemini also receive create-spec and create-change commands; Codex gets the project skill only because its command mechanism is deprecated and global-only. Local installation and content are tested; live model discovery remains a separate environment/authentication check. This is separate from `specsync hooks install`, which remains the prose-instruction-file mechanism (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`, Copilot instructions) — run both, or whichever applies to your setup.
 
-The generate command is the entry point for LLM-powered spec workflows:
+The deterministic generator and validator are the entry points for agent workflows:
 
 ```bash
-specsync generate --provider auto                   # AI writes specs from source code
+specsync generate                                  # Write deterministic local scaffolds
+specsync agents install                            # Install native agent instructions
 specsync check --fix                               # auto-add any missing exports as stubs
 specsync check --json                              # validate, get structured feedback
 # LLM fixes errors from JSON output                # iterate until clean
@@ -981,7 +1027,6 @@ Shows exports added and removed per spec file since the given git ref. Useful fo
 src/
 ├── main.rs            CLI entry + output formatting
 ├── agents.rs          Native skill/slash-command installation (Claude Code, Cursor, Codex, Gemini CLI)
-├── ai.rs              AI-powered spec generation (prompt builder + command runner)
 ├── archive.rs         Task archival from companion tasks.md files
 ├── changelog.rs       Changelog generation between git refs
 ├── comment.rs         PR comment generation with spec links

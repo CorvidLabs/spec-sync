@@ -42,7 +42,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
 
       - uses: Swatinem/rust-cache@v2
 
@@ -51,18 +51,25 @@ jobs:
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
+        env:
+          TARGET: ${{ matrix.target }}
+          ARTIFACT: ${{ matrix.artifact }}
         run: |
-          cp target/${{ matrix.target }}/release/specsync ${{ matrix.artifact }}
-          chmod +x ${{ matrix.artifact }}
-          tar czf ${{ matrix.artifact }}.tar.gz ${{ matrix.artifact }}
-          shasum -a 256 ${{ matrix.artifact }}.tar.gz > ${{ matrix.artifact }}.tar.gz.sha256
+          cp "target/${TARGET}/release/specsync" "$ARTIFACT"
+          chmod +x "$ARTIFACT"
+          tar czf "${ARTIFACT}.tar.gz" "$ARTIFACT"
+          shasum -a 256 "${ARTIFACT}.tar.gz" > "${ARTIFACT}.tar.gz.sha256"
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+          ARTIFACT: ${{ matrix.artifact }}
         run: |
-          cp target/${{ matrix.target }}/release/specsync.exe ${{ matrix.artifact }}
-          Compress-Archive -Path ${{ matrix.artifact }} -DestinationPath ${{ matrix.artifact }}.zip
-          (Get-FileHash ${{ matrix.artifact }}.zip -Algorithm SHA256).Hash.ToLower() + "  ${{ matrix.artifact }}.zip" | Out-File -Encoding ascii ${{ matrix.artifact }}.zip.sha256
+          Copy-Item "target/$env:TARGET/release/specsync.exe" $env:ARTIFACT
+          Compress-Archive -Path $env:ARTIFACT -DestinationPath "$env:ARTIFACT.zip"
+          (Get-FileHash "$env:ARTIFACT.zip" -Algorithm SHA256).Hash.ToLower() + "  $env:ARTIFACT.zip" | Out-File -Encoding ascii "$env:ARTIFACT.zip.sha256"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

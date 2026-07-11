@@ -47,6 +47,7 @@ Core validation engine for spec-sync. Validates individual spec files against so
 9. Flat source files (e.g. `src/config.rs`) are detected as modules, excluding common entry points (main, lib, mod, index, app, `__init__`)
 10. Sections with no substantive content are reported as unfinished draft text rather than as template markers
 11. `validate_spec` records the spec's parsed lifecycle status on `ValidationResult.status` (None when frontmatter is unreadable) so reporters can surface status-based skips, e.g. drafts skipping section and export checks
+12. Requirements companions are validated when present but optional for technical/internal modules under the adaptive 5.0 artifact model
 
 ## Behavioral Examples
 
@@ -111,6 +112,7 @@ Core validation engine for spec-sync. Validates individual spec files against so
 | Date | Change |
 |------|--------|
 | 2026-07-10 | v5: keep coverage regression fixtures warning-free under current stable Clippy and document the intentionally in-file test-module layout |
+| 2026-07-10 | v5: make canonical requirements companions adaptive rather than empty mandatory ceremony |
 | 2026-07-02 | v4: add `source_within_root` — shared guard rejecting `files:` paths that escape the project root (absolute/`..`/symlink); applied in `validate_spec` and every export-extraction site (score, check --fix, diff, new) to close an out-of-root identifier-disclosure vector |
 | 2026-06-11 | v3: `validate_spec` populates `ValidationResult.status` with the parsed lifecycle status so callers can report draft skips |
 | 2026-06-07 | Update draft-only section warning wording |

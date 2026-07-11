@@ -580,15 +580,8 @@ pub fn validate_spec(
             );
         }
 
-        // Check that the companion requirements.md exists for non-draft specs
-        if let Some(parent) = spec_path.parent() {
-            let req_path = parent.join("requirements.md");
-            if !req_path.exists() {
-                result.warnings.push(
-                    "Missing companion requirements.md — run `specsync add-spec <name>` or `specsync generate` to scaffold one".to_string()
-                );
-            }
-        }
+        // Canonical companions are adaptive in the 5.0 SDD model. Technical
+        // and internal-only modules do not need an empty requirements file.
     }
 
     // ─── Custom Validation Rules ─────────────────────────────────────
@@ -831,7 +824,7 @@ fn suggest_similar_file(root: &Path, missing_file: &str) -> Option<String> {
 /// project — is rejected by the caller: reading it would count arbitrary host
 /// files as covered and leak their exported identifiers into coverage output and
 /// PR comments (a hostile-repo info-disclosure vector, the same threat model as a
-/// committed `ai_command`).
+/// committed executable configuration).
 ///
 /// Returns `true` when the path does not yet resolve (nonexistent/unreadable) so
 /// the existence check reports those instead; containment is only enforced for

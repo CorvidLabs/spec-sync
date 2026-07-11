@@ -16,7 +16,8 @@ spec: mcp.spec.md
 - Protocol version "2024-11-05" returned in initialize response; `initialize` advertises both `tools` and `resources` capabilities
 - Seven tools exposed: `specsync_check`, `specsync_coverage`, `specsync_generate`, `specsync_list_specs`, `specsync_init`, `specsync_score`, `specsync_issues`
 - Four resources exposed (`specsync:///specs`, `specsync:///graph`, `specsync:///config`, `specsync:///coverage`) plus one resource template (`specsync:///specs/{module}`)
-- `specsync_generate` resolves the AI provider through `ai::resolve_ai_provider` (the corvid-ai-backed `ai` module) when `ai: true` or a `provider` is given; an unresolvable provider returns a tool error
+- `specsync_generate` creates deterministic local scaffolds with no inference schema
+- Retired AI/provider/model/credential/base-URL/command arguments return an explicit error without echoing values
 - Tool errors returned as `isError: true` in result content, not as JSON-RPC error objects (except parse/method-not-found)
 - Resource read errors return JSON-RPC error -32602 (unknown URI, module not found)
 - Malformed JSON returns JSON-RPC error -32700 "Parse error"
@@ -40,3 +41,12 @@ spec: mcp.spec.md
 - Authentication or authorization
 - Streaming partial results during long operations
 - Server-side state between calls (each invocation reloads config from scratch)
+
+### REQ-mcp-001
+
+The MCP generate tool SHALL scaffold deterministically and delegate enrichment to its connected coding agent.
+
+Acceptance Criteria
+- The tool schema contains no AI/provider argument.
+- Tool and resource counts, JSON-RPC behavior, and root overrides remain stable.
+

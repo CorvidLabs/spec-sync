@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 4
+version: 7
 status: stable
 files:
   - src/main.rs
@@ -12,7 +12,6 @@ depends_on:
   - specs/validator/validator.spec.md
   - specs/exports/exports.spec.md
   - specs/generator/generator.spec.md
-  - specs/ai/ai.spec.md
   - specs/scoring/scoring.spec.md
   - specs/registry/registry.spec.md
   - specs/mcp/mcp.spec.md
@@ -22,6 +21,8 @@ depends_on:
   - specs/archive/archive.spec.md
   - specs/compact/compact.spec.md
   - specs/view/view.spec.md
+  - specs/change/change.spec.md
+  - specs/cmd_change/cmd_change.spec.md
   - specs/github/github.spec.md
   - specs/hash_cache/hash_cache.spec.md
   - specs/merge/merge.spec.md
@@ -37,7 +38,7 @@ depends_on:
 
 ## Purpose
 
-The `specsync` command-line interface — the main entry point for all user-facing operations. Parses CLI arguments via `clap`, routes to the appropriate subcommand handler, and orchestrates output formatting (colored text or JSON). Delegates all domain logic to the library modules; main.rs itself is purely a command dispatcher and output formatter.
+The `specsync` command-line entry point parses global options, routes canonical validation and verified SDD lifecycle commands to focused handlers, and preserves equivalent human-readable and structured output without owning domain policy.
 
 ## Public API
 
@@ -45,7 +46,7 @@ This module is the binary entry point (main.rs). All functions are private — t
 
 ### CLI Structure
 
-Three Clap derive structs define the CLI: Cli (root parser with global flags), Command (subcommand enum), and HooksAction (hooks sub-subcommand enum).
+Clap derive types define the root `Cli`, the `Command` namespace, and focused action enums such as `HooksAction`, `AgentsAction`, `LifecycleAction`, and `ChangeAction`.
 
 ### Subcommands
 
@@ -53,8 +54,9 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 |---------|-------------|-----------|
 | check | Validate all specs against source code (default when no subcommand given) | --strict, --require-coverage N, --json, --fix, --force, --create-issues, --explain, [SPEC...] |
 | coverage | Show file and module coverage report | --strict, --require-coverage N, --json |
-| generate | Scaffold spec files for unspecced modules | --provider PROVIDER (AI mode: auto/claude/anthropic/openai/ollama/copilot) |
-| init | Create a specsync.json config file with auto-detected source dirs | — |
+| generate | Deterministically scaffold spec files for unspecced modules | --uncovered, --batch MODULE... |
+| init | Create the 5.0 `.specsync/` layout, TOML config, SDD policy, and version stamp | — |
+| change | Manage the verified SDD lifecycle, interviews, approvals, verification, acceptance, adoption, and archive | new, answer, approve, start, verify, accept, archive, adopt |
 | score | Score spec quality (0–100) with letter grades and suggestions | --json, --explain, [SPEC...] |
 | watch | Watch spec and source files, re-running check on changes | --strict, --require-coverage N |
 | mcp | Run as an MCP (Model Context Protocol) server over stdio | — |
@@ -88,7 +90,7 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 | --root | Option PathBuf | cwd | Project root directory |
 | --format | text\|json\|markdown | text | Output format: colored text, machine-readable JSON, or markdown |
 | --json | bool | false | Shorthand for `--format json` |
-| --enforcement | Option EnforcementMode | None | Override enforcement mode from specsync.json (warn, enforce-new, strict) |
+| --enforcement | Option EnforcementMode | None | Override configured enforcement mode (warn, enforce-new, strict) |
 | --force | bool | false | Bypass hash cache and re-validate all specs |
 
 ### Internal Functions
@@ -96,10 +98,11 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 All functions in main.rs are private (no pub keyword). Key internal functions:
 
 - **main** — Parse CLI args, canonicalize root, dispatch to subcommand handler
-- **cmd_init** — Create specsync.json with auto-detected source dirs; no-op if config exists
+- **cmd_init** — Create the current `.specsync/` layout with auto-detected source dirs; no-op if config exists
+- **cmd_change** — Dispatch the verified SDD lifecycle and render equivalent text/JSON results
 - **cmd_check** — Load config, discover specs, validate, print results, exit with status
 - **cmd_coverage** — Load config, compute coverage, print detailed coverage report
-- **cmd_generate** — Scaffold specs for unspecced modules; optionally use AI provider
+- **cmd_generate** — Deterministically scaffold specs for unspecced modules
 - **cmd_score** — Score all specs and print quality grades
 - **cmd_add_spec** — Create a single spec + companion files for a named module
 - **cmd_init_registry** — Generate specsync-registry.toml from existing specs
@@ -134,7 +137,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 3. `--strict` causes warnings to produce a non-zero exit code
 4. `--require-coverage N` causes exit 1 if file coverage percent < N
 5. `--json` switches all output to machine-readable JSON (no ANSI colors)
-6. `cmd_init` is idempotent — does nothing if `specsync.json` or `.specsync.toml` already exists
+6. `cmd_init` is idempotent and never overwrites current or legacy project configuration
 7. `cmd_init_registry` is idempotent — does nothing if `specsync-registry.toml` already exists
 8. `cmd_add_spec` generates companion files even if the spec already exists
 9. `cmd_generate` re-runs validation after generating new specs to include them in the summary
@@ -185,11 +188,11 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 - **When** `specsync check --require-coverage 90` is run
 - **Then** the process exits with code 1 and prints the unspecced files
 
-### Scenario: Generate with AI
+### Scenario: Deterministic generation
 
-- **Given** an AI provider is available
-- **When** `specsync generate --provider auto` is run
-- **Then** auto-detects the provider and generates AI-enhanced specs
+- **Given** uncovered modules exist
+- **When** `specsync generate` is run
+- **Then** local template specs and companion files are generated
 
 ### Scenario: Resolve without network
 
@@ -244,7 +247,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 | Condition | Behavior |
 |-----------|----------|
 | Cannot determine cwd | Panics with "Cannot determine cwd" |
-| AI provider not found (with `--provider`) | Prints error to stderr and exits 1 |
+| Retired `--provider` or `--model` flag | Clap rejects the unknown argument |
 | Failed to write `specsync.json` | Panics with "Failed to write specsync.json" |
 | Failed to create spec directory | Prints error to stderr and exits 1 |
 | Failed to write spec file | Prints error to stderr and exits 1 |
@@ -262,7 +265,6 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 | `coverage` | < 1s | 3s |
 | `score` | < 1s | 3s |
 | `generate` (local) | < 2s | 5s |
-| `generate` (AI provider) | < 10s | 30s |
 | `init` | < 500ms | 2s |
 | `view` | < 200ms | 1s |
 | `diff` | < 1s | 3s |
@@ -280,7 +282,6 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 |------------|-------------------|----------|
 | File hash cache | 5 seconds | `hash_cache` module updates cache entries within 5s of file changes |
 | Spec parse cache | N/A | Parsed frontmatter is not cached; re-parsed on each run |
-| AI response cache | N/A | AI responses are not cached across runs |
 | Registry cache | 60 seconds | Remote registry entries cached for 60s with `--remote` flag |
 
 ### Resource Limits
@@ -289,7 +290,6 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 |----------|-------|----------|
 | Memory | 512MB | CLI should not exceed 512MB heap for projects with < 100 specs |
 | Concurrent file operations | 10 | Maximum 10 concurrent file reads during validation |
-| AI request timeout | 120s | AI provider calls timeout after 120 seconds |
 | HTTP timeout | 10s | GitHub API calls timeout after 10 seconds |
 | Git operation timeout | 30s | Git diff/log operations timeout after 30 seconds |
 
@@ -320,7 +320,6 @@ Cold start times (first run after boot) may be 2-3x higher due to disk cache war
 | validator | `validate_spec`, `find_spec_files`, `compute_coverage`, `get_schema_table_names`, `is_cross_project_ref`, `parse_cross_project_ref` |
 | exports | `has_extension`, `get_exported_symbols` (used by auto_fix_specs and cmd_diff) |
 | generator | `generate_specs_for_unspecced_modules`, `generate_specs_for_unspecced_modules_paths`, `generate_companion_files_for_spec` |
-| ai | `resolve_ai_provider` |
 | scoring | `score_spec`, `compute_project_score`, `SpecScore` |
 | registry | `generate_registry`, `fetch_remote_registry`, `RemoteRegistry` |
 | mcp | `run_mcp_server` |
@@ -347,8 +346,11 @@ Cold start times (first run after boot) may be 2-3x higher due to disk cache war
 
 | Date | Change |
 |------|--------|
+| 2026-07-10 | v5: dispatch the verified `specsync change` SDD lifecycle |
 | 2026-06-11 | v4: `--root` now errors (exit 2) for nonexistent paths; init scenario covers the v4 config layout |
 | 2026-04-10 | Add Performance Requirements section with response time targets, cache requirements, resource limits, and scalability targets |
 | 2026-03-25 | Initial spec |
 | 2026-04-06 | Add compact, archive-tasks, view, merge, issues subcommands; add --force, --create-issues, --format flags; add hash_cache/github/archive/compact/view/merge dependencies |
 | 2026-04-09 | Add scaffold, report, comment, changelog subcommands; add --enforcement and --explain flags; add --agents hook target; add comment/changelog/deps dependencies |
+| 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

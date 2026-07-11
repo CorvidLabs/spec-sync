@@ -1,6 +1,6 @@
 ---
 module: cmd_comment
-version: 1
+version: 4
 status: stable
 files:
   - src/commands/comment.rs
@@ -36,6 +36,7 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 3. When `--pr N` is set, resolves repo and uses `gh pr comment` to post
 4. Exits 1 if `gh` CLI fails or repo cannot be determined
 5. The marketplace action and CI workflow both use `specsync comment` (stdout mode) as the single source of comment content — no alternative comment generation paths exist
+6. Configured SDD verification commands execute and fail closed, but their child stdout and stderr are suppressed so stdout remains a markdown-only protocol
 
 ## Behavioral Examples
 
@@ -56,6 +57,12 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 - **Given** the marketplace action runs with `comment: true`
 - **When** `specsync comment` is invoked without `--pr`
 - **Then** the stdout output is identical to what the CI workflow captures via `cargo run -- comment`
+
+### Scenario: Configured verification command emits output
+
+- **Given** CI configures an SDD verification command that writes to stdout or stderr
+- **When** `specsync comment` runs
+- **Then** the command still executes and affects lifecycle status, but its child output is absent from the rendered markdown stream
 
 ## Error Cases
 
@@ -87,3 +94,6 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 |------|--------|
 | 2026-04-11 | Documented unified pipeline: marketplace action and CI both use `specsync comment` for identical PR comments |
 | 2026-04-09 | Initial spec |
+| 2026-07-11 | CHG-0005-close-final-fail-closed-review-gaps-in-5-0-lifecycle-evidence-and-pr-reporting: Close final fail-closed review gaps in 5.0 lifecycle evidence and PR reporting |
+| 2026-07-11 | CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re: Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

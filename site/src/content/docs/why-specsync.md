@@ -29,7 +29,7 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 | Catches renamed exports | **Yes** | No | No | No | No |
 | Schema/DB drift detection | **Yes** | No | No | No | No |
 | Cross-project references | **Yes** | Via `$ref` | No | No | No |
-| Works with any language | **12 languages** | Language-specific | JS/TS only | N/A | N/A |
+| Works with any language | **33 languages** | Language-specific | JS/TS only | N/A | N/A |
 | AI agent integration (MCP) | **Yes** | Via plugins | No | No | No |
 | CI/CD integration | **GitHub Action** | Various | Various | Manual | No |
 | Spec lifecycle management | **Yes** | No | No | No | Manual |
@@ -40,6 +40,30 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 ---
 
 ## Detailed Comparisons
+
+### vs. Spec Kit and OpenSpec
+
+[Spec Kit](https://github.github.com/spec-kit/) provides guided SDD plus configurable, resumable workflows and human gates. [OpenSpec](https://github.com/Fission-AI/OpenSpec) provides an action-based artifact graph, semantic deltas, agentic verification, synchronization, and archival. The comparison below was verified against their official documentation on 2026-07-11 and distinguishes deterministic blocking enforcement from configurable or agentic workflows:
+
+| SDD capability | SpecSync 5.0 | Spec Kit core | OpenSpec core |
+|:---------------|:-------------:|:-------------:|:-------------:|
+| Deterministic adaptive interview | **Yes** | Template/workflow driven | Schema/instruction driven |
+| Optional artifacts selected by risk | **Yes** | Presets/workflows | Configurable schemas |
+| Semantic deltas and canonical merge | **Yes** | No | **Yes** |
+| Bidirectional spec ↔ real code exports | **Yes** | Extension/agent analysis | No |
+| Stable requirement → test evidence | **Required** | Artifact-level by default | Artifact-level by default |
+| Digest-bound human approvals | **Two required gates** | Workflow gates | Confirmation at archive |
+| Active code checked against future contract | **Deterministic blocking gate** | Agent/workflow analysis | Agentic `/opsx:verify`; non-blocking by default |
+| Concurrent semantic conflict detection | **Deterministic pre-implementation/acceptance gate** | Workflow/extension dependent | Sync/archive-time agentic handling |
+| Configured tests executed by CI gate | **Yes** | Configurable workflow shell steps | Agentic verification |
+| Verification command shell isolation | **No shell** | Workflow shell supported | Agent/tool dependent |
+| Import existing Spec Kit/OpenSpec work | **Yes** | N/A | N/A |
+
+Sources: [Spec Kit workflows](https://github.github.com/spec-kit/reference/workflows.html), [Spec Kit recommended workflow](https://github.github.com/spec-kit/quickstart.html), [OpenSpec commands](https://github.com/Fission-AI/OpenSpec/blob/main/docs/commands.md), and [OpenSpec workflows](https://github.com/Fission-AI/OpenSpec/blob/main/docs/workflows.md).
+
+For evaluator-ready detail, see [SpecSync vs Spec Kit](../comparisons/spec-kit/), [SpecSync vs OpenSpec](../comparisons/openspec/), [using them together](../comparisons/using-together/), and the [adversarial drift proof](../comparisons/adversarial-proof/).
+
+SpecSync does not attempt to win by generating more Markdown. Its differentiator is that an approved specification becomes a deterministic executable CI contract: code, exports, requirements, tests, deltas, approvals, and archival state must agree before the change can close.
 
 ### vs. OpenAPI / Swagger
 
@@ -88,26 +112,26 @@ Most tools check in one direction — either "does the code match the docs?" or 
 
 ### Language Agnostic
 
-One tool, one format, 12 languages. Whether your project is TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, or YAML — same `*.spec.md` format, same validation.
+One tool, one format, 33 languages — the same `*.spec.md` contract and lifecycle across polyglot repositories.
 
 ### AI-Native
 
 SpecSync was built for the AI-assisted development era:
 
 - **MCP server mode** lets AI agents query your specs, check coverage, and generate new specs in real time
-- **AI-powered generation** creates meaningful spec content (not just templates) using Claude, OpenAI, Ollama, or Copilot
+- **Agent-native enrichment** lets your existing coding agent refine deterministic scaffolds without moving credentials into SpecSync
 - **Structured output** (JSON mode) integrates cleanly with agent workflows
 - **AGENTS.md generation** produces instruction files for Claude Code, Cursor, and Copilot
 
-### Spec Lifecycle
+### Verified Change Lifecycle
 
 Specs aren't static documents — they have a lifecycle:
 
 ```
-create → validate → iterate → stabilize → maintain → compact → archive
+draft → approved → implementing → verifying → accepted → archived
 ```
 
-SpecSync manages this lifecycle with companion files (requirements, tasks, context), quality scoring, changelog compaction, and task archival.
+SpecSync manages this lifecycle with deterministic interviews, adaptive artifacts, semantic deltas, two human approval gates, requirement/test traceability, effective-contract validation, and immutable archives. Canonical module maturity remains separate.
 
 ### Zero Dependencies
 
@@ -121,7 +145,7 @@ SpecSync is not the right tool if:
 
 - **You only need API reference docs** — use auto-doc tools (TypeDoc, rustdoc) instead
 - **Your project has < 3 modules** — the overhead isn't worth it for tiny projects
-- **Your team doesn't write specs** — SpecSync validates specs, it doesn't replace the need to write them (though AI generation helps bootstrap)
+- **Your team doesn't write specs** — SpecSync validates specs and scaffolds the structure, but humans or their coding agents still own the contract
 - **You need runtime API contract testing** — use OpenAPI + contract testing tools instead
 
 ---

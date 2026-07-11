@@ -6,7 +6,7 @@ spec: exports.spec.md
 
 - As a developer, I want spec-sync to extract public exports from my source files automatically so that I can validate my specs against actual code
 - As a TypeScript developer, I want all export forms recognized (named, default, re-exports, wildcard) so that nothing is missed
-- As a Rust developer, I want externally public `pub` items extracted while restricted `pub(crate)`/`pub(super)`/`pub(self)`/`pub(in ...)` items are excluded so that my module's public API is accurately captured
+- As a Rust developer, I want plain `pub` and crate-visible `pub(crate)` items extracted from every listed file so a module spec captures both external API and crate collaboration contracts
 - As a Python developer, I want `__all__` respected when present, with fallback to top-level definitions, so that my intended public API is what gets checked
 - As a Go developer, I want uppercase identifiers recognized as exports so that Go's visibility convention is supported
 - As a polyglot team, I want export extraction for all 33 supported languages so that spec-sync works across our entire codebase
@@ -26,6 +26,7 @@ spec: exports.spec.md
 - `ParseMode::Ast` uses tree-sitter for TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, and Lisp/Scheme/Emacs Lisp; falls back to regex for other languages (Nim, Crystal have no published tree-sitter grammar) or on empty/failed AST results
 - Test file detection uses language-specific patterns (`.test.ts`, `_test.go`, `test_*.py`, etc.) plus well-known test directory names (`tests`, `__tests__`, `fixtures`, `mocks`, ...)
 - All regex patterns are compiled once via `LazyLock` for performance
+- Rust regex and AST modes include `pub` and `pub(crate)` declarations and re-exports across all listed files while excluding `pub(super)`, `pub(self)`, and `pub(in ...)`
 
 ## Constraints
 
@@ -41,3 +42,14 @@ spec: exports.spec.md
 - Extracting function signatures, parameter types, or return types
 - Cross-file dependency resolution (except TypeScript wildcard re-exports, one level deep)
 - Extracting private/internal symbols for any purpose
+
+### REQ-exports-001
+
+The Rust export scanner SHALL preserve every documented contract symbol across every source file listed by a spec.
+
+Acceptance Criteria
+- Regex and AST parsing include plain `pub` and crate-visible `pub(crate)` declarations, including valid whitespace variants.
+- Crate-visible items and re-exports inside private inline modules are included consistently in both parse modes.
+- Narrower `pub(super)`, `pub(self)`, and `pub(in ...)` declarations remain excluded.
+- A multi-file fixture matching issue #334 passes strict phantom/undocumented export validation in both parse modes.
+

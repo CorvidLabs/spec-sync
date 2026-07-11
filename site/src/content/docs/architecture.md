@@ -17,8 +17,7 @@ src/
 ├── config.rs            .specsync/config.toml loading + legacy fallback
 ├── parser.rs            Frontmatter + spec body parsing
 ├── validator.rs         Validation pipeline + coverage computation
-├── generator.rs         Spec scaffolding (template + AI-powered)
-├── ai.rs                AI provider resolution, prompt building, API/CLI execution
+├── generator.rs         Deterministic spec and companion scaffolding
 ├── scoring.rs           Spec quality scoring (0–100, weighted rubric)
 ├── mcp.rs               MCP server (JSON-RPC over stdio, tools for check/generate/score)
 ├── watch.rs             File watcher (notify, 500ms debounce)

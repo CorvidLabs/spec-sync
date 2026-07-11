@@ -1,6 +1,6 @@
 ---
 module: cmd_agents
-version: 1
+version: 2
 status: stable
 files:
   - src/commands/agents.rs
@@ -14,7 +14,7 @@ depends_on:
 
 ## Purpose
 
-Implements the `specsync agents` command. Routes install/uninstall/status subcommands to the `agents` library module, translating boolean CLI flags into agent tool lists.
+Implements `specsync agents` by routing install, uninstall, and status actions for the project-local verified-SDD skills and supported create-spec/create-change commands.
 
 ## Public API
 
@@ -69,3 +69,4 @@ Implements the `specsync agents` command. Routes install/uninstall/status subcom
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-07-01 | claude | Initial spec |
+| 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |

@@ -19,7 +19,7 @@ spec: agents.spec.md
 
 ## Current Status
 
-Fully implemented and shipped. All four `AgentTool` variants work: Claude (skill + command), Cursor (skill + flat command, no frontmatter), Codex (skill only, project-scoped), Gemini (skill + TOML command). 22 unit tests cover path correctness, idempotency, and safe uninstall (verified sibling files/dirs in shared `commands/` folders survive uninstall).
+Updated for 5.0 SDD. All four tools receive the verified lifecycle skill; Claude, Cursor, and Gemini also receive create-spec and create-change commands. Installation remains content-aware and safe for shared command directories, with unit coverage for upgrade, idempotency, and uninstall behavior.
 
 ## Notes
 

@@ -1,6 +1,6 @@
 [package]
 name = "specsync"
-version = "4.8.0"
+version = "5.0.0"
 edition = "2024"
 rust-version = "1.89"
 description = "Bidirectional spec-to-code validation with schema column checking — 33 languages, single binary"
@@ -30,9 +30,9 @@ tree-sitter-typescript = "0.23"
 tree-sitter-python = "0.23"
 tree-sitter-rust = "0.23"
 sha2 = "0.10"
+fs2 = "0.4"
 ureq = { version = "3", features = ["json"] }
 dialoguer = "0.11"
-corvid-ai = "0.1.0"
 tree-sitter-c = "0.24.2"
 tree-sitter-cpp = "0.23.4"
 tree-sitter-scala = "0.26.0"

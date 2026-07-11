@@ -40,7 +40,7 @@ Navigate to your project root and run:
 specsync init
 ```
 
-This creates `.specsync/config.toml` with auto-detected source directories and adds `.specsync/hashes.json` to your `.gitignore` (the hash cache is a local-only optimization). The config looks like:
+This creates `.specsync/config.toml`, enables the verified lifecycle in `.specsync/sdd.json`, detects test commands, and offers to install native agent skills and create the first change.
 
 ```toml
 specs_dir = "specs"
@@ -65,16 +65,22 @@ See [Configuration](configuration.md) for all options.
 
 ---
 
-## 2. Generate Specs
+## 2. Create a Verified Change
+
+```bash
+specsync change new "Document and verify the existing authentication module" \
+  --spec auth --path src/auth
+```
+
+Answer the returned questions, complete its adaptively selected artifacts, and approve the definition before implementation. Agents installed during `init` conduct this interview conversationally.
+
+## 3. Generate Specs
 
 Generate template specs for all source modules:
 
 ```bash
-# Template-based (instant, no AI needed)
+# Deterministic local scaffold
 specsync generate
-
-# AI-powered (richer content, requires AI provider)
-specsync generate --ai
 ```
 
 This creates a directory structure like:
@@ -129,7 +135,7 @@ Handles user authentication via JWT tokens.
 
 ---
 
-## 3. Validate
+## 4. Validate
 
 Run validation to check specs against your code:
 
@@ -169,7 +175,7 @@ specsync check --require-coverage 80
 
 ---
 
-## 4. Iterate
+## 5. Iterate
 
 Fix the issues SpecSync found:
 
@@ -194,8 +200,10 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v4
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: CorvidLabs/spec-sync@v5
         with:
           strict: true
           require-coverage: 80
@@ -219,7 +227,7 @@ Once you're up and running, explore these features:
 |---------|---------|-------|
 | Quality scoring | `specsync score` | [CLI Reference](cli.md#score) |
 | Watch mode | `specsync watch` | [CLI Reference](cli.md#watch) |
-| AI generation | `specsync generate --ai` | [AI Agents](integrations/ai-agents.md) |
+| Agent enrichment | `specsync agents install` | [AI Agents](integrations/ai-agents.md) |
 | Schema validation | Add `schemaDir` to config | [Configuration](configuration.md) |
 | Cross-project refs | `owner/repo@module` syntax | [Cross-Project Refs](cross-project-refs.md) |
 | MCP server | `specsync mcp` | [AI Agents](integrations/ai-agents.md) |

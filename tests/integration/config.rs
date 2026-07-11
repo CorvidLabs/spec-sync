@@ -6,6 +6,37 @@ use tempfile::TempDir;
 // ─── TOML Config Tests ──────────────────────────────────────────────────
 
 #[test]
+fn retired_ai_config_keys_warn_by_name_without_echoing_values() {
+    for (file_name, content, expected_key) in [
+        (
+            ".specsync.toml",
+            "source_dirs = [\"src\"]\nai_api_key = \"sk-toml-never-echo\"\n",
+            "ai_api_key",
+        ),
+        (
+            "specsync.json",
+            r#"{"sourceDirs":["src"],"aiApiKey":"sk-json-never-echo"}"#,
+            "aiApiKey",
+        ),
+    ] {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join("src")).unwrap();
+        fs::write(tmp.path().join(file_name), content).unwrap();
+
+        let output = specsync()
+            .args(["coverage", "--root"])
+            .arg(tmp.path())
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains(expected_key));
+        assert!(stderr.contains("ignored"));
+        assert!(!stderr.contains("sk-toml-never-echo"));
+        assert!(!stderr.contains("sk-json-never-echo"));
+    }
+}
+
+#[test]
 fn toml_config_is_loaded() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
@@ -567,6 +598,24 @@ fn action_requires_release_checksums() {
     assert!(
         action.contains("shasum -a 256 -c \"${ARCHIVE}.sha256\""),
         "Unix archive checksums should be verified before extraction"
+    );
+}
+
+#[test]
+fn action_supports_a_quoted_trusted_release_mirror() {
+    let action = fs::read_to_string("action.yml").expect("action.yml should be readable");
+
+    assert!(
+        action.contains("SPECSYNC_DOWNLOAD_BASE_URL: ${{ inputs.download-base-url }}"),
+        "action should pass the mirror input through an environment variable"
+    );
+    assert!(
+        action.contains(r#"BASE_URL="${SPECSYNC_DOWNLOAD_BASE_URL%/}""#),
+        "action should normalize a trailing slash without evaluating the input"
+    );
+    assert!(
+        action.contains(r#"curl -fsSL "${BASE_URL}/${ARCHIVE}""#),
+        "action should quote the complete mirror download URL"
     );
 }
 

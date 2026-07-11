@@ -1,6 +1,6 @@
 ---
 module: config
-version: 3
+version: 4
 status: stable
 files:
   - src/config.rs
@@ -61,6 +61,7 @@ The configuration file supports the following top-level sections:
 7. TOML parsing is zero-dependency — uses line-by-line string parsing, not a TOML library
 8. The reader accepts both TOML string kinds for scalar and array values: basic `"..."` strings (backslash escapes decoded) and literal `'...'` strings (taken verbatim, no escape processing); a `#`, `,`, `[`, or `]` appearing inside either kind is treated as content, not as a comment or array structure
 9. A config file that is absent is expected — defaults apply silently. But a config file that **exists yet cannot be read** (e.g. not valid UTF-8) fails loud: a warning naming the file is printed and built-in defaults are used, rather than silently reverting to defaults (which would downgrade enforcement — strict→warn, exit 1→0 — with no signal). The same applies to the optional local override file (`config.local.toml`)
+10. Retired AI key names are ignored with migration guidance; their values are never retained, serialized, printed, or executed
 
 ## Behavioral Examples
 
@@ -97,7 +98,7 @@ The configuration file supports the following top-level sections:
 
 | Module | What is used |
 |--------|-------------|
-| types | `SpecSyncConfig`, `AiProvider` |
+| types | `SpecSyncConfig` |
 | exports | `has_extension` for checking if files have supported language extensions |
 
 ### Consumed By
@@ -120,3 +121,4 @@ The configuration file supports the following top-level sections:
 | 2026-04-06 | Document github config section, rules section, and full config file structure |
 | 2026-07-03 | Document `read_config_file` (leading-BOM-tolerant config read, shared with `migrate`) |
 | 2026-07-06 | Document fail-loud behavior for present-but-unreadable config (invariant 9): unreadable config/local-override files now warn loudly before falling back to defaults; clarified Error Cases table |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

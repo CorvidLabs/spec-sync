@@ -2,6 +2,7 @@ use colored::Colorize;
 use std::path::Path;
 use std::process;
 
+use crate::change;
 use crate::comment;
 use crate::github;
 use crate::ignore::IgnoreRules;
@@ -18,7 +19,7 @@ pub fn cmd_comment(
     enforcement: Option<types::EnforcementMode>,
     require_coverage: Option<usize>,
 ) {
-    let (config, spec_files) = load_and_discover(root, false);
+    let (config, spec_files) = load_and_discover(root, true);
 
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);
@@ -32,16 +33,17 @@ pub fn cmd_comment(
     });
 
     // Use the same validation pipeline as `check` for consistent results
-    let (total_errors, total_warnings, passed, total, all_errors, all_warnings) = run_validation(
-        root,
-        &spec_files,
-        &schema_tables,
-        &schema_columns,
-        &config,
-        true, // collect mode
-        false,
-        &ignore_rules,
-    );
+    let (total_errors, total_warnings, passed, total, mut all_errors, mut all_warnings) =
+        run_validation(
+            root,
+            &spec_files,
+            &schema_tables,
+            &schema_columns,
+            &config,
+            true, // collect mode
+            false,
+            &ignore_rules,
+        );
 
     let coverage = compute_coverage(root, &spec_files, &config);
 
@@ -54,15 +56,34 @@ pub fn cmd_comment(
         &coverage,
         require_coverage,
     );
-    let overall_passed = exit_code == 0;
+    // Configured verification commands still execute and fail closed, but their
+    // child output must not contaminate the markdown-only stdout protocol.
+    let sdd_report = change::check_project_quiet(root);
+    let sdd_error_count = sdd_report.errors.len();
+    let sdd_warning_count = sdd_report.warnings.len();
+    all_errors.extend(
+        sdd_report
+            .errors
+            .into_iter()
+            .map(|error| format!(".specsync/sdd.json: {error}")),
+    );
+    all_warnings.extend(
+        sdd_report
+            .warnings
+            .into_iter()
+            .map(|warning| format!(".specsync/sdd.json: {warning}")),
+    );
+    let display_errors = total_errors + sdd_error_count;
+    let display_warnings = total_warnings + sdd_warning_count;
+    let overall_passed = exit_code == 0 && sdd_error_count == 0;
     let repo = github::detect_repo(root);
     let branch = comment::detect_branch(root);
 
     let body = comment::render_check_comment(
         total,
         passed,
-        total_warnings,
-        total_errors,
+        display_warnings,
+        display_errors,
         &all_errors,
         &all_warnings,
         &coverage,

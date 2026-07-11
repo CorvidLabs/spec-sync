@@ -26,8 +26,8 @@ spec: cli.spec.md
 | JSON output | `--json` flag is passed | any command runs | output is valid JSON with no ANSI escape codes |
 | Init idempotency | `specsync.json` already exists in the project root | `specsync init` is run | prints "specsync.json already exists" and returns without modifying it |
 | Coverage threshold | file coverage is 80% | `specsync check --require-coverage 90` is run | the process exits with code 1 and prints the unspecced files |
-| Generate with AI | an AI provider is available | `specsync generate --provider auto` is run | auto-detects the provider and generates AI-enhanced specs |
-| Generate with pinned model | an AI provider is available | `specsync generate --provider anthropic --model claude-opus-4-8` is run | the `--model` value is passed through, overriding `SPECSYNC_AI_MODEL`/`aiModel` |
+| Deterministic generate | uncovered modules exist | `specsync generate` is run | local template specs and companions are created |
+| Retired provider/model flags | user supplies `--provider` or `--model` | Clap parses arguments | unknown arguments are rejected |
 | Panic is caught | a subcommand panics internally | the binary runs | a "specsync panicked … please report it" message is printed and the process exits 1 (no raw backtrace) |
 | Resolve without network | specs have cross-project `depends_on` refs | `specsync resolve` is run (without `--remote`) | lists the refs but does not verify them against remote registries |
 | Fix auto-adds undocumented exports | a spec's source files have exports not documented in the Public API section | `specsync check --fix` is run | skeleton rows for the missing exports are appended to the Public API section and the spec file is written to disk |
@@ -37,7 +37,6 @@ spec: cli.spec.md
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
 | Cannot determine cwd | Panics with "Cannot determine cwd" | Keep or add a focused assertion before changing this behavior |
-| AI provider not found (with `--provider`) | Prints error to stderr and exits 1 | Keep or add a focused assertion before changing this behavior |
 | Failed to write `specsync.json` | Panics with "Failed to write specsync.json" | Keep or add a focused assertion before changing this behavior |
 | Failed to create spec directory | Prints error to stderr and exits 1 | Keep or add a focused assertion before changing this behavior |
 | Failed to write spec file | Prints error to stderr and exits 1 | Keep or add a focused assertion before changing this behavior |

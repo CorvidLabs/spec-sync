@@ -4,7 +4,7 @@ section: "Getting started"
 order: 0
 ---
 
-Bidirectional spec-to-code validation. Written in Rust. Single binary. 12 languages. VS Code extension.
+Verified spec-driven development and bidirectional spec-to-code validation. Written in Rust. Single binary. 33 languages.
 
 [Get Started](quickstart.md)
 [Why SpecSync?](why-specsync.md)
@@ -34,11 +34,12 @@ Specs reference functions that were renamed. Code exports things the spec doesn'
 ```bash
 cargo install specsync          # or use the GitHub Action, or download a binary
 specsync init                   # create .specsync/config.toml
+specsync change new "Add auth" # start deterministic SDD interview
+specsync change verify CHG-...  # run tests and requirement traceability gate
 specsync check                  # validate specs against code
 specsync coverage               # see what's covered
 specsync generate               # scaffold specs for unspecced modules
-specsync generate --provider auto           # AI-powered specs (auto-detect provider)
-specsync generate --provider anthropic      # use Anthropic API directly
+specsync agents install                     # install native coding-agent workflows
 specsync score                  # quality-score your specs (0–100)
 specsync add-spec auth          # scaffold a single spec with companion files
 specsync resolve --remote       # verify cross-project spec references
@@ -62,6 +63,8 @@ TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML.
 |:-----------------|:-----------------|
 | [Quick Start Guide](quickstart.md) — up and running in 5 min | [CLI Reference](cli.md) — all 14 commands |
 | [Why SpecSync?](why-specsync.md) — comparison with alternatives | [Configuration](configuration.md) — `.specsync/config.toml` options |
+| [Spec Kit comparison](comparisons/spec-kit/) — lifecycle and artifact differences | [OpenSpec comparison](comparisons/openspec/) — deltas, archives, and enforcement |
+| [Use them together](comparisons/using-together/) — artifact equivalence and integration | [Adversarial proof](comparisons/adversarial-proof/) — what each core actually detects |
 | [Spec Format](spec-format.md) — how to write specs | [Cross-Project Refs](cross-project-refs.md) — multi-repo validation |
-| [Workflow Guide](workflow.md) — full lifecycle | [AI Agents](integrations/ai-agents.md) — MCP server + AI generation |
+| [Workflow Guide](workflow.md) — full lifecycle | [AI Agents](integrations/ai-agents.md) — native skills + MCP |
 | [Architecture](architecture.md) — how it works | [VS Code Extension](integrations/vscode-extension.md) — editor integration |

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0005-close-final-fail-closed-review-gaps-in-5-0-lifecycle-evidence-and-pr-reporting",
+  "slug": "close-final-fail-closed-review-gaps-in-5-0-lifecycle-evidence-and-pr-reporting",
+  "title": "Close final fail-closed review gaps in 5.0 lifecycle evidence and PR reporting",
+  "description": "Close final fail-closed review gaps in 5.0 lifecycle evidence and PR reporting",
+  "kind": "bug_fix",
+  "state": "archived",
+  "base_commit": "8196db41a6d9149f0551ced078d691cf5eeea2d5",
+  "created_at": 1783752741,
+  "updated_at": 1783753733,
+  "affected_specs": [
+    "change",
+    "cmd_comment"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/commands/comment.rs",
+    "tests/integration/comment.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Persisted change IDs and spec scopes cannot escape their workspaces; corrupt approvals or tombstone history fail closed; CI requires fresh verification evidence; PR comments report SDD failures; focused and full cross-platform gates pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

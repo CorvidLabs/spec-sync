@@ -17,8 +17,11 @@ mod languages;
 #[path = "integration/mcp.rs"]
 mod mcp;
 
-#[path = "integration/ai.rs"]
-mod ai;
-
 #[path = "integration/config.rs"]
 mod config;
+
+#[path = "integration/change.rs"]
+mod change;
+
+#[path = "integration/comment.rs"]
+mod comment;

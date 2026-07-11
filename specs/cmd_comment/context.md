@@ -8,6 +8,8 @@ spec: cmd_comment.spec.md
 - `render_check_comment` (in `src/comment.rs`) is the single renderer for the markdown body. There is intentionally no second comment-generation path — both the marketplace action and the project CI shell out to `specsync comment`.
 - Posting vs printing is the only branch in this wrapper: with `--pr N` it resolves the repo and shells out to `gh pr comment`; without `--pr` it prints the body to stdout.
 - Enforcement resolution: `--enforcement` overrides config; `--strict` implies strict enforcement; otherwise `config.enforcement` is used.
+- **Protocol-clean lifecycle checking**: comment mode calls `change::check_project_quiet`, which executes configured verification commands with child stdout/stderr suppressed. The ordinary lifecycle checker and explicit verification keep inherited output for local observability.
+- **Defense in depth in CI**: the project workflow uses `cargo run --quiet -- comment`; the renderer bounds the body, and the workflow applies a second UTF-8-safe byte cap before writing GitHub outputs.
 
 ## Files to Read First
 
@@ -18,7 +20,7 @@ spec: cmd_comment.spec.md
 
 ## Current Status
 
-Implemented and stable. The `comment` renderer is extensively unit-tested; the wrapper itself (validation reuse + gh shell-out branch) has no inline tests.
+Implemented and stable. Renderer unit tests cover body size and Unicode boundaries, and integration tests cover SDD-only failures plus protocol-clean configured-command execution.
 
 ## Notes
 

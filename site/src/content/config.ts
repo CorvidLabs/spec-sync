@@ -1,11 +1,12 @@
-import { defineCollection, z } from 'astro:content'
+import { defineCollection } from 'astro:content'
+import { z } from 'astro/zod'
 
 const docs = defineCollection({
   type: 'content',
   schema: z.object({
     title: z.string(),
     description: z.string().optional(),
-    section: z.enum(['Getting started', 'Spec format', 'Reference', 'Integrations']),
+    section: z.enum(['Getting started', 'Spec format', 'Reference', 'Integrations', 'Comparisons']),
     order: z.number().int().nonnegative(),
   }),
 })

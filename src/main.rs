@@ -1,6 +1,6 @@
 mod agents;
-mod ai;
 mod archive;
+mod change;
 mod changelog;
 mod cli;
 mod commands;
@@ -125,19 +125,12 @@ fn run() {
             cli.require_coverage,
             format,
         ),
-        Command::Generate {
-            provider,
-            model,
-            uncovered,
-            batch,
-        } => commands::generate::cmd_generate(
+        Command::Generate { uncovered, batch } => commands::generate::cmd_generate(
             &root,
             cli.strict,
             cli.enforcement,
             cli.require_coverage,
             format,
-            provider,
-            model,
             uncovered,
             batch,
         ),
@@ -267,6 +260,7 @@ fn run() {
                 allowed || all,
             ),
         },
+        Command::Change { action } => commands::change::cmd_change(&root, action, format),
     }
 }
 

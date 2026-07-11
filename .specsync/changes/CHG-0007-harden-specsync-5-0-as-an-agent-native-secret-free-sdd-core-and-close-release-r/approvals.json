@@ -1,0 +1,88 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783783306,
+      "digest": "6222fff355ee5fd6c703a8bc26683cb364ac164074b1262ed73b80c95d30ecf7",
+      "note": "Approved agent-native secret-free 5.0 release hardening scope"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783783530,
+      "digest": "93ccbd3dccddf9f4c9f0b98ac9681c1a120fcf60b6d9cd254ea39e463c0b72ca",
+      "note": "Approved expanded 5.0 agent-native, issue #334, and bounded reporting contract scope"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783783817,
+      "digest": "bc2765367c060e1fadd82da5e611e2166ac168354ecf62098df16e7a63241025",
+      "note": "Approved expanded quiet lifecycle reporting contract required by bounded PR comments"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783784716,
+      "digest": "b8cc79a88d0d1aa1d32cbc144bea37ae26c5d62af6ccefd72e142eac9b35a8bc",
+      "note": "Approved final 5.0 scope including retirement of the repository's own obsolete AI timeout config"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783784951,
+      "digest": "76226135f9f83ecc2e5c2917f64fa39b6d42b66bc5f7ea070d13d75b780cadb2",
+      "note": "Approved final requirement-to-test evidence matrix and archived embedded-AI tombstone"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783785237,
+      "digest": "3ea847815c52d1a9d7cd3ab2c25f83c12a618e8478c637dd2458bda791855ac9",
+      "note": "Approved final zero-vulnerability site audit evidence"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783786175,
+      "digest": "507083dc48558908337ccb1c01c599af6b7668fe6a41ad0714705d820945d33e",
+      "note": "User approved the complete SpecSync 5.0 hardening scope, single-PR delivery, and lifecycle execution."
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783786497,
+      "digest": "1385d0dbe3ed08a90074f7796cfaa4cfd74b639aa697998d293aa58e85b11f43",
+      "note": "User-approved final 5.0 scope with completed parser parity and current release evidence."
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783787045,
+      "digest": "fe263bb979850b1318efdc25642a5daa203742e371469aec5ceb06e81e051953",
+      "note": "User-approved final 5.0 scope with all local and PR #335 gates green."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783787088,
+      "digest": "31c82e30bcac6beb740d3825df5392dab27247bc60a23c920a8e2ef7fe77464b",
+      "note": "Accepted after 1,699 Rust tests, zero-vulnerability audits, executable five-epic proof, and a fully green cross-platform PR #335 matrix."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783788049,
+      "digest": "ac7dbde843afdd499a441608c09356d7e79cfed7ecd4115f2306eb6c432bace3",
+      "note": "Rebind accepted 5.0 hardening evidence after the user-approved evaluator documentation expansion"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783788192,
+      "digest": "c2b7ae028d8e09b7b3513102ead07dbb34c65e3a8aa34fd1380e05d15fa76db5",
+      "note": "Rebind accepted 5.0 hardening evidence after removing generated documentation build redirects"
+    }
+  ]
+}

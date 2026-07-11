@@ -1,5 +1,5 @@
 name: 'spec-sync'
-description: 'Validate module specs against source code with SpecSync'
+description: 'Gate verified SDD changes and validate module specs against source code with SpecSync'
 branding:
   icon: 'check-circle'
   color: 'green'
@@ -9,6 +9,10 @@ inputs:
     description: 'SpecSync version to use (e.g. "1.0.0" or "latest")'
     required: false
     default: 'latest'
+  download-base-url:
+    description: 'Optional trusted release mirror URL (primarily for enterprise mirrors and release validation)'
+    required: false
+    default: ''
   strict:
     description: 'Treat warnings as errors'
     required: false
@@ -45,6 +49,7 @@ runs:
       shell: bash
       env:
         SPECSYNC_VERSION: ${{ inputs.version }}
+        SPECSYNC_DOWNLOAD_BASE_URL: ${{ inputs.download-base-url }}
       run: |
         set -euo pipefail
 
@@ -73,7 +78,9 @@ runs:
         REPO="CorvidLabs/spec-sync"
 
         # Determine download URL
-        if [ "$SPECSYNC_VERSION" = "latest" ]; then
+        if [ -n "$SPECSYNC_DOWNLOAD_BASE_URL" ]; then
+          BASE_URL="${SPECSYNC_DOWNLOAD_BASE_URL%/}"
+        elif [ "$SPECSYNC_VERSION" = "latest" ]; then
           BASE_URL="https://github.com/${REPO}/releases/latest/download"
         else
           BASE_URL="https://github.com/${REPO}/releases/download/v${SPECSYNC_VERSION}"

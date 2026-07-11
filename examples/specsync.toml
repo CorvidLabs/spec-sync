@@ -27,12 +27,5 @@ exclude_dirs = ["__tests__", "fixtures"]
 # Glob patterns to exclude
 exclude_patterns = ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"]
 
-# AI provider for `specsync generate --provider <name>`
-# Options: auto, claude, anthropic, openai, ollama, copilot, gemini, deepseek, groq, mistral, xai, together
-# ai_provider = "auto"
-
-# AI model override (optional)
-# ai_model = "gpt-4o"
-
-# Timeout in seconds for AI generation (default: 120)
-# ai_timeout = 120
+# Generation is deterministic and local. Use `specsync agents install` or
+# `specsync mcp` to let your existing coding agent refine generated specs.

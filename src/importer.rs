@@ -165,7 +165,7 @@ fn today() -> String {
 /// Auth tokens are sent in request headers, so well-behaved HTTP errors should
 /// never echo them back — but a misbehaving proxy, redirect, or future client
 /// change could. This strips any verbatim occurrence of the token as
-/// defense-in-depth, mirroring the sanitization used in the AI provider client.
+/// defense-in-depth before an importer error reaches logs or terminal output.
 fn redact_secret(message: String, secret: &str) -> String {
     if !secret.is_empty() && message.contains(secret) {
         message.replace(secret, "[REDACTED]")

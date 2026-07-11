@@ -1,0 +1,60 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Codex",
+      "timestamp": 1783780389,
+      "digest": "77b409dbdd4896acc0a04ec6d863731a7ac66cefec5b008b4db78cf75fd3b358",
+      "note": "Approve final 5.0 release hardening"
+    },
+    {
+      "gate": "definition",
+      "actor": "Codex",
+      "timestamp": 1783781354,
+      "digest": "c1bc5aebd5f1400a6ab0015a211cdfe51111e4443a52545f599bc9e34c2725de",
+      "note": "Reapprove expanded integration scope"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783782170,
+      "digest": "51dd7fed44c5c78c991de702d90a66554a73860653aab68e20f9bc84d8114b21",
+      "note": "Reapprove final scope after independent evidence/security review and local release gates"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783782195,
+      "digest": "1ba04fe5fab9a6c00670e3c5dda07aaf91b78b783a89cf45b09b55cac454992b",
+      "note": "Accepted after two independent audits, 1,745 Rust tests, optimized build, docs/VSIX gates, and explicit legacy evidence migration plan"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783782395,
+      "digest": "56c42fc88a4478cd8337c2941ce0c5f05fff7fbb1026ff1ef7001fd7a891cc44",
+      "note": "Rebind closing evidence after canonical companion newline normalization"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783785109,
+      "digest": "3a01dc537a9e3453ec7cd6c97bbd6d3b7ec8423d83ef29a31c2512f4f5137670",
+      "note": "User-authorized 5.0 release hardening: rebind accepted evidence after final security, docs, and contract updates"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783786277,
+      "digest": "3d00e0767434b89dcc2c5abf2212631e280d017dca47b8da72152606f48723f4",
+      "note": "User-authorized 5.0 release hardening: rebind accepted evidence after final parser, security, and documentation corrections"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783787110,
+      "digest": "e89a68bd62d3a130544ed9962b92a7f42b1dc279ef5812582219bcfa9b42d891",
+      "note": "Rebind accepted reporting evidence after CHG-0007 atomically applied its canonical deltas"
+    }
+  ]
+}

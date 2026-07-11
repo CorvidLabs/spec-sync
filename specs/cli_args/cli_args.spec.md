@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 1
+version: 4
 status: stable
 files:
   - src/cli.rs
@@ -14,7 +14,7 @@ depends_on:
 
 ## Purpose
 
-Defines the CLI argument parser using Clap derive macros. Declares all subcommands, their flags, and global options for the `specsync` binary. This is the single source of truth for the CLI surface area — every flag, argument, and subcommand enum variant lives here.
+Defines the complete CLI argument grammar using Clap derive macros, including global options, canonical spec commands, agent integration, and the verified SDD `change` namespace.
 
 ## Public API
 
@@ -28,10 +28,11 @@ Defines the CLI argument parser using Clap derive macros. Declares all subcomman
 
 | Type | Description |
 |------|-------------|
-| `Command` | Subcommand enum with 30 variants: Check, Coverage, Generate, Init, Score, Watch, Mcp, AddSpec, Scaffold, InitRegistry, Resolve, Diff, Hooks, Agents, Compact, ArchiveTasks, View, Merge, Issues, New, Wizard, Deps, Import, Stale, Report, Comment, Rules, Changelog, Migrate, Lifecycle |
+| `Command` | Root subcommand enum including canonical validation, module lifecycle, and verified SDD Change operations |
 | `HooksAction` | Sub-subcommand for `Hooks`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, copilot, agents, precommit, claude_code_hook) |
 | `AgentsAction` | Sub-subcommand for `Agents`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, codex, gemini) |
 | `LifecycleAction` | Sub-subcommand for `Lifecycle`: Promote, Demote, Set, Status, History, Guard, AutoPromote, Enforce — manages spec lifecycle transitions |
+| `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, List, Show, Status, Approve, Start, Verify, Accept, Archive, Check, Adopt |
 
 ## Invariants
 
@@ -42,6 +43,7 @@ Defines the CLI argument parser using Clap derive macros. Declares all subcomman
 5. The `Command` enum is optional — running `specsync` with no subcommand defaults to `Check`
 6. Each `HooksAction::Install` / `Uninstall` variant carries identical boolean flags for symmetric install/uninstall
 7. Each `AgentsAction::Install` / `Uninstall` variant carries identical boolean flags for symmetric install/uninstall, mirroring `HooksAction`
+8. `Generate` exposes only deterministic uncovered/batch selection; provider and model flags are not accepted
 
 ## Behavioral Examples
 
@@ -101,3 +103,6 @@ Defines the CLI argument parser using Clap derive macros. Declares all subcomman
 | 2026-04-09 | Initial spec |
 | 2026-04-11 | Add LifecycleAction enum and Lifecycle command variant |
 | 2026-07-01 | Add AgentsAction enum and Agents command variant |
+| 2026-07-10 | Add ChangeAction and the 5.0 SDD lifecycle namespace |
+| 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

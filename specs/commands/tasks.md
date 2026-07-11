@@ -12,6 +12,7 @@ spec: commands.spec.md
 - [x] Requirements and acceptance criteria documented
 - [x] `compute_exit_code` exit-code matrix covered by unit tests in `src/main.rs` (warn/enforce-new/strict + require-coverage)
 - [x] End-to-end enforcement and coverage flows covered in `tests/integration.rs`
+- [x] Register verified SDD command dispatch under the shared command surface
 
 ## Gaps
 

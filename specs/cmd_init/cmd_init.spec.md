@@ -1,6 +1,6 @@
 ---
 module: cmd_init
-version: 2
+version: 7
 status: stable
 files:
   - src/commands/init.rs
@@ -14,7 +14,7 @@ depends_on:
 
 ## Purpose
 
-Implements the `specsync init` command. Creates the v4 `.specsync/` layout — `config.toml` with auto-detected source directories, a `version` stamp, `.gitignore`, and the `lifecycle/`, `changes/`, and `archive/` state directories — matching what `specsync migrate` produces.
+Implements `specsync init`. Creates the 5.0 `.specsync/` layout with detected source directories, canonical TOML configuration, SDD policy, version stamp, local-state ignore rules, lifecycle/change/archive directories, and optional guided agent/change bootstrap.
 
 ## Public API
 
@@ -22,15 +22,16 @@ Implements the `specsync init` command. Creates the v4 `.specsync/` layout — `
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `cmd_init` | `root: &Path` | `()` | Create the v4 `.specsync/` layout with auto-detected source dirs |
+| `cmd_init` | `root: &Path` | `()` | Create the 5.0 `.specsync/` layout, TOML config, SDD policy, and detected verification command |
 | `ensure_hashes_gitignored` | `root: &Path` | `Result<bool, String>` | Add `.specsync/hashes.json` to the root `.gitignore` (idempotent); returns `Ok(true)` if the entry was added, `Ok(false)` if already present, `Err` if the write fails |
 
 ## Invariants
 
-1. Auto-detects source directories via `config::detect_source_dirs()`
-2. Will not overwrite an existing config (v4 `.specsync/config.toml`/`config.json` or legacy `specsync.json`/`.specsync.toml`); legacy configs get a `specsync migrate` hint
-3. Writes default config with detected dirs and standard required sections via `config::config_to_toml()`
-4. A fresh init never triggers the legacy 3.x layout migration nag — `.specsync/version` is stamped with 4.0.0
+1. Auto-detects source directories via `config::detect_source_dirs()`.
+2. Never overwrites an existing current or legacy configuration; legacy configurations receive a migration hint.
+3. Writes the 5.0 policy, version, and layout deterministically without blocking in non-interactive environments.
+4. Local hash cache, lifecycle lock, and transaction journal files are ignored and never treated as portable project state.
+5. Re-running initialization is idempotent.
 
 ## Behavioral Examples
 
@@ -51,7 +52,7 @@ Implements the `specsync init` command. Creates the v4 `.specsync/` layout — `
 | Condition | Behavior |
 |-----------|----------|
 | File write fails | Exits 1 |
-| No source dirs detected | Creates config with empty `sourceDirs` |
+| No source dirs detected | Creates TOML config with `source_dirs = ["src"]` fallback |
 
 ## Dependencies
 
@@ -71,5 +72,10 @@ Implements the `specsync init` command. Creates the v4 `.specsync/` layout — `
 
 | Date | Change |
 |------|--------|
+| 2026-07-10 | v3: initialize 5.0 SDD policy/archive and offer guided agent plus first-change bootstrap |
 | 2026-04-09 | Initial spec |
 | 2026-06-11 | v2: Init the v4 `.specsync/` layout instead of the legacy `specsync.json` so a fresh project never sees the migration nag |
+| 2026-07-11 | CHG-0002-harden-specsync-5-0-lifecycle-safety-and-release-validation: Harden SpecSync 5.0 lifecycle safety and release validation |
+| 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
+| 2026-07-11 | CHG-0004-close-final-pr-review-gaps-in-5-0-lifecycle-enforcement: Close final PR review gaps in 5.0 lifecycle enforcement |
+| 2026-07-11 | CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re: Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps |

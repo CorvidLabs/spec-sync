@@ -12,7 +12,7 @@ spec: cli.spec.md
 - **No network by default**: `resolve` only performs network calls with `--remote`, keeping default behavior offline and fast.
 - **Hook targets**: When no specific `--claude`/`--cursor`/etc. flags are given, an empty targets vec signals "all targets" to the hooks module.
 - **Panic guard**: `main()` wraps `run()` in `std::panic::catch_unwind` and prints a "please report it" message with the issue tracker URL instead of a raw backtrace.
-- **`generate --model`**: a `--model` flag overrides `SPECSYNC_AI_MODEL` and the `aiModel` config field, letting users pin a specific model per invocation; provider resolution itself routes through the reworked `ai` module.
+- **Deterministic generation**: `generate` accepts module selection only; coding-agent enrichment is reached through Agents or MCP, not embedded inference flags.
 
 ## Files to Read First
 
@@ -21,7 +21,7 @@ spec: cli.spec.md
 
 ## Current Status
 
-Fully implemented. The CLI exposes the `check` default plus init, coverage, generate, score, watch, mcp, add-spec, scaffold, init-registry, resolve, diff, hooks, compact, archive-tasks, view, merge, issues, new, wizard, deps, import, stale, report, comment, rules, changelog, rehash, migrate, and lifecycle (with promote/demote/set/status/history/guard/auto-promote/enforce sub-actions). `generate` now also takes `--model`.
+Fully implemented. The CLI exposes deterministic validation/generation, complete lifecycle/change commands, and native Agents/MCP integration without embedded inference configuration.
 
 ## Notes
 

@@ -1,6 +1,6 @@
 ---
 module: exports
-version: 3
+version: 4
 status: stable
 files:
   - src/exports/mod.rs
@@ -97,7 +97,7 @@ Tree-sitter based export extraction backends for TypeScript, Python, Rust, C, C+
 |------------|------|-------------|
 | `typescript` | `ast/typescript.rs` | Tree-sitter based TypeScript/JS export extraction with wildcard resolver support |
 | `python` | `ast/python.rs` | Tree-sitter based Python export extraction using `__all__` and top-level definitions |
-| `rust_lang` | `ast/rust_lang.rs` | Tree-sitter based Rust `pub` item extraction |
+| `rust_lang` | `ast/rust_lang.rs` | Tree-sitter based Rust `pub` and `pub(crate)` item extraction |
 | `c` | `ast/c.rs` | Tree-sitter based C export extraction: top-level struct/union/enum names and non-static function definitions/declarations |
 | `cpp` | `ast/cpp.rs` | Tree-sitter based C++ export extraction: class/struct/union/enum/namespace names (including nested types) and non-static, non-private/protected functions and methods |
 | `scala` | `ast/scala.rs` | Tree-sitter based Scala export extraction: class/object/trait/def/val/var declarations excluding `private`/`protected` |
@@ -114,7 +114,7 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 |---------|------|-------------------|
 | TypeScript/JS | `typescript.rs` | `export function/class/interface/type/const/enum`, re-exports (`export { }`, `export type { }`), wildcard re-exports (`export * from`, `export * as Ns from`), default exports (`export default class/function`), and CommonJS-style `export = Name`; with `as` alias support; strips `//` and `/* */` comments |
 | Python | `python.rs` | Uses `__all__` list if present; otherwise top-level `def`/`class`/`async def` not prefixed with `_` |
-| Rust | `rust_lang.rs` | `pub fn/struct/enum/trait/type/const/static/mod` including `pub async/unsafe`; excludes restricted visibility `pub(crate)`, `pub(super)`, `pub(self)`, and `pub(in path::to::mod)`; strips comments |
+| Rust | `rust_lang.rs` | `pub` and `pub(crate)` fn/struct/enum/trait/type/const/static/mod including async/unsafe and re-exports; excludes narrower `pub(super)`, `pub(self)`, and `pub(in path::to::mod)`; strips comments |
 | Go | `go.rs` | Top-level `func/type/var/const` starting with uppercase letter; also exported methods `func (receiver) Name()`; strips comments |
 | Java | `java.rs` | `public class/interface/enum/record/@interface` types and `public` methods/fields; handles `static`, `final`, `abstract`, `sealed` modifiers |
 | Kotlin | `kotlin.rs` | Top-level and public type-member `fun/class/object/interface/typealias/val/var` declarations unless marked `private`/`internal`/`protected`; handles flexible modifier ordering, same-line annotations, `value class`, `expect`/`actual`, and common function modifiers |
@@ -159,7 +159,7 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 7b. Wildcard resolution is one level deep — resolved modules are parsed without a resolver to avoid infinite loops
 7c. `export * as Ns from './module'` emits the namespace name (Ns) as the export, not the individual symbols
 7d. Without a resolver (e.g. in unit tests), wildcard `export *` lines are silently skipped
-8. Rust backend extracts only plain `pub fn/struct/enum/trait/type/const/static/mod` items; `pub(crate)`, `pub(super)`, `pub(self)`, and `pub(in path::to::mod)` are not treated as exported
+8. Rust backends extract plain `pub` and crate-visible `pub(crate)` declarations and re-exports across every listed source file; narrower `pub(super)`, `pub(self)`, and `pub(in path::to::mod)` remain excluded
 9. Go backend extracts uppercase (exported) identifiers and methods
 10. Python backend uses `__all__` if present, otherwise top-level non-underscore `def/class`
 11. Swift backend distinguishes `public` and `open` visibility (both are exported)
@@ -315,3 +315,4 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 | 2026-04-12 | Add YAML language support (yaml.rs) |
 | 2026-07-09 | Add AST parse mode support for C, C++, Scala, Erlang, Elixir, Perl, and Lisp (Common Lisp/Scheme/Emacs Lisp) |
 | 2026-07-09 | Filter Rust `pub(crate)`/`pub(super)`/`pub(self)`/`pub(in path)` from exports; add TypeScript `export = Name` support |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

@@ -10,6 +10,7 @@ spec: exports.spec.md
 - **Python `__all__` precedence**: If `__all__` is defined, it is the sole source of exports. Otherwise, top-level non-underscore functions and classes are extracted.
 - **Go capitalization convention**: Uppercase first letter = exported. Methods are extracted separately from functions.
 - **Two export levels**: `ExportLevel::Type` (via `filter_type_level_exports`) extracts only top-level type declarations (class, struct, enum, interface); `ExportLevel::Member` extracts all public symbols. This allows specs to document at the right granularity.
+- **Rust module-contract visibility**: Both scanners treat plain `pub` and `pub(crate)` as spec-visible because specs cover crate collaboration boundaries, while narrower `pub(super)`, `pub(self)`, and `pub(in ...)` paths remain excluded. Every frontmatter-listed source file participates.
 - **Modern Kotlin modifier chains**: Kotlin declarations accept repeated modifiers in language-valid order rather than one hard-coded sequence. The regex backend also handles same-line annotations (including one level of nested argument parentheses), `value class`, `expect`/`actual`, and `external`, while restricted visibility still wins even when it follows another modifier. A restricted annotated type opens a non-exportable scope so its public-looking members cannot leak into the module API.
 
 ## Files to Read First
@@ -20,7 +21,7 @@ spec: exports.spec.md
 
 ## Current Status
 
-Each regex backend has compiled patterns; AST backends exist for TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, and Lisp/Scheme/Emacs Lisp under `src/exports/ast/` (Nim and Crystal remain regex-only — no published tree-sitter grammar crate for either). The optional real-world Swift verification remains portable when its external fixture paths are absent and warning-free under current stable Clippy.
+Each regex backend has compiled patterns; AST backends exist for TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, and Lisp/Scheme/Emacs Lisp under `src/exports/ast/` (Nim and Crystal remain regex-only — no published tree-sitter grammar crate for either). Rust multi-file extraction is regression-tested in strict mode for both backends. The optional real-world Swift verification remains portable when its external fixture paths are absent and warning-free under current stable Clippy.
 
 ## Notes
 

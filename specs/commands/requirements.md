@@ -35,3 +35,11 @@ spec: commands.spec.md
 - Interactive prompts (only the wizard and the check `--fix` re-validation prompt live elsewhere)
 - Domain logic for validation/scoring/coverage — those live in their own library modules; this module only orchestrates them
 - Defining the CLI argument grammar (that is the `cli` module's responsibility)
+
+### REQ-commands-001
+
+The system SHALL describe registered command modules using their current persisted layout and behavior.
+
+Acceptance Criteria
+- The init registry entry names the `.specsync/` 5.0 layout rather than the removed root JSON layout.
+- Command documentation remains consistent with the dispatched modules.

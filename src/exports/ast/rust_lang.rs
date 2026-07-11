@@ -24,9 +24,8 @@ fn parse_rust(content: &str) -> Option<Tree> {
 ///   neither has a single statically-enumerable name from this file alone.
 /// - Correctly ignores `pub` inside string literals and comments (AST-native)
 ///
-/// Excludes restricted visibility forms such as `pub(crate)`, `pub(super)`,
-/// `pub(self)`, and `pub(in path::to::mod)` because they are not exported outside
-/// the crate or module.
+/// Includes plain `pub` and crate-visible `pub(crate)`, while excluding narrower
+/// forms such as `pub(super)`, `pub(self)`, and `pub(in path::to::mod)`.
 pub fn extract_exports(content: &str) -> Vec<String> {
     let tree = match parse_rust(content) {
         Some(t) => t,
@@ -96,19 +95,11 @@ fn collect_pub_items(node: &tree_sitter::Node, src: &[u8], symbols: &mut Vec<Str
                 }
             }
             "mod_item" => {
-                // A `pub` item declared inside a *private* `mod { ... }` body
-                // is NOT actually reachable from outside the module: Rust's
-                // effective visibility of a path is capped by the
-                // least-visible ancestor module, so nothing beneath a
-                // non-`pub` `mod` is part of the crate's public API surface,
-                // no matter what visibility its own members declare (e.g.
-                // `mod private_helpers { pub fn leaked() {} }` does NOT
-                // export `leaked`). Only descend when the module itself
-                // carries its own bare `pub` keyword; the crate root (this
-                // function's initial caller) has no visibility modifier of
-                // its own and is always the public starting point, so it is
-                // unaffected by this gate.
-                if child_is_pub && let Some(body) = child.child_by_field_name("body") {
+                // Module specs include the crate collaboration surface. A
+                // `pub` or `pub(crate)` child of a private inline module is
+                // still reachable within the crate, and the regex backend
+                // sees it, so descend through every inline module for parity.
+                if let Some(body) = child.child_by_field_name("body") {
                     collect_pub_items(&body, src, symbols);
                 }
             }
@@ -168,15 +159,18 @@ fn collect_use_tree_names(node: &tree_sitter::Node, src: &[u8], symbols: &mut Ve
     }
 }
 
-/// Check if a node has plain `pub` visibility.
-/// Restricted forms such as `pub(crate)`, `pub(super)`, `pub(self)`, and
-/// `pub(in path)` are treated as non-exported.
+/// Check if a node is visible to a module spec: plain `pub` or `pub(crate)`.
 fn is_pub_item(node: &tree_sitter::Node, src: &[u8]) -> bool {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "visibility_modifier" {
-            let text = child.utf8_text(src).unwrap_or_default();
-            return text == "pub";
+            let text: String = child
+                .utf8_text(src)
+                .unwrap_or_default()
+                .chars()
+                .filter(|character| !character.is_whitespace())
+                .collect();
+            return text == "pub" || text == "pub(crate)";
         }
     }
     false
@@ -237,15 +231,25 @@ struct PrivateStruct {}
     }
 
     #[test]
-    fn test_pub_crate_excluded() {
+    fn test_pub_crate_included() {
         let src = r#"
 pub(crate) fn internal_fn() {}
 pub(crate) struct InternalStruct {}
 "#;
         let symbols = extract_exports(src);
-        assert!(
-            symbols.is_empty(),
-            "pub(crate) items must not be exported: {symbols:?}"
+        assert_eq!(symbols, vec!["internal_fn", "InternalStruct"]);
+    }
+
+    #[test]
+    fn test_pub_crate_spacing_variants_included() {
+        let src = r#"
+pub (crate) fn spaced_one() {}
+pub( crate ) struct SpacedTwo;
+pub ( crate ) use crate::internal::SpacedThree;
+"#;
+        assert_eq!(
+            extract_exports(src),
+            vec!["spaced_one", "SpacedTwo", "SpacedThree"]
         );
     }
 
@@ -456,7 +460,7 @@ pub(crate) fn crate_visible() {}
 pub fn truly_public() {}
 "#;
         let symbols = extract_exports(src);
-        assert_eq!(symbols, vec!["truly_public"]);
+        assert_eq!(symbols, vec!["crate_visible", "truly_public"]);
     }
 
     #[test]
@@ -652,18 +656,7 @@ pub fn also_public() {}
     }
 
     #[test]
-    fn test_pub_items_inside_private_mod_are_not_exported() {
-        // Regression: a `pub fn`/`pub struct` nested inside a *private*
-        // `mod { ... }` was previously captured just because the item itself
-        // carried a `pub` keyword. That is wrong: Rust's effective
-        // visibility of a path is capped by the least-visible ancestor
-        // module, so nothing beneath a non-`pub` `mod` is actually reachable
-        // from outside the module -- `mod private_mod { pub fn leaked() {} }`
-        // does NOT put `leaked` on the crate's public API surface. Verified
-        // empirically before the fix: `extract_exports` returned
-        // `["should_not_leak", "AlsoShouldNotLeak", "top_level_ok"]`, i.e. a
-        // wrong-but-nonempty result that would have masked the bug from any
-        // "empty result -> fall back to regex" safety net.
+    fn test_pub_items_inside_private_mod_are_crate_visible() {
         let src = r#"
 mod private_mod {
     pub fn should_not_leak() {}
@@ -674,18 +667,12 @@ pub fn top_level_ok() {}
         let symbols = extract_exports(src);
         assert_eq!(
             symbols,
-            vec!["top_level_ok"],
-            "pub items inside a private mod must not be treated as exported: {symbols:?}"
+            vec!["should_not_leak", "AlsoShouldNotLeak", "top_level_ok"]
         );
     }
 
     #[test]
-    fn test_pub_items_inside_nested_private_mod_under_pub_mod_are_not_exported() {
-        // Regression: the private-mod gate must apply at every nesting
-        // level, not just the outermost one. `pub mod outer { mod inner {
-        // pub fn leaked() {} } }` -- `inner` is private even though `outer`
-        // is `pub`, so `leaked` is still not reachable from outside the
-        // crate.
+    fn test_pub_items_inside_nested_private_mod_are_crate_visible() {
         let src = r#"
 pub mod outer {
     mod inner {
@@ -695,7 +682,7 @@ pub mod outer {
 }
 "#;
         let symbols = extract_exports(src);
-        assert_eq!(symbols, vec!["outer", "visible"]);
+        assert_eq!(symbols, vec!["outer", "leaked", "visible"]);
     }
 
     #[test]
@@ -762,23 +749,17 @@ pub fn real_fn() {}
     }
 
     #[test]
-    fn test_pub_crate_use_reexport_excluded() {
-        // `pub(crate) use ...;` is a restricted-visibility re-export and must
-        // be excluded just like any other `pub(crate)` item.
+    fn test_pub_crate_use_reexport_included() {
         let src = r#"
 pub(crate) use crate::internal::Hidden;
 pub use crate::public::Visible;
 "#;
         let symbols = extract_exports(src);
-        assert_eq!(symbols, vec!["Visible"]);
+        assert_eq!(symbols, vec!["Hidden", "Visible"]);
     }
 
     #[test]
-    fn test_pub_use_reexport_inside_private_mod_excluded() {
-        // The private-mod reachability gate applies to `pub use` re-exports
-        // nested inside a private `mod` just as it does to any other `pub`
-        // item: a `pub use` inside a non-`pub` module is not reachable from
-        // outside the crate.
+    fn test_pub_use_reexport_inside_private_mod_is_crate_visible() {
         let src = r#"
 mod private_mod {
     pub use crate::foo::Bar;
@@ -786,7 +767,7 @@ mod private_mod {
 pub fn top_level_ok() {}
 "#;
         let symbols = extract_exports(src);
-        assert_eq!(symbols, vec!["top_level_ok"]);
+        assert_eq!(symbols, vec!["Bar", "top_level_ok"]);
     }
 
     #[test]

@@ -256,20 +256,34 @@ struct PrivateStruct {}
     }
 
     #[test]
-    fn rs_pub_crate_excluded() {
+    fn rs_pub_crate_included() {
         let src = r#"
 pub(crate) fn internal_fn() {}
 pub(crate) struct InternalStruct {}
 "#;
         let regex_result = rust_lang::extract_exports(src);
         let ast_result = ast::rust_lang::extract_exports(src);
-        assert!(
-            regex_result.is_empty(),
-            "regex backend must exclude pub(crate): {regex_result:?}"
-        );
-        assert!(
-            ast_result.is_empty(),
-            "AST backend must exclude pub(crate): {ast_result:?}"
+        assert_eq!(regex_result, vec!["internal_fn", "InternalStruct"]);
+        assert_eq!(ast_result, regex_result);
+    }
+
+    #[test]
+    fn rs_crate_visibility_spacing_and_private_inline_module_parity() {
+        let src = r#"
+mod internal {
+    pub (crate) fn spaced_one() {}
+    pub( crate ) struct SpacedTwo;
+    pub use crate::visible::Reexported;
+}
+pub fn root_public() {}
+"#;
+        let mut regex_result = rust_lang::extract_exports(src);
+        let mut ast_result = ast::rust_lang::extract_exports(src);
+        regex_result.sort();
+        ast_result.sort();
+        assert_eq!(
+            regex_result,
+            vec!["Reexported", "SpacedTwo", "root_public", "spaced_one"]
         );
         assert_eq!(ast_result, regex_result);
     }

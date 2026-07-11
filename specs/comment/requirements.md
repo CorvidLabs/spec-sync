@@ -18,15 +18,26 @@ spec: comment.spec.md
 - The unspecced-files list is truncated to 15 entries with an "...and N more" line
 - `detect_branch` returns `Some(branch)` inside a git repo, `None` otherwise
 - Both the marketplace GitHub Action (`action.yml`) and project CI workflow (`.github/workflows/ci.yml`) use `specsync comment` to generate identical PR comment output
+- Rendered comments never exceed 49,152 bytes, preserve valid UTF-8 when shortened, and append explicit `specsync check --format github` guidance when truncated
 
 ## Constraints
 
 - Must produce valid GitHub-flavored markdown
 - Must include clickable spec file links when repo/branch are provided
 - Unified output pipeline: no separate rendering paths for different integrations
+- Must leave headroom below GitHub's 65,536-byte comment limit for integrations that wrap the rendered body
 
 ## Out of Scope
 
 - Posting comments (handled by `cmd_comment` / the GitHub Action and CI workflow)
 - Interactive or terminal-formatted output
 - Public violation-level rendering: the public API is just `render_check_comment` and `detect_branch`. (`SpecViolation` and `render_comment_body` exist only as private test helpers in the `#[cfg(test)]` module, not as part of the module's API.)
+
+### REQ-comment-001
+
+Rendered pull-request reports SHALL be bounded for GitHub transport.
+
+Acceptance Criteria
+- The complete UTF-8 markdown body remains below GitHub's comment-body limit.
+- Truncation preserves the status summary and explains how to obtain full local diagnostics.
+

@@ -1,6 +1,6 @@
 ---
 module: types
-version: 2
+version: 3
 status: stable
 files:
   - src/types.rs
@@ -13,7 +13,7 @@ depends_on: []
 
 ## Purpose
 
-Core data structures and enums shared across the entire spec-sync codebase. Defines the configuration schema, validation results, coverage reports, AI provider presets, language detection, and registry entries.
+Core deterministic data structures and enums shared across the codebase: configuration, validation, coverage, language detection, lifecycle, and registry entries.
 
 ## Public API
 
@@ -21,7 +21,6 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 
 | Type | Description |
 |------|-------------|
-| `AiProvider` | Supported AI provider presets. API providers (via corvid-ai): Anthropic, OpenAi, OpenRouter, Gemini, DeepSeek, Groq, Mistral, XAi, Together, Ollama. Deprecated CLI: Claude (routes to Anthropic), Copilot, Cursor. Plus Custom (`aiCommand`) |
 | `Language` | Detected source language for export extraction: TypeScript, Rust, Go, Python, Swift, Kotlin, Java, CSharp, Dart, Php, Ruby, Yaml, C, Cpp, Scala, Crystal, Nim, Erlang, Elixir, Perl, Lisp, Haskell, Lua, R, OCaml, Groovy, FSharp, Clojure, D, ObjectiveC, Bash, PowerShell, Vala |
 | `OutputFormat` | CLI output format: Text (colored terminal, default), Json (machine-readable), Markdown (PR comments / agent consumption) |
 | `ExportLevel` | Export extraction granularity: Type (top-level declarations only) or Member (all public symbols, default) |
@@ -48,17 +47,6 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | `LifecycleConfig` | Lifecycle configuration for transition guards and history tracking (guards map, track_history flag) |
 | `TransitionGuard` | A transition guard — min_score, require_sections, no_stale, stale_threshold, message |
 | `CompanionConfig` | Configuration for companion file generation — controls opt-in companions like design.md |
-
-### Exported AiProvider Functions
-
-| Function | Parameters | Returns | Description |
-|----------|-----------|---------|-------------|
-| `default_command` | `&self` | `Option<&'static str>` | CLI command string for this provider (None for API-only) |
-| `binary_name` | `&self` | `&'static str` | Binary name to check availability (empty for API providers) |
-| `is_api_provider` | `&self` | `bool` | Whether this provider uses direct API calls |
-| `api_key_env_var` | `&self` | `Option<&'static str>` | Environment variable name for the API key |
-| `from_str_loose` | `s: &str` | `Option<Self>` | Parse provider name from string (case-insensitive, aliases supported) |
-| `detection_order` | — | `&'static [AiProvider]` | All auto-detectable providers in preference order |
 
 ### Exported ValidationResult Functions
 
@@ -95,19 +83,12 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 
 ## Invariants
 
-1. `AiProvider::from_str_loose` is case-insensitive and accepts common aliases (e.g. "gh-copilot" -> Copilot)
-2. `AiProvider::detection_order` returns API providers only (by `<PROVIDER>_API_KEY` presence) — auto-detection never shells out to a CLI
-3. `Language::from_extension` returns `None` for unsupported extensions — never panics
-4. `SpecSyncConfig::default()` always provides sensible defaults (specs_dir="specs", source_dirs=["src"], 7 required sections)
-5. `ValidationResult::new` initializes with empty error/warning/fix vectors and `status: None`
+1. Shared types contain no inference provider or credential-bearing configuration surface
+2. `Language::from_extension` returns `None` for unsupported extensions — never panics
+3. `SpecSyncConfig::default()` always provides sensible deterministic defaults
+4. `ValidationResult::new` initializes with empty error/warning/fix vectors and `status: None`
 
 ## Behavioral Examples
-
-### Scenario: Parse AI provider from string
-
-- **Given** the string "anthropic-api"
-- **When** `AiProvider::from_str_loose("anthropic-api")` is called
-- **Then** returns `Some(AiProvider::Anthropic)`
 
 ### Scenario: Detect language from file extension
 
@@ -131,7 +112,6 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 
 | Condition | Behavior |
 |-----------|----------|
-| Unknown provider string | `AiProvider::from_str_loose` returns `None` |
 | Unsupported file extension | `Language::from_extension` returns `None` |
 | Invalid JSON config | `SpecSyncConfig` deserialization fails at the caller level |
 
@@ -141,17 +121,16 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 
 | Module | What is used |
 |--------|-------------|
-| serde | `Deserialize` derive for `SpecSyncConfig` and `AiProvider` |
+| serde | `Deserialize` derive for configuration and frontmatter types |
 
 ### Consumed By
 
 | Module | What is used |
 |--------|-------------|
-| config | `SpecSyncConfig`, `AiProvider` |
+| config | `SpecSyncConfig` |
 | parser | `Frontmatter` |
 | validator | `CoverageReport`, `ValidationResult`, `SpecSyncConfig`, `CustomRuleType`, `RuleSeverity`, `Frontmatter` |
 | generator | `CoverageReport`, `SpecSyncConfig` |
-| ai | `AiProvider`, `SpecSyncConfig` |
 | scoring | `SpecSyncConfig` |
 | exports | `Language` |
 | mcp | `SpecSyncConfig` |
@@ -176,3 +155,4 @@ Core data structures and enums shared across the entire spec-sync codebase. Defi
 | 2026-04-12 | Document CompanionConfig struct for opt-in companion file settings |
 | 2026-06-07 | Remove `AiProvider::default_model` / `default_base_url` — the `corvid-ai` crate now owns the API endpoint registry and default models |
 | 2026-06-07 | Add `OpenRouter`; reclassify `Ollama` as an API provider (HTTP via corvid-ai, `OLLAMA_API_KEY`); `detection_order` is now API-only; deprecate the `claude`/`copilot` CLI providers |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

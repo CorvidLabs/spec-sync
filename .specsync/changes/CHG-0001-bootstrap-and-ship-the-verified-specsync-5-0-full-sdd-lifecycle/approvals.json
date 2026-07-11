@@ -1,0 +1,102 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783739841,
+      "digest": "af68ea04ad85ba6f453e7b97882de12e13f54e2cf601d288b82ef223a7475de7",
+      "note": "Approved through the project-planning conversation and explicit instruction to implement and ship 5.0"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783739854,
+      "digest": "3215fb15f0a9a01737daacf21e82997c2c1af837fcf8f7d2fb1b351601b61fc9",
+      "note": "Reapproved after completing the PR-readiness task"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783739884,
+      "digest": "98f920621f53c843517ef6f68e1b9feab90095c0595db3531d77ebdddad1c3cf",
+      "note": "Accepted on passing local verification; CI remains an independent merge gate"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783740559,
+      "digest": "88224c5f25c2e939b515c5e0335f6869a51015ddd5b695ec2420c740031a20f6",
+      "note": "Reapproved with repository-relative portable digest after CI portability correction"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783740597,
+      "digest": "c441bb83c79d8949ff84c88809196f62c0239609b8a57fc1f65c509741ce6331",
+      "note": "Accepted after portable digest and CI-portable verification both passed locally"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783740760,
+      "digest": "4cbb2ab65bd3be3ecf6d7dc70d042a03174e3a2a078af830af1a57365361d2e8",
+      "note": "Reapproved after adding full-history checkout for enforceable CI path coverage"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783740813,
+      "digest": "fa957d682dbf373170f929426032617d7ee1c3e24815fb84742956dc0aa82afd",
+      "note": "Accepted with portable approvals, portable verification, and enforceable CI path coverage"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783782217,
+      "digest": "c4fd40306d5945dd3d9d17a35f1f352b0811a2fa0b344b12ec8ac505caac08dc",
+      "note": "User-authorized 5.0 migration: bind the accepted bootstrap evidence to current scoped delivery inputs"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783785109,
+      "digest": "8c6889618fd5dcd228aaed88abed9eb8a78699fd5bbf2c388ece084adc3a07e4",
+      "note": "User-authorized 5.0 release hardening: rebind accepted evidence after final security, docs, and contract updates"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783786277,
+      "digest": "5217030f8b819b660f210c89f2576ec17ed30dbdac297cee32f71d88df04c151",
+      "note": "User-authorized 5.0 release hardening: rebind accepted evidence after final parser, security, and documentation corrections"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783786501,
+      "digest": "80a45a0a7ad31d32eff93776877b97bce262a1f339639b59db8f49fc8031dc41",
+      "note": "User-authorized 5.0 release hardening: rebind bootstrap evidence after final source comment cleanup"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783786717,
+      "digest": "4ef2ebbc1015458a0bcb293e825d9dbcba4d47e528499227939a3551c29d4cdb",
+      "note": "Rebind accepted bootstrap evidence to the committed delivery tree after removing retired files"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783788049,
+      "digest": "b3cecefdc5d90bc0de69ec6b0603e1393a09e299b64d8ea5d5794295591601d4",
+      "note": "Rebind accepted bootstrap evidence after the user-approved evaluator documentation expansion"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783788192,
+      "digest": "2dbba056d0e76d246a6e8c00af4d6055497bc9afaeacffc0a8681d63553673be",
+      "note": "Rebind accepted bootstrap evidence after removing generated documentation build redirects"
+    }
+  ]
+}

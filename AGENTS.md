@@ -12,7 +12,7 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync check --strict` | Validate specs against code — fix stale, phantom, or missing entries |
 | `specsync check --fix` | Auto-add undocumented exports to spec Public API tables |
 | `specsync coverage` | Find modules with no spec coverage |
-| `specsync generate --provider auto` | Create specs for uncovered modules |
+| `specsync generate` | Deterministically create specs for uncovered modules |
 | `specsync score` | Score spec quality — target ≥ 80 per spec |
 | `specsync new <name>` | Quick-create a minimal spec with auto-detected source files |
 | `specsync scaffold <name>` | Full scaffold: spec + companions + registry entry + source detection |

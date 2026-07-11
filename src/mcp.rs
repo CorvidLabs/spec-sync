@@ -1,4 +1,3 @@
-use crate::ai;
 use crate::config::{detect_source_dirs, load_config};
 use crate::deps::build_dep_graph;
 use crate::generator::generate_specs_for_unspecced_modules_paths;
@@ -133,26 +132,19 @@ fn handle_tools_list(id: Option<Value>) -> Value {
                                 "type": "string",
                                 "description": "Project root directory (default: server root)"
                             }
-                        }
+                        },
+                        "additionalProperties": false
                     }
                 },
                 {
                     "name": "specsync_generate",
-                    "description": "Generate spec files for uncovered source modules. Returns paths of generated specs.",
+                    "description": "Deterministically scaffold spec files for uncovered source modules. Returns paths of generated specs.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
                             "root": {
                                 "type": "string",
                                 "description": "Project root directory (default: server root)"
-                            },
-                            "ai": {
-                                "type": "boolean",
-                                "description": "Use AI to generate meaningful spec content instead of templates (default: false)"
-                            },
-                            "provider": {
-                                "type": "string",
-                                "description": "AI provider: claude, anthropic, openai, ollama, copilot"
                             }
                         }
                     }
@@ -686,33 +678,57 @@ fn tool_coverage(root: &Path) -> Result<Value, String> {
 }
 
 fn tool_generate(root: &Path, arguments: &Value) -> Result<Value, String> {
+    const RETIRED_ARGUMENTS: &[&str] = &[
+        "ai",
+        "provider",
+        "aiProvider",
+        "ai_provider",
+        "model",
+        "aiModel",
+        "ai_model",
+        "apiKey",
+        "api_key",
+        "aiApiKey",
+        "ai_api_key",
+        "credential",
+        "credentials",
+        "baseUrl",
+        "base_url",
+        "aiBaseUrl",
+        "ai_base_url",
+        "timeout",
+        "timeoutSecs",
+        "timeout_secs",
+        "aiTimeout",
+        "ai_timeout",
+        "command",
+        "aiCommand",
+        "ai_command",
+    ];
+    if let Some(name) = RETIRED_ARGUMENTS
+        .iter()
+        .find(|name| arguments.get(**name).is_some())
+    {
+        return Err(format!(
+            "MCP argument `{name}` was removed in spec-sync 5.0. `specsync_generate` is deterministic; use your coding agent to enrich the generated spec."
+        ));
+    }
+    if let Some(name) = arguments
+        .as_object()
+        .and_then(|object| object.keys().find(|name| name.as_str() != "root"))
+    {
+        return Err(format!(
+            "Unknown MCP generate argument `{name}`. `specsync_generate` accepts only `root`."
+        ));
+    }
+
     let (config, spec_files) = load_and_discover(root, true)?;
     let coverage = compute_coverage(root, &spec_files, &config);
-
-    let ai = arguments
-        .get("ai")
-        .and_then(|a| a.as_bool())
-        .unwrap_or(false)
-        || arguments.get("provider").is_some();
-
-    let resolved_provider = if ai {
-        let provider_str = arguments.get("provider").and_then(|p| p.as_str());
-        Some(ai::resolve_ai_provider(&config, provider_str)?)
-    } else {
-        None
-    };
-
-    let outcome = generate_specs_for_unspecced_modules_paths(
-        root,
-        &coverage,
-        &config,
-        resolved_provider.as_ref(),
-    );
+    let outcome = generate_specs_for_unspecced_modules_paths(root, &coverage, &config);
 
     Ok(json!({
         "generated": outcome.generated_paths,
         "count": outcome.generated,
-        "ai_errors": outcome.ai_errors,
     }))
 }
 
@@ -1236,6 +1252,22 @@ mod tests {
                     .join("auth.spec.md")
             )
         );
+    }
+
+    #[test]
+    fn test_tool_generate_rejects_retired_ai_arguments_without_echoing_values() {
+        let tmp = setup_project();
+        let secret = "sk-do-not-echo";
+        let error = tool_generate(tmp.path(), &json!({ "apiKey": secret })).unwrap_err();
+        assert!(error.contains("removed in spec-sync 5.0"));
+        assert!(!error.contains(secret));
+    }
+
+    #[test]
+    fn test_tool_generate_rejects_unknown_arguments() {
+        let tmp = setup_project();
+        let error = tool_generate(tmp.path(), &json!({ "unexpected": true })).unwrap_err();
+        assert!(error.contains("Unknown MCP generate argument `unexpected`"));
     }
 
     // --- JSONRPC response structure ---

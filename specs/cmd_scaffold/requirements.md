@@ -29,7 +29,7 @@ spec: cmd_scaffold.spec.md
 
 ## Out of Scope
 
-- AI-assisted spec generation (handled by the `generate` command, not scaffold)
+- Coding-agent enrichment after deterministic scaffolding (handled through installed agent skills or MCP)
 - Interactive prompts (handled by the `wizard` command)
 - Editing or regenerating an existing spec's body
 - Validation or scoring of the generated spec

@@ -11,11 +11,12 @@ spec: cli.spec.md
 - As a developer, I want `--fix` to auto-add undocumented exports to my specs so that keeping specs current is low-friction
 - As a developer, I want `specsync init` to scaffold a config with auto-detected settings so that getting started takes seconds
 - As a developer, I want `specsync generate` to create specs for all unspecced modules in one command so that I can bootstrap documentation for an existing project
-- As a developer, I want `specsync generate --provider <p> --model <m>` to pick an AI provider and pin a specific model so that I control which LLM writes my specs
+- As a developer, I want deterministic `specsync generate` scaffolds and separate coding-agent integrations so SpecSync needs no inference credentials
 - As a developer, I want `specsync watch` to re-validate on file changes so that I get live feedback while editing
 - As a developer, I want `specsync score` to grade my spec quality so that I know where to focus improvement effort
 - As a team lead, I want `specsync hooks install` to set up agent instructions for Claude, Cursor, and Copilot so that AI assistants respect our specs automatically
 - As a developer, I want `specsync add-spec <name>` to scaffold a single spec with companion files so that I can add documentation incrementally
+- As a developer or agent, I want one `specsync change` namespace for the complete verified SDD lifecycle so that delivery state and next actions remain predictable
 
 ## Acceptance Criteria
 
@@ -27,8 +28,9 @@ spec: cli.spec.md
 - All domain logic is delegated to library modules — `main.rs` is purely a dispatcher and the clap grammar lives in `src/cli.rs`
 - `--fix` only modifies spec files, never source code
 - `init` auto-detects source directories, language, and creates a sensible default config
-- `generate --model <m>` overrides `SPECSYNC_AI_MODEL` and the `aiModel` config field for that run
+- `generate` accepts no provider/model options and delegates only to the deterministic generator
 - A panic in any subcommand is caught and reported as a "please report it" bug message rather than a raw backtrace
+- `change` dispatches every lifecycle operation through the shared domain engine and preserves structured JSON output
 
 ## Constraints
 
@@ -43,3 +45,20 @@ spec: cli.spec.md
 - GUI or web-based interface
 - Daemon mode (watch is foreground only)
 - Package manager plugins (npm, cargo, etc.)
+
+### REQ-cli-001
+
+The system SHALL expose and document the verified SDD lifecycle through the root CLI dispatcher.
+
+Acceptance Criteria
+- The CLI contract lists the `change` namespace and current initialization layout.
+- Dispatch documentation includes the change lifecycle handler.
+
+### REQ-cli-002
+
+The CLI SHALL expose deterministic generation and agent integrations without accepting embedded model-provider or credential options.
+
+Acceptance Criteria
+- `generate` has no provider/model flags.
+- MCP and agent installation commands remain available.
+

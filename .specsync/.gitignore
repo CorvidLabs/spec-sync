@@ -5,3 +5,5 @@
 backup-3x/
 config.local.toml
 hashes.json
+change.lock
+change-transaction.json

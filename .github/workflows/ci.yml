@@ -17,6 +17,7 @@ on:
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - 'action.yml'
+      - 'examples/**'
       - 'fledge.toml'
       - 'site/**'
       - 'vscode-extension/**'
@@ -32,6 +33,7 @@ on:
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - 'action.yml'
+      - 'examples/**'
       - 'fledge.toml'
       - 'site/**'
       - 'vscode-extension/**'
@@ -134,6 +136,109 @@ jobs:
       - name: Validate action.yml
         run: python3 -c "import yaml; yaml.safe_load(open('action.yml'))"
 
+  action-consumer:
+    name: Packaged GitHub Action consumer
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.89.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Build release archive and clean consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release
+
+          release_dir="${RUNNER_TEMP}/release"
+          consumer_dir="${RUNNER_TEMP}/consumer"
+          mkdir -p "$release_dir" "$consumer_dir"
+          cp target/release/specsync "$release_dir/specsync-linux-x86_64"
+          chmod +x "$release_dir/specsync-linux-x86_64"
+          tar czf "$release_dir/specsync-linux-x86_64.tar.gz" \
+            -C "$release_dir" specsync-linux-x86_64
+          (
+            cd "$release_dir"
+            shasum -a 256 specsync-linux-x86_64.tar.gz \
+              > specsync-linux-x86_64.tar.gz.sha256
+          )
+
+          git -C "$consumer_dir" init -b main
+          git -C "$consumer_dir" config user.email action-consumer@specsync.dev
+          git -C "$consumer_dir" config user.name "SpecSync Action Consumer"
+          (
+            cd "$consumer_dir"
+            "$GITHUB_WORKSPACE/target/release/specsync" init
+            mkdir -p src specs/greeting
+            printf 'pub fn hello() {}\n' > src/greeting.rs
+            printf '%s\n' \
+              '---' \
+              'module: greeting' \
+              'version: 1' \
+              'status: stable' \
+              'files:' \
+              '  - src/greeting.rs' \
+              '---' \
+              '' \
+              '# Greeting' \
+              '' \
+              '## Purpose' \
+              '' \
+              'Provides a greeting.' \
+              '' \
+              '## Public API' \
+              '' \
+              '| Name | Description |' \
+              '|------|-------------|' \
+              "| \`hello\` | Return a greeting |" \
+              '' \
+              '## Invariants' \
+              '' \
+              '1. Greeting behavior remains stable.' \
+              '' \
+              '## Behavioral Examples' \
+              '' \
+              'Calling hello succeeds.' \
+              '' \
+              '## Error Cases' \
+              '' \
+              'None.' \
+              '' \
+              '## Dependencies' \
+              '' \
+              'None.' \
+              '' \
+              '## Change Log' \
+              '' \
+              '| Date | Change |' \
+              '|------|--------|' \
+              '| 2026-07-10 | Initial consumer fixture |' \
+              > specs/greeting/greeting.spec.md
+            git add .
+            git commit -m "Initialize clean consumer"
+          )
+
+          python3 -m http.server 8765 --bind 127.0.0.1 \
+            --directory "$release_dir" >"${RUNNER_TEMP}/specsync-release-server.log" 2>&1 &
+          echo "$!" > "${RUNNER_TEMP}/specsync-release-server.pid"
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS http://127.0.0.1:8765/specsync-linux-x86_64.tar.gz.sha256 >/dev/null; then
+              exit 0
+            fi
+            echo "Release server not ready (attempt ${attempt}/5)"
+            sleep 1
+          done
+          exit 1
+      - name: Run the packaged action in the clean consumer
+        uses: ./
+        with:
+          version: '5.0.0'
+          download-base-url: 'http://127.0.0.1:8765'
+          root: ${{ runner.temp }}/consumer
+          strict: 'true'
+          require-coverage: '100'
+          lifecycle-enforce: 'true'
+
   spec-check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -141,6 +246,8 @@ jobs:
       body: ${{ steps.spec-check.outputs.body }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
       - name: Build specsync
@@ -149,13 +256,26 @@ jobs:
         id: spec-check
         run: |
           # Generate rich comment body for corvid-pet context
-          BODY=$(cargo run -- comment 2>/dev/null) || true
+          BODY=$(cargo run --quiet -- comment 2>/dev/null) || true
+          # `specsync comment` is bounded, and this second cap protects the
+          # action input if an older or unexpected binary is invoked here.
+          BODY=$(printf '%s' "$BODY" | python3 -c 'import sys; data = sys.stdin.buffer.read(); limit = 49152; sys.stdout.write(data[:limit].decode("utf-8", "ignore"))')
           echo "$BODY"
-          {
-            echo 'body<<EOF'
-            echo "$BODY"
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
+          write_multiline_output() {
+            local name="$1" value="$2" delimiter
+            while true; do
+              delimiter="SPECSYNC_$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
+              if ! printf '%s\n' "$value" | grep -Fqx "$delimiter"; then
+                break
+              fi
+            done
+            {
+              printf '%s<<%s\n' "$name" "$delimiter"
+              printf '%s\n' "$value"
+              printf '%s\n' "$delimiter"
+            } >> "$GITHUB_OUTPUT"
+          }
+          write_multiline_output body "$BODY"
           # Fail the step if check fails
           cargo run -- check --strict --require-coverage 100 --force
 
@@ -163,7 +283,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: github.event_name == 'pull_request' && always()
-    needs: [test, fmt, validate-action, spec-check, audit, coverage, site, vscode-extension]
+    needs: [test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
     steps:
       - uses: actions/checkout@v5
 
@@ -173,6 +293,7 @@ jobs:
           CHECK_TEST: "Tests (build, test, clippy)=${{ needs.test.result }}"
           CHECK_FMT: "Format Check=${{ needs.fmt.result }}"
           CHECK_ACTION: "Validate action.yml=${{ needs.validate-action.result }}"
+          CHECK_ACTION_CONSUMER: "Packaged Action Consumer=${{ needs.action-consumer.result }}"
           CHECK_SPEC: "Spec Validation=${{ needs.spec-check.result }}"
           CHECK_AUDIT: "Dependency Audit=${{ needs.audit.result }}"
           CHECK_COVERAGE: "Code Coverage=${{ needs.coverage.result }}"
@@ -207,17 +328,25 @@ jobs:
           done < <(env | grep '^CHECK_' | sort)
 
           echo "result=${OVERALL}" >> "$GITHUB_OUTPUT"
-
-          {
-            echo "context<<CONTEXT_EOF"
-            echo "### CI Summary"
-            echo ""
-            echo -e "$TABLE"
-            if [ -n "$DETAILS" ]; then
-              echo -e "$DETAILS"
-            fi
-            echo "CONTEXT_EOF"
-          } >> "$GITHUB_OUTPUT"
+          CONTEXT=$(printf '### CI Summary\n\n%b' "$TABLE")
+          if [ -n "$DETAILS" ]; then
+            CONTEXT+=$(printf '%b' "$DETAILS")
+          fi
+          write_multiline_output() {
+            local name="$1" value="$2" delimiter
+            while true; do
+              delimiter="SPECSYNC_$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
+              if ! printf '%s\n' "$value" | grep -Fqx "$delimiter"; then
+                break
+              fi
+            done
+            {
+              printf '%s<<%s\n' "$name" "$delimiter"
+              printf '%s\n' "$value"
+              printf '%s\n' "$delimiter"
+            } >> "$GITHUB_OUTPUT"
+          }
+          write_multiline_output context "$CONTEXT"
 
       - uses: CorvidLabs/corvid-pet@v1.0.0
         with:
@@ -234,7 +363,7 @@ jobs:
     # Depend on every gate job, not just a subset: an attestation records
     # "proceed", so it must not sign off on a commit where any real check failed.
     # (corvid-pet is a PR-comment mascot, not a gate, so it is intentionally out.)
-    needs: [test, fmt, audit, coverage, site, vscode-extension, validate-action, spec-check]
+    needs: [test, fmt, audit, coverage, site, vscode-extension, validate-action, action-consumer, spec-check]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     # contents: write lets the step push refs/notes/attest.
     permissions:
@@ -252,9 +381,9 @@ jobs:
         run: |
           base="https://github.com/CorvidLabs/attest/releases/download/${ATTEST_VERSION}"
           bin="${RUNNER_TEMP}/attest"; sum="${bin}.sha256"
-          retry="--retry 5 --retry-connrefused --retry-delay 1"
-          if curl -fsSL $retry "${base}/attest-linux-x86_64" -o "$bin" \
-            && curl -fsSL $retry "${base}/attest-linux-x86_64.sha256" -o "$sum" \
+          retry=(--retry 5 --retry-connrefused --retry-delay 1)
+          if curl -fsSL "${retry[@]}" "${base}/attest-linux-x86_64" -o "$bin" \
+            && curl -fsSL "${retry[@]}" "${base}/attest-linux-x86_64.sha256" -o "$sum" \
             && want="$(awk '{print $1}' "$sum")" && [ -n "$want" ] \
             && printf '%s  %s\n' "$want" "$bin" | sha256sum -c - ; then
             chmod +x "$bin"
@@ -262,7 +391,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git fetch origin "+refs/notes/attest:refs/notes/attest" 2>/dev/null || true
             if "$bin" sign --commit HEAD --reviewer agent:ci --confidence 0.9 --tests-passed \
-                 --verdict proceed --note "CI green: test, fmt, audit, coverage, site, vscode-extension, validate-action, spec-check" \
+                 --verdict proceed --note "CI green: test, fmt, audit, coverage, site, vscode-extension, validate-action, action-consumer, spec-check" \
                && git push origin refs/notes/attest ; then
               echo "attestation recorded for $(git rev-parse --short HEAD)"
             else

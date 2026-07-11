@@ -4,10 +4,10 @@ spec: cmd_init.spec.md
 
 ## Key Decisions
 
-- Both `specsync.json` and `.specsync.toml` are checked before writing; either one means "already initialized" and init no-ops. This avoids clobbering a TOML-configured project.
-- The default config is built as a `serde_json::Value` and pretty-printed with a trailing newline, so the on-disk file is stable and diff-friendly.
+- Current and legacy config locations are checked before writing; an existing configuration produces a migration/current-layout hint without being overwritten.
+- Fresh projects write deterministic `.specsync/config.toml`, `.specsync/version`, and `.specsync/sdd.json` files.
 - `ensure_hashes_gitignored` returns `Result<bool, String>` (not `io::Error`) so the caller can print a plain warning; the io error is mapped to a "Failed to update .gitignore" string. A `.gitignore` write failure is intentionally **non-fatal** — the config is already written and the cache being un-ignored is a minor issue.
-- Only the repository-root `.gitignore` is edited (a `# spec-sync hash cache` comment plus the `.specsync/hashes.json` entry).
+- The repository-root `.gitignore` receives the hash-cache entry, while `.specsync/.gitignore` owns local lifecycle lock and transaction-journal entries.
 
 ## Files to Read First
 
@@ -16,7 +16,7 @@ spec: cmd_init.spec.md
 
 ## Current Status
 
-Implemented and stable. Strong coverage: three inline unit tests on the gitignore helper plus several integration tests on config creation and source-dir detection.
+Implemented for 5.0. Fresh projects enable SDD, detect configured verification commands, and receive a guided terminal bootstrap; non-interactive behavior remains deterministic and covered by integration tests.
 
 ## Notes
 

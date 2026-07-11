@@ -41,6 +41,13 @@
       "timestamp": 1783745737,
       "digest": "3e04222b519f1f3c88e8183cca8b081bbced8abb65c2ff44f323efb36f4bb1f8",
       "note": "User-approved CI and Action hardening scope with remote regression evidence"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783747270,
+      "digest": "870f4f6d614547d4f2e42bb2ae8b6a6f3bca601f67d5c14c17fc6f181bda9030",
+      "note": "User-approved 5.0 perfection scope with five-epic local lifecycle proof and archive regression evidence"
     }
   ]
 }

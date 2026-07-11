@@ -25,6 +25,7 @@ The system SHALL fail closed when lifecycle enforcement cannot be evaluated.
 
 Acceptance Criteria
 - Malformed policy and unavailable changed-path comparison fail unified checking.
+- A successful changed-path comparison with no output is valid empty coverage evidence.
 - Effective-contract validation runs during verification and acceptance.
 - Oversized lifecycle artifacts and unsafe, traversing, or symlink-escaping project paths are rejected.
 

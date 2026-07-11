@@ -2163,7 +2163,7 @@ fn uncovered_meaningful_paths(
     let mut args = vec!["diff", "--name-only"];
     let base = pull_request_diff_base(root, records);
     args.push(&base);
-    let output = git_output(root, &args)
+    let output = git_output_allow_empty(root, &args)
         .ok_or_else(|| "unable to inspect changed paths for SDD coverage".to_string())?;
     let covered: Vec<&str> = records
         .iter()
@@ -2700,6 +2700,18 @@ fn git_output(root: &Path, args: &[&str]) -> Option<String> {
     if value.is_empty() { None } else { Some(value) }
 }
 
+fn git_output_allow_empty(root: &Path, args: &[&str]) -> Option<String> {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(root)
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
 fn write_json<Value: Serialize>(path: &Path, value: &Value) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
@@ -2921,6 +2933,8 @@ mod tests {
         record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
         let error = archive_change(root, &record.id).unwrap_err();
         assert!(error.contains("archive after merge"));
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        assert!(archive_change(root, &record.id).is_ok());
     }
 
     #[test]

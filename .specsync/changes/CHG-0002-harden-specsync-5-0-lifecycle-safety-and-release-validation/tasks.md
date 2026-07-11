@@ -24,8 +24,10 @@ artifact: tasks
 - [x] Prove 4.x, OpenSpec, and Spec Kit adoption.
 - [x] Test a packaged release binary from a clean consumer project.
 - [x] Add a clean packaged-download GitHub Action consumer gate.
-- [ ] Confirm discovery in four real agent surfaces (external authentication/metadata approval required).
+- [ ] Confirm live discovery in four remote agent models (security review blocks project-metadata transmission).
 - [x] Add and run executable lifecycle and concurrent-change examples.
+- [x] Run a clean five-epic product evolution with approval, verification, merge, archive, and score evidence.
+- [x] Treat a successful empty post-merge Git comparison as valid archive coverage evidence.
 - [x] Make the README lifecycle sequence executable (`PRRT_kwDORqhp_86QD4Du`).
 - [x] Exclude native companion-only directories from Spec Kit imports (`PRRT_kwDORqhp_86QD4Dv`).
 - [x] Validate deltas before definition approval (`PRRT_kwDORqhp_86QD4Dz`).

@@ -20,6 +20,13 @@
       "timestamp": 1783803894,
       "digest": "e00bbffb657a83728c2e84c6cdfe44c7d3c8c9075f52cf7b457f84b1b5befd7e",
       "note": "Refresh the approved definition after recording that draft PR #343 is open."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783804639,
+      "digest": "3417a43024a96059ad182b42640fcd699925290bcfebc8642036aa6243eb8f05",
+      "note": "Explicit closing approval provided for PR #343 on 2026-07-11 after reviewing verification evidence and green CI."
     }
   ]
 }

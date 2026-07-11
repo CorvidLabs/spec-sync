@@ -1,6 +1,6 @@
 ---
 id: CHG-0011-fix-windows-release-checksum-newline-portability
-state: implementing
+state: accepted
 type: bug_fix
 base_commit: d6d8512f9a1d75f308df1e9a8f52b47ca9e839ee
 ---

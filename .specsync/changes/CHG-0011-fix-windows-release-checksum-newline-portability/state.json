@@ -5,10 +5,10 @@
   "title": "Fix Windows release checksum newline portability",
   "description": "Fix Windows release checksum newline portability",
   "kind": "bug_fix",
-  "state": "implementing",
+  "state": "accepted",
   "base_commit": "d6d8512f9a1d75f308df1e9a8f52b47ca9e839ee",
   "created_at": 1783803446,
-  "updated_at": 1783803894,
+  "updated_at": 1783804639,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/release.yml"

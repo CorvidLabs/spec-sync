@@ -139,7 +139,7 @@ fn init_creates_config_file() {
 }
 
 #[test]
-fn init_then_check_fails_closed_without_git_and_does_not_nag_about_legacy_layout() {
+fn init_then_check_is_usable_without_git_and_does_not_nag_about_legacy_layout() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
 
@@ -153,16 +153,19 @@ fn init_then_check_fails_closed_without_git_and_does_not_nag_about_legacy_layout
         .assert()
         .success();
 
-    // A fresh v4 init must not trigger the legacy 3.x migration nag
+    let policy: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(root.join(".specsync/sdd.json")).unwrap())
+            .unwrap();
+    assert_eq!(policy["enabled"], true);
+    assert_eq!(policy["require_change_for_meaningful_files"], false);
+
+    // Lifecycle checks remain available without requiring impossible Git diff evidence.
     specsync()
         .arg("check")
         .arg("--root")
         .arg(root)
         .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "unable to inspect changed paths for SDD coverage",
-        ))
+        .success()
         .stderr(predicate::str::contains("Legacy 3.x layout").not());
 }
 

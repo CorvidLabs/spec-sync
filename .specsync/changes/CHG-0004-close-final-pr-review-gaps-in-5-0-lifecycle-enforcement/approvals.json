@@ -41,6 +41,20 @@
       "timestamp": 1783752274,
       "digest": "2eaa0e57fdf5a3e01b7a1c64d15003f01b9d8b65c159dacf7bee3c52c870ab43",
       "note": "Accepted after independent audit, full local release lane, examples, and green GitHub matrix"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783782217,
+      "digest": "52fc6925e6153f2534fa92e3f72fb3b18f56bf14a4a2b6ed6bec00fa0fa94822",
+      "note": "User-authorized 5.0 migration: bind accepted review evidence to current scoped delivery inputs"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783782395,
+      "digest": "9eaeae9ec877eb5c3f468722d6ce4e5f3a00bc34165bb11f492b7f428f9b6e48",
+      "note": "Rebind migrated evidence after final canonical formatting normalization"
     }
   ]
 }

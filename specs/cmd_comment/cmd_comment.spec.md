@@ -1,6 +1,6 @@
 ---
 module: cmd_comment
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/comment.rs
@@ -88,3 +88,4 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 | 2026-04-11 | Documented unified pipeline: marketplace action and CI both use `specsync comment` for identical PR comments |
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0005-close-final-fail-closed-review-gaps-in-5-0-lifecycle-evidence-and-pr-reporting: Close final fail-closed review gaps in 5.0 lifecycle evidence and PR reporting |
+| 2026-07-11 | CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re: Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps |

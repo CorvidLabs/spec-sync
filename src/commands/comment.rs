@@ -19,7 +19,7 @@ pub fn cmd_comment(
     enforcement: Option<types::EnforcementMode>,
     require_coverage: Option<usize>,
 ) {
-    let (config, spec_files) = load_and_discover(root, false);
+    let (config, spec_files) = load_and_discover(root, true);
 
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);

@@ -62,6 +62,20 @@
       "timestamp": 1783747450,
       "digest": "348c86075cb33a25b3efbbe57ca13fecfe725621753226c9252a06ad63547283",
       "note": "Closing approval after five-epic clean-room proof, 1,717 tests, full repository lane, and regression review"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783782217,
+      "digest": "8bddf24c9e096d983822d038a353a10d093cab2a1174a0e10b53885e3be7cb05",
+      "note": "User-authorized 5.0 migration: bind accepted hardening evidence to current scoped delivery inputs"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783782395,
+      "digest": "dde907607244641a8c0642380c74b979fb3fbf8e73fd8d9caa9712c0fcb13f17",
+      "note": "Rebind migrated evidence after final canonical formatting normalization"
     }
   ]
 }

@@ -48,6 +48,13 @@
       "timestamp": 1783740813,
       "digest": "fa957d682dbf373170f929426032617d7ee1c3e24815fb84742956dc0aa82afd",
       "note": "Accepted with portable approvals, portable verification, and enforceable CI path coverage"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783782217,
+      "digest": "c4fd40306d5945dd3d9d17a35f1f352b0811a2fa0b344b12ec8ac505caac08dc",
+      "note": "User-authorized 5.0 migration: bind the accepted bootstrap evidence to current scoped delivery inputs"
     }
   ]
 }

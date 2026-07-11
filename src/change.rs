@@ -299,6 +299,8 @@ pub struct VerificationRecord {
     pub contract_digest: String,
     #[serde(default)]
     pub workspace_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub acceptance_input_digest: Option<String>,
     pub passed: bool,
     pub commands: Vec<CommandEvidence>,
     pub requirement_ids: Vec<String>,
@@ -379,6 +381,8 @@ pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> 
         verification_commands,
         ..SddPolicy::default()
     };
+    policy.require_change_for_meaningful_files =
+        git_output(root, &["rev-parse", "--verify", "HEAD"]).is_some();
     for source_dir in crate::config::load_config(root).source_dirs {
         let normalized = source_dir.replace('\\', "/");
         let scope = if normalized == "." {
@@ -740,6 +744,7 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
         commit: git_output(root, &["rev-parse", "HEAD"]),
         contract_digest: definition_digest(root, &record)?,
         workspace_digest: project_input_digest(root)?,
+        acceptance_input_digest: None,
         passed,
         commands,
         requirement_ids,
@@ -778,7 +783,7 @@ pub fn accept_change(
     let mut record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Verifying], "accept the change")?;
     ensure_definition_approval_valid(root, &record)?;
-    let verification = load_verification(root, &record)?;
+    let mut verification = load_verification(root, &record)?;
     if !verification.passed {
         return Err("cannot accept a change with failed verification".into());
     }
@@ -803,6 +808,7 @@ pub fn accept_change(
     let records = list_changes_checked(root)?;
     validate_effective_contracts(root, &records).map_err(|errors| errors.join("; "))?;
     let mut prepared = prepare_delta_application(root, &record)?;
+    verification.acceptance_input_digest = Some(acceptance_input_digest(root, &record, &prepared)?);
     let closing_digest = closing_digest(&record, &verification);
     let mut ledger = load_approvals(root, &record)?;
     ledger.approvals.push(ApprovalRecord {
@@ -814,6 +820,10 @@ pub fn accept_change(
     });
     let approvals_path = change_dir(root, &record.id).join("approvals.json");
     prepared.push((approvals_path, json_content(&ledger)?));
+    prepared.push((
+        change_dir(root, &record.id).join("verification.json"),
+        json_content(&verification)?,
+    ));
     record.state = ChangeState::Accepted;
     record.updated_at = now();
     prepared.push((
@@ -833,21 +843,16 @@ pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     list_changes_checked(root)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Accepted], "archive the change")?;
+    ensure_closing_approval_valid(root, &record)?;
     if let Some(policy) = load_policy_checked(root)?
         && policy.enabled
         && policy.require_change_for_meaningful_files
     {
-        let remaining: Vec<ChangeRecord> = list_changes_checked(root)?
-            .into_iter()
-            .filter(|candidate| candidate.id != record.id)
-            .collect();
-        let uncovered = uncovered_meaningful_paths(root, &policy, &remaining)?;
-        if uncovered.iter().any(|path| {
-            record
-                .affected_paths
-                .iter()
-                .any(|scope| path_matches_scope(path, scope))
-        }) {
+        let delivery_diff = uncovered_meaningful_paths(root, &policy, &[])?;
+        if delivery_diff
+            .iter()
+            .any(|path| record_covers_project_path(root, &record, path))
+        {
             return Err(
                 "cannot archive while this delivery diff still depends on the change for path coverage; archive after merge"
                     .into(),
@@ -956,7 +961,8 @@ fn policy_at_comparison_base(root: &Path) -> Result<Option<SddPolicy>, String> {
         }
         return Ok(None);
     }
-    let object = format!("{reference}:{POLICY_PATH}");
+    let policy_tree_path = git_repo_relative_path(root, POLICY_PATH)?;
+    let object = format!("{reference}:{policy_tree_path}");
     let Some(content) = git_output_allow_empty(root, &["show", &object]) else {
         return Ok(None);
     };
@@ -989,7 +995,10 @@ pub fn check_project(root: &Path) -> SddCheckReport {
     let is_versioned_sdd = current_policy.is_some()
         || base_policy.is_some()
         || root.join(".specsync/version").exists()
-        || git_output(root, &["ls-tree", "--name-only", "HEAD", POLICY_PATH]).is_some();
+        || git_repo_relative_path(root, POLICY_PATH)
+            .ok()
+            .and_then(|path| git_output(root, &["ls-tree", "--name-only", "HEAD", path.as_str()]))
+            .is_some();
     if !is_versioned_sdd {
         return SddCheckReport::default();
     }
@@ -1173,18 +1182,92 @@ pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<Str
     if dry_run {
         return Ok(actions);
     }
+    if let Some(source) = detected.as_deref() {
+        validate_foreign_import(root, source)?;
+    }
+    let policy_existed = root.join(POLICY_PATH).exists();
+    let existing_bootstrap = fs::read_to_string(root.join(".specsync/adoption-report.json"))
+        .ok()
+        .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
+        .and_then(|value| value.get("bootstrap_policy").cloned());
     write_default_policy(root, detect_verification_commands(root))?;
+    let bootstrap_policy = if policy_existed {
+        existing_bootstrap
+    } else {
+        adoption_bootstrap_record(root)?
+    };
     write_json(
         &root.join(".specsync/adoption-report.json"),
         &serde_json::json!({
             "requirements_needing_ids": requirement_proposals,
             "generated_at": now(),
+            "bootstrap_policy": bootstrap_policy,
         }),
     )?;
     if let Some(source) = detected.as_deref() {
         import_foreign(root, source)?;
     }
     Ok(actions)
+}
+
+fn adoption_bootstrap_record(root: &Path) -> Result<Option<serde_json::Value>, String> {
+    let Some(base_commit) = git_output(root, &["rev-parse", "--verify", "HEAD"]) else {
+        return Ok(None);
+    };
+    let content = fs::read(root.join(POLICY_PATH))
+        .map_err(|error| format!("failed to read adopted SDD policy: {error}"))?;
+    let mut hasher = Sha256::new();
+    hasher.update(&content);
+    Ok(Some(serde_json::json!({
+        "path": POLICY_PATH,
+        "digest": format!("{:x}", hasher.finalize()),
+        "base_commit": base_commit,
+    })))
+}
+
+fn adoption_bootstrap_covers_policy(root: &Path) -> bool {
+    let Ok(content) = fs::read_to_string(root.join(".specsync/adoption-report.json")) else {
+        return false;
+    };
+    let Ok(report) = serde_json::from_str::<serde_json::Value>(&content) else {
+        return false;
+    };
+    let Some(bootstrap) = report.get("bootstrap_policy") else {
+        return false;
+    };
+    if bootstrap.get("path").and_then(serde_json::Value::as_str) != Some(POLICY_PATH) {
+        return false;
+    }
+    let Some(base_commit) = bootstrap
+        .get("base_commit")
+        .and_then(serde_json::Value::as_str)
+    else {
+        return false;
+    };
+    if git_output(root, &["rev-parse", "--verify", base_commit]).is_none() {
+        return false;
+    }
+    let ancestor_status = Command::new("git")
+        .args(["merge-base", "--is-ancestor", base_commit, "HEAD"])
+        .current_dir(root)
+        .status();
+    if !ancestor_status.is_ok_and(|status| status.success()) {
+        return false;
+    }
+    let Ok(tree_path) = git_repo_relative_path(root, POLICY_PATH) else {
+        return false;
+    };
+    let object = format!("{base_commit}:{tree_path}");
+    if git_output_allow_empty(root, &["show", &object]).is_some() {
+        return false;
+    }
+    let Ok(policy) = fs::read(root.join(POLICY_PATH)) else {
+        return false;
+    };
+    let mut hasher = Sha256::new();
+    hasher.update(policy);
+    let current_digest = format!("{:x}", hasher.finalize());
+    bootstrap.get("digest").and_then(serde_json::Value::as_str) == Some(current_digest.as_str())
 }
 
 fn requirement_id_proposals(root: &Path) -> Vec<serde_json::Value> {
@@ -1301,6 +1384,18 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
     {
         return Err("no_spec_change requires a rationale".into());
     }
+    if record.no_spec_change
+        && !is_legacy_self_adoption_record(record)
+        && record
+            .answers
+            .get("public_contract")
+            .is_some_and(|answer| is_yes(answer))
+    {
+        return Err(
+            "no_spec_change cannot be used when the interview declares a public contract change"
+                .into(),
+        );
+    }
     if !next_questions(record).is_empty() {
         return Err("the deterministic interview is incomplete".into());
     }
@@ -1318,6 +1413,16 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
         }
     }
     validate_artifacts(root, record)
+}
+
+fn is_legacy_self_adoption_record(record: &ChangeRecord) -> bool {
+    record.schema_version == 1
+        && record.id == "CHG-0001-bootstrap-and-ship-the-verified-specsync-5-0-full-sdd-lifecycle"
+        && record.state == ChangeState::Accepted
+        && record.no_spec_change_rationale.as_deref()
+            == Some(
+                "The lifecycle implementation and canonical contracts predate self-adoption in this branch; this bootstrap record verifies the completed work without reapplying already-canonical semantic deltas.",
+            )
 }
 
 fn validate_artifacts(root: &Path, record: &ChangeRecord) -> Result<(), String> {
@@ -2344,7 +2449,65 @@ fn closing_digest(record: &ChangeRecord, verification: &VerificationRecord) -> S
     hasher.update(verification.contract_digest.as_bytes());
     hasher.update(verification.workspace_digest.as_bytes());
     hasher.update(verification.commit.as_deref().unwrap_or("").as_bytes());
+    if let Some(digest) = &verification.acceptance_input_digest {
+        hasher.update(digest.as_bytes());
+    }
     format!("{:x}", hasher.finalize())
+}
+
+fn acceptance_input_digest(
+    root: &Path,
+    record: &ChangeRecord,
+    overrides: &[(PathBuf, String)],
+) -> Result<String, String> {
+    let mut paths = git_project_paths(root).unwrap_or_else(|| walk_project_paths(root));
+    let override_content: BTreeMap<String, &[u8]> = overrides
+        .iter()
+        .map(|(path, content)| (portable_project_path(root, path), content.as_bytes()))
+        .collect();
+    paths.extend(override_content.keys().cloned());
+    paths.sort();
+    paths.dedup();
+    let mut hasher = Sha256::new();
+    for relative in paths {
+        if project_input_is_volatile(&relative)
+            || !record_covers_project_path(root, record, &relative)
+        {
+            continue;
+        }
+        hasher.update(relative.as_bytes());
+        hasher.update([0]);
+        if let Some(content) = override_content.get(&relative) {
+            hasher.update(content);
+        } else {
+            let path = root.join(&relative);
+            match fs::symlink_metadata(&path) {
+                Ok(metadata) if metadata.file_type().is_symlink() => {
+                    let target = fs::read_link(&path).map_err(|error| {
+                        format!("failed to read symlink {}: {error}", path.display())
+                    })?;
+                    hasher.update(b"SYMLINK\0");
+                    hasher.update(target.to_string_lossy().as_bytes());
+                }
+                Ok(metadata) if metadata.is_file() => {
+                    hasher.update(
+                        fs::read(&path).map_err(|error| {
+                            format!("failed to hash {}: {error}", path.display())
+                        })?,
+                    );
+                }
+                Ok(_) => hasher.update(b"NON_FILE"),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    hasher.update(b"MISSING")
+                }
+                Err(error) => {
+                    return Err(format!("failed to inspect {}: {error}", path.display()));
+                }
+            }
+        }
+        hasher.update([0]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
@@ -2367,6 +2530,20 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
     let verification = load_verification(root, record)?;
     if !verification.passed {
         return Err("accepted change has failed verification evidence".into());
+    }
+    if verification.contract_digest != definition_digest(root, record)? {
+        return Err("accepted change verification contract is stale".into());
+    }
+    let expected_inputs = verification
+        .acceptance_input_digest
+        .as_ref()
+        .ok_or_else(|| "accepted change is missing current delivery-input evidence".to_string())?;
+    if !verification_commit_is_accepted_current(root, &verification) {
+        return Err("accepted change verification commit is not in current history".into());
+    }
+    let current_inputs = acceptance_input_digest(root, record, &[])?;
+    if current_inputs != *expected_inputs {
+        return Err("accepted change verification is stale for current delivery inputs".into());
     }
     let expected = closing_digest(record, &verification);
     let ledger = load_approvals(root, record)?;
@@ -2441,7 +2618,7 @@ fn uncovered_meaningful_paths(
     {
         return Ok(Vec::new());
     }
-    let mut args = vec!["diff", "--name-only"];
+    let mut args = vec!["diff", "--name-only", "--relative"];
     let base = pull_request_diff_base(root, records);
     args.push(&base);
     let output = git_output_allow_empty(root, &args)
@@ -2449,8 +2626,8 @@ fn uncovered_meaningful_paths(
     let mut changed: BTreeSet<String> = output.lines().map(str::to_string).collect();
     if !is_ci_project(root) {
         for command in [
-            vec!["diff", "--name-only"],
-            vec!["diff", "--cached", "--name-only"],
+            vec!["diff", "--name-only", "--relative"],
+            vec!["diff", "--cached", "--name-only", "--relative"],
             vec!["ls-files", "--others", "--exclude-standard"],
         ] {
             let output = git_output_allow_empty(root, &command).ok_or_else(|| {
@@ -2459,6 +2636,9 @@ fn uncovered_meaningful_paths(
             changed.extend(output.lines().map(str::to_string));
         }
     }
+    if adoption_bootstrap_covers_policy(root) {
+        changed.remove(POLICY_PATH);
+    }
     let covered: Vec<&str> = records
         .iter()
         .filter(|record| record_is_delivering(record))
@@ -2466,8 +2646,13 @@ fn uncovered_meaningful_paths(
         .collect();
     let uncovered = changed
         .into_iter()
-        .filter(|path| path_is_meaningful(path, policy))
-        .filter(|path| !covered.iter().any(|scope| path_matches_scope(path, scope)))
+        .filter(|path| path_is_meaningful_for_root(root, path, policy))
+        .filter(|path| {
+            !covered.iter().any(|scope| path_matches_scope(path, scope))
+                && !records
+                    .iter()
+                    .any(|record| record_covers_project_path(root, record, path))
+        })
         .collect();
     Ok(uncovered)
 }
@@ -2485,6 +2670,28 @@ fn record_covers_path(record: &ChangeRecord, path: &str) -> bool {
             .affected_paths
             .iter()
             .any(|scope| path_matches_scope(path, scope))
+}
+
+fn record_covers_project_path(root: &Path, record: &ChangeRecord, path: &str) -> bool {
+    if !record_is_delivering(record) {
+        return false;
+    }
+    if record
+        .affected_paths
+        .iter()
+        .any(|scope| path_matches_scope(path, scope))
+    {
+        return true;
+    }
+    let specs_scope = configured_specs_scope(root);
+    record.affected_specs.iter().any(|module| {
+        let module_scope = if specs_scope == "." {
+            format!("{module}/")
+        } else {
+            format!("{specs_scope}{module}/")
+        };
+        path_matches_scope(path, &module_scope)
+    })
 }
 
 fn git_worktree_is_clean(root: &Path) -> Option<bool> {
@@ -2531,8 +2738,31 @@ fn recorded_diff_base(records: &[ChangeRecord]) -> String {
         .unwrap_or_else(|| "HEAD~1...HEAD".into())
 }
 
+#[cfg(test)]
 fn path_is_meaningful(path: &str, policy: &SddPolicy) -> bool {
+    path_is_meaningful_with_specs(path, policy, "specs/")
+}
+
+fn path_is_meaningful_for_root(root: &Path, path: &str, policy: &SddPolicy) -> bool {
+    path_is_meaningful_with_specs(path, policy, &configured_specs_scope(root))
+}
+
+fn configured_specs_scope(root: &Path) -> String {
+    let normalized = crate::config::load_config(root)
+        .specs_dir
+        .replace('\\', "/");
+    if normalized == "." {
+        normalized
+    } else {
+        format!("{}/", normalized.trim_matches('/'))
+    }
+}
+
+fn path_is_meaningful_with_specs(path: &str, policy: &SddPolicy, specs_scope: &str) -> bool {
     if is_protected_sdd_path(path) {
+        return true;
+    }
+    if path_matches_scope(path, specs_scope) {
         return true;
     }
     policy
@@ -2699,16 +2929,50 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
     match source {
         "openspec" => {
             let canonical = root.join("openspec/specs");
-            if canonical.is_dir() {
-                copy_markdown_files(&canonical, &import_root.join("canonical"))?;
+            reject_symlink_components(root, &canonical)?;
+            match fs::symlink_metadata(&canonical) {
+                Ok(metadata) if metadata.file_type().is_symlink() => {
+                    return Err(format!(
+                        "refusing symlinked foreign import path: {}",
+                        canonical.display()
+                    ));
+                }
+                Ok(metadata) if metadata.is_dir() => {
+                    copy_markdown_files(root, &canonical, &import_root.join("canonical"))?;
+                }
+                Ok(_) => {
+                    return Err(format!(
+                        "foreign canonical import is not a directory: {}",
+                        canonical.display()
+                    ));
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.to_string()),
             }
         }
         "speckit" => {
             let constitution = root.join(".specify/memory/constitution.md");
-            if constitution.is_file() {
-                fs::create_dir_all(&import_root).map_err(|error| error.to_string())?;
-                fs::copy(&constitution, import_root.join("constitution.md"))
-                    .map_err(|error| error.to_string())?;
+            reject_symlink_components(root, &constitution)?;
+            match fs::symlink_metadata(&constitution) {
+                Ok(metadata) if metadata.file_type().is_symlink() => {
+                    return Err(format!(
+                        "refusing symlinked foreign import path: {}",
+                        constitution.display()
+                    ));
+                }
+                Ok(metadata) if metadata.is_file() => {
+                    fs::create_dir_all(&import_root).map_err(|error| error.to_string())?;
+                    fs::copy(&constitution, import_root.join("constitution.md"))
+                        .map_err(|error| error.to_string())?;
+                }
+                Ok(_) => {
+                    return Err(format!(
+                        "foreign constitution is not a regular file: {}",
+                        constitution.display()
+                    ));
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.to_string()),
             }
         }
         _ => {}
@@ -2718,17 +2982,39 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
         "speckit" => root.join("specs"),
         _ => return Err(format!("unsupported adoption source `{source}`")),
     };
-    if !source_changes.is_dir() {
-        return Ok(());
+    reject_symlink_components(root, &source_changes)?;
+    match fs::symlink_metadata(&source_changes) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(format!(
+                "refusing symlinked foreign import path: {}",
+                source_changes.display()
+            ));
+        }
+        Ok(metadata) if metadata.is_dir() => {}
+        Ok(_) => {
+            return Err(format!(
+                "foreign changes path is not a directory: {}",
+                source_changes.display()
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.to_string()),
     }
-    for entry in fs::read_dir(source_changes)
-        .map_err(|error| error.to_string())?
-        .flatten()
-    {
+    for entry in fs::read_dir(source_changes).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
         let entry_path = entry.path();
-        if !entry_path.is_dir() || entry.file_name() == "archive" {
+        reject_symlink_components(root, &entry_path)?;
+        let file_type = entry.file_type().map_err(|error| error.to_string())?;
+        if file_type.is_symlink() {
+            return Err(format!(
+                "refusing symlinked foreign import path: {}",
+                entry_path.display()
+            ));
+        }
+        if !file_type.is_dir() || entry.file_name() == "archive" {
             continue;
         }
+        validate_foreign_tree(&entry_path)?;
         let is_active_change = match source {
             "openspec" => {
                 entry_path.join("proposal.md").exists()
@@ -2768,23 +3054,116 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
             },
         )?;
         let destination = change_dir(root, &record.id).join("imported");
-        copy_markdown_files(&entry_path, &destination)?;
+        copy_markdown_files(root, &entry_path, &destination)?;
     }
     Ok(())
 }
 
-fn copy_markdown_files(source: &Path, destination: &Path) -> Result<(), String> {
+fn validate_foreign_import(root: &Path, source: &str) -> Result<(), String> {
+    let candidates = match source {
+        "openspec" => vec![root.join("openspec/specs"), root.join("openspec/changes")],
+        "speckit" => vec![
+            root.join(".specify/memory/constitution.md"),
+            root.join("specs"),
+        ],
+        _ => return Err(format!("unsupported adoption source `{source}`")),
+    };
+    for candidate in candidates {
+        reject_symlink_components(root, &candidate)?;
+        match fs::symlink_metadata(&candidate) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(format!(
+                    "refusing symlinked foreign import path: {}",
+                    candidate.display()
+                ));
+            }
+            Ok(metadata) if metadata.is_dir() => validate_foreign_tree(&candidate)?,
+            Ok(metadata)
+                if source == "speckit"
+                    && candidate.ends_with("constitution.md")
+                    && metadata.is_file() => {}
+            Ok(_) => {
+                return Err(format!(
+                    "foreign import path is not the expected regular file or directory: {}",
+                    candidate.display()
+                ));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    Ok(())
+}
+
+fn copy_markdown_files(
+    project_root: &Path,
+    source: &Path,
+    destination: &Path,
+) -> Result<(), String> {
+    reject_symlink_components(project_root, source)?;
+    let metadata = fs::symlink_metadata(source).map_err(|error| error.to_string())?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(format!(
+            "refusing non-directory or symlinked foreign import path: {}",
+            source.display()
+        ));
+    }
     fs::create_dir_all(destination).map_err(|error| error.to_string())?;
-    for entry in fs::read_dir(source)
-        .map_err(|error| error.to_string())?
-        .flatten()
-    {
+    for entry in fs::read_dir(source).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
         let path = entry.path();
-        if path.is_dir() {
-            copy_markdown_files(&path, &destination.join(entry.file_name()))?;
-        } else if path.extension().and_then(|value| value.to_str()) == Some("md") {
+        let file_type = entry.file_type().map_err(|error| error.to_string())?;
+        if file_type.is_symlink() {
+            return Err(format!(
+                "refusing symlinked foreign import path: {}",
+                path.display()
+            ));
+        }
+        if file_type.is_dir() {
+            copy_markdown_files(project_root, &path, &destination.join(entry.file_name()))?;
+        } else if file_type.is_file()
+            && path.extension().and_then(|value| value.to_str()) == Some("md")
+        {
             fs::copy(&path, destination.join(entry.file_name()))
                 .map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+fn reject_symlink_components(project_root: &Path, candidate: &Path) -> Result<(), String> {
+    let relative = candidate.strip_prefix(project_root).map_err(|_| {
+        format!(
+            "foreign import path escapes project root: {}",
+            candidate.display()
+        )
+    })?;
+    let mut current = project_root.to_path_buf();
+    for component in relative.components() {
+        current.push(component.as_os_str());
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(format!(
+                    "refusing symlinked foreign import path: {}",
+                    current.display()
+                ));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    Ok(())
+}
+
+fn validate_foreign_tree(root: &Path) -> Result<(), String> {
+    for entry in walkdir::WalkDir::new(root).follow_links(false) {
+        let entry = entry.map_err(|error| error.to_string())?;
+        if entry.file_type().is_symlink() {
+            return Err(format!(
+                "refusing symlinked foreign import path: {}",
+                entry.path().display()
+            ));
         }
     }
     Ok(())
@@ -2972,6 +3351,17 @@ fn verification_commit_is_current(
         .is_ok_and(|status| status.success())
 }
 
+fn verification_commit_is_accepted_current(root: &Path, evidence: &VerificationRecord) -> bool {
+    let Some(commit) = evidence.commit.as_deref() else {
+        return git_output(root, &["rev-parse", "HEAD"]).is_none();
+    };
+    Command::new("git")
+        .args(["merge-base", "--is-ancestor", commit, "HEAD"])
+        .current_dir(root)
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
 fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
     let mut maximum = 0_u64;
     for base in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
@@ -3088,6 +3478,13 @@ fn git_output_allow_empty(root: &Path, args: &[&str]) -> Option<String> {
         .status
         .success()
         .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn git_repo_relative_path(root: &Path, project_path: &str) -> Result<String, String> {
+    let prefix = git_output_allow_empty(root, &["rev-parse", "--show-prefix"])
+        .ok_or_else(|| "unable to determine project path within Git repository".to_string())?
+        .replace('\\', "/");
+    Ok(format!("{prefix}{project_path}"))
 }
 
 fn write_json<Value: Serialize>(path: &Path, value: &Value) -> Result<(), String> {
@@ -3349,6 +3746,30 @@ mod tests {
         record.state = ChangeState::Accepted;
         save_change(root, &record).unwrap();
         write_change_markdown(root, &record).unwrap();
+        let verification = VerificationRecord {
+            timestamp: now(),
+            commit: None,
+            contract_digest: definition_digest(root, &record).unwrap(),
+            workspace_digest: project_input_digest(root).unwrap(),
+            acceptance_input_digest: Some(acceptance_input_digest(root, &record, &[]).unwrap()),
+            passed: true,
+            commands: Vec::new(),
+            requirement_ids: Vec::new(),
+        };
+        write_json(
+            &change_dir(root, &record.id).join("verification.json"),
+            &verification,
+        )
+        .unwrap();
+        append_approval(
+            root,
+            &record,
+            "acceptance",
+            Some("Reviewer".into()),
+            closing_digest(&record, &verification),
+            None,
+        )
+        .unwrap();
         let destination = root
             .join(ARCHIVE_PATH)
             .join(format!("{}-{}", today(), record.id));
@@ -3556,15 +3977,20 @@ mod tests {
     }
 
     #[test]
-    fn unavailable_required_path_coverage_fails_closed() {
+    fn non_git_policy_disables_only_changed_path_coverage() {
         let temp = TempDir::new().unwrap();
         write_default_policy(temp.path(), Vec::new()).unwrap();
+        assert!(
+            !load_policy(temp.path())
+                .unwrap()
+                .require_change_for_meaningful_files
+        );
         let report = check_project(temp.path());
         assert!(
-            report
+            !report
                 .errors
                 .iter()
-                .any(|error| error.contains("unable to inspect changed paths"))
+                .any(|error| error.contains("changed paths"))
         );
     }
 
@@ -3585,6 +4011,9 @@ mod tests {
         git(&["init", "-b", "main"]);
         git(&["config", "user.email", "test@example.com"]);
         git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-m", "base"]);
         write_default_policy(root, Vec::new()).unwrap();
         fs::write(root.join(".specsync/version"), SDD_VERSION).unwrap();
         git(&["add", ".specsync/sdd.json", ".specsync/version"]);
@@ -3593,11 +4022,13 @@ mod tests {
         let mut policy = load_policy(root).unwrap();
         policy.enabled = false;
         write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let report = check_project(root);
         assert!(
-            check_project(root)
+            report
                 .errors
                 .iter()
-                .any(|error| error.contains("changed without"))
+                .any(|error| error.contains("changed without")),
+            "unexpected report: {report:?}"
         );
 
         policy.enabled = true;
@@ -3777,9 +4208,10 @@ mod tests {
         save_change(root, &record).unwrap();
         let verification = VerificationRecord {
             timestamp: now(),
-            commit: Some("abc123".into()),
-            contract_digest: "contract".into(),
+            commit: None,
+            contract_digest: definition_digest(root, &record).unwrap(),
             workspace_digest: "workspace".into(),
+            acceptance_input_digest: None,
             passed: true,
             commands: Vec::new(),
             requirement_ids: Vec::new(),
@@ -3797,6 +4229,25 @@ mod tests {
             Some("Reviewer".into()),
             closing_digest(&record, &verification),
             None,
+        )
+        .unwrap();
+        let error = ensure_closing_approval_valid(root, &record).unwrap_err();
+        assert!(error.contains("missing current delivery-input evidence"));
+        let mut verification = verification;
+        verification.acceptance_input_digest =
+            Some(acceptance_input_digest(root, &record, &[]).unwrap());
+        write_json(
+            &change_dir(root, &record.id).join("verification.json"),
+            &verification,
+        )
+        .unwrap();
+        append_approval(
+            root,
+            &record,
+            "acceptance",
+            Some("Reviewer".into()),
+            closing_digest(&record, &verification),
+            Some("Reapprove additive delivery-input evidence".into()),
         )
         .unwrap();
         assert!(ensure_closing_approval_valid(root, &record).is_ok());
@@ -4918,6 +5369,7 @@ mod tests {
             commit: verified_commit,
             contract_digest: "contract".into(),
             workspace_digest: "workspace".into(),
+            acceptance_input_digest: None,
             passed: true,
             commands: Vec::new(),
             requirement_ids: Vec::new(),
@@ -4925,5 +5377,366 @@ mod tests {
 
         assert!(verification_commit_is_current(root, &evidence, true));
         assert!(!verification_commit_is_current(root, &evidence, false));
+    }
+
+    #[test]
+    fn no_spec_change_rejects_a_declared_public_contract_change() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        record
+            .answers
+            .insert("public_contract".into(), "yes".into());
+        save_change(root, &record).unwrap();
+
+        let error =
+            approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap_err();
+        assert!(error.contains("no_spec_change"));
+        assert!(load_approvals(root, &record).unwrap().approvals.is_empty());
+        record.state = ChangeState::Accepted;
+        let error = validate_definition(root, &record).unwrap_err();
+        assert!(error.contains("no_spec_change"));
+    }
+
+    #[test]
+    fn accepted_evidence_tracks_scoped_post_acceptance_inputs() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn value() -> u8 { 1 }\n").unwrap();
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn value() -> u8 { 2 }\n").unwrap();
+        git(&["add", "src/lib.rs"]);
+        git(&["commit", "-m", "implement"]);
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+
+        let evidence = load_verification(root, &record).unwrap();
+        assert!(evidence.acceptance_input_digest.is_some());
+        assert!(ensure_closing_approval_valid(root, &record).is_ok());
+        fs::write(root.join("notes.txt"), "unrelated\n").unwrap();
+        assert!(ensure_closing_approval_valid(root, &record).is_ok());
+        git(&["add", "notes.txt"]);
+        git(&["commit", "-m", "unrelated"]);
+        assert!(ensure_closing_approval_valid(root, &record).is_ok());
+        fs::write(root.join("src/lib.rs"), "pub fn value() -> u8 { 3 }\n").unwrap();
+        assert!(ensure_closing_approval_valid(root, &record).is_err());
+        assert!(archive_change(root, &record.id).is_err());
+        assert!(change_dir(root, &record.id).is_dir());
+    }
+
+    #[test]
+    fn subproject_policy_and_diff_paths_are_project_relative() {
+        let temp = TempDir::new().unwrap();
+        let repository = temp.path();
+        let root = repository.join("packages/app");
+        let git = |dir: &Path, args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(dir)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(repository, &["init", "-b", "main"]);
+        git(repository, &["config", "user.email", "test@example.com"]);
+        git(repository, &["config", "user.name", "Test"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("contracts/auth")).unwrap();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::create_dir_all(repository.join("other")).unwrap();
+        write_json(&root.join(POLICY_PATH), &SddPolicy::default()).unwrap();
+        fs::write(root.join("src/lib.rs"), "base\n").unwrap();
+        fs::write(
+            root.join(".specsync/config.toml"),
+            "specs_dir = \"contracts\"\n",
+        )
+        .unwrap();
+        fs::write(root.join("contracts/auth/auth.spec.md"), "base spec\n").unwrap();
+        fs::write(repository.join("other/file.rs"), "base\n").unwrap();
+        git(repository, &["add", "."]);
+        git(repository, &["commit", "-m", "base"]);
+        git(
+            repository,
+            &["update-ref", "refs/remotes/origin/main", "HEAD"],
+        );
+
+        let mut weakened = SddPolicy::default();
+        weakened.enabled = false;
+        write_json(&root.join(POLICY_PATH), &weakened).unwrap();
+        assert!(policy_at_comparison_base(&root).unwrap().unwrap().enabled);
+        write_json(&root.join(POLICY_PATH), &SddPolicy::default()).unwrap();
+        fs::write(root.join("src/lib.rs"), "changed\n").unwrap();
+        fs::write(root.join("contracts/auth/auth.spec.md"), "changed spec\n").unwrap();
+        fs::write(repository.join("other/file.rs"), "outside\n").unwrap();
+
+        let uncovered = uncovered_meaningful_paths(&root, &SddPolicy::default(), &[]).unwrap();
+        assert_eq!(
+            uncovered,
+            vec![
+                "contracts/auth/auth.spec.md".to_string(),
+                "src/lib.rs".to_string()
+            ]
+        );
+        let mut record = create_change(
+            &root,
+            CreateChangeRequest {
+                description: "Update auth".into(),
+                kind: ChangeKind::Feature,
+                affected_specs: vec!["auth".into()],
+                affected_paths: vec!["src/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: false,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        record.state = ChangeState::Implementing;
+        assert!(
+            uncovered_meaningful_paths(&root, &SddPolicy::default(), &[record])
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn adoption_bootstrap_covers_only_the_original_policy() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-m", "base"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        adopt(root, false, None).unwrap();
+        let policy = load_policy(root).unwrap();
+        assert!(check_project(root).errors.is_empty());
+        assert!(
+            uncovered_meaningful_paths(root, &policy, &[])
+                .unwrap()
+                .is_empty()
+        );
+        let report_path = root.join(".specsync/adoption-report.json");
+        let report = fs::read(&report_path).unwrap();
+        fs::remove_file(&report_path).unwrap();
+        assert!(
+            uncovered_meaningful_paths(root, &policy, &[])
+                .unwrap()
+                .contains(&POLICY_PATH.to_string())
+        );
+        fs::write(&report_path, report).unwrap();
+        let tree = git_output(root, &["rev-parse", "HEAD^{tree}"]).unwrap();
+        let unrelated = git_output(root, &["commit-tree", &tree, "-m", "unrelated"]).unwrap();
+        let mut parsed: serde_json::Value =
+            serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
+        parsed["bootstrap_policy"]["base_commit"] = serde_json::Value::String(unrelated);
+        write_json(&report_path, &parsed).unwrap();
+        assert!(
+            uncovered_meaningful_paths(root, &policy, &[])
+                .unwrap()
+                .contains(&POLICY_PATH.to_string())
+        );
+        adopt(root, false, None).unwrap();
+        let mut changed = policy;
+        changed.meaningful_paths.push("private/".into());
+        write_json(&root.join(POLICY_PATH), &changed).unwrap();
+        assert!(
+            uncovered_meaningful_paths(root, &changed, &[])
+                .unwrap()
+                .contains(&POLICY_PATH.to_string())
+        );
+    }
+
+    #[test]
+    fn overlapping_changes_cannot_lend_archive_attribution() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "base\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        write_default_policy(root, Vec::new()).unwrap();
+
+        let mut records = vec![
+            completed_no_spec_record(root),
+            completed_no_spec_record(root),
+        ];
+        for record in &mut records {
+            record.state = ChangeState::Accepted;
+            save_change(root, record).unwrap();
+            let verification = VerificationRecord {
+                timestamp: now(),
+                commit: git_output(root, &["rev-parse", "HEAD"]),
+                contract_digest: definition_digest(root, record).unwrap(),
+                workspace_digest: project_input_digest(root).unwrap(),
+                acceptance_input_digest: None,
+                passed: true,
+                commands: Vec::new(),
+                requirement_ids: Vec::new(),
+            };
+            write_json(
+                &change_dir(root, &record.id).join("verification.json"),
+                &verification,
+            )
+            .unwrap();
+            append_approval(
+                root,
+                record,
+                "acceptance",
+                Some("Reviewer".into()),
+                closing_digest(record, &verification),
+                None,
+            )
+            .unwrap();
+        }
+        fs::write(root.join("src/lib.rs"), "delivery\n").unwrap();
+        git(&["add", "src/lib.rs"]);
+        git(&["commit", "-m", "delivery"]);
+        for record in &records {
+            let mut verification = load_verification(root, record).unwrap();
+            verification.acceptance_input_digest =
+                Some(acceptance_input_digest(root, record, &[]).unwrap());
+            write_json(
+                &change_dir(root, &record.id).join("verification.json"),
+                &verification,
+            )
+            .unwrap();
+            append_approval(
+                root,
+                record,
+                "acceptance",
+                Some("Reviewer".into()),
+                closing_digest(record, &verification),
+                Some("Bind current delivery inputs".into()),
+            )
+            .unwrap();
+        }
+
+        assert!(archive_change(root, &records[0].id).is_err());
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        assert!(archive_change(root, &records[0].id).is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn foreign_import_rejects_symlinked_markdown() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let outside = root.join("outside.md");
+        fs::write(&outside, "secret\n").unwrap();
+        fs::create_dir_all(root.join("openspec/specs/auth")).unwrap();
+        symlink(&outside, root.join("openspec/specs/auth/spec.md")).unwrap();
+
+        let error = adopt(root, false, Some("openspec")).unwrap_err();
+        assert!(error.contains("symlinked foreign import"));
+        assert!(!root.join(POLICY_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert!(
+            !root
+                .join(".specsync/imports/openspec/canonical/auth/spec.md")
+                .exists()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn foreign_import_rejects_symlinked_ancestor_directories() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("project");
+        let outside = temp.path().join("outside");
+        fs::create_dir_all(outside.join("openspec/specs/auth")).unwrap();
+        fs::write(
+            outside.join("openspec/specs/auth/spec.md"),
+            "external contract\n",
+        )
+        .unwrap();
+        fs::create_dir_all(&root).unwrap();
+        symlink(outside.join("openspec"), root.join("openspec")).unwrap();
+
+        let error = adopt(&root, false, Some("openspec")).unwrap_err();
+        assert!(error.contains("symlinked foreign import"));
+        assert!(!root.join(POLICY_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert!(
+            !root
+                .join(".specsync/imports/openspec/canonical/auth/spec.md")
+                .exists()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn speckit_import_rejects_a_symlinked_constitution_ancestor() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("project");
+        let outside = temp.path().join("outside");
+        fs::create_dir_all(outside.join("memory")).unwrap();
+        fs::write(outside.join("memory/constitution.md"), "external rules\n").unwrap();
+        fs::create_dir_all(&root).unwrap();
+        symlink(&outside, root.join(".specify")).unwrap();
+
+        let error = adopt(&root, false, Some("speckit")).unwrap_err();
+        assert!(error.contains("symlinked foreign import"));
+        assert!(!root.join(POLICY_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert!(
+            !root
+                .join(".specsync/imports/speckit/constitution.md")
+                .exists()
+        );
     }
 }

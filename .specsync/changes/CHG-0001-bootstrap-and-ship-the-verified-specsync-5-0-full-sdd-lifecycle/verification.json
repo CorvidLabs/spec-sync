@@ -2,6 +2,7 @@
   "timestamp": 1783740804,
   "commit": "64cefc55282230d8e97d88ac10bd26cec91677de",
   "contract_digest": "4cbb2ab65bd3be3ecf6d7dc70d042a03174e3a2a078af830af1a57365361d2e8",
+  "acceptance_input_digest": "911f1ecc786bafdfea0b76df6d7cf5fc2dde7e33f3cb9b6de48b9b9f5a8bd8e9",
   "passed": true,
   "commands": [
     {

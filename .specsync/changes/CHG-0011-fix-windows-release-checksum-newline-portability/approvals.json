@@ -1,0 +1,32 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783803538,
+      "digest": "c8d004ddf8c5e7b379cd916345c4fbd2b89b4dde06728e4badbfae0b2e8d668f",
+      "note": "User explicitly requested fixing issue #342 after reviewing the released checksum defect."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783803845,
+      "digest": "6b86aeedbb4dbf71c7f80e8daf0d0f53230740b5c7519c095ca6942a3b0c6b1a",
+      "note": "Refresh definition digest after recording the completed implementation tasks and local evidence requested for issue #342."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783803894,
+      "digest": "e00bbffb657a83728c2e84c6cdfe44c7d3c8c9075f52cf7b457f84b1b5befd7e",
+      "note": "Refresh the approved definition after recording that draft PR #343 is open."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783804639,
+      "digest": "3417a43024a96059ad182b42640fcd699925290bcfebc8642036aa6243eb8f05",
+      "note": "Explicit closing approval provided for PR #343 on 2026-07-11 after reviewing verification evidence and green CI."
+    }
+  ]
+}

@@ -94,7 +94,33 @@ jobs:
         run: |
           Copy-Item "target/$env:TARGET/release/specsync.exe" $env:ARTIFACT
           Compress-Archive -Path $env:ARTIFACT -DestinationPath "$env:ARTIFACT.zip"
-          (Get-FileHash "$env:ARTIFACT.zip" -Algorithm SHA256).Hash.ToLower() + "  $env:ARTIFACT.zip" | Out-File -Encoding ascii "$env:ARTIFACT.zip.sha256"
+          $hash = (Get-FileHash "$env:ARTIFACT.zip" -Algorithm SHA256).Hash.ToLower()
+          $line = "$hash  $env:ARTIFACT.zip`n"
+          [IO.File]::WriteAllBytes(
+            "$env:ARTIFACT.zip.sha256",
+            [Text.Encoding]::ASCII.GetBytes($line)
+          )
+
+      - name: Verify packaged checksum
+        shell: python
+        env:
+          ARTIFACT: ${{ matrix.artifact }}
+        run: |
+          import hashlib
+          import os
+          from pathlib import Path
+
+          suffix = ".zip" if os.environ["RUNNER_OS"] == "Windows" else ".tar.gz"
+          archive = Path(f"{os.environ['ARTIFACT']}{suffix}")
+          checksum = Path(f"{archive}.sha256")
+          digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+          expected = f"{digest}  {archive.name}\n".encode("ascii")
+          actual = checksum.read_bytes()
+
+          if actual != expected:
+              raise SystemExit(
+                  f"invalid checksum file {checksum}: expected LF-only SHA-256 record"
+              )
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

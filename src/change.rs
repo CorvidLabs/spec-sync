@@ -938,7 +938,9 @@ fn policy_at_comparison_base(root: &Path) -> Result<Option<SddPolicy>, String> {
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| "unable to determine trusted SDD policy base".to_string())?;
     if git_output(root, &["rev-parse", "--verify", reference]).is_none() {
-        if std::env::var("GITHUB_BASE_REF").is_ok_and(|value| !value.trim().is_empty()) {
+        if is_ci_project(root)
+            && std::env::var("GITHUB_BASE_REF").is_ok_and(|value| !value.trim().is_empty())
+        {
             return Err(format!(
                 "unable to inspect trusted SDD policy base `{reference}`; check out full base history"
             ));

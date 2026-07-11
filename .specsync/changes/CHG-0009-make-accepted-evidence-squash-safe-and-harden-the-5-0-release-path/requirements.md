@@ -17,3 +17,4 @@ artifact: requirements
 - The repository lifecycle stamp matches the 5.0.0 SDD layout written for new projects.
 - The crates.io package contains only the CLI source and required user-facing metadata, excluding repository-only site,
   extension, test, spec, workflow, and agent assets.
+- The README remains a concise entry point and links to current, complete documentation for detailed reference material.

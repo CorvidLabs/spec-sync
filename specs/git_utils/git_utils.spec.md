@@ -1,6 +1,6 @@
 ---
 module: git_utils
-version: 2
+version: 1
 status: stable
 files:
   - src/git_utils.rs
@@ -70,4 +70,3 @@ None (only uses `std::process::Command` for git CLI calls).
 |------|--------|
 | 2026-04-10 | Initial — extracted from cmd_report for shared use by stale, report, and scoring |
 | 2026-06-07 | Replaced `git_commits_between` with `git_commits_since`, which takes a precomputed spec commit hash so callers resolve it once per spec instead of once per source file (eliminates N+1 `git log` calls) |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

@@ -40,5 +40,7 @@ replaced only after the complete corrected matrix passes.
   imports, errors, or warnings.
 - Documentation tests (23), Astro diagnostics/build (38 pages), VS Code compilation/package, and release workflow
   `actionlint` all pass locally.
+- README and documentation links, Astro diagnostics, tests, and the production site build cover the shortened entry
+  point and its reference destinations.
 - RustSec refresh is pending CI because the sandbox could not obtain its external advisory-database lock. The crate
   package allowlist is locally validated; crates.io dry-run publication remains a network-backed CI/release gate.

@@ -18,6 +18,8 @@ artifact: tasks
 - [x] Restrict the published crate to executable sources and required user-facing metadata.
 - [x] Make squash integration evidence repository-relative for nested SpecSync projects.
 - [x] Add a nested-project squash integration regression.
+- [x] Replace duplicated README manuals with a concise product entry point and documentation map.
+- [x] Correct linked architecture, configuration, quick-start, and companion-file documentation.
 - [x] Re-run and record every locally available gate after the failed acceptance was invalidated.
 
 ## Release Gates

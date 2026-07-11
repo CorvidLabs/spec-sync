@@ -50,11 +50,11 @@
       "note": "Reapproved nested-project repository-relative squash evidence after review"
     },
     {
-      "gate": "acceptance",
+      "gate": "definition",
       "actor": "0xLeif",
-      "timestamp": 1783797683,
-      "digest": "b45d34383d09c3d9c3be8c13896c2e374f6da11cf945db97aac422979ce0524b",
-      "note": "Accepted after nested-project review fix and complete 1,714-test verification"
+      "timestamp": 1783798558,
+      "digest": "b4f6bef058e327ac271874b5ed2b8306cc5a3fefaea31286ad51fdd3f3e1b5a3",
+      "note": "Reapproved concise README and corrected linked documentation destinations"
     }
   ]
 }

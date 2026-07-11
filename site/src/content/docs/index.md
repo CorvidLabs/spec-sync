@@ -66,5 +66,6 @@ TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML.
 | [Spec Kit comparison](comparisons/spec-kit/) — lifecycle and artifact differences | [OpenSpec comparison](comparisons/openspec/) — deltas, archives, and enforcement |
 | [Use them together](comparisons/using-together/) — artifact equivalence and integration | [Adversarial proof](comparisons/adversarial-proof/) — what each core actually detects |
 | [Spec Format](spec-format.md) — how to write specs | [Cross-Project Refs](cross-project-refs.md) — multi-repo validation |
+| [Companion Files](companion-files.md) — requirements, tasks, context, and evidence | [Language Reference](/spec-sync/languages/) — extraction rules and caveats |
 | [Workflow Guide](workflow.md) — full lifecycle | [AI Agents](integrations/ai-agents.md) — native skills + MCP |
 | [Architecture](architecture.md) — how it works | [VS Code Extension](integrations/vscode-extension.md) — editor integration |

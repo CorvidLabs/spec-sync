@@ -4,116 +4,106 @@ section: "Reference"
 order: 4
 ---
 
-How SpecSync is built. Useful for contributors and anyone adding language support.
+How SpecSync keeps its validation and SDD lifecycle deterministic, portable, and usable by both humans and coding agents.
 
----
+## System shape
 
-## Source Layout
+SpecSync is a single Rust binary with five cooperating layers:
 
-```
-src/
-├── main.rs              CLI entry point (clap) + output formatting
-├── types.rs             Core data types, config schema, enums
-├── config.rs            .specsync/config.toml loading + legacy fallback
-├── parser.rs            Frontmatter + spec body parsing
-├── validator.rs         Validation pipeline + coverage computation
-├── generator.rs         Deterministic spec and companion scaffolding
-├── scoring.rs           Spec quality scoring (0–100, weighted rubric)
-├── mcp.rs               MCP server (JSON-RPC over stdio, tools for check/generate/score)
-├── watch.rs             File watcher (notify, 500ms debounce)
-├── hash_cache.rs        Content-hash cache for incremental validation
-├── registry.rs          Cross-project module registry (.specsync/registry.toml)
-├── manifest.rs          Package manifest parsing (package.json, Cargo.toml, go.mod, etc.)
-├── schema.rs            SQL schema parsing for db_tables validation
-├── merge.rs             Git conflict resolution for spec files
-├── archive.rs           Task archival from companion tasks.md files
-├── compact.rs           Changelog compaction (trim old entries)
-├── view.rs              Role-filtered spec viewing (dev, qa, product, agent)
-├── github.rs            GitHub integration (repo detection, drift issues)
-└── exports/
-    ├── mod.rs            Language dispatch + file utilities
-    ├── typescript.rs     TS/JS exports
-    ├── rust_lang.rs      Rust pub items
-    ├── go.rs             Go uppercase identifiers
-    ├── python.rs         Python __all__ / top-level
-    ├── swift.rs          Swift public/open items
-    ├── kotlin.rs         Kotlin top-level
-    ├── java.rs           Java public items
-    ├── csharp.rs         C# public items
-    ├── dart.rs           Dart public items
-    ├── php.rs            PHP public classes/functions
-    ├── ruby.rs           Ruby public methods/classes
-    └── yaml.rs           YAML top-level keys
+```text
+CLI / MCP / agent skills
+        ↓
+SDD change lifecycle and canonical spec model
+        ↓
+structural, API, dependency, and schema validation
+        ↓
+language-specific regex or tree-sitter extraction
+        ↓
+Git, filesystem, registry, and GitHub adapters
 ```
 
----
+The CLI is the source of truth. Editor extensions, GitHub Actions, MCP clients, and native agent skills invoke the same commands and receive the same results.
 
-## Design Principles
+## Source layout
 
-**Single binary, no runtime deps.** Download and run. No Node.js, no Python, no package managers.
+| Area | Responsibility |
+|---|---|
+| `main.rs`, `cli.rs`, `cli_args.rs` | Command parsing, dispatch, enforcement, and output formats |
+| `change.rs` | Verified SDD interviews, approvals, deltas, evidence, acceptance, and archival |
+| `parser.rs`, `validator.rs` | Spec structure, Public API tables, coverage, and canonical checks |
+| `deps.rs` | Source import discovery and dependency graph validation |
+| `exports/` | Language detection and public-symbol extraction |
+| `schema.rs` | SQL table and column drift validation |
+| `config.rs`, `types.rs` | Canonical TOML configuration and shared data models |
+| `generator.rs`, `commands/` | Scaffolding and command implementations |
+| `hash_cache.rs`, `watch.rs` | Incremental validation and filesystem watching |
+| `registry.rs`, `importer.rs` | Cross-project references and external spec import |
+| `github.rs`, `comment.rs` | GitHub metadata, drift issues, and PR summaries |
+| `agents.rs`, `hooks.rs`, `mcp.rs` | Coding-agent skills, Git hooks, and JSON-RPC integration |
 
-**Zero YAML dependencies.** Frontmatter parsed with a purpose-built regex parser. Keeps the binary small and compile times fast.
+## Design principles
 
-**Regex-based export extraction.** Each language backend uses pattern matching, not AST parsing. Trades some precision for portability — works without compilers or language servers installed.
+**Deterministic local core.** Spec checking, generation, scoring, dependency analysis, and lifecycle enforcement do not call a model or require an API key.
 
-**Release-optimized.** LTO, symbol stripping, `opt-level = 3`.
+**Hybrid extraction.** Regex extraction is portable and remains the default. Tree-sitter AST extraction is available for supported languages when `parse_mode = "ast"` is configured. Per-language reference pages document the exact behavior and caveats.
 
----
+**Fail-closed evidence.** Definition approvals, verification, and closing approvals are digest-bound. Changes to scoped code, tests, configuration, file kind, executable mode, or contract inputs invalidate stale evidence.
 
-## Validation Pipeline
+**Git-native history.** Canonical specs, semantic deltas, requirements, decisions, and evidence remain reviewable as ordinary files. Accepted changes archive only after delivery integration.
 
-### Stage 1: Structural
+**One engine for humans and agents.** Native skills present the deterministic CLI interview conversationally; they do not create a separate agent-only lifecycle.
 
-- Parse YAML frontmatter
-- Check required fields: `module`, `version`, `status`, `files`
-- Verify every file in `files` exists on disk
-- Check all `requiredSections` present as `## Heading` lines
-- Validate `depends_on` paths exist
-- Validate `db_tables` exist in schema files (if `schemaDir` configured)
+## Validation pipeline
 
-### Stage 2: API Surface
+### 1. Lifecycle gate
 
-- Detect language from file extensions
-- Extract public exports using language-specific regex
-- Extract symbol names from Public API tables (backtick-quoted)
-- **In spec but not in code** = Error (phantom/stale)
-- **In code but not in spec** = Warning (undocumented)
+When SDD is enabled, SpecSync validates active workspaces, approvals, semantic deltas, task completion, requirement evidence, and meaningful-path coverage.
 
-### Stage 3: Dependencies
+### 2. Structural contract
 
-- `depends_on` paths must point to existing spec files
-- `### Consumed By` section: referenced files must exist
+- Parse frontmatter and required fields
+- Verify source files and dependency specs exist
+- Require configured `##` sections
+- Validate requirement and companion conventions
 
----
+### 3. API and schema surface
 
-## Adding a Language
+- Detect each source language
+- Extract public symbols using its configured parser
+- Compare symbols with backtick-quoted Public API entries
+- Compare documented database tables and columns with migrations
 
-1. **Create extractor** — `src/exports/yourlang.rs`, return `Vec<String>` of exported names
-2. **Add enum variant** — `Language` in `src/types.rs`
-3. **Wire dispatch** — in `src/exports/mod.rs`: extension detection, match arm, test file patterns
-4. **Write tests** — common patterns, edge cases, test file exclusion
+Spec-only symbols are errors. Code-only symbols and undocumented schema details are warnings that become failures in strict mode.
 
-Each extractor: strip comments, apply regex, return symbol names. No compiler needed.
+### 4. Dependency graph
 
----
+Source imports are mapped to owning specs and compared with `depends_on`. Strict mode rejects undeclared imports, missing modules, and cycles.
 
-## Dependencies
+### 5. Coverage and quality
+
+Coverage measures source files and LOC governed by specs. Scoring evaluates frontmatter, required sections, API completeness, depth, and freshness.
+
+## Adding a language
+
+1. Add or update the extractor in `src/exports/`.
+2. Register extensions, test exclusions, and parser support.
+3. Add focused fixtures for visibility, comments, strings, re-exports, and malformed input.
+4. Update the language registry data in `site/src/data/languages/`.
+5. Run the full export verification suite and strict SpecSync check.
+
+Extractors must fail safely on unreadable input and must not require a language compiler or server at runtime.
+
+## Important dependencies
 
 | Crate | Purpose |
-|:------|:--------|
-| `clap` | CLI parsing (derive macros) |
-| `serde` + `serde_json` | JSON for config and `--json` output |
-| `regex` | Export extraction + frontmatter parsing |
-| `walkdir` | Recursive directory traversal |
-| `colored` | Terminal colors |
-| `notify` + `notify-debouncer-full` | File watching for `watch` command |
-| `ureq` | HTTP client for Anthropic/OpenAI API calls |
-| `sha2` | Content hashing for incremental validation cache |
+|---|---|
+| `clap` | CLI parsing |
+| `serde`, `serde_json` | Configuration, policy, evidence, and JSON output |
+| `regex` | Portable parsing and extraction |
+| `tree-sitter-*` | Optional AST-backed language extraction |
+| `walkdir` | Project discovery and coverage |
+| `sha2` | Cache and lifecycle evidence digests |
+| `notify` | Watch mode |
+| `ureq` | Registry, import, and GitHub HTTP access—not AI inference |
 
-### Dev
-
-| Crate | Purpose |
-|:------|:--------|
-| `tempfile` | Temp dirs for integration tests |
-| `assert_cmd` | CLI test utilities |
-| `predicates` | Output assertions |
+See the [spec format](spec-format.md), [workflow](workflow.md), and [language reference](/spec-sync/languages/) for the user-facing contracts implemented by these layers.

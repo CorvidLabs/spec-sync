@@ -1,6 +1,6 @@
 ---
 module: hash_cache
-version: 3
+version: 2
 status: stable
 files:
   - src/hash_cache.rs
@@ -117,4 +117,3 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-06 | Initial spec for v3.3.0 |
 | 2026-04-13 | Document design.md and testing.md in companion file detection list |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

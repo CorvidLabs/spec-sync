@@ -115,21 +115,21 @@ files:
   - src/auth.utils.ts
 ---
 
-# Purpose
+## Purpose
 Handles user authentication via JWT tokens.
 
-# Public API
+## Public API
 | Export | Type | Description |
 |--------|------|-------------|
 | `login(email, password)` | function | Authenticates a user |
 | `logout(token)` | function | Invalidates a session |
 | `AuthConfig` | interface | Configuration options |
 
-# Invariants
+## Invariants
 - Tokens expire after 24 hours
 - Failed login attempts are rate-limited
 
-# Behavioral Examples
+## Behavioral Examples
 ...
 ```
 

@@ -33,6 +33,8 @@ Module maturity (`draft → review → active → stable → deprecated → arch
 specsync change new "Add passkeys" --spec auth --path src/auth.rs --json
 specsync change answer CHG-0001-add-passkeys acceptance_criteria \
   "A registered passkey authenticates the user" --json
+specsync change answer CHG-0001-add-passkeys public_contract yes --json
+specsync change answer CHG-0001-add-passkeys architecture_risk yes --json
 ```
 
 The shared deterministic engine asks only unresolved questions and selects requirements, research, design, plan, tasks, context, testing, docs, or custom artifacts according to change type and risk. Agent skills present the same questions conversationally.

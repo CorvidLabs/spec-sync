@@ -46,6 +46,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: CorvidLabs/spec-sync@v5
         with:
           strict: 'true'
@@ -73,6 +75,8 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: CorvidLabs/spec-sync@v5
         with:
           strict: 'true'
@@ -107,6 +111,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: CorvidLabs/spec-sync@v5
         with:
           strict: 'true'

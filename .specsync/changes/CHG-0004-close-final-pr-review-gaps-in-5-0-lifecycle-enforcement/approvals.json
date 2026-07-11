@@ -1,0 +1,32 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783750215,
+      "digest": "d46f394c2a33e20778df045c35d5fa98919dd163215e940be225f3753cc05c15",
+      "note": "Approved to address all actionable final PR review findings"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783750849,
+      "digest": "cd4667a34810a09f5dae9c9f5936387fd546f5f22780b72947fe5e9ffdc440b2",
+      "note": "Reapproved after completing review hardening artifacts and regressions"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783751041,
+      "digest": "17b23063c8c10eded148793c1ae0692d730e67523540adfe422ca18e7c0ec668",
+      "note": "Reapproved with complete local release evidence"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783751524,
+      "digest": "5beb7db429d68af923ff2d058234f0e1f865b1b6005536d4d5411c92e6afc6a6",
+      "note": "Reapproved after trusted-policy and version-format hardening"
+    }
+  ]
+}

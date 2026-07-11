@@ -263,4 +263,19 @@ mod tests {
         );
         assert!(tmp.path().join(".specsync/sdd.json").is_file());
     }
+
+    #[test]
+    fn generated_policy_includes_detected_source_directories() {
+        for source_dir in ["lib", "."] {
+            let tmp = TempDir::new().unwrap();
+            write_current_layout(tmp.path(), &[source_dir.to_string()]).unwrap();
+            crate::change::write_default_policy(tmp.path(), Vec::new()).unwrap();
+            let policy = crate::change::load_policy(tmp.path()).unwrap();
+            let expected = if source_dir == "." { "." } else { "lib/" };
+            assert!(
+                policy.meaningful_paths.iter().any(|path| path == expected),
+                "missing source policy scope {expected}"
+            );
+        }
+    }
 }

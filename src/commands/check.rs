@@ -108,6 +108,10 @@ pub fn cmd_check(
                     "{}",
                     serde_json::to_string_pretty(&serde_json::json!({
                         "passed": false,
+                        "errors": sdd_report.errors,
+                        "warnings": sdd_report.warnings,
+                        "stale": [],
+                        "specs_checked": 0,
                         "sdd": sdd_report,
                     }))
                     .unwrap_or_else(|_| "{\"passed\":false}".to_string())

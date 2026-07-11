@@ -56,7 +56,7 @@ New projects receive `.specsync/sdd.json`; existing projects create it with `spe
   "version": 1,
   "enabled": true,
   "require_change_for_meaningful_files": true,
-  "meaningful_paths": ["src/", "tests/", "site/", ".github/", "Cargo.toml"],
+  "meaningful_paths": ["src/", "tests/", "site/", ".github/", "Cargo.toml", ".specsync/sdd.json", ".specsync/config.toml"],
   "ignored_paths": [".specsync/", "specs/"],
   "verification_commands": ["fledge run test"],
   "custom_artifacts": {},
@@ -65,6 +65,8 @@ New projects receive `.specsync/sdd.json`; existing projects create it with `spe
 ```
 
 Verification commands are explicit argument lists executed without a shell. Shell operators, substitutions, pipes, and redirections are rejected. `custom_artifacts` maps an artifact name to a project-owned Markdown template path; `principles_file` optionally supplies project governance to interviews and agents.
+
+Committed policy and configuration files are always meaningful. `ignored_paths` cannot be used to hide a change that disables or weakens SDD enforcement. Pull-request workflows must check out full history (`fetch-depth: 0`) so the base policy and meaningful-path diff are available.
 
 ---
 

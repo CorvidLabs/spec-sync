@@ -5,10 +5,10 @@
   "title": "Preserve punctuated Public API symbols across all export extractors",
   "description": "Preserve punctuated Public API symbols across all export extractors",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "base_commit": "fffbef561fe7cbcfad669dac1855e711896deca4",
   "created_at": 1783805799,
-  "updated_at": 1783807046,
+  "updated_at": 1783807900,
   "affected_specs": [
     "parser",
     "ignore"

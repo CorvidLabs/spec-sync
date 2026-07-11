@@ -27,6 +27,13 @@
       "timestamp": 1783807000,
       "digest": "e4ddfaa45844943cbbbd5b27e78102cc89a48a14f6d0e5c9ae42ed91012511ef",
       "note": "Final definition refresh after recording all Fledge lanes, Trust 30/30 dogfood, clean restoration, and non-blocking Augur review evidence."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783807900,
+      "digest": "4c2b682957af53feee8dc69974d9cb9384b2e73bff4239881a97b5b3479ec5bf",
+      "note": "Closing approval recorded after PR #344 was reviewed, made ready, and merged by 0xLeif with all hosted checks passing."
     }
   ]
 }

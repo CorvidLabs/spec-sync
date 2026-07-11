@@ -1,6 +1,6 @@
 ---
 module: parser
-version: 4
+version: 5
 status: stable
 files:
   - src/parser.rs
@@ -117,3 +117,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-06-11 | Add `get_all_api_table_symbols` so `check --fix` treats symbols documented under any Public API table (e.g. a bare `### Functions` heading) as already documented |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Preserve complete punctuated symbols in Public API table rows |
+| 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Preserve punctuated Public API symbols across all export extractors |

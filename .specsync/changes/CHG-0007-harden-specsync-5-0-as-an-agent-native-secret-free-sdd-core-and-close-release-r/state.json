@@ -5,10 +5,10 @@
   "title": "Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions",
   "description": "Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions",
   "kind": "bug_fix",
-  "state": "implementing",
+  "state": "accepted",
   "base_commit": "58dc5b92ee950e7a5c01e44381a17b52cfa7099c",
   "created_at": 1783783113,
-  "updated_at": 1783786497,
+  "updated_at": 1783787088,
   "affected_specs": [
     "exports",
     "ai",

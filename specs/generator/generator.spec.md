@@ -1,6 +1,6 @@
 ---
 module: generator
-version: 5
+version: 6
 status: stable
 files:
   - src/generator.rs
@@ -112,3 +112,4 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | 2026-06-07 | Replace unfinished-marker built-in template content with guided starter content |
 | 2026-06-11 | Return `GenerationOutcome` (count, paths, AI errors) from both generation entry points so AI failures surface with a non-zero exit |
 | 2026-06-11 | Add `find_single_source_fallback` so `new`/`scaffold` auto-detect the source in single-source-file projects (e.g. a fresh cargo crate with only `src/lib.rs`) |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

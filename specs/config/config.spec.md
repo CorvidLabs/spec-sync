@@ -1,6 +1,6 @@
 ---
 module: config
-version: 3
+version: 4
 status: stable
 files:
   - src/config.rs
@@ -121,3 +121,4 @@ The configuration file supports the following top-level sections:
 | 2026-04-06 | Document github config section, rules section, and full config file structure |
 | 2026-07-03 | Document `read_config_file` (leading-BOM-tolerant config read, shared with `migrate`) |
 | 2026-07-06 | Document fail-loud behavior for present-but-unreadable config (invariant 9): unreadable config/local-override files now warn loudly before falling back to defaults; clarified Error Cases table |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

@@ -1,0 +1,30 @@
+{
+  "timestamp": 1783787067,
+  "commit": "ec7474dc8b7d6be757a39f90343181bdaa4f8d7d",
+  "contract_digest": "fe263bb979850b1318efdc25642a5daa203742e371469aec5ceb06e81e051953",
+  "workspace_digest": "3c7d6cba1b7270b05c829e42bd5b47d21e478e114acc07f9d7d0d459ee02f671",
+  "acceptance_input_digest": "fd4bbd585c1271fadde3f9fc0aba3b17baedd84ad03b587427aad272950e2da5",
+  "passed": true,
+  "commands": [
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-ai-002",
+    "REQ-change-015",
+    "REQ-cli-002",
+    "REQ-cli-args-002",
+    "REQ-cmd-check-002",
+    "REQ-cmd-comment-003",
+    "REQ-cmd-generate-001",
+    "REQ-comment-001",
+    "REQ-config-001",
+    "REQ-exports-001",
+    "REQ-generator-001",
+    "REQ-mcp-001",
+    "REQ-types-001"
+  ]
+}

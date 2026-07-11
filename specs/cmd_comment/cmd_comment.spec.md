@@ -1,6 +1,6 @@
 ---
 module: cmd_comment
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/comment.rs
@@ -96,3 +96,4 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0005-close-final-fail-closed-review-gaps-in-5-0-lifecycle-evidence-and-pr-reporting: Close final fail-closed review gaps in 5.0 lifecycle evidence and PR reporting |
 | 2026-07-11 | CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re: Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

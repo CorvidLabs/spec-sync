@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 2
+version: 3
 status: stable
 files:
   - src/mcp.rs
@@ -115,3 +115,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-06-07 | Tighten generated-spec test assertion for MCP tool coverage |
 | 2026-04-10 | Add MCP resources: specs list, spec by module, dependency graph, config, coverage |
 | 2026-03-25 | Initial spec |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

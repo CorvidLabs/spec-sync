@@ -1,6 +1,6 @@
 ---
 module: cmd_generate
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/generate.rs
@@ -76,3 +76,4 @@ Implements deterministic `specsync generate` scaffolding for unspecced modules u
 |------|--------|
 | 2026-04-09 | Initial spec |
 | 2026-06-11 | v2: Exit non-zero when AI generation fails, with the errors re-printed last on stderr and `ai_errors` in JSON output |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

@@ -1,6 +1,6 @@
 ---
 id: CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r
-state: implementing
+state: accepted
 type: bug_fix
 base_commit: 58dc5b92ee950e7a5c01e44381a17b52cfa7099c
 ---

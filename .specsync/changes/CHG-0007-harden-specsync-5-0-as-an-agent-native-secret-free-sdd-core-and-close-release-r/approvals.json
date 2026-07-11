@@ -55,6 +55,20 @@
       "timestamp": 1783786497,
       "digest": "1385d0dbe3ed08a90074f7796cfaa4cfd74b639aa697998d293aa58e85b11f43",
       "note": "User-approved final 5.0 scope with completed parser parity and current release evidence."
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783787045,
+      "digest": "fe263bb979850b1318efdc25642a5daa203742e371469aec5ceb06e81e051953",
+      "note": "User-approved final 5.0 scope with all local and PR #335 gates green."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783787088,
+      "digest": "31c82e30bcac6beb740d3825df5392dab27247bc60a23c920a8e2ef7fe77464b",
+      "note": "Accepted after 1,699 Rust tests, zero-vulnerability audits, executable five-epic proof, and a fully green cross-platform PR #335 matrix."
     }
   ]
 }

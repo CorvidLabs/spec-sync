@@ -49,3 +49,13 @@ Unified JSON checking SHALL preserve the documented top-level check schema when 
 Acceptance Criteria
 - Failed SDD JSON output includes `passed`, `errors`, `warnings`, `stale`, and `specs_checked`.
 - Structured SDD detail remains available as an additive field.
+
+### REQ-cmd-check-002
+
+The check and fix pipeline SHALL remain deterministic and local.
+
+Acceptance Criteria
+- `--fix` performs deterministic markdown repairs and never invokes an embedded model or shell AI command.
+- Requirements drift remains visible as validation guidance for a coding agent to resolve.
+- Existing cache, enforcement, lifecycle, output-format, backup, and dry-run behavior remains intact.
+

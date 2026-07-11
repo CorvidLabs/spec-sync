@@ -69,6 +69,13 @@
       "timestamp": 1783786277,
       "digest": "bffc646a32bdc3099e53cf69e1a3d9c089001b5e036deb1af372e03c6e4829d3",
       "note": "User-authorized 5.0 release hardening: rebind accepted evidence after final parser, security, and documentation corrections"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783787110,
+      "digest": "1a1ae7a2d274e32fba896c3fb24f6c4453161ac70291a06b77c97a99b4459cea",
+      "note": "Rebind accepted review evidence after CHG-0007 atomically applied its canonical deltas"
     }
   ]
 }

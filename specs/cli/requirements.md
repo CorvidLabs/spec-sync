@@ -53,3 +53,12 @@ The system SHALL expose and document the verified SDD lifecycle through the root
 Acceptance Criteria
 - The CLI contract lists the `change` namespace and current initialization layout.
 - Dispatch documentation includes the change lifecycle handler.
+
+### REQ-cli-002
+
+The CLI SHALL expose deterministic generation and agent integrations without accepting embedded model-provider or credential options.
+
+Acceptance Criteria
+- `generate` has no provider/model flags.
+- MCP and agent installation commands remain available.
+

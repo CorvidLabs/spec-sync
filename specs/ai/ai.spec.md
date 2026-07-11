@@ -1,6 +1,6 @@
 ---
 module: ai
-version: 3
+version: 4
 status: archived
 files:
   - specs/ai/retired.md
@@ -50,3 +50,4 @@ None. This module is retained only as an auditable historical contract tombstone
 
 | Date | Change |
 |------|--------|
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

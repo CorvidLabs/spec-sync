@@ -24,3 +24,5 @@ artifact: testing
 Release evidence also covers the higher-level REQ-core-001 and REQ-release-security-001 scope: 1,512 unit and 187 integration tests, rustfmt, Clippy with warnings denied, RustSec, 100% scored canonical specs, Astro 6.4.8, 23 site tests, zero Astro diagnostics, a 34-page build, and a final `bun audit` with no vulnerabilities after compatible sanitizer and transitive security updates.
 
 The final gate includes all Rust unit/integration tests, Clippy with warnings denied, rustfmt, strict 100% spec coverage, score, optimized build, documentation and VSIX builds, packaged Action consumer, single/concurrent/five-epic SDD examples, and a clean target/artifact check.
+
+PR #335's final pre-accept matrix passed on Linux, macOS, and Windows, with CodeQL for Rust, Actions, and JavaScript/TypeScript; packaged Action consumption; RustSec; coverage; site; VSIX; workflow validation; spec-check; and bounded `corvid-pet` reporting all green.

@@ -1,6 +1,6 @@
 ---
 module: exports
-version: 3
+version: 4
 status: stable
 files:
   - src/exports/mod.rs
@@ -315,3 +315,4 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 | 2026-04-12 | Add YAML language support (yaml.rs) |
 | 2026-07-09 | Add AST parse mode support for C, C++, Scala, Erlang, Elixir, Perl, and Lisp (Common Lisp/Scheme/Emacs Lisp) |
 | 2026-07-09 | Filter Rust `pub(crate)`/`pub(super)`/`pub(self)`/`pub(in path)` from exports; add TypeScript `export = Name` support |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

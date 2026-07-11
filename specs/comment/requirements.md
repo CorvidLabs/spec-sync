@@ -32,3 +32,12 @@ spec: comment.spec.md
 - Posting comments (handled by `cmd_comment` / the GitHub Action and CI workflow)
 - Interactive or terminal-formatted output
 - Public violation-level rendering: the public API is just `render_check_comment` and `detect_branch`. (`SpecViolation` and `render_comment_body` exist only as private test helpers in the `#[cfg(test)]` module, not as part of the module's API.)
+
+### REQ-comment-001
+
+Rendered pull-request reports SHALL be bounded for GitHub transport.
+
+Acceptance Criteria
+- The complete UTF-8 markdown body remains below GitHub's comment-body limit.
+- Truncation preserves the status summary and explains how to obtain full local diagnostics.
+

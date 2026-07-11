@@ -3,7 +3,7 @@
   "commit": "d83f5d1611e8024ed7de538519aa12f51469d187",
   "contract_digest": "4ddf9c0095409f7f37d6a3a69e9276184f9af3f51b2be8e45523f609edce274a",
   "workspace_digest": "2e29fbe00a12305cad8efeb9370f650c302376bb7a255322772f63b7b4d7e5c1",
-  "acceptance_input_digest": "7d69baaf35ad55c718160b03ac5dcc26d9887c99720a45a14a5b15a5bf29a4a4",
+  "acceptance_input_digest": "aa60f07f0a38e3f187b912dd3f836868e505e6461eaf7b3eecbb5af187dbcd79",
   "passed": true,
   "commands": [
     {

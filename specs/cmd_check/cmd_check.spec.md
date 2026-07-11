@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 6
+version: 7
 status: stable
 files:
   - src/commands/check.rs
@@ -104,3 +104,4 @@ Implements the primary deterministic validation entry point, including caching, 
 | 2026-06-07 | Document generated review prompts for `--fix` export rows |
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0004-close-final-pr-review-gaps-in-5-0-lifecycle-enforcement: Close final PR review gaps in 5.0 lifecycle enforcement |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

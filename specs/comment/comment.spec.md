@@ -1,6 +1,6 @@
 ---
 module: comment
-version: 2
+version: 3
 status: stable
 files:
   - src/comment.rs
@@ -91,3 +91,4 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 | 2026-04-11 | Documented unified output pipeline: marketplace action and CI workflow both use `specsync comment` for identical PR comments |
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-07 | Initial spec |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

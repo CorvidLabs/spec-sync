@@ -13,4 +13,4 @@ artifact: tasks
 - [x] Keep comment stdout protocol-clean and bound `corvid-pet` context.
 - [x] Update README, local documentation site, canonical specs, and companions.
 - [x] Record the external CorvidLabs/site update as deferred follow-up work.
-- [ ] Run focused, full, example, clean-build, security, and remote gates.
+- [x] Run focused, full, example, clean-build, security, and remote gates.

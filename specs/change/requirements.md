@@ -138,3 +138,13 @@ Acceptance Criteria
 - OpenSpec and Spec Kit imports reject symlinked files and directories.
 - Rejected foreign imports leave no partial adoption policy, report, or imported content.
 - The exact schema-v1 self-adoption record is the sole migration exception to the no-spec/public-contract rule.
+
+### REQ-change-015
+
+Unified lifecycle checking SHALL support a protocol-clean reporting mode without weakening verification.
+
+Acceptance Criteria
+- Reporting mode still executes every configured verification command and records failures.
+- Reporting mode suppresses child command stdout and stderr so the caller can emit one machine-consumable document.
+- Normal check and explicit change verification retain their diagnostic output.
+

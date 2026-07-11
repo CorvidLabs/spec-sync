@@ -13,3 +13,12 @@ spec: types.spec.md
 - The module has no dependency on other SpecSync modules.
 - Default values are deterministic, local, and usable.
 - MSRV remains 1.89.
+
+### REQ-types-001
+
+Core shared types SHALL contain no embedded inference-provider or credential configuration.
+
+Acceptance Criteria
+- `AiProvider` and its helper API are removed.
+- `SpecSyncConfig` has no AI provider, model, command, key, base URL, or timeout fields.
+

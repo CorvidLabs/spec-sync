@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 6
+version: 7
 status: stable
 files:
   - src/main.rs
@@ -353,3 +353,4 @@ Cold start times (first run after boot) may be 2-3x higher due to disk cache war
 | 2026-04-06 | Add compact, archive-tasks, view, merge, issues subcommands; add --force, --create-issues, --format flags; add hash_cache/github/archive/compact/view/merge dependencies |
 | 2026-04-09 | Add scaffold, report, comment, changelog subcommands; add --enforcement and --explain flags; add --agents hook target; add comment/changelog/deps dependencies |
 | 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
+| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

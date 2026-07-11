@@ -97,6 +97,13 @@
       "timestamp": 1783786717,
       "digest": "370021670c5e8cf5219b541138274c8650642a2e4827d68621e1d2276d81885f",
       "note": "Rebind accepted lifecycle evidence to the committed delivery tree after removing retired files"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783787110,
+      "digest": "1bd6175b5ab5734bb44b662fc9ca08acd9d80df0c4627f4c2b84dcd32abc4a3a",
+      "note": "Rebind accepted lifecycle evidence after CHG-0007 atomically applied its canonical deltas"
     }
   ]
 }

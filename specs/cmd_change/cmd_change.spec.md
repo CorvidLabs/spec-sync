@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 2
+version: 1
 status: active
 files:
   - src/commands/change.rs
@@ -58,14 +58,8 @@ Exposes the verified SDD lifecycle through equivalent human-readable and structu
 | change | Lifecycle operations and projections |
 | types | Output format |
 
-**Frontmatter Synchronization**
-
-Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust source-module ownership maps
-`crate::cli::ChangeAction` to the `cli_args` contract rather than the top-level `cli` executable contract.
-
 ## Change Log
 
 | Date | Change |
 |------|--------|
 | 2026-07-10 | Initial 5.0 change command |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

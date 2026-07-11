@@ -16,6 +16,8 @@ artifact: tasks
 - [x] Add binary, NUL-boundary, executable-mode, symlink, and line-ending regressions.
 - [x] Update the repository lifecycle stamp to 5.0.0.
 - [x] Restrict the published crate to executable sources and required user-facing metadata.
+- [x] Make squash integration evidence repository-relative for nested SpecSync projects.
+- [x] Add a nested-project squash integration regression.
 - [x] Re-run and record every locally available gate after the failed acceptance was invalidated.
 
 ## Release Gates

@@ -1,6 +1,6 @@
 ---
 module: cmd_report
-version: 2
+version: 1
 status: stable
 files:
   - src/commands/report.rs
@@ -22,11 +22,11 @@ Implements the `specsync report` command — a comprehensive per-module coverage
 
 ## Public API
 
-**Exported Functions**
+### Exported Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `cmd_report` | `root: &Path, format: types::OutputFormat, stale_threshold: usize, exclude_status: &[String], only_status: &[String]` | `()` | Generate and display per-module coverage report with stale/incomplete detection |
+| `cmd_report` | `root: &Path, format: OutputFormat, stale_threshold: usize` | `()` | Generate and display per-module coverage report with stale/incomplete detection |
 
 ## Invariants
 
@@ -81,4 +81,3 @@ Implements the `specsync report` command — a comprehensive per-module coverage
 | Date | Change |
 |------|--------|
 | 2026-04-09 | Initial spec |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

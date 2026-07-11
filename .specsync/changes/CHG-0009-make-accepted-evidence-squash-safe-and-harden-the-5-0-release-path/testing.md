@@ -27,13 +27,14 @@ replaced only after the complete corrected matrix passes.
 
 ## Corrected Local Evidence
 
-- 81 focused lifecycle tests pass, including both squash scenarios.
+- 82 focused lifecycle tests pass, including root-level positive/adversarial squash scenarios and a nested-project
+  squash integration scenario.
 - NUL-boundary collisions, arbitrary binary changes, LF/CRLF distinctions, executable mode, symlink kind/target, and
   non-UTF-8 path rejection have dedicated regressions.
 - Rust formatting, Clippy with warnings denied, and diff whitespace validation pass for the digest implementation.
 - The crate manifest allowlist produces 113 package entries and excludes site, extension, specs, workflows, tests,
   agent instructions, and local dependency trees.
-- The complete corrected Rust suite passes: 1,526 unit tests and 187 integration tests, zero failures.
+- The complete corrected Rust suite passes: 1,527 unit tests and 187 integration tests, zero failures.
 - Effective lifecycle validation passes for both active changes with zero errors or warnings.
 - Dependency validation passes across 62 modules and 215 edges with zero cycles, missing dependencies, undeclared
   imports, errors, or warnings.

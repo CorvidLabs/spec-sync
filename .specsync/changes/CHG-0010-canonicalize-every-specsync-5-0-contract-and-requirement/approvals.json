@@ -41,13 +41,6 @@
       "timestamp": 1783793240,
       "digest": "5a77c4d3e0c5fd3bcd28a0eb79bf582b0c0ff1862e711ffcd4652655ee8b99a4",
       "note": "Reapproved completed implementation tasks with acceptance and post-merge checks retained as release gates"
-    },
-    {
-      "gate": "acceptance",
-      "actor": "0xLeif",
-      "timestamp": 1783793694,
-      "digest": "d4675686daecafae71a491a52401aa7efbd0b0dc1bcb220973f9a064ebe65011",
-      "note": "Accepted after the complete corrected cross-platform and strict effective-contract matrix passed"
     }
   ]
 }

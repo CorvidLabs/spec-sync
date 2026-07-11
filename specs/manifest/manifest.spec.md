@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 2
+version: 1
 status: stable
 files:
   - src/manifest.rs
@@ -128,4 +128,3 @@ Internal TOML/Swift helpers handle section extraction, balanced parentheses, and
 | Date | Change |
 |------|--------|
 | 2026-03-28 | Initial spec |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

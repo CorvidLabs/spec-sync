@@ -13,6 +13,9 @@ The implementation keeps ancestry as the fast path and permits a squash fallback
 unchanged at a remote default ref containing HEAD. Historical accepted records are archived. Release automation now
 separates exact `v5.0.0` publication from the floating `v5` Action alias.
 
+Git tree object paths are repository-relative even when SpecSync runs from a nested project root. The squash fallback
+therefore converts both its remote state lookup and workspace diff path with `git_repo_relative_path`.
+
 PR #340's first matrix exposed a Windows-only fixture dependency on global `core.autocrlf`. The failure also prompted
 an adversarial digest audit, which found ambiguous unframed path/content concatenation and missing file-mode evidence.
 The failed acceptance was reversed before further implementation. The digest format is being hardened before 5.0

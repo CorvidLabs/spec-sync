@@ -1,6 +1,6 @@
 ---
 module: importer
-version: 3
+version: 2
 status: active
 files:
   - src/importer.rs
@@ -118,4 +118,3 @@ Generates spec files from external project management systems. Supports importin
 |------|--------|
 | 2026-06-07 | Replace imported-spec unfinished-work markers with guided requirement prompts |
 | 2026-04-07 | Initial implementation — GitHub, Jira, Confluence importers (#97) |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

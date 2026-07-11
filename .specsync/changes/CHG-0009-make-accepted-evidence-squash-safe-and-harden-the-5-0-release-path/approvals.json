@@ -43,11 +43,11 @@
       "note": "Reapproved completed implementation tasks with cross-platform evidence retained as release gates"
     },
     {
-      "gate": "acceptance",
+      "gate": "definition",
       "actor": "0xLeif",
-      "timestamp": 1783793650,
-      "digest": "81be89d39b97cd89c69611a8b373ef02c2b0d4dd381004d3571a22267b66d181",
-      "note": "Accepted after corrected Linux, macOS, Windows, RustSec, coverage, spec, site, extension, and Action consumer CI passed"
+      "timestamp": 1783797586,
+      "digest": "3a1bae0f99c523198127921960c16265ebd67a749f5b824c6a285ab3888b34b1",
+      "note": "Reapproved nested-project repository-relative squash evidence after review"
     }
   ]
 }

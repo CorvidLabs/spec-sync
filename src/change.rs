@@ -3628,7 +3628,13 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
     }
     let workspace = format!("{CHANGES_PATH}/{}", record.id);
     let state = format!("{workspace}/state.json");
-    let remote_state = format!("{remote_default}:{state}");
+    let Ok(repo_workspace) = git_repo_relative_path(root, &workspace) else {
+        return false;
+    };
+    let Ok(repo_state) = git_repo_relative_path(root, &state) else {
+        return false;
+    };
+    let remote_state = format!("{remote_default}:{repo_state}");
     let state_exists = Command::new("git")
         .args(["cat-file", "-e", remote_state.as_str()])
         .current_dir(root)
@@ -3641,7 +3647,7 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
                 "--quiet",
                 remote_default.as_str(),
                 "--",
-                workspace.as_str(),
+                repo_workspace.as_str(),
             ])
             .current_dir(root)
             .status()
@@ -4076,6 +4082,61 @@ mod tests {
         ));
         assert!(ensure_closing_approval_valid(root, &record).is_ok());
         assert!(archive_change(root, &record.id).is_ok());
+    }
+
+    #[test]
+    fn accepted_evidence_survives_squash_merge_from_nested_project_root() {
+        let temp = TempDir::new().unwrap();
+        let repo_root = temp.path();
+        let root = repo_root.join("packages/app");
+        fs::create_dir_all(&root).unwrap();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(repo_root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "false"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        write_default_policy(&root, Vec::new()).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["switch", "-c", "feature"]);
+
+        let mut record = completed_no_spec_record(&root);
+        record = approve_definition(&root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(&root, &record.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement"]);
+        verify_change(&root, &record.id).unwrap();
+        record = accept_change(&root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept"]);
+        let verification = load_verification(&root, &record).unwrap();
+
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "feature"]);
+        git(&["commit", "-m", "squash feature"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        assert!(!verification_commit_is_accepted_current(
+            &root,
+            &verification
+        ));
+        assert!(ensure_closing_approval_valid(&root, &record).is_ok());
+        assert!(archive_change(&root, &record.id).is_ok());
     }
 
     #[test]

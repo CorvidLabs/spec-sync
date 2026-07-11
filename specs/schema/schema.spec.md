@@ -1,6 +1,6 @@
 ---
 module: schema
-version: 3
+version: 2
 status: stable
 files:
   - src/schema.rs
@@ -129,4 +129,3 @@ Parses SQL schema files (migrations) and spec markdown to build table/column map
 |------|--------|
 | 2026-07-06 | `schema_read_errors` now also fails loud when `schema_dir` exists but cannot be enumerated by `read_dir` (unreadable, or a file not a directory) — closing the same fail-open; added invariant 2b, updated the API row and Error Cases table |
 | 2026-03-29 | Initial spec |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

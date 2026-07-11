@@ -7,6 +7,7 @@ artifact: requirements
 
 - Accepted evidence from a squash-merged branch remains trustworthy and archivable.
 - The fallback must prove that the accepted workspace is already present unchanged on the remote default branch.
+- Repository-relative Git tree lookups preserve that proof when the SpecSync project is nested in a monorepo.
 - Unintegrated branches, changed scoped inputs, stale contracts, and mismatched approvals continue to fail closed.
 - Release automation triggers only for exact semantic-version tags and verifies the tag matches Cargo metadata on main.
 - The v5 Action downloads the 5.0.0 binary by default while allowing an explicit version override.

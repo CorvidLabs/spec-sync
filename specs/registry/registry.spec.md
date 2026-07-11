@@ -1,6 +1,6 @@
 ---
 module: registry
-version: 4
+version: 3
 status: stable
 files:
   - src/registry.rs
@@ -107,4 +107,3 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 | 2026-04-07 | Document register_module function |
 | 2026-04-10 | v2: Added `fetch_remote_spec`, `parse_remote_spec`, `RemoteSpec`, `spec_path` for cross-repo content verification |
 | 2026-06-11 | v3: Added `local_registry_path`; `load_registry`/`register_module` now resolve the v4 `.specsync/registry.toml` location with legacy fallback |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

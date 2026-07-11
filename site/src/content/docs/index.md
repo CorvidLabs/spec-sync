@@ -63,6 +63,8 @@ TypeScript/JS, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML.
 |:-----------------|:-----------------|
 | [Quick Start Guide](quickstart.md) — up and running in 5 min | [CLI Reference](cli.md) — all 14 commands |
 | [Why SpecSync?](why-specsync.md) — comparison with alternatives | [Configuration](configuration.md) — `.specsync/config.toml` options |
+| [Spec Kit comparison](comparisons/spec-kit/) — lifecycle and artifact differences | [OpenSpec comparison](comparisons/openspec/) — deltas, archives, and enforcement |
+| [Use them together](comparisons/using-together/) — artifact equivalence and integration | [Adversarial proof](comparisons/adversarial-proof/) — what each core actually detects |
 | [Spec Format](spec-format.md) — how to write specs | [Cross-Project Refs](cross-project-refs.md) — multi-repo validation |
 | [Workflow Guide](workflow.md) — full lifecycle | [AI Agents](integrations/ai-agents.md) — native skills + MCP |
 | [Architecture](architecture.md) — how it works | [VS Code Extension](integrations/vscode-extension.md) — editor integration |

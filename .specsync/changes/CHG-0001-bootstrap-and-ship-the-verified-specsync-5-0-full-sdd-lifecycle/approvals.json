@@ -83,6 +83,20 @@
       "timestamp": 1783786717,
       "digest": "4ef2ebbc1015458a0bcb293e825d9dbcba4d47e528499227939a3551c29d4cdb",
       "note": "Rebind accepted bootstrap evidence to the committed delivery tree after removing retired files"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783788049,
+      "digest": "b3cecefdc5d90bc0de69ec6b0603e1393a09e299b64d8ea5d5794295591601d4",
+      "note": "Rebind accepted bootstrap evidence after the user-approved evaluator documentation expansion"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783788192,
+      "digest": "2dbba056d0e76d246a6e8c00af4d6055497bc9afaeacffc0a8681d63553673be",
+      "note": "Rebind accepted bootstrap evidence after removing generated documentation build redirects"
     }
   ]
 }

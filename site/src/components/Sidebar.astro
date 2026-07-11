@@ -3,7 +3,7 @@ import { getCollection } from 'astro:content'
 import { base } from '../lib/path'
 import { contentSlug } from '../lib/content'
 const all = await getCollection('docs')
-const sectionOrder = ['Getting started', 'Spec format', 'Reference', 'Integrations'] as const
+const sectionOrder = ['Getting started', 'Spec format', 'Reference', 'Integrations', 'Comparisons'] as const
 const grouped = sectionOrder.map(name => ({
   name,
   items: all

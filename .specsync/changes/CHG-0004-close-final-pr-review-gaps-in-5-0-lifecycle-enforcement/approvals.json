@@ -76,6 +76,13 @@
       "timestamp": 1783787110,
       "digest": "1a1ae7a2d274e32fba896c3fb24f6c4453161ac70291a06b77c97a99b4459cea",
       "note": "Rebind accepted review evidence after CHG-0007 atomically applied its canonical deltas"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783788049,
+      "digest": "0c9bb74915b1940b5e5bd0dc6d1eada37086ec64379cc65eab9fa6342bb740bf",
+      "note": "Rebind accepted review evidence after the user-approved evaluator documentation expansion"
     }
   ]
 }

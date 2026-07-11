@@ -104,6 +104,20 @@
       "timestamp": 1783787110,
       "digest": "1bd6175b5ab5734bb44b662fc9ca08acd9d80df0c4627f4c2b84dcd32abc4a3a",
       "note": "Rebind accepted lifecycle evidence after CHG-0007 atomically applied its canonical deltas"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783788049,
+      "digest": "dbb1359b611415bf946a07a416fe38c4c71e8c629eaad9ba6adf8769c60157f1",
+      "note": "Rebind accepted lifecycle evidence after the user-approved evaluator documentation expansion"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783788192,
+      "digest": "69d5d0c290156bf5de2f0483132bf581d422aceb3353d5c985af8c79a31adccc",
+      "note": "Rebind accepted lifecycle evidence after removing generated documentation build redirects"
     }
   ]
 }

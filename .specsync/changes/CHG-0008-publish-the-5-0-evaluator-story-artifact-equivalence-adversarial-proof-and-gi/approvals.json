@@ -1,0 +1,25 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783787922,
+      "digest": "1733319fbfb7fef9c1afd0364bc9a4a54dc282d55ba4060a00c4ef744f2282db",
+      "note": "User supplied and authorized the evaluator, comparison, equivalence, discovery, Discussions, and adversarial-proof scope."
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783788043,
+      "digest": "1266a17a37ddae57245005c48b7e14052ee0ec25f3324791853bcace4104756b",
+      "note": "User-approved evaluator and discovery scope, now bound to the published topics, Discussions, and validated documentation evidence."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783788168,
+      "digest": "204ae2be048fe7e36ad33d5b4d87d1de72c6203ce3a938bdd08beb2db5db9bf1",
+      "note": "Accepted after current-source comparison review, 23 site tests, zero-diagnostic Astro validation, a 38-page build, live GitHub topics, and four seeded Discussions."
+    }
+  ]
+}

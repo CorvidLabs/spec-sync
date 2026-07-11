@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0008-publish-the-5-0-evaluator-story-artifact-equivalence-adversarial-proof-and-gi",
+  "slug": "publish-the-5-0-evaluator-story-artifact-equivalence-adversarial-proof-and-gi",
+  "title": "Publish the 5.0 evaluator story, artifact equivalence, adversarial proof, and GitHub discovery surfaces",
+  "description": "Publish the 5.0 evaluator story, artifact equivalence, adversarial proof, and GitHub discovery surfaces",
+  "kind": "documentation",
+  "state": "accepted",
+  "base_commit": "71dfa052ec3fd27793db66504d666e6294c6f325",
+  "created_at": 1783787703,
+  "updated_at": 1783788168,
+  "affected_specs": [],
+  "affected_paths": [
+    "README.md",
+    "site/src/content/docs/"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "This work explains and publishes the accepted 5.0 behavior without changing the product contract.",
+  "acceptance_criteria": [
+    "README demonstrates requirement-to-contract-to-CI-to-preserved-context flow; dedicated Spec Kit",
+    "OpenSpec",
+    "combined-use",
+    "artifact-equivalence",
+    "and adversarial-proof documentation is published and build-tested; GitHub topics and seeded Discussions expose adoption",
+    "showcase",
+    "parser-request",
+    "and roadmap entry points"
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

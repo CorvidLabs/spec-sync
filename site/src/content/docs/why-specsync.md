@@ -61,6 +61,8 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 
 Sources: [Spec Kit workflows](https://github.github.com/spec-kit/reference/workflows.html), [Spec Kit recommended workflow](https://github.github.com/spec-kit/quickstart.html), [OpenSpec commands](https://github.com/Fission-AI/OpenSpec/blob/main/docs/commands.md), and [OpenSpec workflows](https://github.com/Fission-AI/OpenSpec/blob/main/docs/workflows.md).
 
+For evaluator-ready detail, see [SpecSync vs Spec Kit](../comparisons/spec-kit/), [SpecSync vs OpenSpec](../comparisons/openspec/), [using them together](../comparisons/using-together/), and the [adversarial drift proof](../comparisons/adversarial-proof/).
+
 SpecSync does not attempt to win by generating more Markdown. Its differentiator is that an approved specification becomes a deterministic executable CI contract: code, exports, requirements, tests, deltas, approvals, and archival state must agree before the change can close.
 
 ### vs. OpenAPI / Swagger

@@ -69,6 +69,20 @@
       "timestamp": 1783787088,
       "digest": "31c82e30bcac6beb740d3825df5392dab27247bc60a23c920a8e2ef7fe77464b",
       "note": "Accepted after 1,699 Rust tests, zero-vulnerability audits, executable five-epic proof, and a fully green cross-platform PR #335 matrix."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783788049,
+      "digest": "ac7dbde843afdd499a441608c09356d7e79cfed7ecd4115f2306eb6c432bace3",
+      "note": "Rebind accepted 5.0 hardening evidence after the user-approved evaluator documentation expansion"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783788192,
+      "digest": "c2b7ae028d8e09b7b3513102ead07dbb34c65e3a8aa34fd1380e05d15fa76db5",
+      "note": "Rebind accepted 5.0 hardening evidence after removing generated documentation build redirects"
     }
   ]
 }

@@ -8,11 +8,61 @@
 [![Crates.io](https://img.shields.io/crates/v/specsync.svg)](https://crates.io/crates/specsync)
 [![Downloads](https://img.shields.io/crates/d/specsync.svg)](https://crates.io/crates/specsync)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-**Verified spec-driven development with bidirectional spec-to-code validation.** Requirements, semantic deltas, human approvals, tests, code, and CI stay traceable through one lifecycle. Written in Rust. Single binary. 33 languages (with AST support for 10).
+**Turn requirements into module contracts that fail CI when code drifts—without throwing away the decisions that explain the fix.** Written in Rust. Single binary. 33 languages.
 
 [5-Minute Start](#get-started-in-5-minutes) &bull; [Spec Format](#spec-format) &bull; [CLI](#cli-reference) &bull; [VS Code Extension](#vs-code-extension) &bull; [Cross-Project Refs](#cross-project-references) &bull; [GitHub Action](#github-action) &bull; [Config](#configuration) &bull; [Docs Site](https://corvidlabs.github.io/spec-sync)
 
 </div>
+
+---
+
+## A contract change in 60 seconds
+
+Start with product intent in `specs/auth/requirements.md`:
+
+```markdown
+### REQ-auth-004
+The system SHALL let a signed-in user revoke every active session.
+```
+
+Refine it into the durable module contract in `specs/auth/auth.spec.md`:
+
+```markdown
+| Name | Kind | Description |
+|---|---|---|
+| `revoke_all_sessions` | function | Revokes every session owned by the current user. |
+```
+
+Now a developer adds a second public export without updating the contract:
+
+```rust
+pub fn revoke_all_sessions(user_id: UserId) -> Result<usize, SessionError> { /* ... */ }
+pub fn revoke_session(session_id: SessionId) -> Result<(), SessionError> { /* new */ }
+```
+
+The same check runs locally and in CI:
+
+```console
+$ specsync check --strict
+specs/auth/auth.spec.md
+  ⚠ undocumented export `revoke_session`
+
+1 warning treated as an error in strict mode
+```
+
+The fix is not just another generated document. The accepted change preserves:
+
+```text
+requirements.md  why the behavior exists and how success is judged
+auth.spec.md      the current module/API contract checked against code
+context.md        decisions, constraints, and files the next agent must know
+testing.md        requirement-to-test evidence
+CHG-*/            approved deltas, verification, and the delivery audit trail
+```
+
+Add the missing contract row—or make the export private—then rerun the check. CI turns green, while the requirement, decision context, evidence, and exact contract change remain reviewable in Git.
+
+[See the adversarial proof](https://corvidlabs.github.io/spec-sync/docs/comparisons/adversarial-proof/) · [Compare Spec Kit](https://corvidlabs.github.io/spec-sync/docs/comparisons/spec-kit/) · [Compare OpenSpec](https://corvidlabs.github.io/spec-sync/docs/comparisons/openspec/) · [Use them together](https://corvidlabs.github.io/spec-sync/docs/comparisons/using-together/)
 
 ---
 

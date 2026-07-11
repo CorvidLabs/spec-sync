@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0014-route-archive-only-lifecycle-moves-through-a-minimal-specsync-ci-gate-while-pres",
+  "slug": "route-archive-only-lifecycle-moves-through-a-minimal-specsync-ci-gate-while-pres",
+  "title": "Route archive-only lifecycle moves through a minimal SpecSync CI gate while preserving full validation for source, dependency, action, workflow, and release changes",
+  "description": "Route archive-only lifecycle moves through a minimal SpecSync CI gate while preserving full validation for source, dependency, action, workflow, and release changes",
+  "kind": "operations",
+  "state": "verifying",
+  "base_commit": "58cc99e6c4d585426a3a355843fd672e0f1cd220",
+  "created_at": 1783809012,
+  "updated_at": 1783809448,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    ".github/scripts/classify-ci-paths.sh",
+    ".github/scripts/test-classify-ci-paths.sh"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "This changes repository CI orchestration only; it does not alter the SpecSync public contract or canonical module behavior.",
+  "acceptance_criteria": [
+    "Archive-only moves run SpecSync lifecycle validation without platform tests, coverage, audit, site, extension, or packaged Action jobs.",
+    "Source, dependency, workflow, action, and release changes still run the full matrix.",
+    "Site-only and VS Code-only changes run their relevant product job plus SpecSync validation.",
+    "Skipped jobs remain neutral in the PR summary and the stable aggregate gate.",
+    "Main records attestation only after every selected gate succeeds.",
+    "Classifier behavior is covered by deterministic tests."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "design",
+    "tasks",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

@@ -21,6 +21,7 @@ on:
       - 'fledge.toml'
       - 'site/**'
       - 'vscode-extension/**'
+      - '.github/scripts/**'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
@@ -37,6 +38,7 @@ on:
       - 'fledge.toml'
       - 'site/**'
       - 'vscode-extension/**'
+      - '.github/scripts/**'
       - '.github/workflows/ci.yml'
   workflow_dispatch:
 
@@ -48,7 +50,58 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  classify:
+    name: Classify changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      archive-only: ${{ steps.paths.outputs.archive_only }}
+      full: ${{ steps.paths.outputs.full }}
+      site: ${{ steps.paths.outputs.site }}
+      vscode: ${{ steps.paths.outputs.vscode }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Classify changed paths
+        id: paths
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          force_full=false
+          case "$EVENT_NAME" in
+            pull_request)
+              base="origin/$BASE_REF"
+              ;;
+            push)
+              base="$BEFORE_SHA"
+              if [[ -z "$base" || "$base" =~ ^0+$ ]] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+                force_full=true
+              fi
+              ;;
+            *)
+              force_full=true
+              ;;
+          esac
+
+          if [[ "$force_full" == "true" ]]; then
+            output="$(printf '' | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE" true)"
+          else
+            output="$(git diff --name-only -z "$base" "$GITHUB_SHA" | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE")"
+          fi
+
+          printf '%s\n' "$output" | tee -a "$GITHUB_OUTPUT"
+      - name: Test classifier
+        run: .github/scripts/test-classify-ci-paths.sh
+
   test:
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -63,6 +116,8 @@ jobs:
       - run: cargo clippy -- -D warnings
 
   fmt:
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -73,6 +128,8 @@ jobs:
       - run: cargo fmt --check
 
   audit:
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -82,6 +139,8 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   coverage:
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -94,6 +153,8 @@ jobs:
         run: cargo tarpaulin --skip-clean --fail-under 50
 
   site:
+    needs: classify
+    if: needs.classify.outputs.full == 'true' || needs.classify.outputs.site == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -113,6 +174,8 @@ jobs:
         run: bun run build
 
   vscode-extension:
+    needs: classify
+    if: needs.classify.outputs.full == 'true' || needs.classify.outputs.vscode == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -129,6 +192,8 @@ jobs:
         run: bun run package
 
   validate-action:
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -138,6 +203,8 @@ jobs:
 
   action-consumer:
     name: Packaged GitHub Action consumer
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -240,6 +307,7 @@ jobs:
           lifecycle-enforce: 'true'
 
   spec-check:
+    needs: classify
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -279,6 +347,25 @@ jobs:
           # Fail the step if check fails
           cargo run -- check --strict --require-coverage 100 --force
 
+  ci-gate:
+    name: Required CI gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    needs: [classify, test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
+    steps:
+      - name: Require every selected gate
+        env:
+          RESULTS: >-
+            ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "Selected CI gate ended with: $result" >&2; exit 1 ;;
+            esac
+          done
+
   corvid-pet:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -313,6 +400,8 @@ jobs:
 
             if [ "$RESULT" = "success" ]; then
               ICON="✅ Passed"
+            elif [ "$RESULT" = "skipped" ]; then
+              ICON="⏭️ Not selected"
             else
               ICON="❌ ${RESULT}"
               OVERALL="failure"
@@ -363,8 +452,8 @@ jobs:
     # Depend on every gate job, not just a subset: an attestation records
     # "proceed", so it must not sign off on a commit where any real check failed.
     # (corvid-pet is a PR-comment mascot, not a gate, so it is intentionally out.)
-    needs: [test, fmt, audit, coverage, site, vscode-extension, validate-action, action-consumer, spec-check]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [ci-gate]
+    if: needs.ci-gate.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     # contents: write lets the step push refs/notes/attest.
     permissions:
       contents: write
@@ -391,7 +480,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git fetch origin "+refs/notes/attest:refs/notes/attest" 2>/dev/null || true
             if "$bin" sign --commit HEAD --reviewer agent:ci --confidence 0.9 --tests-passed \
-                 --verdict proceed --note "CI green: test, fmt, audit, coverage, site, vscode-extension, validate-action, action-consumer, spec-check" \
+                 --verdict proceed --note "Selected path-aware CI gates passed" \
                && git push origin refs/notes/attest ; then
               echo "attestation recorded for $(git rev-parse --short HEAD)"
             else

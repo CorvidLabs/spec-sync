@@ -1716,16 +1716,7 @@ fn uncovered_meaningful_paths(
     records: &[ChangeRecord],
 ) -> Result<Vec<String>, String> {
     let mut args = vec!["diff", "--name-only"];
-    let base = std::env::var("GITHUB_BASE_REF")
-        .ok()
-        .map(|branch| format!("origin/{branch}...HEAD"))
-        .or_else(|| {
-            records
-                .iter()
-                .filter_map(|record| record.base_commit.clone())
-                .min()
-        })
-        .unwrap_or_else(|| "HEAD~1...HEAD".into());
+    let base = pull_request_diff_base(root, records);
     args.push(&base);
     let output = git_output(root, &args)
         .ok_or_else(|| "unable to inspect changed paths for SDD coverage".to_string())?;
@@ -1741,6 +1732,30 @@ fn uncovered_meaningful_paths(
         .map(str::to_string)
         .collect();
     Ok(uncovered)
+}
+
+fn pull_request_diff_base(root: &Path, records: &[ChangeRecord]) -> String {
+    if let Ok(branch) = std::env::var("GITHUB_BASE_REF")
+        && !branch.trim().is_empty()
+    {
+        return format!("origin/{branch}...HEAD");
+    }
+    if let Some(remote_default) = git_output(
+        root,
+        &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+    ) {
+        return format!("{remote_default}...HEAD");
+    }
+    for candidate in ["origin/main", "origin/master"] {
+        if git_output(root, &["rev-parse", "--verify", candidate]).is_some() {
+            return format!("{candidate}...HEAD");
+        }
+    }
+    records
+        .iter()
+        .filter_map(|record| record.base_commit.clone())
+        .min()
+        .unwrap_or_else(|| "HEAD~1...HEAD".into())
 }
 
 fn path_is_meaningful(path: &str, policy: &SddPolicy) -> bool {
@@ -2770,6 +2785,49 @@ mod tests {
             prepared
                 .iter()
                 .all(|(path, _)| path.starts_with(root.join("contracts")))
+        );
+    }
+
+    #[test]
+    fn path_coverage_uses_current_remote_base_after_rebase() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            let status = Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap();
+            assert!(status.success(), "git command failed: {args:?}");
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-m", "base"]);
+        let original_base = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+
+        fs::create_dir_all(root.join(".github/workflows")).unwrap();
+        fs::write(root.join(".github/workflows/ci.yml"), "name: CI\n").unwrap();
+        git(&["add", ".github/workflows/ci.yml"]);
+        git(&["commit", "-m", "upstream workflow"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        git(&["switch", "-c", "feature"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn feature() {}\n").unwrap();
+        git(&["add", "src/lib.rs"]);
+        git(&["commit", "-m", "feature"]);
+
+        let mut record = completed_record(root);
+        record.base_commit = Some(original_base);
+        record.state = ChangeState::Implementing;
+        record.affected_paths = vec!["src/".into()];
+        let policy = SddPolicy::default();
+        assert!(
+            uncovered_meaningful_paths(root, &policy, &[record])
+                .unwrap()
+                .is_empty()
         );
     }
 }

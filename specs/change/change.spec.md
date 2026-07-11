@@ -1,6 +1,6 @@
 ---
 module: change
-version: 1
+version: 2
 status: active
 files:
   - src/change.rs
@@ -91,6 +91,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 7. Canonical spec versions increment and changelogs reference the accepted change ID.
 8. A failed multi-file write restores all prior canonical content.
 9. Change dependencies are acyclic and must be accepted or archived before dependent implementation begins.
+10. Meaningful-path coverage compares the branch with the current GitHub/remote default base after a rebase, falling back to the recorded creation commit only when no remote base is available.
 
 ## Behavioral Examples
 
@@ -105,6 +106,12 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 - **Given** a valid definition approval
 - **When** a selected design, requirement, or delta is edited
 - **Then** progress is blocked until the new digest is approved
+
+### Scenario: Feature branch rebases onto upstream
+
+- **Given** a change workspace created before new commits landed on the remote default branch
+- **When** the feature branch rebases and unified checking computes meaningful changed paths
+- **Then** upstream-only paths are excluded and only the feature branch diff requires change coverage
 
 ## Error Cases
 
@@ -136,4 +143,5 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 
 | Date | Change |
 |------|--------|
+| 2026-07-10 | v2: compare meaningful path coverage with the current remote base after rebases |
 | 2026-07-10 | Initial 5.0 verified SDD lifecycle |

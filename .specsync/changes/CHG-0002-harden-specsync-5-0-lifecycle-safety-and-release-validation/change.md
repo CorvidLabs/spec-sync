@@ -1,6 +1,6 @@
 ---
 id: CHG-0002-harden-specsync-5-0-lifecycle-safety-and-release-validation
-state: verifying
+state: accepted
 type: bug_fix
 base_commit: 45d2407d4281f86dfce4394f051588a722a5b67d
 ---

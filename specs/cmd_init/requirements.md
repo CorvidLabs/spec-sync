@@ -28,3 +28,11 @@ spec: cmd_init.spec.md
 - Editing a `.specsync/.gitignore` file (only the repository-root `.gitignore` is touched).
 - Creating the `specs/` directory or any spec files.
 - GUI or web output.
+
+### REQ-cmd-init-001
+
+The system SHALL initialize local lifecycle coordination files as ignored, recoverable implementation details.
+
+Acceptance Criteria
+- New projects ignore the lifecycle lock and transaction journal.
+- Initialization remains idempotent and does not weaken SDD enforcement.

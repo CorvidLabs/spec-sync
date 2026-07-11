@@ -8,12 +8,13 @@
   "state": "accepted",
   "base_commit": "2bce28362908629be3aaf140e3f62948c7c7b103",
   "created_at": 1783739793,
-  "updated_at": 1783739885,
+  "updated_at": 1783740813,
   "affected_specs": [],
   "affected_paths": [
     "src/",
     "tests/",
     "site/",
+    ".github/",
     "Cargo.toml"
   ],
   "no_spec_change": true,

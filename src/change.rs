@@ -893,9 +893,6 @@ fn requirement_id_proposals(root: &Path) -> Vec<serde_json::Value> {
 }
 
 pub fn detect_verification_commands(root: &Path) -> Vec<String> {
-    if root.join("fledge.toml").exists() {
-        return vec!["fledge run test".into()];
-    }
     if root.join("Cargo.toml").exists() {
         return vec!["cargo test".into()];
     }
@@ -904,6 +901,9 @@ pub fn detect_verification_commands(root: &Path) -> Vec<String> {
     }
     if root.join("Package.swift").exists() {
         return vec!["swift test".into()];
+    }
+    if root.join("fledge.toml").exists() {
+        return vec!["fledge run test".into()];
     }
     Vec::new()
 }
@@ -1634,7 +1634,8 @@ fn definition_digest(root: &Path, record: &ChangeRecord) -> Result<String, Strin
     for path in files {
         let content = fs::read(&path)
             .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
-        hasher.update(path.to_string_lossy().as_bytes());
+        let portable_path = path.strip_prefix(root).unwrap_or(&path);
+        hasher.update(portable_path.to_string_lossy().as_bytes());
         hasher.update([0]);
         hasher.update(content);
     }
@@ -2359,6 +2360,47 @@ mod tests {
         assert_eq!(
             shell_words("fledge run test").unwrap(),
             vec!["fledge", "run", "test"]
+        );
+    }
+
+    #[test]
+    fn verification_detection_prefers_portable_project_commands() {
+        let temp = TempDir::new().unwrap();
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            "[package]\nname = \"demo\"\n",
+        )
+        .unwrap();
+        fs::write(temp.path().join("fledge.toml"), "[tasks.test]\n").unwrap();
+        assert_eq!(detect_verification_commands(temp.path()), ["cargo test"]);
+    }
+
+    #[test]
+    fn definition_digest_is_portable_across_checkout_roots() {
+        let first = TempDir::new().unwrap();
+        let second = TempDir::new().unwrap();
+        let record = completed_record(first.path());
+        fs::create_dir_all(change_dir(second.path(), &record.id).join("deltas")).unwrap();
+        save_change(second.path(), &record).unwrap();
+        for artifact in &record.selected_artifacts {
+            let content = format!("# {}\n\nComplete.\n", artifact.file_name());
+            fs::write(
+                change_dir(first.path(), &record.id).join(artifact.file_name()),
+                &content,
+            )
+            .unwrap();
+            fs::write(
+                change_dir(second.path(), &record.id).join(artifact.file_name()),
+                content,
+            )
+            .unwrap();
+        }
+        let delta = "## ADDED\n### REQUIREMENT REQ-auth-001\nThe system SHALL work.\n\nAcceptance Criteria\n- Works.\n";
+        fs::write(delta_path(first.path(), &record, "auth"), delta).unwrap();
+        fs::write(delta_path(second.path(), &record, "auth"), delta).unwrap();
+        assert_eq!(
+            definition_digest(first.path(), &record).unwrap(),
+            definition_digest(second.path(), &record).unwrap()
         );
     }
 

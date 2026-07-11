@@ -20,6 +20,34 @@
       "timestamp": 1783739884,
       "digest": "98f920621f53c843517ef6f68e1b9feab90095c0595db3531d77ebdddad1c3cf",
       "note": "Accepted on passing local verification; CI remains an independent merge gate"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783740559,
+      "digest": "88224c5f25c2e939b515c5e0335f6869a51015ddd5b695ec2420c740031a20f6",
+      "note": "Reapproved with repository-relative portable digest after CI portability correction"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783740597,
+      "digest": "c441bb83c79d8949ff84c88809196f62c0239609b8a57fc1f65c509741ce6331",
+      "note": "Accepted after portable digest and CI-portable verification both passed locally"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783740760,
+      "digest": "4cbb2ab65bd3be3ecf6d7dc70d042a03174e3a2a078af830af1a57365361d2e8",
+      "note": "Reapproved after adding full-history checkout for enforceable CI path coverage"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783740813,
+      "digest": "fa957d682dbf373170f929426032617d7ee1c3e24815fb84742956dc0aa82afd",
+      "note": "Accepted with portable approvals, portable verification, and enforceable CI path coverage"
     }
   ]
 }

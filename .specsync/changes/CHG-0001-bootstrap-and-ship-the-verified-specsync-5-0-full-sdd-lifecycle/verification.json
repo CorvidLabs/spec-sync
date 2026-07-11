@@ -1,11 +1,11 @@
 {
-  "timestamp": 1783739878,
-  "commit": "2bce28362908629be3aaf140e3f62948c7c7b103",
-  "contract_digest": "3215fb15f0a9a01737daacf21e82997c2c1af837fcf8f7d2fb1b351601b61fc9",
+  "timestamp": 1783740804,
+  "commit": "64cefc55282230d8e97d88ac10bd26cec91677de",
+  "contract_digest": "4cbb2ab65bd3be3ecf6d7dc70d042a03174e3a2a078af830af1a57365361d2e8",
   "passed": true,
   "commands": [
     {
-      "command": "fledge run test",
+      "command": "cargo test",
       "success": true,
       "exit_code": 0
     }

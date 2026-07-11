@@ -14,7 +14,7 @@
     "specs/"
   ],
   "verification_commands": [
-    "fledge run test"
+    "cargo test"
   ],
   "custom_artifacts": {},
   "principles_file": null

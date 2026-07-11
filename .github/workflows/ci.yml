@@ -141,6 +141,8 @@ jobs:
       body: ${{ steps.spec-check.outputs.body }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
       - name: Build specsync

@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 7
+version: 8
 status: stable
 files:
   - src/commands/check.rs
@@ -29,11 +29,11 @@ Implements the primary deterministic validation entry point, including caching, 
 
 ## Public API
 
-### Exported Functions
+**Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `cmd_check` | `root, strict, enforcement, require_coverage, format, fix, force, create_issues, explain, spec_filters` | `()` | Main check command: load config, discover specs, optionally bypass cache, run validation, auto-fix if requested, format output, exit with appropriate code |
+| `cmd_check` | `root: &Path, strict: bool, enforcement: Option<types::EnforcementMode>, require_coverage: Option<usize>, format: types::OutputFormat, fix: bool, dry_run: bool, backup: bool, force: bool, create_issues: bool, explain: bool, stale: Option<Option<usize>>, spec_filters: &[String], exclude_status: &[String], only_status: &[String]` | `()` | Main check command: load config, discover specs, optionally bypass cache, run validation, auto-fix if requested, format output, exit with appropriate code |
 
 ## Invariants
 
@@ -78,7 +78,7 @@ Implements the primary deterministic validation entry point, including caching, 
 
 ## Dependencies
 
-### Consumes
+**Consumes**
 
 | Module | What is used |
 |--------|-------------|
@@ -91,11 +91,15 @@ Implements the primary deterministic validation entry point, including caching, 
 | types | `SpecSyncConfig`, `OutputFormat`, `EnforcementMode`, `CoverageReport` |
 | github | `resolve_repo` |
 
-### Consumed By
+**Consumed By**
 
 | Module | What is used |
 |--------|-------------|
 | cli (main.rs) | Entry point for `specsync check` subcommand |
+
+**Frontmatter Synchronization**
+
+Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/config/config.spec.md`, `specs/parser/parser.spec.md`, `specs/util/util.spec.md`. This YAML frontmatter update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
 
 ## Change Log
 
@@ -108,3 +112,4 @@ Implements the primary deterministic validation entry point, including caching, 
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0004-close-final-pr-review-gaps-in-5-0-lifecycle-enforcement: Close final PR review gaps in 5.0 lifecycle enforcement |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

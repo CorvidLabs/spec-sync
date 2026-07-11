@@ -1,6 +1,6 @@
 ---
 module: cmd_scaffold
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/scaffold.rs
@@ -79,3 +79,4 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 | 2026-06-07 | Document guided starter content in generated companions |
 | 2026-04-09 | Initial spec |
 | 2026-04-13 | Document companions.design flag for conditional design.md generation |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

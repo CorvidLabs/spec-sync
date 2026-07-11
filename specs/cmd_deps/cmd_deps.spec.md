@@ -1,6 +1,6 @@
 ---
 module: cmd_deps
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/deps.rs
@@ -91,3 +91,4 @@ Implements the `specsync deps` command. Validates cross-module dependency declar
 |------|--------|
 | 2026-07-03 | v2: `cmd_deps` gained a `strict` parameter (#304) — undeclared-import warnings now force exit 1 under `--strict`. Documented the new signature, the strict exit-code invariant, and that the strict stderr note is suppressed in JSON mode (follow-up to #304). |
 | 2026-04-09 | Initial spec |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

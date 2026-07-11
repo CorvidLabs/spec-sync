@@ -1,6 +1,6 @@
 ---
 module: scoring
-version: 2
+version: 3
 status: stable
 files:
   - src/scoring.rs
@@ -108,3 +108,4 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 | 2026-06-07 | Replace template-marker suggestion wording with unfinished draft marker wording |
 | 2026-04-18 | Add `CriterionResult` and `ExplainDetail` structs; add `explain` field to `SpecScore` for `--explain` breakdown |
 | 2026-03-25 | Initial spec |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

@@ -1,6 +1,6 @@
 ---
 module: exports
-version: 4
+version: 5
 status: stable
 files:
   - src/exports/mod.rs
@@ -288,13 +288,13 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 
 ## Dependencies
 
-### Consumes
+**Consumes**
 
 | Module | What is used |
 |--------|-------------|
 | types | `Language` enum for extension-to-language mapping |
 
-### Consumed By
+**Consumed By**
 
 | Module | What is used |
 |--------|-------------|
@@ -302,6 +302,11 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 | scoring | `get_exported_symbols` |
 | generator | `has_extension`, `is_test_file` |
 | config | `has_extension` |
+
+**Frontmatter Synchronization**
+
+Implementation SHALL add `specs/util/util.spec.md` to `depends_on`. The apparent `config` import was test-fixture
+text and is intentionally excluded by code-only Rust dependency extraction.
 
 ## Change Log
 
@@ -317,3 +322,4 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 | 2026-07-09 | Add AST parse mode support for C, C++, Scala, Erlang, Elixir, Perl, and Lisp (Common Lisp/Scheme/Emacs Lisp) |
 | 2026-07-09 | Filter Rust `pub(crate)`/`pub(super)`/`pub(self)`/`pub(in path)` from exports; add TypeScript `export = Name` support |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

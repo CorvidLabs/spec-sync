@@ -27,3 +27,15 @@ spec: rehash.spec.md
 - Incremental / partial cache updates (that path lives in `check`, not `rehash`)
 - Validating or scoring specs
 - Reading or honoring a pre-existing cache state
+
+### REQ-rehash-001
+
+The rehash command SHALL rebuild the local hash cache from current canonical inputs and fail clearly when persistence fails.
+
+Acceptance Criteria
+- `cmd_rehash` loads canonical configuration and discovers non-template specs directly through validator APIs,
+  without depending on the parent command registry, then rebuilds a fresh `HashCache` from scratch
+- The rebuilt cache is written to `.specsync/hashes.json`
+- On success, prints a confirmation including the number of specs hashed
+- On `cache.save` failure, prints an `error:` message to stderr and exits with code 1
+

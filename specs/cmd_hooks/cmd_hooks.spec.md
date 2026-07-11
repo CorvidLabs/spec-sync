@@ -1,6 +1,6 @@
 ---
 module: cmd_hooks
-version: 1
+version: 2
 status: stable
 files:
   - src/commands/hooks.rs
@@ -48,21 +48,26 @@ Implements the `specsync hooks` command. Routes install/uninstall/status subcomm
 
 ## Dependencies
 
-### Consumes
+**Consumes**
 
 | Module | What is used |
 |--------|-------------|
 | hooks | `cmd_install`, `cmd_uninstall`, `cmd_status` |
 | cli_args | `HooksAction` enum |
 
-### Consumed By
+**Consumed By**
 
 | Module | What is used |
 |--------|-------------|
 | cli (main.rs) | Entry point for `specsync hooks` |
+
+**Frontmatter Synchronization**
+
+Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/cli/cli.spec.md`. This YAML frontmatter update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
 
 ## Change Log
 
 | Date | Change |
 |------|--------|
 | 2026-04-09 | Initial spec |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

@@ -1,6 +1,6 @@
 ---
 module: cmd_new
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/new.rs
@@ -81,3 +81,4 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 | 2026-06-07 | Replace unfinished-marker generated rows with review prompts |
 | 2026-04-09 | Initial spec |
 | 2026-04-13 | Document testing.md and conditional design.md in companion generation |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

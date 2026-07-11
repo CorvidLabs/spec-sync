@@ -987,7 +987,7 @@ pub fn check_project(root: &Path) -> SddCheckReport {
                 Err(error) => report.errors.push(format!("{}: {error}", record.id)),
             }
         }
-        if record.state == ChangeState::Verifying && !is_ci() {
+        if record.state == ChangeState::Verifying && !is_ci_project(root) {
             match load_verification(root, record) {
                 Ok(evidence) => {
                     if !evidence.passed {
@@ -1013,7 +1013,7 @@ pub fn check_project(root: &Path) -> SddCheckReport {
             }
         }
     }
-    if is_ci()
+    if is_ci_project(root)
         && records.iter().any(|record| {
             matches!(
                 record.state,
@@ -2154,7 +2154,10 @@ fn uncovered_meaningful_paths(
     // A brand-new repository has no meaningful comparison base yet. Only allow
     // the clean-tree shortcut for its first commit; a clean feature branch can
     // still contain committed delivery changes that require lifecycle coverage.
-    if !is_ci() && git_worktree_is_clean(root) == Some(true) && git_commit_count(root) == Some(1) {
+    if !is_ci_project(root)
+        && git_worktree_is_clean(root) == Some(true)
+        && git_commit_count(root) == Some(1)
+    {
         return Ok(Vec::new());
     }
     let mut args = vec!["diff", "--name-only"];
@@ -2192,7 +2195,8 @@ fn git_commit_count(root: &Path) -> Option<usize> {
 }
 
 fn pull_request_diff_base(root: &Path, records: &[ChangeRecord]) -> String {
-    if let Ok(branch) = std::env::var("GITHUB_BASE_REF")
+    if is_ci_project(root)
+        && let Ok(branch) = std::env::var("GITHUB_BASE_REF")
         && !branch.trim().is_empty()
     {
         return format!("origin/{branch}...HEAD");
@@ -2318,6 +2322,21 @@ fn is_ci() -> bool {
         .iter()
         .filter_map(|name| std::env::var(name).ok())
         .any(|value| matches!(value.to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
+}
+
+fn is_ci_project(root: &Path) -> bool {
+    if !is_ci() {
+        return false;
+    }
+    let Ok(workspace) = std::env::var("GITHUB_WORKSPACE") else {
+        return true;
+    };
+    let workspace = Path::new(&workspace);
+    let canonical_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let canonical_workspace = workspace
+        .canonicalize()
+        .unwrap_or_else(|_| workspace.to_path_buf());
+    canonical_root.starts_with(canonical_workspace)
 }
 
 fn shell_words(command: &str) -> Result<Vec<String>, String> {

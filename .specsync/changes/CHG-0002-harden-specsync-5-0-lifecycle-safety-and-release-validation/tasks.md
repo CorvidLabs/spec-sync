@@ -34,4 +34,5 @@ artifact: tasks
 - [x] Keep archive retries possible after a failed move (`PRRT_kwDORqhp_86QD4D3`).
 - [x] Ignore unaccepted removals when building permanent tombstones (`PRRT_kwDORqhp_86QD4D4`).
 - [x] Cover common root Action, manifest, and lock files by default (`PRRT_kwDORqhp_86QD4D5`).
+- [x] Scope inherited CI/base-ref behavior to the validated GitHub workspace root.
 - [ ] Resolve or answer every PR review thread and pass all release gates.

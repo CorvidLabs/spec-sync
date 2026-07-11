@@ -34,6 +34,13 @@
       "timestamp": 1783745046,
       "digest": "99603879a461df3889a3695686297479a0b6afb5a8e11cdb51a692d03214c7aa",
       "note": "User-approved 5.0 hardening scope including all subsequent review findings"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783745737,
+      "digest": "3e04222b519f1f3c88e8183cca8b081bbced8abb65c2ff44f323efb36f4bb1f8",
+      "note": "User-approved CI and Action hardening scope with remote regression evidence"
     }
   ]
 }

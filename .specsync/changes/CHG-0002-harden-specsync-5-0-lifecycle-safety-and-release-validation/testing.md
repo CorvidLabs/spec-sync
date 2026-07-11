@@ -16,3 +16,5 @@ Each review finding gets a minimal regression plus the full existing suite. Adve
 - `REQ-change-009`: `definition_approval_rejects_an_invalid_semantic_delta`, `requirement_ids_must_match_their_delta_module`, `malformed_active_change_state_fails_closed`, `failed_archive_move_leaves_an_accepted_change_retryable`, `draft_requirement_removals_are_not_permanent_tombstones`, and `speckit_adoption_imports_constitution_and_feature_workspaces_only`.
 - `REQ-change-010`: `default_policy_covers_root_action_and_dependency_lockfiles` and `path_scopes_match_component_boundaries`.
 - `REQ-cmd-init-001`: `write_current_layout_creates_full_structure`, `fresh_init_is_not_legacy_layout`, and `init_enables_sdd_for_new_projects`.
+
+The complete `change::tests` matrix also passes with `CI=true`, `GITHUB_ACTIONS=true`, and a repository-level `GITHUB_BASE_REF`, proving that disposable Git fixtures do not inherit unrelated pull-request base state. A clean initialized consumer outside `GITHUB_WORKSPACE` passes the same strict Action command with 100% empty-project coverage.

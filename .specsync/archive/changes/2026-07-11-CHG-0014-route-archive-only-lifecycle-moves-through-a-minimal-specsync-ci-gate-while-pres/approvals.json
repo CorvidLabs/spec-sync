@@ -20,6 +20,13 @@
       "timestamp": 1783809419,
       "digest": "b9852ca8d1f6b800d603f3b634f42e6e2f6dc0cde153953abbf238bd190f8ba2",
       "note": "Final definition refresh after all local lanes and non-blocking Augur review completed."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783810309,
+      "digest": "08f0016fea6dfc0eb27d91ab53dab497a740fe68e3a6f325ba770d21a0566901",
+      "note": "Closing approval after PR #347 merged and post-merge verification passed on main commit 4eaf225."
     }
   ]
 }

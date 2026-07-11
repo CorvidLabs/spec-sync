@@ -1,6 +1,6 @@
 ---
 id: CHG-0014-route-archive-only-lifecycle-moves-through-a-minimal-specsync-ci-gate-while-pres
-state: verifying
+state: archived
 type: operations
 base_commit: 58cc99e6c4d585426a3a355843fd672e0f1cd220
 ---

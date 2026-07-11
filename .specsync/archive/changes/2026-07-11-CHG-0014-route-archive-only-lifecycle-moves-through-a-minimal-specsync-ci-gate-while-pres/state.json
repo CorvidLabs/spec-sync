@@ -5,10 +5,10 @@
   "title": "Route archive-only lifecycle moves through a minimal SpecSync CI gate while preserving full validation for source, dependency, action, workflow, and release changes",
   "description": "Route archive-only lifecycle moves through a minimal SpecSync CI gate while preserving full validation for source, dependency, action, workflow, and release changes",
   "kind": "operations",
-  "state": "verifying",
+  "state": "archived",
   "base_commit": "58cc99e6c4d585426a3a355843fd672e0f1cd220",
   "created_at": 1783809012,
-  "updated_at": 1783809448,
+  "updated_at": 1783810318,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/ci.yml",

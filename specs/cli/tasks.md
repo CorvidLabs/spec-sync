@@ -4,6 +4,8 @@ spec: cli.spec.md
 
 ## Tasks
 
+## Post-5.0 Roadmap
+
 - [ ] Add shell completion generation subcommand (`specsync completions bash/zsh/fish`)
 - [ ] Add `--quiet` flag to suppress non-error output
 - [ ] Add `--color never/always/auto` flag for explicit color control
@@ -23,9 +25,6 @@ spec: cli.spec.md
 - No shell completion support
 - No `--quiet` flag for CI pipelines that only want exit codes
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

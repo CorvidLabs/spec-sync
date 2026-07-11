@@ -8,14 +8,17 @@ db_tables: []
 tracks: []
 depends_on:
   - specs/commands/commands.spec.md
+  - specs/comment/comment.spec.md
+  - specs/config/config.spec.md
   - specs/git_utils/git_utils.spec.md
+  - specs/github/github.spec.md
   - specs/hash_cache/hash_cache.spec.md
   - specs/ignore/ignore.spec.md
   - specs/output/output.spec.md
+  - specs/parser/parser.spec.md
   - specs/types/types.spec.md
+  - specs/util/util.spec.md
   - specs/validator/validator.spec.md
-  - specs/comment/comment.spec.md
-  - specs/github/github.spec.md
 ---
 
 # Cmd Check

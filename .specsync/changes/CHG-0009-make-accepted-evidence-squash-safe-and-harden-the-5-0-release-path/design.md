@@ -12,3 +12,9 @@ claim—the bounded fallback. Factor remote-default discovery so coverage and ev
 
 Archive the six already-merged accepted workspaces after validating them from a clean checkout of the squash commit.
 Narrow release tag matching, validate tag/package/main consistency, and pin the Action's default binary major.
+Use an anchored Cargo `include` allowlist so local ignored files and repository-only assets cannot enter the crate.
+
+Harden every lifecycle digest with an explicit version/domain prefix and length-prefixed fields. Hash stable file
+kinds and Git-relevant executable mode while preserving arbitrary binary bytes. This closes structural ambiguity
+without weakening stale-evidence detection through generic line-ending normalization. Temporary Git topology
+fixtures set their own checkout policy so Windows runner defaults cannot mutate the fixture after evidence is recorded.

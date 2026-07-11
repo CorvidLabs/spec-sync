@@ -4,6 +4,8 @@ spec: schema.spec.md
 
 ## Tasks
 
+## Post-5.0 Roadmap
+
 - [ ] Support CREATE INDEX tracking for schema completeness
 - [ ] Add VIRTUAL TABLE column extraction (FTS5 columns)
 - [ ] Support multi-statement migration files with transaction wrappers (BEGIN/COMMIT)
@@ -25,9 +27,6 @@ spec: schema.spec.md
 - No transaction wrapper handling (BEGIN/COMMIT blocks)
 - No CREATE INDEX tracking
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

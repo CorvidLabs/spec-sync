@@ -4,7 +4,11 @@ spec: cmd_hooks.spec.md
 
 ## Tasks
 
-- [ ] Add integration tests covering `hooks install`/`uninstall`/`status` CLI behavior (currently no fixtures exist for this command).
+- [x] Add integration coverage for `hooks install` and `hooks uninstall` — Evidence: `hooks_install_claude_code_hook_preserves_user_settings` and `hooks_uninstall_preserves_user_content_after_block`.
+
+## Post-5.0 Test Debt
+
+- [ ] Add integration coverage for `hooks status` CLI behavior.
 
 ## Done
 
@@ -16,9 +20,6 @@ spec: cmd_hooks.spec.md
 
 - No integration or inline unit tests target `src/commands/hooks.rs`. The behavior is exercised only indirectly via the `hooks` library module's own tests.
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

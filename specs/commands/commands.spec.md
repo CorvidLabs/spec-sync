@@ -7,13 +7,24 @@ files:
 db_tables: []
 tracks: []
 depends_on:
+  - specs/agents/agents.spec.md
+  - specs/change/change.spec.md
+  - specs/changelog/changelog.spec.md
+  - specs/comment/comment.spec.md
+  - specs/compact/compact.spec.md
   - specs/config/config.spec.md
+  - specs/deps/deps.spec.md
+  - specs/github/github.spec.md
+  - specs/hooks/hooks.spec.md
   - specs/ignore/ignore.spec.md
+  - specs/merge/merge.spec.md
+  - specs/parser/parser.spec.md
+  - specs/rehash/rehash.spec.md
   - specs/schema/schema.spec.md
   - specs/scoring/scoring.spec.md
   - specs/types/types.spec.md
   - specs/validator/validator.spec.md
-  - specs/github/github.spec.md
+  - specs/view/view.spec.md
 ---
 
 # Commands

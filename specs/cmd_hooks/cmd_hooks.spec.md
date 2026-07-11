@@ -7,8 +7,9 @@ files:
 db_tables: []
 tracks: []
 depends_on:
-  - specs/hooks/hooks.spec.md
+  - specs/cli/cli.spec.md
   - specs/cli_args/cli_args.spec.md
+  - specs/hooks/hooks.spec.md
 ---
 
 # Cmd Hooks

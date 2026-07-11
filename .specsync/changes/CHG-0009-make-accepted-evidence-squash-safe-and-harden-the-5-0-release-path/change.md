@@ -17,7 +17,7 @@ Make accepted evidence squash-safe and harden the 5.0 release path
 
 ## Acceptance Criteria
 
-- Post-squash accepted evidence remains valid only when the accepted workspace is already integrated unchanged on the remote default branch; unintegrated or changed evidence fails closed; accepted workspaces archive after squash; release tags trigger only exact semantic versions; the Action defaults to the 5.0.0 binary; all local and CI gates pass
+- Post-squash accepted evidence remains valid only when the accepted workspace is already integrated unchanged on the remote default branch; unintegrated or changed evidence fails closed; accepted workspaces archive after squash; digest evidence is collision-safe and file-kind-aware; release tags trigger only exact semantic versions; the Action defaults to the 5.0.0 binary; the repository lifecycle stamp is 5.0.0; the published crate excludes repository-only assets; all local and CI gates pass
 
 ## No-spec Rationale
 

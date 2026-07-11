@@ -4,10 +4,13 @@ spec: exports.spec.md
 
 ## Tasks
 
-- [ ] Add support for C/C++ header exports (`.h`/`.hpp` files)
 - [x] Handle TypeScript `export =` (CommonJS-style default export) — captured in both regex and AST backends
-- [ ] Add AST backends for Go, Java, Swift, Kotlin, and the remaining regex-only languages (currently TS/Python/Rust/C/C++/Scala/Erlang/Elixir/Perl/Lisp have AST backends)
 - [x] Restore Rust crate-contract visibility — `pub` and `pub(crate)` are included while `pub(super)`, `pub(self)`, and `pub(in path)` remain excluded in regex and AST backends
+
+## Post-5.0 Roadmap
+
+- [ ] Add support for C/C++ header exports (`.h`/`.hpp` files)
+- [ ] Add AST backends for Go, Java, Swift, Kotlin, and the remaining regex-only languages (currently TS/Python/Rust/C/C++/Scala/Erlang/Elixir/Perl/Lisp have AST backends)
 
 ## Done
 
@@ -39,9 +42,6 @@ spec: exports.spec.md
 - No support for re-exports in languages other than TypeScript
 - Dart backend doesn't distinguish `part of` visibility
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

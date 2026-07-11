@@ -22,9 +22,6 @@ spec: hash_cache.spec.md
 - [x] Integration coverage: `check_creates_hash_cache`
 - [x] Populate requirements.md with user stories and acceptance criteria (2026-04-10)
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

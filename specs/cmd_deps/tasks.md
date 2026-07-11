@@ -4,8 +4,12 @@ spec: cmd_deps.spec.md
 
 ## Tasks
 
-- [ ] Add a CLI test asserting `--mermaid`/`--dot` output shape (the renderers are private to the wrapper and have no direct test today)
-- [ ] Add a CLI test asserting the non-zero exit when `report.errors` is non-empty
+- [x] Add CLI coverage for `deps --mermaid` output shape — Evidence: `deps_strict_mermaid_still_gates`.
+- [x] Add a CLI test asserting the non-zero exit when `report.errors` is non-empty — Evidence: `deps_strict_gates_on_undeclared_imports` and strict diagram gating coverage.
+
+## Post-5.0 Test Debt
+
+- [ ] Add CLI coverage for `deps --dot` output shape.
 
 ## Done
 
@@ -15,9 +19,6 @@ spec: cmd_deps.spec.md
 - [x] Verified the empty-graph `depends_on` hint fires only in diagram mode
 - [x] Confirmed the delegate is covered by `deps` inline tests (graph build, missing dep, cycle detection, undeclared imports per language, topological sort) and the `dependency_spec_not_found_errors` integration test
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

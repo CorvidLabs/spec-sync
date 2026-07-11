@@ -6,15 +6,15 @@ spec: rehash.spec.md
 
 - [x] Implement full hash-cache regeneration command
 - [x] Ensure cache save failures return a non-zero exit
-- [ ] Add CLI-level test for save failure on read-only `.specsync` directory
 
 ## Gaps
 
 - Save-failure behavior is specified but difficult to exercise portably across platforms.
 
-## Review Sign-offs
+## Post-5.0 Test Debt
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+- [ ] Add CLI-level test for save failure on read-only `.specsync` directory
+
+## Review Status
+
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

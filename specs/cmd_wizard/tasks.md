@@ -4,6 +4,8 @@ spec: cmd_wizard.spec.md
 
 ## Tasks
 
+## Post-5.0 Test Debt
+
 - [ ] Add integration tests for this command's CLI behavior
 
 ## Done
@@ -15,9 +17,6 @@ spec: cmd_wizard.spec.md
 
 - No dedicated test file for this command module
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

@@ -8,7 +8,8 @@ db_tables: []
 tracks: []
 depends_on:
   - specs/hash_cache/hash_cache.spec.md
-  - specs/commands/commands.spec.md
+  - specs/config/config.spec.md
+  - specs/validator/validator.spec.md
 ---
 
 # Rehash

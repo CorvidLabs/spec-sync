@@ -4,6 +4,8 @@ spec: scoring.spec.md
 
 ## Tasks
 
+## Post-5.0 Roadmap
+
 - [ ] Add configurable scoring weights (allow projects to prioritize certain dimensions)
 - [ ] Add historical score tracking (compare current scores against previous runs)
 - [ ] Add per-section content quality heuristics (beyond just "has content")
@@ -25,9 +27,6 @@ spec: scoring.spec.md
 - No way to track score trends over time
 - Content depth check is binary (has content or doesn't) — no nuance between thorough and minimal documentation
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

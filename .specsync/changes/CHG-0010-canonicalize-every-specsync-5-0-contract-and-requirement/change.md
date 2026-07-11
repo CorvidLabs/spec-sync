@@ -1,0 +1,83 @@
+---
+id: CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement
+state: implementing
+type: migration
+base_commit: 68d23e306628d1334393f9ba4125cdf87e70a613
+---
+
+# Canonicalize every SpecSync 5.0 contract and requirement
+
+## Intent
+
+Canonicalize every SpecSync 5.0 contract and requirement
+
+## Affected Canonical Specs
+
+- `archive`
+- `changelog`
+- `cli`
+- `cmd_agents`
+- `cmd_archive_tasks`
+- `cmd_change`
+- `cmd_changelog`
+- `cmd_check`
+- `cmd_comment`
+- `cmd_compact`
+- `cmd_coverage`
+- `cmd_deps`
+- `cmd_diff`
+- `cmd_hooks`
+- `cmd_import`
+- `cmd_init`
+- `cmd_init_registry`
+- `cmd_issues`
+- `cmd_lifecycle`
+- `cmd_merge`
+- `cmd_migrate`
+- `cmd_new`
+- `cmd_report`
+- `cmd_resolve`
+- `cmd_rules`
+- `cmd_scaffold`
+- `cmd_score`
+- `cmd_stale`
+- `cmd_view`
+- `cmd_wizard`
+- `commands`
+- `compact`
+- `config`
+- `deps`
+- `exports`
+- `git_utils`
+- `github`
+- `hash_cache`
+- `hooks`
+- `ignore`
+- `importer`
+- `manifest`
+- `merge`
+- `output`
+- `parser`
+- `registry`
+- `rehash`
+- `schema`
+- `scoring`
+- `util`
+- `validator`
+- `view`
+- `watch`
+
+## Acceptance Criteria
+
+- Every canonical depends_on declaration matches source imports, and strict dependency validation reports zero undeclared imports, missing dependencies, or cycles.
+- Every affected Public API signature, configuration contract, and command description matches the current source behavior without erasing still-valid canonical detail.
+- The shipped cmd_migrate contract is promoted to stable only after its eleven-step pipeline, current test locations, and compatibility behavior are documented and validated.
+- All 62 requirements companions retain their existing detail and use stable REQ identities, normative SHALL language, and explicit acceptance criteria after the 44 legacy companions are migrated.
+- Generated and committed canonical TOML use the exact version-neutral header # spec-sync configuration, with a focused regression test preventing versioned header drift.
+- Companion metadata, dependency frontmatter edits, maturity state, testing evidence, and remaining roadmap debt are represented honestly and do not imply unsupported completion.
+- Rust dependency inference ignores non-code imports, resolves source-module ownership, and produces a complete acyclic graph.
+- Branch-native strict spec checking, score distribution, dependency validation, focused migration tests, the full test suite, and lifecycle gates pass before acceptance.
+
+## No-spec Rationale
+
+Not applicable

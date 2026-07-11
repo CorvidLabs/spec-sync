@@ -7,31 +7,38 @@ files:
 db_tables: []
 tracks: [120]
 depends_on:
+  - specs/agents/agents.spec.md
+  - specs/archive/archive.spec.md
+  - specs/change/change.spec.md
+  - specs/changelog/changelog.spec.md
+  - specs/cli_args/cli_args.spec.md
+  - specs/cmd_change/cmd_change.spec.md
+  - specs/commands/commands.spec.md
+  - specs/comment/comment.spec.md
+  - specs/compact/compact.spec.md
   - specs/config/config.spec.md
-  - specs/parser/parser.spec.md
-  - specs/validator/validator.spec.md
+  - specs/deps/deps.spec.md
   - specs/exports/exports.spec.md
   - specs/generator/generator.spec.md
-  - specs/scoring/scoring.spec.md
-  - specs/registry/registry.spec.md
-  - specs/mcp/mcp.spec.md
-  - specs/watch/watch.spec.md
-  - specs/hooks/hooks.spec.md
-  - specs/types/types.spec.md
-  - specs/archive/archive.spec.md
-  - specs/compact/compact.spec.md
-  - specs/view/view.spec.md
-  - specs/change/change.spec.md
-  - specs/cmd_change/cmd_change.spec.md
+  - specs/git_utils/git_utils.spec.md
   - specs/github/github.spec.md
   - specs/hash_cache/hash_cache.spec.md
-  - specs/merge/merge.spec.md
+  - specs/hooks/hooks.spec.md
+  - specs/ignore/ignore.spec.md
   - specs/importer/importer.spec.md
-  - specs/comment/comment.spec.md
   - specs/manifest/manifest.spec.md
+  - specs/mcp/mcp.spec.md
+  - specs/merge/merge.spec.md
+  - specs/output/output.spec.md
+  - specs/parser/parser.spec.md
+  - specs/registry/registry.spec.md
   - specs/schema/schema.spec.md
-  - specs/changelog/changelog.spec.md
-  - specs/deps/deps.spec.md
+  - specs/scoring/scoring.spec.md
+  - specs/types/types.spec.md
+  - specs/util/util.spec.md
+  - specs/validator/validator.spec.md
+  - specs/view/view.spec.md
+  - specs/watch/watch.spec.md
 ---
 
 # CLI

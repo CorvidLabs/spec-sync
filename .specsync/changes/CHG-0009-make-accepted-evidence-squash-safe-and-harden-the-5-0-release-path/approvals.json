@@ -20,6 +20,20 @@
       "timestamp": 1783789860,
       "digest": "37b0fbd5d41ce04dbd0cf9ca60bb26fa43c0f9a6d47c202c3c214d2e723f9a75",
       "note": "Final implementation, adversarial tests, archives, and release safeguards approved"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783791810,
+      "digest": "43ed21fc626e90e03c851c2cb07f7db3a57839210eeced5750e397b663606a0e",
+      "note": "Reapproved collision-safe lifecycle evidence, Windows-isolated topology tests, and the 5.0.0 lifecycle stamp"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783793079,
+      "digest": "81742af00842dd802c3d49a2a58e81ea3ff8b71889f91c6c897d73bd060423cc",
+      "note": "Reapproved corrected local evidence and minimal crates.io package scope"
     }
   ]
 }

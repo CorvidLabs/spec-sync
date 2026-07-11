@@ -11,3 +11,7 @@ Acceptance Criteria
   remote default branch.
 - Unintegrated heads, changed scoped inputs, stale contracts, and mismatched closing approvals fail closed.
 - Squash-integrated accepted workspaces remain archivable.
+- Digest fields are versioned, domain-separated, and length-framed so file boundaries cannot be forged with embedded
+  NUL bytes.
+- Binary bytes remain exact, while stable file kind and executable-mode evidence invalidate relevant delivery changes.
+- Cross-platform topology verification is independent of a runner's global line-ending checkout policy.

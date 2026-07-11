@@ -1,4 +1,4 @@
-# spec-sync v4 configuration
+# spec-sync configuration
 # Docs: https://github.com/CorvidLabs/spec-sync
 
 specs_dir = "specs"

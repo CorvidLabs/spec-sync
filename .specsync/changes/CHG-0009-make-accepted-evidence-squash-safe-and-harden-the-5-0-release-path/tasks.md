@@ -11,3 +11,9 @@ artifact: tasks
 - [x] Restrict and validate release tags.
 - [x] Pin and document Action version behavior.
 - [x] Run lifecycle, unit, integration, package, site, and Action consumer gates.
+- [x] Isolate squash topology fixtures from Windows `core.autocrlf`.
+- [x] Add versioned, collision-safe digest framing and file-kind/mode evidence.
+- [x] Add binary, NUL-boundary, executable-mode, symlink, and line-ending regressions.
+- [x] Update the repository lifecycle stamp to 5.0.0.
+- [x] Restrict the published crate to executable sources and required user-facing metadata.
+- [ ] Re-run and record every local and cross-platform gate after the failed acceptance was invalidated.

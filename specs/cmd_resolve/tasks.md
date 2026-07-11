@@ -4,6 +4,8 @@ spec: cmd_resolve.spec.md
 
 ## Tasks
 
+## Post-5.0 Test Debt
+
 - [ ] Add end-to-end CLI tests for `--remote` / `--verify` against a stubbed registry (currently only helper-level unit tests exist)
 
 ## Done
@@ -19,9 +21,6 @@ spec: cmd_resolve.spec.md
 
 - Coverage is helper-level only (`find_consumed_exports`, `SpecCache`, `RemoteSpec`); the `cmd_resolve` orchestration and `verify_remote_specs` network paths are not exercised end to end.
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

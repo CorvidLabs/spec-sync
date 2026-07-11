@@ -8,6 +8,7 @@ db_tables: []
 tracks: []
 depends_on:
   - specs/config/config.spec.md
+  - specs/types/types.spec.md
 ---
 
 # Cmd Init

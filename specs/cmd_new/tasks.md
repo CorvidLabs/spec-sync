@@ -4,7 +4,11 @@ spec: cmd_new.spec.md
 
 ## Tasks
 
-- [ ] Add integration tests for `specsync new` CLI behavior (quick create, `--full`, refuse-overwrite, empty `files:` when no sources)
+- [x] Add integration coverage for basic `specsync new` creation, source auto-detection, no-match guidance, and module-name safety — Evidence: `new_auto_detects_single_source_file`, `new_warns_when_no_source_files_match`, and traversal rejection.
+
+## Post-5.0 Test Debt
+
+- [ ] Add explicit integration coverage for `specsync new --full` and refuse-overwrite behavior.
 
 ## Done
 
@@ -19,9 +23,6 @@ spec: cmd_new.spec.md
 
 - No tests cover `cmd_new`; `src/commands/new.rs` has no `#[cfg(test)]` module and there are no `specsync new` integration tests.
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

@@ -8,6 +8,7 @@ db_tables: []
 tracks: []
 depends_on:
   - specs/change/change.spec.md
+  - specs/cli_args/cli_args.spec.md
   - specs/types/types.spec.md
 ---
 

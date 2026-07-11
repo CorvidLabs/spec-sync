@@ -52,6 +52,7 @@ db_tables: []
 tracks: [60]
 depends_on:
   - specs/types/types.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Exports

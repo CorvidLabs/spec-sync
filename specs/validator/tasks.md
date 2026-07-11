@@ -4,6 +4,8 @@ spec: validator.spec.md
 
 ## Tasks
 
+## Post-5.0 Roadmap
+
 - [ ] Add `--fix` mode to auto-fix simple validation errors (e.g., updating stale file paths)
 - [ ] Add incremental validation (only re-validate specs whose source files changed)
 - [ ] Support `db_tables` validation against ORM model definitions, not just SQL files
@@ -29,9 +31,6 @@ spec: validator.spec.md
 - `db_tables` validation only works with raw SQL `CREATE TABLE` statements
 - No auto-fix capability for common errors
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

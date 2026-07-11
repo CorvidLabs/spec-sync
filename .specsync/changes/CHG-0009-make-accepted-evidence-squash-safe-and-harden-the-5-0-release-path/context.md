@@ -12,3 +12,8 @@ contracts, and approval digests remain unchanged. No 5.0 tag or crate publicatio
 The implementation keeps ancestry as the fast path and permits a squash fallback only when the accepted workspace is
 unchanged at a remote default ref containing HEAD. Historical accepted records are archived. Release automation now
 separates exact `v5.0.0` publication from the floating `v5` Action alias.
+
+PR #340's first matrix exposed a Windows-only fixture dependency on global `core.autocrlf`. The failure also prompted
+an adversarial digest audit, which found ambiguous unframed path/content concatenation and missing file-mode evidence.
+The failed acceptance was reversed before further implementation. The digest format is being hardened before 5.0
+because no public 5.0 evidence schema has shipped.

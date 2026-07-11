@@ -7,6 +7,7 @@ files:
 db_tables: []
 depends_on:
   - specs/agents/agents.spec.md
+  - specs/cli/cli.spec.md
   - specs/cli_args/cli_args.spec.md
 ---
 

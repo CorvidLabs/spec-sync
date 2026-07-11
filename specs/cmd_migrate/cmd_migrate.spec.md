@@ -1,17 +1,19 @@
 ---
 module: cmd_migrate
 version: 1
-status: draft
+status: stable
 files:
   - src/commands/migrate.rs
 db_tables: []
 tracks: [198]
 depends_on:
+  - specs/cmd_lifecycle/cmd_lifecycle.spec.md
   - specs/commands/commands.spec.md
   - specs/config/config.spec.md
-  - specs/parser/parser.spec.md
-  - specs/cmd_lifecycle/cmd_lifecycle.spec.md
   - specs/hash_cache/hash_cache.spec.md
+  - specs/parser/parser.spec.md
+  - specs/types/types.spec.md
+  - specs/validator/validator.spec.md
 implements: [198]
 ---
 

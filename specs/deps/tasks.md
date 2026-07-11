@@ -2,6 +2,14 @@
 spec: deps.spec.md
 ---
 
+## Post-5.0 Roadmap
+
+- [ ] Import extraction is regex-based and may miss aliased/multiline import forms
+
+## Post-5.0 Test Debt
+
+- [ ] No end-to-end integration fixture asserting `specsync deps` CLI output for missing/circular deps (only inline unit tests exist)
+
 ## Done
 
 - [x] `build_dep_graph` / `extract_module_from_dep_path` — build the module graph from spec frontmatter
@@ -16,12 +24,7 @@ spec: deps.spec.md
 
 ## Open
 
-- [ ] No end-to-end integration fixture asserting `specsync deps` CLI output for missing/circular deps (only inline unit tests exist)
-- [ ] Import extraction is regex-based and may miss aliased/multiline import forms
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

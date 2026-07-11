@@ -4,7 +4,13 @@ spec: cmd_migrate.spec.md
 
 ## Tasks
 
-### Done
+#
+
+## Post-5.0 Test Debt
+
+- [ ] Add unit tests for the remaining `apply_*` steps (config/registry relocation, lifecycle extraction, frontmatter cleanup)
+
+## Done
 
 - [x] Add `Migrate` variant to CLI Command enum in `cli.rs`
 - [x] Create `src/commands/migrate.rs` with step-based architecture
@@ -29,17 +35,13 @@ spec: cmd_migrate.spec.md
 
 ### Open
 
-- [ ] Test on real 3.x project (dogfood on CorvidLabs repos)
-- [ ] Add unit tests for the remaining `apply_*` steps (config/registry relocation, lifecycle extraction, frontmatter cleanup)
+- [x] Test on real 3.x project (dogfood on CorvidLabs repos) — Evidence: repository migration commit `68829c5`.
 
 ### Gaps
 
 - Most `apply_*` steps are exercised only through the end-to-end integration flow; only `apply_create_directories` has dedicated unit coverage.
 - Consider: migration for projects using spec-sync as a dependency (cross-project registries)
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

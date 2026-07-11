@@ -10,6 +10,7 @@ depends_on:
   - specs/commands/commands.spec.md
   - specs/scoring/scoring.spec.md
   - specs/types/types.spec.md
+  - specs/validator/validator.spec.md
 ---
 
 # Cmd Score

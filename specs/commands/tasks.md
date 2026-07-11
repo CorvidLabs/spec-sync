@@ -4,6 +4,8 @@ spec: commands.spec.md
 
 ## Tasks
 
+## Post-5.0 Test Debt
+
 - [ ] Add focused inline tests in `src/commands/mod.rs` for `filter_specs`, `filter_by_status`, and `load_and_discover` (only `compute_exit_code` is currently unit-tested, and it lives in `src/main.rs`)
 
 ## Done
@@ -18,9 +20,6 @@ spec: commands.spec.md
 
 - `src/commands/mod.rs` has no `#[cfg(test)]` module; `filter_specs`/`filter_by_status`/`run_validation` are exercised only indirectly via integration tests
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

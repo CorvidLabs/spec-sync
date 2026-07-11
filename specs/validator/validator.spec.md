@@ -7,11 +7,12 @@ files:
 db_tables: []
 tracks: [119]
 depends_on:
-  - specs/types/types.spec.md
-  - specs/parser/parser.spec.md
-  - specs/exports/exports.spec.md
   - specs/config/config.spec.md
+  - specs/exports/exports.spec.md
+  - specs/parser/parser.spec.md
   - specs/schema/schema.spec.md
+  - specs/types/types.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Validator

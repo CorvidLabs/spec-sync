@@ -7,9 +7,12 @@ files:
 db_tables: []
 tracks: []
 depends_on:
+  - specs/change/change.spec.md
   - specs/commands/commands.spec.md
   - specs/comment/comment.spec.md
   - specs/github/github.spec.md
+  - specs/ignore/ignore.spec.md
+  - specs/types/types.spec.md
   - specs/validator/validator.spec.md
 ---
 

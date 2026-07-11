@@ -1,6 +1,6 @@
 ---
 module: cmd_agents
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/agents.rs
@@ -52,18 +52,22 @@ Implements `specsync agents` by routing install, uninstall, and status actions f
 
 ## Dependencies
 
-### Consumes
+**Consumes**
 
 | Module | What is used |
 |--------|-------------|
 | agents | `cmd_install`, `cmd_uninstall`, `cmd_status`, `AgentTool` |
 | cli_args | `AgentsAction` enum |
 
-### Consumed By
+**Consumed By**
 
 | Module | What is used |
 |--------|-------------|
 | cli (main.rs) | Entry point for `specsync agents` |
+
+**Frontmatter Synchronization**
+
+Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/cli/cli.spec.md`. This YAML frontmatter update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
 
 ## Change Log
 
@@ -71,3 +75,4 @@ Implements `specsync agents` by routing install, uninstall, and status actions f
 |------|--------|--------|
 | 2026-07-01 | claude | Initial spec |
 | 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

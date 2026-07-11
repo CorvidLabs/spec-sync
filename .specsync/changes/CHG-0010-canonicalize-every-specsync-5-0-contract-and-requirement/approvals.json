@@ -41,6 +41,13 @@
       "timestamp": 1783793240,
       "digest": "5a77c4d3e0c5fd3bcd28a0eb79bf582b0c0ff1862e711ffcd4652655ee8b99a4",
       "note": "Reapproved completed implementation tasks with acceptance and post-merge checks retained as release gates"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783797727,
+      "digest": "a309706ee12f491ef941a90c7a42d1abe58e4a11481ed77d82e9fbb767bf6fc0",
+      "note": "Accepted with canonical contracts after CHG-0009 nested-project correction"
     }
   ]
 }

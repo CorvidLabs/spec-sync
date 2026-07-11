@@ -34,3 +34,18 @@ spec: cmd_migrate.spec.md
 - Interactive/wizard-style migration (fully automatic, non-interactive)
 - Automatic git commit of migration results (user decides when to commit)
 - Downgrade from 4.0 back to 3.x (backup enables manual rollback)
+
+### REQ-cmd-migrate-001
+
+The migration command SHALL upgrade supported 3.x layouts to canonical 4.0 metadata without silent data loss and with idempotent preview, backup, and recovery behavior.
+
+Acceptance Criteria
+- `specsync migrate` on a 3.x project produces a valid 4.0.0 structure with all files in `.specsync/`
+- Running on an already-migrated project exits 0 with no changes
+- `--dry-run` shows every file move, directory creation, and frontmatter edit without writing
+- All `specsync check` validations pass after migration
+- Lifecycle history is preserved verbatim (no reordering, no data loss)
+- Backup is created by default in `.specsync/backup-3x/` with manifest
+- Clear error messages for every failure mode
+- JSON output mode produces structured migration report
+

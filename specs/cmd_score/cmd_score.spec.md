@@ -1,6 +1,6 @@
 ---
 module: cmd_score
-version: 1
+version: 2
 status: stable
 files:
   - src/commands/score.rs
@@ -21,11 +21,11 @@ Implements the `specsync score` command. Scores spec quality 0-100 (graded A-F) 
 
 ## Public API
 
-### Exported Functions
+**Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `cmd_score` | `root: &Path, format: OutputFormat, explain: bool, spec_filters: &[String]` | `()` | Score all or filtered specs and display grades |
+| `cmd_score` | `root: &Path, strict: bool, enforcement: Option<types::EnforcementMode>, require_coverage: Option<usize>, format: types::OutputFormat, explain: bool, all: bool, spec_filters: &[String], exclude_status: &[String], only_status: &[String]` | `()` | Score all or filtered specs and display grades |
 
 ## Invariants
 
@@ -50,7 +50,7 @@ Implements the `specsync score` command. Scores spec quality 0-100 (graded A-F) 
 
 ## Dependencies
 
-### Consumes
+**Consumes**
 
 | Module | What is used |
 |--------|-------------|
@@ -58,14 +58,19 @@ Implements the `specsync score` command. Scores spec quality 0-100 (graded A-F) 
 | scoring | `score_spec`, `compute_project_score` |
 | types | `OutputFormat` |
 
-### Consumed By
+**Consumed By**
 
 | Module | What is used |
 |--------|-------------|
 | cli (main.rs) | Entry point for `specsync score` |
+
+**Frontmatter Synchronization**
+
+Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/validator/validator.spec.md`. This YAML frontmatter update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
 
 ## Change Log
 
 | Date | Change |
 |------|--------|
 | 2026-04-09 | Initial spec |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

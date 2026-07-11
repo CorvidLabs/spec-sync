@@ -1,6 +1,6 @@
 ---
 module: cmd_import
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/import.rs
@@ -75,3 +75,4 @@ Implements the `specsync import` command. Imports specs from external systems (G
 | 2026-06-07 | Update import success guidance for guided imported specs |
 | 2026-04-09 | Initial spec |
 | 2026-04-13 | Document testing.md and conditional design.md in companion generation |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

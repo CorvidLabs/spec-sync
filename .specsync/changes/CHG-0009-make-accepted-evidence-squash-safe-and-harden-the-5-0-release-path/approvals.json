@@ -48,6 +48,13 @@
       "timestamp": 1783797586,
       "digest": "3a1bae0f99c523198127921960c16265ebd67a749f5b824c6a285ab3888b34b1",
       "note": "Reapproved nested-project repository-relative squash evidence after review"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783797683,
+      "digest": "b45d34383d09c3d9c3be8c13896c2e374f6da11cf945db97aac422979ce0524b",
+      "note": "Accepted after nested-project review fix and complete 1,714-test verification"
     }
   ]
 }

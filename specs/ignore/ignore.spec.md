@@ -1,6 +1,6 @@
 ---
 module: ignore
-version: 2
+version: 3
 status: stable
 files:
   - src/ignore.rs
@@ -110,3 +110,4 @@ Provides a warning suppression system for spec-sync validation. Supports three l
 |------|--------|
 | 2026-06-07 | Teach warning classification about unfinished-draft section wording |
 | 2026-04-09 | Initial spec |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

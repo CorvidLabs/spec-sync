@@ -6,6 +6,20 @@
       "timestamp": 1783789533,
       "digest": "db1ebcdaa921ca08431ba03e0a135cc4fd73c7e8db3a72d615ad5b2c384cc1f5",
       "note": "Release-blocking squash evidence and tag safety scope approved"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783789819,
+      "digest": "376876d75d91383bccab7fe53e11833b36570ee29a53e51983f780a2cc9c4d6f",
+      "note": "Reapproved after adding explicit REQ-change-016 test traceability"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783789860,
+      "digest": "37b0fbd5d41ce04dbd0cf9ca60bb26fa43c0f9a6d47c202c3c214d2e723f9a75",
+      "note": "Final implementation, adversarial tests, archives, and release safeguards approved"
     }
   ]
 }

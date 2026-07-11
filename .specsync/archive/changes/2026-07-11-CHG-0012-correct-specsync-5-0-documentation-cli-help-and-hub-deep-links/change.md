@@ -1,6 +1,6 @@
 ---
 id: CHG-0012-correct-specsync-5-0-documentation-cli-help-and-hub-deep-links
-state: accepted
+state: archived
 type: documentation
 base_commit: fffbef561fe7cbcfad669dac1855e711896deca4
 ---

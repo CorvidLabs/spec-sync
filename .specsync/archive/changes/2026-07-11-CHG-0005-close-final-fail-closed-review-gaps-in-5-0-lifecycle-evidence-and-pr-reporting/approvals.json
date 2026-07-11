@@ -1,0 +1,25 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Codex",
+      "timestamp": 1783752871,
+      "digest": "9a1c8000e9acf459a8ac2ed8c899052b24db033b5ee706addb9ee862dc0ee418",
+      "note": "Approve focused fail-closed review hardening"
+    },
+    {
+      "gate": "definition",
+      "actor": "Codex",
+      "timestamp": 1783753665,
+      "digest": "aa134d24c6460d549072d94c900680a6cf89a8955a526eb8a1c1fe191ab41658",
+      "note": "Approve completed review hardening and evidence"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "Codex",
+      "timestamp": 1783753688,
+      "digest": "0f020382c4507c8ba7e9912c6ce8ff04a3584ef2b315f474b047f226e35f097d",
+      "note": "Accept final fail-closed review hardening after complete local verification"
+    }
+  ]
+}

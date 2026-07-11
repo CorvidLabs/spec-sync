@@ -468,8 +468,10 @@ pub fn load_change(root: &Path, id: &str) -> Result<ChangeRecord, String> {
     let path = find_change_dir(root, id)?.join("state.json");
     let content = fs::read_to_string(&path)
         .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
-    serde_json::from_str(&content)
-        .map_err(|error| format!("invalid change state {}: {error}", path.display()))
+    let record = serde_json::from_str(&content)
+        .map_err(|error| format!("invalid change state {}: {error}", path.display()))?;
+    validate_loaded_change(&record, id, &path)?;
+    Ok(record)
 }
 
 pub fn list_changes(root: &Path) -> Vec<ChangeRecord> {
@@ -494,6 +496,12 @@ fn list_changes_checked(root: &Path) -> Result<Vec<ChangeRecord>, String> {
         {
             continue;
         }
+        let expected_id = entry.file_name().into_string().map_err(|_| {
+            format!(
+                "active change directory is not valid UTF-8: {}",
+                entry.path().display()
+            )
+        })?;
         let path = entry.path().join("state.json");
         let content = fs::read_to_string(&path).map_err(|error| {
             format!(
@@ -503,6 +511,7 @@ fn list_changes_checked(root: &Path) -> Result<Vec<ChangeRecord>, String> {
         })?;
         let record = serde_json::from_str(&content)
             .map_err(|error| format!("invalid active change state {}: {error}", path.display()))?;
+        validate_loaded_change(&record, &expected_id, &path)?;
         records.push(record);
     }
     records.sort_by(|left: &ChangeRecord, right: &ChangeRecord| left.id.cmp(&right.id));
@@ -1083,7 +1092,7 @@ pub fn check_project(root: &Path) -> SddCheckReport {
                 Err(error) => report.errors.push(format!("{}: {error}", record.id)),
             }
         }
-        if record.state == ChangeState::Verifying && !is_ci_project(root) {
+        if record.state == ChangeState::Verifying {
             match load_verification(root, record) {
                 Ok(evidence) => {
                     if !evidence.passed {
@@ -1091,7 +1100,7 @@ pub fn check_project(root: &Path) -> SddCheckReport {
                             "{}: latest verification evidence failed",
                             record.id
                         ));
-                    } else if evidence.commit != git_output(root, &["rev-parse", "HEAD"])
+                    } else if !verification_commit_is_current(root, &evidence, is_ci_project(root))
                         || definition_digest(root, record)
                             .map(|digest| digest != evidence.contract_digest)
                             .unwrap_or(true)
@@ -1277,6 +1286,10 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
     }
     if record.affected_specs.is_empty() && !record.no_spec_change {
         return Err("affected specs are required unless no_spec_change is justified".into());
+    }
+    for module in &record.affected_specs {
+        crate::commands::validate_module_name(module)
+            .map_err(|error| format!("invalid affected spec: {error}"))?;
     }
     if record.no_spec_change
         && record
@@ -1643,28 +1656,67 @@ fn removed_requirement_ids(root: &Path) -> Result<BTreeSet<String>, String> {
     );
     delta_roots.push(root.join(ARCHIVE_PATH));
     for base in delta_roots {
-        for entry in walkdir::WalkDir::new(&base)
-            .into_iter()
-            .filter_map(Result::ok)
-        {
+        match fs::symlink_metadata(&base) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+                return Err(format!(
+                    "historical semantic delta root is not a directory: {}",
+                    base.display()
+                ));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(format!(
+                    "failed to inspect historical semantic delta root {}: {error}",
+                    base.display()
+                ));
+            }
+        }
+        for entry in walkdir::WalkDir::new(&base) {
+            let entry = entry.map_err(|error| {
+                format!(
+                    "failed to inspect historical semantic deltas under {}: {error}",
+                    base.display()
+                )
+            })?;
             let path = entry.path();
-            if !entry.file_type().is_file()
-                || path.extension().and_then(|extension| extension.to_str()) != Some("md")
+            if path.extension().and_then(|extension| extension.to_str()) != Some("md")
                 || !path
                     .components()
                     .any(|component| component.as_os_str() == "deltas")
             {
                 continue;
             }
-            if let Ok(content) = fs::read_to_string(path)
-                && let Ok(items) = parse_delta(&content)
-            {
-                for item in items {
-                    if item.target == DeltaTarget::Requirement
-                        && item.operation == DeltaOperation::Removed
-                    {
-                        removed.insert(item.key);
-                    }
+            if !entry.file_type().is_file() {
+                return Err(format!(
+                    "historical semantic delta is not a regular file: {}",
+                    path.display()
+                ));
+            }
+            let content =
+                read_bounded_change_text(path, "historical semantic delta").map_err(|error| {
+                    format!(
+                        "failed to read historical semantic delta {}: {error}",
+                        path.display()
+                    )
+                })?;
+            let items = parse_delta(&content).map_err(|error| {
+                format!(
+                    "invalid historical semantic delta {}: {error}",
+                    path.display()
+                )
+            })?;
+            if items.is_empty() {
+                return Err(format!(
+                    "historical semantic delta is empty: {}",
+                    path.display()
+                ));
+            }
+            for item in items {
+                if item.target == DeltaTarget::Requirement
+                    && item.operation == DeltaOperation::Removed
+                {
+                    removed.insert(item.key);
                 }
             }
         }
@@ -2338,7 +2390,7 @@ fn append_approval(
     digest: String,
     note: Option<String>,
 ) -> Result<(), String> {
-    let mut ledger = load_approvals(root, record).unwrap_or_default();
+    let mut ledger = load_approvals(root, record)?;
     ledger.approvals.push(ApprovalRecord {
         gate: gate.into(),
         actor: resolve_actor(root, actor)?,
@@ -2864,6 +2916,60 @@ fn validate_change_id(id: &str) -> Result<(), String> {
         return Ok(());
     }
     Err(format!("invalid change ID `{}`", id.escape_default()))
+}
+
+fn validate_loaded_change(
+    record: &ChangeRecord,
+    expected_id: &str,
+    state_path: &Path,
+) -> Result<(), String> {
+    validate_change_id(&record.id)
+        .map_err(|error| format!("invalid change state {}: {error}", state_path.display()))?;
+    if record.id != expected_id {
+        return Err(format!(
+            "invalid change state {}: persisted ID `{}` does not match workspace `{expected_id}`",
+            state_path.display(),
+            record.id
+        ));
+    }
+    for module in &record.affected_specs {
+        crate::commands::validate_module_name(module).map_err(|error| {
+            format!(
+                "invalid change state {}: invalid affected spec: {error}",
+                state_path.display()
+            )
+        })?;
+    }
+    for artifact in &record.selected_artifacts {
+        if let ArtifactKind::Custom(name) = artifact
+            && !matches!(ArtifactKind::parse(name), ArtifactKind::Custom(canonical) if canonical == *name)
+        {
+            return Err(format!(
+                "invalid change state {}: unsafe custom artifact `{}`",
+                state_path.display(),
+                name.escape_default()
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn verification_commit_is_current(
+    root: &Path,
+    evidence: &VerificationRecord,
+    allow_ancestor: bool,
+) -> bool {
+    let Some(commit) = evidence.commit.as_deref() else {
+        return false;
+    };
+    if !allow_ancestor {
+        return git_output(root, &["rev-parse", "HEAD"]).as_deref() == Some(commit);
+    }
+    Command::new("git")
+        .args(["merge-base", "--is-ancestor", commit, "HEAD"])
+        .current_dir(root)
+        .status()
+        .is_ok_and(|status| status.success())
 }
 
 fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
@@ -4634,5 +4740,190 @@ mod tests {
         verify_change(root, &record.id).unwrap();
         record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
         assert_eq!(record.state, ChangeState::Accepted);
+    }
+
+    #[test]
+    fn loaded_change_rejects_mismatched_or_unsafe_persisted_identity() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_record(root);
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let original = fs::read_to_string(&state_path).unwrap();
+        let mut state: serde_json::Value = serde_json::from_str(&original).unwrap();
+
+        state["id"] = serde_json::Value::String("CHG-9999-other-workspace".into());
+        fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
+        assert!(
+            load_change(root, &record.id)
+                .unwrap_err()
+                .contains("does not match workspace")
+        );
+        assert!(
+            list_changes_checked(root)
+                .unwrap_err()
+                .contains("does not match workspace")
+        );
+
+        state["id"] = serde_json::Value::String("../../escape".into());
+        fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
+        assert!(
+            load_change(root, &record.id)
+                .unwrap_err()
+                .contains("invalid change ID")
+        );
+    }
+
+    #[test]
+    fn loaded_change_rejects_unsafe_persisted_spec_and_artifact_scopes() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_record(root);
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let original = fs::read_to_string(&state_path).unwrap();
+        let mut state: serde_json::Value = serde_json::from_str(&original).unwrap();
+
+        state["affected_specs"] = serde_json::json!(["../../escape"]);
+        fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
+        assert!(
+            load_change(root, &record.id)
+                .unwrap_err()
+                .contains("invalid affected spec")
+        );
+
+        state = serde_json::from_str(&original).unwrap();
+        state["selected_artifacts"] = serde_json::json!([{"custom": "../../escape"}]);
+        fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
+        assert!(
+            load_change(root, &record.id)
+                .unwrap_err()
+                .contains("unsafe custom artifact")
+        );
+    }
+
+    #[test]
+    fn historical_tombstone_corruption_fails_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_record(root);
+        fs::write(
+            delta_path(root, &record, "auth"),
+            "## ADDED\n### REQUIREMENT REQ-auth-001\nThe system SHALL work.\n\nAcceptance Criteria\n- Works\n",
+        )
+        .unwrap();
+        let historical = root
+            .join(ARCHIVE_PATH)
+            .join("2026-01-01-CHG-0000-old/deltas");
+        fs::create_dir_all(&historical).unwrap();
+        fs::write(historical.join("auth.md"), [0xff, 0xfe]).unwrap();
+
+        let error = validate_delta_files(root, &record).unwrap_err();
+        assert!(
+            error.contains("historical semantic delta"),
+            "unexpected error: {error}"
+        );
+
+        fs::write(historical.join("auth.md"), "plain garbage\n").unwrap();
+        let error = validate_delta_files(root, &record).unwrap_err();
+        assert!(error.contains("historical semantic delta is empty"));
+
+        fs::write(
+            historical.join("auth.md"),
+            "## REMVOED\n### REQUIREMENT REQ-auth-000\nRetired.\n",
+        )
+        .unwrap();
+        let error = validate_delta_files(root, &record).unwrap_err();
+        assert!(
+            error.contains("invalid delta operation heading"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn definition_approval_preserves_a_corrupt_ledger() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_record(root);
+        for artifact in &record.selected_artifacts {
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                "# Complete\n\nReviewed.\n",
+            )
+            .unwrap();
+        }
+        fs::write(
+            delta_path(root, &record, "auth"),
+            "## ADDED\n### REQUIREMENT REQ-auth-001\nThe system SHALL work.\n\nAcceptance Criteria\n- Works\n",
+        )
+        .unwrap();
+        let ledger_path = change_dir(root, &record.id).join("approvals.json");
+        fs::write(&ledger_path, b"{corrupt").unwrap();
+
+        assert!(approve_definition(root, &record.id, Some("Reviewer".into()), None).is_err());
+        assert_eq!(fs::read(&ledger_path).unwrap(), b"{corrupt");
+        assert_eq!(
+            load_change(root, &record.id).unwrap().state,
+            ChangeState::Draft
+        );
+    }
+
+    #[test]
+    fn verifying_state_requires_recorded_evidence_in_unified_checks() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut policy = SddPolicy::default();
+        policy.require_change_for_meaningful_files = false;
+        policy.verification_commands.clear();
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        record.state = ChangeState::Verifying;
+        save_change(root, &record).unwrap();
+
+        let report = check_project(root);
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|error| error.contains("verification evidence is missing"))
+        );
+    }
+
+    #[test]
+    fn ci_verification_accepts_evidence_from_an_ancestor_commit() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("one.txt"), "one\n").unwrap();
+        git(&["add", "one.txt"]);
+        git(&["commit", "-m", "one"]);
+        let verified_commit = git_output(root, &["rev-parse", "HEAD"]);
+        fs::write(root.join("two.txt"), "two\n").unwrap();
+        git(&["add", "two.txt"]);
+        git(&["commit", "-m", "two"]);
+        let evidence = VerificationRecord {
+            timestamp: now(),
+            commit: verified_commit,
+            contract_digest: "contract".into(),
+            workspace_digest: "workspace".into(),
+            passed: true,
+            commands: Vec::new(),
+            requirement_ids: Vec::new(),
+        };
+
+        assert!(verification_commit_is_current(root, &evidence, true));
+        assert!(!verification_commit_is_current(root, &evidence, false));
     }
 }

@@ -25,3 +25,6 @@ mod config;
 
 #[path = "integration/change.rs"]
 mod change;
+
+#[path = "integration/comment.rs"]
+mod comment;

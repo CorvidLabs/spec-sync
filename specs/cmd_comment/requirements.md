@@ -29,3 +29,11 @@ spec: cmd_comment.spec.md
 - GUI or web interface
 - Interactive prompts
 - Posting comments through any path other than `specsync comment` + `gh`
+
+### REQ-cmd-comment-001
+
+Generated pull-request comments SHALL include SDD lifecycle failures in their status and remediation details.
+
+Acceptance Criteria
+- SDD errors and warnings appear in the rendered comment alongside canonical spec validation.
+- An SDD-only failure produces a failing comment status.

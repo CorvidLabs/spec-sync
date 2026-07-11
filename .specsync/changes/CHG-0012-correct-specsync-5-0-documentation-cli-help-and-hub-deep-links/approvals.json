@@ -20,6 +20,13 @@
       "timestamp": 1783805708,
       "digest": "ba5b9e5881380868a250c602d94f64844433643b1bf9320a527b4063b80dc640",
       "note": "Definition refreshed after adding explicit requirement evidence; authorized by the user's request."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783807825,
+      "digest": "06af1c884cecab8f78fda77471346efcdc2b235ac0a94335754db56dc47f35dd",
+      "note": "Closing approval recorded after PR #344 was reviewed, made ready, and merged by 0xLeif."
     }
   ]
 }

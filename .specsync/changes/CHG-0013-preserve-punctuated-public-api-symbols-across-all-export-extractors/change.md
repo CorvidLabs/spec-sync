@@ -1,6 +1,6 @@
 ---
 id: CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors
-state: verifying
+state: accepted
 type: bug_fix
 base_commit: fffbef561fe7cbcfad669dac1855e711896deca4
 ---

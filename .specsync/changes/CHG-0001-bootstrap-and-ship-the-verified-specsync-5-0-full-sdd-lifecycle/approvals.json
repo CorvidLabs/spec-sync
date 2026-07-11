@@ -76,6 +76,13 @@
       "timestamp": 1783786501,
       "digest": "80a45a0a7ad31d32eff93776877b97bce262a1f339639b59db8f49fc8031dc41",
       "note": "User-authorized 5.0 release hardening: rebind bootstrap evidence after final source comment cleanup"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783786717,
+      "digest": "4ef2ebbc1015458a0bcb293e825d9dbcba4d47e528499227939a3551c29d4cdb",
+      "note": "Rebind accepted bootstrap evidence to the committed delivery tree after removing retired files"
     }
   ]
 }

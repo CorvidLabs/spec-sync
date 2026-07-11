@@ -90,6 +90,13 @@
       "timestamp": 1783786277,
       "digest": "f4fd191e1a1c699e3b0b768ff88a4df1e011f000c2e84c3915c353ba288a29aa",
       "note": "User-authorized 5.0 release hardening: rebind accepted evidence after final parser, security, and documentation corrections"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783786717,
+      "digest": "370021670c5e8cf5219b541138274c8650642a2e4827d68621e1d2276d81885f",
+      "note": "Rebind accepted lifecycle evidence to the committed delivery tree after removing retired files"
     }
   ]
 }

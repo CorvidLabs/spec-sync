@@ -159,6 +159,14 @@ Auto-detected from file extensions. Same spec format for all.
     require-coverage: '100'
 ```
 
+`@v5` follows compatible 5.x Action updates. For an immutable install, pin both the Action and downloaded binary:
+
+```yaml
+- uses: CorvidLabs/spec-sync@v5.0.0
+  with:
+    version: '5.0.0'
+```
+
 ### Crates.io
 
 ```bash

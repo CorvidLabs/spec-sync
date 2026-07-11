@@ -2551,9 +2551,6 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
         .acceptance_input_digest
         .as_ref()
         .ok_or_else(|| "accepted change is missing current delivery-input evidence".to_string())?;
-    if !verification_commit_is_accepted_current(root, &verification) {
-        return Err("accepted change verification commit is not in current history".into());
-    }
     let current_inputs = acceptance_input_digest(root, record, &[])?;
     if current_inputs != *expected_inputs {
         return Err("accepted change verification is stale for current delivery inputs".into());
@@ -2568,6 +2565,11 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
         .ok_or_else(|| "accepted change is missing closing approval".to_string())?;
     if approval.digest != expected {
         return Err("accepted change closing approval does not match verification evidence".into());
+    }
+    if !verification_commit_is_accepted_current(root, &verification)
+        && !accepted_workspace_is_integrated(root, record)
+    {
+        return Err("accepted change verification commit is not in current history and the accepted workspace is not integrated unchanged on the remote default branch".into());
     }
     Ok(())
 }
@@ -2729,18 +2731,23 @@ fn pull_request_diff_base(root: &Path, records: &[ChangeRecord]) -> String {
     {
         return format!("origin/{branch}...HEAD");
     }
+    if let Some(remote_default) = remote_default_ref(root) {
+        return format!("{remote_default}...HEAD");
+    }
+    recorded_diff_base(records)
+}
+
+fn remote_default_ref(root: &Path) -> Option<String> {
     if let Some(remote_default) = git_output(
         root,
         &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
     ) {
-        return format!("{remote_default}...HEAD");
+        return Some(remote_default);
     }
-    for candidate in ["origin/main", "origin/master"] {
-        if git_output(root, &["rev-parse", "--verify", candidate]).is_some() {
-            return format!("{candidate}...HEAD");
-        }
-    }
-    recorded_diff_base(records)
+    ["origin/main", "origin/master"]
+        .into_iter()
+        .find(|candidate| git_output(root, &["rev-parse", "--verify", candidate]).is_some())
+        .map(str::to_string)
 }
 
 fn recorded_diff_base(records: &[ChangeRecord]) -> String {
@@ -3383,6 +3390,45 @@ fn verification_commit_is_accepted_current(root: &Path, evidence: &VerificationR
         .is_ok_and(|status| status.success())
 }
 
+fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool {
+    let Some(remote_default) = remote_default_ref(root) else {
+        return false;
+    };
+    let head_is_integrated = Command::new("git")
+        .args([
+            "merge-base",
+            "--is-ancestor",
+            "HEAD",
+            remote_default.as_str(),
+        ])
+        .current_dir(root)
+        .status()
+        .is_ok_and(|status| status.success());
+    if !head_is_integrated {
+        return false;
+    }
+    let workspace = format!("{CHANGES_PATH}/{}", record.id);
+    let state = format!("{workspace}/state.json");
+    let remote_state = format!("{remote_default}:{state}");
+    let state_exists = Command::new("git")
+        .args(["cat-file", "-e", remote_state.as_str()])
+        .current_dir(root)
+        .status()
+        .is_ok_and(|status| status.success());
+    state_exists
+        && Command::new("git")
+            .args([
+                "diff",
+                "--quiet",
+                remote_default.as_str(),
+                "--",
+                workspace.as_str(),
+            ])
+            .current_dir(root)
+            .status()
+            .is_ok_and(|status| status.success())
+}
+
 fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
     let mut maximum = 0_u64;
     for base in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
@@ -3757,6 +3803,116 @@ mod tests {
         assert!(error.contains("archive after merge"));
         git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
         assert!(archive_change(root, &record.id).is_ok());
+    }
+
+    #[test]
+    fn accepted_evidence_survives_integrated_squash_merge_and_archives() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        write_default_policy(root, Vec::new()).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["switch", "-c", "feature"]);
+
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement"]);
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept"]);
+        let verification = load_verification(root, &record).unwrap();
+
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "feature"]);
+        git(&["commit", "-m", "squash feature"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        assert!(!verification_commit_is_accepted_current(
+            root,
+            &verification
+        ));
+        assert!(ensure_closing_approval_valid(root, &record).is_ok());
+        assert!(archive_change(root, &record.id).is_ok());
+    }
+
+    #[test]
+    fn squash_fallback_rejects_unintegrated_or_changed_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        write_default_policy(root, Vec::new()).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        git(&["switch", "-c", "feature"]);
+
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement"]);
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept"]);
+
+        assert!(ensure_closing_approval_valid(root, &record).is_ok());
+        git(&["commit", "--allow-empty", "-m", "move head"]);
+        let verification = load_verification(root, &record).unwrap();
+        assert!(verification_commit_is_accepted_current(root, &verification));
+
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "feature"]);
+        git(&["commit", "-m", "squash feature"]);
+        assert!(ensure_closing_approval_valid(root, &record).is_err());
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { changed }\n",
+        )
+        .unwrap();
+        let error = ensure_closing_approval_valid(root, &record).unwrap_err();
+        assert!(error.contains("delivery inputs"));
     }
 
     #[test]

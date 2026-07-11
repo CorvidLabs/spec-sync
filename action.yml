@@ -8,7 +8,7 @@ inputs:
   version:
     description: 'SpecSync version to use (e.g. "1.0.0" or "latest")'
     required: false
-    default: 'latest'
+    default: '5.0.0'
   download-base-url:
     description: 'Optional trusted release mirror URL (primarily for enterprise mirrors and release validation)'
     required: false

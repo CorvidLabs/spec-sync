@@ -1,0 +1,11 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783789533,
+      "digest": "db1ebcdaa921ca08431ba03e0a135cc4fd73c7e8db3a72d615ad5b2c384cc1f5",
+      "note": "Release-blocking squash evidence and tag safety scope approved"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0009-make-accepted-evidence-squash-safe-and-harden-the-5-0-release-path",
+  "slug": "make-accepted-evidence-squash-safe-and-harden-the-5-0-release-path",
+  "title": "Make accepted evidence squash-safe and harden the 5.0 release path",
+  "description": "Make accepted evidence squash-safe and harden the 5.0 release path",
+  "kind": "bug_fix",
+  "state": "implementing",
+  "base_commit": "884ad33b2158e9efca2f31d4798c1b6f27db8801",
+  "created_at": 1783789458,
+  "updated_at": 1783789534,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    ".github/workflows/release.yml",
+    "action.yml",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Post-squash accepted evidence remains valid only when the accepted workspace is already integrated unchanged on the remote default branch; unintegrated or changed evidence fails closed; accepted workspaces archive after squash; release tags trigger only exact semantic versions; the Action defaults to the 5.0.0 binary; all local and CI gates pass"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

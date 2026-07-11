@@ -570,6 +570,24 @@ fn action_requires_release_checksums() {
     );
 }
 
+#[test]
+fn action_supports_a_quoted_trusted_release_mirror() {
+    let action = fs::read_to_string("action.yml").expect("action.yml should be readable");
+
+    assert!(
+        action.contains("SPECSYNC_DOWNLOAD_BASE_URL: ${{ inputs.download-base-url }}"),
+        "action should pass the mirror input through an environment variable"
+    );
+    assert!(
+        action.contains(r#"BASE_URL="${SPECSYNC_DOWNLOAD_BASE_URL%/}""#),
+        "action should normalize a trailing slash without evaluating the input"
+    );
+    assert!(
+        action.contains(r#"curl -fsSL "${BASE_URL}/${ARCHIVE}""#),
+        "action should quote the complete mirror download URL"
+    );
+}
+
 // ─── Hands-on findings: v4 init-registry, draft visibility, fix routing ────
 
 #[test]

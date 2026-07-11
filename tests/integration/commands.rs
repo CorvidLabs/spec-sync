@@ -139,7 +139,7 @@ fn init_creates_config_file() {
 }
 
 #[test]
-fn init_then_check_does_not_nag_about_legacy_layout() {
+fn init_then_check_fails_closed_without_git_and_does_not_nag_about_legacy_layout() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
 
@@ -159,7 +159,10 @@ fn init_then_check_does_not_nag_about_legacy_layout() {
         .arg("--root")
         .arg(root)
         .assert()
-        .success()
+        .failure()
+        .stderr(predicate::str::contains(
+            "unable to inspect changed paths for SDD coverage",
+        ))
         .stderr(predicate::str::contains("Legacy 3.x layout").not());
 }
 

@@ -1,7 +1,8 @@
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
+use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -9,6 +10,74 @@ pub const SDD_VERSION: &str = "5.0.0";
 const POLICY_PATH: &str = ".specsync/sdd.json";
 const CHANGES_PATH: &str = ".specsync/changes";
 const ARCHIVE_PATH: &str = ".specsync/archive/changes";
+const LOCK_PATH: &str = ".specsync/change.lock";
+const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
+const MAX_CHANGE_ARTIFACT_BYTES: u64 = 4 * 1024 * 1024;
+
+struct ProjectLock {
+    file: fs::File,
+}
+
+impl Drop for ProjectLock {
+    fn drop(&mut self) {
+        let _ = FileExt::unlock(&self.file);
+    }
+}
+
+fn acquire_project_lock(root: &Path) -> Result<ProjectLock, String> {
+    let path = root.join(LOCK_PATH);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(false)
+        .open(&path)
+        .map_err(|error| format!("failed to open lifecycle lock {}: {error}", path.display()))?;
+    file.lock_exclusive().map_err(|error| {
+        format!(
+            "failed to acquire lifecycle lock {}: {error}",
+            path.display()
+        )
+    })?;
+    let lock = ProjectLock { file };
+    recover_pending_transaction(root)?;
+    Ok(lock)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TransactionEntry {
+    path: String,
+    original: Option<String>,
+}
+
+fn recover_pending_transaction(root: &Path) -> Result<(), String> {
+    let journal = root.join(TRANSACTION_PATH);
+    if !journal.exists() {
+        return Ok(());
+    }
+    let content = fs::read_to_string(&journal)
+        .map_err(|error| format!("failed to read transaction journal: {error}"))?;
+    let entries: Vec<TransactionEntry> = serde_json::from_str(&content)
+        .map_err(|error| format!("invalid transaction journal: {error}"))?;
+    for entry in entries {
+        let path = safe_project_path(root, &entry.path)?;
+        if let Some(original) = entry.original {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+            }
+            fs::write(&path, original)
+                .map_err(|error| format!("failed to restore {}: {error}", path.display()))?;
+        } else if path.exists() {
+            fs::remove_file(&path)
+                .map_err(|error| format!("failed to remove {}: {error}", path.display()))?;
+        }
+    }
+    fs::remove_file(&journal)
+        .map_err(|error| format!("failed to clear transaction journal: {error}"))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -140,6 +209,20 @@ impl Default for SddPolicy {
                 "site/".into(),
                 ".github/".into(),
                 "Cargo.toml".into(),
+                "Cargo.lock".into(),
+                "action.yml".into(),
+                "package.json".into(),
+                "bun.lock".into(),
+                "package-lock.json".into(),
+                "pnpm-lock.yaml".into(),
+                "yarn.lock".into(),
+                "Package.swift".into(),
+                "Package.resolved".into(),
+                "go.mod".into(),
+                "go.sum".into(),
+                "pyproject.toml".into(),
+                "uv.lock".into(),
+                "requirements.txt".into(),
             ],
             ignored_paths: vec![".specsync/".into(), "specs/".into()],
             verification_commands: Vec::new(),
@@ -208,6 +291,8 @@ pub struct VerificationRecord {
     pub timestamp: u64,
     pub commit: Option<String>,
     pub contract_digest: String,
+    #[serde(default)]
+    pub workspace_digest: String,
     pub passed: bool,
     pub commands: Vec<CommandEvidence>,
     pub requirement_ids: Vec<String>,
@@ -261,8 +346,19 @@ struct DeltaItem {
 }
 
 pub fn load_policy(root: &Path) -> Option<SddPolicy> {
-    let content = fs::read_to_string(root.join(POLICY_PATH)).ok()?;
-    serde_json::from_str(&content).ok()
+    load_policy_checked(root).ok().flatten()
+}
+
+fn load_policy_checked(root: &Path) -> Result<Option<SddPolicy>, String> {
+    let path = root.join(POLICY_PATH);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content = fs::read_to_string(&path)
+        .map_err(|error| format!("failed to read SDD policy {}: {error}", path.display()))?;
+    serde_json::from_str(&content)
+        .map(Some)
+        .map_err(|error| format!("invalid SDD policy {}: {error}", path.display()))
 }
 
 pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> Result<(), String> {
@@ -281,6 +377,7 @@ pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> 
 }
 
 pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<ChangeRecord, String> {
+    let _lock = acquire_project_lock(root)?;
     let CreateChangeRequest {
         description,
         kind,
@@ -300,9 +397,12 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         crate::commands::validate_module_name(module)
             .map_err(|error| format!("invalid affected spec: {error}"))?;
     }
-    for path in &affected_paths {
-        safe_project_path(root, path).map_err(|error| format!("invalid affected path: {error}"))?;
-    }
+    let affected_paths: Vec<String> = affected_paths
+        .iter()
+        .map(|path| {
+            normalize_project_path(path).map_err(|error| format!("invalid affected path: {error}"))
+        })
+        .collect::<Result<_, _>>()?;
     let slug = slugify(&description);
     let id = next_change_id(root, &slug)?;
     let now = now();
@@ -356,22 +456,40 @@ pub fn load_change(root: &Path, id: &str) -> Result<ChangeRecord, String> {
 }
 
 pub fn list_changes(root: &Path) -> Vec<ChangeRecord> {
+    list_changes_checked(root).unwrap_or_default()
+}
+
+fn list_changes_checked(root: &Path) -> Result<Vec<ChangeRecord>, String> {
     let mut records = Vec::new();
     let dir = root.join(CHANGES_PATH);
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
-        Err(_) => return records,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(records),
+        Err(error) => return Err(format!("failed to read active changes: {error}")),
     };
-    for entry in entries.flatten() {
-        let path = entry.path().join("state.json");
-        if let Ok(content) = fs::read_to_string(path)
-            && let Ok(record) = serde_json::from_str(&content)
+    for entry in entries {
+        let entry =
+            entry.map_err(|error| format!("failed to read active change entry: {error}"))?;
+        if !entry
+            .file_type()
+            .map_err(|error| format!("failed to inspect active change entry: {error}"))?
+            .is_dir()
         {
-            records.push(record);
+            continue;
         }
+        let path = entry.path().join("state.json");
+        let content = fs::read_to_string(&path).map_err(|error| {
+            format!(
+                "failed to read active change state {}: {error}",
+                path.display()
+            )
+        })?;
+        let record = serde_json::from_str(&content)
+            .map_err(|error| format!("invalid active change state {}: {error}", path.display()))?;
+        records.push(record);
     }
     records.sort_by(|left: &ChangeRecord, right: &ChangeRecord| left.id.cmp(&right.id));
-    records
+    Ok(records)
 }
 
 pub fn next_questions(record: &ChangeRecord) -> Vec<InterviewQuestion> {
@@ -426,6 +544,7 @@ pub fn answer_question(
     question: &str,
     answer: &str,
 ) -> Result<ChangeRecord, String> {
+    let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Draft], "answer interview questions")?;
     let values = split_values(answer);
@@ -439,11 +558,13 @@ pub fn answer_question(
             record.affected_specs = values;
         }
         "affected_paths" => {
-            for path in &values {
-                safe_project_path(root, path)
-                    .map_err(|error| format!("invalid affected path: {error}"))?;
-            }
-            record.affected_paths = values;
+            record.affected_paths = values
+                .iter()
+                .map(|path| {
+                    normalize_project_path(path)
+                        .map_err(|error| format!("invalid affected path: {error}"))
+                })
+                .collect::<Result<_, _>>()?;
         }
         "public_contract" => {
             record.answers.insert(question.into(), answer.into());
@@ -474,6 +595,7 @@ pub fn answer_question(
 }
 
 pub fn add_dependency(root: &Path, id: &str, dependency: &str) -> Result<ChangeRecord, String> {
+    let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
     require_state(
         &record,
@@ -510,6 +632,7 @@ pub fn approve_definition(
     actor: Option<String>,
     note: Option<String>,
 ) -> Result<ChangeRecord, String> {
+    let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
     require_state(
         &record,
@@ -521,8 +644,10 @@ pub fn approve_definition(
         ],
         "approve the definition",
     )?;
+    list_changes_checked(root)?;
     let prior_state = record.state;
     validate_definition(root, &record)?;
+    validate_delta_files(root, &record)?;
     let digest = definition_digest(root, &record)?;
     append_approval(root, &record, "definition", actor, digest, note)?;
     record.state = match prior_state {
@@ -537,6 +662,7 @@ pub fn approve_definition(
 }
 
 pub fn start_implementation(root: &Path, id: &str) -> Result<ChangeRecord, String> {
+    let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Approved], "start implementation")?;
     ensure_definition_approval_valid(root, &record)?;
@@ -550,6 +676,7 @@ pub fn start_implementation(root: &Path, id: &str) -> Result<ChangeRecord, Strin
 }
 
 pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String> {
+    let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
     require_state(
         &record,
@@ -559,8 +686,12 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
     ensure_definition_approval_valid(root, &record)?;
     validate_definition(root, &record)?;
     validate_delta_files(root, &record)?;
+    ensure_dependencies_satisfied(root, &record)?;
+    ensure_no_delta_conflicts(root, &record)?;
+    let records = list_changes_checked(root)?;
+    validate_effective_contracts(root, &records).map_err(|errors| errors.join("; "))?;
     ensure_tasks_complete(root, &record)?;
-    let policy = load_policy(root).unwrap_or_default();
+    let policy = load_policy_checked(root)?.unwrap_or_default();
     let mut commands = Vec::new();
     for configured in policy.verification_commands {
         let status = run_configured_command(root, &configured)?;
@@ -582,6 +713,7 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
         timestamp: now(),
         commit: git_output(root, &["rev-parse", "HEAD"]),
         contract_digest: definition_digest(root, &record)?,
+        workspace_digest: project_input_digest(root)?,
         passed,
         commands,
         requirement_ids,
@@ -616,6 +748,7 @@ pub fn accept_change(
     actor: Option<String>,
     note: Option<String>,
 ) -> Result<ChangeRecord, String> {
+    let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Verifying], "accept the change")?;
     ensure_definition_approval_valid(root, &record)?;
@@ -632,6 +765,16 @@ pub fn accept_change(
     if verification.contract_digest != definition_digest(root, &record)? {
         return Err("verification is stale because the approved contract changed".into());
     }
+    if verification.workspace_digest != project_input_digest(root)? {
+        return Err(
+            "verification is stale because tested working-tree inputs changed; run `specsync change verify` again"
+                .into(),
+        );
+    }
+    ensure_dependencies_satisfied(root, &record)?;
+    ensure_no_delta_conflicts(root, &record)?;
+    let records = list_changes_checked(root)?;
+    validate_effective_contracts(root, &records).map_err(|errors| errors.join("; "))?;
     let mut prepared = prepare_delta_application(root, &record)?;
     let closing_digest = closing_digest(&record, &verification);
     let mut ledger = load_approvals(root, &record)?;
@@ -654,21 +797,46 @@ pub fn accept_change(
         change_dir(root, &record.id).join("change.md"),
         change_markdown_content(&record),
     ));
-    write_prepared_files(&prepared)?;
+    write_prepared_files(root, &prepared)?;
     Ok(record)
 }
 
 pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
-    let mut record = load_change(root, id)?;
+    let _lock = acquire_project_lock(root)?;
+    list_changes_checked(root)?;
+    let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Accepted], "archive the change")?;
-    record.state = ChangeState::Archived;
-    record.updated_at = now();
-    save_change(root, &record)?;
-    write_change_markdown(root, &record)?;
+    if let Some(policy) = load_policy_checked(root)?
+        && policy.enabled
+        && policy.require_change_for_meaningful_files
+    {
+        let remaining: Vec<ChangeRecord> = list_changes_checked(root)?
+            .into_iter()
+            .filter(|candidate| candidate.id != record.id)
+            .collect();
+        let uncovered = uncovered_meaningful_paths(root, &policy, &remaining)?;
+        if uncovered.iter().any(|path| {
+            record
+                .affected_paths
+                .iter()
+                .any(|scope| path_matches_scope(path, scope))
+        }) {
+            return Err(
+                "cannot archive while this delivery diff still depends on the change for path coverage; archive after merge"
+                    .into(),
+            );
+        }
+    }
     let source = change_dir(root, &record.id);
     let destination = root
         .join(ARCHIVE_PATH)
         .join(format!("{}-{}", today(), record.id));
+    if destination.exists() {
+        return Err(format!(
+            "archive destination already exists: {}",
+            destination.display()
+        ));
+    }
     if let Some(parent) = destination.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
@@ -679,6 +847,34 @@ pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
             destination.display()
         )
     })?;
+    let mut archived = record.clone();
+    archived.state = ChangeState::Archived;
+    archived.updated_at = now();
+    if let Err(error) = write_json(&destination.join("state.json"), &archived).and_then(|()| {
+        fs::write(
+            destination.join("change.md"),
+            change_markdown_content(&archived),
+        )
+        .map_err(|error| error.to_string())
+    }) {
+        let restore = write_json(&destination.join("state.json"), &record)
+            .and_then(|()| {
+                fs::write(
+                    destination.join("change.md"),
+                    change_markdown_content(&record),
+                )
+                .map_err(|error| error.to_string())
+            })
+            .and_then(|()| fs::rename(&destination, &source).map_err(|error| error.to_string()));
+        return match restore {
+            Ok(()) => Err(format!(
+                "failed to finalize archive; source restored: {error}"
+            )),
+            Err(restore_error) => Err(format!(
+                "failed to finalize archive ({error}) and restore source ({restore_error})"
+            )),
+        };
+    }
     Ok(destination)
 }
 
@@ -705,13 +901,30 @@ pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
 }
 
 pub fn check_project(root: &Path) -> SddCheckReport {
-    let Some(policy) = load_policy(root) else {
-        return SddCheckReport::default();
+    let policy = match load_policy_checked(root) {
+        Ok(Some(policy)) => policy,
+        Ok(None) => return SddCheckReport::default(),
+        Err(error) => {
+            return SddCheckReport {
+                enabled: true,
+                errors: vec![error],
+                ..SddCheckReport::default()
+            };
+        }
     };
     if !policy.enabled {
         return SddCheckReport::default();
     }
-    let records = list_changes(root);
+    let records = match list_changes_checked(root) {
+        Ok(records) => records,
+        Err(error) => {
+            return SddCheckReport {
+                enabled: true,
+                errors: vec![error],
+                ..SddCheckReport::default()
+            };
+        }
+    };
     let mut report = SddCheckReport {
         enabled: true,
         checked_changes: records.len(),
@@ -777,9 +990,17 @@ pub fn check_project(root: &Path) -> SddCheckReport {
         if record.state == ChangeState::Verifying && !is_ci() {
             match load_verification(root, record) {
                 Ok(evidence) => {
-                    if evidence.commit != git_output(root, &["rev-parse", "HEAD"])
+                    if !evidence.passed {
+                        report.errors.push(format!(
+                            "{}: latest verification evidence failed",
+                            record.id
+                        ));
+                    } else if evidence.commit != git_output(root, &["rev-parse", "HEAD"])
                         || definition_digest(root, record)
                             .map(|digest| digest != evidence.contract_digest)
+                            .unwrap_or(true)
+                        || project_input_digest(root)
+                            .map(|digest| digest != evidence.workspace_digest)
                             .unwrap_or(true)
                     {
                         report.errors.push(format!(
@@ -821,7 +1042,7 @@ pub fn check_project(root: &Path) -> SddCheckReport {
                     ));
                 }
             }
-            Err(error) => report.warnings.push(error),
+            Err(error) => report.errors.push(error),
         }
     }
     report
@@ -974,7 +1195,7 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
     if !next_questions(record).is_empty() {
         return Err("the deterministic interview is incomplete".into());
     }
-    if let Some(policy) = load_policy(root)
+    if let Some(policy) = load_policy_checked(root)?
         && let Some(principles) = policy.principles_file
     {
         let path = safe_project_path(root, &principles)?;
@@ -994,13 +1215,25 @@ fn validate_artifacts(root: &Path, record: &ChangeRecord) -> Result<(), String> 
     let dir = change_dir(root, &record.id);
     for artifact in &record.selected_artifacts {
         let path = dir.join(artifact.file_name());
-        let content = fs::read_to_string(&path)
-            .map_err(|_| format!("required artifact is missing: {}", path.display()))?;
+        let content = read_bounded_change_text(&path, "artifact")?;
         if content.contains("<!-- TODO") || content.trim().is_empty() {
             return Err(format!("artifact is incomplete: {}", path.display()));
         }
     }
     Ok(())
+}
+
+fn read_bounded_change_text(path: &Path, kind: &str) -> Result<String, String> {
+    let metadata = fs::metadata(path)
+        .map_err(|_| format!("required {kind} is missing: {}", path.display()))?;
+    if metadata.len() > MAX_CHANGE_ARTIFACT_BYTES {
+        return Err(format!(
+            "{kind} exceeds {} byte limit: {}",
+            MAX_CHANGE_ARTIFACT_BYTES,
+            path.display()
+        ));
+    }
+    fs::read_to_string(path).map_err(|error| format!("failed to read {}: {error}", path.display()))
 }
 
 fn ensure_tasks_complete(root: &Path, record: &ChangeRecord) -> Result<(), String> {
@@ -1066,15 +1299,18 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
     let active: Vec<&ChangeRecord> = records
         .iter()
         .filter(|record| {
-            matches!(
-                record.state,
-                ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
-            )
+            !record.no_spec_change
+                && matches!(
+                    record.state,
+                    ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+                )
         })
         .collect();
     if active.is_empty() {
         return Ok(());
     }
+    let active = dependency_ordered_changes(active)
+        .map_err(|error| vec![format!("effective contract ordering: {error}")])?;
     let mut modules = BTreeSet::new();
     for record in &active {
         modules.extend(record.affected_specs.iter().cloned());
@@ -1106,7 +1342,8 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
             if !record.affected_specs.contains(&module) {
                 continue;
             }
-            let delta = match fs::read_to_string(delta_path(root, record, &module)) {
+            let delta_path = delta_path(root, record, &module);
+            let delta = match read_bounded_change_text(&delta_path, "semantic delta") {
                 Ok(delta) => delta,
                 Err(error) => {
                     errors.push(format!(
@@ -1172,15 +1409,35 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
     }
 }
 
+fn dependency_ordered_changes(changes: Vec<&ChangeRecord>) -> Result<Vec<&ChangeRecord>, String> {
+    let active_ids: BTreeSet<&str> = changes.iter().map(|record| record.id.as_str()).collect();
+    let mut remaining = changes;
+    let mut emitted = BTreeSet::new();
+    let mut ordered = Vec::new();
+    while !remaining.is_empty() {
+        let Some(index) = remaining.iter().position(|record| {
+            record.dependencies.iter().all(|dependency| {
+                !active_ids.contains(dependency.as_str()) || emitted.contains(dependency.as_str())
+            })
+        }) else {
+            return Err("active change dependency cycle prevents deterministic ordering".into());
+        };
+        let record = remaining.remove(index);
+        emitted.insert(record.id.as_str());
+        ordered.push(record);
+    }
+    Ok(ordered)
+}
+
 fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     if record.no_spec_change {
         return Ok(());
     }
-    let tombstones = removed_requirement_ids(root);
+    let tombstones = removed_requirement_ids(root)?;
     for module in &record.affected_specs {
         let path = delta_path(root, record, module);
-        let content = fs::read_to_string(&path)
-            .map_err(|_| format!("missing semantic delta for `{module}`: {}", path.display()))?;
+        let content = read_bounded_change_text(&path, "semantic delta")
+            .map_err(|error| format!("semantic delta for {module}: {error}"))?;
         let items = parse_delta(&content)?;
         if items.is_empty() {
             return Err(format!("semantic delta for `{module}` is empty"));
@@ -1189,6 +1446,14 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
             if item.target == DeltaTarget::Requirement && item.operation != DeltaOperation::Removed
             {
                 validate_requirement(&item.key, &item.content)?;
+                let requirement_module = module.replace('_', "-");
+                let expected_prefix = format!("REQ-{requirement_module}-");
+                if !item.key.starts_with(&expected_prefix) {
+                    return Err(format!(
+                        "requirement ID `{}` must match affected module `{module}` as `{expected_prefix}<number>`",
+                        item.key
+                    ));
+                }
             }
             if item.target == DeltaTarget::Requirement
                 && item.operation == DeltaOperation::Added
@@ -1204,10 +1469,18 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
     Ok(())
 }
 
-fn removed_requirement_ids(root: &Path) -> BTreeSet<String> {
+fn removed_requirement_ids(root: &Path) -> Result<BTreeSet<String>, String> {
     let mut removed = BTreeSet::new();
-    for base in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
-        for entry in walkdir::WalkDir::new(base)
+    let mut delta_roots = Vec::new();
+    delta_roots.extend(
+        list_changes_checked(root)?
+            .into_iter()
+            .filter(|record| record.state == ChangeState::Accepted)
+            .map(|record| change_dir(root, &record.id).join("deltas")),
+    );
+    delta_roots.push(root.join(ARCHIVE_PATH));
+    for base in delta_roots {
+        for entry in walkdir::WalkDir::new(&base)
             .into_iter()
             .filter_map(Result::ok)
         {
@@ -1233,10 +1506,13 @@ fn removed_requirement_ids(root: &Path) -> BTreeSet<String> {
             }
         }
     }
-    removed
+    Ok(removed)
 }
 
 fn collect_requirement_ids(root: &Path, record: &ChangeRecord) -> Result<Vec<String>, String> {
+    if record.no_spec_change {
+        return Ok(Vec::new());
+    }
     let mut ids = BTreeSet::new();
     for module in &record.affected_specs {
         let path = delta_path(root, record, module);
@@ -1361,8 +1637,7 @@ fn prepare_delta_application(
     let specs_dir = crate::config::load_config(root).specs_dir;
     let mut prepared = Vec::new();
     for module in &record.affected_specs {
-        let delta = fs::read_to_string(delta_path(root, record, module))
-            .map_err(|error| error.to_string())?;
+        let delta = read_bounded_change_text(&delta_path(root, record, module), "semantic delta")?;
         let items = parse_delta(&delta)?;
         let spec_path = root
             .join(&specs_dir)
@@ -1411,16 +1686,42 @@ fn apply_markdown_block(
     operation: DeltaOperation,
 ) -> Result<String, String> {
     let heading = format!("{prefix}{key}");
-    let lines: Vec<&str> = source.lines().collect();
-    let start = lines.iter().position(|line| line.trim_end() == heading);
+    let line_ending = if source.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let mut lines = Vec::new();
+    let mut offset = 0;
+    for raw in source.split_inclusive('\n') {
+        let line = raw
+            .strip_suffix('\n')
+            .unwrap_or(raw)
+            .strip_suffix('\r')
+            .unwrap_or_else(|| raw.strip_suffix('\n').unwrap_or(raw));
+        lines.push((offset, line));
+        offset += raw.len();
+    }
+    if offset < source.len() {
+        lines.push((offset, &source[offset..]));
+    }
+    let start = lines
+        .iter()
+        .position(|(_, line)| line.trim_end() == heading);
+    let target_level = prefix
+        .chars()
+        .take_while(|character| *character == '#')
+        .count();
     let end = start.map(|index| {
         lines
             .iter()
             .enumerate()
             .skip(index + 1)
-            .find(|(_, line)| line.starts_with(prefix))
-            .map(|(next, _)| next)
-            .unwrap_or(lines.len())
+            .find(|(_, (_, line))| {
+                markdown_heading_level(line).is_some_and(|level| level <= target_level)
+            })
+            .map(|(_, (next_offset, _))| *next_offset)
+            .unwrap_or(source.len())
     });
     match operation {
         DeltaOperation::Added if start.is_some() => {
@@ -1432,23 +1733,44 @@ fn apply_markdown_block(
         _ => {}
     }
     let replacement = if operation == DeltaOperation::Removed {
-        Vec::new()
+        String::new()
     } else {
-        let mut value = vec![heading, String::new()];
-        value.extend(content.lines().map(str::to_string));
-        value.push(String::new());
-        value
+        let normalized_content = content
+            .trim_end_matches(['\r', '\n'])
+            .replace("\r\n", "\n")
+            .replace('\n', line_ending);
+        format!("{heading}{line_ending}{line_ending}{normalized_content}{line_ending}{line_ending}")
     };
-    let mut output: Vec<String> = lines.iter().map(|line| (*line).to_string()).collect();
-    if let (Some(start), Some(end)) = (start, end) {
-        output.splice(start..end, replacement);
+    if let (Some(start_index), Some(end_offset)) = (start, end) {
+        let start_offset = lines[start_index].0;
+        let mut output =
+            String::with_capacity(source.len() - (end_offset - start_offset) + replacement.len());
+        output.push_str(&source[..start_offset]);
+        output.push_str(&replacement);
+        output.push_str(&source[end_offset..]);
+        Ok(output)
     } else {
-        if output.last().is_some_and(|line| !line.is_empty()) {
-            output.push(String::new());
+        let mut output = source.to_string();
+        if !output.is_empty() && !output.ends_with(line_ending) {
+            output.push_str(line_ending);
         }
-        output.extend(replacement);
+        if !output.is_empty() && !output.ends_with(&format!("{line_ending}{line_ending}")) {
+            output.push_str(line_ending);
+        }
+        output.push_str(&replacement);
+        Ok(output)
     }
-    Ok(format!("{}\n", output.join("\n").trim_end()))
+}
+
+fn markdown_heading_level(line: &str) -> Option<usize> {
+    let level = line
+        .chars()
+        .take_while(|character| *character == '#')
+        .count();
+    if level == 0 || line.as_bytes().get(level) != Some(&b' ') {
+        return None;
+    }
+    Some(level)
 }
 
 fn bump_spec_version(content: &str) -> Result<String, String> {
@@ -1491,7 +1813,7 @@ fn append_changelog(content: &str, id: &str, title: &str) -> String {
     )
 }
 
-fn write_prepared_files(prepared: &[(PathBuf, String)]) -> Result<(), String> {
+fn write_prepared_files(root: &Path, prepared: &[(PathBuf, String)]) -> Result<(), String> {
     for (path, _) in prepared {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|error| error.to_string())?;
@@ -1501,21 +1823,31 @@ fn write_prepared_files(prepared: &[(PathBuf, String)]) -> Result<(), String> {
         .iter()
         .map(|(path, _)| (path.clone(), fs::read_to_string(path).ok()))
         .collect();
+    let journal: Vec<TransactionEntry> = backups
+        .iter()
+        .map(|(path, original)| {
+            Ok(TransactionEntry {
+                path: path
+                    .strip_prefix(root)
+                    .map_err(|_| format!("transaction path escapes project: {}", path.display()))?
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+                original: original.clone(),
+            })
+        })
+        .collect::<Result<_, String>>()?;
+    write_json(&root.join(TRANSACTION_PATH), &journal)?;
     for (path, content) in prepared {
         if let Err(error) = fs::write(path, content) {
-            for (backup_path, original) in backups {
-                if let Some(original) = original {
-                    let _ = fs::write(backup_path, original);
-                } else {
-                    let _ = fs::remove_file(backup_path);
-                }
-            }
+            recover_pending_transaction(root)?;
             return Err(format!(
                 "atomic delta application failed at {}: {error}",
                 path.display()
             ));
         }
     }
+    fs::remove_file(root.join(TRANSACTION_PATH))
+        .map_err(|error| format!("failed to clear transaction journal: {error}"))?;
     Ok(())
 }
 
@@ -1524,7 +1856,7 @@ fn ensure_no_delta_conflicts(root: &Path, current: &ChangeRecord) -> Result<(), 
         return Ok(());
     }
     let current_keys = delta_keys(root, current)?;
-    for other in list_changes(root) {
+    for other in list_changes_checked(root)? {
         if other.id == current.id
             || matches!(
                 other.state,
@@ -1632,6 +1964,15 @@ fn definition_digest(root: &Path, record: &ChangeRecord) -> Result<String, Strin
     }
     files.sort();
     for path in files {
+        let metadata = fs::metadata(&path)
+            .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
+        if metadata.len() > MAX_CHANGE_ARTIFACT_BYTES {
+            return Err(format!(
+                "approval input exceeds {} byte limit: {}",
+                MAX_CHANGE_ARTIFACT_BYTES,
+                path.display()
+            ));
+        }
         let content = fs::read(&path)
             .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
         hasher.update(portable_project_path(root, &path).as_bytes());
@@ -1641,10 +1982,105 @@ fn definition_digest(root: &Path, record: &ChangeRecord) -> Result<String, Strin
     Ok(format!("{:x}", hasher.finalize()))
 }
 
+fn project_input_digest(root: &Path) -> Result<String, String> {
+    let mut paths = git_project_paths(root).unwrap_or_else(|| walk_project_paths(root));
+    paths.sort();
+    paths.dedup();
+    let mut hasher = Sha256::new();
+    for relative in paths {
+        if project_input_is_volatile(&relative) {
+            continue;
+        }
+        let path = root.join(&relative);
+        hasher.update(relative.as_bytes());
+        hasher.update([0]);
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                let target = fs::read_link(&path).map_err(|error| {
+                    format!("failed to read symlink {}: {error}", path.display())
+                })?;
+                hasher.update(b"SYMLINK\0");
+                hasher.update(target.to_string_lossy().as_bytes());
+            }
+            Ok(metadata) if metadata.is_file() => {
+                let content = fs::read(&path)
+                    .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
+                hasher.update(content);
+            }
+            Ok(_) => hasher.update(b"NON_FILE"),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => hasher.update(b"MISSING"),
+            Err(error) => {
+                return Err(format!("failed to inspect {}: {error}", path.display()));
+            }
+        }
+        hasher.update([0]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn git_project_paths(root: &Path) -> Option<Vec<String>> {
+    let output = Command::new("git")
+        .args([
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "-z",
+        ])
+        .current_dir(root)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(
+        output
+            .stdout
+            .split(|byte| *byte == 0)
+            .filter(|path| !path.is_empty())
+            .map(|path| String::from_utf8_lossy(path).replace('\\', "/"))
+            .collect(),
+    )
+}
+
+fn walk_project_paths(root: &Path) -> Vec<String> {
+    walkdir::WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|entry| {
+            let path = portable_project_path(root, entry.path());
+            path.is_empty() || !project_input_is_volatile(&format!("{path}/"))
+        })
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_file() || entry.file_type().is_symlink())
+        .map(|entry| portable_project_path(root, entry.path()))
+        .filter(|path| !project_input_is_volatile(path))
+        .collect()
+}
+
+fn project_input_is_volatile(path: &str) -> bool {
+    [
+        ".git/",
+        "target/",
+        "node_modules/",
+        "site/node_modules/",
+        "site/dist/",
+        "site/.astro/",
+        ".specsync/changes/",
+        ".specsync/archive/",
+        ".specsync/hashes.json",
+        LOCK_PATH,
+        TRANSACTION_PATH,
+    ]
+    .iter()
+    .any(|prefix| path == prefix.trim_end_matches('/') || path.starts_with(prefix))
+}
+
 fn closing_digest(record: &ChangeRecord, verification: &VerificationRecord) -> String {
     let mut hasher = Sha256::new();
     hasher.update(record.id.as_bytes());
     hasher.update(verification.contract_digest.as_bytes());
+    hasher.update(verification.workspace_digest.as_bytes());
     hasher.update(verification.commit.as_deref().unwrap_or("").as_bytes());
     format!("{:x}", hasher.finalize())
 }
@@ -1715,6 +2151,12 @@ fn uncovered_meaningful_paths(
     policy: &SddPolicy,
     records: &[ChangeRecord],
 ) -> Result<Vec<String>, String> {
+    // A brand-new repository has no meaningful comparison base yet. Only allow
+    // the clean-tree shortcut for its first commit; a clean feature branch can
+    // still contain committed delivery changes that require lifecycle coverage.
+    if !is_ci() && git_worktree_is_clean(root) == Some(true) && git_commit_count(root) == Some(1) {
+        return Ok(Vec::new());
+    }
     let mut args = vec!["diff", "--name-only"];
     let base = pull_request_diff_base(root, records);
     args.push(&base);
@@ -1734,6 +2176,21 @@ fn uncovered_meaningful_paths(
     Ok(uncovered)
 }
 
+fn git_worktree_is_clean(root: &Path) -> Option<bool> {
+    let output = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(root)
+        .output()
+        .ok()?;
+    output.status.success().then_some(output.stdout.is_empty())
+}
+
+fn git_commit_count(root: &Path) -> Option<usize> {
+    git_output(root, &["rev-list", "--count", "HEAD"])?
+        .parse()
+        .ok()
+}
+
 fn pull_request_diff_base(root: &Path, records: &[ChangeRecord]) -> String {
     if let Ok(branch) = std::env::var("GITHUB_BASE_REF")
         && !branch.trim().is_empty()
@@ -1751,10 +2208,14 @@ fn pull_request_diff_base(root: &Path, records: &[ChangeRecord]) -> String {
             return format!("{candidate}...HEAD");
         }
     }
+    recorded_diff_base(records)
+}
+
+fn recorded_diff_base(records: &[ChangeRecord]) -> String {
     records
         .iter()
         .filter_map(|record| record.base_commit.clone())
-        .min()
+        .next()
         .unwrap_or_else(|| "HEAD~1...HEAD".into())
 }
 
@@ -1770,7 +2231,12 @@ fn path_is_meaningful(path: &str, policy: &SddPolicy) -> bool {
 }
 
 fn path_matches_scope(path: &str, scope: &str) -> bool {
-    path == scope.trim_end_matches('/') || path.starts_with(scope)
+    let normalized_scope = scope.replace('\\', "/");
+    let scope = normalized_scope.trim_end_matches('/');
+    path == scope
+        || path
+            .strip_prefix(scope)
+            .is_some_and(|remainder| remainder.starts_with('/'))
 }
 
 fn portable_project_path(root: &Path, path: &Path) -> String {
@@ -1781,10 +2247,41 @@ fn portable_project_path(root: &Path, path: &Path) -> String {
 }
 
 fn safe_project_path(root: &Path, relative: &str) -> Result<PathBuf, String> {
-    let path = Path::new(relative);
+    let normalized = normalize_project_path(relative)?;
+    let joined = root.join(normalized);
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve project root {}: {error}", root.display()))?;
+    let mut existing = joined.as_path();
+    while !existing.exists() {
+        existing = existing
+            .parent()
+            .ok_or_else(|| format!("project policy path escapes the project root: `{relative}`"))?;
+    }
+    let canonical_existing = existing.canonicalize().map_err(|error| {
+        format!(
+            "failed to resolve project path {}: {error}",
+            existing.display()
+        )
+    })?;
+    if !canonical_existing.starts_with(&canonical_root) {
+        return Err(format!(
+            "project policy path escapes the project root through a symlink: `{relative}`"
+        ));
+    }
+    Ok(joined)
+}
+
+fn normalize_project_path(relative: &str) -> Result<String, String> {
+    let normalized = relative.replace('\\', "/");
+    let path = Path::new(&normalized);
+    let has_windows_prefix = normalized
+        .split('/')
+        .next()
+        .is_some_and(|component| component.ends_with(':'));
     if path.is_absolute()
-        || relative.contains('\\')
-        || relative.chars().any(char::is_control)
+        || has_windows_prefix
+        || normalized.chars().any(char::is_control)
         || path.components().any(|component| {
             matches!(
                 component,
@@ -1796,7 +2293,7 @@ fn safe_project_path(root: &Path, relative: &str) -> Result<PathBuf, String> {
             "project policy path escapes the project root: `{relative}`"
         ));
     }
-    Ok(root.join(path))
+    Ok(normalized)
 }
 
 fn run_configured_command(
@@ -1810,8 +2307,7 @@ fn run_configured_command(
     Command::new(program)
         .args(args)
         .current_dir(root)
-        .output()
-        .map(|output| output.status)
+        .status()
         .map_err(|error| {
             format!("failed to run configured verification command `{configured}`: {error}")
         })
@@ -1896,11 +2392,7 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
                     || entry_path.join("design.md").exists()
                     || entry_path.join("specs").is_dir()
             }
-            "speckit" => {
-                entry_path.join("spec.md").exists()
-                    || entry_path.join("plan.md").exists()
-                    || entry_path.join("tasks.md").exists()
-            }
+            "speckit" => entry_path.join("spec.md").exists() || entry_path.join("plan.md").exists(),
             _ => false,
         };
         if !is_active_change {
@@ -1908,6 +2400,12 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
         }
         let name = entry.file_name().to_string_lossy().to_string();
         let description = format!("Imported {source} change {name}");
+        if list_changes_checked(root)?
+            .iter()
+            .any(|record| record.description == description)
+        {
+            continue;
+        }
         let record = create_change(
             root,
             CreateChangeRequest {
@@ -2253,6 +2751,44 @@ mod tests {
         record
     }
 
+    fn completed_no_spec_record(root: &Path) -> ChangeRecord {
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+        let mut record = create_change(
+            root,
+            CreateChangeRequest {
+                description: "harden verification".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["change".into()],
+                affected_paths: vec!["src/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("No public contract change".into()),
+            },
+        )
+        .unwrap();
+        record.acceptance_criteria = vec!["Verification is fresh".into()];
+        record.answers.insert("public_contract".into(), "no".into());
+        record
+            .answers
+            .insert("architecture_risk".into(), "no".into());
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        for artifact in &record.selected_artifacts {
+            let content = if *artifact == ArtifactKind::Tasks {
+                "# Tasks\n\n- [x] Complete\n"
+            } else {
+                "# Complete\n\nReviewed.\n"
+            };
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                content,
+            )
+            .unwrap();
+        }
+        record
+    }
+
     #[test]
     fn change_ids_are_sequential_and_readable() {
         let temp = TempDir::new().unwrap();
@@ -2284,6 +2820,111 @@ mod tests {
         .unwrap();
         assert_eq!(first.id, "CHG-0001-add-passkeys");
         assert_eq!(second.id, "CHG-0002-fix-login");
+    }
+
+    #[test]
+    fn concurrent_change_creation_assigns_unique_ids() {
+        let temp = TempDir::new().unwrap();
+        let root = std::sync::Arc::new(temp.path().to_path_buf());
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(8));
+        let handles: Vec<_> = (0..8)
+            .map(|index| {
+                let root = std::sync::Arc::clone(&root);
+                let barrier = std::sync::Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    create_change(
+                        &root,
+                        CreateChangeRequest {
+                            description: format!("Concurrent change {index}"),
+                            kind: ChangeKind::Operations,
+                            affected_specs: Vec::new(),
+                            affected_paths: vec![format!("ops/{index}/")],
+                            requested_artifacts: Vec::new(),
+                            no_spec_change: true,
+                            rationale: Some("Concurrency fixture".into()),
+                        },
+                    )
+                    .unwrap()
+                    .id
+                })
+            })
+            .collect();
+        let ids: BTreeSet<String> = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect();
+        assert_eq!(ids.len(), 8);
+        assert_eq!(list_changes(&root).len(), 8);
+    }
+
+    #[test]
+    fn lifecycle_lock_releases_when_owner_drops() {
+        let temp = TempDir::new().unwrap();
+        let first = acquire_project_lock(temp.path()).unwrap();
+        drop(first);
+        let second = acquire_project_lock(temp.path()).unwrap();
+        drop(second);
+    }
+
+    #[test]
+    fn archive_waits_until_delivery_diff_no_longer_needs_coverage() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        git(&["add", "src/lib.rs"]);
+        git(&["commit", "-m", "base"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        git(&["add", "src/lib.rs"]);
+        git(&["commit", "-m", "feature"]);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        let error = archive_change(root, &record.id).unwrap_err();
+        assert!(error.contains("archive after merge"));
+    }
+
+    #[test]
+    fn failed_archive_move_leaves_an_accepted_change_retryable() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        record.state = ChangeState::Accepted;
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        let destination = root
+            .join(ARCHIVE_PATH)
+            .join(format!("{}-{}", today(), record.id));
+        fs::create_dir_all(&destination).unwrap();
+
+        let error = archive_change(root, &record.id).unwrap_err();
+        assert!(error.contains("archive destination already exists"));
+        assert_eq!(
+            load_change(root, &record.id).unwrap().state,
+            ChangeState::Accepted
+        );
+        fs::remove_dir_all(destination).unwrap();
+        assert!(archive_change(root, &record.id).is_ok());
     }
 
     #[test]
@@ -2351,6 +2992,258 @@ mod tests {
         )
         .unwrap();
         assert!(!removed.contains("REQ-auth-001"));
+    }
+
+    #[test]
+    fn markdown_block_stops_at_higher_level_heading() {
+        let source = "# Requirements\n\n## Durable requirements\n\n### REQ-auth-001\n\nOld text.\n\n## Public API\n\n| Name |\n|---|\n| `authenticate` |\n";
+        let modified = apply_markdown_block(
+            source,
+            "### ",
+            "REQ-auth-001",
+            "New text.",
+            DeltaOperation::Modified,
+        )
+        .unwrap();
+        assert!(modified.contains("### REQ-auth-001\n\nNew text."));
+        assert!(modified.contains("## Public API\n\n| Name |\n|---|\n| `authenticate` |"));
+        let removed =
+            apply_markdown_block(source, "### ", "REQ-auth-001", "", DeltaOperation::Removed)
+                .unwrap();
+        assert!(!removed.contains("REQ-auth-001"));
+        assert!(removed.contains("## Public API\n\n| Name |\n|---|\n| `authenticate` |"));
+    }
+
+    #[test]
+    fn markdown_block_preserves_crlf_and_unrelated_bytes() {
+        let source = "# Requirements\r\n\r\n### REQ-auth-001\r\n\r\nOld.\r\n\r\n## Public API  \r\n\r\nKeep trailing spaces.  \r\n";
+        let modified = apply_markdown_block(
+            source,
+            "### ",
+            "REQ-auth-001",
+            "New.",
+            DeltaOperation::Modified,
+        )
+        .unwrap();
+        assert!(!modified.replace("\r\n", "").contains('\n'));
+        assert!(modified.ends_with("## Public API  \r\n\r\nKeep trailing spaces.  \r\n"));
+    }
+
+    #[test]
+    fn malformed_policy_fails_closed() {
+        let temp = TempDir::new().unwrap();
+        fs::create_dir_all(temp.path().join(".specsync")).unwrap();
+        fs::write(temp.path().join(POLICY_PATH), "{ invalid json").unwrap();
+        let report = check_project(temp.path());
+        assert!(report.enabled);
+        assert_eq!(report.errors.len(), 1);
+        assert!(report.errors[0].contains("invalid SDD policy"));
+    }
+
+    #[test]
+    fn malformed_active_change_state_fails_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let dir = root.join(CHANGES_PATH).join("CHG-0001-corrupt");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("state.json"), "{ invalid json").unwrap();
+
+        let report = check_project(root);
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|error| error.contains("invalid active change state"))
+        );
+    }
+
+    #[test]
+    fn oversized_change_artifacts_are_rejected() {
+        let temp = TempDir::new().unwrap();
+        let record = completed_no_spec_record(temp.path());
+        fs::write(
+            change_dir(temp.path(), &record.id).join("context.md"),
+            vec![b'x'; MAX_CHANGE_ARTIFACT_BYTES as usize + 1],
+        )
+        .unwrap();
+        let error = validate_artifacts(temp.path(), &record).unwrap_err();
+        assert!(error.contains("exceeds") && error.contains("byte limit"));
+    }
+
+    #[test]
+    fn unavailable_required_path_coverage_fails_closed() {
+        let temp = TempDir::new().unwrap();
+        write_default_policy(temp.path(), Vec::new()).unwrap();
+        let report = check_project(temp.path());
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|error| error.contains("unable to inspect changed paths"))
+        );
+    }
+
+    #[test]
+    fn clean_initial_commit_needs_no_changed_path_coverage() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "clean\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-m", "initial"]);
+        assert!(
+            uncovered_meaningful_paths(root, &SddPolicy::default(), &[])
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn clean_feature_branch_still_requires_changed_path_coverage() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-m", "base"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        git(&[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/main",
+        ]);
+        git(&["switch", "-c", "feature"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn feature() {}\n").unwrap();
+        git(&["add", "src/lib.rs"]);
+        git(&["commit", "-m", "feature"]);
+
+        assert_eq!(
+            uncovered_meaningful_paths(root, &SddPolicy::default(), &[]).unwrap(),
+            vec!["src/lib.rs"]
+        );
+    }
+
+    #[test]
+    fn working_tree_changes_invalidate_verification() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        let error = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap_err();
+        assert!(error.contains("working-tree inputs changed"));
+    }
+
+    #[test]
+    fn acceptance_rechecks_late_dependency_state() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        let dependency = create_change(
+            root,
+            CreateChangeRequest {
+                description: "unfinished prerequisite".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Ordering fixture".into()),
+            },
+        )
+        .unwrap();
+        record = load_change(root, &record.id).unwrap();
+        record.dependencies.push(dependency.id.clone());
+        save_change(root, &record).unwrap();
+        append_approval(
+            root,
+            &record,
+            "definition",
+            Some("Reviewer".into()),
+            definition_digest(root, &record).unwrap(),
+            Some("Approved late ordering change".into()),
+        )
+        .unwrap();
+        let mut evidence = load_verification(root, &record).unwrap();
+        evidence.contract_digest = definition_digest(root, &record).unwrap();
+        write_json(
+            &change_dir(root, &record.id).join("verification.json"),
+            &evidence,
+        )
+        .unwrap();
+        let error = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap_err();
+        assert!(error.contains("must be accepted"), "{error}");
+    }
+
+    #[test]
+    fn failed_evidence_keeps_local_check_red() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        let mut evidence = verify_change(root, &record.id).unwrap();
+        evidence.passed = false;
+        write_json(
+            &change_dir(root, &record.id).join("verification.json"),
+            &evidence,
+        )
+        .unwrap();
+        let report = check_project(root);
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|error| error.contains("latest verification evidence failed"))
+        );
+    }
+
+    #[test]
+    fn no_spec_change_with_module_scope_needs_no_delta() {
+        let temp = TempDir::new().unwrap();
+        let record = completed_no_spec_record(temp.path());
+        assert!(
+            collect_requirement_ids(temp.path(), &record)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(validate_effective_contracts(temp.path(), &[record]).is_ok());
     }
 
     #[test]
@@ -2430,10 +3323,12 @@ mod tests {
     fn full_lifecycle_applies_contract_and_archives() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
+        fs::create_dir_all(root.join("src")).unwrap();
         fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::write(root.join("src/auth.rs"), "// Authentication module.\n").unwrap();
         fs::write(
             root.join("specs/auth/auth.spec.md"),
-            "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles: []\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Requirements\n\nExisting.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+            "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
         )
         .unwrap();
         fs::write(
@@ -2462,7 +3357,7 @@ mod tests {
         }
         fs::write(
             delta_path(root, &record, "auth"),
-            "# Auth delta\n\n## ADDED\n\n### REQUIREMENT REQ-auth-001\n\nThe system SHALL support passkey authentication.\n\nAcceptance Criteria\n- A registered passkey authenticates the user.\n\n## MODIFIED\n\n### SPEC SECTION Requirements\n\n1. Passkey authentication is supported and traced to `REQ-auth-001`.\n",
+            "# Auth delta\n\n## ADDED\n\n### REQUIREMENT REQ-auth-001\n\nThe system SHALL support passkey authentication.\n\nAcceptance Criteria\n- A registered passkey authenticates the user.\n\n## MODIFIED\n\n### SPEC SECTION Invariants\n\n1. Passkey authentication is supported and traced to `REQ-auth-001`.\n",
         )
         .unwrap();
         record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
@@ -2577,6 +3472,9 @@ mod tests {
             "expected effective-contract phantom error, got {:?}",
             report.errors
         );
+        record = start_implementation(root, &record.id).unwrap();
+        let error = verify_change(root, &record.id).unwrap_err();
+        assert!(error.contains("phantom") && error.contains("effective contract"));
     }
 
     #[test]
@@ -2626,6 +3524,7 @@ mod tests {
         .unwrap();
         fs::write(root.join("specs/001-passkeys/spec.md"), "# Passkeys\n").unwrap();
         fs::write(root.join("specs/auth/auth.spec.md"), "# Native spec\n").unwrap();
+        fs::write(root.join("specs/auth/tasks.md"), "# Native tasks\n").unwrap();
         adopt(root, false, Some("speckit")).unwrap();
         assert!(
             root.join(".specsync/imports/speckit/constitution.md")
@@ -2711,18 +3610,69 @@ mod tests {
     }
 
     #[test]
+    fn definition_approval_rejects_an_invalid_semantic_delta() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_record(root);
+        for artifact in &record.selected_artifacts {
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                "# Complete\n\nReviewed.\n",
+            )
+            .unwrap();
+        }
+        fs::write(
+            delta_path(root, &record, "auth"),
+            "## ADDED\n### REQUIREMENT REQ-auth-001\nMissing normative language.\n",
+        )
+        .unwrap();
+
+        let error =
+            approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap_err();
+        assert!(error.contains("SHALL") || error.contains("Acceptance Criteria"));
+        assert!(load_approvals(root, &record).unwrap().approvals.is_empty());
+    }
+
+    #[test]
     fn prepared_write_failure_rolls_back_prior_files() {
         let temp = TempDir::new().unwrap();
         let first = temp.path().join("first.md");
         let second = temp.path().join("second.md");
         fs::write(&first, "original\n").unwrap();
         fs::create_dir(&second).unwrap();
-        let result = write_prepared_files(&[
-            (first.clone(), "changed\n".into()),
-            (second, "cannot write a directory\n".into()),
-        ]);
+        let result = write_prepared_files(
+            temp.path(),
+            &[
+                (first.clone(), "changed\n".into()),
+                (second, "cannot write a directory\n".into()),
+            ],
+        );
         assert!(result.is_err());
         assert_eq!(fs::read_to_string(first).unwrap(), "original\n");
+    }
+
+    #[test]
+    fn pending_transaction_is_recovered_before_next_lifecycle_write() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        let canonical = root.join("specs/auth/auth.spec.md");
+        fs::write(&canonical, "corrupted partial write\n").unwrap();
+        write_json(
+            &root.join(TRANSACTION_PATH),
+            &[TransactionEntry {
+                path: "specs/auth/auth.spec.md".into(),
+                original: Some("original canonical content\n".into()),
+            }],
+        )
+        .unwrap();
+        let lock = acquire_project_lock(root).unwrap();
+        drop(lock);
+        assert_eq!(
+            fs::read_to_string(canonical).unwrap(),
+            "original canonical content\n"
+        );
+        assert!(!root.join(TRANSACTION_PATH).exists());
     }
 
     #[test]
@@ -2777,6 +3727,63 @@ mod tests {
     }
 
     #[test]
+    fn draft_requirement_removals_are_not_permanent_tombstones() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let removal = create_change(
+            root,
+            CreateChangeRequest {
+                description: "Consider retiring requirement".into(),
+                kind: ChangeKind::Feature,
+                affected_specs: vec!["auth".into()],
+                affected_paths: vec!["src/auth.rs".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: false,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        fs::write(
+            delta_path(root, &removal, "auth"),
+            "## REMOVED\n### REQUIREMENT REQ-auth-007\nRetired requirement.\n",
+        )
+        .unwrap();
+        let addition = create_change(
+            root,
+            CreateChangeRequest {
+                description: "Add active requirement".into(),
+                kind: ChangeKind::Feature,
+                affected_specs: vec!["auth".into()],
+                affected_paths: vec!["src/auth.rs".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: false,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        fs::write(
+            delta_path(root, &addition, "auth"),
+            "## ADDED\n### REQUIREMENT REQ-auth-007\nThe system SHALL add an active requirement.\n\nAcceptance Criteria\n- Active.\n",
+        )
+        .unwrap();
+
+        assert!(validate_delta_files(root, &addition).is_ok());
+    }
+
+    #[test]
+    fn requirement_ids_must_match_their_delta_module() {
+        let temp = TempDir::new().unwrap();
+        let record = completed_record(temp.path());
+        fs::write(
+            delta_path(temp.path(), &record, "auth"),
+            "## ADDED\n### REQUIREMENT REQ-billing-001\nThe system SHALL authenticate.\n\nAcceptance Criteria\n- Works.\n",
+        )
+        .unwrap();
+        let error = validate_delta_files(temp.path(), &record).unwrap_err();
+        assert!(error.contains("must match affected module `auth`"));
+    }
+
+    #[test]
     fn change_identifiers_and_scope_cannot_escape_project_root() {
         let temp = TempDir::new().unwrap();
         assert!(load_change(temp.path(), "../../Cargo.toml").is_err());
@@ -2794,6 +3801,92 @@ mod tests {
         );
         assert!(result.is_err());
         assert!(!temp.path().join("../outside").exists());
+    }
+
+    #[test]
+    fn windows_paths_are_normalized_without_allowing_traversal() {
+        assert_eq!(
+            normalize_project_path(r"src\auth\mod.rs").unwrap(),
+            "src/auth/mod.rs"
+        );
+        assert!(normalize_project_path(r"..\secret.txt").is_err());
+        assert!(normalize_project_path(r"C:\secret.txt").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn safe_project_paths_reject_symlink_escapes() {
+        let root = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        std::os::unix::fs::symlink(outside.path(), root.path().join("linked")).unwrap();
+        let error = safe_project_path(root.path(), "linked/secret.md").unwrap_err();
+        assert!(error.contains("through a symlink"));
+    }
+
+    #[test]
+    fn path_scopes_match_component_boundaries() {
+        assert!(path_matches_scope("src", "src"));
+        assert!(path_matches_scope("src/auth.rs", "src"));
+        assert!(path_matches_scope("src/auth.rs", "src/"));
+        assert!(!path_matches_scope("src-old/auth.rs", "src"));
+        assert!(!path_matches_scope("src2.rs", "src"));
+        assert!(!path_matches_scope("Src/auth.rs", "src"));
+    }
+
+    #[test]
+    fn default_policy_covers_root_action_and_dependency_lockfiles() {
+        let policy = SddPolicy::default();
+        for path in [
+            "action.yml",
+            "Cargo.lock",
+            "bun.lock",
+            "package-lock.json",
+            "Package.resolved",
+            "go.sum",
+            "uv.lock",
+        ] {
+            assert!(
+                path_is_meaningful(path, &policy),
+                "{path} should be meaningful"
+            );
+        }
+    }
+
+    #[test]
+    fn workspace_digest_tracks_unicode_and_space_paths() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("src/space dir")).unwrap();
+        let path = root.join("src/space dir/naïve.rs");
+        fs::write(&path, "first\n").unwrap();
+        let first = project_input_digest(root).unwrap();
+        fs::write(path, "second\n").unwrap();
+        let second = project_input_digest(root).unwrap();
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn recorded_base_uses_oldest_change_order_not_hash_order() {
+        let mut first = completed_record(TempDir::new().unwrap().path());
+        first.base_commit = Some("ffffffff".into());
+        let mut second = first.clone();
+        second.id = "CHG-0002-second".into();
+        second.base_commit = Some("00000000".into());
+        assert_eq!(recorded_diff_base(&[first, second]), "ffffffff");
+    }
+
+    #[test]
+    fn dependent_changes_are_topologically_ordered() {
+        let temp = TempDir::new().unwrap();
+        let mut dependent = completed_record(temp.path());
+        dependent.id = "CHG-0001-dependent".into();
+        dependent.dependencies = vec!["CHG-0002-prerequisite".into()];
+        let mut prerequisite = dependent.clone();
+        prerequisite.id = "CHG-0002-prerequisite".into();
+        prerequisite.dependencies.clear();
+        let ordered = dependency_ordered_changes(vec![&dependent, &prerequisite]).unwrap();
+        assert_eq!(ordered[0].id, prerequisite.id);
+        assert_eq!(ordered[1].id, dependent.id);
     }
 
     #[test]
@@ -2879,5 +3972,65 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn path_coverage_uses_non_main_remote_default_branch() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "trunk"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-m", "base"]);
+        git(&["update-ref", "refs/remotes/origin/trunk", "HEAD"]);
+        git(&[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/trunk",
+        ]);
+        git(&["switch", "-c", "feature"]);
+        assert_eq!(pull_request_diff_base(root, &[]), "origin/trunk...HEAD");
+    }
+
+    #[test]
+    fn detached_head_verification_and_acceptance_are_supported() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+        git(&["add", "src/lib.rs"]);
+        git(&["commit", "-m", "base"]);
+        git(&["switch", "--detach"]);
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        assert_eq!(record.state, ChangeState::Accepted);
     }
 }

@@ -1,0 +1,39 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783742180,
+      "digest": "0667b4550a75767dcac0a34f0a89c19af760cc97e8d3aebcbff25efdce6c8070",
+      "note": "Approved by the user after review of the strict 5.0 hardening contract and finding matrix"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783743320,
+      "digest": "f74f2f6dd803a19bcd3fff2e9b5f2abe274bb166895b39edc832ef70330d7107",
+      "note": "Reapproved under the user-approved hardening objective after adding initialization and package coordination scope"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783744424,
+      "digest": "9fecc5799fb19bd6b2ecf53630cf5188860394daf7cfb715112450f229f373e3",
+      "note": "User approved the complete 5.0 hardening and release-validation scope"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783744643,
+      "digest": "8224bdf913cba7176338cd63db5182194c870b3cdb3f2b32b717810a17cd6f59",
+      "note": "User-approved scope with explicit requirement-to-regression evidence"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783745046,
+      "digest": "99603879a461df3889a3695686297479a0b6afb5a8e11cdb51a692d03214c7aa",
+      "note": "User-approved 5.0 hardening scope including all subsequent review findings"
+    }
+  ]
+}

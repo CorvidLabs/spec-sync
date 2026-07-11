@@ -203,7 +203,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: CorvidLabs/spec-sync@v5
         with:
           strict: true

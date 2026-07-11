@@ -40,18 +40,19 @@ draft → approved → implementing → verifying → accepted → archived
 ```
 
 ```bash
-specsync change new "Add passkey authentication" --spec auth --path src/auth.rs
-specsync change answer CHG-0001-add-passkey-authentication acceptance_criteria \
-  "A registered passkey authenticates the user"
-specsync change approve CHG-0001-add-passkey-authentication
-specsync change start CHG-0001-add-passkey-authentication
-# implement code, tests, and the approved semantic delta
-specsync change verify CHG-0001-add-passkey-authentication
-specsync change accept CHG-0001-add-passkey-authentication
+SPECSYNC_BIN=specsync examples/sdd-lifecycle/run.sh
+```
+
+The executable example creates a disposable Git repository and performs every required step: it answers the complete deterministic interview, fills the selected artifacts, records definition approval, implements and commits the change, streams verification, records closing approval, and runs the unified check. For a contract-changing feature, the same gates additionally require a complete semantic delta with module-scoped requirement IDs before definition approval.
+
+```bash
+# merge the delivery branch, then archive when its diff no longer needs coverage
 specsync change archive CHG-0001-add-passkey-authentication
 ```
 
-The first and closing approvals are mandatory, portable, digest-bound human gates. During implementation, `specsync check` validates code against canonical specs plus approved semantic deltas. Acceptance requires fresh tests and requirement evidence, atomically updates canonical requirements/specs, increments spec versions, and records the change ID.
+The first and closing approvals are mandatory, portable, digest-bound human gates. During implementation, `specsync check` validates code against canonical specs plus approved semantic deltas. Acceptance requires fresh tests and requirement evidence bound to the tested commit and working-tree inputs, atomically updates canonical requirements/specs, increments spec versions, and records the change ID. Dirty edits after verification invalidate the evidence. Archiving is intentionally post-merge: SpecSync keeps an accepted workspace active while the current delivery diff still depends on its path coverage.
+
+Run the repository's executable [single-change lifecycle](examples/sdd-lifecycle/) and [ordered concurrent changes](examples/sdd-concurrent-changes/) examples to exercise both workflows in disposable projects.
 
 Native Claude, Cursor, Codex, and Gemini integrations conduct the same deterministic interview through JSON commands, so humans and agents are equal clients of one workflow engine.
 
@@ -426,7 +427,7 @@ specsync [command] [flags]
 | `hooks` | Install/uninstall agent instructions and git hooks (`install`, `uninstall`, `status`) |
 | `agents` | Install/uninstall native AI-tool skills and slash commands for Claude Code, Cursor, Codex, and Gemini CLI (`install`, `uninstall`, `status`) |
 | `mcp` | Start MCP server for AI agent integration (Claude Code, Cursor, etc.) |
-| `init` | Create the default `.specsync/` v4 layout and config |
+| `init` | Create the default `.specsync/` 5.0 layout, config, and SDD policy |
 | `watch` | Live validation on file changes (500ms debounce) |
 
 ### Flags
@@ -689,7 +690,7 @@ code --install-extension corvidlabs.specsync
 - `SpecSync: Show Coverage` — open coverage report
 - `SpecSync: Score Spec Quality` — open scoring report
 - `SpecSync: Generate Missing Specs` — scaffold specs for unspecced modules
-- `SpecSync: Initialize Config` — create the `.specsync/` v4 project layout
+- `SpecSync: Initialize Config` — create the `.specsync/` 5.0 project layout
 
 ### Settings
 
@@ -731,7 +732,7 @@ jobs:
   specsync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: CorvidLabs/spec-sync@v5
         with:
           strict: 'true'
@@ -752,7 +753,7 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: CorvidLabs/spec-sync@v5
         with:
           strict: 'true'

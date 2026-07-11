@@ -24,10 +24,12 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 | Input | Default | Description |
 |:------|:--------|:------------|
 | `version` | `latest` | Release version to download |
+| `download-base-url` | `''` | Optional trusted release mirror URL for enterprise mirrors and release validation |
 | `strict` | `false` | Treat warnings as errors |
 | `require-coverage` | `0` | Minimum file coverage % (0–100) |
 | `root` | `.` | Project root directory |
 | `args` | `''` | Extra whitespace-separated CLI arguments passed to `specsync check`; shell quoting is not supported |
+| `lifecycle-enforce` | `false` | Run lifecycle enforcement after the strict spec check |
 | `comment` | `false` | Post spec drift results as a PR comment. Requires `pull_request` event and write permissions |
 | `token` | `${{ github.token }}` | GitHub token for posting PR comments. Override if using a PAT for cross-repo access |
 
@@ -43,12 +45,14 @@ jobs:
   specsync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: CorvidLabs/spec-sync@v5
         with:
           strict: 'true'
           require-coverage: '100'
 ```
+
+Release archives and their `.sha256` files are both fetched from the selected source. A missing or mismatched checksum fails before extraction. Treat `download-base-url` as a trust boundary and configure it only with an organization-controlled mirror.
 
 ---
 
@@ -68,7 +72,7 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: CorvidLabs/spec-sync@v5
         with:
           strict: 'true'
@@ -102,7 +106,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: CorvidLabs/spec-sync@v5
         with:
           strict: 'true'

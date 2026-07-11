@@ -71,6 +71,134 @@ fn adopt_dry_run_does_not_enable_policy() {
 }
 
 #[test]
+fn adopt_existing_4x_project_is_idempotent() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    fs::write(root.join(".specsync/version"), "4.3.2\n").unwrap();
+    fs::write(
+        root.join("specs/auth/requirements.md"),
+        "---\nspec: auth.spec.md\n---\n\n# Requirements\n\nUsers can sign in.\n",
+    )
+    .unwrap();
+    for _ in 0..2 {
+        specsync()
+            .args(["--root", root.to_str().unwrap(), "change", "adopt"])
+            .assert()
+            .success();
+    }
+    assert!(root.join(".specsync/sdd.json").is_file());
+    let report: Value = serde_json::from_str(
+        &fs::read_to_string(root.join(".specsync/adoption-report.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        report["requirements_needing_ids"][0]["suggested_first_id"],
+        "REQ-auth-001"
+    );
+    assert_eq!(
+        fs::read_to_string(root.join(".specsync/config.toml")).unwrap(),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n"
+    );
+}
+
+#[test]
+fn adopt_openspec_imports_canonical_and_active_once() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("openspec/specs/auth")).unwrap();
+    fs::create_dir_all(root.join("openspec/changes/add-passkeys")).unwrap();
+    fs::write(
+        root.join("openspec/specs/auth/spec.md"),
+        "# Authentication\n\nCanonical OpenSpec contract.\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("openspec/changes/add-passkeys/proposal.md"),
+        "# Add passkeys\n\nActive proposal.\n",
+    )
+    .unwrap();
+    for _ in 0..2 {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "adopt",
+                "--source",
+                "openspec",
+            ])
+            .assert()
+            .success();
+    }
+    assert!(
+        root.join(".specsync/imports/openspec/canonical/auth/spec.md")
+            .is_file()
+    );
+    let changes: Value = serde_json::from_slice(
+        &specsync()
+            .args(["--root", root.to_str().unwrap(), "--json", "change", "list"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    assert_eq!(changes.as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn adopt_speckit_imports_constitution_and_active_feature_once() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".specify/memory")).unwrap();
+    fs::create_dir_all(root.join("specs/001-passkeys")).unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join(".specify/memory/constitution.md"),
+        "# Constitution\n\nSafety first.\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/001-passkeys/spec.md"),
+        "# Passkeys\n\nActive Spec Kit feature.\n",
+    )
+    .unwrap();
+    fs::write(root.join("specs/auth/auth.spec.md"), "# Native auth spec\n").unwrap();
+    fs::write(root.join("specs/auth/tasks.md"), "# Native auth tasks\n").unwrap();
+    for _ in 0..2 {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "adopt",
+                "--source",
+                "speckit",
+            ])
+            .assert()
+            .success();
+    }
+    assert!(
+        root.join(".specsync/imports/speckit/constitution.md")
+            .is_file()
+    );
+    assert_eq!(
+        root.join(".specsync/changes")
+            .read_dir()
+            .unwrap()
+            .filter_map(Result::ok)
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn init_enables_sdd_for_new_projects() {
     let temp = TempDir::new().unwrap();
     fs::create_dir_all(temp.path().join("src")).unwrap();
@@ -154,7 +282,7 @@ fn no_spec_change_completes_full_cli_lifecycle() {
   "require_change_for_meaningful_files": false,
   "meaningful_paths": [],
   "ignored_paths": [],
-  "verification_commands": ["false"],
+  "verification_commands": ["cargo metadata --manifest-path definitely-missing/Cargo.toml"],
   "custom_artifacts": {},
   "principles_file": null
 }
@@ -167,7 +295,7 @@ fn no_spec_change_completes_full_cli_lifecycle() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "CI verification command `false` failed",
+            "CI verification command `cargo metadata --manifest-path definitely-missing/Cargo.toml` failed",
         ));
     fs::write(
         root.join(".specsync/sdd.json"),

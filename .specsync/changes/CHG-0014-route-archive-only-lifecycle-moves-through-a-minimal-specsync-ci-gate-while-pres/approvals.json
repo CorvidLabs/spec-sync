@@ -1,0 +1,25 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783809186,
+      "digest": "8c7ae909b66b633cbed6840bfce82366c9185cd14194ed746941352e27173c4a",
+      "note": "Definition approved from the explicit request to line up path-aware CI before the 5.0.1 tag."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783809370,
+      "digest": "e5e8596988213ba20433bb5e460b2ece71fc20ea6376c4558190bc77be4f6e97",
+      "note": "Refresh definition approval after recording the complete classifier design and local gate evidence."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783809419,
+      "digest": "b9852ca8d1f6b800d603f3b634f42e6e2f6dc0cde153953abbf238bd190f8ba2",
+      "note": "Final definition refresh after all local lanes and non-blocking Augur review completed."
+    }
+  ]
+}

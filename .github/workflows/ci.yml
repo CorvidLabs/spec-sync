@@ -169,6 +169,51 @@ jobs:
           (
             cd "$consumer_dir"
             "$GITHUB_WORKSPACE/target/release/specsync" init
+            mkdir -p src specs/greeting
+            printf 'pub fn hello() {}\n' > src/greeting.rs
+            printf '%s\n' \
+              '---' \
+              'module: greeting' \
+              'version: 1' \
+              'status: stable' \
+              'files:' \
+              '  - src/greeting.rs' \
+              '---' \
+              '' \
+              '# Greeting' \
+              '' \
+              '## Purpose' \
+              '' \
+              'Provides a greeting.' \
+              '' \
+              '## Public API' \
+              '' \
+              '| Name | Description |' \
+              '|------|-------------|' \
+              "| \`hello\` | Return a greeting |" \
+              '' \
+              '## Invariants' \
+              '' \
+              '1. Greeting behavior remains stable.' \
+              '' \
+              '## Behavioral Examples' \
+              '' \
+              'Calling hello succeeds.' \
+              '' \
+              '## Error Cases' \
+              '' \
+              'None.' \
+              '' \
+              '## Dependencies' \
+              '' \
+              'None.' \
+              '' \
+              '## Change Log' \
+              '' \
+              '| Date | Change |' \
+              '|------|--------|' \
+              '| 2026-07-10 | Initial consumer fixture |' \
+              > specs/greeting/greeting.spec.md
             git add .
             git commit -m "Initialize clean consumer"
           )

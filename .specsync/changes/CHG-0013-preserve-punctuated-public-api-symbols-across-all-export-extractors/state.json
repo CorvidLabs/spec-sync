@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors",
+  "slug": "preserve-punctuated-public-api-symbols-across-all-export-extractors",
+  "title": "Preserve punctuated Public API symbols across all export extractors",
+  "description": "Preserve punctuated Public API symbols across all export extractors",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "base_commit": "fffbef561fe7cbcfad669dac1855e711896deca4",
+  "created_at": 1783805799,
+  "updated_at": 1783807046,
+  "affected_specs": [
+    "parser",
+    "ignore"
+  ],
+  "affected_paths": [
+    "src/parser.rs",
+    "tests/integration",
+    "CHANGELOG.md",
+    "Cargo.toml",
+    "Cargo.lock",
+    "specs/ignore"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Public API tables preserve the complete first nonempty backtick symbol while malformed rows and excluded subsections stay ignored and a GitHub Actions YAML spec passes strict validation with all 30 Trust exports documented and every Fledge lane plus Trust dogfood passes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

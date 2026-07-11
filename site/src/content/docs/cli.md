@@ -417,12 +417,12 @@ specsync watch
 | `--strict` | Warnings become errors. Recommended for CI. |
 | `--require-coverage N` | Fail if file coverage < N%. |
 | `--root <path>` | Project root directory (default: cwd). |
-| `--format <fmt>` | Output format: `text` (default), `json`, or `markdown`. Markdown produces clean tables suitable for PRs and docs. |
+| `--format <fmt>` | Output format: `text` (default), `json`, `markdown`, `github`, `table`, or `csv`. |
 | `--json` | Shorthand for `--format json`. Structured output, no color codes. |
 | `--fix` | Auto-add undocumented exports as stub rows in spec Public API tables (on `check`). |
 | `--force` | Skip hash cache and re-validate all specs (on `check`). Override transition validation (on `lifecycle`). |
 | `--create-issues` | Create GitHub issues for specs with validation errors (on `check`). |
-| `--dry-run` | Preview changes without writing files (on `compact`, `archive-tasks`, `merge`). |
+| `--dry-run` | Preview supported write operations without changing files. Availability is shown in each command's help. |
 | `--stale N` | Flag specs N+ commits behind their source files (on `check`). |
 | `--exclude-status <s>` | Exclude specs with the given status from processing. Repeatable. |
 | `--only-status <s>` | Only process specs with the given status. Repeatable. |

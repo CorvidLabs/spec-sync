@@ -1,6 +1,6 @@
 ---
 module: parser
-version: 3
+version: 4
 status: stable
 files:
   - src/parser.rs
@@ -43,7 +43,7 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 ## Invariants
 
 1. `parse_frontmatter` returns `None` if the content does not start with `---\n...\n---\n`
-2. `get_spec_symbols` only extracts the first backtick-quoted word per table row (`` `symbol` ``)
+2. `get_spec_symbols` only extracts the complete first nonempty backtick-quoted symbol when that code span occupies the first table cell; extractor punctuation and internal spaces are preserved
 3. `get_spec_symbols` only extracts from `### Exported ...` subsections (allowlist) and top-level tables; skips non-export subsections (e.g., `### API Endpoints`, `### Route Handlers`, `### Configuration`) and `####` method/constructor/properties sub-tables
 4. Symbols are deduplicated while preserving order
 5. `get_missing_sections` uses regex matching for `## SectionName` headings — case-sensitive
@@ -71,6 +71,12 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 - **When** `get_spec_symbols(body)` is called
 - **Then** includes "createAuth" in the returned vector
 
+### Scenario: Preserve a GitHub Actions YAML path
+
+- **Given** a recognized Public API table row `| \`inputs.working-directory\` | Working directory |`
+- **When** `get_spec_symbols(body)` is called
+- **Then** includes the complete symbol "inputs.working-directory" without truncating at punctuation
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -78,6 +84,7 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 | No frontmatter delimiters | `parse_frontmatter` returns `None` |
 | Malformed YAML in frontmatter | Unknown keys silently ignored, missing fields remain as `None` |
 | No `## Public API` section | `get_spec_symbols` returns empty vector |
+| Empty, unterminated, later-column, or prose backtick span | No symbol is extracted |
 | Empty body | `get_missing_sections` reports all required sections as missing |
 
 ## Dependencies
@@ -109,3 +116,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-03-25 | Initial spec |
 | 2026-06-11 | Add `get_all_api_table_symbols` so `check --fix` treats symbols documented under any Public API table (e.g. a bare `### Functions` heading) as already documented |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Preserve complete punctuated symbols in Public API table rows |

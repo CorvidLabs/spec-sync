@@ -25,7 +25,7 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub root: Option<PathBuf>,
 
-    /// Output format: text (default), json, or markdown
+    /// Output format: text, json, markdown, github, table, or csv
     #[arg(long, value_enum, global = true, default_value = "text")]
     pub format: types::OutputFormat,
 
@@ -34,7 +34,7 @@ pub struct Cli {
     pub json: bool,
 
     /// Enforcement mode: warn (default, exit 0), enforce-new (block unspecced files), strict (exit 1 on errors).
-    /// Overrides the `enforcement` field in specsync.json.
+    /// Overrides the `enforcement` field in .specsync/config.toml.
     #[arg(long, value_name = "MODE", global = true)]
     pub enforcement: Option<types::EnforcementMode>,
 
@@ -89,7 +89,7 @@ pub enum Command {
         #[arg(long, value_name = "MODULE", num_args(1..))]
         batch: Vec<String>,
     },
-    /// Create a specsync.json config file
+    /// Create .specsync/config.toml and initialize the verified SDD layout
     Init,
     /// Score spec quality (0-100) with letter grades and improvement suggestions
     Score {
@@ -108,7 +108,7 @@ pub enum Command {
     Watch,
     /// Run as an MCP (Model Context Protocol) server over stdio
     Mcp,
-    /// Scaffold a new spec with companion files (requirements.md, tasks.md, context.md)
+    /// Scaffold a new spec with required companion files and optional design.md
     AddSpec {
         /// Module name for the new spec
         name: String,
@@ -207,7 +207,8 @@ pub enum Command {
     New {
         /// Module name for the new spec
         name: String,
-        /// Also create companion files (tasks.md, context.md, requirements.md)
+        /// Also create required companions (requirements.md, tasks.md, context.md, testing.md)
+        /// and optional design.md when design artifacts are enabled
         #[arg(long)]
         full: bool,
     },

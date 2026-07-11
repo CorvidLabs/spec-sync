@@ -969,6 +969,115 @@ fn check_yaml_with_anchors_and_nested_keys() {
         .stdout(predicate::str::contains("0 failed"));
 }
 
+#[test]
+fn check_github_actions_yaml_with_dotted_exports_passes_strict() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    write_toml_config(&root, "");
+
+    fs::create_dir_all(root.join(".github/workflows")).unwrap();
+    fs::write(
+        root.join(".github/workflows/deploy.yml"),
+        r#"name: Deploy Atlas
+on:
+  workflow_call:
+    inputs:
+      config:
+        required: true
+        type: string
+      working-directory:
+        required: false
+        type: string
+    outputs:
+      atlas-enabled:
+        value: ${{ jobs.deploy-atlas.outputs.enabled }}
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  deploy-atlas:
+    runs-on: ubuntu-latest
+"#,
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/deploy")).unwrap();
+    fs::write(
+        root.join("specs/deploy/deploy.spec.md"),
+        r#"---
+module: deploy
+version: 1
+status: active
+files:
+  - .github/workflows/deploy.yml
+db_tables: []
+depends_on: []
+---
+
+# Deploy
+
+## Purpose
+
+Deploy Atlas through a reusable GitHub Actions workflow.
+
+## Public API
+
+### Exported YAML Symbols
+
+| Symbol | Description |
+|--------|-------------|
+| `name` | Workflow name |
+| `on` | Workflow trigger |
+| `permissions` | Workflow permissions |
+| `jobs` | Workflow jobs |
+| `inputs.config` | Configuration input |
+| `inputs.working-directory` | Working-directory input |
+| `outputs.atlas-enabled` | Atlas output |
+| `permissions.contents` | Contents permission |
+| `permissions.id-token` | Identity-token permission |
+| `jobs.deploy-atlas` | Deployment job |
+
+## Invariants
+
+1. Permissions remain least privilege.
+
+## Behavioral Examples
+
+### Scenario: Deploy
+
+- **Given** a valid configuration
+- **When** the reusable workflow runs
+- **Then** Atlas is deployed
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+| Invalid configuration | The workflow fails |
+
+## Dependencies
+
+None.
+
+## Change Log
+
+| Date | Change |
+|------|--------|
+| 2026-07-11 | Initial contract |
+"#,
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--force", "--strict", "--root"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("10/10 exports documented"))
+        .stdout(predicate::str::contains("0 warning(s)"))
+        .stdout(predicate::str::contains("0 failed"));
+}
+
 // ─── #245: Error messages include config file location ──────────────────
 
 #[test]

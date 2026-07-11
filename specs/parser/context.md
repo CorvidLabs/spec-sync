@@ -5,7 +5,7 @@ spec: parser.spec.md
 ## Key Decisions
 
 - **Zero-dependency YAML**: Frontmatter is parsed line-by-line with regex instead of using a YAML library. This handles the subset of YAML actually used in specs (flat key-value pairs and simple lists) without pulling in a full YAML parser.
-- **First backtick per row**: Only the first backtick-quoted identifier in each markdown table row is extracted as a symbol. This matches the spec convention where the function/type name is always in the first column.
+- **First code span in the first cell**: Only one complete nonempty backtick-delimited symbol occupying the first Markdown table cell is extracted. The parser does not maintain a character allowlist because extractors emit dotted YAML paths, selectors, operators, apostrophes, Unicode, and quoted names with spaces. Empty, unterminated, later-column, and prose spans remain excluded.
 - **Sub-table skipping**: `####` headings containing `Methods`, `Constructor`, or `Properties` inside the Public API section are skipped when extracting symbols to avoid double-counting members of a documented type. In addition, `###` subsections that are not export headers (e.g. `### API Endpoints`, `### Route Handlers`, `### Configuration`) are skipped via an `is_export_header` allowlist.
 - **Deduplication with order preservation**: Extracted symbols are deduplicated while maintaining their order of appearance in the spec.
 - **Case-sensitive section matching**: Required section names are matched exactly (e.g., `## Public API` won't match `## public api`), enforcing consistent spec formatting.
@@ -16,7 +16,7 @@ spec: parser.spec.md
 
 ## Current Status
 
-Fully implemented. The parser is the most heavily depended-on module after types — validator, scoring, and MCP all use it for reading specs.
+Fully implemented. The parser is the most heavily depended-on module after types — validator, scoring, and MCP all use it for reading specs. Public API symbol parsing preserves exact extractor spelling across all supported languages.
 
 ## Notes
 

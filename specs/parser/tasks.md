@@ -12,6 +12,7 @@ spec: parser.spec.md
 
 ## Done
 
+- [x] Preserve complete dotted, hyphenated, operator, selector, Unicode, and space-containing symbols from the first Public API table cell
 - [x] Zero-dependency YAML frontmatter parsing
 - [x] Flat key-value and list field extraction
 - [x] Inline array syntax (`[a, b]`) and multi-line list syntax

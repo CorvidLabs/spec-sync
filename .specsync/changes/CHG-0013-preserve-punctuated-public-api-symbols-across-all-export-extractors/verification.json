@@ -1,0 +1,17 @@
+{
+  "timestamp": 1783807046,
+  "commit": "fffbef561fe7cbcfad669dac1855e711896deca4",
+  "contract_digest": "e4ddfaa45844943cbbbd5b27e78102cc89a48a14f6d0e5c9ae42ed91012511ef",
+  "workspace_digest": "f6c9e71e9105bc98dfffc7a64e4df903d2c3996e7af1d4c6d5da97e3ff426d10",
+  "passed": true,
+  "commands": [
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-parser-001"
+  ]
+}

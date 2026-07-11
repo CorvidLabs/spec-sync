@@ -1,7 +1,7 @@
 ---
 import { getCollection } from 'astro:content'
 import RedirectPage from '../../components/RedirectPage.astro'
-import { HUB_DOCS } from '../../lib/hub'
+import { hubDocsUrl } from '../../lib/hub'
 import { contentSlug } from '../../lib/content'
 
 // Keep enumerating every docs slug (incl. integrations/*) so each retired URL
@@ -10,7 +10,12 @@ export async function getStaticPaths() {
   const entries = await getCollection('docs')
   return entries
     .filter(entry => contentSlug(entry.id) !== 'index')
-    .map(entry => ({ params: { slug: contentSlug(entry.id) } }))
+    .map(entry => {
+      const slug = contentSlug(entry.id)
+      return { params: { slug }, props: { destination: hubDocsUrl(slug) } }
+    })
 }
+
+const { destination } = Astro.props
 ---
-<RedirectPage to={HUB_DOCS} />
+<RedirectPage to={destination} />

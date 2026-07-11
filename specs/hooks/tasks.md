@@ -4,6 +4,8 @@ spec: hooks.spec.md
 
 ## Tasks
 
+## Post-5.0 Roadmap
+
 - [ ] Add Claude Code hook uninstallation (currently refused as too risky)
 - [ ] Add Windsurf/Cline agent instruction support
 - [ ] Add `--check` flag to verify hook content is up-to-date (not just installed)
@@ -25,9 +27,6 @@ spec: hooks.spec.md
 - No hook content versioning — if the built-in instruction text changes, existing installations won't know they're outdated
 - Claude Code hook uninstall is a manual process
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

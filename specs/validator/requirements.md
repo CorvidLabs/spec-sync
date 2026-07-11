@@ -37,3 +37,20 @@ spec: validator.spec.md
 - Validating spec prose quality or completeness (that's the scoring module)
 - Type-checking or semantic validation of source code
 - Validating that spec behavioral examples are accurate
+
+### REQ-validator-001
+
+The validator SHALL enforce bidirectional code-contract, metadata, dependency, schema, and coverage rules while accumulating actionable findings.
+
+Acceptance Criteria
+- Bidirectional validation: spec documents non-existent export = ERROR; code exports undocumented symbol = WARNING
+- Missing frontmatter fields (module, version, status) produce errors, not warnings
+- Cross-project refs (`owner/repo@module` format) are detected and skipped during local validation
+- Coverage computation excludes test files and configured exclude patterns
+- `find_spec_files` returns results sorted by path
+- Schema validation uses configurable regex pattern via `schema_pattern` config
+- File path suggestions use Levenshtein distance with max distance of 3
+- Flat source files (not in subdirectories) are detected as modules, excluding common entry points (main.rs, lib.rs, mod.rs, index.ts, etc.)
+- Source discovery respects `source_extensions` config
+- Requirements companions are validated when present but remain optional for technical/internal modules under adaptive artifact policy.
+

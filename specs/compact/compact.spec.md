@@ -1,6 +1,6 @@
 ---
 module: compact
-version: 2
+version: 3
 status: stable
 files:
   - src/compact.rs
@@ -87,3 +87,4 @@ Reduces changelog table size in spec files by keeping only the last N entries an
 |------|--------|
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-06 | Initial spec for v3.3.0 |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

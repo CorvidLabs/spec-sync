@@ -4,7 +4,10 @@ spec: cmd_comment.spec.md
 
 ## Tasks
 
-- [ ] Add an end-to-end CLI test for stdout mode (`comment` without `--pr`) asserting the rendered markdown body on a fixture project
+- [x] Add an end-to-end CLI test for stdout mode (`comment` without `--pr`) asserting the rendered markdown body on a fixture project — Evidence: `comment_reports_sdd_only_failures`, `comment_reports_sdd_failures_when_no_specs_exist`, and protocol-clean stdout coverage.
+
+## Post-5.0 Roadmap
+
 - [ ] Wire up the currently-unused `_base` parameter (diff base), or remove it if there is no planned use
 
 ## Done
@@ -18,9 +21,6 @@ spec: cmd_comment.spec.md
 - [x] Added end-to-end coverage proving comment mode is quiet while ordinary lifecycle checking still streams configured command output
 - [x] Made project CI capture comment output with quiet Cargo and a defensive UTF-8-safe byte cap
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

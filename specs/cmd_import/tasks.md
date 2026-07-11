@@ -4,6 +4,8 @@ spec: cmd_import.spec.md
 
 ## Tasks
 
+## Post-5.0 Test Debt
+
 - [ ] Add integration coverage for single GitHub import (currently only the no-args error and `--from-dir` flows are tested; GitHub/Jira/Confluence paths require network or mocking).
 - [ ] Add a fixture asserting `companions.design` toggles `design.md` generation on import.
 
@@ -16,9 +18,6 @@ spec: cmd_import.spec.md
 - [x] Success guidance updated to tell users to validate/complete imported details (not fill template markers).
 - [x] Integration coverage: `import_without_args_or_flags_shows_error`, `import_from_dir_imports_markdown_files`, `import_from_dir_skips_existing_specs`, `import_from_dir_nonexistent_directory_errors`.
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

@@ -4,6 +4,8 @@ spec: manifest.spec.md
 
 ## Tasks
 
+## Post-5.0 Roadmap
+
 - [ ] Add CMakeLists.txt support for C/C++ projects
 - [ ] Add .csproj/.sln support for C# projects
 - [ ] Handle Cargo workspace `members` with glob patterns (e.g., `"crates/*"`)
@@ -25,9 +27,6 @@ spec: manifest.spec.md
 - Workspace glob expansion not implemented for Cargo `members` (literal paths only; `package.json` workspace globs like `packages/*` are supported, Cargo's are not)
 - Dependency extraction is only wired up for Cargo (`[dependencies]`) and Swift target `dependencies:`; other manifests leave `dependencies` empty
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

@@ -1,0 +1,74 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783789533,
+      "digest": "db1ebcdaa921ca08431ba03e0a135cc4fd73c7e8db3a72d615ad5b2c384cc1f5",
+      "note": "Release-blocking squash evidence and tag safety scope approved"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783789819,
+      "digest": "376876d75d91383bccab7fe53e11833b36570ee29a53e51983f780a2cc9c4d6f",
+      "note": "Reapproved after adding explicit REQ-change-016 test traceability"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783789860,
+      "digest": "37b0fbd5d41ce04dbd0cf9ca60bb26fa43c0f9a6d47c202c3c214d2e723f9a75",
+      "note": "Final implementation, adversarial tests, archives, and release safeguards approved"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783791810,
+      "digest": "43ed21fc626e90e03c851c2cb07f7db3a57839210eeced5750e397b663606a0e",
+      "note": "Reapproved collision-safe lifecycle evidence, Windows-isolated topology tests, and the 5.0.0 lifecycle stamp"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783793079,
+      "digest": "81742af00842dd802c3d49a2a58e81ea3ff8b71889f91c6c897d73bd060423cc",
+      "note": "Reapproved corrected local evidence and minimal crates.io package scope"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783793239,
+      "digest": "949749db0dc1d00b831bf9d4c4508b3d1dbf42963c882ef74088720ee2b27b85",
+      "note": "Reapproved completed implementation tasks with cross-platform evidence retained as release gates"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783797586,
+      "digest": "3a1bae0f99c523198127921960c16265ebd67a749f5b824c6a285ab3888b34b1",
+      "note": "Reapproved nested-project repository-relative squash evidence after review"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783798558,
+      "digest": "b4f6bef058e327ac271874b5ed2b8306cc5a3fefaea31286ad51fdd3f3e1b5a3",
+      "note": "Reapproved concise README and corrected linked documentation destinations"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783799782,
+      "digest": "00f52e012cd634775cb2d2b79e399508defa5373c34788d7cc40b40da524f09a",
+      "note": "Reapproved durable documentation routing and final 5.0 reference corrections"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783799861,
+      "digest": "363c4f33277b3303d711dd7ee91aefa79529c7206c834c75a6f178de0b08e597",
+      "note": "Accepted final durable documentation routing after full verification"
+    }
+  ]
+}

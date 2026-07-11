@@ -1,3 +1,7 @@
+---
+spec: cmd_rules.spec.md
+---
+
 # cmd_rules — Context
 
 ## Design Decisions

@@ -2,6 +2,14 @@
 spec: ignore.spec.md
 ---
 
+## Post-5.0 Roadmap
+
+- [ ] Per-spec patterns are prefix-only; glob support is not implemented
+
+## Post-5.0 Test Debt
+
+- [ ] No end-to-end integration test that asserts a `.specsyncignore` rule actually suppresses a warning in `specsync check` output
+
 ## Done
 
 - [x] `WarningCategory` enum with `from_str` (aliases, case/`_`-`-` insensitive) and `classify` (text → category)
@@ -14,12 +22,7 @@ spec: ignore.spec.md
 
 ## Open
 
-- [ ] No end-to-end integration test that asserts a `.specsyncignore` rule actually suppresses a warning in `specsync check` output
-- [ ] Per-spec patterns are prefix-only; glob support is not implemented
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

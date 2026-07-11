@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re",
+  "slug": "close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re",
+  "title": "Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps",
+  "description": "Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps",
+  "kind": "bug_fix",
+  "state": "archived",
+  "base_commit": "2e2be74b969e872b4938ea686b66b11afbafc306",
+  "created_at": 1783780326,
+  "updated_at": 1783789708,
+  "affected_specs": [
+    "change",
+    "cmd_comment",
+    "cmd_init"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/commands/comment.rs",
+    "src/commands/init.rs",
+    "tests/integration/change.rs",
+    "tests/integration/comment.rs",
+    "tests/integration/commands.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Accepted and archived evidence remains fresh; subproject roots enforce their own policy and relative diffs; canonical specs require lifecycle coverage; adoption and non-Git initialization are usable; no-spec public contract contradictions fail; empty-spec comments report SDD failures; foreign symlinks are rejected; archive attribution is change-specific; all local and remote gates pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

@@ -6,7 +6,7 @@ spec: rehash.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/rehash.rs` | cargo test commands::rehash | No inline tests found; add focused coverage for `cmd_rehash`, `load_and_discover` before risky changes |
+| `src/commands/rehash.rs` | `cargo test commands::rehash` | `discover_spec_files_honors_config_and_excludes_templates`, `cmd_rehash_rebuilds_a_fresh_cache` |
 
 ## Coverage Gaps
 

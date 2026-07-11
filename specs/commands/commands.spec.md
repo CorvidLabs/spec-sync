@@ -1,19 +1,30 @@
 ---
 module: commands
-version: 6
+version: 7
 status: stable
 files:
   - src/commands/mod.rs
 db_tables: []
 tracks: []
 depends_on:
+  - specs/agents/agents.spec.md
+  - specs/change/change.spec.md
+  - specs/changelog/changelog.spec.md
+  - specs/comment/comment.spec.md
+  - specs/compact/compact.spec.md
   - specs/config/config.spec.md
+  - specs/deps/deps.spec.md
+  - specs/github/github.spec.md
+  - specs/hooks/hooks.spec.md
   - specs/ignore/ignore.spec.md
+  - specs/merge/merge.spec.md
+  - specs/parser/parser.spec.md
+  - specs/rehash/rehash.spec.md
   - specs/schema/schema.spec.md
   - specs/scoring/scoring.spec.md
   - specs/types/types.spec.md
   - specs/validator/validator.spec.md
-  - specs/github/github.spec.md
+  - specs/view/view.spec.md
 ---
 
 # Commands
@@ -24,7 +35,7 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 
 ## Public API
 
-### Exported Functions
+**Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
@@ -33,12 +44,12 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 | `filter_specs` | `root: &Path, spec_files: &[PathBuf], filters: &[String]` | `Vec<PathBuf>` | Filter spec files by user-provided names/paths (exact path, relative path, filename, module name); returns all if filters is empty |
 | `filter_by_status` | `spec_files: &[PathBuf], exclude: &[String], only: &[String]` | `Vec<PathBuf>` | Filter spec files by their frontmatter status field; supports exclude-list and allow-list modes |
 | `build_schema_columns` | `root: &Path, config: &SpecSyncConfig` | `HashMap<String, SchemaTable>` | Build column-level schema from migration files if `schema_dir` is configured |
-| `run_validation` | `root, spec_files, schema_tables, schema_columns, config, collect, explain, ignore_rules` | `(usize, usize, usize, usize, Vec<String>, Vec<String>)` | Run validation on all spec files returning (errors, warnings, passed, total, error_strings, warning_strings); contains full text rendering logic |
+| `run_validation` | `root: &Path, spec_files: &[PathBuf], schema_tables: &HashSet<String>, schema_columns: &HashMap<String, schema::SchemaTable>, config: &types::SpecSyncConfig, collect: bool, explain: bool, ignore_rules: &IgnoreRules` | `(usize, usize, usize, usize, Vec<String>, Vec<String>)` | Run validation on all spec files returning (errors, warnings, passed, total, error_strings, warning_strings); contains full text rendering logic |
 | `compute_exit_code` | `total_errors, total_warnings, strict, enforcement, coverage, require_coverage` | `i32` | Compute exit code without printing or exiting based on enforcement mode |
 | `exit_with_status` | `total_errors, total_warnings, strict, enforcement, coverage, require_coverage` | `!` | Same as `compute_exit_code` but prints messages and calls `process::exit()` |
 | `create_drift_issues` | `root, config, all_errors, format` | `()` | Create GitHub issues for specs with validation errors, grouping errors by spec path |
 
-### Re-exported Submodules
+**Re-exported Submodules**
 
 | Module | Description |
 |--------|-------------|
@@ -115,7 +126,7 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 
 ## Dependencies
 
-### Consumes
+**Consumes**
 
 | Module | What is used |
 |--------|-------------|
@@ -127,7 +138,7 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 | validator | `find_spec_files`, `validate_spec` |
 | github | `resolve_repo`, `create_drift_issue` |
 
-### Consumed By
+**Consumed By**
 
 | Module | What is used |
 |--------|-------------|
@@ -142,6 +153,10 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 | cmd_stale | `load_and_discover` |
 | cmd_diff | `load_and_discover` |
 
+**Frontmatter Synchronization**
+
+Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/agents/agents.spec.md`, `specs/change/change.spec.md`, `specs/changelog/changelog.spec.md`, `specs/comment/comment.spec.md`, `specs/compact/compact.spec.md`, `specs/deps/deps.spec.md`, `specs/hooks/hooks.spec.md`, `specs/merge/merge.spec.md`, `specs/parser/parser.spec.md`, `specs/rehash/rehash.spec.md`, `specs/view/view.spec.md`. This YAML frontmatter update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
+
 ## Change Log
 
 | Date | Change |
@@ -153,3 +168,4 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 | 2026-04-09 | Initial spec |
 | 2026-04-11 | Add lifecycle submodule and filter_by_status function |
 | 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

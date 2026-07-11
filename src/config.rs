@@ -340,7 +340,7 @@ fn toml_unescape(s: &str) -> String {
 /// Serialize a SpecSyncConfig to TOML format string.
 pub fn config_to_toml(config: &SpecSyncConfig) -> String {
     let mut lines: Vec<String> = Vec::new();
-    lines.push("# spec-sync v4 configuration".to_string());
+    lines.push("# spec-sync configuration".to_string());
     lines.push("# Docs: https://github.com/CorvidLabs/spec-sync".to_string());
     lines.push(String::new());
 
@@ -2131,6 +2131,12 @@ verify_issues = false
             toml_str.contains("design = true"),
             "should contain design = true"
         );
+    }
+
+    #[test]
+    fn test_config_to_toml_uses_version_neutral_header() {
+        let serialized = config_to_toml(&SpecSyncConfig::default());
+        assert_eq!(serialized.lines().next(), Some("# spec-sync configuration"));
     }
 
     /// Write `config_to_toml(config)` to a temp `.specsync.toml`, load it back

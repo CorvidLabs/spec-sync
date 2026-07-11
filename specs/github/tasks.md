@@ -2,6 +2,10 @@
 spec: github.spec.md
 ---
 
+## Post-5.0 Test Debt
+
+- [ ] No automated coverage for the REST/`gh` network paths (only URL parsing is unit-tested); these remain manual/integration-only
+
 ## Done
 
 - [x] `detect_repo` / `parse_repo_from_url` — auto-detect `owner/repo` from SSH and HTTP(S) git remotes
@@ -15,11 +19,7 @@ spec: github.spec.md
 
 ## Open
 
-- [ ] No automated coverage for the REST/`gh` network paths (only URL parsing is unit-tested); these remain manual/integration-only
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

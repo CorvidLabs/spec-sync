@@ -1,6 +1,6 @@
 ---
 module: cmd_init
-version: 7
+version: 8
 status: stable
 files:
   - src/commands/init.rs
@@ -8,6 +8,7 @@ db_tables: []
 tracks: []
 depends_on:
   - specs/config/config.spec.md
+  - specs/types/types.spec.md
 ---
 
 # Cmd Init
@@ -56,17 +57,21 @@ Implements `specsync init`. Creates the 5.0 `.specsync/` layout with detected so
 
 ## Dependencies
 
-### Consumes
+**Consumes**
 
 | Module | What is used |
 |--------|-------------|
 | config | `detect_source_dirs`, `config_to_toml` |
 
-### Consumed By
+**Consumed By**
 
 | Module | What is used |
 |--------|-------------|
 | cli (main.rs) | Entry point for `specsync init` |
+
+**Frontmatter Synchronization**
+
+Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/types/types.spec.md`. This YAML frontmatter update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
 
 ## Change Log
 
@@ -79,3 +84,4 @@ Implements `specsync init`. Creates the 5.0 `.specsync/` layout with detected so
 | 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
 | 2026-07-11 | CHG-0004-close-final-pr-review-gaps-in-5-0-lifecycle-enforcement: Close final PR review gaps in 5.0 lifecycle enforcement |
 | 2026-07-11 | CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re: Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

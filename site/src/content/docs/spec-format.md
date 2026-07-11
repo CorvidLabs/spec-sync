@@ -39,7 +39,7 @@ depends_on:
 
 | Field | Type | Description |
 |:------|:-----|:------------|
-| `db_tables` | `string[]` | Validated against `CREATE TABLE` statements in your `schemaDir` |
+| `db_tables` | `string[]` | Validated against `CREATE TABLE` statements in your `schema_dir` |
 | `depends_on` | `string[]` | Local paths or cross-project refs — validated for existence |
 
 `depends_on` supports two formats:

@@ -289,20 +289,146 @@ pub fn extract_imports(file_path: &Path, content: &str) -> HashSet<String> {
 }
 
 fn extract_rust_imports(content: &str) -> HashSet<String> {
+    let stripped = strip_rust_non_code(content);
     let mut modules = HashSet::new();
 
-    for caps in RUST_USE.captures_iter(content) {
+    for caps in RUST_USE.captures_iter(&stripped) {
         if let Some(m) = caps.get(1) {
             modules.insert(m.as_str().to_string());
         }
     }
-    for caps in RUST_MOD.captures_iter(content) {
+    for caps in RUST_MOD.captures_iter(&stripped) {
         if let Some(m) = caps.get(1) {
             modules.insert(m.as_str().to_string());
         }
     }
 
     modules
+}
+
+/// Replace Rust comments and string/byte-string literals with spaces while
+/// preserving line breaks and byte offsets. Rust block comments can nest, and
+/// raw strings can use any number of `#` delimiters, so regex stripping would
+/// either miss valid forms or consume adjacent code.
+fn strip_rust_non_code(content: &str) -> String {
+    let bytes = content.as_bytes();
+    let mut output = bytes.to_vec();
+    let mut index = 0;
+
+    while index < bytes.len() {
+        if bytes[index..].starts_with(b"//") {
+            let start = index;
+            index += 2;
+            while index < bytes.len() && bytes[index] != b'\n' {
+                index += 1;
+            }
+            blank_rust_span(&mut output, start, index);
+            continue;
+        }
+        if bytes[index..].starts_with(b"/*") {
+            let start = index;
+            index += 2;
+            let mut depth = 1_usize;
+            while index < bytes.len() && depth > 0 {
+                if bytes[index..].starts_with(b"/*") {
+                    depth += 1;
+                    index += 2;
+                } else if bytes[index..].starts_with(b"*/") {
+                    depth -= 1;
+                    index += 2;
+                } else {
+                    index += 1;
+                }
+            }
+            blank_rust_span(&mut output, start, index);
+            continue;
+        }
+
+        if rust_token_boundary(bytes, index)
+            && let Some((quote, hashes)) = rust_raw_string_start(bytes, index)
+        {
+            let start = index;
+            index = quote + 1;
+            while index < bytes.len() {
+                if bytes[index] == b'"'
+                    && index + 1 + hashes <= bytes.len()
+                    && bytes[index + 1..index + 1 + hashes]
+                        .iter()
+                        .all(|byte| *byte == b'#')
+                {
+                    index += 1 + hashes;
+                    break;
+                }
+                index += 1;
+            }
+            blank_rust_span(&mut output, start, index);
+            continue;
+        }
+
+        if rust_token_boundary(bytes, index) {
+            let quote = if bytes[index] == b'"' {
+                Some(index)
+            } else if bytes[index..].starts_with(b"b\"") {
+                Some(index + 1)
+            } else {
+                None
+            };
+            if let Some(quote) = quote {
+                let start = index;
+                index = quote + 1;
+                while index < bytes.len() {
+                    if bytes[index] == b'\\' {
+                        index = (index + 2).min(bytes.len());
+                    } else if bytes[index] == b'"' {
+                        index += 1;
+                        break;
+                    } else {
+                        index += 1;
+                    }
+                }
+                blank_rust_span(&mut output, start, index);
+                continue;
+            }
+        }
+
+        index += 1;
+    }
+
+    // Only ASCII bytes are replaced, so the original UTF-8 boundaries remain.
+    String::from_utf8(output).unwrap_or_default()
+}
+
+fn rust_token_boundary(bytes: &[u8], index: usize) -> bool {
+    index == 0 || !bytes[index - 1].is_ascii_alphanumeric() && bytes[index - 1] != b'_'
+}
+
+/// Return `(opening_quote_index, delimiter_hash_count)` for `r"..."`,
+/// `r###"..."###`, `br#"..."#`, and the accepted `rb#"..."#` spelling.
+fn rust_raw_string_start(bytes: &[u8], index: usize) -> Option<(usize, usize)> {
+    let mut cursor = index;
+    if bytes
+        .get(cursor..cursor + 2)
+        .is_some_and(|prefix| prefix == b"br" || prefix == b"rb")
+    {
+        cursor += 2;
+    } else if bytes.get(cursor) == Some(&b'r') {
+        cursor += 1;
+    } else {
+        return None;
+    }
+    let hashes_start = cursor;
+    while bytes.get(cursor) == Some(&b'#') {
+        cursor += 1;
+    }
+    (bytes.get(cursor) == Some(&b'"')).then_some((cursor, cursor - hashes_start))
+}
+
+fn blank_rust_span(output: &mut [u8], start: usize, end: usize) {
+    for byte in &mut output[start..end] {
+        if *byte != b'\n' && *byte != b'\r' {
+            *byte = b' ';
+        }
+    }
 }
 
 fn extract_ts_imports(content: &str) -> HashSet<String> {
@@ -340,6 +466,7 @@ fn check_undeclared_imports(
     report: &mut DepsReport,
 ) {
     let known_modules: HashSet<&str> = graph.keys().map(|k| k.as_str()).collect();
+    let rust_owners = rust_module_owners(graph);
 
     for node in graph.values() {
         let declared: HashSet<&str> = node.declared_deps.iter().map(|d| d.as_str()).collect();
@@ -368,7 +495,19 @@ fn check_undeclared_imports(
                 }
             };
             let file_imports = extract_imports(&full_path, &content);
-            actual_imports.extend(file_imports);
+            if full_path
+                .extension()
+                .and_then(|extension| extension.to_str())
+                == Some("rs")
+            {
+                actual_imports.extend(
+                    file_imports
+                        .into_iter()
+                        .map(|import| rust_owners.get(&import).cloned().unwrap_or(import)),
+                );
+            } else {
+                actual_imports.extend(file_imports);
+            }
         }
 
         // Only flag imports that correspond to known spec modules
@@ -388,6 +527,49 @@ fn check_undeclared_imports(
             }
         }
     }
+}
+
+/// Map a top-level Rust module token to the spec that owns its canonical module
+/// entry file. This keeps source topology (`crate::cli`) distinct from spec
+/// naming (`cli_args`) without hard-coded aliases.
+fn rust_module_owners(graph: &HashMap<String, DepNode>) -> HashMap<String, String> {
+    let mut candidates: HashMap<String, HashSet<String>> = HashMap::new();
+    for node in graph.values() {
+        for file in &node.files {
+            let normalized = file.replace('\\', "/");
+            let Some(relative) = normalized.strip_prefix("src/") else {
+                continue;
+            };
+            let module = if let Some(stem) = relative.strip_suffix(".rs")
+                && !stem.contains('/')
+                && !matches!(stem, "main" | "lib" | "mod")
+            {
+                Some(stem)
+            } else if let Some(module) = relative.strip_suffix("/mod.rs")
+                && !module.contains('/')
+            {
+                Some(module)
+            } else {
+                None
+            };
+            if let Some(module) = module {
+                candidates
+                    .entry(module.to_string())
+                    .or_default()
+                    .insert(node.module.clone());
+            }
+        }
+    }
+    candidates
+        .into_iter()
+        .filter_map(|(module, owners)| {
+            if owners.len() == 1 {
+                owners.into_iter().next().map(|owner| (module, owner))
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 /// Format the dependency report as a printable summary.
@@ -734,6 +916,98 @@ mod tests {
         assert!(imports.contains("types"));
         assert!(imports.contains("config"));
         assert!(imports.contains("exports"));
+    }
+
+    #[test]
+    fn test_extract_rust_imports_ignores_comments_and_all_string_forms() {
+        let imports = extract_rust_imports(
+            r#####"
+// use crate::line_comment;
+/* use crate::block_comment;
+   /* mod nested_comment; */
+*/
+const ORDINARY: &str = "use crate::ordinary; mod ordinary_mod; \"escaped\"";
+const BYTE: &[u8] = b"use crate::byte_string; mod byte_mod; \\";
+const RAW: &str = r"use crate::raw_string; mod raw_mod;";
+const RAW_HASH: &str = r###"use crate::raw_hash; "## mod raw_hash_mod;"###;
+const BYTE_RAW: &[u8] = br##"use crate::byte_raw; mod byte_raw_mod;"##;
+const RAW_BYTE: &[u8] = rb#"use crate::raw_byte; mod raw_byte_mod;"#;
+
+use crate::real_import::Value;
+pub mod real_module;
+"#####,
+        );
+
+        assert_eq!(
+            imports,
+            HashSet::from(["real_import".to_string(), "real_module".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_extract_rust_imports_preserves_code_after_nested_raw_hashes_and_escapes() {
+        let imports = extract_rust_imports(
+            r####"
+const FIRST: &str = r##"embedded "# and // and /* markers"##;
+const SECOND: &[u8] = b"escaped quote: \"; use crate::not_code;";
+use crate::after_literals;
+/* outer /* use crate::nested; */ still comment */
+mod after_comment;
+"####,
+        );
+
+        assert!(imports.contains("after_literals"));
+        assert!(imports.contains("after_comment"));
+        assert_eq!(imports.len(), 2);
+    }
+
+    #[test]
+    fn test_rust_imports_map_to_source_owning_spec_module() {
+        let tmp = TempDir::new().unwrap();
+        create_source(
+            tmp.path(),
+            "src/commands.rs",
+            "use crate::cli::Command;\npub fn run() {}\n",
+        );
+        create_source(tmp.path(), "src/cli.rs", "pub struct Command;\n");
+        create_spec(tmp.path(), "commands", &[], &["src/commands.rs"]);
+        create_spec(tmp.path(), "cli_args", &[], &["src/cli.rs"]);
+        create_spec(tmp.path(), "cli", &[], &["src/main.rs"]);
+        create_source(tmp.path(), "src/main.rs", "fn main() {}\n");
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert!(
+            report
+                .undeclared_imports
+                .contains(&("commands".to_string(), "cli_args".to_string())),
+            "expected crate::cli to resolve to cli_args: {:?}",
+            report.undeclared_imports
+        );
+        assert!(
+            !report
+                .undeclared_imports
+                .contains(&("commands".to_string(), "cli".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_rust_mod_rs_import_maps_to_source_owning_spec_module() {
+        let tmp = TempDir::new().unwrap();
+        create_source(
+            tmp.path(),
+            "src/caller.rs",
+            "use crate::config::Settings;\n",
+        );
+        create_source(tmp.path(), "src/config/mod.rs", "pub struct Settings;\n");
+        create_spec(tmp.path(), "caller", &[], &["src/caller.rs"]);
+        create_spec(tmp.path(), "settings", &[], &["src/config/mod.rs"]);
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert!(
+            report
+                .undeclared_imports
+                .contains(&("caller".to_string(), "settings".to_string()))
+        );
     }
 
     #[test]

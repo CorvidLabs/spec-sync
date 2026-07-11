@@ -4,6 +4,8 @@ spec: cmd_score.spec.md
 
 ## Tasks
 
+## Post-5.0 Test Debt
+
 - [ ] Add an integration test asserting `--explain` text output shows per-criterion ✓/✗ lines
 
 ## Done
@@ -19,9 +21,6 @@ spec: cmd_score.spec.md
 - `src/commands/score.rs` has no inline `#[cfg(test)]` module; coverage is via `tests/integration.rs`
 - No focused assertion for the `--explain` per-criterion breakdown rendering
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

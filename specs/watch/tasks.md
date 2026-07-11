@@ -4,6 +4,8 @@ spec: watch.spec.md
 
 ## Tasks
 
+## Post-5.0 Roadmap
+
 - [ ] Add `--filter` flag to watch only specific spec or source directories
 - [ ] Add desktop notification support on check failure (via `notify-rust` or similar)
 - [ ] Support incremental re-validation (only check specs affected by changed files)
@@ -24,9 +26,6 @@ spec: watch.spec.md
 - No integration with editor/IDE for inline diagnostics
 - Re-runs full check on every change — no incremental validation
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

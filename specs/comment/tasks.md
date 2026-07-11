@@ -21,9 +21,6 @@ spec: comment.spec.md
 - [x] Add explicit local reproduction guidance to truncated comments
 - [x] Add focused oversized-Unicode renderer coverage
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

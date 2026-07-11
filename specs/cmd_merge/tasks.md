@@ -4,7 +4,7 @@ spec: cmd_merge.spec.md
 
 ## Tasks
 
-- [ ] Add integration tests for this command's CLI behavior
+- [x] Add integration tests for this command's CLI behavior — Evidence: `merge_never_writes_corrupt_spec_for_fence_hunk` and `merge_resolves_interior_field_conflict`.
 
 ## Done
 
@@ -15,9 +15,6 @@ spec: cmd_merge.spec.md
 
 - No dedicated test file for this command module
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

@@ -34,7 +34,7 @@ spec: exports.spec.md
 |------|-----------------|--------|-----------------|
 | Extract TypeScript exports | a `.ts` file containing `export function authenticate(token: string): User` | `get_exported_symbols(path)` is called | includes "authenticate" in the returned vector |
 | Extract Rust pub items | a `.rs` file containing `pub fn validate_spec(...)` | `get_exported_symbols(path)` is called | includes "validate_spec" in the returned vector |
-| Unsupported file type | an unsupported file (e.g., `.lua`) | `get_exported_symbols(path)` is called | returns an empty vector |
+| Unsupported file type | an unsupported file (e.g., `.txt`) | `get_exported_symbols(path)` is called | returns an empty vector |
 | Extract PHP exports with visibility | a `.php` file with a `class AuthService` containing `public function validate()`, `private function internalCheck()`, and `public const DEFAULT_TTL` | `get_exported_symbols(path)` is called | includes "AuthService", "validate", "DEFAULT_TTL" but not "internalCheck" |
 | Ruby visibility toggles | a `.rb` file with `class Foo` containing `def public_method` then `private` then `def secret_method` | `get_exported_symbols(path)` is called | includes "Foo" and "public_method" but not "secret_method" |
 | Python __all__ takes precedence | a `.py` file with `__all__ = ["create_auth", "AuthService"]` and additional top-level functions | `get_exported_symbols(path)` is called | returns only the symbols listed in `__all__`, not all top-level definitions |

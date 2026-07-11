@@ -5,15 +5,15 @@ spec: util.spec.md
 ## Tasks
 
 - [x] Document shared utility helpers in a dedicated spec
-- [ ] Add boundary tests for very large regex patterns if the regex crate exposes stable size-limit errors
 
 ## Gaps
 
 - `safe_regex` currently tests invalid syntax and valid patterns; oversized compiled-regex behavior depends on regex crate internals and is not covered directly.
 
-## Review Sign-offs
+## Post-5.0 Test Debt
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+- [ ] Add boundary tests for very large regex patterns if the regex crate exposes stable size-limit errors
+
+## Review Status
+
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

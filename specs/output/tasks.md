@@ -2,6 +2,10 @@
 spec: output.spec.md
 ---
 
+## Post-5.0 Test Debt
+
+- [ ] No direct unit tests for `print_coverage_report` / `print_check_markdown` / `print_diff_markdown` — covered only indirectly via integration fixtures (`diff_human_readable_output`, `score_*`)
+
 ## Done
 
 - [x] `print_summary` / `print_coverage_line` / `print_coverage_report` colored terminal output
@@ -13,11 +17,7 @@ spec: output.spec.md
 
 ## Open
 
-- [ ] No direct unit tests for `print_coverage_report` / `print_check_markdown` / `print_diff_markdown` — covered only indirectly via integration fixtures (`diff_human_readable_output`, `score_*`)
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

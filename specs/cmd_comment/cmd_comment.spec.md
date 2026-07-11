@@ -1,15 +1,18 @@
 ---
 module: cmd_comment
-version: 4
+version: 5
 status: stable
 files:
   - src/commands/comment.rs
 db_tables: []
 tracks: []
 depends_on:
+  - specs/change/change.spec.md
   - specs/commands/commands.spec.md
   - specs/comment/comment.spec.md
   - specs/github/github.spec.md
+  - specs/ignore/ignore.spec.md
+  - specs/types/types.spec.md
   - specs/validator/validator.spec.md
 ---
 
@@ -23,11 +26,11 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 
 ## Public API
 
-### Exported Functions
+**Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `cmd_comment` | `root: &Path, pr: Option<u64>, _base: &str` | `()` | Generate check summary; post as PR comment if `--pr N` is set, otherwise print to stdout |
+| `cmd_comment` | `root: &Path, pr: Option<u64>, _base: &str, strict: bool, enforcement: Option<types::EnforcementMode>, require_coverage: Option<usize>` | `()` | Generate check summary; post as PR comment if `--pr N` is set, otherwise print to stdout |
 
 ## Invariants
 
@@ -73,7 +76,7 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 
 ## Dependencies
 
-### Consumes
+**Consumes**
 
 | Module | What is used |
 |--------|-------------|
@@ -82,11 +85,15 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 | github | `resolve_repo` |
 | validator | `validate_spec`, `compute_coverage` |
 
-### Consumed By
+**Consumed By**
 
 | Module | What is used |
 |--------|-------------|
 | cli (main.rs) | Entry point for `specsync comment` |
+
+**Frontmatter Synchronization**
+
+Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/change/change.spec.md`, `specs/ignore/ignore.spec.md`, `specs/types/types.spec.md`. This YAML frontmatter update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
 
 ## Change Log
 
@@ -97,3 +104,4 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 | 2026-07-11 | CHG-0005-close-final-fail-closed-review-gaps-in-5-0-lifecycle-evidence-and-pr-reporting: Close final fail-closed review gaps in 5.0 lifecycle evidence and PR reporting |
 | 2026-07-11 | CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re: Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

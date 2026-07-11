@@ -4,8 +4,11 @@ spec: cmd_check.spec.md
 
 ## Tasks
 
+- [x] Add an integration test asserting the hash cache skips unchanged specs on a second run — Evidence: `check_skips_unchanged_specs`.
+
+## Post-5.0 Test Debt
+
 - [ ] Add a CLI integration test for `check --stale` against a temp git repo (current stale-subcommand tests don't cover `check --stale`)
-- [ ] Add an integration test asserting the hash cache skips unchanged specs on a second run
 
 ## Done
 
@@ -21,9 +24,6 @@ spec: cmd_check.spec.md
 - `src/commands/check.rs` has no inline `#[cfg(test)]` module; coverage is via `tests/integration.rs`
 - No integration test directly drives `check --stale` (only the standalone `stale` subcommand is tested)
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

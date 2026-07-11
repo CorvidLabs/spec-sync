@@ -4,6 +4,8 @@ spec: registry.spec.md
 
 ## Tasks
 
+## Post-5.0 Roadmap
+
 - [ ] Support authenticated GitHub API requests for private repo registries
 - [ ] Add registry caching to avoid re-fetching on every resolve
 - [ ] Support non-GitHub hosts (GitLab, Bitbucket raw content URLs)
@@ -27,9 +29,6 @@ spec: registry.spec.md
 - Private repos are inaccessible (no auth token support)
 - No validation of registry TOML structure (malformed files fail silently)
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

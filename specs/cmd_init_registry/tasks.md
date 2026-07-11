@@ -4,7 +4,11 @@ spec: cmd_init_registry.spec.md
 
 ## Tasks
 
-- [ ] Add an integration test for `init-registry` (creation, `--name` override, and no-overwrite of an existing registry). No fixtures currently exist.
+- [x] Add integration coverage for `init-registry` creation and no-overwrite behavior — Evidence: `init_registry_uses_v4_path_in_migrated_project`, `init_registry_keeps_legacy_path_for_legacy_project`, and `init_registry_is_idempotent_for_v4_registry`.
+
+## Post-5.0 Test Debt
+
+- [ ] Add integration coverage for the `init-registry --name` override.
 
 ## Done
 
@@ -17,9 +21,6 @@ spec: cmd_init_registry.spec.md
 
 - No integration or inline unit tests target `src/commands/init_registry.rs`. Registry generation logic itself is covered in the `registry` module's tests.
 
-## Review Sign-offs
+## Review Status
 
-- **Product**: pending
-- **QA**: pending
-- **Design**: n/a
-- **Dev**: pending
+Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.

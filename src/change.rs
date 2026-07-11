@@ -16,6 +16,44 @@ const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
 const MAX_CHANGE_ARTIFACT_BYTES: u64 = 4 * 1024 * 1024;
 static EFFECTIVE_CONTRACT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+const DEFINITION_DIGEST_DOMAIN: &[u8] = b"specsync.definition-digest.v2";
+const PROJECT_DIGEST_DOMAIN: &[u8] = b"specsync.project-input-digest.v2";
+const ACCEPTANCE_DIGEST_DOMAIN: &[u8] = b"specsync.acceptance-input-digest.v2";
+const CLOSING_DIGEST_DOMAIN: &[u8] = b"specsync.closing-digest.v2";
+
+struct FramedDigest {
+    hasher: Sha256,
+}
+
+impl FramedDigest {
+    fn new(domain: &[u8]) -> Self {
+        let mut digest = Self {
+            hasher: Sha256::new(),
+        };
+        digest.frame(b"domain", domain);
+        digest
+    }
+
+    fn frame(&mut self, tag: &[u8], value: &[u8]) {
+        self.hasher.update((tag.len() as u64).to_be_bytes());
+        self.hasher.update(tag);
+        self.hasher.update((value.len() as u64).to_be_bytes());
+        self.hasher.update(value);
+    }
+
+    fn entry(&mut self, path: &str, kind: &[u8], mode: u32, content: &[u8]) {
+        self.frame(b"entry", b"");
+        self.frame(b"path", path.as_bytes());
+        self.frame(b"kind", kind);
+        self.frame(b"mode", &mode.to_be_bytes());
+        self.frame(b"content", content);
+    }
+
+    fn finish(self) -> String {
+        format!("{:x}", self.hasher.finalize())
+    }
+}
+
 struct ProjectLock {
     file: fs::File,
 }
@@ -2325,9 +2363,10 @@ fn definition_digest(root: &Path, record: &ChangeRecord) -> Result<String, Strin
     let mut canonical_record = record.clone();
     canonical_record.state = ChangeState::Draft;
     canonical_record.updated_at = 0;
-    let mut hasher = Sha256::new();
-    hasher.update(
-        serde_json::to_vec(&canonical_record)
+    let mut digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
+    digest.frame(
+        b"record",
+        &serde_json::to_vec(&canonical_record)
             .map_err(|error| format!("failed to hash change state: {error}"))?,
     );
     let mut files = Vec::new();
@@ -2343,6 +2382,7 @@ fn definition_digest(root: &Path, record: &ChangeRecord) -> Result<String, Strin
         files.push(safe_project_path(root, &principles)?);
     }
     files.sort();
+    let git_modes = git_index_modes(root)?;
     for path in files {
         let metadata = fs::metadata(&path)
             .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
@@ -2353,52 +2393,61 @@ fn definition_digest(root: &Path, record: &ChangeRecord) -> Result<String, Strin
                 path.display()
             ));
         }
+        let relative = strict_portable_project_path(root, &path)?;
         let content = fs::read(&path)
             .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
-        hasher.update(portable_project_path(root, &path).as_bytes());
-        hasher.update([0]);
-        hasher.update(content);
+        let (kind, mode) = digest_file_kind_and_mode(&relative, &path, &git_modes)?;
+        digest.entry(&relative, kind, mode, &content);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(digest.finish())
 }
 
 fn project_input_digest(root: &Path) -> Result<String, String> {
-    let mut paths = git_project_paths(root).unwrap_or_else(|| walk_project_paths(root));
+    let mut paths = match git_project_paths(root)? {
+        Some(paths) => paths,
+        None => strict_walk_project_paths(root)?,
+    };
     paths.sort();
     paths.dedup();
-    let mut hasher = Sha256::new();
+    let git_modes = git_index_modes(root)?;
+    let mut digest = FramedDigest::new(PROJECT_DIGEST_DOMAIN);
     for relative in paths {
         if project_input_is_volatile(&relative) {
             continue;
         }
         let path = root.join(&relative);
-        hasher.update(relative.as_bytes());
-        hasher.update([0]);
         match fs::symlink_metadata(&path) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
                 let target = fs::read_link(&path).map_err(|error| {
                     format!("failed to read symlink {}: {error}", path.display())
                 })?;
-                hasher.update(b"SYMLINK\0");
-                hasher.update(target.to_string_lossy().as_bytes());
+                let target = target.to_str().ok_or_else(|| {
+                    format!(
+                        "non-UTF-8 symlink target cannot be hashed portably: {}",
+                        path.display()
+                    )
+                })?;
+                digest.entry(&relative, b"symlink", 0o120000, target.as_bytes());
             }
             Ok(metadata) if metadata.is_file() => {
                 let content = fs::read(&path)
                     .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
-                hasher.update(content);
+                let (kind, mode) = digest_file_kind_and_mode(&relative, &path, &git_modes)?;
+                digest.entry(&relative, kind, mode, &content);
             }
-            Ok(_) => hasher.update(b"NON_FILE"),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => hasher.update(b"MISSING"),
+            Ok(_) => digest.entry(&relative, b"non-file", 0, b""),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                digest.entry(&relative, b"missing", 0, b"")
+            }
             Err(error) => {
                 return Err(format!("failed to inspect {}: {error}", path.display()));
             }
         }
-        hasher.update([0]);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(digest.finish())
 }
 
-fn git_project_paths(root: &Path) -> Option<Vec<String>> {
+fn git_project_paths(root: &Path) -> Result<Option<Vec<String>>, String> {
     let output = Command::new("git")
         .args([
             "ls-files",
@@ -2409,21 +2458,24 @@ fn git_project_paths(root: &Path) -> Option<Vec<String>> {
         ])
         .current_dir(root)
         .output()
-        .ok()?;
+        .map_err(|error| format!("failed to enumerate Git project paths: {error}"))?;
     if !output.status.success() {
-        return None;
+        return Ok(None);
     }
-    Some(
-        output
-            .stdout
-            .split(|byte| *byte == 0)
-            .filter(|path| !path.is_empty())
-            .map(|path| String::from_utf8_lossy(path).replace('\\', "/"))
-            .collect(),
-    )
+    output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|path| !path.is_empty())
+        .map(|path| {
+            let path = std::str::from_utf8(path)
+                .map_err(|_| "non-UTF-8 Git path cannot be hashed portably".to_string())?;
+            strict_portable_relative_path(path)
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
 }
 
-fn walk_project_paths(root: &Path) -> Vec<String> {
+fn strict_walk_project_paths(root: &Path) -> Result<Vec<String>, String> {
     walkdir::WalkDir::new(root)
         .follow_links(false)
         .into_iter()
@@ -2433,8 +2485,11 @@ fn walk_project_paths(root: &Path) -> Vec<String> {
         })
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_file() || entry.file_type().is_symlink())
-        .map(|entry| portable_project_path(root, entry.path()))
-        .filter(|path| !project_input_is_volatile(path))
+        .map(|entry| strict_portable_project_path(root, entry.path()))
+        .filter(|path| {
+            path.as_ref()
+                .map_or(true, |path| !project_input_is_volatile(path))
+        })
         .collect()
 }
 
@@ -2456,16 +2511,164 @@ fn project_input_is_volatile(path: &str) -> bool {
     .any(|prefix| path == prefix.trim_end_matches('/') || path.starts_with(prefix))
 }
 
-fn closing_digest(record: &ChangeRecord, verification: &VerificationRecord) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(record.id.as_bytes());
-    hasher.update(verification.contract_digest.as_bytes());
-    hasher.update(verification.workspace_digest.as_bytes());
-    hasher.update(verification.commit.as_deref().unwrap_or("").as_bytes());
-    if let Some(digest) = &verification.acceptance_input_digest {
-        hasher.update(digest.as_bytes());
+fn strict_portable_relative_path(path: &str) -> Result<String, String> {
+    if path.contains('\\') {
+        return Err(format!(
+            "project path is not portable because it contains a backslash: `{path}`"
+        ));
     }
-    format!("{:x}", hasher.finalize())
+    let path = Path::new(path);
+    if path.is_absolute()
+        || path
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(format!(
+            "project path is not a portable relative path: `{}`",
+            path.display()
+        ));
+    }
+    let mut components = Vec::new();
+    for component in path.components() {
+        let component = component.as_os_str().to_str().ok_or_else(|| {
+            format!(
+                "non-UTF-8 project path cannot be hashed portably: {}",
+                path.display()
+            )
+        })?;
+        components.push(component);
+    }
+    Ok(components.join("/"))
+}
+
+fn strict_portable_project_path(root: &Path, path: &Path) -> Result<String, String> {
+    let relative = path.strip_prefix(root).unwrap_or(path);
+    if relative.is_absolute()
+        || relative
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(format!(
+            "project path is not a portable relative path: {}",
+            path.display()
+        ));
+    }
+    let mut components = Vec::new();
+    for component in relative.components() {
+        let component = component.as_os_str().to_str().ok_or_else(|| {
+            format!(
+                "non-UTF-8 project path cannot be hashed portably: {}",
+                path.display()
+            )
+        })?;
+        if component.contains('\\') {
+            return Err(format!(
+                "project path is not portable because a component contains a backslash: {}",
+                path.display()
+            ));
+        }
+        components.push(component);
+    }
+    Ok(components.join("/"))
+}
+
+fn git_index_modes(root: &Path) -> Result<BTreeMap<String, u32>, String> {
+    let output = Command::new("git")
+        .args(["ls-files", "--stage", "-z"])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to inspect Git file modes: {error}"))?;
+    if !output.status.success() {
+        return Ok(BTreeMap::new());
+    }
+    let mut modes = BTreeMap::new();
+    for entry in output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|entry| !entry.is_empty())
+    {
+        let Some(tab) = entry.iter().position(|byte| *byte == b'\t') else {
+            return Err("invalid `git ls-files --stage` output".into());
+        };
+        let metadata = std::str::from_utf8(&entry[..tab])
+            .map_err(|_| "non-UTF-8 Git index metadata".to_string())?;
+        let mut fields = metadata.split_whitespace();
+        let mode = fields
+            .next()
+            .ok_or_else(|| "Git index entry is missing a mode".to_string())?;
+        let _object = fields
+            .next()
+            .ok_or_else(|| "Git index entry is missing an object ID".to_string())?;
+        let stage = fields
+            .next()
+            .ok_or_else(|| "Git index entry is missing a stage".to_string())?;
+        if stage != "0" {
+            return Err("cannot hash a project with unresolved Git index stages".into());
+        }
+        let mode =
+            u32::from_str_radix(mode, 8).map_err(|_| format!("invalid Git file mode `{mode}`"))?;
+        let path = std::str::from_utf8(&entry[tab + 1..])
+            .map_err(|_| "non-UTF-8 Git path cannot be hashed portably".to_string())?;
+        modes.insert(strict_portable_relative_path(path)?, mode);
+    }
+    Ok(modes)
+}
+
+fn digest_file_kind_and_mode(
+    relative: &str,
+    path: &Path,
+    git_modes: &BTreeMap<String, u32>,
+) -> Result<(&'static [u8], u32), String> {
+    if let Some(mode) = git_modes.get(relative).copied() {
+        if mode == 0o120000 {
+            return Ok((b"symlink", mode));
+        }
+        if mode == 0o160000 {
+            return Ok((b"gitlink", mode));
+        }
+        #[cfg(not(unix))]
+        return Ok((b"file", mode));
+    }
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
+    if metadata.file_type().is_symlink() {
+        return Ok((b"symlink", 0o120000));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = if metadata.permissions().mode() & 0o111 == 0 {
+            0o100644
+        } else {
+            0o100755
+        };
+        Ok((b"file", mode))
+    }
+    #[cfg(not(unix))]
+    {
+        Ok((b"file", 0o100644))
+    }
+}
+
+fn closing_digest(record: &ChangeRecord, verification: &VerificationRecord) -> String {
+    let mut digest = FramedDigest::new(CLOSING_DIGEST_DOMAIN);
+    digest.frame(b"record-id", record.id.as_bytes());
+    digest.frame(b"contract", verification.contract_digest.as_bytes());
+    digest.frame(b"workspace", verification.workspace_digest.as_bytes());
+    digest.frame(
+        b"commit",
+        verification.commit.as_deref().unwrap_or("").as_bytes(),
+    );
+    if let Some(acceptance) = &verification.acceptance_input_digest {
+        // Presence is explicit: an absent field and an empty field cannot alias.
+        let mut value = Vec::with_capacity(acceptance.len() + 1);
+        value.push(1);
+        value.extend_from_slice(acceptance.as_bytes());
+        digest.frame(b"acceptance", &value);
+    } else {
+        digest.frame(b"acceptance", &[0]);
+    }
+    digest.finish()
 }
 
 fn acceptance_input_digest(
@@ -2473,25 +2676,38 @@ fn acceptance_input_digest(
     record: &ChangeRecord,
     overrides: &[(PathBuf, String)],
 ) -> Result<String, String> {
-    let mut paths = git_project_paths(root).unwrap_or_else(|| walk_project_paths(root));
+    let mut paths = match git_project_paths(root)? {
+        Some(paths) => paths,
+        None => strict_walk_project_paths(root)?,
+    };
     let override_content: BTreeMap<String, &[u8]> = overrides
         .iter()
-        .map(|(path, content)| (portable_project_path(root, path), content.as_bytes()))
-        .collect();
+        .map(|(path, content)| {
+            Ok((
+                strict_portable_project_path(root, path)?,
+                content.as_bytes(),
+            ))
+        })
+        .collect::<Result<_, String>>()?;
     paths.extend(override_content.keys().cloned());
     paths.sort();
     paths.dedup();
-    let mut hasher = Sha256::new();
+    let git_modes = git_index_modes(root)?;
+    let mut digest = FramedDigest::new(ACCEPTANCE_DIGEST_DOMAIN);
     for relative in paths {
         if project_input_is_volatile(&relative)
             || !record_covers_project_path(root, record, &relative)
         {
             continue;
         }
-        hasher.update(relative.as_bytes());
-        hasher.update([0]);
         if let Some(content) = override_content.get(&relative) {
-            hasher.update(content);
+            let mode = git_modes.get(&relative).copied().unwrap_or(0o100644);
+            let kind: &[u8] = match mode {
+                0o120000 => b"symlink",
+                0o160000 => b"gitlink",
+                _ => b"file",
+            };
+            digest.entry(&relative, kind, mode, content);
         } else {
             let path = root.join(&relative);
             match fs::symlink_metadata(&path) {
@@ -2499,28 +2715,31 @@ fn acceptance_input_digest(
                     let target = fs::read_link(&path).map_err(|error| {
                         format!("failed to read symlink {}: {error}", path.display())
                     })?;
-                    hasher.update(b"SYMLINK\0");
-                    hasher.update(target.to_string_lossy().as_bytes());
+                    let target = target.to_str().ok_or_else(|| {
+                        format!(
+                            "non-UTF-8 symlink target cannot be hashed portably: {}",
+                            path.display()
+                        )
+                    })?;
+                    digest.entry(&relative, b"symlink", 0o120000, target.as_bytes());
                 }
                 Ok(metadata) if metadata.is_file() => {
-                    hasher.update(
-                        fs::read(&path).map_err(|error| {
-                            format!("failed to hash {}: {error}", path.display())
-                        })?,
-                    );
+                    let content = fs::read(&path)
+                        .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
+                    let (kind, mode) = digest_file_kind_and_mode(&relative, &path, &git_modes)?;
+                    digest.entry(&relative, kind, mode, &content);
                 }
-                Ok(_) => hasher.update(b"NON_FILE"),
+                Ok(_) => digest.entry(&relative, b"non-file", 0, b""),
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                    hasher.update(b"MISSING")
+                    digest.entry(&relative, b"missing", 0, b"")
                 }
                 Err(error) => {
                     return Err(format!("failed to inspect {}: {error}", path.display()));
                 }
             }
         }
-        hasher.update([0]);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(digest.finish())
 }
 
 fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
@@ -2551,9 +2770,6 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
         .acceptance_input_digest
         .as_ref()
         .ok_or_else(|| "accepted change is missing current delivery-input evidence".to_string())?;
-    if !verification_commit_is_accepted_current(root, &verification) {
-        return Err("accepted change verification commit is not in current history".into());
-    }
     let current_inputs = acceptance_input_digest(root, record, &[])?;
     if current_inputs != *expected_inputs {
         return Err("accepted change verification is stale for current delivery inputs".into());
@@ -2568,6 +2784,11 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
         .ok_or_else(|| "accepted change is missing closing approval".to_string())?;
     if approval.digest != expected {
         return Err("accepted change closing approval does not match verification evidence".into());
+    }
+    if !verification_commit_is_accepted_current(root, &verification)
+        && !accepted_workspace_is_integrated(root, record)
+    {
+        return Err("accepted change verification commit is not in current history and the accepted workspace is not integrated unchanged on the remote default branch".into());
     }
     Ok(())
 }
@@ -2729,18 +2950,23 @@ fn pull_request_diff_base(root: &Path, records: &[ChangeRecord]) -> String {
     {
         return format!("origin/{branch}...HEAD");
     }
+    if let Some(remote_default) = remote_default_ref(root) {
+        return format!("{remote_default}...HEAD");
+    }
+    recorded_diff_base(records)
+}
+
+fn remote_default_ref(root: &Path) -> Option<String> {
     if let Some(remote_default) = git_output(
         root,
         &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
     ) {
-        return format!("{remote_default}...HEAD");
+        return Some(remote_default);
     }
-    for candidate in ["origin/main", "origin/master"] {
-        if git_output(root, &["rev-parse", "--verify", candidate]).is_some() {
-            return format!("{candidate}...HEAD");
-        }
-    }
-    recorded_diff_base(records)
+    ["origin/main", "origin/master"]
+        .into_iter()
+        .find(|candidate| git_output(root, &["rev-parse", "--verify", candidate]).is_some())
+        .map(str::to_string)
 }
 
 fn recorded_diff_base(records: &[ChangeRecord]) -> String {
@@ -3383,6 +3609,51 @@ fn verification_commit_is_accepted_current(root: &Path, evidence: &VerificationR
         .is_ok_and(|status| status.success())
 }
 
+fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool {
+    let Some(remote_default) = remote_default_ref(root) else {
+        return false;
+    };
+    let head_is_integrated = Command::new("git")
+        .args([
+            "merge-base",
+            "--is-ancestor",
+            "HEAD",
+            remote_default.as_str(),
+        ])
+        .current_dir(root)
+        .status()
+        .is_ok_and(|status| status.success());
+    if !head_is_integrated {
+        return false;
+    }
+    let workspace = format!("{CHANGES_PATH}/{}", record.id);
+    let state = format!("{workspace}/state.json");
+    let Ok(repo_workspace) = git_repo_relative_path(root, &workspace) else {
+        return false;
+    };
+    let Ok(repo_state) = git_repo_relative_path(root, &state) else {
+        return false;
+    };
+    let remote_state = format!("{remote_default}:{repo_state}");
+    let state_exists = Command::new("git")
+        .args(["cat-file", "-e", remote_state.as_str()])
+        .current_dir(root)
+        .status()
+        .is_ok_and(|status| status.success());
+    state_exists
+        && Command::new("git")
+            .args([
+                "diff",
+                "--quiet",
+                remote_default.as_str(),
+                "--",
+                repo_workspace.as_str(),
+            ])
+            .current_dir(root)
+            .status()
+            .is_ok_and(|status| status.success())
+}
+
 fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
     let mut maximum = 0_u64;
     for base in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
@@ -3737,6 +4008,7 @@ mod tests {
         git(&["init", "-b", "main"]);
         git(&["config", "user.email", "test@example.com"]);
         git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "false"]);
         fs::create_dir_all(root.join("src")).unwrap();
         fs::write(
             root.join("src/lib.rs"),
@@ -3757,6 +4029,173 @@ mod tests {
         assert!(error.contains("archive after merge"));
         git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
         assert!(archive_change(root, &record.id).is_ok());
+    }
+
+    #[test]
+    fn accepted_evidence_survives_integrated_squash_merge_and_archives() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "false"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        write_default_policy(root, Vec::new()).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["switch", "-c", "feature"]);
+
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement"]);
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept"]);
+        let verification = load_verification(root, &record).unwrap();
+
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "feature"]);
+        git(&["commit", "-m", "squash feature"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        assert!(!verification_commit_is_accepted_current(
+            root,
+            &verification
+        ));
+        assert!(ensure_closing_approval_valid(root, &record).is_ok());
+        assert!(archive_change(root, &record.id).is_ok());
+    }
+
+    #[test]
+    fn accepted_evidence_survives_squash_merge_from_nested_project_root() {
+        let temp = TempDir::new().unwrap();
+        let repo_root = temp.path();
+        let root = repo_root.join("packages/app");
+        fs::create_dir_all(&root).unwrap();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(repo_root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "false"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        write_default_policy(&root, Vec::new()).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["switch", "-c", "feature"]);
+
+        let mut record = completed_no_spec_record(&root);
+        record = approve_definition(&root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(&root, &record.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement"]);
+        verify_change(&root, &record.id).unwrap();
+        record = accept_change(&root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept"]);
+        let verification = load_verification(&root, &record).unwrap();
+
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "feature"]);
+        git(&["commit", "-m", "squash feature"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        assert!(!verification_commit_is_accepted_current(
+            &root,
+            &verification
+        ));
+        assert!(ensure_closing_approval_valid(&root, &record).is_ok());
+        assert!(archive_change(&root, &record.id).is_ok());
+    }
+
+    #[test]
+    fn squash_fallback_rejects_unintegrated_or_changed_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "false"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        write_default_policy(root, Vec::new()).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        git(&["switch", "-c", "feature"]);
+
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement"]);
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept"]);
+
+        assert!(ensure_closing_approval_valid(root, &record).is_ok());
+        git(&["commit", "--allow-empty", "-m", "move head"]);
+        let verification = load_verification(root, &record).unwrap();
+        assert!(verification_commit_is_accepted_current(root, &verification));
+
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "feature"]);
+        git(&["commit", "-m", "squash feature"]);
+        assert!(ensure_closing_approval_valid(root, &record).is_err());
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { changed }\n",
+        )
+        .unwrap();
+        let error = ensure_closing_approval_valid(root, &record).unwrap_err();
+        assert!(error.contains("delivery inputs"));
     }
 
     #[test]
@@ -5016,6 +5455,120 @@ mod tests {
         fs::write(path, "second\n").unwrap();
         let second = project_input_digest(root).unwrap();
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn framed_workspace_digest_resists_nul_entry_boundary_collisions() {
+        let temp = TempDir::new().unwrap();
+        fs::write(temp.path().join("a"), b"X\0b\0Y").unwrap();
+        let one_file = project_input_digest(temp.path()).unwrap();
+
+        fs::write(temp.path().join("a"), b"X").unwrap();
+        fs::write(temp.path().join("b"), b"Y").unwrap();
+        let two_files = project_input_digest(temp.path()).unwrap();
+
+        assert_ne!(one_file, two_files);
+    }
+
+    #[test]
+    fn framed_acceptance_digest_resists_nul_entry_boundary_collisions() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        record.state = ChangeState::Implementing;
+        record.affected_paths = vec![".".into()];
+        fs::write(root.join("a"), b"X\0b\0Y").unwrap();
+        let one_file = acceptance_input_digest(root, &record, &[]).unwrap();
+
+        fs::write(root.join("a"), b"X").unwrap();
+        fs::write(root.join("b"), b"Y").unwrap();
+        let two_files = acceptance_input_digest(root, &record, &[]).unwrap();
+
+        assert_ne!(one_file, two_files);
+    }
+
+    #[test]
+    fn workspace_digest_preserves_binary_bytes_and_line_endings() {
+        let temp = TempDir::new().unwrap();
+        let path = temp.path().join("fixture.bin");
+        fs::write(&path, b"first\r\nsecond\0\xff").unwrap();
+        let binary = project_input_digest(temp.path()).unwrap();
+        fs::write(&path, b"first\r\nsecond\0\xfe").unwrap();
+        let changed_binary = project_input_digest(temp.path()).unwrap();
+        assert_ne!(binary, changed_binary);
+
+        fs::write(&path, b"first\nsecond\n").unwrap();
+        let lf = project_input_digest(temp.path()).unwrap();
+        fs::write(&path, b"first\r\nsecond\r\n").unwrap();
+        let crlf = project_input_digest(temp.path()).unwrap();
+        assert_ne!(lf, crlf, "line endings remain byte-exact digest inputs");
+    }
+
+    #[test]
+    fn workspace_digest_includes_git_executable_mode() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "core.autocrlf", "false"]);
+        fs::write(root.join("tool.sh"), b"#!/bin/sh\nexit 0\n").unwrap();
+        git(&["add", "tool.sh"]);
+        let regular = project_input_digest(root).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(root.join("tool.sh")).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(root.join("tool.sh"), permissions).unwrap();
+        }
+        #[cfg(not(unix))]
+        git(&["update-index", "--chmod=+x", "tool.sh"]);
+        let executable = project_input_digest(root).unwrap();
+        assert_ne!(regular, executable);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn workspace_digest_distinguishes_symlinks_files_and_targets() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::write(root.join("first"), b"same").unwrap();
+        fs::write(root.join("second"), b"same").unwrap();
+        symlink("first", root.join("entry")).unwrap();
+        let first_target = project_input_digest(root).unwrap();
+        fs::remove_file(root.join("entry")).unwrap();
+        symlink("second", root.join("entry")).unwrap();
+        let second_target = project_input_digest(root).unwrap();
+        fs::remove_file(root.join("entry")).unwrap();
+        fs::write(root.join("entry"), b"second").unwrap();
+        let regular_file = project_input_digest(root).unwrap();
+
+        assert_ne!(first_target, second_target);
+        assert_ne!(second_target, regular_file);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn workspace_digest_rejects_non_utf8_paths_instead_of_lossy_aliasing() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let temp = TempDir::new().unwrap();
+        let path = temp.path().join(OsString::from_vec(vec![b'f', 0xff]));
+        fs::write(path, b"content").unwrap();
+        let error = project_input_digest(temp.path()).unwrap_err();
+        assert!(error.contains("non-UTF-8"), "{error}");
     }
 
     #[test]

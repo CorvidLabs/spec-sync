@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0004-close-final-pr-review-gaps-in-5-0-lifecycle-enforcement",
+  "slug": "close-final-pr-review-gaps-in-5-0-lifecycle-enforcement",
+  "title": "Close final PR review gaps in 5.0 lifecycle enforcement",
+  "description": "Close final PR review gaps in 5.0 lifecycle enforcement",
+  "kind": "bug_fix",
+  "state": "archived",
+  "base_commit": "542d2c6a4aee56446d03febc98d80c1df1d2c9d8",
+  "created_at": 1783750105,
+  "updated_at": 1783789708,
+  "affected_specs": [
+    "change",
+    "cmd_check",
+    "cmd_init"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/commands/check.rs",
+    "src/commands/init.rs",
+    ".specsync/sdd.json",
+    "site/src/content/docs/",
+    "README.md",
+    "specs/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "All actionable unresolved PR review findings have deterministic regressions; lifecycle coverage",
+    "closing evidence",
+    "semantic deltas",
+    "versioning",
+    "initialization",
+    "JSON output",
+    "and public examples fail closed and remain cross-platform; focused and repository gates pass"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "research",
+    "plan",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

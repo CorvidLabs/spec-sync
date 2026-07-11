@@ -1,6 +1,6 @@
 ---
 module: cmd_lifecycle
-version: 1
+version: 2
 status: stable
 files:
   - src/commands/lifecycle.rs
@@ -8,6 +8,7 @@ db_tables: []
 tracks: []
 depends_on:
   - specs/commands/commands.spec.md
+  - specs/git_utils/git_utils.spec.md
   - specs/parser/parser.spec.md
   - specs/scoring/scoring.spec.md
   - specs/types/types.spec.md
@@ -21,19 +22,19 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 
 ## Public API
 
-### Exported Structs
+**Exported Structs**
 
 | Type | Description |
 |------|-------------|
 | `GuardResult` | Result of evaluating transition guards — `passed: bool` and `failures: Vec<String>` |
 
-### Exported Functions
+**Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `cmd_promote` | `root: &Path, spec_filter: &str, format: OutputFormat, force: bool` | `()` | Advance a spec to its next lifecycle status (draft→review→active→stable) |
 | `cmd_demote` | `root: &Path, spec_filter: &str, format: OutputFormat, force: bool` | `()` | Move a spec back to its previous lifecycle status |
-| `cmd_set` | `root: &Path, spec_filter: &str, target_status: &str, format: OutputFormat, force: bool` | `()` | Set a spec to any valid status with transition validation |
+| `cmd_set` | `root: &Path, spec_filter: &str, target_str: &str, format: OutputFormat, force: bool` | `()` | Set a spec to any valid status with transition validation |
 | `cmd_status` | `root: &Path, spec_filter: Option<&str>, format: OutputFormat` | `()` | Display lifecycle status of one or all specs |
 | `cmd_history` | `root: &Path, spec_filter: &str, format: OutputFormat` | `()` | Display lifecycle transition history for a spec |
 | `cmd_guard` | `root: &Path, spec_filter: &str, target_str: Option<&str>, format: OutputFormat` | `()` | Evaluate and display guard results for a spec transition |
@@ -84,7 +85,7 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 
 ## Dependencies
 
-### Consumes
+**Consumes**
 
 | Module | What is used |
 |--------|-------------|
@@ -93,11 +94,15 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 | scoring | `score_spec` |
 | types | `SpecStatus`, `OutputFormat`, `SpecSyncConfig`, `LifecycleConfig`, `TransitionGuard` |
 
-### Consumed By
+**Consumed By**
 
 | Module | What is used |
 |--------|-------------|
 | cli (main.rs) | Entry point for `specsync lifecycle` subcommands |
+
+**Frontmatter Synchronization**
+
+Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/git_utils/git_utils.spec.md`. This YAML frontmatter update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
 
 ## Change Log
 
@@ -105,3 +110,4 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 |------|--------|
 | 2026-04-11 | Initial spec |
 | 2026-04-11 | Add cmd_auto_promote, cmd_enforce to API table; fix invariant #3 scope |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

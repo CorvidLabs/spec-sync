@@ -1,17 +1,18 @@
 ---
 module: validator
-version: 5
+version: 6
 status: stable
 files:
   - src/validator.rs
 db_tables: []
 tracks: [119]
 depends_on:
-  - specs/types/types.spec.md
-  - specs/parser/parser.spec.md
-  - specs/exports/exports.spec.md
   - specs/config/config.spec.md
+  - specs/exports/exports.spec.md
+  - specs/parser/parser.spec.md
   - specs/schema/schema.spec.md
+  - specs/types/types.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Validator
@@ -22,11 +23,11 @@ Core validation engine for spec-sync. Validates individual spec files against so
 
 ## Public API
 
-### Exported Functions
+**Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `validate_spec` | `spec_path, root, schema_tables, config` | `ValidationResult` | Validate a single spec file: frontmatter, files, sections, API surface, dependencies |
+| `validate_spec` | `spec_path: &Path, root: &Path, schema_tables: &HashSet<String>, schema_columns: &HashMap<String, SchemaTable>, config: &SpecSyncConfig` | `ValidationResult` | Validate a single spec file: frontmatter, files, sections, API surface, dependencies |
 | `find_spec_files` | `dir: &Path` | `Vec<PathBuf>` | Recursively find all `*.spec.md` files in a directory |
 | `compute_coverage` | `root, spec_files, config` | `CoverageReport` | Compute file and LOC coverage across all source directories |
 | `get_schema_table_names` | `root, config` | `HashSet<String>` | Extract table names from SQL schema files using configurable regex |
@@ -88,7 +89,7 @@ Core validation engine for spec-sync. Validates individual spec files against so
 
 ## Dependencies
 
-### Consumes
+**Consumes**
 
 | Module | What is used |
 |--------|-------------|
@@ -97,7 +98,7 @@ Core validation engine for spec-sync. Validates individual spec files against so
 | config | `default_schema_pattern` |
 | types | `CoverageReport`, `ValidationResult`, `SpecSyncConfig` |
 
-### Consumed By
+**Consumed By**
 
 | Module | What is used |
 |--------|-------------|
@@ -106,6 +107,10 @@ Core validation engine for spec-sync. Validates individual spec files against so
 | archive | `find_spec_files` to locate spec companion files |
 | compact | `find_spec_files` to locate all spec files |
 | merge | `find_spec_files` to locate all spec files when `--all` is used |
+
+**Frontmatter Synchronization**
+
+Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/util/util.spec.md`. This YAML frontmatter update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
 
 ## Change Log
 
@@ -118,3 +123,4 @@ Core validation engine for spec-sync. Validates individual spec files against so
 | 2026-06-07 | Update draft-only section warning wording |
 | 2026-03-25 | Initial spec |
 | 2026-04-06 | Document archive, compact, merge as consumers of find_spec_files; note hash_cache integration for incremental validation |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

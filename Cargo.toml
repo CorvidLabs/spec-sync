@@ -10,7 +10,7 @@ homepage = "https://github.com/CorvidLabs/spec-sync"
 repository = "https://github.com/CorvidLabs/spec-sync"
 keywords = ["spec", "documentation", "validation", "coverage", "code-quality"]
 categories = ["development-tools", "command-line-utilities"]
-exclude = ["tests/", "specs/", ".github/", ".specsync/"]
+include = ["/src/**", "/Cargo.toml", "/Cargo.lock", "/README.md", "/CHANGELOG.md", "/LICENSE"]
 
 [[bin]]
 name = "specsync"

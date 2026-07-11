@@ -115,21 +115,21 @@ files:
   - src/auth.utils.ts
 ---
 
-# Purpose
+## Purpose
 Handles user authentication via JWT tokens.
 
-# Public API
+## Public API
 | Export | Type | Description |
 |--------|------|-------------|
 | `login(email, password)` | function | Authenticates a user |
 | `logout(token)` | function | Invalidates a session |
 | `AuthConfig` | interface | Configuration options |
 
-# Invariants
+## Invariants
 - Tokens expire after 24 hours
 - Failed login attempts are rate-limited
 
-# Behavioral Examples
+## Behavioral Examples
 ...
 ```
 
@@ -187,7 +187,7 @@ Then run `specsync check` again until everything passes.
 
 ---
 
-## 5. Add to CI
+## 6. Add to CI
 
 ### GitHub Action
 
@@ -228,7 +228,7 @@ Once you're up and running, explore these features:
 | Quality scoring | `specsync score` | [CLI Reference](cli.md#score) |
 | Watch mode | `specsync watch` | [CLI Reference](cli.md#watch) |
 | Agent enrichment | `specsync agents install` | [AI Agents](integrations/ai-agents.md) |
-| Schema validation | Add `schemaDir` to config | [Configuration](configuration.md) |
+| Schema validation | Add `schema_dir` to config | [Configuration](configuration.md) |
 | Cross-project refs | `owner/repo@module` syntax | [Cross-Project Refs](cross-project-refs.md) |
 | MCP server | `specsync mcp` | [AI Agents](integrations/ai-agents.md) |
 | VS Code extension | Install from marketplace | [VS Code Extension](integrations/vscode-extension.md) |

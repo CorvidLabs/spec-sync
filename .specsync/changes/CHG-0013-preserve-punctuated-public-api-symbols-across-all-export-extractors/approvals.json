@@ -1,0 +1,32 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783806186,
+      "digest": "622d15d6fe6c62b479db10ae9b799f5e551d00a112ba4a60cc92c488aec2dbff",
+      "note": "Definition approved by the user's explicit Trust-blocker requirements after the complete extractor grammar audit."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783806603,
+      "digest": "d144aa2e1b117b7799487290284d438f84dddae401c98c5eff076c22a5580b39",
+      "note": "Refresh definition approval after exact parsing exposed and corrected associated-method modeling in the ignore spec."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783806636,
+      "digest": "326b25a228dd84f90af2aa42c60b204b2a76e64d7b754f77c040b1b25c5b32b0",
+      "note": "Refresh definition approval after representing ignore exports without informational method tables in the effective delta."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783807000,
+      "digest": "e4ddfaa45844943cbbbd5b27e78102cc89a48a14f6d0e5c9ae42ed91012511ef",
+      "note": "Final definition refresh after recording all Fledge lanes, Trust 30/30 dogfood, clean restoration, and non-blocking Augur review evidence."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783805402,
+      "digest": "f4586a68a36d94592a986d41188da9ac545ac243335e479dc5f0f50875669112",
+      "note": "Definition approved by the user's explicit request to complete the documentation and site update."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783805666,
+      "digest": "1c3383d9fe806ca00ad692af4f62da3bf30d7e339a493cdc369bf7c4a57f8941",
+      "note": "Definition refreshed after the completed audit artifacts and semantic delta; authorized by the user's explicit request."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783805708,
+      "digest": "ba5b9e5881380868a250c602d94f64844433643b1bf9320a527b4063b80dc640",
+      "note": "Definition refreshed after adding explicit requirement evidence; authorized by the user's request."
+    }
+  ]
+}

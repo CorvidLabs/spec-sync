@@ -16,6 +16,9 @@ Choose your preferred method:
 # Via cargo (recommended)
 cargo install specsync
 
+# Via Homebrew
+brew install CorvidLabs/tap/spec-sync
+
 # Via GitHub releases (no Rust toolchain needed)
 # Download the binary for your platform from:
 # https://github.com/CorvidLabs/spec-sync/releases
@@ -73,6 +76,20 @@ specsync change new "Document and verify the existing authentication module" \
 ```
 
 Answer the returned questions, complete its adaptively selected artifacts, and approve the definition before implementation. Agents installed during `init` conduct this interview conversationally.
+
+Continue through the same lifecycle after the definition is complete:
+
+```bash
+specsync change approve CHG-...   # explicit human definition approval
+specsync change start CHG-...     # begin implementation
+# implement the approved contract and keep module specs synchronized
+specsync change verify CHG-...    # run configured tests and record evidence
+specsync change accept CHG-...    # explicit human closing approval
+# merge the delivery branch, then archive its immutable change record
+specsync change archive CHG-...
+```
+
+See the [Workflow Guide](workflow.md) for requirements, semantic deltas, approval digests, verification evidence, and archival rules.
 
 ## 3. Generate Specs
 

@@ -1,6 +1,6 @@
 ---
 module: ignore
-version: 3
+version: 4
 status: stable
 files:
   - src/ignore.rs
@@ -33,16 +33,21 @@ Provides a warning suppression system for spec-sync validation. Supports three l
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `WarningCategory::from_str` | `s: &str` | `Option<Self>` | Parse category from string (case-insensitive, kebab-case, with aliases like "requirements" → RequirementsCompanion) |
-| `WarningCategory::classify` | `warning: &str` | `Option<Self>` | Classify a warning message text into a category by pattern matching on known prefixes/keywords |
-| `IgnoreRules::load` | `root: &Path` | `Self` | Load rules from `.specsyncignore` file; returns empty rules if file doesn't exist |
-| `IgnoreRules::parse_inline` | `body: &str` | `HashSet<WarningCategory>` | Extract inline ignore directives from spec body (`<!-- specsync-ignore: cat1, cat2 -->`) |
-| `IgnoreRules::is_suppressed` | `&self, warning, spec_rel_path, inline_ignores` | `bool` | Check if a warning should be suppressed given global, inline, and per-spec rules |
 | `from_str` | Alias for `WarningCategory::from_str` | `Option<WarningCategory>` | Parse category name string |
 | `classify` | Alias for `WarningCategory::classify` | `Option<WarningCategory>` | Classify warning text |
 | `load` | Alias for `IgnoreRules::load` | `IgnoreRules` | Load from `.specsyncignore` |
 | `parse_inline` | Alias for `IgnoreRules::parse_inline` | `HashSet<WarningCategory>` | Parse inline directives |
 | `is_suppressed` | Alias for `IgnoreRules::is_suppressed` | `bool` | Check suppression |
+
+#### Associated Methods
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `WarningCategory::from_str` | `s: &str` | `Option<Self>` | Parse category from string (case-insensitive, kebab-case, with aliases like "requirements" → RequirementsCompanion) |
+| `WarningCategory::classify` | `warning: &str` | `Option<Self>` | Classify a warning message text into a category by pattern matching on known prefixes/keywords |
+| `IgnoreRules::load` | `root: &Path` | `Self` | Load rules from `.specsyncignore` file; returns empty rules if file doesn't exist |
+| `IgnoreRules::parse_inline` | `body: &str` | `HashSet<WarningCategory>` | Extract inline ignore directives from spec body (`<!-- specsync-ignore: cat1, cat2 -->`) |
+| `IgnoreRules::is_suppressed` | `&self, warning, spec_rel_path, inline_ignores` | `bool` | Check if a warning should be suppressed given global, inline, and per-spec rules |
 
 ## Invariants
 
@@ -111,3 +116,4 @@ Provides a warning suppression system for spec-sync validation. Supports three l
 | 2026-06-07 | Teach warning classification about unfinished-draft section wording |
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Move associated methods under the informational method subsection so exact symbol parsing validates only real module exports |

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0012-correct-specsync-5-0-documentation-cli-help-and-hub-deep-links",
+  "slug": "correct-specsync-5-0-documentation-cli-help-and-hub-deep-links",
+  "title": "Correct SpecSync 5.0 documentation, CLI help, and hub deep links",
+  "description": "Correct SpecSync 5.0 documentation, CLI help, and hub deep links",
+  "kind": "documentation",
+  "state": "verifying",
+  "base_commit": "fffbef561fe7cbcfad669dac1855e711896deca4",
+  "created_at": 1783805318,
+  "updated_at": 1783806895,
+  "affected_specs": [
+    "cli_args"
+  ],
+  "affected_paths": [
+    "README.md",
+    "src/cli.rs",
+    "site/src/content/docs",
+    "site/src/pages/docs",
+    "site/src/lib/hub.ts"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Canonical docs show valid 5.0 lifecycle transitions and Homebrew installation and accurate companion files and complete output formats and current dry-run guidance while CLI help names the current config and companion files and standalone docs preserve hub deep links and all docs specs and tests pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "design",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

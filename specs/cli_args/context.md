@@ -17,4 +17,4 @@ spec: cli_args.spec.md
 
 ## Current Status
 
-Stable 5.0 grammar for deterministic core and agent-native integrations.
+Stable 5.0 grammar for deterministic core and agent-native integrations. Help text names the canonical `.specsync/config.toml` layout and all required `new --full` companions without changing argument parsing.

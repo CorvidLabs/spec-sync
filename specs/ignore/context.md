@@ -17,7 +17,7 @@ spec: ignore.spec.md
 
 ## Current Status
 
-Fully implemented and stable, with inline unit tests covering `classify`, `from_str` aliases, `parse_inline`, all three `is_suppressed` scopes, and `load` (present + absent file).
+Fully implemented and stable, with inline unit tests covering `classify`, `from_str` aliases, `parse_inline`, all three `is_suppressed` scopes, and `load` (present + absent file). The spec validates the five public module-level aliases as exports and keeps type-qualified associated methods in an informational `#### Associated Methods` subsection.
 
 ## Notes
 

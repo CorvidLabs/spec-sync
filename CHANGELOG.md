@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Public API tables preserve complete extractor symbols** — table parsing previously captured only `\w+`, so documented GitHub Actions paths such as `inputs.config`, `outputs.atlas-enabled`, `permissions.id-token`, and `jobs.deploy-atlas` were truncated or ignored and strict validation reported false drift. The parser now reads the complete nonempty backtick-delimited symbol from the first table cell without imposing a second character allowlist, preserving dots, hyphens, selectors, operators, apostrophes, spaces, Unicode, and other spelling emitted by supported extractors while malformed rows, prose, later-column code, and excluded subsections remain ignored. This is prepared for the next patch release and does not alter the immutable `v5.0.0` tag.
+
 ## [5.0.0] - 2026-07-11
 
 ### Added

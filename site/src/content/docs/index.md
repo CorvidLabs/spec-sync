@@ -34,8 +34,12 @@ Specs reference functions that were renamed. Code exports things the spec doesn'
 ```bash
 cargo install specsync          # or use the GitHub Action, or download a binary
 specsync init                   # create .specsync/config.toml
-specsync change new "Add auth" # start deterministic SDD interview
+specsync change new "Add auth"  # start the deterministic SDD interview
+specsync change answer CHG-... acceptance_criteria "Auth succeeds" --json
+specsync change approve CHG-... # human definition approval
+specsync change start CHG-...   # begin implementation
 specsync change verify CHG-...  # run tests and requirement traceability gate
+specsync change accept CHG-...  # human closing approval; merge before archive
 specsync check                  # validate specs against code
 specsync coverage               # see what's covered
 specsync generate               # scaffold specs for unspecced modules

@@ -12,6 +12,7 @@ spec: ignore.spec.md
 
 ## Done
 
+- [x] Separate associated-method documentation from validated module exports
 - [x] `WarningCategory` enum with `from_str` (aliases, case/`_`-`-` insensitive) and `classify` (text → category)
 - [x] `IgnoreRules::load` for `.specsyncignore` (global + per-spec rules, comment handling, missing-file safe)
 - [x] `IgnoreRules::parse_inline` for `<!-- specsync-ignore: ... -->` directives

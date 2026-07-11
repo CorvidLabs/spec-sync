@@ -169,13 +169,18 @@ pub fn is_export_header(header: &str) -> bool {
 static EXPORT_HEADER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\bexport(?:ed|s)?\b|\bpublic\b").unwrap());
 
-static TABLE_ROW_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\|\s*`(\w+)`").unwrap());
+/// Captures one complete, nonempty inline-code span occupying the first table
+/// cell. Extractors own symbol spelling, so this intentionally does not impose
+/// an identifier character allowlist. Requiring the closing backtick and cell
+/// delimiter prevents prose and later-column code spans from becoming exports.
+static TABLE_ROW_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\|\s*`([^`\r\n]+)`\s*\|").unwrap());
 
 static METHOD_HEADER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^####\s+.*(?:Methods|Constructor|Properties)").unwrap());
 
 /// Extract symbol names from the spec's Public API section.
-/// Only extracts the FIRST backtick-quoted word in each table row.
+/// Only extracts the FIRST nonempty backtick-quoted symbol in each table row.
 /// Skips class method sub-tables.
 pub fn get_spec_symbols(body: &str) -> Vec<String> {
     let mut symbols = Vec::new();
@@ -254,10 +259,8 @@ pub fn get_spec_symbols(body: &str) -> Vec<String> {
                 continue;
             }
 
-            if let Some(caps) = TABLE_ROW_RE.captures(line)
-                && let Some(sym) = caps.get(1)
-            {
-                symbols.push(sym.as_str().to_string());
+            if let Some(symbol) = api_table_row_symbol(line) {
+                symbols.push(symbol.to_string());
             }
         }
     }
@@ -292,16 +295,22 @@ pub fn get_all_api_table_symbols(body: &str) -> Vec<String> {
     };
 
     for line in api_section.lines() {
-        if let Some(caps) = TABLE_ROW_RE.captures(line)
-            && let Some(sym) = caps.get(1)
-        {
-            symbols.push(sym.as_str().to_string());
+        if let Some(symbol) = api_table_row_symbol(line) {
+            symbols.push(symbol.to_string());
         }
     }
 
     let mut seen = HashSet::new();
     symbols.retain(|s| seen.insert(s.clone()));
     symbols
+}
+
+/// Return the complete inline-code symbol from the first cell of a Markdown
+/// table row. Leading or trailing whitespace inside the code span is rejected
+/// because extractor symbols never contain it; internal spaces remain valid.
+fn api_table_row_symbol(line: &str) -> Option<&str> {
+    let symbol = TABLE_ROW_RE.captures(line)?.get(1)?.as_str();
+    (!symbol.trim().is_empty() && symbol == symbol.trim()).then_some(symbol)
 }
 
 /// Check which required sections are missing from the spec body.
@@ -608,6 +617,94 @@ Something
 "#;
         let symbols = get_spec_symbols(body);
         assert_eq!(symbols, vec!["createAuth", "validateToken", "AuthConfig"]);
+    }
+
+    #[test]
+    fn test_get_spec_symbols_preserves_complete_punctuated_symbols() {
+        let body = r#"## Public API
+
+### Exported Symbols
+
+| Symbol | Description |
+|--------|-------------|
+| `inputs.config` | Dotted YAML input |
+| `inputs.working-directory` | Dotted and hyphenated YAML input |
+| `outputs.atlas-enabled` | Dotted and hyphenated YAML output |
+| `permissions.id-token` | Dotted and hyphenated permission |
+| `jobs.deploy-atlas` | Dotted and hyphenated job |
+| `login` | Ordinary identifier |
+| `active?` | Predicate-style identifier |
+| `save!` | Mutating identifier |
+| `name_=` | Setter identifier |
+| `setName:age:` | Objective-C selector |
+| `~Widget` | C++ destructor |
+| `map'` | Apostrophe identifier |
+| `*global-var*` | Lisp identifier |
+| `%+%` | R operator |
+| `>>=` | Haskell or OCaml operator |
+| `operator==` | C++ operator |
+| `operator[]` | C++ subscript operator |
+| `operator new` | C++ operator containing a space |
+| `<|>` | Elixir or Scala operator containing a pipe |
+| `!!!` | Punctuation-only operator |
+| `MyApp.Auth` | Dotted module path |
+| `módulo` | Unicode identifier |
+| `with space` | Quoted atom or string export name |
+
+## Invariants
+"#;
+
+        let expected = vec![
+            "inputs.config",
+            "inputs.working-directory",
+            "outputs.atlas-enabled",
+            "permissions.id-token",
+            "jobs.deploy-atlas",
+            "login",
+            "active?",
+            "save!",
+            "name_=",
+            "setName:age:",
+            "~Widget",
+            "map'",
+            "*global-var*",
+            "%+%",
+            ">>=",
+            "operator==",
+            "operator[]",
+            "operator new",
+            "<|>",
+            "!!!",
+            "MyApp.Auth",
+            "módulo",
+            "with space",
+        ];
+
+        assert_eq!(get_spec_symbols(body), expected);
+        assert_eq!(get_all_api_table_symbols(body), expected);
+    }
+
+    #[test]
+    fn test_api_table_symbol_parser_rejects_empty_or_malformed_rows() {
+        let body = r#"## Public API
+
+### Exported Symbols
+
+| Symbol | Description |
+|--------|-------------|
+| `` | Empty code span |
+| `   ` | Whitespace-only code span |
+| `unterminated | Missing closing delimiter |
+| plain | `laterColumn` |
+| `trailing` text | Closing span does not occupy the cell |
+This prose contains `proseSymbol` but is not a table row.
+| `login` | Valid control row |
+
+## Invariants
+"#;
+
+        assert_eq!(get_spec_symbols(body), vec!["login"]);
+        assert_eq!(get_all_api_table_symbols(body), vec!["login"]);
     }
 
     #[test]

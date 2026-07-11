@@ -122,6 +122,12 @@ Approvals are human, portable, and digest-bound. Verification binds test evidenc
 cargo install specsync
 ```
 
+### Homebrew
+
+```bash
+brew install CorvidLabs/tap/spec-sync
+```
+
 ### GitHub Action
 
 ```yaml
@@ -228,7 +234,8 @@ SpecSync auto-detects source files and public exports across 33 languages:
 
 TypeScript/JavaScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML, C, C++, Scala, Crystal, Nim, Erlang, Elixir, Perl, Common Lisp, Scheme, Emacs Lisp, Haskell, Lua, R, OCaml, Groovy, F#, Clojure, D, Objective-C, Bash, PowerShell, and Vala.
 
-See the [language registry](site/src/data/languages.json) and [extractor source](src/exports/) for exact export detection and test exclusions.
+See the [detailed language profiles](site/src/data/languages.json) for 12 representative stacks and the
+[extractor source](src/exports/) for exact support, export detection, and test exclusions across all 33 families.
 
 ## Contributing
 

@@ -10,7 +10,7 @@ End-to-end walkthrough of the verified SpecSync 5.0 SDD workflow.
 
 ## The Change Lifecycle
 
-Every spec goes through a predictable lifecycle:
+Every delivery change goes through a predictable lifecycle:
 
 ```text
 draft → approved → implementing → verifying → accepted → archived
@@ -99,7 +99,7 @@ Check what's installed with `specsync hooks status`.
 specsync add-spec auth
 ```
 
-Creates `specs/auth/` with five files:
+Creates `specs/auth/` with five files by default, plus optional `design.md` when design artifacts are enabled:
 
 | File | Purpose | Who writes it |
 |:-----|:--------|:--------------|
@@ -359,7 +359,7 @@ specsync check --json | your-agent-script
 
 ## Companion Files in Practice
 
-The four-file system gives each module structured context beyond the technical spec:
+The canonical spec plus four required companion files gives each module structured context beyond the technical contract. Projects can also enable the optional design companion.
 
 ### `<module>.spec.md` — The contract
 
@@ -376,6 +376,14 @@ Checkboxes for outstanding work. Review sign-offs (Product, QA, Design, Dev). He
 ### `context.md` — The background
 
 Design decisions, constraints, key files to read first, current status notes. The "tribal knowledge" file — things that aren't obvious from the code alone. Especially valuable for AI agents that need to understand *why* things are the way they are.
+
+### `testing.md` — The evidence plan
+
+Test strategy, requirement coverage, QA checks, fixtures, and edge cases. It records how the contract will be proved rather than only describing the intended implementation.
+
+### `design.md` — The optional experience contract
+
+Layout, component hierarchy, interaction states, accessibility expectations, and design tokens for changes where design artifacts are enabled.
 
 ---
 

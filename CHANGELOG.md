@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.1] - 2026-07-11
+
 ### Fixed
 
-- **Public API tables preserve complete extractor symbols** — table parsing previously captured only `\w+`, so documented GitHub Actions paths such as `inputs.config`, `outputs.atlas-enabled`, `permissions.id-token`, and `jobs.deploy-atlas` were truncated or ignored and strict validation reported false drift. The parser now reads the complete nonempty backtick-delimited symbol from the first table cell without imposing a second character allowlist, preserving dots, hyphens, selectors, operators, apostrophes, spaces, Unicode, and other spelling emitted by supported extractors while malformed rows, prose, later-column code, and excluded subsections remain ignored. This is prepared for the next patch release and does not alter the immutable `v5.0.0` tag.
+- **Portable Windows release checksums** — Windows `.sha256` assets now use the same LF-only ASCII record as macOS and Linux, and every packaged checksum is verified byte-for-byte before upload.
+- **Public API tables preserve complete extractor symbols** — table parsing previously captured only `\w+`, so documented GitHub Actions paths such as `inputs.config`, `outputs.atlas-enabled`, `permissions.id-token`, and `jobs.deploy-atlas` were truncated or ignored and strict validation reported false drift. The parser now reads the complete nonempty backtick-delimited symbol from the first table cell without imposing a second character allowlist, preserving dots, hyphens, selectors, operators, apostrophes, spaces, Unicode, and other spelling emitted by supported extractors while malformed rows, prose, later-column code, and excluded subsections remain ignored. The immutable `v5.0.0` tag remains unchanged.
+
+### CI
+
+- **Path-aware validation** — true lifecycle archive moves now run classification, strict SpecSync validation, and the stable required gate while source, dependency, workflow, Action, release, site, editor-extension, and unknown-path changes continue to select their full or targeted checks.
 
 ## [5.0.0] - 2026-07-11
 
@@ -685,6 +692,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
+[5.0.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.0.1
 [5.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.0.0
 [4.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v4.0.0
 [3.8.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v3.8.0

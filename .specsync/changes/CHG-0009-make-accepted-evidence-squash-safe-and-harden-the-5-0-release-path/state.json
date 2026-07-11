@@ -5,10 +5,10 @@
   "title": "Make accepted evidence squash-safe and harden the 5.0 release path",
   "description": "Make accepted evidence squash-safe and harden the 5.0 release path",
   "kind": "bug_fix",
-  "state": "accepted",
+  "state": "implementing",
   "base_commit": "884ad33b2158e9efca2f31d4798c1b6f27db8801",
   "created_at": 1783789458,
-  "updated_at": 1783789957,
+  "updated_at": 1783789860,
   "affected_specs": [
     "change"
   ],

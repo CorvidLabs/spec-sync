@@ -20,13 +20,6 @@
       "timestamp": 1783789860,
       "digest": "37b0fbd5d41ce04dbd0cf9ca60bb26fa43c0f9a6d47c202c3c214d2e723f9a75",
       "note": "Final implementation, adversarial tests, archives, and release safeguards approved"
-    },
-    {
-      "gate": "acceptance",
-      "actor": "0xLeif",
-      "timestamp": 1783789957,
-      "digest": "322bd7d68edc960301d0041c02f7580af3cb37d7f12ced619b991d82a1668a42",
-      "note": "Local lifecycle, 1,701 Rust tests, lint, audit, package, and documentation gates passed"
     }
   ]
 }

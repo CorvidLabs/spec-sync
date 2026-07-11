@@ -256,13 +256,26 @@ jobs:
         id: spec-check
         run: |
           # Generate rich comment body for corvid-pet context
-          BODY=$(cargo run -- comment 2>/dev/null) || true
+          BODY=$(cargo run --quiet -- comment 2>/dev/null) || true
+          # `specsync comment` is bounded, and this second cap protects the
+          # action input if an older or unexpected binary is invoked here.
+          BODY=$(printf '%s' "$BODY" | python3 -c 'import sys; data = sys.stdin.buffer.read(); limit = 49152; sys.stdout.write(data[:limit].decode("utf-8", "ignore"))')
           echo "$BODY"
-          {
-            echo 'body<<EOF'
-            echo "$BODY"
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
+          write_multiline_output() {
+            local name="$1" value="$2" delimiter
+            while true; do
+              delimiter="SPECSYNC_$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
+              if ! printf '%s\n' "$value" | grep -Fqx "$delimiter"; then
+                break
+              fi
+            done
+            {
+              printf '%s<<%s\n' "$name" "$delimiter"
+              printf '%s\n' "$value"
+              printf '%s\n' "$delimiter"
+            } >> "$GITHUB_OUTPUT"
+          }
+          write_multiline_output body "$BODY"
           # Fail the step if check fails
           cargo run -- check --strict --require-coverage 100 --force
 
@@ -315,17 +328,25 @@ jobs:
           done < <(env | grep '^CHECK_' | sort)
 
           echo "result=${OVERALL}" >> "$GITHUB_OUTPUT"
-
-          {
-            echo "context<<CONTEXT_EOF"
-            echo "### CI Summary"
-            echo ""
-            echo -e "$TABLE"
-            if [ -n "$DETAILS" ]; then
-              echo -e "$DETAILS"
-            fi
-            echo "CONTEXT_EOF"
-          } >> "$GITHUB_OUTPUT"
+          CONTEXT=$(printf '### CI Summary\n\n%b' "$TABLE")
+          if [ -n "$DETAILS" ]; then
+            CONTEXT+=$(printf '%b' "$DETAILS")
+          fi
+          write_multiline_output() {
+            local name="$1" value="$2" delimiter
+            while true; do
+              delimiter="SPECSYNC_$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
+              if ! printf '%s\n' "$value" | grep -Fqx "$delimiter"; then
+                break
+              fi
+            done
+            {
+              printf '%s<<%s\n' "$name" "$delimiter"
+              printf '%s\n' "$value"
+              printf '%s\n' "$delimiter"
+            } >> "$GITHUB_OUTPUT"
+          }
+          write_multiline_output context "$CONTEXT"
 
       - uses: CorvidLabs/corvid-pet@v1.0.0
         with:

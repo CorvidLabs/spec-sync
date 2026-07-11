@@ -7,7 +7,7 @@ spec: exports.spec.md
 - [ ] Add support for C/C++ header exports (`.h`/`.hpp` files)
 - [x] Handle TypeScript `export =` (CommonJS-style default export) — captured in both regex and AST backends
 - [ ] Add AST backends for Go, Java, Swift, Kotlin, and the remaining regex-only languages (currently TS/Python/Rust/C/C++/Scala/Erlang/Elixir/Perl/Lisp have AST backends)
-- [x] Add Rust `pub(crate)` visibility filtering — `pub(crate)`, `pub(super)`, `pub(self)`, and `pub(in path)` are now excluded in both regex and AST backends
+- [x] Restore Rust crate-contract visibility — `pub` and `pub(crate)` are included while `pub(super)`, `pub(self)`, and `pub(in path)` remain excluded in regex and AST backends
 
 ## Done
 
@@ -26,6 +26,7 @@ spec: exports.spec.md
 - [x] Comment and string literal stripping across all backends
 - [x] Two-level export granularity (Type vs Member) via `filter_type_level_exports`
 - [x] Opt-in AST parse mode (`ParseMode::Ast`) for TypeScript, Python, Rust with regex fallback
+- [x] Add strict two-file regex/AST regression coverage for crate-visible Rust symbols (issue #334)
 - [x] AST parity tests in `src/exports/ast/tests.rs` cross-checking AST vs regex output
 - [x] Extend AST parse mode to C, C++, Scala, Erlang, Elixir, Perl, and Lisp/Scheme/Emacs Lisp (tree-sitter runtime bumped 0.24→0.26 to support these grammars' ABI 15)
 - [x] Test file detection (`is_test_file()`) by filename pattern and test directory name

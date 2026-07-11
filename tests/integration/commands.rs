@@ -108,6 +108,87 @@ fn generate_no_op_when_fully_covered() {
         .stdout(predicate::str::contains("No specs to generate"));
 }
 
+#[test]
+fn generate_rejects_retired_provider_and_model_flags() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    specsync()
+        .args(["generate", "--provider", "openai", "--root"])
+        .arg(&root)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unexpected argument '--provider'"));
+
+    specsync()
+        .args(["generate", "--model", "secret-model", "--root"])
+        .arg(&root)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unexpected argument '--model'"));
+}
+
+#[test]
+fn generate_never_executes_legacy_ai_command_environment_variable() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    fs::create_dir_all(root.join("src/payments")).unwrap();
+    fs::write(
+        root.join("src/payments/processor.ts"),
+        "export function charge() {}\n",
+    )
+    .unwrap();
+    let marker = root.join("legacy-ai-command-executed");
+    let command = format!("touch {}", marker.display());
+
+    let secret = "sk-environment-must-not-affect-generation";
+    let output = specsync()
+        .args(["generate", "--root"])
+        .arg(&root)
+        .env("SPECSYNC_AI_COMMAND", command)
+        .env("SPECSYNC_AI_PROVIDER", "anthropic")
+        .env("SPECSYNC_AI_MODEL", "retired-model")
+        .env("ANTHROPIC_API_KEY", secret)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        !marker.exists(),
+        "retired command environment variable executed"
+    );
+    assert!(!String::from_utf8_lossy(&output.stdout).contains(secret));
+    assert!(!String::from_utf8_lossy(&output.stderr).contains(secret));
+    assert!(root.join("specs/payments/payments.spec.md").exists());
+}
+
+#[test]
+fn check_fix_never_executes_legacy_ai_command_environment_variable() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\nexport function logout() {}\nexport function refresh() {}\n",
+    )
+    .unwrap();
+    let marker = root.join("legacy-check-fix-command-executed");
+    let command = format!("touch {}", marker.display());
+
+    specsync()
+        .args(["check", "--fix", "--root"])
+        .arg(&root)
+        .env("SPECSYNC_AI_COMMAND", command)
+        .assert()
+        .success();
+
+    assert!(
+        !marker.exists(),
+        "retired command executed during check --fix"
+    );
+    let spec = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(spec.contains("`refresh`"));
+}
+
 // ─── 4. specsync init ───────────────────────────────────────────────────
 
 #[test]
@@ -2033,8 +2114,8 @@ fn deps_strict_mermaid_still_gates() {
 
 #[test]
 fn generate_json_honors_require_coverage_gate() {
-    // Regression: `generate --format json` exited solely on AI-generation success and
-    // never gated on --require-coverage/--enforcement/--strict — a machine-consumer
+    // Regression: `generate --format json` did not gate on
+    // --require-coverage/--enforcement/--strict — a machine-consumer
     // false pass. Here an empty source dir yields vacuous 0/0 coverage that
     // --require-coverage 50 must fail loud on, in JSON just like text.
     let tmp = TempDir::new().unwrap();

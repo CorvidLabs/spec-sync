@@ -724,7 +724,7 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
     let policy = load_policy_checked(root)?.unwrap_or_default();
     let mut commands = Vec::new();
     for configured in policy.verification_commands {
-        let status = run_configured_command(root, &configured)?;
+        let status = run_configured_command(root, &configured, ConfiguredCommandOutput::Inherit)?;
         commands.push(CommandEvidence {
             command: configured,
             success: status.success(),
@@ -972,6 +972,19 @@ fn policy_at_comparison_base(root: &Path) -> Result<Option<SddPolicy>, String> {
 }
 
 pub fn check_project(root: &Path) -> SddCheckReport {
+    check_project_with_command_output(root, ConfiguredCommandOutput::Inherit)
+}
+
+/// Check SDD lifecycle state without allowing configured verification commands
+/// to write into a machine-consumed report stream.
+pub(crate) fn check_project_quiet(root: &Path) -> SddCheckReport {
+    check_project_with_command_output(root, ConfiguredCommandOutput::Suppress)
+}
+
+fn check_project_with_command_output(
+    root: &Path,
+    command_output: ConfiguredCommandOutput,
+) -> SddCheckReport {
     let current_policy = match load_policy_checked(root) {
         Ok(policy) => policy,
         Err(error) => {
@@ -1136,7 +1149,7 @@ pub fn check_project(root: &Path) -> SddCheckReport {
         })
     {
         for configured in &policy.verification_commands {
-            match run_configured_command(root, configured) {
+            match run_configured_command(root, configured, command_output) {
                 Ok(status) if status.success() => {}
                 Ok(status) => report.errors.push(format!(
                     "CI verification command `{configured}` failed with exit code {:?}",
@@ -2854,21 +2867,29 @@ fn normalize_project_path(relative: &str) -> Result<String, String> {
     Ok(normalized)
 }
 
+#[derive(Clone, Copy)]
+enum ConfiguredCommandOutput {
+    Inherit,
+    Suppress,
+}
+
 fn run_configured_command(
     root: &Path,
     configured: &str,
+    output: ConfiguredCommandOutput,
 ) -> Result<std::process::ExitStatus, String> {
     let parts = shell_words(configured)?;
     let (program, args) = parts
         .split_first()
         .ok_or_else(|| "empty verification command".to_string())?;
-    Command::new(program)
-        .args(args)
-        .current_dir(root)
-        .status()
-        .map_err(|error| {
-            format!("failed to run configured verification command `{configured}`: {error}")
-        })
+    let mut command = Command::new(program);
+    command.args(args).current_dir(root);
+    if matches!(output, ConfiguredCommandOutput::Suppress) {
+        command.stdout(Stdio::null()).stderr(Stdio::null());
+    }
+    command.status().map_err(|error| {
+        format!("failed to run configured verification command `{configured}`: {error}")
+    })
 }
 
 fn is_ci() -> bool {

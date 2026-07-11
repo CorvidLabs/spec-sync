@@ -35,6 +35,7 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 4. Coverage metrics (file and LOC percentages) are always included in the summary table
 5. `detect_branch` returns `None` if not in a git repository or git command fails
 6. The marketplace GitHub Action (`action.yml`) and project CI workflow (`.github/workflows/ci.yml`) both invoke `specsync comment` to produce identical PR comment output
+7. Rendered bodies are at most 49,152 bytes, are always valid UTF-8, and include local reproduction guidance when truncated
 
 ## Behavioral Examples
 
@@ -55,6 +56,12 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 - **Given** a git repository on branch `feat/new-module`
 - **When** `detect_branch(root)` is called
 - **Then** returns `Some("feat/new-module")`
+
+### Scenario: Bound an oversized Unicode report
+
+- **Given** errors and action items would exceed the integration-safe comment budget and contain multi-byte characters
+- **When** `render_check_comment` renders the report
+- **Then** it truncates only at a UTF-8 boundary, stays at or below 49,152 bytes, and appends guidance for reproducing the full report locally
 
 ## Error Cases
 

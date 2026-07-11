@@ -75,6 +75,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 | `archive_change` | `root, id` | `Result<PathBuf, String>` | Move an accepted workspace into the dated archive |
 | `summarize_change` | `root, record` | `ChangeSummary` | Project gate health and next action for clients |
 | `check_project` | `root: &Path` | `SddCheckReport` | Validate lifecycle state, approvals, conflicts, deltas, and path coverage |
+| `check_project_quiet` | `root: &Path` | `SddCheckReport` | Run the same fail-closed lifecycle check while suppressing configured command output for machine-consumable report protocols |
 | `adopt` | `root, dry_run, source` | `Result<Vec<String>, String>` | Preview or enable SDD and import OpenSpec or Spec Kit artifacts |
 | `detect_verification_commands` | `root: &Path` | `Vec<String>` | Detect explicit fledge, Cargo, Bun, or Swift test commands |
 
@@ -101,6 +102,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 11. Approval digests hash repository-relative artifact paths so identical Git content validates across checkout locations and operating systems.
 12. Verification command detection prefers portable project-manifest commands and uses Fledge only when no native manifest is available.
 13. Persisted and hashed project paths use forward slashes on every operating system.
+14. Quiet reporting executes every configured command and preserves failures while suppressing only child stdout and stderr; normal checking and verification continue streaming diagnostics.
 
 ## Behavioral Examples
 

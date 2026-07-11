@@ -8,7 +8,6 @@ db_tables: []
 tracks: [73]
 depends_on:
   - specs/types/types.spec.md
-  - specs/ai/ai.spec.md
   - specs/exports/exports.spec.md
 ---
 
@@ -16,7 +15,7 @@ depends_on:
 
 ## Purpose
 
-Scaffolds spec files and companion files (tasks.md, context.md, requirements.md, testing.md, and optionally design.md) for unspecced modules. Supports both template-based generation (using a default or custom `_template.spec.md`) and AI-powered generation that reads source code and calls an LLM to produce meaningful specs.
+Deterministically scaffolds spec files and companion files for unspecced modules using built-in or project-owned templates.
 
 ## Public API
 
@@ -24,8 +23,8 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `generate_specs_for_unspecced_modules` | `root, report, config, provider` | `GenerationOutcome` | Generate specs for all unspecced modules with per-file progress output, returning the generation outcome |
-| `generate_specs_for_unspecced_modules_paths` | `root, report, config, provider` | `GenerationOutcome` | Generate specs for all unspecced modules without per-file progress output (JSON/MCP callers), returning the generation outcome |
+| `generate_specs_for_unspecced_modules` | `root, report, config` | `GenerationOutcome` | Generate local template specs for all unspecced modules with progress output |
+| `generate_specs_for_unspecced_modules_paths` | `root, report, config` | `GenerationOutcome` | Generate local template specs without progress output for JSON/MCP callers |
 | `generate_companion_files_for_spec` | `spec_dir, module_name, design_enabled` | `()` | Generate companion files (tasks.md, context.md, requirements.md, testing.md, and design.md if enabled) alongside a spec |
 | `find_files_for_module` | `root, module_name, config` | `Vec<String>` | Find source files for a module by checking config definitions, subdirectories, then flat files |
 | `find_single_source_fallback` | `root, config` | `Option<String>` | Root-relative path of the project's only non-test source file (e.g. `src/lib.rs`), or `None` when there are zero or multiple candidates — fallback for `new`/`scaffold` when no name match exists |
@@ -37,7 +36,7 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 
 | Type | Description |
 |------|-------------|
-| `GenerationOutcome` | Outcome of a generation run: `generated` count, `generated_paths` (relative spec paths written), and `ai_errors` (one entry per module whose AI generation failed and fell back to the template) |
+| `GenerationOutcome` | Deterministic generation result: generated count and relative generated paths |
 
 ## Invariants
 
@@ -47,7 +46,7 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 4. Module title is derived from the module name with dashes converted to title case (e.g. "api-gateway" -> "Api Gateway")
 5. Companion files (tasks.md, context.md, requirements.md, testing.md, and design.md when enabled) are only created if they don't already exist and use guidance text instead of empty template comments
 6. The design.md template includes its own YAML frontmatter with `spec:` (back-reference to the parent spec) and `sources:` (list of design asset references — Figma URLs, image paths, etc.). This frontmatter is companion-level metadata, not parsed by the spec validation pipeline
-7. AI generation falls back to template on failure (with a warning to stderr) and records the failure in `GenerationOutcome.ai_errors` so callers can exit non-zero
+7. Generation performs no network inference, credential lookup, source transmission, or shell execution
 8. Source file paths in frontmatter are relative to the project root
 9. Module source files are discovered by checking subdirectory-based modules first, then flat files
 
@@ -77,19 +76,12 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 - **When** `generate_companion_files_for_spec` is called
 - **Then** creates tasks.md, context.md, requirements.md, testing.md but NOT design.md
 
-### Scenario: AI generation fallback
-
-- **Given** an AI provider that fails with an error
-- **When** generating a spec for module "auth"
-- **Then** falls back to template-based generation, prints a warning, and reports the failure in `GenerationOutcome.ai_errors`
-
 ## Error Cases
 
 | Condition | Behavior |
 |-----------|----------|
 | Cannot create spec directory | Prints error to stderr, skips module |
 | Cannot write spec file | Prints error to stderr, skips module |
-| AI generation fails | Falls back to template, prints warning, records the error in `GenerationOutcome.ai_errors` |
 | No source files found for module | Skips module entirely |
 
 ## Dependencies
@@ -98,7 +90,6 @@ Scaffolds spec files and companion files (tasks.md, context.md, requirements.md,
 
 | Module | What is used |
 |--------|-------------|
-| ai | `generate_spec_with_ai`, `ResolvedProvider` |
 | exports | `has_extension`, `is_test_file` |
 | types | `CoverageReport`, `SpecSyncConfig` |
 

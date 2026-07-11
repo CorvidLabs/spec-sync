@@ -31,5 +31,5 @@ spec: cmd_wizard.spec.md
 ## Out of Scope
 
 - Non-interactive / scripted spec creation (use `scaffold` or `add-spec`)
-- AI-assisted content (use the `generate` command)
+- Coding-agent enrichment after the wizard writes its deterministic scaffold
 - Editing or re-running against an existing spec

@@ -14,7 +14,7 @@ spec: cmd_check.spec.md
 - [x] `--fix` paths covered by integration tests: add/dedupe exports, create Public API section, near-miss header fixes, JSON output, dry-run, backup
 - [x] Validation outcomes covered: valid project, missing source file, undocumented export warn, phantom export error
 - [x] Git staleness migrated to `git_commits_since` (N+1 fix over the old `git_commits_between`)
-- [x] `--fix` AI regeneration routed through the reworked `ai` module (Ollama-default ladder; `claude`→`anthropic`)
+- [x] Remove embedded regeneration so `--fix` is deterministic and local
 
 ## Gaps
 

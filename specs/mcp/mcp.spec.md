@@ -12,7 +12,6 @@ depends_on:
   - specs/config/config.spec.md
   - specs/scoring/scoring.spec.md
   - specs/generator/generator.spec.md
-  - specs/ai/ai.spec.md
   - specs/deps/deps.spec.md
 ---
 
@@ -42,6 +41,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 8. Each tool accepts an optional `root` parameter to override the default project root
 9. Four static resources are exposed: `specsync:///specs`, `specsync:///graph`, `specsync:///config`, `specsync:///coverage`
 10. One resource template is exposed: `specsync:///specs/{module}` for reading individual specs
+11. `specsync_generate` is deterministic and rejects retired inference arguments explicitly
 
 ## Behavioral Examples
 
@@ -85,6 +85,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | Unknown resource URI | JSON-RPC error -32602 "Unknown resource URI: {uri}" |
 | Spec module not found | JSON-RPC error -32602 "No spec found for module: {name}" |
 | No spec files found | Tool error with suggestion to run `specsync generate` |
+| Retired AI/provider/model/credential/endpoint/command argument | Tool error with migration guidance; supplied values are not echoed |
 | stdin EOF | Server exits gracefully |
 
 ## Dependencies
@@ -97,7 +98,6 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | validator | `validate_spec`, `find_spec_files`, `compute_coverage`, `get_schema_table_names` |
 | generator | `generate_specs_for_unspecced_modules_paths` |
 | scoring | `score_spec`, `compute_project_score` |
-| ai | `resolve_ai_provider` |
 | parser | `parse_frontmatter` |
 | types | `SpecSyncConfig` |
 | deps | `build_dep_graph`, `validate_deps`, `topological_sort` |

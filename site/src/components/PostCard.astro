@@ -1,13 +1,14 @@
 ---
 import CategoryTag from './CategoryTag.astro'
 import type { CollectionEntry } from 'astro:content'
+import { contentSlug } from '../lib/content'
 interface Props { post: CollectionEntry<'blog'> }
 const { post } = Astro.props
 import { base } from '../lib/path'
 const date = post.data.date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 const initial = post.data.author.charAt(0)
 ---
-<li><a href={`${base}blog/${post.slug}`} class="post">
+<li><a href={`${base}blog/${contentSlug(post.id)}`} class="post">
   <div class="post-top">
     <CategoryTag category={post.data.category} />
     <span class="post-date">{date}</span>

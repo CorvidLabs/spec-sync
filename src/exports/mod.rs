@@ -282,9 +282,12 @@ fn filter_type_level_exports(content: &str, symbols: &[String], lang: Language) 
             .ok()
         }
         Language::Rust => {
-            // Capture optional visibility restriction so pub(crate)/pub(super)/pub(in path)/pub(self)
-            // type names can be discarded before intersecting with the symbol list.
-            Regex::new(r"(?m)pub(\([^)]*\))?\s+(?:struct|enum|trait|type|mod)\s+(\w+)").ok()
+            // Capture optional visibility restriction so narrower-than-crate type names
+            // can be discarded before intersecting with the symbol list.
+            Regex::new(
+                r"(?m)\bpub\s*(\(\s*[^)]*?\s*\))?\s+(?:struct|enum|trait|type|mod)\s+(\w+)",
+            )
+            .ok()
         }
         Language::Go => {
             // Go: type X struct/interface
@@ -359,8 +362,16 @@ fn filter_type_level_exports(content: &str, symbols: &[String], lang: Language) 
         Some(re) => re
             .captures_iter(content)
             .filter_map(|caps| {
-                // Skip restricted visibility: pub(crate), pub(super), pub(in path), pub(self).
-                if caps.get(1).is_some() {
+                let restriction = caps.get(1).map(|value| value.as_str());
+                if lang == Language::Rust
+                    && restriction.is_some_and(|value| {
+                        value
+                            .chars()
+                            .filter(|character| !character.is_whitespace())
+                            .collect::<String>()
+                            != "(crate)"
+                    })
+                {
                     return None;
                 }
                 caps.get(2).map(|m| m.as_str().to_string())

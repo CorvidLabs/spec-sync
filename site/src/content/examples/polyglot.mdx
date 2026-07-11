@@ -13,7 +13,7 @@ A monorepo with a TypeScript frontend, a Python ML service, and a Rust binary ca
 ## 1. Check the whole repo at once
 
 ```bash
-spec-sync check
+specsync check
 ```
 
 `spec-sync` walks the repo, detects TypeScript (via `tsconfig.json`), Python (via `pyproject.toml`), and Rust (via `Cargo.toml`) automatically. All three are validated in a single pass.
@@ -23,7 +23,7 @@ spec-sync check
 Add `--explain` to see which language each spec was checked against:
 
 ```bash
-spec-sync check --explain
+specsync check --explain
 ```
 
 ```
@@ -63,17 +63,17 @@ The endpoint returns a [`HandlerResponse`](crates/server/specs/handlers.spec.md#
 serialized as JSON.
 ```
 
-`spec-sync graph` resolves the cross-link at check time and fails the build if `HandlerResponse` no longer exists in the Rust spec.
+`specsync deps` validates declared cross-module relationships; `specsync check` fails if a documented export such as `HandlerResponse` disappears from its Rust source.
 
 ## 5. Generate missing entries per language
 
 For undocumented exports across all three languages in one shot:
 
 ```bash
-spec-sync generate --fix
+specsync check --fix
 ```
 
-The AI provider drafts spec entries using the right idioms per language (Markdown table for TS types, signature-first for Python, `pub fn` blocks for Rust). Review before committing.
+The deterministic fixer adds language-aware review rows for newly discovered exports. Complete their descriptions yourself or with your configured coding agent, then review before committing.
 
 ## 6. Wire the CI gate
 
@@ -91,7 +91,7 @@ jobs:
           strict: true
 ```
 
-The Action runs `spec-sync check --strict` against every PR. Drift in any of the three languages blocks the merge.
+The Action runs `specsync check --strict` against every PR. Drift in any of the three languages blocks the merge.
 
 ## 7. Add the VS Code extension
 

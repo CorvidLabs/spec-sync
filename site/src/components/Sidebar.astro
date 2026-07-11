@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content'
 import { base } from '../lib/path'
+import { contentSlug } from '../lib/content'
 const all = await getCollection('docs')
 const sectionOrder = ['Getting started', 'Spec format', 'Reference', 'Integrations'] as const
 const grouped = sectionOrder.map(name => ({
@@ -21,7 +22,7 @@ const linkFor = (slug: string) => {
       <h2 class="section-title">{group.name}</h2>
       <ul>
         {group.items.map(item => {
-          const href = linkFor(item.slug)
+          const href = linkFor(contentSlug(item.id))
           const active = href.replace(/\/$/, '') === current
           return <li><a href={href} class={active ? 'active' : ''} aria-current={active ? 'page' : undefined}>{item.data.title}</a></li>
         })}

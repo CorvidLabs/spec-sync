@@ -12,7 +12,6 @@ depends_on:
   - specs/validator/validator.spec.md
   - specs/exports/exports.spec.md
   - specs/generator/generator.spec.md
-  - specs/ai/ai.spec.md
   - specs/scoring/scoring.spec.md
   - specs/registry/registry.spec.md
   - specs/mcp/mcp.spec.md
@@ -55,7 +54,7 @@ Clap derive types define the root `Cli`, the `Command` namespace, and focused ac
 |---------|-------------|-----------|
 | check | Validate all specs against source code (default when no subcommand given) | --strict, --require-coverage N, --json, --fix, --force, --create-issues, --explain, [SPEC...] |
 | coverage | Show file and module coverage report | --strict, --require-coverage N, --json |
-| generate | Scaffold spec files for unspecced modules | --provider PROVIDER (AI mode: auto/claude/anthropic/openai/ollama/copilot) |
+| generate | Deterministically scaffold spec files for unspecced modules | --uncovered, --batch MODULE... |
 | init | Create the 5.0 `.specsync/` layout, TOML config, SDD policy, and version stamp | — |
 | change | Manage the verified SDD lifecycle, interviews, approvals, verification, acceptance, adoption, and archive | new, answer, approve, start, verify, accept, archive, adopt |
 | score | Score spec quality (0–100) with letter grades and suggestions | --json, --explain, [SPEC...] |
@@ -103,7 +102,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 - **cmd_change** — Dispatch the verified SDD lifecycle and render equivalent text/JSON results
 - **cmd_check** — Load config, discover specs, validate, print results, exit with status
 - **cmd_coverage** — Load config, compute coverage, print detailed coverage report
-- **cmd_generate** — Scaffold specs for unspecced modules; optionally use AI provider
+- **cmd_generate** — Deterministically scaffold specs for unspecced modules
 - **cmd_score** — Score all specs and print quality grades
 - **cmd_add_spec** — Create a single spec + companion files for a named module
 - **cmd_init_registry** — Generate specsync-registry.toml from existing specs
@@ -189,11 +188,11 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 - **When** `specsync check --require-coverage 90` is run
 - **Then** the process exits with code 1 and prints the unspecced files
 
-### Scenario: Generate with AI
+### Scenario: Deterministic generation
 
-- **Given** an AI provider is available
-- **When** `specsync generate --provider auto` is run
-- **Then** auto-detects the provider and generates AI-enhanced specs
+- **Given** uncovered modules exist
+- **When** `specsync generate` is run
+- **Then** local template specs and companion files are generated
 
 ### Scenario: Resolve without network
 
@@ -248,7 +247,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 | Condition | Behavior |
 |-----------|----------|
 | Cannot determine cwd | Panics with "Cannot determine cwd" |
-| AI provider not found (with `--provider`) | Prints error to stderr and exits 1 |
+| Retired `--provider` or `--model` flag | Clap rejects the unknown argument |
 | Failed to write `specsync.json` | Panics with "Failed to write specsync.json" |
 | Failed to create spec directory | Prints error to stderr and exits 1 |
 | Failed to write spec file | Prints error to stderr and exits 1 |
@@ -266,7 +265,6 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 | `coverage` | < 1s | 3s |
 | `score` | < 1s | 3s |
 | `generate` (local) | < 2s | 5s |
-| `generate` (AI provider) | < 10s | 30s |
 | `init` | < 500ms | 2s |
 | `view` | < 200ms | 1s |
 | `diff` | < 1s | 3s |
@@ -284,7 +282,6 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 |------------|-------------------|----------|
 | File hash cache | 5 seconds | `hash_cache` module updates cache entries within 5s of file changes |
 | Spec parse cache | N/A | Parsed frontmatter is not cached; re-parsed on each run |
-| AI response cache | N/A | AI responses are not cached across runs |
 | Registry cache | 60 seconds | Remote registry entries cached for 60s with `--remote` flag |
 
 ### Resource Limits
@@ -293,7 +290,6 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 |----------|-------|----------|
 | Memory | 512MB | CLI should not exceed 512MB heap for projects with < 100 specs |
 | Concurrent file operations | 10 | Maximum 10 concurrent file reads during validation |
-| AI request timeout | 120s | AI provider calls timeout after 120 seconds |
 | HTTP timeout | 10s | GitHub API calls timeout after 10 seconds |
 | Git operation timeout | 30s | Git diff/log operations timeout after 30 seconds |
 
@@ -324,7 +320,6 @@ Cold start times (first run after boot) may be 2-3x higher due to disk cache war
 | validator | `validate_spec`, `find_spec_files`, `compute_coverage`, `get_schema_table_names`, `is_cross_project_ref`, `parse_cross_project_ref` |
 | exports | `has_extension`, `get_exported_symbols` (used by auto_fix_specs and cmd_diff) |
 | generator | `generate_specs_for_unspecced_modules`, `generate_specs_for_unspecced_modules_paths`, `generate_companion_files_for_spec` |
-| ai | `resolve_ai_provider` |
 | scoring | `score_spec`, `compute_project_score`, `SpecScore` |
 | registry | `generate_registry`, `fetch_remote_registry`, `RemoteRegistry` |
 | mcp | `run_mcp_server` |

@@ -8,7 +8,6 @@ db_tables: []
 tracks: []
 depends_on:
   - specs/commands/commands.spec.md
-  - specs/ai/ai.spec.md
   - specs/git_utils/git_utils.spec.md
   - specs/hash_cache/hash_cache.spec.md
   - specs/ignore/ignore.spec.md
@@ -23,7 +22,7 @@ depends_on:
 
 ## Purpose
 
-Implements the `specsync check` command — the primary validation entry point. Validates all specs against source code, manages hash-based caching for incremental checks, supports auto-fix (adding undocumented exports, correcting near-miss headers, AI-regenerating stale specs), handles multiple output formats (text/json/markdown), and optionally creates GitHub drift issues.
+Implements the primary deterministic validation entry point, including caching, local markdown auto-fix, output formats, SDD gates, and optional drift issues.
 
 ## Public API
 
@@ -35,7 +34,7 @@ Implements the `specsync check` command — the primary validation entry point. 
 
 ## Invariants
 
-1. When `--fix` is passed, auto-fix runs in two phases: (a) add undocumented exports to spec markdown tables with generated review prompts — type exports are routed to the "… Types" table and functions/values to the "… Functions"/"… Methods" table (falling back to the last export subsection), with rows padded to the target table's column count, (b) AI-regenerate specs whose requirements have drifted
+1. `--fix` performs deterministic local markdown repairs only: near-miss headers and undocumented export rows; it never calls a model or shell command
 2. Near-miss header correction runs as part of auto-fix — Levenshtein-close typos are renamed to canonical export headers, and bare API-kind headings under `## Public API` (e.g. `### Functions`, `### Methods`, `### Types`) are promoted to `### Exported <Kind>` so hand-written tables become the export table instead of being duplicated
 3. Hash cache is consulted before validation unless `--force`, `--strict`, `--fix`, or a spec filter is set — an explicit `--fix` is never silently skipped because a previous failing/warning run recorded the hashes
 3a. `--fix` never adds a symbol that already appears in any table within `## Public API` (including informational subsections)
@@ -69,7 +68,6 @@ Implements the `specsync check` command — the primary validation entry point. 
 
 | Condition | Behavior |
 |-----------|----------|
-| AI provider not available during `--fix` regen | Prints error per spec, continues with remaining specs |
 | Auto-fix changes a spec but validation still fails | Reports remaining errors, does not loop |
 | Spec name filter matches nothing while specs exist | Prints "No specs matched" error (no contradictory "No spec files found" message) and exits 1 |
 | Hash cache file is corrupted | Falls back to full validation (cache miss) |
@@ -82,7 +80,6 @@ Implements the `specsync check` command — the primary validation entry point. 
 | Module | What is used |
 |--------|-------------|
 | commands | `load_and_discover`, `filter_specs`, `build_schema_columns`, `run_validation`, `compute_exit_code`, `exit_with_status`, `create_drift_issues` |
-| ai | `resolve_ai_provider`, `regenerate_spec_with_ai` |
 | hash_cache | `HashCache::load`, `save`, `is_changed` |
 | ignore | `IgnoreRules::load` |
 | output | `print_summary`, `print_coverage_line`, `print_check_markdown` |

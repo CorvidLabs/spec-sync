@@ -117,7 +117,7 @@ One tool, one format, 33 languages — the same `*.spec.md` contract and lifecyc
 SpecSync was built for the AI-assisted development era:
 
 - **MCP server mode** lets AI agents query your specs, check coverage, and generate new specs in real time
-- **AI-powered generation** creates meaningful spec content (not just templates) using Claude, OpenAI, Ollama, or Copilot
+- **Agent-native enrichment** lets your existing coding agent refine deterministic scaffolds without moving credentials into SpecSync
 - **Structured output** (JSON mode) integrates cleanly with agent workflows
 - **AGENTS.md generation** produces instruction files for Claude Code, Cursor, and Copilot
 
@@ -143,7 +143,7 @@ SpecSync is not the right tool if:
 
 - **You only need API reference docs** — use auto-doc tools (TypeDoc, rustdoc) instead
 - **Your project has < 3 modules** — the overhead isn't worth it for tiny projects
-- **Your team doesn't write specs** — SpecSync validates specs, it doesn't replace the need to write them (though AI generation helps bootstrap)
+- **Your team doesn't write specs** — SpecSync validates specs and scaffolds the structure, but humans or their coding agents still own the contract
 - **You need runtime API contract testing** — use OpenAPI + contract testing tools instead
 
 ---

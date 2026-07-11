@@ -14,6 +14,9 @@ spec: cmd_comment.spec.md
 - [x] Documented the unified pipeline: marketplace action + CI both use `specsync comment` for identical output
 - [x] Verified the wrapper reuses `check`'s validation + `compute_exit_code` and renders via `comment::render_check_comment`
 - [x] Confirmed the renderer is covered by `comment` inline tests (`test_render_check_comment_*`, `test_suggestion_for_*`)
+- [x] Prevented configured SDD verification child output from contaminating comment stdout while preserving execution and failure reporting
+- [x] Added end-to-end coverage proving comment mode is quiet while ordinary lifecycle checking still streams configured command output
+- [x] Made project CI capture comment output with quiet Cargo and a defensive UTF-8-safe byte cap
 
 ## Review Sign-offs
 

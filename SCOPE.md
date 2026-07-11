@@ -1,6 +1,6 @@
-# SpecSync v3 Scope
+# SpecSync Scope
 
-This document defines what is in scope for v3 and what is explicitly deferred.
+This document summarizes the shipped product boundary and what remains explicitly deferred.
 
 ## In Scope (Shipped)
 
@@ -11,12 +11,11 @@ This document defines what is in scope for v3 and what is explicitly deferred.
 - Quality scoring with letter grades and improvement suggestions
 - `--strict` and `--require-coverage` for CI gating
 
-### AI-Powered Generation
-- `specsync generate --provider <name>` for AI-powered spec generation
-- `--provider auto` for auto-detection of installed providers
-- Provider support: Claude CLI, Ollama, Copilot, Anthropic API, OpenAI API
-- Config-based provider resolution (aiProvider, aiCommand, aiModel, aiTimeout)
-- Template fallback when AI is unavailable or fails
+### Deterministic, Agent-Native Generation
+- `specsync generate` creates deterministic local spec scaffolds
+- `specsync agents install` integrates Claude Code, Cursor, Codex, and Gemini
+- `specsync mcp` exposes deterministic validation and generation tools
+- SpecSync stores no inference credentials and never sends source to a model or executes an AI command
 
 ### Cross-Project References
 - `depends_on: ["owner/repo@module"]` syntax in spec frontmatter
@@ -35,7 +34,7 @@ This document defines what is in scope for v3 and what is explicitly deferred.
 ### CLI
 - `check` — validate specs (default command)
 - `coverage` — file and LOC coverage report
-- `generate` — scaffold specs (template or AI)
+- `generate` — deterministically scaffold specs
 - `score` — quality scoring
 - `resolve` — dependency resolution (local + optional remote)
 - `add-spec` — scaffold a single new spec with companions
@@ -83,7 +82,7 @@ Pinning to specific versions is not planned.
 ## Design Principles
 
 1. **Zero CI cost by default** — `specsync check` never hits the network
-2. **Opt-in complexity** — remote resolution, AI generation, etc. are all flags
+2. **Opt-in complexity** — remote resolution and external integrations are explicit
 3. **Language-agnostic** — works with any codebase that has source files
 4. **Human-first, AI-friendly** — specs are readable markdown, parseable by agents
 5. **Minimal config** — works out of the box with sensible defaults

@@ -36,6 +36,7 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 3. When `--pr N` is set, resolves repo and uses `gh pr comment` to post
 4. Exits 1 if `gh` CLI fails or repo cannot be determined
 5. The marketplace action and CI workflow both use `specsync comment` (stdout mode) as the single source of comment content — no alternative comment generation paths exist
+6. Configured SDD verification commands execute and fail closed, but their child stdout and stderr are suppressed so stdout remains a markdown-only protocol
 
 ## Behavioral Examples
 
@@ -56,6 +57,12 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 - **Given** the marketplace action runs with `comment: true`
 - **When** `specsync comment` is invoked without `--pr`
 - **Then** the stdout output is identical to what the CI workflow captures via `cargo run -- comment`
+
+### Scenario: Configured verification command emits output
+
+- **Given** CI configures an SDD verification command that writes to stdout or stderr
+- **When** `specsync comment` runs
+- **Then** the command still executes and affects lifecycle status, but its child output is absent from the rendered markdown stream
 
 ## Error Cases
 

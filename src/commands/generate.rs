@@ -2,7 +2,6 @@ use colored::Colorize;
 use std::path::Path;
 use std::process;
 
-use crate::ai;
 use crate::generator::{
     generate_specs_for_unspecced_modules, generate_specs_for_unspecced_modules_paths,
 };
@@ -14,54 +13,6 @@ use super::{
     build_schema_columns, compute_exit_code, exit_with_status, load_and_discover, run_validation,
 };
 
-/// Resolve the AI provider for `generate`, or `None` for template-only mode.
-///
-/// AI is used when a provider is configured anywhere — the `--provider` flag,
-/// `aiProvider`/`aiCommand` in config, or the `SPECSYNC_AI_PROVIDER` /
-/// `SPECSYNC_AI_COMMAND` env vars — so a configured provider "just works"
-/// without repeating `--provider`. The `--provider` flag overrides config.
-/// Model precedence: `--model` > `SPECSYNC_AI_MODEL` env > `aiModel` config.
-fn resolve_provider_for_generate(
-    config: &types::SpecSyncConfig,
-    provider_flag: Option<&str>,
-    model_flag: Option<&str>,
-) -> Option<ai::ResolvedProvider> {
-    let ai_requested = provider_flag.is_some()
-        || config.ai_provider.is_some()
-        || config.ai_command.is_some()
-        || std::env::var("SPECSYNC_AI_PROVIDER").is_ok_and(|v| !v.is_empty())
-        || std::env::var("SPECSYNC_AI_COMMAND").is_ok_and(|v| !v.is_empty());
-    if !ai_requested {
-        return None;
-    }
-
-    // "auto" forces auto-detect (ignore a configured provider); an explicit
-    // name overrides config; an absent flag falls through to config/env/auto.
-    let cli_provider = match provider_flag {
-        Some("auto") => None,
-        other => other,
-    };
-
-    // Effective model: --model > SPECSYNC_AI_MODEL env > aiModel config.
-    let mut cfg = config.clone();
-    cfg.ai_model = model_flag
-        .map(str::to_string)
-        .or_else(|| {
-            std::env::var("SPECSYNC_AI_MODEL")
-                .ok()
-                .filter(|m| !m.is_empty())
-        })
-        .or_else(|| config.ai_model.clone());
-
-    match ai::resolve_ai_provider(&cfg, cli_provider) {
-        Ok(p) => Some(p),
-        Err(e) => {
-            eprintln!("{e}");
-            process::exit(1);
-        }
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 pub fn cmd_generate(
     root: &Path,
@@ -69,8 +20,6 @@ pub fn cmd_generate(
     enforcement: Option<types::EnforcementMode>,
     require_coverage: Option<usize>,
     format: types::OutputFormat,
-    provider: Option<String>,
-    model: Option<String>,
     uncovered: bool,
     batch: Vec<String>,
 ) {
@@ -78,31 +27,13 @@ pub fn cmd_generate(
 
     // --batch mode: generate for a specific list of modules
     if !batch.is_empty() {
-        cmd_generate_batch(
-            root,
-            strict,
-            enforcement,
-            require_coverage,
-            format,
-            provider,
-            model,
-            batch,
-        );
+        cmd_generate_batch(root, strict, enforcement, require_coverage, format, batch);
         return;
     }
 
     // --uncovered or default: generate for all unspecced modules
     let _ = uncovered; // explicit flag is accepted but behavior is the same as default
-    cmd_generate_all(
-        root,
-        strict,
-        enforcement,
-        require_coverage,
-        format,
-        provider,
-        model,
-        json,
-    );
+    cmd_generate_all(root, strict, enforcement, require_coverage, format, json);
 }
 
 /// Generate specs for all unspecced modules (default behavior, also triggered by --uncovered).
@@ -113,8 +44,6 @@ fn cmd_generate_all(
     enforcement: Option<types::EnforcementMode>,
     require_coverage: Option<usize>,
     _format: types::OutputFormat,
-    provider: Option<String>,
-    model: Option<String>,
     json: bool,
 ) {
     let (config, spec_files) = load_and_discover(root, true);
@@ -150,18 +79,8 @@ fn cmd_generate_all(
 
     let mut coverage = compute_coverage(root, &spec_files, &config);
 
-    // AI mode is enabled by --provider, a configured provider, or env.
-    let resolved_provider =
-        resolve_provider_for_generate(&config, provider.as_deref(), model.as_deref());
-    let ai = resolved_provider.is_some();
-
     if json {
-        let outcome = generate_specs_for_unspecced_modules_paths(
-            root,
-            &coverage,
-            &config,
-            resolved_provider.as_ref(),
-        );
+        let outcome = generate_specs_for_unspecced_modules_paths(root, &coverage, &config);
         // Recompute coverage + validation post-generation so the gate reflects the
         // newly written specs, then honor the same gate flags the text path does.
         // Without this, `--strict`/`--enforcement`/`--require-coverage` were silently
@@ -189,7 +108,6 @@ fn cmd_generate_all(
         };
         let output = serde_json::json!({
             "generated": outcome.generated_paths,
-            "ai_errors": outcome.ai_errors,
         });
         println!("{}", serde_json::to_string_pretty(&output).unwrap());
         let gate = compute_exit_code(
@@ -200,23 +118,14 @@ fn cmd_generate_all(
             &coverage,
             require_coverage,
         );
-        process::exit(if outcome.ai_errors.is_empty() && gate == 0 {
-            0
-        } else {
-            1
-        });
+        process::exit(gate);
     }
 
     print_coverage_report(&coverage);
 
     println!(
         "\n--- {} -----------------------------------------------",
-        if ai {
-            "Generating Specs (AI)"
-        } else {
-            "Generating Specs"
-        }
-        .bold()
+        "Generating Specs".bold()
     );
 
     if !coverage.unspecced_modules.is_empty() {
@@ -227,8 +136,7 @@ fn cmd_generate_all(
         );
     }
 
-    let outcome =
-        generate_specs_for_unspecced_modules(root, &coverage, &config, resolved_provider.as_ref());
+    let outcome = generate_specs_for_unspecced_modules(root, &coverage, &config);
     let generated = outcome.generated;
     if generated == 0 && coverage.unspecced_modules.is_empty() {
         println!(
@@ -266,7 +174,6 @@ fn cmd_generate_all(
 
     print_summary(total, passed, total_warnings, total_errors);
     print_coverage_line(&coverage);
-    report_ai_failures_and_exit(&outcome.ai_errors);
     exit_with_status(
         total_errors,
         total_warnings,
@@ -275,27 +182,6 @@ fn cmd_generate_all(
         &coverage,
         require_coverage,
     );
-}
-
-/// If any AI generation failures occurred, print them prominently on stderr
-/// (last, after the check report) and exit non-zero. No-op when empty.
-fn report_ai_failures_and_exit(ai_errors: &[String]) {
-    if ai_errors.is_empty() {
-        return;
-    }
-    eprintln!();
-    for e in ai_errors {
-        eprintln!("  {} {e}", "✗".red());
-    }
-    eprintln!(
-        "{} AI generation failed for {} module(s) — template fallback was used.",
-        "✗".red().bold(),
-        ai_errors.len()
-    );
-    eprintln!(
-        "  Check your provider configuration (API key, --provider, aiProvider/aiCommand) and re-run."
-    );
-    process::exit(1);
 }
 
 /// Generate specs for a specific batch of module names.
@@ -307,8 +193,6 @@ fn cmd_generate_batch(
     enforcement: Option<types::EnforcementMode>,
     require_coverage: Option<usize>,
     format: types::OutputFormat,
-    provider: Option<String>,
-    model: Option<String>,
     batch: Vec<String>,
 ) {
     let json = matches!(format, types::OutputFormat::Json);
@@ -329,10 +213,6 @@ fn cmd_generate_batch(
     });
 
     let coverage = compute_coverage(root, &spec_files, &config);
-
-    // Resolve AI provider (flag, configured provider, or env).
-    let resolved_provider =
-        resolve_provider_for_generate(&config, provider.as_deref(), model.as_deref());
 
     // Filter the coverage report to only the requested modules
     let unspecced_set: std::collections::HashSet<&str> = coverage
@@ -366,12 +246,7 @@ fn cmd_generate_batch(
             unspecced_modules: to_generate.clone(),
             ..coverage.clone()
         };
-        let outcome = generate_specs_for_unspecced_modules_paths(
-            root,
-            &filtered_coverage,
-            &config,
-            resolved_provider.as_ref(),
-        );
+        let outcome = generate_specs_for_unspecced_modules_paths(root, &filtered_coverage, &config);
         // Recompute coverage + validation post-generation and honor the gate flags,
         // matching the text path — the JSON path previously ignored
         // --strict/--enforcement/--require-coverage (a machine-consumer false pass).
@@ -398,7 +273,6 @@ fn cmd_generate_batch(
         let output = serde_json::json!({
             "requested": modules,
             "generated": outcome.generated_paths,
-            "ai_errors": outcome.ai_errors,
             "skipped_already_specced": already_specced,
             "skipped_not_found": not_found,
         });
@@ -411,11 +285,7 @@ fn cmd_generate_batch(
             &coverage,
             require_coverage,
         );
-        process::exit(if outcome.ai_errors.is_empty() && gate == 0 {
-            0
-        } else {
-            1
-        });
+        process::exit(gate);
     }
 
     println!(
@@ -441,7 +311,6 @@ fn cmd_generate_batch(
         );
     }
 
-    let mut ai_errors: Vec<String> = Vec::new();
     if to_generate.is_empty() {
         println!("  {} Nothing to generate.", "i".blue());
     } else {
@@ -457,13 +326,7 @@ fn cmd_generate_batch(
             ..coverage
         };
 
-        let outcome = generate_specs_for_unspecced_modules(
-            root,
-            &filtered_coverage,
-            &config,
-            resolved_provider.as_ref(),
-        );
-        ai_errors = outcome.ai_errors;
+        let outcome = generate_specs_for_unspecced_modules(root, &filtered_coverage, &config);
 
         println!(
             "\n  {} Batch generate complete: {}/{} spec(s) generated",
@@ -493,7 +356,6 @@ fn cmd_generate_batch(
     );
     print_summary(total, passed, total_warnings, total_errors);
 
-    report_ai_failures_and_exit(&ai_errors);
     exit_with_status(
         total_errors,
         total_warnings,

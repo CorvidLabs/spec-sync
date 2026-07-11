@@ -9,7 +9,7 @@ spec: exports.spec.md
 | `src/exports/mod.rs` | cargo test exports:: | No inline tests in `mod.rs` itself; covered indirectly via the per-language backends and `tests/integration.rs`. Add focused coverage for `get_exported_symbols`, `get_exported_symbols_full`, `is_test_file`, `is_source_file`, `has_extension` before risky changes |
 | `src/exports/typescript.rs` | cargo test exports::typescript:: | `test_basic_exports`, `test_comments_stripped`, `test_re_exports`, `test_wildcard_namespace_export`, `test_wildcard_export_with_resolver`, `test_wildcard_export_without_resolver` |
 | `src/exports/python.rs` | cargo test exports::python:: | `test_python_all`, `test_python_no_all`, `test_python_all_single_quotes`, `test_python_all_overrides_conventions`, `test_python_decorators_ignored`, `test_python_nested_not_captured` |
-| `src/exports/rust_lang.rs` | cargo test exports::rust_lang:: | `test_rust_exports`, `test_pub_crate`, `test_ignores_pub_inside_string_literals`, `test_pub_after_raw_string_with_hash_in_content`, `test_real_ai_rs`, `test_real_registry_rs` |
+| `src/exports/rust_lang.rs` | cargo test rust_lang | `test_rust_exports`, `test_pub_crate_included`, restricted-visibility exclusions, crate-visible re-exports, string/comment stripping, `test_real_registry_rs` |
 | `src/exports/go.rs` | cargo test exports::go:: | `test_go_exports`, `test_go_methods`, `test_go_comments_stripped`, `test_go_interface_declarations`, `test_go_const_var_groups`, `test_go_value_receiver` |
 | `src/exports/java.rs` | cargo test exports::java:: | `test_java_exports`, `test_java_abstract`, `test_java_comments_stripped`, `test_java_generics`, `test_java_annotation_type`, `test_java_private_and_protected_excluded` |
 | `src/exports/kotlin.rs` | cargo test exports::kotlin:: | `test_kotlin_exports`, `test_kotlin_visibility`, `test_kotlin_suspend` |
@@ -26,6 +26,7 @@ spec: exports.spec.md
 | `tests/integration.rs` | cargo test --test integration fix_adds_undocumented_exports_to_spec | End-to-end fixture: `fix_adds_undocumented_exports_to_spec` |
 | `tests/integration.rs` | cargo test --test integration fix_does_not_duplicate_already_documented_exports | End-to-end fixture: `fix_does_not_duplicate_already_documented_exports` |
 | `tests/integration.rs` | cargo test --test integration diff_detects_removed_exports | End-to-end fixture: `diff_detects_removed_exports` |
+| `tests/integration/languages.rs` | cargo test --test integration rust_multi_file_pub_crate_exports_pass_strict_in_regex_and_ast_modes | Strict two-file regression proves `pub` plus `pub(crate)` coverage in regex and AST modes |
 
 ## Behavioral Verification
 

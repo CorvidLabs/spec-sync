@@ -39,7 +39,7 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
         process::exit(1);
     }
 
-    // Use the template-based generator (no AI for add-spec)
+    // Use the same deterministic template generator as `generate`.
     let template_path = specs_dir.join("_template.spec.md");
     let template = if template_path.exists() {
         fs::read_to_string(&template_path).unwrap_or_default()

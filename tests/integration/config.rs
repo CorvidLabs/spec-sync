@@ -6,6 +6,37 @@ use tempfile::TempDir;
 // ─── TOML Config Tests ──────────────────────────────────────────────────
 
 #[test]
+fn retired_ai_config_keys_warn_by_name_without_echoing_values() {
+    for (file_name, content, expected_key) in [
+        (
+            ".specsync.toml",
+            "source_dirs = [\"src\"]\nai_api_key = \"sk-toml-never-echo\"\n",
+            "ai_api_key",
+        ),
+        (
+            "specsync.json",
+            r#"{"sourceDirs":["src"],"aiApiKey":"sk-json-never-echo"}"#,
+            "aiApiKey",
+        ),
+    ] {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join("src")).unwrap();
+        fs::write(tmp.path().join(file_name), content).unwrap();
+
+        let output = specsync()
+            .args(["coverage", "--root"])
+            .arg(tmp.path())
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains(expected_key));
+        assert!(stderr.contains("ignored"));
+        assert!(!stderr.contains("sk-toml-never-echo"));
+        assert!(!stderr.contains("sk-json-never-echo"));
+    }
+}
+
+#[test]
 fn toml_config_is_loaded() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();

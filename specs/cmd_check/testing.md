@@ -32,7 +32,7 @@ spec: cmd_check.spec.md
 
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
-| AI provider not available during `--fix` regen | Prints error per spec, continues with remaining specs | Keep or add a focused assertion before changing this behavior |
+| Inference environment variables during `--fix` | No model or command executes; deterministic markdown repairs only | Keep the security regression |
 | Auto-fix changes a spec but validation still fails | Reports remaining errors, does not loop | Keep or add a focused assertion before changing this behavior |
 | Hash cache file is corrupted | Falls back to full validation (cache miss) | Keep or add a focused assertion before changing this behavior |
 | `--create-issues` with no GitHub repo | Prints error, skips issue creation | Keep or add a focused assertion before changing this behavior |

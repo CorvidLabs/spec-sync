@@ -2,11 +2,11 @@ use regex::Regex;
 use std::sync::LazyLock;
 
 /// pub fn, pub struct, pub enum, pub trait, pub type, pub const, pub static, pub mod
-/// Only plain `pub` is treated as exported; restricted visibility forms such as
-/// `pub(crate)`, `pub(super)`, `pub(self)`, and `pub(in path::to::mod)` are excluded.
+/// Plain `pub` and crate-visible `pub(crate)` are treated as spec-visible.
+/// Narrower restricted forms are excluded.
 static PUB_DECL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"pub(\([^)]*\))?\s+(?:async\s+)?(?:unsafe\s+)?(?:fn|struct|enum|trait|type|const|static|mod)\s+(\w+)",
+        r"\bpub\s*(\(\s*[^)]*?\s*\))?\s+(?:async\s+)?(?:unsafe\s+)?(?:fn|struct|enum|trait|type|const|static|mod)\s+(\w+)",
     )
     .unwrap()
 });
@@ -18,8 +18,9 @@ static PUB_DECL: LazyLock<Regex> = LazyLock::new(|| {
 /// squarely part of the crate's public API surface. `[^}]*` spans newlines (no
 /// `(?s)` needed: a character class excluding only `}` already matches `\n`),
 /// so a rustfmt-wrapped multi-line brace list is still captured whole.
-static PUB_USE_GROUP: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"pub(\([^)]*\))?\s+use\s+[\w:]+::\{([^}]*)\}").unwrap());
+static PUB_USE_GROUP: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\bpub\s*(\(\s*[^)]*?\s*\))?\s+use\s+[\w:]+::\{([^}]*)\}").unwrap()
+});
 
 /// `pub use path::to::Name;` or `pub use path::to::Name as Alias;` — a
 /// single-item re-export. The glob form `pub use path::*;` is intentionally
@@ -27,15 +28,15 @@ static PUB_USE_GROUP: LazyLock<Regex> =
 /// is only expanded in typescript.rs when a resolver is supplied) — left for
 /// future work.
 static PUB_USE_SINGLE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"pub(\([^)]*\))?\s+use\s+(?:\w+::)*(\w+)(?:\s+as\s+(\w+))?\s*;").unwrap()
+    Regex::new(r"\bpub\s*(\(\s*[^)]*?\s*\))?\s+use\s+(?:\w+::)*(\w+)(?:\s+as\s+(\w+))?\s*;")
+        .unwrap()
 });
 
 /// Extract public symbols from Rust source code.
 /// Looks for `pub fn`, `pub struct`, `pub enum`, `pub trait`, `pub type`,
 /// `pub const`, `pub static`, and `pub mod` declarations.
-/// Restricted visibility forms `pub(crate)`, `pub(super)`, `pub(self)`, and
-/// `pub(in path::to::mod)` are excluded because they are not exported outside the
-/// crate or module.
+/// Plain `pub` and `pub(crate)` are included because module specs describe the
+/// crate's collaboration surface. Narrower restricted forms are excluded.
 pub fn extract_exports(content: &str) -> Vec<String> {
     // Blank every string literal (regular, byte/C, and raw with ANY hash count) and
     // comment in one linear pass, so nothing inside them — a `"`, `//`, `/*`, or a
@@ -45,9 +46,7 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     let mut symbols = Vec::new();
 
     for caps in PUB_DECL.captures_iter(&stripped) {
-        // Skip restricted visibility: pub(crate), pub(super), pub(self),
-        // pub(in path::to::mod), or any other parenthesized form.
-        if caps.get(1).is_some() {
+        if !is_spec_visible_restriction(caps.get(1).map(|value| value.as_str())) {
             continue;
         }
         if let Some(name) = caps.get(2) {
@@ -57,8 +56,8 @@ pub fn extract_exports(content: &str) -> Vec<String> {
 
     // Grouped re-export: pub use path::{A, B as C};
     for caps in PUB_USE_GROUP.captures_iter(&stripped) {
-        if caps.get(1).is_some() {
-            continue; // restricted visibility, e.g. pub(crate) use
+        if !is_spec_visible_restriction(caps.get(1).map(|value| value.as_str())) {
+            continue;
         }
         if let Some(names) = caps.get(2) {
             for item in names.as_str().split(',') {
@@ -76,8 +75,8 @@ pub fn extract_exports(content: &str) -> Vec<String> {
 
     // Single re-export: pub use path::Name; or pub use path::Name as Alias;
     for caps in PUB_USE_SINGLE.captures_iter(&stripped) {
-        if caps.get(1).is_some() {
-            continue; // restricted visibility, e.g. pub(crate) use
+        if !is_spec_visible_restriction(caps.get(1).map(|value| value.as_str())) {
+            continue;
         }
         let name = caps
             .get(3)
@@ -89,6 +88,17 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     }
 
     symbols
+}
+
+fn is_spec_visible_restriction(restriction: Option<&str>) -> bool {
+    restriction.is_none()
+        || restriction.is_some_and(|value| {
+            value
+                .chars()
+                .filter(|character| !character.is_whitespace())
+                .collect::<String>()
+                == "(crate)"
+        })
 }
 
 fn is_ident_char(c: char) -> bool {
@@ -246,15 +256,25 @@ struct PrivateStruct {}
     }
 
     #[test]
-    fn test_pub_crate_excluded() {
+    fn test_pub_crate_included() {
         let src = r#"
 pub(crate) fn internal_fn() {}
 pub(crate) struct InternalStruct {}
 "#;
         let symbols = extract_exports(src);
-        assert!(
-            symbols.is_empty(),
-            "pub(crate) items must not be exported: {symbols:?}"
+        assert_eq!(symbols, vec!["internal_fn", "InternalStruct"]);
+    }
+
+    #[test]
+    fn test_pub_crate_spacing_variants_included() {
+        let src = r#"
+pub (crate) fn spaced_one() {}
+pub( crate ) struct SpacedTwo;
+pub ( crate ) use crate::internal::SpacedThree;
+"#;
+        assert_eq!(
+            extract_exports(src),
+            vec!["spaced_one", "SpacedTwo", "SpacedThree"]
         );
     }
 
@@ -270,7 +290,7 @@ pub(crate) fn crate_visible() {}
 pub fn truly_public() {}
 "#;
         let symbols = extract_exports(src);
-        assert_eq!(symbols, vec!["truly_public"]);
+        assert_eq!(symbols, vec!["crate_visible", "truly_public"]);
     }
 
     #[test]
@@ -315,17 +335,6 @@ pub fn after_string() {}
 "###;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["before_string", "after_string"]);
-    }
-
-    #[test]
-    fn test_real_ai_rs() {
-        let content = std::fs::read_to_string("src/ai.rs").unwrap();
-        let symbols = extract_exports(&content);
-        assert!(
-            symbols.contains(&"resolve_ai_command".to_string()),
-            "resolve_ai_command not found in: {:?}",
-            symbols
-        );
     }
 
     #[test]
@@ -542,8 +551,8 @@ fn main() {
         // public-API patterns (idiomatic in every `lib.rs`), and missing it
         // meant a removed/renamed re-export produced zero diff. Covers a
         // single-item re-export, a grouped brace list with an `as` alias,
-        // `pub(crate) use` (restricted visibility, must be excluded like
-        // other `pub(...)` forms), and a glob re-export (intentionally not
+        // `pub(crate) use` (part of the crate collaboration surface), and a
+        // glob re-export (intentionally not
         // expanded here, mirroring typescript.rs's resolver-less `export *`).
         let src = r#"
 pub use crate::foo::Bar;
@@ -558,10 +567,7 @@ pub use crate::glob::*;
             symbols.contains(&"Renamed".to_string()),
             "aliased grouped item: {symbols:?}"
         );
-        assert!(
-            !symbols.contains(&"Hidden".to_string()),
-            "pub(crate) use must be excluded: {symbols:?}"
-        );
+        assert!(symbols.contains(&"Hidden".to_string()), "{symbols:?}");
         assert!(
             !symbols.contains(&"glob".to_string()),
             "glob re-export must not leak the module segment: {symbols:?}"

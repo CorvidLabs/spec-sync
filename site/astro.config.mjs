@@ -18,6 +18,9 @@ export default defineConfig({
   site: 'https://corvidlabs.github.io',
   base: '/spec-sync/',
   trailingSlash: 'never',
+  legacy: {
+    collectionsBackwardsCompat: true,
+  },
   integrations: [mdx(), sitemap()],
   markdown: {
     remarkPlugins: [rewriteMdLinks],

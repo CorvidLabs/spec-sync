@@ -117,13 +117,11 @@ The spec file is the only one SpecSync validates against code. The companion fil
 ### Option B: Scaffold all unspecced modules
 
 ```bash
-specsync generate                       # guided starter specs
-specsync generate --provider auto       # AI reads code, writes real content
+specsync generate                       # deterministic guided starter specs
+specsync agents install                 # install native agent workflow
 ```
 
-Template mode creates guided starter specs for review. AI mode (`--provider`) sends source code to an LLM and generates source-aware specs — Purpose, Public API tables, Invariants, Error Cases, everything.
-
-> AI-generated specs are a starting point, not a finished product. Always review and refine them. Run `specsync check` immediately after to catch any drift.
+Generation never sends source to a model. Your coding agent can enrich the scaffold through the installed skill or MCP, using its own permissions. Always review the result and run `specsync check` immediately after.
 
 ### Option C: Write specs by hand
 
@@ -405,7 +403,8 @@ specsync check --fix                    # auto-stub new exports
 
 ```bash
 specsync init                           # create config
-specsync generate --provider auto       # AI generates specs from code
+specsync generate                       # deterministic local scaffolds
+specsync agents install                 # agent refines them in its own trust boundary
 specsync check                          # validate generated specs
 specsync score                          # check quality
 # Iterate: fix errors, improve low-scoring specs

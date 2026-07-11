@@ -1,5 +1,4 @@
 mod agents;
-mod ai;
 mod archive;
 mod change;
 mod changelog;
@@ -126,19 +125,12 @@ fn run() {
             cli.require_coverage,
             format,
         ),
-        Command::Generate {
-            provider,
-            model,
-            uncovered,
-            batch,
-        } => commands::generate::cmd_generate(
+        Command::Generate { uncovered, batch } => commands::generate::cmd_generate(
             &root,
             cli.strict,
             cli.enforcement,
             cli.require_coverage,
             format,
-            provider,
-            model,
             uncovered,
             batch,
         ),

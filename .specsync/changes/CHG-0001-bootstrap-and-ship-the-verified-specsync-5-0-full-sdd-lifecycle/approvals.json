@@ -55,6 +55,27 @@
       "timestamp": 1783782217,
       "digest": "c4fd40306d5945dd3d9d17a35f1f352b0811a2fa0b344b12ec8ac505caac08dc",
       "note": "User-authorized 5.0 migration: bind the accepted bootstrap evidence to current scoped delivery inputs"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783785109,
+      "digest": "8c6889618fd5dcd228aaed88abed9eb8a78699fd5bbf2c388ece084adc3a07e4",
+      "note": "User-authorized 5.0 release hardening: rebind accepted evidence after final security, docs, and contract updates"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783786277,
+      "digest": "5217030f8b819b660f210c89f2576ec17ed30dbdac297cee32f71d88df04c151",
+      "note": "User-authorized 5.0 release hardening: rebind accepted evidence after final parser, security, and documentation corrections"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783786501,
+      "digest": "80a45a0a7ad31d32eff93776877b97bce262a1f339639b59db8f49fc8031dc41",
+      "note": "User-authorized 5.0 release hardening: rebind bootstrap evidence after final source comment cleanup"
     }
   ]
 }

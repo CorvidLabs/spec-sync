@@ -51,6 +51,30 @@ fn mcp_tools_list_returns_all_tools() {
 }
 
 #[test]
+fn mcp_generate_rejects_retired_ai_arguments_without_echoing_credentials() {
+    let tmp = TempDir::new().unwrap();
+    let secret = "sk-never-echo-this";
+    let responses = mcp_request(
+        tmp.path(),
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "specsync_generate",
+                "arguments": { "apiKey": secret }
+            }
+        })],
+    );
+
+    let result = &responses[0]["result"];
+    assert_eq!(result["isError"].as_bool(), Some(true));
+    let message = result["content"][0]["text"].as_str().unwrap();
+    assert!(message.contains("removed in spec-sync 5.0"));
+    assert!(!message.contains(secret));
+}
+
+#[test]
 fn mcp_tool_check_validates_specs() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);

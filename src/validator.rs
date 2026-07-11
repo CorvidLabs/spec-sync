@@ -824,7 +824,7 @@ fn suggest_similar_file(root: &Path, missing_file: &str) -> Option<String> {
 /// project — is rejected by the caller: reading it would count arbitrary host
 /// files as covered and leak their exported identifiers into coverage output and
 /// PR comments (a hostile-repo info-disclosure vector, the same threat model as a
-/// committed `ai_command`).
+/// committed executable configuration).
 ///
 /// Returns `true` when the path does not yet resolve (nonexistent/unreadable) so
 /// the existence check reports those instead; containment is only enforced for

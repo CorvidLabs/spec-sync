@@ -34,6 +34,20 @@
       "timestamp": 1783782395,
       "digest": "56c42fc88a4478cd8337c2941ce0c5f05fff7fbb1026ff1ef7001fd7a891cc44",
       "note": "Rebind closing evidence after canonical companion newline normalization"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783785109,
+      "digest": "3a01dc537a9e3453ec7cd6c97bbd6d3b7ec8423d83ef29a31c2512f4f5137670",
+      "note": "User-authorized 5.0 release hardening: rebind accepted evidence after final security, docs, and contract updates"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783786277,
+      "digest": "3d00e0767434b89dcc2c5abf2212631e280d017dca47b8da72152606f48723f4",
+      "note": "User-authorized 5.0 release hardening: rebind accepted evidence after final parser, security, and documentation corrections"
     }
   ]
 }

@@ -59,6 +59,57 @@ fn multi_lang_rust() {
 }
 
 #[test]
+fn rust_multi_file_pub_crate_exports_pass_strict_in_regex_and_ast_modes() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    write_config(&root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src/rs-mod")).unwrap();
+    fs::write(root.join("src/rs-mod/mod.rs"), "pub fn public_root() {}\n").unwrap();
+    fs::write(
+        root.join("src/rs-mod/worker.rs"),
+        "pub(crate) fn run_worker() {}\npub(crate) struct Worker;\npub(crate) const DEFAULT_WORKERS: usize = 1;\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/rs-mod")).unwrap();
+    let spec = valid_spec("rs-mod", &["src/rs-mod/mod.rs", "src/rs-mod/worker.rs"])
+        .replace(
+            "|----------|-----------|---------|-------------|",
+            "|----------|-----------|---------|-------------|\n| `public_root` | none | `()` | Public entry point |\n| `run_worker` | none | `()` | Crate worker entry point |\n| `DEFAULT_WORKERS` | none | `usize` | Crate worker default |",
+        )
+        .replace(
+            "|------|-------------|",
+            "|------|-------------|\n| `Worker` | Crate-visible worker type |",
+        )
+        .replace(
+            "|-----------|----------|",
+            "|-----------|----------|\n| Invalid worker count | Returns an error |",
+        )
+        .replace(
+            "|------|--------|--------|",
+            "|------|--------|--------|\n| 2026-07-11 | Test | Document multi-file exports |",
+        );
+    fs::write(root.join("specs/rs-mod/rs-mod.spec.md"), spec).unwrap();
+
+    for parse_mode in ["regex", "ast"] {
+        let config_path = root.join("specsync.json");
+        let mut config: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
+        config["parseMode"] = serde_json::Value::String(parse_mode.to_string());
+        fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap()).unwrap();
+
+        specsync()
+            .args(["check", "--force", "--strict", "--require-coverage", "100"])
+            .arg("--root")
+            .arg(&root)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("4/4 exports documented"));
+    }
+}
+
+#[test]
 fn multi_lang_go() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().to_path_buf();

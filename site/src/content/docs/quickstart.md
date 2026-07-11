@@ -79,11 +79,8 @@ Answer the returned questions, complete its adaptively selected artifacts, and a
 Generate template specs for all source modules:
 
 ```bash
-# Template-based (instant, no AI needed)
+# Deterministic local scaffold
 specsync generate
-
-# AI-powered (richer content, requires AI provider)
-specsync generate --ai
 ```
 
 This creates a directory structure like:
@@ -230,7 +227,7 @@ Once you're up and running, explore these features:
 |---------|---------|-------|
 | Quality scoring | `specsync score` | [CLI Reference](cli.md#score) |
 | Watch mode | `specsync watch` | [CLI Reference](cli.md#watch) |
-| AI generation | `specsync generate --ai` | [AI Agents](integrations/ai-agents.md) |
+| Agent enrichment | `specsync agents install` | [AI Agents](integrations/ai-agents.md) |
 | Schema validation | Add `schemaDir` to config | [Configuration](configuration.md) |
 | Cross-project refs | `owner/repo@module` syntax | [Cross-Project Refs](cross-project-refs.md) |
 | MCP server | `specsync mcp` | [AI Agents](integrations/ai-agents.md) |

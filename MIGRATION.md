@@ -184,33 +184,16 @@ No. Cross-project references (`depends_on: "owner/repo@module"`) work across v3 
 
 ---
 
-# AI providers (4.4.0)
+# Embedded AI removal (5.0.0)
 
-SpecSync's AI generation moved off the agentic `claude` CLI onto plain HTTP through the shared [`corvid-ai`](https://crates.io/crates/corvid-ai) crate. This aligns spec-sync with fledge's provider model.
+SpecSync 5.0 removes the embedded inference client, provider selection, model and endpoint configuration, API-key handling, automatic source transmission, and `aiCommand`/`SPECSYNC_AI_COMMAND` shell execution. Generation is now deterministic and local.
 
-## What changed
+## What to do
 
-- **Default provider is now Ollama, not the `claude` CLI.** With no key and nothing configured, spec-sync uses keyless local Ollama (`http://localhost:11434`), or Ollama Cloud when `OLLAMA_API_KEY` is set.
-- **`claude` is deprecated and routes to the `anthropic` API.** `aiProvider: claude` (or `--provider claude`) now warns and uses the Anthropic Messages API — it no longer shells out to `claude -p`. Set `aiProvider: anthropic` (+ `ANTHROPIC_API_KEY`) to silence the warning. The alias remains available in 5.0 for compatibility.
-- **Auto-detection never auto-selects a CLI.** By `<PROVIDER>_API_KEY` presence (no network probe): **none set → keyless local Ollama**; **exactly one → use it**; **multiple → prompt** for provider + model when interactive, else the deterministic order (Ollama, Anthropic, OpenAI, OpenRouter, Gemini, DeepSeek, Groq, Mistral, xAI, Together).
-- **`openai` and `together` now require an explicit `aiModel`** (corvid-ai has no default model for them).
-- **`copilot`/`cursor` are deprecated** and work only when explicitly selected. `aiCommand` remains the explicit, trusted shell escape hatch in 5.0; removal is deferred to a future major release.
-- New providers: `openrouter`, and `ollama` over HTTP.
+1. Remove `aiProvider`, `aiModel`, `aiApiKey`, `aiBaseUrl`, `aiTimeout`, and `aiCommand` (or snake_case equivalents) from SpecSync configuration.
+2. Replace `specsync generate --provider ... --model ...` with `specsync generate`.
+3. Run `specsync agents install` or use `specsync mcp` so your coding agent can refine generated markdown using its own credentials and permissions.
 
-## What you may need to do
+Legacy key names are ignored with migration guidance; their values are never printed or executed.
 
-| If you used… | Do this |
-|---|---|
-| `aiProvider: claude` | Set `aiProvider: anthropic` and export `ANTHROPIC_API_KEY` |
-| the `claude` CLI implicitly (auto-detect) | Export an API key (`ANTHROPIC_API_KEY`, …) or run a local Ollama |
-| `aiProvider: openai` without a model | Add `aiModel` (e.g. a current GPT id) |
-| `aiProvider: copilot` | Switch to an API provider — copilot is deprecated |
-
-## New config / env
-
-Precedence is `flag > env > config` (12-factor) for both provider and model:
-
-- `SPECSYNC_AI_PROVIDER` — pick a provider by name via env (outranks `aiProvider` config).
-- `SPECSYNC_AI_MODEL` — pick a model via env (outranks `aiModel` config); `--model` overrides both.
-- `OLLAMA_HOST` — Ollama host for requests (default `http://localhost:11434`).
-- A `-cloud` model tag with `OLLAMA_API_KEY` set routes to Ollama Cloud.
+The 4.4 provider system is historical only. Upgrading directly from 4.4 does not require translating providers: delete those settings and move enrichment to the coding-agent integration.

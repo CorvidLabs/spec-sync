@@ -17,6 +17,9 @@ spec: comment.spec.md
 - [x] Unspecced-files truncation at 15 entries
 - [x] Unified output pipeline shared by the marketplace action and project CI
 - [x] Populate requirements.md with user stories and acceptance criteria (2026-04-10)
+- [x] Bound complete rendered comments to 49,152 bytes with UTF-8-safe truncation
+- [x] Add explicit local reproduction guidance to truncated comments
+- [x] Add focused oversized-Unicode renderer coverage
 
 ## Review Sign-offs
 

@@ -56,7 +56,9 @@ pub fn cmd_comment(
         &coverage,
         require_coverage,
     );
-    let sdd_report = change::check_project(root);
+    // Configured verification commands still execute and fail closed, but their
+    // child output must not contaminate the markdown-only stdout protocol.
+    let sdd_report = change::check_project_quiet(root);
     let sdd_error_count = sdd_report.errors.len();
     let sdd_warning_count = sdd_report.warnings.len();
     all_errors.extend(

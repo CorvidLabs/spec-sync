@@ -43,6 +43,7 @@ Defines the complete CLI argument grammar using Clap derive macros, including gl
 5. The `Command` enum is optional — running `specsync` with no subcommand defaults to `Check`
 6. Each `HooksAction::Install` / `Uninstall` variant carries identical boolean flags for symmetric install/uninstall
 7. Each `AgentsAction::Install` / `Uninstall` variant carries identical boolean flags for symmetric install/uninstall, mirroring `HooksAction`
+8. `Generate` exposes only deterministic uncovered/batch selection; provider and model flags are not accepted
 
 ## Behavioral Examples
 

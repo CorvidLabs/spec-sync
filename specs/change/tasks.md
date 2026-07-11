@@ -12,3 +12,4 @@ spec: change.spec.md
 - [x] Implement concurrent delta conflict detection
 - [x] Implement adoption and external provenance import
 - [x] Complete full release validation
+- [x] Add protocol-clean quiet lifecycle checking for bounded PR reports

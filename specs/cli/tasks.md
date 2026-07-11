@@ -15,7 +15,7 @@ spec: cli.spec.md
 - [x] Add `--strict`, `--require-coverage`, `--enforcement`, `--exclude-status`, `--only-status` global flags
 - [x] Add `--root` flag for non-cwd project roots
 - [x] Make `check` the default subcommand when none is specified
-- [x] Add `generate --model` to pin a model id (overrides `SPECSYNC_AI_MODEL` / `aiModel`)
+- [x] Remove embedded provider/model generation flags and preserve deterministic agent integrations
 - [x] Wrap `run()` in `catch_unwind` so panics surface a friendly bug-report message
 
 ## Gaps

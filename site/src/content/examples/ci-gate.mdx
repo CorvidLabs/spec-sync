@@ -14,7 +14,7 @@ Add the `specsync` GitHub Action to your workflow and any pull request that intr
 
 ```yaml
 # .github/workflows/spec-sync.yml
-name: spec-sync check
+name: specsync check
 on: [pull_request]
 
 jobs:
@@ -25,7 +25,7 @@ jobs:
       - uses: CorvidLabs/spec-sync@v5
 ```
 
-The action installs `spec-sync`, runs `spec-sync check --strict`, and annotates any drift directly in the PR diff view.
+The action installs `specsync`, runs `specsync check --strict`, and annotates any drift directly in the PR diff view.
 
 ## 2. Pin the spec-sync version
 
@@ -60,7 +60,7 @@ Add `annotations: true` so drift errors render as inline GitHub PR review commen
     annotations: true
 ```
 
-A PR that adds an undocumented export now shows the comment "undocumented export `delete_user` — add to `specs/api/users.spec.md` or run `spec-sync generate --fix`" pointing at the relevant line. No need to dig through Action logs.
+A PR that adds an undocumented export now shows the comment "undocumented export `delete_user` — add to `specs/api/users.spec.md` or run `specsync check --fix`" pointing at the relevant line. No need to dig through Action logs.
 
 ## 5. Bypass for emergency hotfixes
 

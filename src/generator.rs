@@ -1,4 +1,3 @@
-use crate::ai::{self, ResolvedProvider};
 use crate::exports::{has_extension, is_test_file};
 use crate::types::{CoverageReport, Language, SpecSyncConfig};
 use colored::Colorize;
@@ -717,48 +716,14 @@ pub fn generate_spec(
     spec
 }
 
-/// Generate spec content for a module, using AI if a provider is configured.
-/// Returns `(spec_content, ai_was_used, ai_error)` — `ai_error` is `Some` when
-/// an AI provider was requested but generation failed and the template
-/// fallback was used instead.
+/// Generate deterministic spec content for a module from the built-in template.
 fn generate_module_spec(
     module_name: &str,
     module_files: &[String],
     root: &Path,
     specs_dir: &Path,
-    config: &SpecSyncConfig,
-    provider: Option<&ResolvedProvider>,
-) -> (String, bool, Option<String>) {
-    let mut ai_error: Option<String> = None;
-    if let Some(provider) = provider {
-        // Make paths relative to root for the AI prompt
-        let rel_files: Vec<String> = module_files
-            .iter()
-            .map(|f| {
-                Path::new(f)
-                    .strip_prefix(root.to_string_lossy().as_ref())
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_else(|_| f.clone())
-            })
-            .collect();
-
-        match ai::generate_spec_with_ai(module_name, &rel_files, root, config, provider) {
-            Ok(spec) => return (spec, true, None),
-            Err(e) => {
-                eprintln!(
-                    "  {} AI generation failed for {module_name}: {e} — falling back to template",
-                    "⚠".yellow()
-                );
-                ai_error = Some(format!("AI generation failed for {module_name}: {e}"));
-            }
-        }
-    }
-
-    (
-        generate_spec(module_name, module_files, root, specs_dir),
-        false,
-        ai_error,
-    )
+) -> String {
+    generate_spec(module_name, module_files, root, specs_dir)
 }
 
 /// Generate companion files (tasks.md, context.md, requirements.md, testing.md,
@@ -984,18 +949,14 @@ pub struct GenerationOutcome {
     pub generated: usize,
     /// Paths (relative to root) of the spec files written.
     pub generated_paths: Vec<String>,
-    /// AI generation failures (one entry per module that fell back to the template).
-    pub ai_errors: Vec<String>,
 }
 
 /// Generate spec files for all unspecced modules.
-/// Returns the generation outcome, including any AI failures that fell back
-/// to the template so callers can exit non-zero.
+/// Returns the deterministic generation outcome.
 pub fn generate_specs_for_unspecced_modules(
     root: &Path,
     report: &CoverageReport,
     config: &SpecSyncConfig,
-    provider: Option<&ResolvedProvider>,
 ) -> GenerationOutcome {
     let specs_dir = root.join(&config.specs_dir);
     let mut outcome = GenerationOutcome::default();
@@ -1019,33 +980,13 @@ pub fn generate_specs_for_unspecced_modules(
             continue;
         }
 
-        if provider.is_some() {
-            let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
-            eprintln!("  Generating {rel} with AI...");
-        }
-
-        let (spec_content, ai_used, ai_error) = generate_module_spec(
-            module_name,
-            &module_files,
-            root,
-            &specs_dir,
-            config,
-            provider,
-        );
-        if let Some(e) = ai_error {
-            outcome.ai_errors.push(e);
-        }
+        let spec_content = generate_module_spec(module_name, &module_files, root, &specs_dir);
 
         match fs::write(&spec_file, &spec_content) {
             Ok(_) => {
                 let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file);
-                let from = if provider.is_some() && !ai_used {
-                    " from template"
-                } else {
-                    ""
-                };
                 println!(
-                    "  {} Generated {}{from} ({} files)",
+                    "  {} Generated {} ({} files)",
                     "✓".green(),
                     rel.display(),
                     module_files.len()
@@ -1073,7 +1014,6 @@ pub fn generate_specs_for_unspecced_modules_paths(
     root: &Path,
     report: &CoverageReport,
     config: &SpecSyncConfig,
-    provider: Option<&ResolvedProvider>,
 ) -> GenerationOutcome {
     let specs_dir = root.join(&config.specs_dir);
     let mut outcome = GenerationOutcome::default();
@@ -1096,17 +1036,7 @@ pub fn generate_specs_for_unspecced_modules_paths(
             continue;
         }
 
-        let (spec_content, _ai_used, ai_error) = generate_module_spec(
-            module_name,
-            &module_files,
-            root,
-            &specs_dir,
-            config,
-            provider,
-        );
-        if let Some(e) = ai_error {
-            outcome.ai_errors.push(e);
-        }
+        let spec_content = generate_module_spec(module_name, &module_files, root, &specs_dir);
 
         if fs::write(&spec_file, &spec_content).is_ok() {
             let rel = spec_file

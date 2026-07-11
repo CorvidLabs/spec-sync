@@ -61,6 +61,7 @@ The configuration file supports the following top-level sections:
 7. TOML parsing is zero-dependency — uses line-by-line string parsing, not a TOML library
 8. The reader accepts both TOML string kinds for scalar and array values: basic `"..."` strings (backslash escapes decoded) and literal `'...'` strings (taken verbatim, no escape processing); a `#`, `,`, `[`, or `]` appearing inside either kind is treated as content, not as a comment or array structure
 9. A config file that is absent is expected — defaults apply silently. But a config file that **exists yet cannot be read** (e.g. not valid UTF-8) fails loud: a warning naming the file is printed and built-in defaults are used, rather than silently reverting to defaults (which would downgrade enforcement — strict→warn, exit 1→0 — with no signal). The same applies to the optional local override file (`config.local.toml`)
+10. Retired AI key names are ignored with migration guidance; their values are never retained, serialized, printed, or executed
 
 ## Behavioral Examples
 
@@ -97,7 +98,7 @@ The configuration file supports the following top-level sections:
 
 | Module | What is used |
 |--------|-------------|
-| types | `SpecSyncConfig`, `AiProvider` |
+| types | `SpecSyncConfig` |
 | exports | `has_extension` for checking if files have supported language extensions |
 
 ### Consumed By

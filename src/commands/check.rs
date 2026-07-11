@@ -1,10 +1,8 @@
 use colored::Colorize;
 use std::fs;
-use std::io::{IsTerminal, Write as _};
 use std::path::{Path, PathBuf};
 use std::process;
 
-use crate::ai;
 use crate::comment;
 use crate::git_utils;
 use crate::github;
@@ -217,8 +215,7 @@ pub fn cmd_check(
     } else if fix {
         // --fix bypasses the unchanged-skip: an explicit fix request must
         // never be a silent no-op because a previous (failing or warning) run
-        // recorded the hashes. Classifications are still computed so
-        // requirements-drift regeneration keeps working.
+        // recorded the hashes.
         let classifications = hash_cache::classify_all_changes(root, &spec_files, &cache);
         (spec_files.clone(), classifications)
     } else {
@@ -303,31 +300,10 @@ pub fn cmd_check(
         println!(); // spacing after staleness messages
     }
 
-    // Interactive prompting: if TTY and requirements drift detected, offer re-validation
-    if !requirements_stale_specs.is_empty()
-        && matches!(format, Text)
-        && !fix
-        && std::io::stdin().is_terminal()
-    {
-        eprint!(
-            "{} Re-validate spec(s) against new requirements? [y/N] ",
-            "?".cyan()
-        );
-        let _ = std::io::stderr().flush();
-        let mut answer = String::new();
-        let _ = std::io::stdin().read_line(&mut answer);
-        if answer.trim().eq_ignore_ascii_case("y") {
-            let regen_count =
-                auto_regen_stale_specs(root, &requirements_stale_specs, &config, format);
-            if regen_count > 0 {
-                println!(
-                    "{} Re-generated {regen_count} spec(s) from updated requirements\n",
-                    "✓".green()
-                );
-            }
-        } else {
-            println!("  Skipping re-validation. Use --fix to auto-regenerate.\n");
-        }
+    // Requirements drift requires human/agent review; spec-sync never invokes a
+    // provider or executes a configured command.
+    if !requirements_stale_specs.is_empty() && matches!(format, Text) && !fix {
+        println!("  Review the affected specs directly or ask your coding agent to update them.\n");
     }
 
     let schema_tables = get_schema_table_names(root, &config);
@@ -407,18 +383,6 @@ pub fn cmd_check(
                 "Auto-added"
             };
             println!("{} {verb} exports to {fixed} spec(s)\n", "✓".green());
-        }
-
-        // --fix + requirements changed: regenerate spec via AI
-        if !dry_run && !requirements_stale_specs.is_empty() {
-            let regen_count =
-                auto_regen_stale_specs(root, &requirements_stale_specs, &config, format);
-            if regen_count > 0 && matches!(format, Text) {
-                println!(
-                    "{} Re-generated {regen_count} spec(s) from updated requirements\n",
-                    "✓".green()
-                );
-            }
         }
     }
 
@@ -617,85 +581,6 @@ pub fn cmd_check(
             );
         }
     }
-}
-
-/// Auto-regenerate specs whose requirements have drifted, using AI if available.
-fn auto_regen_stale_specs(
-    root: &Path,
-    stale: &[hash_cache::ChangeClassification],
-    config: &types::SpecSyncConfig,
-    format: types::OutputFormat,
-) -> usize {
-    // Try to resolve an AI provider
-    let provider = match ai::resolve_ai_provider(config, None) {
-        Ok(p) => p,
-        Err(_) => {
-            if matches!(format, types::OutputFormat::Text) {
-                println!(
-                    "  {} Requirements changed but no AI provider configured.",
-                    "ℹ".cyan()
-                );
-                println!("    Configure one in specsync.json (aiProvider/aiCommand) or set");
-                println!("    ANTHROPIC_API_KEY / OPENAI_API_KEY to auto-regenerate specs.");
-            }
-            return 0;
-        }
-    };
-
-    let mut regen_count = 0;
-    for classification in stale {
-        let spec_path = &classification.spec_path;
-        let spec_rel = spec_path
-            .strip_prefix(root)
-            .unwrap_or(spec_path)
-            .to_string_lossy()
-            .to_string();
-
-        // Find the requirements file (current convention, then legacy)
-        let parent = match spec_path.parent() {
-            Some(p) => p,
-            None => continue,
-        };
-        let stem = spec_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-        let module_name = stem.strip_suffix(".spec").unwrap_or(stem);
-
-        let req_path = parent.join("requirements.md");
-        let req_path = if req_path.exists() {
-            req_path
-        } else {
-            let legacy = parent.join(format!("{module_name}.req.md"));
-            if legacy.exists() {
-                legacy
-            } else {
-                continue;
-            }
-        };
-
-        if matches!(format, types::OutputFormat::Text) {
-            println!("  {} Regenerating {spec_rel}...", "⟳".cyan());
-        }
-        match ai::regenerate_spec_with_ai(
-            module_name,
-            spec_path,
-            &req_path,
-            root,
-            config,
-            &provider,
-        ) {
-            Ok(new_spec) => {
-                if fs::write(spec_path, &new_spec).is_ok() {
-                    regen_count += 1;
-                }
-            }
-            Err(e) => {
-                if matches!(format, types::OutputFormat::Text) {
-                    eprintln!("  {} Failed to regenerate {spec_rel}: {e}", "✗".red());
-                }
-            }
-        }
-    }
-
-    regen_count
 }
 
 // ─── Auto-fix: add undocumented exports to spec ─────────────────────────

@@ -6,11 +6,11 @@ spec: cmd_new.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/new.rs` | cargo test commands::new | No inline tests found; add focused coverage for `cmd_new`, `load_config`, `generate_companion_files` before risky changes |
+| `tests/integration/config.rs` | `cargo test --test integration config::new_` | `new_auto_detects_single_source_file`, `new_warns_when_no_source_files_match` |
 
 ## Coverage Gaps
 
-- Integration gap: add a fixture for "Quick spec" before changing user-visible CLI output, generated files, or error handling in cmd_new.
+- Integration gaps remain for `specsync new --full` companion generation and refusal to overwrite an existing spec.
 
 ## Behavioral Verification
 

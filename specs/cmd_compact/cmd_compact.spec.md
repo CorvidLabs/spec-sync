@@ -1,6 +1,6 @@
 ---
 module: cmd_compact
-version: 2
+version: 1
 status: stable
 files:
   - src/commands/compact.rs
@@ -66,4 +66,3 @@ Implements the `specsync compact` command. Trims old entries from spec changelog
 | Date | Change |
 |------|--------|
 | 2026-04-09 | Initial spec |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

@@ -42,5 +42,7 @@ replaced only after the complete corrected matrix passes.
   `actionlint` all pass locally.
 - README and documentation links, Astro diagnostics, tests, and the production site build cover the shortened entry
   point and its reference destinations.
+- A local crawl resolves every README and documentation source link; detailed README destinations use durable
+  repository paths until the CorvidLabs site publishes page-specific 5.0 routes.
 - RustSec refresh is pending CI because the sandbox could not obtain its external advisory-database lock. The crate
   package allowlist is locally validated; crates.io dry-run publication remains a network-backed CI/release gate.

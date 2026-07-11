@@ -20,6 +20,8 @@ artifact: tasks
 - [x] Add a nested-project squash integration regression.
 - [x] Replace duplicated README manuals with a concise product entry point and documentation map.
 - [x] Correct linked architecture, configuration, quick-start, and companion-file documentation.
+- [x] Replace broken deployed deep links with durable repository documentation links.
+- [x] Correct remaining 5.0 CLI, Action, configuration, migration, and editor documentation claims.
 - [x] Re-run and record every locally available gate after the failed acceptance was invalidated.
 
 ## Release Gates

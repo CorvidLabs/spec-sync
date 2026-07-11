@@ -13,7 +13,7 @@
 
 Rust · single binary · 33 languages · no SpecSync API key required
 
-[Quick start](#quick-start) · [Full SDD lifecycle](#full-sdd-lifecycle) · [Documentation](https://corvidlabs.github.io/spec-sync/docs/) · [Examples](https://corvidlabs.github.io/spec-sync/examples/) · [Comparisons](#how-it-compares)
+[Quick start](#quick-start) · [Full SDD lifecycle](#full-sdd-lifecycle) · [Live documentation](https://corvidlabs.xyz/spec-sync/docs/) · [Examples](#executable-examples) · [Comparisons](#how-it-compares)
 
 </div>
 
@@ -65,7 +65,7 @@ CHG-*/            approved deltas, verification, and the delivery audit trail
 
 Add the missing contract row—or make the export private—then rerun the check. CI turns green while the requirement, context, evidence, and exact contract change remain reviewable in Git.
 
-[Read the adversarial proof](https://corvidlabs.github.io/spec-sync/docs/comparisons/adversarial-proof/)
+[Read the adversarial proof](site/src/content/docs/comparisons/adversarial-proof.md)
 
 ## What SpecSync catches
 
@@ -112,7 +112,7 @@ specsync change archive CHG-0001-add-passkeys
 
 Approvals are human, portable, and digest-bound. Verification binds test evidence to the exact commit and working-tree inputs. Acceptance atomically updates canonical specs and requirements. Dirty edits invalidate evidence instead of silently changing the accepted result.
 
-[Read the workflow guide](https://corvidlabs.github.io/spec-sync/docs/workflow/) or run the [complete lifecycle example](examples/sdd-lifecycle/).
+[Read the workflow guide](site/src/content/docs/workflow.md) or run the [complete lifecycle example](examples/sdd-lifecycle/).
 
 ## Install
 
@@ -164,7 +164,7 @@ specsync agents install
 specsync hooks install
 ```
 
-For an existing 4.x project, use the guided migration and adoption flow described in the [configuration](https://corvidlabs.github.io/spec-sync/docs/configuration/) and [workflow](https://corvidlabs.github.io/spec-sync/docs/workflow/) guides.
+For an existing 4.x project, use the guided migration and adoption flow described in the [configuration](site/src/content/docs/configuration.md) and [workflow](site/src/content/docs/workflow.md) guides.
 
 ## Specs and companion files
 
@@ -188,19 +188,19 @@ specs/auth/
 | `testing.md` | Requirement traceability, automated coverage, manual QA, and adversarial cases |
 | `.specsync/changes/CHG-*` | Proposed deltas, approvals, verification, and closing evidence |
 
-[Read the complete spec format](https://corvidlabs.github.io/spec-sync/docs/spec-format/), [companion-file reference](https://corvidlabs.github.io/spec-sync/docs/companion-files/), and [workflow conventions](https://corvidlabs.github.io/spec-sync/docs/workflow/).
+[Read the complete spec format](site/src/content/docs/spec-format.md), [companion-file reference](site/src/content/docs/companion-files.md), and [workflow conventions](site/src/content/docs/workflow.md).
 
 ## Documentation
 
 | Start here | Reference and integration |
 |---|---|
-| [Why SpecSync?](https://corvidlabs.github.io/spec-sync/docs/why-specsync/) | [CLI reference](https://corvidlabs.github.io/spec-sync/docs/cli/) |
-| [Quick start](https://corvidlabs.github.io/spec-sync/docs/quickstart/) | [Configuration](https://corvidlabs.github.io/spec-sync/docs/configuration/) |
-| [Workflow guide](https://corvidlabs.github.io/spec-sync/docs/workflow/) | [Spec format](https://corvidlabs.github.io/spec-sync/docs/spec-format/) |
-| [Companion files](https://corvidlabs.github.io/spec-sync/docs/companion-files/) | [Language reference](https://corvidlabs.github.io/spec-sync/languages/) |
-| [Architecture](https://corvidlabs.github.io/spec-sync/docs/architecture/) | [Cross-project references](https://corvidlabs.github.io/spec-sync/docs/cross-project-refs/) |
-| [AI and coding agents](https://corvidlabs.github.io/spec-sync/docs/integrations/ai-agents/) | [GitHub Action](https://corvidlabs.github.io/spec-sync/docs/integrations/github-action/) |
-| [Examples](https://corvidlabs.github.io/spec-sync/examples/) | [VS Code extension](https://corvidlabs.github.io/spec-sync/docs/integrations/vscode-extension/) |
+| [Why SpecSync?](site/src/content/docs/why-specsync.md) | [CLI reference](site/src/content/docs/cli.md) |
+| [Quick start](site/src/content/docs/quickstart.md) | [Configuration](site/src/content/docs/configuration.md) |
+| [Workflow guide](site/src/content/docs/workflow.md) | [Spec format](site/src/content/docs/spec-format.md) |
+| [Companion files](site/src/content/docs/companion-files.md) | [Language registry](site/src/data/languages.json) |
+| [Architecture](site/src/content/docs/architecture.md) | [Cross-project references](site/src/content/docs/cross-project-refs.md) |
+| [AI and coding agents](site/src/content/docs/integrations/ai-agents.md) | [GitHub Action](site/src/content/docs/integrations/github-action.md) |
+| [Live docs hub](https://corvidlabs.xyz/spec-sync/docs/) | [VS Code extension](site/src/content/docs/integrations/vscode-extension.md) |
 
 ## Executable examples
 
@@ -209,18 +209,18 @@ The examples create disposable projects and run the real CLI:
 - [Complete SDD lifecycle](examples/sdd-lifecycle/)
 - [Five evolving product epics](examples/sdd-five-epics/)
 - [Ordered concurrent changes](examples/sdd-concurrent-changes/)
-- [CI gate](https://corvidlabs.github.io/spec-sync/examples/ci-gate/)
-- [Polyglot project](https://corvidlabs.github.io/spec-sync/examples/polyglot/)
-- [Rust workspace](https://corvidlabs.github.io/spec-sync/examples/rust-workspace/)
+- [CI gate](site/src/content/examples/ci-gate.mdx)
+- [Polyglot project](site/src/content/examples/polyglot.mdx)
+- [Rust workspace](site/src/content/examples/rust-workspace.mdx)
 
 ## How it compares
 
 SpecSync can stand alone or enforce the implementation layer beneath planning-oriented tools:
 
-- [SpecSync vs. Spec Kit](https://corvidlabs.github.io/spec-sync/docs/comparisons/spec-kit/)
-- [SpecSync vs. OpenSpec](https://corvidlabs.github.io/spec-sync/docs/comparisons/openspec/)
-- [Use SpecSync, Spec Kit, and OpenSpec together](https://corvidlabs.github.io/spec-sync/docs/comparisons/using-together/)
-- [Adversarial detection and knowledge-preservation proof](https://corvidlabs.github.io/spec-sync/docs/comparisons/adversarial-proof/)
+- [SpecSync vs. Spec Kit](site/src/content/docs/comparisons/spec-kit.md)
+- [SpecSync vs. OpenSpec](site/src/content/docs/comparisons/openspec.md)
+- [Use SpecSync, Spec Kit, and OpenSpec together](site/src/content/docs/comparisons/using-together.md)
+- [Adversarial detection and knowledge-preservation proof](site/src/content/docs/comparisons/adversarial-proof.md)
 
 ## Supported languages
 
@@ -228,7 +228,7 @@ SpecSync auto-detects source files and public exports across 33 languages:
 
 TypeScript/JavaScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML, C, C++, Scala, Crystal, Nim, Erlang, Elixir, Perl, Common Lisp, Scheme, Emacs Lisp, Haskell, Lua, R, OCaml, Groovy, F#, Clojure, D, Objective-C, Bash, PowerShell, and Vala.
 
-See the [language reference](https://corvidlabs.github.io/spec-sync/languages/) for per-language export detection and test exclusions.
+See the [language registry](site/src/data/languages.json) and [extractor source](src/exports/) for exact export detection and test exclusions.
 
 ## Contributing
 

@@ -66,3 +66,5 @@ Evidence covers:
 - The crates.io allowlist resolves to 113 entries and excludes repository-only assets. RustSec refresh and crates.io
   dry-run publication are pending CI because this sandbox cannot write the external advisory cache or reach the index.
 - Linux, macOS, and Windows CI plus canonical post-acceptance scoring remain mandatory before release.
+- Focused rehash and cmd_new tests pass, and the corrected export/rehash/cmd_new companion statements match current
+  source and integration fixtures.

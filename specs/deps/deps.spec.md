@@ -1,6 +1,6 @@
 ---
 module: deps
-version: 4
+version: 3
 status: stable
 files:
   - src/deps.rs
@@ -99,4 +99,3 @@ Cross-module dependency validation. Parses `depends_on` declarations from spec f
 | 2026-07-06 | Documented fail-loud behavior for unreadable declared source and spec files: added invariant 7 and updated Error Cases table so an existing-but-non-UTF-8 file is a hard error gating `cmd_deps` rather than a silent skip |
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-07 | Initial spec |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

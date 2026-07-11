@@ -1,6 +1,6 @@
 ---
 module: cmd_issues
-version: 2
+version: 1
 status: stable
 files:
   - src/commands/issues.rs
@@ -86,4 +86,3 @@ Implements the `specsync issues` command — verifies GitHub issue references in
 | Date | Change |
 |------|--------|
 | 2026-04-09 | Initial spec |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

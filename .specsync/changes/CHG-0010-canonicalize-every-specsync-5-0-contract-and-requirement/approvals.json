@@ -43,11 +43,11 @@
       "note": "Reapproved completed implementation tasks with acceptance and post-merge checks retained as release gates"
     },
     {
-      "gate": "acceptance",
+      "gate": "definition",
       "actor": "0xLeif",
-      "timestamp": 1783798663,
-      "digest": "124dfd9a1a7892a05333abe5ff0302423e5a4ddd0f5eaa96f5d8cca8bcb3820a",
-      "note": "Accepted canonical contracts after README documentation verification"
+      "timestamp": 1783799784,
+      "digest": "60d778ac2bb9ba3e3eae7957d8af3470b4c1c74d97842af0994458068bcfa6bd",
+      "note": "Reapproved final companion accuracy corrections against current test fixtures"
     }
   ]
 }

@@ -57,11 +57,11 @@
       "note": "Reapproved concise README and corrected linked documentation destinations"
     },
     {
-      "gate": "acceptance",
+      "gate": "definition",
       "actor": "0xLeif",
-      "timestamp": 1783798625,
-      "digest": "d374b0987cd4e79c1d145cf9e5e8195b6a1085c9cc7f0fafe8d20f121fa2b5d9",
-      "note": "Accepted concise README and corrected documentation after complete verification"
+      "timestamp": 1783799782,
+      "digest": "00f52e012cd634775cb2d2b79e399508defa5373c34788d7cc40b40da524f09a",
+      "note": "Reapproved durable documentation routing and final 5.0 reference corrections"
     }
   ]
 }

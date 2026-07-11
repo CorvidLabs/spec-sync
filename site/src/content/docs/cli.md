@@ -121,6 +121,19 @@ specsync hooks status                      # check what's installed
 
 Supports Claude Code (`CLAUDE.md`), Cursor (`.cursor/rules`), GitHub Copilot (`.github/copilot-instructions.md`), and pre-commit hooks.
 
+### `agents`
+
+Install native SDD skills and supported slash commands for coding agents. This is separate from repository instruction snippets and Git hooks managed by `hooks`.
+
+```bash
+specsync agents install                    # install all detected integrations
+specsync agents install --claude --gemini # install selected integrations
+specsync agents status                     # show installation status
+specsync agents uninstall                  # remove generated integrations
+```
+
+Supports Claude Code, Cursor, Codex, and Gemini CLI. The installed skills use the deterministic SpecSync lifecycle and never grant human approvals on an agent's behalf.
+
 ### `compact`
 
 Trim older changelog entries from specs to prevent unbounded growth.
@@ -160,11 +173,11 @@ specsync new auth                          # creates specs/auth/auth.spec.md
 specsync new auth --full                   # also creates companion files (requirements.md, tasks.md, context.md, testing.md, and design.md if enabled)
 ```
 
-Scans `sourceDirs` for files matching the module name to auto-populate the `files:` frontmatter field.
+Scans `source_dirs` for files matching the module name to auto-populate the `files:` frontmatter field.
 
 ### `migrate`
 
-Upgrade a 3.x project to the v4.0.0 layout. Moves config into `.specsync/`, converts to TOML, extracts lifecycle history, and stamps the version.
+Upgrade a legacy 3.x project to the current layout. Moves config into `.specsync/`, converts it to TOML, extracts lifecycle history, and stamps the project version. Existing 4.x projects can then enable the verified 5.0 lifecycle with `specsync change adopt`.
 
 ```bash
 specsync migrate                           # run full migration
@@ -354,7 +367,7 @@ specsync lifecycle enforce --allowed       # check specs are in allowed statuses
 - Blocked transitions show which guards failed and why
 
 **Transition history:**
-- When `lifecycle.trackHistory` is enabled (default), transitions are recorded in `.specsync/lifecycle/<module>.json`
+- When `lifecycle.track_history` is enabled (default), transitions are recorded in `.specsync/lifecycle/<module>.json`
 - Use `lifecycle history <spec>` to view the full audit trail
 
 **Auto-promote:**

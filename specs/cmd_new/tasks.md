@@ -21,7 +21,8 @@ spec: cmd_new.spec.md
 
 ## Gaps
 
-- No tests cover `cmd_new`; `src/commands/new.rs` has no `#[cfg(test)]` module and there are no `specsync new` integration tests.
+- `src/commands/new.rs` has no inline `#[cfg(test)]` module. Integration tests cover basic creation, source detection,
+  no-match guidance, and module-name safety; `--full` and refuse-overwrite remain explicit test debt above.
 
 ## Review Status
 

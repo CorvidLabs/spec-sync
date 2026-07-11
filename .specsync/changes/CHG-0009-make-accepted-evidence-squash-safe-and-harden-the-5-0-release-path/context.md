@@ -20,6 +20,9 @@ The README is intentionally an entry point rather than a second documentation si
 formats, architecture, language behavior, and workflows live in the Astro documentation and are linked from the
 README.
 
+The live CorvidLabs documentation hub has not yet published page-specific 5.0 routes. Until that separate site update
+lands, the README keeps one generic live-hub entry and points detailed topics to durable repository Markdown.
+
 PR #340's first matrix exposed a Windows-only fixture dependency on global `core.autocrlf`. The failure also prompted
 an adversarial digest audit, which found ambiguous unframed path/content concatenation and missing file-mode evidence.
 The failed acceptance was reversed before further implementation. The digest format is being hardened before 5.0

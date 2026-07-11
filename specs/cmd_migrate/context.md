@@ -39,8 +39,10 @@ Rust's edition migration is the gold standard: automatic, non-interactive, test-
 
 - `src/commands/migrate.rs` — the step pipeline (`steps()`), each `check_*`/`apply_*` pair, `cmd_migrate`, and the inline unit tests.
 - `src/config.rs` — `load_config_from_path` and `config_to_toml`, used by the config-relocation step.
-- `tests/integration.rs` — the `specsync migrate` section (`migrate_full_v3_to_v4` and friends) for end-to-end expectations and the 3.x fixture builder.
+- `tests/integration/commands.rs` — the `specsync migrate` fixtures (`migrate_full_v3_to_v4` and friends) and 3.x project builder.
 
 ## Current Status
 
-Implemented and shipped (`status: draft` in the spec frontmatter is a maturity label, not project state). The full v3→v4 flow is covered by integration tests, and `apply_create_directories` now has dedicated unit tests. Remaining work is expanding unit coverage to the other `apply_*` steps.
+Implemented, shipped, and marked `status: stable`. The full v3→v4 flow is covered by integration tests, and
+`apply_create_directories` has dedicated unit tests. Remaining work is expanding unit coverage to the other `apply_*`
+steps.

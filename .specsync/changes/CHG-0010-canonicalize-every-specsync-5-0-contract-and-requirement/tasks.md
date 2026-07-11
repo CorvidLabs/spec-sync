@@ -17,6 +17,7 @@ artifact: tasks
 - [x] Ignore Rust imports embedded in non-code and resolve source-module ownership.
 - [x] Remove the commands/rehash architectural dependency cycle without changing CLI behavior.
 - [x] Re-run dependency discovery and remove any declarations proven to be false edges.
+- [x] Correct stale testing claims for Lua export support, rehash inline tests, and cmd_new integration fixtures.
 
 ## Release Gates
 

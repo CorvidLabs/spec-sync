@@ -1,6 +1,6 @@
 ---
 module: util
-version: 2
+version: 1
 status: stable
 files:
   - src/util.rs
@@ -72,4 +72,3 @@ Provides small shared utility functions used by validators, fix suggestions, and
 | Date | Change |
 |------|--------|
 | 2026-06-07 | Initial spec for shared utility helpers |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

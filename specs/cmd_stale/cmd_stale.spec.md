@@ -1,6 +1,6 @@
 ---
 module: cmd_stale
-version: 2
+version: 1
 status: stable
 files:
   - src/commands/stale.rs
@@ -22,11 +22,11 @@ Implements the `specsync stale` command — a focused staleness detection tool t
 
 ## Public API
 
-**Exported Functions**
+### Exported Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `cmd_stale` | `root: &Path, format: types::OutputFormat, threshold: usize, exclude_status: &[String], only_status: &[String]` | `()` | Detect and report stale specs based on git commit distance |
+| `cmd_stale` | `root: &Path, format: OutputFormat, threshold: usize` | `()` | Detect and report stale specs based on git commit distance |
 
 ## Invariants
 
@@ -77,4 +77,3 @@ Implements the `specsync stale` command — a focused staleness detection tool t
 | Date | Change |
 |------|--------|
 | 2026-04-10 | Initial — dedicated staleness detection command (closes #188) |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

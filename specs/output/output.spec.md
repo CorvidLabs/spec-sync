@@ -1,6 +1,6 @@
 ---
 module: output
-version: 2
+version: 1
 status: stable
 files:
   - src/output.rs
@@ -91,4 +91,3 @@ Renders terminal and markdown output for spec-sync commands. Provides colored te
 | Date | Change |
 |------|--------|
 | 2026-04-09 | Initial spec |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

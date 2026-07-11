@@ -24,7 +24,7 @@ The extension requires the `specsync` CLI binary to be installed and on your PAT
 
 The extension activates automatically when your workspace contains any of:
 
-- `.specsync/config.toml` (v4)
+- `.specsync/config.toml` (current layout)
 - `.specsync/config.json`
 - `specsync.json` (legacy)
 - `.specsync.toml` (legacy)

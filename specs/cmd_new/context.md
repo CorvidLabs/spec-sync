@@ -18,7 +18,9 @@ spec: cmd_new.spec.md
 
 ## Current Status
 
-Stable and implemented. Behavior is verified only indirectly (no `#[cfg(test)]` module in `new.rs` and no `specsync new` integration tests yet) — adding focused tests is the main open item.
+Stable and implemented. Integration tests cover basic creation, source auto-detection, no-match guidance, and
+module-name safety. The command module has no inline `#[cfg(test)]` module; explicit `--full` and refuse-overwrite
+integration fixtures remain open.
 
 ## Notes
 

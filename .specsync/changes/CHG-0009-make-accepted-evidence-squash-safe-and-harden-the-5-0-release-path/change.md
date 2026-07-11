@@ -1,6 +1,6 @@
 ---
 id: CHG-0009-make-accepted-evidence-squash-safe-and-harden-the-5-0-release-path
-state: accepted
+state: implementing
 type: bug_fix
 base_commit: 884ad33b2158e9efca2f31d4798c1b6f27db8801
 ---

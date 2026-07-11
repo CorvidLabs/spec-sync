@@ -22,3 +22,6 @@ mod ai;
 
 #[path = "integration/config.rs"]
 mod config;
+
+#[path = "integration/change.rs"]
+mod change;

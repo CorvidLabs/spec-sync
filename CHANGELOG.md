@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-07-10
+
+### Added
+
+- **Full verified SDD lifecycle** — versioned `CHG-NNNN-slug` workspaces move through `draft → approved → implementing → verifying → accepted → archived`, with deterministic interviews, adaptive built-in/custom artifacts, explicit scope, semantic deltas, and equivalent text/JSON clients.
+- **Two mandatory human gates** — definition and closing approvals record actor, timestamp, note, and SHA-256 artifact digest. Approved content changes invalidate the gate; no force or emergency bypass exists.
+- **Layered requirement traceability** — stable `REQ-<module>-<number>` identities require normative SHALL statements and acceptance criteria, then connect semantic deltas to tests or declared testing evidence.
+- **Effective-contract validation** — active implementation is checked against canonical specs plus every approved, non-conflicting delta without prematurely mutating canonical truth.
+- **Commit-bound verification and atomic acceptance** — configured test commands run without a shell, evidence is tied to HEAD and the contract digest, accepted deltas update requirements/spec sections, bump versions, and add change-log provenance with rollback on write failure.
+- **Native AI-first workflow** — Claude Code, Cursor, Codex, and Gemini skills conduct the deterministic interview, respect human gates, and use the same CLI state machine; Claude, Cursor, and Gemini also receive create-change commands.
+- **Guided bootstrap and adoption** — new `init` projects enable SDD and offer agent/first-change setup; existing projects remain unchanged until `specsync change adopt`, which previews policy and OpenSpec/Spec Kit active/canonical import provenance.
+
+### Changed
+
+- **Unified `specsync check` gate** validates active lifecycle state, approval freshness, delta conflicts, effective contracts, and meaningful changed-path coverage before canonical bidirectional validation.
+- **Companion files are adaptive** — requirements, research, design, plan, tasks, context, testing, docs, and project templates exist when policy or change risk requires them rather than as empty mandatory ceremony.
+- The project and crate version are now 5.0.0; new layouts write a 5.0.0 version stamp and a versioned `.specsync/sdd.json` policy.
+
 ## [4.7.1] - 2026-07-04
 
 ### Fixed

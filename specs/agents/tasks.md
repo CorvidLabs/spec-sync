@@ -20,6 +20,9 @@ spec: agents.spec.md
 - [x] Content-aware reinstall — `install_agent` overwrites artifacts whose content has drifted from the current template, so upgrading spec-sync refreshes stale installations instead of leaving them outdated
 - [x] Safe uninstall — never touches a tool's shared `commands/` directory or unrelated sibling files
 - [x] All-tools default when no flags specified
+- [x] Verified SDD lifecycle instructions for all four agent skills
+- [x] Native create-change commands for Claude, Cursor, and Gemini
+- [x] Human approval safeguards and deterministic JSON interview guidance
 
 ## Gaps
 

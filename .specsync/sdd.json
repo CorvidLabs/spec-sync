@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "enabled": true,
+  "require_change_for_meaningful_files": true,
+  "meaningful_paths": [
+    "src/",
+    "tests/",
+    "site/",
+    ".github/",
+    "Cargo.toml"
+  ],
+  "ignored_paths": [
+    ".specsync/",
+    "specs/"
+  ],
+  "verification_commands": [
+    "fledge run test"
+  ],
+  "custom_artifacts": {},
+  "principles_file": null
+}

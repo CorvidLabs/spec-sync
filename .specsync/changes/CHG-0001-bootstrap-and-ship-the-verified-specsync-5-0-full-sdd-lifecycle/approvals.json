@@ -1,0 +1,25 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783739841,
+      "digest": "af68ea04ad85ba6f453e7b97882de12e13f54e2cf601d288b82ef223a7475de7",
+      "note": "Approved through the project-planning conversation and explicit instruction to implement and ship 5.0"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783739854,
+      "digest": "3215fb15f0a9a01737daacf21e82997c2c1af837fcf8f7d2fb1b351601b61fc9",
+      "note": "Reapproved after completing the PR-readiness task"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "leif",
+      "timestamp": 1783739884,
+      "digest": "98f920621f53c843517ef6f68e1b9feab90095c0595db3531d77ebdddad1c3cf",
+      "note": "Accepted on passing local verification; CI remains an independent merge gate"
+    }
+  ]
+}

@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v4
+      - uses: CorvidLabs/spec-sync@v5
 ```
 
 The action installs `spec-sync`, runs `spec-sync check --strict`, and annotates any drift directly in the PR diff view.
@@ -32,7 +32,7 @@ The action installs `spec-sync`, runs `spec-sync check --strict`, and annotates 
 Floating to `@v1` is convenient for early adoption but pins to a release once you're stable so an unintended upstream change doesn't break a Friday-afternoon merge:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v4
+- uses: CorvidLabs/spec-sync@v5
 ```
 
 The Action follows the spec-sync release cadence — match the version you `cargo install` locally.
@@ -42,7 +42,7 @@ The Action follows the spec-sync release cadence — match the version you `carg
 By default, `--strict` fails on any warning. For teams onboarding spec-sync incrementally, you can start with errors-only:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v4
+- uses: CorvidLabs/spec-sync@v5
   with:
     strict: false        # warnings allowed; errors still fail
     score_threshold: 60  # also fail if any spec scores below 60
@@ -55,7 +55,7 @@ Drop `strict: false` once your team is happy with the warning count, and tighten
 Add `annotations: true` so drift errors render as inline GitHub PR review comments on the source line, not just in the Action log:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v4
+- uses: CorvidLabs/spec-sync@v5
   with:
     annotations: true
 ```
@@ -67,7 +67,7 @@ A PR that adds an undocumented export now shows the comment "undocumented export
 When you genuinely need to ship a fix without updating the spec (and you're not lying to yourself), opt out per-PR with a label:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v4
+- uses: CorvidLabs/spec-sync@v5
   if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-specsync') }}
 ```
 

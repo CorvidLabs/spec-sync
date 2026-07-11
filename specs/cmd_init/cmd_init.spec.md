@@ -1,6 +1,6 @@
 ---
 module: cmd_init
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/init.rs
@@ -71,5 +71,6 @@ Implements the `specsync init` command. Creates the v4 `.specsync/` layout — `
 
 | Date | Change |
 |------|--------|
+| 2026-07-10 | v3: initialize 5.0 SDD policy/archive and offer guided agent plus first-change bootstrap |
 | 2026-04-09 | Initial spec |
 | 2026-06-11 | v2: Init the v4 `.specsync/` layout instead of the legacy `specsync.json` so a fresh project never sees the migration nag |

@@ -300,6 +300,114 @@ pub enum Command {
         #[command(subcommand)]
         action: LifecycleAction,
     },
+    /// Manage verified spec-driven development change workspaces
+    Change {
+        #[command(subcommand)]
+        action: ChangeAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ChangeAction {
+    /// Create a draft change and return the deterministic interview
+    New {
+        /// Plain-language description of the intended change
+        description: String,
+        /// Change type: feature, bug-fix, refactor, migration, documentation, operations
+        #[arg(long, default_value = "feature")]
+        kind: String,
+        /// Affected canonical spec module (repeatable)
+        #[arg(long = "spec")]
+        specs: Vec<String>,
+        /// Affected repository path or prefix (repeatable)
+        #[arg(long = "path")]
+        paths: Vec<String>,
+        /// Optional artifact to add to the adaptive selection (repeatable)
+        #[arg(long = "artifact")]
+        artifacts: Vec<String>,
+        /// Declare that canonical specs do not change
+        #[arg(long)]
+        no_spec_change: bool,
+        /// Required explanation when --no-spec-change is used
+        #[arg(long)]
+        rationale: Option<String>,
+    },
+    /// Answer one deterministic interview question
+    Answer {
+        /// Change ID
+        id: String,
+        /// Stable question ID returned by `change new` or `change show`
+        question: String,
+        /// Answer text; comma-separated values are accepted for list questions
+        answer: String,
+    },
+    /// Declare deterministic ordering between active changes
+    Depend {
+        /// Change that owns the dependency
+        id: String,
+        /// Change ID that must be ordered first
+        on: String,
+    },
+    /// List active changes
+    List,
+    /// Show one change, its gate health, and next questions
+    Show {
+        /// Change ID
+        id: String,
+    },
+    /// Show lifecycle status for one change or all active changes
+    Status {
+        /// Optional change ID
+        id: Option<String>,
+    },
+    /// Record the mandatory definition approval
+    Approve {
+        /// Change ID
+        id: String,
+        /// Human actor recorded in portable approval evidence
+        #[arg(long)]
+        actor: Option<String>,
+        /// Optional approval note
+        #[arg(long)]
+        note: Option<String>,
+    },
+    /// Transition an approved change into implementation
+    Start {
+        /// Change ID
+        id: String,
+    },
+    /// Run the configured verification gate and record evidence
+    Verify {
+        /// Change ID
+        id: String,
+    },
+    /// Record closing approval and atomically apply semantic deltas
+    Accept {
+        /// Change ID
+        id: String,
+        /// Human actor recorded in portable approval evidence
+        #[arg(long)]
+        actor: Option<String>,
+        /// Optional acceptance note
+        #[arg(long)]
+        note: Option<String>,
+    },
+    /// Move an accepted change into the immutable dated archive
+    Archive {
+        /// Change ID
+        id: String,
+    },
+    /// Validate all active change workspaces and CI coverage
+    Check,
+    /// Adopt the 5.0 SDD lifecycle in an existing project
+    Adopt {
+        /// Preview adoption without writing files
+        #[arg(long)]
+        dry_run: bool,
+        /// Import source: openspec or speckit (auto-detected when omitted)
+        #[arg(long)]
+        source: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -542,5 +650,28 @@ mod tests {
     #[test]
     fn non_numeric_threshold_is_rejected() {
         assert!(Cli::try_parse_from(["specsync", "stale", "--threshold", "abc"]).is_err());
+    }
+
+    #[test]
+    fn change_new_collects_sdd_scope() {
+        let cli = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "new",
+            "Add passkeys",
+            "--kind",
+            "feature",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Some(Command::Change {
+                action: ChangeAction::New { .. }
+            })
+        ));
     }
 }

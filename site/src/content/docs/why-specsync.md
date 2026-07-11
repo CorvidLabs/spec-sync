@@ -29,7 +29,7 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 | Catches renamed exports | **Yes** | No | No | No | No |
 | Schema/DB drift detection | **Yes** | No | No | No | No |
 | Cross-project references | **Yes** | Via `$ref` | No | No | No |
-| Works with any language | **12 languages** | Language-specific | JS/TS only | N/A | N/A |
+| Works with any language | **33 languages** | Language-specific | JS/TS only | N/A | N/A |
 | AI agent integration (MCP) | **Yes** | Via plugins | No | No | No |
 | CI/CD integration | **GitHub Action** | Various | Various | Manual | No |
 | Spec lifecycle management | **Yes** | No | No | No | Manual |
@@ -40,6 +40,26 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 ---
 
 ## Detailed Comparisons
+
+### vs. Spec Kit and OpenSpec
+
+[Spec Kit](https://github.github.com/spec-kit/) provides a strong guided `specify → plan → tasks → implement` workflow and a broad agent ecosystem. [OpenSpec](https://openspec.dev/) provides a lightweight proposal, design, task, semantic-delta, and archive model. SpecSync 5.0 combines those ideas with native enforcement:
+
+| SDD capability | SpecSync 5.0 | Spec Kit core | OpenSpec core |
+|:---------------|:-------------:|:-------------:|:-------------:|
+| Deterministic adaptive interview | **Yes** | Template/workflow driven | Schema/instruction driven |
+| Optional artifacts selected by risk | **Yes** | Presets/workflows | Configurable schemas |
+| Semantic deltas and canonical merge | **Yes** | No | **Yes** |
+| Bidirectional spec ↔ real code exports | **Yes** | Extension/agent analysis | No |
+| Stable requirement → test evidence | **Required** | Artifact-level by default | Artifact-level by default |
+| Digest-bound human approvals | **Two required gates** | Workflow gates | Confirmation at archive |
+| Active code checked against future contract | **Yes** | No | No |
+| Concurrent semantic conflict detection | **Yes** | External orchestration | Archive-time conflicts |
+| Configured tests executed by CI gate | **Yes** | Workflow shell steps | Agent verification |
+| Verification command shell isolation | **No shell** | Workflow shell supported | Agent/tool dependent |
+| Import existing Spec Kit/OpenSpec work | **Yes** | N/A | N/A |
+
+SpecSync does not attempt to win by generating more Markdown. Its differentiator is that an approved specification becomes an executable CI contract: code, exports, requirements, tests, deltas, approvals, and archival state must agree before the change can close.
 
 ### vs. OpenAPI / Swagger
 
@@ -88,7 +108,7 @@ Most tools check in one direction — either "does the code match the docs?" or 
 
 ### Language Agnostic
 
-One tool, one format, 12 languages. Whether your project is TypeScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, or YAML — same `*.spec.md` format, same validation.
+One tool, one format, 33 languages — the same `*.spec.md` contract and lifecycle across polyglot repositories.
 
 ### AI-Native
 
@@ -99,15 +119,15 @@ SpecSync was built for the AI-assisted development era:
 - **Structured output** (JSON mode) integrates cleanly with agent workflows
 - **AGENTS.md generation** produces instruction files for Claude Code, Cursor, and Copilot
 
-### Spec Lifecycle
+### Verified Change Lifecycle
 
 Specs aren't static documents — they have a lifecycle:
 
 ```
-create → validate → iterate → stabilize → maintain → compact → archive
+draft → approved → implementing → verifying → accepted → archived
 ```
 
-SpecSync manages this lifecycle with companion files (requirements, tasks, context), quality scoring, changelog compaction, and task archival.
+SpecSync manages this lifecycle with deterministic interviews, adaptive artifacts, semantic deltas, two human approval gates, requirement/test traceability, effective-contract validation, and immutable archives. Canonical module maturity remains separate.
 
 ### Zero Dependencies
 

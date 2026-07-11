@@ -4,31 +4,63 @@ section: "Reference"
 order: 2
 ---
 
-End-to-end walkthrough of the SpecSync workflow — from first spec to CI enforcement, maintenance, and team collaboration.
+End-to-end walkthrough of the verified SpecSync 5.0 SDD workflow.
 
 ---
 
-## The Lifecycle
+## The Change Lifecycle
 
 Every spec goes through a predictable lifecycle:
 
-```
-create → validate → iterate → stabilize → maintain → compact → archive
+```text
+draft → approved → implementing → verifying → accepted → archived
 ```
 
-| Phase | What happens | Key commands |
+| State | What happens | Key commands |
 |:------|:-------------|:-------------|
-| **Create** | Scaffold a new spec (template or AI-generated) | `add-spec`, `generate` |
-| **Validate** | Check spec against source code | `check`, `check --strict` |
-| **Iterate** | Fix drift, add undocumented exports, refine content | `check --fix`, manual edits |
-| **Stabilize** | Promote status to `stable`, enforce in CI | `check --strict --require-coverage 100` |
-| **Maintain** | Update specs as code changes, review with `diff` | `diff`, `watch`, `score` |
-| **Compact** | Trim changelog entries to prevent unbounded growth | `compact` |
-| **Archive** | Archive completed tasks from companion files | `archive-tasks` |
+| **Draft** | Deterministic interview selects scope and adaptive artifacts | `change new`, `change answer` |
+| **Approved** | A human approves the definition digest | `change approve` |
+| **Implementing** | Code follows canonical specs plus approved deltas | `change start`, `check` |
+| **Verifying** | Tests and requirement evidence are recorded | `change verify` |
+| **Accepted** | Closing approval atomically updates canonical truth | `change accept` |
+| **Archived** | The immutable workspace moves to dated history | `change archive` |
+
+Module maturity (`draft → review → active → stable → deprecated → archived`) remains separately available through `specsync lifecycle`.
+
+## 1. Create and Interview
+
+```bash
+specsync change new "Add passkeys" --spec auth --path src/auth.rs --json
+specsync change answer CHG-0001-add-passkeys acceptance_criteria \
+  "A registered passkey authenticates the user" --json
+```
+
+The shared deterministic engine asks only unresolved questions and selects requirements, research, design, plan, tasks, context, testing, docs, or custom artifacts according to change type and risk. Agent skills present the same questions conversationally.
+
+## 2. Approve and Implement
+
+Complete selected artifacts and semantic deltas, then obtain explicit human approval:
+
+```bash
+specsync change approve CHG-0001-add-passkeys
+specsync change start CHG-0001-add-passkeys
+```
+
+Requirements use stable IDs, normative SHALL statements, and acceptance criteria. Changing an approved artifact invalidates its digest and blocks progress until reapproved.
+
+## 3. Verify, Accept, and Archive
+
+```bash
+specsync change verify CHG-0001-add-passkeys
+specsync change accept CHG-0001-add-passkeys
+specsync change archive CHG-0001-add-passkeys
+```
+
+Verification runs only project-configured commands without a shell. Acceptance requires a fresh commit-bound result, requirement-to-test/API evidence, complete tasks, conflict-free deltas, and closing human approval.
 
 ---
 
-## 1. Setting Up
+## Project Setup
 
 ### Initialize a project
 
@@ -36,7 +68,7 @@ create → validate → iterate → stabilize → maintain → compact → archi
 specsync init
 ```
 
-This creates `.specsync/config.toml` with auto-detected source directories. Review it and adjust `specs_dir`, `source_dirs`, `exclude_dirs`, and `required_sections` as needed. See [Configuration](configuration.md) for all options.
+This creates `.specsync/config.toml`, `.specsync/sdd.json`, the change/archive directories, detects verification commands, and offers native agent integration plus a first change interview. Existing 4.x projects remain unchanged until `specsync change adopt`.
 
 ### Install hooks and agent instructions
 
@@ -52,7 +84,7 @@ Check what's installed with `specsync hooks status`.
 
 ---
 
-## 2. Creating Specs
+## Creating Canonical Specs
 
 ### Option A: Scaffold a single module
 

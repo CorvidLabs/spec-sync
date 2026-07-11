@@ -4,7 +4,7 @@ section: "Reference"
 order: 1
 ---
 
-SpecSync is configured via `.specsync/config.toml` (v4) or legacy `specsync.json` / `.specsync.toml` in your project root. All fields are optional — sensible defaults apply.
+Canonical validation is configured through `.specsync/config.toml`. The opt-in 5.0 SDD lifecycle uses the versioned `.specsync/sdd.json` policy so upgrading an existing project cannot silently enable new CI gates.
 
 ---
 
@@ -46,6 +46,25 @@ verify_issues = true
 ```
 
 Config resolution order: `.specsync/config.toml` → `.specsync/config.json` → `.specsync.toml` (legacy) → `specsync.json` (legacy) → defaults. Per-developer overrides via `.specsync/config.local.toml` are merged on top.
+
+### SDD Policy
+
+New projects receive `.specsync/sdd.json`; existing projects create it with `specsync change adopt`:
+
+```json
+{
+  "version": 1,
+  "enabled": true,
+  "require_change_for_meaningful_files": true,
+  "meaningful_paths": ["src/", "tests/", "site/", ".github/", "Cargo.toml"],
+  "ignored_paths": [".specsync/", "specs/"],
+  "verification_commands": ["fledge run test"],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+```
+
+Verification commands are explicit argument lists executed without a shell. Shell operators, substitutions, pipes, and redirections are rejected. `custom_artifacts` maps an artifact name to a project-owned Markdown template path; `principles_file` optionally supplies project governance to interviews and agents.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 1
+version: 2
 status: stable
 files:
   - src/cli.rs
@@ -28,10 +28,11 @@ Defines the CLI argument parser using Clap derive macros. Declares all subcomman
 
 | Type | Description |
 |------|-------------|
-| `Command` | Subcommand enum with 30 variants: Check, Coverage, Generate, Init, Score, Watch, Mcp, AddSpec, Scaffold, InitRegistry, Resolve, Diff, Hooks, Agents, Compact, ArchiveTasks, View, Merge, Issues, New, Wizard, Deps, Import, Stale, Report, Comment, Rules, Changelog, Migrate, Lifecycle |
+| `Command` | Root subcommand enum including canonical validation, module lifecycle, and verified SDD Change operations |
 | `HooksAction` | Sub-subcommand for `Hooks`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, copilot, agents, precommit, claude_code_hook) |
 | `AgentsAction` | Sub-subcommand for `Agents`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, codex, gemini) |
 | `LifecycleAction` | Sub-subcommand for `Lifecycle`: Promote, Demote, Set, Status, History, Guard, AutoPromote, Enforce — manages spec lifecycle transitions |
+| `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, List, Show, Status, Approve, Start, Verify, Accept, Archive, Check, Adopt |
 
 ## Invariants
 
@@ -101,3 +102,4 @@ Defines the CLI argument parser using Clap derive macros. Declares all subcomman
 | 2026-04-09 | Initial spec |
 | 2026-04-11 | Add LifecycleAction enum and Lifecycle command variant |
 | 2026-07-01 | Add AgentsAction enum and Agents command variant |
+| 2026-07-10 | Add ChangeAction and the 5.0 SDD lifecycle namespace |

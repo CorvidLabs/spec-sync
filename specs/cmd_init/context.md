@@ -16,7 +16,7 @@ spec: cmd_init.spec.md
 
 ## Current Status
 
-Implemented and stable. Strong coverage: three inline unit tests on the gitignore helper plus several integration tests on config creation and source-dir detection.
+Implemented for 5.0. Fresh projects enable SDD, detect configured verification commands, and receive a guided terminal bootstrap; non-interactive behavior remains deterministic and covered by integration tests.
 
 ## Notes
 

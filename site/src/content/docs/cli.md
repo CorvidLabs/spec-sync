@@ -318,6 +318,27 @@ Display configured validation rules and their current status (built-in rules, cu
 specsync rules                             # show all rules and their configuration
 ```
 
+### `change`
+
+Manage the complete verified SDD delivery lifecycle. Every command supports global `--json` output for agent clients.
+
+```bash
+specsync change new "Add passkeys" --kind feature --spec auth --path src/auth.rs
+specsync change answer CHG-0001-add-passkeys acceptance_criteria "Passkey login works"
+specsync change depend CHG-0002-update-ui CHG-0001-add-passkeys
+specsync change list
+specsync change show CHG-0001-add-passkeys
+specsync change approve CHG-0001-add-passkeys
+specsync change start CHG-0001-add-passkeys
+specsync change verify CHG-0001-add-passkeys
+specsync change accept CHG-0001-add-passkeys
+specsync change archive CHG-0001-add-passkeys
+specsync change check
+specsync change adopt --dry-run
+```
+
+Definition and closing approvals are mandatory and digest-bound. `change adopt` enables SDD for an existing project and can import active/canonical OpenSpec or Spec Kit artifacts.
+
 ### `lifecycle`
 
 Manage spec status transitions. Supports `promote`, `demote`, `set`, `status`, `history`, `guard`, `auto-promote`, and `enforce` subcommands.

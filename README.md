@@ -8,7 +8,7 @@
 [![Crates.io](https://img.shields.io/crates/v/specsync.svg)](https://crates.io/crates/specsync)
 [![Downloads](https://img.shields.io/crates/d/specsync.svg)](https://crates.io/crates/specsync)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-**Bidirectional spec-to-code validation with cross-project references, dependency graphs, and AI-powered generation.** Written in Rust. Single binary. 33 languages (with AST support for 10). VS Code extension.
+**Verified spec-driven development with bidirectional spec-to-code validation.** Requirements, semantic deltas, human approvals, tests, code, and CI stay traceable through one lifecycle. Written in Rust. Single binary. 33 languages (with AST support for 10).
 
 [5-Minute Start](#get-started-in-5-minutes) &bull; [Spec Format](#spec-format) &bull; [CLI](#cli-reference) &bull; [VS Code Extension](#vs-code-extension) &bull; [Cross-Project Refs](#cross-project-references) &bull; [GitHub Action](#github-action) &bull; [Config](#configuration) &bull; [Docs Site](https://corvidlabs.github.io/spec-sync)
 
@@ -30,6 +30,30 @@ SpecSync validates markdown module specs (`*.spec.md`) against your source code 
 | Column in schema not documented in spec | Warning | Undocumented column |
 | Column type mismatch between spec and schema | Warning | Type drift |
 | Required markdown section missing | **Error** | Incomplete spec |
+
+## Full SDD Lifecycle (5.0)
+
+SpecSync 5.0 manages delivery work as versioned change workspaces:
+
+```text
+draft → approved → implementing → verifying → accepted → archived
+```
+
+```bash
+specsync change new "Add passkey authentication" --spec auth --path src/auth.rs
+specsync change answer CHG-0001-add-passkey-authentication acceptance_criteria \
+  "A registered passkey authenticates the user"
+specsync change approve CHG-0001-add-passkey-authentication
+specsync change start CHG-0001-add-passkey-authentication
+# implement code, tests, and the approved semantic delta
+specsync change verify CHG-0001-add-passkey-authentication
+specsync change accept CHG-0001-add-passkey-authentication
+specsync change archive CHG-0001-add-passkey-authentication
+```
+
+The first and closing approvals are mandatory, portable, digest-bound human gates. During implementation, `specsync check` validates code against canonical specs plus approved semantic deltas. Acceptance requires fresh tests and requirement evidence, atomically updates canonical requirements/specs, increments spec versions, and records the change ID.
+
+Native Claude, Cursor, Codex, and Gemini integrations conduct the same deterministic interview through JSON commands, so humans and agents are equal clients of one workflow engine.
 
 ## Supported Languages
 
@@ -78,7 +102,7 @@ Auto-detected from file extensions. Same spec format for all.
 ### GitHub Action (recommended)
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v4
+- uses: CorvidLabs/spec-sync@v5
   with:
     strict: 'true'
     require-coverage: '100'
@@ -163,7 +187,7 @@ Expected output:
 That's it. The spec is the contract; if you remove `pub fn greet` from the source, `specsync check` will fail. If you add a new public function and don't list it in the spec, you get a warning. Drift gets caught at CI time, not in code review.
 
 **Next steps:**
-- Add a `CorvidLabs/spec-sync@v4` GitHub Action to your CI — it runs `specsync check` and posts results to PRs.
+- Add a `CorvidLabs/spec-sync@v5` GitHub Action to CI — it validates canonical specs and active change gates.
 - Use `specsync wizard` for an interactive spec-creation experience instead of `new`.
 - Use `specsync generate --provider auto` to AI-generate richer specs from existing code.
 - See [`examples/quickstart/`](./examples/quickstart) for the same flow as a committed reference.
@@ -179,7 +203,11 @@ All commands at a glance. Run `specsync <command> --help` for details.
 ```bash
 specsync migrate                           # Upgrade from 3.x to 4.0.0 (.specsync/ layout)
 specsync migrate --dry-run                 # Preview migration without changes
-specsync init                              # Create the .specsync/ v4 project layout
+specsync init                              # Create the .specsync/ v5 project layout
+specsync change new "Add passkeys"         # Start the verified SDD interview
+specsync change status                     # Show active delivery state and next actions
+specsync change verify CHG-0001-add-passkeys # Run tests + requirement evidence gate
+specsync change adopt --dry-run            # Preview 4.x/OpenSpec/Spec Kit adoption
 specsync check                             # Validate specs against code
 specsync check --fix                       # Auto-add undocumented exports as stubs
 specsync diff                              # Show exports added/removed since HEAD
@@ -704,7 +732,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v4
+      - uses: CorvidLabs/spec-sync@v5
         with:
           strict: 'true'
           require-coverage: '100'
@@ -725,7 +753,7 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v4
+      - uses: CorvidLabs/spec-sync@v5
         with:
           strict: 'true'
           comment: 'true'
@@ -871,7 +899,7 @@ review = 14
 **GitHub Action** — add `lifecycle-enforce: 'true'` to the spec-sync action to enforce lifecycle rules in CI:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v4
+- uses: CorvidLabs/spec-sync@v5
   with:
     lifecycle-enforce: 'true'
 ```

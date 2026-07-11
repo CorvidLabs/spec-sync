@@ -6,6 +6,23 @@ order: 2
 
 SpecSync is built for LLM-powered coding tools — structured output, machine-readable specs, and automated scaffolding.
 
+## Native Verified-SDD Skills
+
+```bash
+specsync agents install
+```
+
+Claude Code, Cursor, Codex, and Gemini receive a native project skill. Claude, Cursor, and Gemini also receive create-spec and create-change commands. The lifecycle skill requires agents to:
+
+- create every meaningful change through `specsync change new --json`;
+- present deterministic interview questions to the user one at a time;
+- never invent or self-grant either human approval;
+- implement only after definition approval;
+- show fresh verification evidence before closing approval;
+- apply semantic deltas and archive only through deterministic CLI operations.
+
+The CLI remains the shared workflow engine, so changing agents does not change lifecycle state or artifact semantics.
+
 ---
 
 ## MCP Server Mode

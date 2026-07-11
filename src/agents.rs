@@ -12,7 +12,25 @@ use std::path::{Path, PathBuf};
 
 const SKILL_BODY: &str = r#"## Companion files
 
-Each spec in `specs/<module>/` has companion files — read them before working, update them after:
+## Verified SDD change lifecycle (5.0)
+
+For every meaningful source, test, public documentation, schema, or configuration change:
+
+1. Run `specsync change new "<intent>" --json` and conduct the returned interview with the user.
+2. Use `specsync change answer <id> <question-id> <answer> --json` until no questions remain.
+3. Complete the adaptively selected artifacts and semantic deltas. Requirements use stable
+   `REQ-<module>-<number>` IDs, a normative SHALL statement, and acceptance criteria.
+4. Ask the user for the definition approval, then run `specsync change approve <id>`.
+5. Run `specsync change start <id>` before editing implementation code.
+6. Keep tasks and artifacts current, then run `specsync change verify <id>`.
+7. Present verification evidence and ask for closing approval. Only after explicit approval,
+   run `specsync change accept <id>`; archive separately with `specsync change archive <id>`.
+
+Never invent or self-grant either human approval. If an approved definition changes, its digest
+becomes stale and must be approved again. `specsync check` validates canonical specs plus approved
+active deltas, requirement-to-test evidence, change coverage, and CI gates.
+
+Each canonical spec may have policy-selected companion files. Read and update the ones present; do not create empty companions only for ceremony:
 
 - **`tasks.md`** — Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
 - **`requirements.md`** — Acceptance criteria and user stories. These are permanent invariants, not tasks — do not check them off. Update if requirements change.
@@ -23,7 +41,7 @@ Each spec in `specs/<module>/` has companion files — read them before working,
 ## Before modifying any module
 
 1. Read the relevant spec in `specs/<module>/<module>.spec.md`
-2. Read companion files: `tasks.md`, `requirements.md`, `context.md`, `testing.md`, and `design.md` (if present)
+2. Read whichever companion files are present (`requirements.md`, `tasks.md`, `context.md`, `testing.md`, `design.md`, or project-defined files)
 3. After changes, run `specsync check` to verify specs still pass
 
 ## After completing work
@@ -124,6 +142,15 @@ const CREATE_SPEC_STEPS_TOML: &str = r#"1. Parse the arguments above: the first 
 
 const CREATE_SPEC_DESCRIPTION: &str = "Scaffold a new spec-sync module spec from a module name or a natural-language feature description (full scaffold by default, or minimal with --minimal)";
 
+const CREATE_CHANGE_DESCRIPTION: &str =
+    "Create and guide a verified spec-sync SDD change through its deterministic interview";
+
+const CREATE_CHANGE_STEPS_MD: &str = r#"1. Run `specsync change new "$ARGUMENTS" --json`.
+2. Read the returned `questions` array and interview the user one question at a time.
+3. Record each answer with `specsync change answer <id> <question-id> <answer> --json`.
+4. Continue until the question list is empty, then show the selected artifacts and next action.
+5. Do not approve, implement, verify, accept, or archive until the corresponding human gate or work stage is reached."#;
+
 const SKILL_TRIGGER_DESCRIPTION: &str = "Keep markdown module specs in specs/<module>/ synchronized with source code using spec-sync. Use this whenever creating, editing, or reviewing code in a module that has (or should have) a spec, or whenever the user mentions specs, spec-sync, companion files (tasks.md/requirements.md/context.md/testing.md/design.md), or asks to add/update a module's documentation.";
 
 /// AI coding tools that receive native skill/command file installation, as
@@ -158,10 +185,10 @@ impl AgentTool {
 
     pub fn description(&self) -> &'static str {
         match self {
-            AgentTool::Claude => "Claude Code skill + /specsync:create-spec command",
-            AgentTool::Cursor => "Cursor skill + /specsync-create-spec command",
-            AgentTool::Codex => "Codex CLI skill (project-scoped)",
-            AgentTool::Gemini => "Gemini CLI skill + /specsync:create-spec command",
+            AgentTool::Claude => "Claude Code SDD skill + specsync commands",
+            AgentTool::Cursor => "Cursor SDD skill + specsync commands",
+            AgentTool::Codex => "Codex CLI SDD skill (project-scoped)",
+            AgentTool::Gemini => "Gemini CLI SDD skill + specsync commands",
         }
     }
 
@@ -211,6 +238,29 @@ impl AgentTool {
             AgentTool::Codex => None,
         }
     }
+
+    fn change_command_path(&self, root: &Path) -> Option<PathBuf> {
+        match self {
+            AgentTool::Claude => Some(
+                root.join(".claude")
+                    .join("commands")
+                    .join("specsync")
+                    .join("create-change.md"),
+            ),
+            AgentTool::Cursor => Some(
+                root.join(".cursor")
+                    .join("commands")
+                    .join("specsync-create-change.md"),
+            ),
+            AgentTool::Gemini => Some(
+                root.join(".gemini")
+                    .join("commands")
+                    .join("specsync")
+                    .join("create-change.toml"),
+            ),
+            AgentTool::Codex => None,
+        }
+    }
 }
 
 /// True if every artifact this tool should have (skill dir and/or command
@@ -220,10 +270,10 @@ pub fn is_installed(root: &Path, tool: AgentTool) -> bool {
         Some(dir) => dir.join("SKILL.md").exists(),
         None => true,
     };
-    let command_ok = match tool.command_path(root) {
-        Some(path) => path.exists(),
-        None => true,
-    };
+    let command_ok = [tool.command_path(root), tool.change_command_path(root)]
+        .into_iter()
+        .flatten()
+        .all(|path| path.exists());
     skill_ok && command_ok
 }
 
@@ -269,6 +319,22 @@ pub fn install_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
         }
     }
 
+    if let Some(path) = tool.change_command_path(root) {
+        let command_content = create_change_command_content(tool);
+        let needs_write = fs::read_to_string(&path)
+            .map(|existing| existing != command_content)
+            .unwrap_or(true);
+        if needs_write {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
+            }
+            fs::write(&path, command_content)
+                .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
+            changed = true;
+        }
+    }
+
     Ok(changed)
 }
 
@@ -289,29 +355,16 @@ pub fn uninstall_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
         removed = true;
     }
 
-    if let Some(path) = tool.command_path(root)
-        && path.exists()
+    for path in [tool.command_path(root), tool.change_command_path(root)]
+        .into_iter()
+        .flatten()
     {
-        fs::remove_file(&path).map_err(|e| format!("Failed to remove {}: {e}", path.display()))?;
-        removed = true;
-
-        // Clean up the now-empty namespaced parent dir (e.g.
-        // .claude/commands/specsync/), but never touch a shared commands
-        // directory — Cursor's command is flat (directly inside
-        // .cursor/commands/, alongside any unrelated user commands), so
-        // only remove the parent when it's our own "specsync" namespace
-        // folder, not the tool's shared commands directory.
-        if let Some(parent) = path.parent() {
-            let is_our_namespace_dir =
-                parent.file_name().and_then(|n| n.to_str()) == Some("specsync");
-            if is_our_namespace_dir
-                && fs::read_dir(parent)
-                    .map(|mut it| it.next().is_none())
-                    .unwrap_or(false)
-            {
-                let _ = fs::remove_dir(parent);
-            }
+        if path.exists() {
+            fs::remove_file(&path)
+                .map_err(|e| format!("Failed to remove {}: {e}", path.display()))?;
+            removed = true;
         }
+        cleanup_command_namespace(&path);
     }
 
     Ok(removed)
@@ -331,6 +384,35 @@ fn create_spec_command_content(tool: AgentTool) -> String {
         AgentTool::Cursor => cursor_create_spec_md(),
         AgentTool::Gemini => gemini_create_spec_toml(),
         AgentTool::Codex => unreachable!("Codex has no command file"),
+    }
+}
+
+fn create_change_command_content(tool: AgentTool) -> String {
+    match tool {
+        AgentTool::Claude => format!(
+            "---\ndescription: {CREATE_CHANGE_DESCRIPTION}\nargument-hint: <change-description>\n---\n\n{CREATE_CHANGE_STEPS_MD}\n"
+        ),
+        AgentTool::Cursor => format!(
+            "Create a verified spec-sync SDD change.\n\nArguments: $ARGUMENTS\n\n{CREATE_CHANGE_STEPS_MD}\n"
+        ),
+        AgentTool::Gemini => format!(
+            "description = \"{CREATE_CHANGE_DESCRIPTION}\"\n\nprompt = \"\"\"\nArguments: {{{{args}}}}\n\n{CREATE_CHANGE_STEPS_MD}\n\"\"\"\n"
+        ),
+        AgentTool::Codex => unreachable!("Codex has no command file"),
+    }
+}
+
+fn cleanup_command_namespace(path: &Path) {
+    if let Some(parent) = path.parent() {
+        let is_our_namespace_dir =
+            parent.file_name().and_then(|name| name.to_str()) == Some("specsync");
+        if is_our_namespace_dir
+            && fs::read_dir(parent)
+                .map(|mut entries| entries.next().is_none())
+                .unwrap_or(false)
+        {
+            let _ = fs::remove_dir(parent);
+        }
     }
 }
 
@@ -589,6 +671,12 @@ mod tests {
         assert!(command.contains("$ARGUMENTS"));
         assert!(command.contains("specsync scaffold"));
         assert!(command.contains("specsync new"));
+        let change_command = fs::read_to_string(
+            tmp.path()
+                .join(".claude/commands/specsync/create-change.md"),
+        )
+        .unwrap();
+        assert!(change_command.contains("specsync change new"));
 
         assert!(is_installed(tmp.path(), AgentTool::Claude));
     }
@@ -602,6 +690,11 @@ mod tests {
                 .unwrap();
         assert!(!command.starts_with("---"));
         assert!(command.contains("$ARGUMENTS"));
+        assert!(
+            tmp.path()
+                .join(".cursor/commands/specsync-create-change.md")
+                .exists()
+        );
     }
 
     #[test]

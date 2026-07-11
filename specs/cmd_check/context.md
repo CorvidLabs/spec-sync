@@ -11,6 +11,7 @@ spec: cmd_check.spec.md
 - Git staleness uses `git_commits_since(root, spec_commit, source_file)` — one `rev-list` per source file — replacing the old `git_commits_between` pairwise walk (the N+1 fix).
 - AI for `--fix` regeneration is resolved through the reworked `ai` module (corvid-ai backed): an Ollama-default provider ladder with `claude` aliased to `anthropic`.
 - The cache is only persisted when there are zero errors, so a failing run never "blesses" a broken spec as up-to-date.
+- The 5.0 SDD gate runs before canonical validation so stale approvals, uncovered meaningful paths, or an invalid effective contract can never be hidden by the hash cache.
 
 ## Files to Read First
 

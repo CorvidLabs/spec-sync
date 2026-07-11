@@ -1,0 +1,14 @@
+{
+  "timestamp": 1783739878,
+  "commit": "2bce28362908629be3aaf140e3f62948c7c7b103",
+  "contract_digest": "3215fb15f0a9a01737daacf21e82997c2c1af837fcf8f7d2fb1b351601b61fc9",
+  "passed": true,
+  "commands": [
+    {
+      "command": "fledge run test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

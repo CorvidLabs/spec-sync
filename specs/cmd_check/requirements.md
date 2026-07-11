@@ -25,6 +25,7 @@ spec: cmd_check.spec.md
 - The hash cache is updated and saved only when `total_errors == 0`
 - JSON output is a single object with `passed`, `errors`, `warnings`, `stale`, and `specs_checked`
 - Exit code comes from `compute_exit_code`/`exit_with_status` (Warn/EnforceNew/Strict + require-coverage)
+- When `.specsync/sdd.json` enables SDD, unified check first validates change coverage, approvals, semantic conflicts, and code against the effective canonical-plus-approved-delta contract.
 
 ## Constraints
 

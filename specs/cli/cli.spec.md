@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 4
+version: 5
 status: stable
 files:
   - src/main.rs
@@ -22,6 +22,8 @@ depends_on:
   - specs/archive/archive.spec.md
   - specs/compact/compact.spec.md
   - specs/view/view.spec.md
+  - specs/change/change.spec.md
+  - specs/cmd_change/cmd_change.spec.md
   - specs/github/github.spec.md
   - specs/hash_cache/hash_cache.spec.md
   - specs/merge/merge.spec.md
@@ -347,6 +349,7 @@ Cold start times (first run after boot) may be 2-3x higher due to disk cache war
 
 | Date | Change |
 |------|--------|
+| 2026-07-10 | v5: dispatch the verified `specsync change` SDD lifecycle |
 | 2026-06-11 | v4: `--root` now errors (exit 2) for nonexistent paths; init scenario covers the v4 config layout |
 | 2026-04-10 | Add Performance Requirements section with response time targets, cache requirements, resource limits, and scalability targets |
 | 2026-03-25 | Initial spec |

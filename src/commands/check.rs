@@ -95,6 +95,38 @@ pub fn cmd_check(
     // early-exit would `exit(0)` and silently pass the gate — and emit a non-JSON
     // message under --format json). Default warn mode still exits 0 there.
     let (config, all_spec_files) = load_and_discover(root, true);
+    let sdd_report = crate::change::check_project(root);
+    if sdd_report.enabled {
+        for warning in &sdd_report.warnings {
+            if matches!(format, Text) {
+                eprintln!("{} {warning}", "warning:".yellow().bold());
+            }
+        }
+        if !sdd_report.errors.is_empty() {
+            match format {
+                Json => println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "passed": false,
+                        "sdd": sdd_report,
+                    }))
+                    .unwrap_or_else(|_| "{\"passed\":false}".to_string())
+                ),
+                _ => {
+                    for error in &sdd_report.errors {
+                        eprintln!("{} {error}", "error:".red().bold());
+                    }
+                }
+            }
+            process::exit(1);
+        } else if matches!(format, Text) {
+            println!(
+                "{} SDD lifecycle valid ({} active change(s))\n",
+                "✓".green(),
+                sdd_report.checked_changes
+            );
+        }
+    }
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
     let spec_files = filter_by_status(&spec_files, exclude_status, only_status);
     // CLI --enforcement flag overrides config; --strict implies strict enforcement.

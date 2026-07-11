@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 4
+version: 5
 status: stable
 files:
   - src/commands/check.rs
@@ -101,6 +101,7 @@ Implements the `specsync check` command — the primary validation entry point. 
 
 | Date | Change |
 |------|--------|
+| 2026-07-10 | v5: add unified SDD lifecycle, approval, delta, effective-contract, and changed-path gates |
 | 2026-06-11 | v4: `--fix` bypasses the hash cache (no more silent no-op after a cached warning run); bare API-kind headings are promoted to export headers and symbols already documented in any Public API table are not re-added; partial export-coverage summary prints as ⚠ so the warning count matches printed warnings |
 | 2026-06-11 | v3: `--fix` routes exports to the matching table by kind; unmatched spec filters exit 1 without contradictory output |
 | 2026-06-07 | Document generated review prompts for `--fix` export rows |

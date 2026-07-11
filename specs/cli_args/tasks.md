@@ -16,6 +16,7 @@ spec: cli_args.spec.md
   - [x] Add `--model <MODEL>` flag to `Generate` (overrides `SPECSYNC_AI_MODEL` env and `aiModel` config)
   - [x] Reword `--provider` help to list the API providers (anthropic, openai, openrouter, gemini, deepseek, groq, mistral, xai, together, ollama) + deprecated claude/copilot, and document the `auto` sentinel
 - [x] Integration coverage for `--provider` behavior (`provider_flag_unknown_provider_errors`, `provider_flag_enables_ai`, `cli_provider_overrides_config_provider`, `env_provider_overrides_config_provider`)
+- [x] Complete `ChangeAction` namespace and inline parser coverage for SDD creation scope
 
 ## Gaps
 

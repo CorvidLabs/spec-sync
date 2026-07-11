@@ -1,6 +1,6 @@
 ---
 module: agents
-version: 2
+version: 3
 status: stable
 files:
   - src/agents.rs
@@ -44,7 +44,7 @@ Installs native, tool-owned skill and slash-command files for AI coding agents (
 
 ## Invariants
 
-1. Each `AgentTool` variant owns zero, one, or two artifacts: a skill directory (`<tool-dir>/skills/spec-sync/SKILL.md`) and/or a `create-spec` command file — Codex has skill only (its command mechanism is deprecated and global-only, outside any project root), all others have both.
+1. Each `AgentTool` owns an SDD skill and, where supported, both `create-spec` and `create-change` commands — Codex has the project skill only because its command mechanism is deprecated/global.
 2. Installation is idempotent per-artifact and content-aware — `install_agent` writes an artifact when it's missing *or* when its existing content differs from the current template (so upgrading spec-sync refreshes stale installations), and returns `Ok(false)` only when every artifact already matches the current template exactly.
 3. Every artifact spec-sync writes lives inside a `spec-sync/`-named skill folder or a `specsync`-namespaced command file/directory that spec-sync fully owns — no marker-string surgery on shared files is needed (unlike `hooks.rs`).
 4. `uninstall_agent` removes the skill directory wholesale (`remove_dir_all`) and the command file, then removes the command file's immediate parent directory only if that parent is named `specsync` and is now empty — it never removes a tool's shared `commands/` directory (e.g. `.claude/commands/`, `.cursor/commands/`), which may hold unrelated user commands.
@@ -111,5 +111,6 @@ Installs native, tool-owned skill and slash-command files for AI coding agents (
 
 | Date | Author | Change |
 |------|--------|--------|
+| 2026-07-10 | codex | v3: teach all four skills the verified SDD lifecycle and add create-change commands where supported |
 | 2026-07-01 | claude | v2: `install_agent` overwrites artifacts whose existing content differs from the current template (content-aware upgrade), instead of only writing missing files |
 | 2026-07-01 | claude | Initial spec — native skill/command installation for Claude Code, Cursor, Codex, Gemini CLI |

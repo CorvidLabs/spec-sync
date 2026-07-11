@@ -23,6 +23,7 @@ spec: validator.spec.md
 - File path suggestions use Levenshtein distance with max distance of 3
 - Flat source files (not in subdirectories) are detected as modules, excluding common entry points (main.rs, lib.rs, mod.rs, index.ts, etc.)
 - Source discovery respects `source_extensions` config
+- Requirements companions are validated when present but remain optional for technical/internal modules under adaptive artifact policy.
 
 ## Constraints
 

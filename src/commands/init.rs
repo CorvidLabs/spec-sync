@@ -1,19 +1,22 @@
 use colored::Colorize;
+use dialoguer::{Confirm, Input};
 use std::fs;
+use std::io::IsTerminal;
 use std::path::Path;
 use std::process;
 
 use crate::config::{config_to_toml, detect_source_dirs};
 use crate::types::SpecSyncConfig;
 
-/// Version stamp written to `.specsync/version` for fresh v4 projects.
-const V4_VERSION: &str = "4.0.0";
+/// Version stamp written to `.specsync/version` for fresh projects.
+const PROJECT_VERSION: &str = crate::change::SDD_VERSION;
 
 /// Subdirectories created inside `.specsync/` for a fresh v4 project.
 const V4_DIRS: &[&str] = &[
     ".specsync/lifecycle",
     ".specsync/changes",
     ".specsync/archive",
+    ".specsync/archive/changes",
 ];
 
 pub fn cmd_init(root: &Path) {
@@ -47,6 +50,13 @@ pub fn cmd_init(root: &Path) {
         process::exit(1);
     }
 
+    if let Err(error) =
+        crate::change::write_default_policy(root, crate::change::detect_verification_commands(root))
+    {
+        eprintln!("{} {error}", "error:".red().bold());
+        process::exit(1);
+    }
+
     println!("{} Created .specsync/config.toml (v4 layout)", "✓".green());
     println!("  Detected source directories: {dirs_display}");
 
@@ -55,6 +65,59 @@ pub fn cmd_init(root: &Path) {
         Ok(true) => println!("{} Added .specsync/hashes.json to .gitignore", "✓".green()),
         Ok(false) => {}
         Err(e) => eprintln!("{} {e}", "warning:".yellow().bold()),
+    }
+
+    guided_sdd_bootstrap(root);
+}
+
+fn guided_sdd_bootstrap(root: &Path) {
+    if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
+        return;
+    }
+    let install_agents = Confirm::new()
+        .with_prompt("Install native spec-sync SDD skills for supported AI agents?")
+        .default(true)
+        .interact()
+        .unwrap_or(false);
+    if install_agents {
+        crate::agents::cmd_install(root, &[]);
+    }
+    let create_first = Confirm::new()
+        .with_prompt("Create the project's first verified SDD change now?")
+        .default(true)
+        .interact()
+        .unwrap_or(false);
+    if !create_first {
+        return;
+    }
+    let description: String = match Input::new()
+        .with_prompt("What do you want to change?")
+        .interact_text()
+    {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!(
+                "{} Could not start the interview: {error}",
+                "warning:".yellow()
+            );
+            return;
+        }
+    };
+    let request = crate::change::CreateChangeRequest {
+        description,
+        kind: crate::change::ChangeKind::Feature,
+        affected_specs: Vec::new(),
+        affected_paths: vec!["src/".into()],
+        requested_artifacts: Vec::new(),
+        no_spec_change: false,
+        rationale: None,
+    };
+    match crate::change::create_change(root, request) {
+        Ok(record) => {
+            println!("{} Created {}", "✓".green(), record.id);
+            println!("  Continue with: specsync change show {}", record.id);
+        }
+        Err(error) => eprintln!("{} {error}", "warning:".yellow().bold()),
     }
 }
 
@@ -75,7 +138,7 @@ fn write_v4_layout(root: &Path, source_dirs: &[String]) -> Result<(), String> {
         .map_err(|e| format!("Failed to write .specsync/config.toml: {e}"))?;
 
     let version_path = root.join(".specsync/version");
-    fs::write(&version_path, format!("{V4_VERSION}\n"))
+    fs::write(&version_path, format!("{PROJECT_VERSION}\n"))
         .map_err(|e| format!("Failed to write .specsync/version: {e}"))?;
 
     let gitignore_path = root.join(".specsync/.gitignore");
@@ -178,7 +241,8 @@ mod tests {
         assert!(tmp.path().join(".specsync/archive").is_dir());
 
         let version = fs::read_to_string(tmp.path().join(".specsync/version")).unwrap();
-        assert_eq!(version.trim(), V4_VERSION);
+        assert_eq!(version.trim(), PROJECT_VERSION);
+        assert!(tmp.path().join(".specsync/sdd.json").exists() == false);
 
         let config = fs::read_to_string(tmp.path().join(".specsync/config.toml")).unwrap();
         assert!(config.contains("specs_dir = \"specs\""));
@@ -195,5 +259,6 @@ mod tests {
             !crate::config::is_legacy_layout(tmp.path()),
             "fresh init must produce a v4 layout that does not trigger the migration nag"
         );
+        assert!(tmp.path().join(".specsync/sdd.json").is_file());
     }
 }

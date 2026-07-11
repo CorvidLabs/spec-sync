@@ -1,6 +1,7 @@
 mod agents;
 mod ai;
 mod archive;
+mod change;
 mod changelog;
 mod cli;
 mod commands;
@@ -267,6 +268,7 @@ fn run() {
                 allowed || all,
             ),
         },
+        Command::Change { action } => commands::change::cmd_change(&root, action, format),
     }
 }
 

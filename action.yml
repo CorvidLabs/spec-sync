@@ -1,5 +1,5 @@
 name: 'spec-sync'
-description: 'Validate module specs against source code with SpecSync'
+description: 'Gate verified SDD changes and validate module specs against source code with SpecSync'
 branding:
   icon: 'check-circle'
   color: 'green'

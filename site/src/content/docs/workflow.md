@@ -61,7 +61,7 @@ Verification runs only project-configured commands without a shell and streams t
 
 Archive after the delivery branch is merged (or otherwise no longer differs from its comparison base). Until then, SpecSync keeps the accepted workspace active because the delivery diff still depends on its path coverage. This prevents the common gap where accepting and immediately archiving makes an unmerged implementation look unspecced.
 
-The repository includes executable examples for a [complete lifecycle](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-lifecycle) and [ordered concurrent changes](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-concurrent-changes). Each creates a disposable Git project and runs the real CLI end to end.
+The repository includes executable examples for a [complete lifecycle](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-lifecycle), [ordered concurrent changes](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-concurrent-changes), and a [five-epic product evolution](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-five-epics). Each creates a disposable Git project and runs the real CLI end to end.
 
 ---
 

@@ -43,7 +43,7 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 
 ### vs. Spec Kit and OpenSpec
 
-[Spec Kit](https://github.github.com/spec-kit/) provides a strong guided `specify → plan → tasks → implement` workflow and a broad agent ecosystem. [OpenSpec](https://openspec.dev/) provides a lightweight proposal, design, task, semantic-delta, and archive model. SpecSync 5.0 combines those ideas with native enforcement:
+[Spec Kit](https://github.github.com/spec-kit/) provides guided SDD plus configurable, resumable workflows and human gates. [OpenSpec](https://github.com/Fission-AI/OpenSpec) provides an action-based artifact graph, semantic deltas, agentic verification, synchronization, and archival. The comparison below was verified against their official documentation on 2026-07-11 and distinguishes deterministic blocking enforcement from configurable or agentic workflows:
 
 | SDD capability | SpecSync 5.0 | Spec Kit core | OpenSpec core |
 |:---------------|:-------------:|:-------------:|:-------------:|
@@ -53,13 +53,15 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 | Bidirectional spec ↔ real code exports | **Yes** | Extension/agent analysis | No |
 | Stable requirement → test evidence | **Required** | Artifact-level by default | Artifact-level by default |
 | Digest-bound human approvals | **Two required gates** | Workflow gates | Confirmation at archive |
-| Active code checked against future contract | **Yes** | No | No |
-| Concurrent semantic conflict detection | **Yes** | External orchestration | Archive-time conflicts |
-| Configured tests executed by CI gate | **Yes** | Workflow shell steps | Agent verification |
+| Active code checked against future contract | **Deterministic blocking gate** | Agent/workflow analysis | Agentic `/opsx:verify`; non-blocking by default |
+| Concurrent semantic conflict detection | **Deterministic pre-implementation/acceptance gate** | Workflow/extension dependent | Sync/archive-time agentic handling |
+| Configured tests executed by CI gate | **Yes** | Configurable workflow shell steps | Agentic verification |
 | Verification command shell isolation | **No shell** | Workflow shell supported | Agent/tool dependent |
 | Import existing Spec Kit/OpenSpec work | **Yes** | N/A | N/A |
 
-SpecSync does not attempt to win by generating more Markdown. Its differentiator is that an approved specification becomes an executable CI contract: code, exports, requirements, tests, deltas, approvals, and archival state must agree before the change can close.
+Sources: [Spec Kit workflows](https://github.github.com/spec-kit/reference/workflows.html), [Spec Kit recommended workflow](https://github.github.com/spec-kit/quickstart.html), [OpenSpec commands](https://github.com/Fission-AI/OpenSpec/blob/main/docs/commands.md), and [OpenSpec workflows](https://github.com/Fission-AI/OpenSpec/blob/main/docs/workflows.md).
+
+SpecSync does not attempt to win by generating more Markdown. Its differentiator is that an approved specification becomes a deterministic executable CI contract: code, exports, requirements, tests, deltas, approvals, and archival state must agree before the change can close.
 
 ### vs. OpenAPI / Swagger
 

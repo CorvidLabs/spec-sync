@@ -47,7 +47,7 @@ This module is the binary entry point (main.rs). All functions are private — t
 
 ### CLI Structure
 
-Three Clap derive structs define the CLI: Cli (root parser with global flags), Command (subcommand enum), and HooksAction (hooks sub-subcommand enum).
+Clap derive types define the root `Cli`, the `Command` namespace, and focused action enums such as `HooksAction`, `AgentsAction`, `LifecycleAction`, and `ChangeAction`.
 
 ### Subcommands
 
@@ -56,7 +56,8 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 | check | Validate all specs against source code (default when no subcommand given) | --strict, --require-coverage N, --json, --fix, --force, --create-issues, --explain, [SPEC...] |
 | coverage | Show file and module coverage report | --strict, --require-coverage N, --json |
 | generate | Scaffold spec files for unspecced modules | --provider PROVIDER (AI mode: auto/claude/anthropic/openai/ollama/copilot) |
-| init | Create a specsync.json config file with auto-detected source dirs | — |
+| init | Create the 5.0 `.specsync/` layout, TOML config, SDD policy, and version stamp | — |
+| change | Manage the verified SDD lifecycle, interviews, approvals, verification, acceptance, adoption, and archive | new, answer, approve, start, verify, accept, archive, adopt |
 | score | Score spec quality (0–100) with letter grades and suggestions | --json, --explain, [SPEC...] |
 | watch | Watch spec and source files, re-running check on changes | --strict, --require-coverage N |
 | mcp | Run as an MCP (Model Context Protocol) server over stdio | — |
@@ -90,7 +91,7 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 | --root | Option PathBuf | cwd | Project root directory |
 | --format | text\|json\|markdown | text | Output format: colored text, machine-readable JSON, or markdown |
 | --json | bool | false | Shorthand for `--format json` |
-| --enforcement | Option EnforcementMode | None | Override enforcement mode from specsync.json (warn, enforce-new, strict) |
+| --enforcement | Option EnforcementMode | None | Override configured enforcement mode (warn, enforce-new, strict) |
 | --force | bool | false | Bypass hash cache and re-validate all specs |
 
 ### Internal Functions
@@ -98,7 +99,8 @@ Three Clap derive structs define the CLI: Cli (root parser with global flags), C
 All functions in main.rs are private (no pub keyword). Key internal functions:
 
 - **main** — Parse CLI args, canonicalize root, dispatch to subcommand handler
-- **cmd_init** — Create specsync.json with auto-detected source dirs; no-op if config exists
+- **cmd_init** — Create the current `.specsync/` layout with auto-detected source dirs; no-op if config exists
+- **cmd_change** — Dispatch the verified SDD lifecycle and render equivalent text/JSON results
 - **cmd_check** — Load config, discover specs, validate, print results, exit with status
 - **cmd_coverage** — Load config, compute coverage, print detailed coverage report
 - **cmd_generate** — Scaffold specs for unspecced modules; optionally use AI provider
@@ -136,7 +138,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 3. `--strict` causes warnings to produce a non-zero exit code
 4. `--require-coverage N` causes exit 1 if file coverage percent < N
 5. `--json` switches all output to machine-readable JSON (no ANSI colors)
-6. `cmd_init` is idempotent — does nothing if `specsync.json` or `.specsync.toml` already exists
+6. `cmd_init` is idempotent and never overwrites current or legacy project configuration
 7. `cmd_init_registry` is idempotent — does nothing if `specsync-registry.toml` already exists
 8. `cmd_add_spec` generates companion files even if the spec already exists
 9. `cmd_generate` re-runs validation after generating new specs to include them in the summary

@@ -20,5 +20,5 @@ Implemented and stable. No tests target this file directly; behavior is validate
 
 ## Notes
 
-- Targets map to: `Claude` (skill + `/specsync:create-spec`), `Cursor` (skill + `/specsync-create-spec`), `Codex` (skill only), `Gemini` (skill + `/specsync:create-spec` TOML command).
+- Targets map to: `Claude`, `Cursor`, and `Gemini` (skill plus create-spec/create-change commands) and `Codex` (project skill only).
 - Part of the command layer — orchestrates a library module rather than containing domain logic, same shape as `cmd_hooks`.

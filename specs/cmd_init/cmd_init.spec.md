@@ -22,7 +22,7 @@ Implements the `specsync init` command. Creates the 5.0 `.specsync/` layout with
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `cmd_init` | `root: &Path` | `()` | Create the v4 `.specsync/` layout with auto-detected source dirs |
+| `cmd_init` | `root: &Path` | `()` | Create the 5.0 `.specsync/` layout, TOML config, SDD policy, and detected verification command |
 | `ensure_hashes_gitignored` | `root: &Path` | `Result<bool, String>` | Add `.specsync/hashes.json` to the root `.gitignore` (idempotent); returns `Ok(true)` if the entry was added, `Ok(false)` if already present, `Err` if the write fails |
 
 ## Invariants
@@ -52,7 +52,7 @@ Implements the `specsync init` command. Creates the 5.0 `.specsync/` layout with
 | Condition | Behavior |
 |-----------|----------|
 | File write fails | Exits 1 |
-| No source dirs detected | Creates config with empty `sourceDirs` |
+| No source dirs detected | Creates TOML config with `source_dirs = ["src"]` fallback |
 
 ## Dependencies
 

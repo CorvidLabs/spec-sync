@@ -159,7 +159,7 @@ specsync check --json
 specsync check --strict --require-coverage 100
 ```
 
-Each step produces machine-readable output. No human in the loop required (though humans can review at any step).
+Each generation/check step produces machine-readable output. The verified change lifecycle still requires its definition and closing human approval gates.
 
 ---
 

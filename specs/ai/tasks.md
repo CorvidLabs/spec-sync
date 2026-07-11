@@ -7,7 +7,7 @@ spec: ai.spec.md
 - [ ] Add streaming for API providers (the CLI path streams lines; API responses arrive whole)
 - [ ] Add retry with backoff for transient API failures (rate limits, timeouts) — pending corvid-ai support
 - [ ] Make the context-window cap (30K/file, 150K total) provider-aware instead of fixed char limits
-- [ ] Plan removal of the remaining CLI providers (`copilot`, `cursor`) and the `aiCommand` hatch for spec-sync 5.0
+- [ ] Plan removal of the remaining CLI providers (`copilot`, `cursor`) and the `aiCommand` hatch for a future major release
 
 ## Done
 

@@ -13,11 +13,11 @@ spec: cli_args.spec.md
 
 - `Cli` exposes global flags: `--strict`, `--require-coverage <N>`, `--root <path>`, `--format <text|json|markdown|github|table|csv>`, `--json`, `--enforcement <warn|enforce-new|strict>`, `--exclude-status <...>`, `--only-status <...>` — all `global = true`
 - `--json` is shorthand for `--format json`; default format is `text`
-- `Command` enum covers all current subcommands (Check, Coverage, Generate, Init, Score, Watch, Mcp, AddSpec, Scaffold, InitRegistry, Resolve, Diff, Hooks, Compact, ArchiveTasks, View, Merge, Issues, New, Wizard, Deps, Import, Stale, Report, Comment, Rules, Changelog, Rehash, Migrate, Lifecycle)
+- `Command` enum covers all current subcommands, including Agents, Lifecycle, and the verified SDD Change namespace
 - The `Generate` command exposes `--provider <PROVIDER>` (or `auto`) and `--model <MODEL>`, plus `--uncovered` and `--batch <MODULE...>`
 - `--provider` accepts the API provider names (anthropic, openai, openrouter, gemini, deepseek, groq, mistral, xai, together, ollama) plus the deprecated `claude`/`copilot`; the actual resolution/precedence lives in `generate.rs`, not the parser
 - Running `specsync` with no subcommand yields `Cli.command == None` (main.rs defaults to Check behavior)
-- `HooksAction` (Install/Uninstall/Status) and `LifecycleAction` (Promote/Demote/Set/Status/History/Guard/AutoPromote/Enforce) are declared as sub-subcommands
+- `HooksAction`, `AgentsAction`, `LifecycleAction`, and `ChangeAction` are declared as focused subcommand grammars; `ChangeAction` covers New, Answer, Depend, List, Show, Status, Approve, Start, Verify, Accept, Archive, Check, and Adopt
 - Invalid enum values for `--format`/`--enforcement` and unknown subcommands are rejected by Clap with usage help
 
 ## Constraints

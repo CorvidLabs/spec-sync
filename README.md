@@ -243,7 +243,7 @@ specsync lifecycle auto-promote            # Promote all specs that pass guards
 specsync lifecycle enforce --all           # CI: validate lifecycle rules
 specsync hooks install                    # Install agent instructions + git hooks
 specsync hooks status                     # Check what's installed
-specsync agents install                   # Install native skills + /specsync:create-spec commands
+specsync agents install                   # Install native skills + create-spec/create-change commands
 specsync agents status                    # Check what's installed
 specsync mcp                               # Start MCP server for AI agent integration
 specsync watch                             # Re-validate on every file change
@@ -946,7 +946,7 @@ specsync generate --provider openrouter --model anthropic/claude-sonnet-4-6
 
 ### Designed for AI agents
 
-For Claude Code, Cursor, Codex, and Gemini CLI, `specsync agents install` ships native integrations — a `SKILL.md` the tool auto-discovers (all four) and a `/specsync:create-spec` slash command (Claude/Cursor/Gemini — Codex's command mechanism is deprecated and global-only, so it gets the skill only) that scaffolds a spec, optionally with companion files, from either a module name or a natural-language feature description. This is separate from `specsync hooks install`, which remains the prose-instruction-file mechanism (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`, Copilot instructions) for tools without native skill/command support — run both, or whichever applies to your setup.
+For Claude Code, Cursor, Codex, and Gemini CLI, `specsync agents install` writes a project `SKILL.md` in each tool's documented discovery location. Claude, Cursor, and Gemini also receive create-spec and create-change commands; Codex gets the project skill only because its command mechanism is deprecated and global-only. Local installation and content are tested; live model discovery remains a separate environment/authentication check. This is separate from `specsync hooks install`, which remains the prose-instruction-file mechanism (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`, Copilot instructions) — run both, or whichever applies to your setup.
 
 The generate command is the entry point for LLM-powered spec workflows:
 

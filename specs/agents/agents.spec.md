@@ -60,13 +60,13 @@ Installs native, tool-owned skill and slash-command files for AI coding agents (
 
 - **Given** a project with no agent integrations installed
 - **When** `cmd_install(root, &[])` is called
-- **Then** installs Claude's skill + command, Cursor's skill + command, Codex's skill, and Gemini's skill + command
+- **Then** installs four skills plus create-spec and create-change commands for Claude, Cursor, and Gemini
 
 ### Scenario: Already installed
 
-- **Given** `.claude/skills/spec-sync/SKILL.md` and `.claude/commands/specsync/create-spec.md` both exist
+- **Given** Claude's skill, create-spec command, and create-change command all exist with current content
 - **When** `install_agent(root, AgentTool::Claude)` is called
-- **Then** returns `Ok(false)` without modifying either file
+- **Then** returns `Ok(false)` without modifying any artifact
 
 ### Scenario: Uninstall preserves sibling commands
 

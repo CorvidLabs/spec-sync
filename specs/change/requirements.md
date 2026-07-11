@@ -44,7 +44,7 @@ The system SHALL support equivalent human CLI and structured agent workflows.
 
 The system SHALL preserve unrelated canonical Markdown when applying semantic blocks.
 
-Acceptance Criteria
+#### Acceptance Criteria
 - Modifying or removing the final requirement before a higher-level heading preserves that heading and all following content.
 - Failed preparation leaves canonical files byte-for-byte unchanged.
 - An interrupted multi-file acceptance is recovered from its transaction journal before the next lifecycle mutation.
@@ -53,7 +53,7 @@ Acceptance Criteria
 
 The system SHALL bind verification evidence to every tested working-tree input.
 
-Acceptance Criteria
+#### Acceptance Criteria
 - Source, test, configuration, or contract edits after verification invalidate acceptance even when HEAD is unchanged.
 - Failed verification remains an error until fresh successful evidence is recorded.
 
@@ -61,7 +61,7 @@ Acceptance Criteria
 
 The system SHALL fail closed when lifecycle enforcement cannot be evaluated.
 
-Acceptance Criteria
+#### Acceptance Criteria
 - Malformed policy and unavailable changed-path comparison fail unified checking.
 - A successful changed-path comparison with no output is valid empty coverage evidence.
 - Effective-contract validation runs during verification and acceptance.
@@ -71,7 +71,7 @@ Acceptance Criteria
 
 The system SHALL apply concurrent change semantics in declared dependency order.
 
-Acceptance Criteria
+#### Acceptance Criteria
 - Effective deltas are topologically ordered regardless of change ID.
 - Dependency and conflict gates are rechecked immediately before acceptance.
 - Path coverage matches complete path components rather than arbitrary prefixes.
@@ -81,7 +81,7 @@ Acceptance Criteria
 
 The system SHALL keep definitions and persisted lifecycle state trustworthy through approval, adoption, and archival.
 
-Acceptance Criteria
+#### Acceptance Criteria
 - Definition approval rejects missing, malformed, or cross-module semantic requirements before recording evidence.
 - Corrupt active state fails unified checking instead of disappearing from enforcement.
 - Failed archive moves preserve the accepted active workspace so archival can be retried.
@@ -92,6 +92,6 @@ Acceptance Criteria
 
 The system SHALL require lifecycle coverage for common root action, manifest, and dependency lock files by default.
 
-Acceptance Criteria
+#### Acceptance Criteria
 - Root Action configuration and supported ecosystem manifest or lockfile changes are meaningful paths.
 - Component-boundary matching continues to exclude similarly prefixed unrelated files.

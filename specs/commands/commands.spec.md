@@ -55,7 +55,7 @@ Shared command infrastructure used by all CLI subcommands. Provides config loadi
 | `generate` | Scaffold specs for unspecced modules |
 | `hooks` | Agent/IDE hook management |
 | `import` | Import specs from GitHub/Jira/Confluence |
-| `init` | Create specsync.json config |
+| `init` | Create the current `.specsync/` project layout, TOML config, and SDD policy |
 | `init_registry` | Create specsync-registry.toml |
 | `issues` | Verify GitHub issue references |
 | `merge` | Auto-resolve merge conflicts in specs |

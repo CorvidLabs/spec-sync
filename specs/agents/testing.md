@@ -14,11 +14,11 @@ spec: agents.spec.md
 
 ## Manual Testing
 
-- [x] `specsync agents install` on a clean project creates all 8 artifacts (skill + command for Claude/Cursor/Gemini, skill only for Codex)
+- [x] `specsync agents install` on a clean project creates all 10 artifacts (four skills plus create-spec/create-change commands for Claude/Cursor/Gemini)
 - [x] `specsync agents status` correctly reflects installed/not-installed state before and after install
-- [x] Simulated the `create-spec` command's own instructions end-to-end — `specsync scaffold csv-export` (full) and `specsync new billing` (`--minimal` path) both produce the expected files
+- [x] Simulated the create-spec and create-change instruction paths using the real scaffold/new and verified lifecycle commands
 - [x] `specsync agents uninstall` with an unrelated `.claude/commands/other-command.md` present — sibling file survives, only spec-sync's namespaced subdirectory is removed
-- [ ] Confirm inside a real Claude Code / Cursor / Codex / Gemini CLI session that the installed `SKILL.md` is actually auto-discovered and the slash command actually appears — not verifiable in this sandboxed environment, rests on cross-checked external documentation and OpenSpec's own adapter source
+- [ ] Confirm live model discovery in real Claude Code, Cursor, Codex, and Gemini sessions; local tests currently prove installation into each tool's documented project discovery location
 
 ## Edge Cases & Boundary Conditions
 

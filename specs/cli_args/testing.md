@@ -7,6 +7,7 @@ spec: cli_args.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/cli.rs` (inline `#[cfg(test)] mod tests`) | cargo test --bin specsync cli:: | 8 parser tests: `no_subcommand_yields_none_and_text_default`, `global_flags_parse_before_subcommand`, `json_format_value_enum_parses`, `check_collects_flags_and_positional_specs`, `stale_threshold_defaults_and_overrides`, `exclude_status_splits_on_commas`, `unknown_subcommand_is_rejected`, `non_numeric_threshold_is_rejected` |
+| Verified SDD grammar | cargo test --bin specsync cli::tests::change_new_collects_sdd_scope | `ChangeAction::New` collects kind, repeatable specs/paths/artifacts, and no-spec rationale flags |
 | `tests/integration.rs` | cargo test --test integration strict_turns_warnings_into_errors | Global `--strict` turns warnings into errors |
 | `tests/integration.rs` | cargo test --test integration require_coverage_fails_when_below_threshold | `--require-coverage` exits non-zero below threshold |
 | `tests/integration.rs` | cargo test --test integration root_flag_overrides_cwd | `--root` overrides the working directory |

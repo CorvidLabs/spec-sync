@@ -16,6 +16,7 @@ spec: cli.spec.md
 - As a developer, I want `specsync score` to grade my spec quality so that I know where to focus improvement effort
 - As a team lead, I want `specsync hooks install` to set up agent instructions for Claude, Cursor, and Copilot so that AI assistants respect our specs automatically
 - As a developer, I want `specsync add-spec <name>` to scaffold a single spec with companion files so that I can add documentation incrementally
+- As a developer or agent, I want one `specsync change` namespace for the complete verified SDD lifecycle so that delivery state and next actions remain predictable
 
 ## Acceptance Criteria
 
@@ -29,6 +30,7 @@ spec: cli.spec.md
 - `init` auto-detects source directories, language, and creates a sensible default config
 - `generate --model <m>` overrides `SPECSYNC_AI_MODEL` and the `aiModel` config field for that run
 - A panic in any subcommand is caught and reported as a "please report it" bug message rather than a raw backtrace
+- `change` dispatches every lifecycle operation through the shared domain engine and preserves structured JSON output
 
 ## Constraints
 

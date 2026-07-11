@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 pub const SDD_VERSION: &str = "5.0.0";
 const POLICY_PATH: &str = ".specsync/sdd.json";
@@ -13,6 +14,7 @@ const ARCHIVE_PATH: &str = ".specsync/archive/changes";
 const LOCK_PATH: &str = ".specsync/change.lock";
 const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
 const MAX_CHANGE_ARTIFACT_BYTES: u64 = 4 * 1024 * 1024;
+static EFFECTIVE_CONTRACT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 struct ProjectLock {
     file: fs::File,
@@ -1315,11 +1317,7 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
     for record in &active {
         modules.extend(record.affected_specs.iter().cloned());
     }
-    let temp = std::env::temp_dir().join(format!(
-        "specsync-effective-{}-{}",
-        std::process::id(),
-        now()
-    ));
+    let temp = create_effective_contract_workspace().map_err(|error| vec![error])?;
     let config = crate::config::load_config(root);
     let schema_tables = crate::validator::get_schema_table_names(root, &config);
     let schema_columns = crate::commands::build_schema_columns(root, &config);
@@ -1407,6 +1405,28 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
     } else {
         Err(errors)
     }
+}
+
+fn create_effective_contract_workspace() -> Result<PathBuf, String> {
+    for _ in 0..1024 {
+        let sequence = EFFECTIVE_CONTRACT_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "specsync-effective-{}-{}-{sequence}",
+            std::process::id(),
+            now()
+        ));
+        match fs::create_dir(&path) {
+            Ok(()) => return Ok(path),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(format!(
+                    "failed to claim effective-contract workspace {}: {error}",
+                    path.display()
+                ));
+            }
+        }
+    }
+    Err("failed to claim a unique effective-contract workspace after 1024 attempts".into())
 }
 
 fn dependency_ordered_changes(changes: Vec<&ChangeRecord>) -> Result<Vec<&ChangeRecord>, String> {
@@ -2754,7 +2774,33 @@ fn today() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Barrier, mpsc};
     use tempfile::TempDir;
+
+    #[test]
+    fn effective_contract_workspaces_are_unique() {
+        const WORKERS: usize = 32;
+        let barrier = Arc::new(Barrier::new(WORKERS));
+        let (sender, receiver) = mpsc::channel();
+        std::thread::scope(|scope| {
+            for _ in 0..WORKERS {
+                let barrier = Arc::clone(&barrier);
+                let sender = sender.clone();
+                scope.spawn(move || {
+                    barrier.wait();
+                    sender
+                        .send(create_effective_contract_workspace().unwrap())
+                        .unwrap();
+                });
+            }
+        });
+        drop(sender);
+        let paths: BTreeSet<PathBuf> = receiver.into_iter().collect();
+        assert_eq!(paths.len(), WORKERS);
+        for path in paths {
+            fs::remove_dir(path).unwrap();
+        }
+    }
 
     fn completed_record(root: &Path) -> ChangeRecord {
         let mut record = create_change(

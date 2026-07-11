@@ -1,6 +1,6 @@
 ---
 module: cmd_diff
-version: 1
+version: 2
 status: stable
 files:
   - src/commands/diff.rs
@@ -82,3 +82,4 @@ Implements the `specsync diff` command — shows which specs are affected by sou
 | Date | Change |
 |------|--------|
 | 2026-04-09 | Initial spec |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

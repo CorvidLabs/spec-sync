@@ -1,6 +1,6 @@
 ---
 module: cmd_wizard
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/wizard.rs
@@ -82,3 +82,4 @@ Implements the `specsync wizard` command — an interactive TUI wizard for creat
 | 2026-06-07 | Replace unfinished-marker wizard defaults with guided starter text |
 | 2026-04-09 | Initial spec |
 | 2026-04-13 | Document testing.md and conditional design.md in companion generation |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

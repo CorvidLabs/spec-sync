@@ -41,6 +41,13 @@
       "timestamp": 1783793240,
       "digest": "5a77c4d3e0c5fd3bcd28a0eb79bf582b0c0ff1862e711ffcd4652655ee8b99a4",
       "note": "Reapproved completed implementation tasks with acceptance and post-merge checks retained as release gates"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783798663,
+      "digest": "124dfd9a1a7892a05333abe5ff0302423e5a4ddd0f5eaa96f5d8cca8bcb3820a",
+      "note": "Accepted canonical contracts after README documentation verification"
     }
   ]
 }

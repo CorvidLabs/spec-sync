@@ -1,6 +1,6 @@
 ---
 module: rehash
-version: 1
+version: 2
 status: stable
 files:
   - src/commands/rehash.rs
@@ -28,10 +28,12 @@ Implements the `specsync rehash` command. Regenerates the `.specsync/hashes.json
 
 ## Invariants
 
-1. Loads config and discovers specs via `load_and_discover`
-2. Builds a fresh `HashCache` from scratch (not incremental)
-3. Saves cache to `.specsync/hashes.json`
-4. Exits with code 1 if cache save fails
+1. Loads canonical configuration and discovers spec files through `config::load_config` and
+   `validator::find_spec_files`
+2. Filters underscore-prefixed template specs and exits successfully with generation guidance when no specs exist
+3. Builds a fresh `HashCache` from scratch (not incremental)
+4. Saves cache to `.specsync/hashes.json`
+5. Exits with code 1 if cache save fails
 
 ## Behavioral Examples
 
@@ -55,21 +57,15 @@ Implements the `specsync rehash` command. Regenerates the `.specsync/hashes.json
 
 ## Dependencies
 
-### Consumes
-
 | Module | What is used |
 |--------|-------------|
-| hash_cache | `HashCache`, `update_cache` |
-| commands | `load_and_discover` |
-
-### Consumed By
-
-| Module | What is used |
-|--------|-------------|
-| cli (main.rs) | Entry point for `specsync rehash` |
+| config | `load_config` |
+| validator | `find_spec_files` |
+| hash_cache | `HashCache::default`, `update_cache`, `save` |
 
 ## Change Log
 
 | Date | Change |
 |------|--------|
 | 2026-04-11 | Initial spec |
+| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

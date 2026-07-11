@@ -1037,7 +1037,7 @@ fn requirement_evidence_missing(root: &Path, record: &ChangeRecord, ids: &[Strin
         if !entry.file_type().is_file() {
             continue;
         }
-        let rel = path.strip_prefix(root).unwrap_or(path).to_string_lossy();
+        let rel = portable_project_path(root, path);
         if rel.starts_with(".git/")
             || rel.starts_with(".specsync/")
             || rel.starts_with("specs/")
@@ -1634,8 +1634,7 @@ fn definition_digest(root: &Path, record: &ChangeRecord) -> Result<String, Strin
     for path in files {
         let content = fs::read(&path)
             .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
-        let portable_path = path.strip_prefix(root).unwrap_or(&path);
-        hasher.update(portable_path.to_string_lossy().as_bytes());
+        hasher.update(portable_project_path(root, &path).as_bytes());
         hasher.update([0]);
         hasher.update(content);
     }
@@ -1774,6 +1773,13 @@ fn path_matches_scope(path: &str, scope: &str) -> bool {
     path == scope.trim_end_matches('/') || path.starts_with(scope)
 }
 
+fn portable_project_path(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
 fn safe_project_path(root: &Path, relative: &str) -> Result<PathBuf, String> {
     let path = Path::new(relative);
     if path.is_absolute()
@@ -1908,13 +1914,7 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
                 description,
                 kind: ChangeKind::Feature,
                 affected_specs: Vec::new(),
-                affected_paths: vec![
-                    entry_path
-                        .strip_prefix(root)
-                        .unwrap_or(&entry_path)
-                        .to_string_lossy()
-                        .to_string(),
-                ],
+                affected_paths: vec![portable_project_path(root, &entry_path)],
                 requested_artifacts: vec![
                     ArtifactKind::Requirements,
                     ArtifactKind::Design,
@@ -2373,6 +2373,14 @@ mod tests {
         .unwrap();
         fs::write(temp.path().join("fledge.toml"), "[tasks.test]\n").unwrap();
         assert_eq!(detect_verification_commands(temp.path()), ["cargo test"]);
+    }
+
+    #[test]
+    fn portable_paths_normalize_windows_separators() {
+        assert_eq!(
+            portable_project_path(Path::new(""), Path::new(r"openspec\changes\add-passkeys")),
+            "openspec/changes/add-passkeys"
+        );
     }
 
     #[test]

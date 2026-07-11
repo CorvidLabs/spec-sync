@@ -1,6 +1,6 @@
 ---
 module: change
-version: 3
+version: 4
 status: active
 files:
   - src/change.rs
@@ -94,6 +94,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 10. Meaningful-path coverage compares the branch with the current GitHub/remote default base after a rebase, falling back to the recorded creation commit only when no remote base is available.
 11. Approval digests hash repository-relative artifact paths so identical Git content validates across checkout locations and operating systems.
 12. Verification command detection prefers portable project-manifest commands and uses Fledge only when no native manifest is available.
+13. Persisted and hashed project paths use forward slashes on every operating system.
 
 ## Behavioral Examples
 
@@ -145,6 +146,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 
 | Date | Change |
 |------|--------|
+| 2026-07-10 | v4: normalize imported, evidence, and digest paths across Windows and Unix |
 | 2026-07-10 | v3: make approval digests and detected verification commands portable across CI checkouts |
 | 2026-07-10 | v2: compare meaningful path coverage with the current remote base after rebases |
 | 2026-07-10 | Initial 5.0 verified SDD lifecycle |

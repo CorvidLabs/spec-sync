@@ -1,6 +1,6 @@
 ---
 id: CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement
-state: implementing
+state: verifying
 type: migration
 base_commit: 68d23e306628d1334393f9ba4125cdf87e70a613
 ---

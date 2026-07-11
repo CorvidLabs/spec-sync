@@ -1,6 +1,6 @@
 ---
 id: CHG-0008-publish-the-5-0-evaluator-story-artifact-equivalence-adversarial-proof-and-gi
-state: accepted
+state: archived
 type: documentation
 base_commit: 71dfa052ec3fd27793db66504d666e6294c6f325
 ---

@@ -5,10 +5,10 @@
   "title": "Bootstrap and ship the verified SpecSync 5.0 full SDD lifecycle",
   "description": "Bootstrap and ship the verified SpecSync 5.0 full SDD lifecycle",
   "kind": "feature",
-  "state": "accepted",
+  "state": "archived",
   "base_commit": "2bce28362908629be3aaf140e3f62948c7c7b103",
   "created_at": 1783739793,
-  "updated_at": 1783740813,
+  "updated_at": 1783789701,
   "affected_specs": [],
   "affected_paths": [
     "src/",

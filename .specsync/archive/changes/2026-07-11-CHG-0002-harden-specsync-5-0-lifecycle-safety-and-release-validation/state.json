@@ -5,10 +5,10 @@
   "title": "Harden SpecSync 5.0 lifecycle safety and release validation",
   "description": "Harden SpecSync 5.0 lifecycle safety and release validation",
   "kind": "bug_fix",
-  "state": "accepted",
+  "state": "archived",
   "base_commit": "45d2407d4281f86dfce4394f051588a722a5b67d",
   "created_at": 1783741855,
-  "updated_at": 1783747450,
+  "updated_at": 1783789707,
   "affected_specs": [
     "change",
     "cmd_init"

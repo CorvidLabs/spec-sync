@@ -5,10 +5,10 @@
   "title": "Publish the 5.0 evaluator story, artifact equivalence, adversarial proof, and GitHub discovery surfaces",
   "description": "Publish the 5.0 evaluator story, artifact equivalence, adversarial proof, and GitHub discovery surfaces",
   "kind": "documentation",
-  "state": "accepted",
+  "state": "archived",
   "base_commit": "71dfa052ec3fd27793db66504d666e6294c6f325",
   "created_at": 1783787703,
-  "updated_at": 1783788168,
+  "updated_at": 1783789709,
   "affected_specs": [],
   "affected_paths": [
     "README.md",

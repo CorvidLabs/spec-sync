@@ -1,6 +1,6 @@
 ---
 id: CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 2e2be74b969e872b4938ea686b66b11afbafc306
 ---

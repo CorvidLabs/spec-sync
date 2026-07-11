@@ -1,6 +1,6 @@
 ---
 id: CHG-0001-bootstrap-and-ship-the-verified-specsync-5-0-full-sdd-lifecycle
-state: accepted
+state: archived
 type: feature
 base_commit: 2bce28362908629be3aaf140e3f62948c7c7b103
 ---

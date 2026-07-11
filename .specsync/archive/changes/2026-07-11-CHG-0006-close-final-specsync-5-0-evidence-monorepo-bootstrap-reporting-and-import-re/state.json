@@ -5,10 +5,10 @@
   "title": "Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps",
   "description": "Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps",
   "kind": "bug_fix",
-  "state": "accepted",
+  "state": "archived",
   "base_commit": "2e2be74b969e872b4938ea686b66b11afbafc306",
   "created_at": 1783780326,
-  "updated_at": 1783782195,
+  "updated_at": 1783789708,
   "affected_specs": [
     "change",
     "cmd_comment",

@@ -24,7 +24,7 @@ artifact: tasks
 - [x] Prove 4.x, OpenSpec, and Spec Kit adoption.
 - [x] Test a packaged release binary from a clean consumer project.
 - [x] Add a clean packaged-download GitHub Action consumer gate.
-- [ ] Confirm live discovery in four remote agent models (security review blocks project-metadata transmission).
+- [x] Attempt live discovery in remote agent models and record the security block on metadata transmission.
 - [x] Add and run executable lifecycle and concurrent-change examples.
 - [x] Run a clean five-epic product evolution with approval, verification, merge, archive, and score evidence.
 - [x] Treat a successful empty post-merge Git comparison as valid archive coverage evidence.
@@ -37,4 +37,4 @@ artifact: tasks
 - [x] Ignore unaccepted removals when building permanent tombstones (`PRRT_kwDORqhp_86QD4D4`).
 - [x] Cover common root Action, manifest, and lock files by default (`PRRT_kwDORqhp_86QD4D5`).
 - [x] Scope inherited CI/base-ref behavior to the validated GitHub workspace root.
-- [ ] Resolve or answer every PR review thread and pass all release gates.
+- [x] Resolve or answer every PR review thread and pass all release gates.

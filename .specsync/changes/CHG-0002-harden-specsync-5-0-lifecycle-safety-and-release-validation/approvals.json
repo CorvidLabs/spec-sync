@@ -48,6 +48,13 @@
       "timestamp": 1783747270,
       "digest": "870f4f6d614547d4f2e42bb2ae8b6a6f3bca601f67d5c14c17fc6f181bda9030",
       "note": "User-approved 5.0 perfection scope with five-epic local lifecycle proof and archive regression evidence"
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1783747358,
+      "digest": "4ddf9c0095409f7f37d6a3a69e9276184f9af3f51b2be8e45523f609edce274a",
+      "note": "User-approved 5.0 scope; live remote discovery attempted and explicitly recorded as security-blocked"
     }
   ]
 }

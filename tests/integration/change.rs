@@ -291,6 +291,7 @@ fn no_spec_change_completes_full_cli_lifecycle() {
     .unwrap();
     specsync()
         .env("CI", "true")
+        .env_remove("GITHUB_WORKSPACE")
         .args(["--root", root.to_str().unwrap(), "change", "check"])
         .assert()
         .failure()

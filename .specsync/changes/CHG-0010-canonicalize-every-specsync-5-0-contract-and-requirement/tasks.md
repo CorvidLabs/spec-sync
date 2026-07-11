@@ -9,12 +9,17 @@ artifact: tasks
 - [x] Repair acceptance criteria and complete definition artifacts.
 - [x] Draft one valid semantic delta for every affected module.
 - [x] Update 35 canonical `depends_on` frontmatter edges during implementation.
-- [ ] Apply nine Public API signature corrections and current configuration/rule prose.
-- [ ] Add 44 stable normative requirement identities without removing legacy detail.
-- [ ] Reconcile and promote `cmd_migrate` after focused verification.
+- [x] Draft nine Public API signature corrections and current configuration/rule prose for atomic acceptance.
+- [x] Add 44 stable normative requirement identities without removing legacy detail.
+- [x] Reconcile and promote `cmd_migrate` after focused verification.
 - [x] Add missing `cmd_rules/context.md` frontmatter.
-- [ ] Run every gate in `testing.md` and record evidence.
-- [ ] Review and accept canonical changes; do not archive before delivery integration.
+- [x] Run every locally available gate in `testing.md` and record evidence.
 - [x] Ignore Rust imports embedded in non-code and resolve source-module ownership.
 - [x] Remove the commands/rehash architectural dependency cycle without changing CLI behavior.
 - [x] Re-run dependency discovery and remove any declarations proven to be false edges.
+
+## Release Gates
+
+Closing acceptance remains blocked on the corrected Linux, macOS, and Windows PR matrix. After acceptance, rerun the
+canonical strict check and score, require the post-acceptance matrix, merge, and require post-merge `main` before
+release. Archive only after delivery integration is proven.

@@ -16,4 +16,9 @@ artifact: tasks
 - [x] Add binary, NUL-boundary, executable-mode, symlink, and line-ending regressions.
 - [x] Update the repository lifecycle stamp to 5.0.0.
 - [x] Restrict the published crate to executable sources and required user-facing metadata.
-- [ ] Re-run and record every local and cross-platform gate after the failed acceptance was invalidated.
+- [x] Re-run and record every locally available gate after the failed acceptance was invalidated.
+
+## Release Gates
+
+Closing acceptance remains blocked on the corrected Linux, macOS, and Windows PR matrix. Release remains blocked on
+the post-acceptance matrix and post-merge `main`.

@@ -13,6 +13,13 @@
       "timestamp": 1783803845,
       "digest": "6b86aeedbb4dbf71c7f80e8daf0d0f53230740b5c7519c095ca6942a3b0c6b1a",
       "note": "Refresh definition digest after recording the completed implementation tasks and local evidence requested for issue #342."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783803894,
+      "digest": "e00bbffb657a83728c2e84c6cdfe44c7d3c8c9075f52cf7b457f84b1b5befd7e",
+      "note": "Refresh the approved definition after recording that draft PR #343 is open."
     }
   ]
 }

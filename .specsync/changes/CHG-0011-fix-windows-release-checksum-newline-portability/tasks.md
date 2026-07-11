@@ -9,4 +9,4 @@ artifact: tasks
 - [x] Verify every generated archive/checksum pair before artifact upload.
 - [x] Add a regression check for LF acceptance and CRLF rejection.
 - [x] Run strict lifecycle, workflow, and repository validation.
-- [ ] Open a focused PR linked to issue #342.
+- [x] Open a focused PR linked to issue #342.

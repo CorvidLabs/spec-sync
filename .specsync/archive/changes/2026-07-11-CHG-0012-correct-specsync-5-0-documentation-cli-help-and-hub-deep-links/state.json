@@ -5,10 +5,10 @@
   "title": "Correct SpecSync 5.0 documentation, CLI help, and hub deep links",
   "description": "Correct SpecSync 5.0 documentation, CLI help, and hub deep links",
   "kind": "documentation",
-  "state": "accepted",
+  "state": "archived",
   "base_commit": "fffbef561fe7cbcfad669dac1855e711896deca4",
   "created_at": 1783805318,
-  "updated_at": 1783807825,
+  "updated_at": 1783808507,
   "affected_specs": [
     "cli_args"
   ],

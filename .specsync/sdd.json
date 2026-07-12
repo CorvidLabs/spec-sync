@@ -32,7 +32,7 @@
     "specs/"
   ],
   "verification_commands": [
-    "cargo test"
+    "fledge lanes run verify"
   ],
   "custom_artifacts": {},
   "principles_file": null

@@ -54,6 +54,15 @@ steps = [
 description = "Fast gate before committing"
 steps = [{ parallel = ["fmt", "lint"] }, "check-types"]
 
+[lanes.verify]
+description = "Required Trust gate for the SpecSync repository"
+steps = [
+  { parallel = ["fmt", "lint", "check-types"] },
+  "test",
+  "build",
+  "spec-check",
+]
+
 [lanes.repo]
 description = "Full repository validation, including docs and editor extension"
 steps = [

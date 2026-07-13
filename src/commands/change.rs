@@ -76,6 +76,16 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                 ),
             })
         }
+        ChangeAction::Reopen { id, actor, reason } => {
+            change::reopen_change(root, &id, actor, reason).map(|result| match format {
+                OutputFormat::Json => print_json(&result),
+                _ => println!(
+                    "{} {} reopened for fresh verification and closing approval",
+                    "✓".green(),
+                    result.change.id
+                ),
+            })
+        }
         ChangeAction::Accept { id, actor, note } => change::accept_change(root, &id, actor, note)
             .map(|record| {
                 print_transition(

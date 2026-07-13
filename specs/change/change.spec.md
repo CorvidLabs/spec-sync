@@ -1,6 +1,6 @@
 ---
 module: change
-version: 11
+version: 13
 status: active
 files:
   - src/change.rs
@@ -14,7 +14,7 @@ depends_on:
 
 ## Purpose
 
-Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores versioned change workspaces, conducts a deterministic adaptive interview, enforces two digest-bound human approval gates, validates semantic requirement/spec deltas, records test evidence, applies accepted contracts atomically, and archives immutable change history.
+Provides the spec-sync 5.0 verified spec-driven development lifecycle, including audited recovery and re-verification when governed delivery inputs make accepted evidence stale.
 
 ## Contract
 
@@ -29,6 +29,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 9. Approval validates complete module-scoped deltas, corrupt state fails closed, and archival failures remain retryable.
 10. Permanent requirement tombstones come only from accepted history, and default path coverage includes root delivery metadata.
 11. Concurrent effective-contract validations use isolated temporary workspaces.
+12. Stale accepted delivery evidence can return only to verifying through an explicit human actor and reason, while prior verification and closing evidence remain inspectable.
 
 ## Public API
 
@@ -49,7 +50,9 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 | `ChangeRecord` | Durable machine state for one change workspace |
 | `CreateChangeRequest` | Validated creation inputs grouped for CLI, imports, and agent clients |
 | `ApprovalRecord` | Actor, timestamp, gate, digest, and optional note for one approval |
-| `ApprovalLedger` | Ordered portable approval history |
+| `ReopenRecord` | Immutable audit event preserving superseded closing approval, prior verification, actor, reason, transition, and stale/current input digests |
+| `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
+| `ApprovalLedger` | Ordered portable approval and reopen history |
 | `CommandEvidence` | Exit evidence for one configured verification command |
 | `VerificationRecord` | Commit-bound verification result, contract digest, command results, and requirement coverage |
 | `InterviewQuestion` | Stable deterministic question with choices and recommendation |
@@ -71,6 +74,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 | `approve_definition` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Validate and record mandatory definition approval |
 | `start_implementation` | `root, id` | `Result<ChangeRecord, String>` | Enter implementation after approval and conflict validation |
 | `verify_change` | `root, id` | `Result<VerificationRecord, String>` | Run configured tests and record commit/contract evidence |
+| `reopen_change` | `root, id, actor, reason` | `Result<ReopenResult, String>` | Move stale accepted evidence to verifying and append an immutable supersession audit event |
 | `accept_change` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Record closing approval and atomically apply semantic deltas |
 | `archive_change` | `root, id` | `Result<PathBuf, String>` | Move an accepted workspace into the dated archive |
 | `summarize_change` | `root, record` | `ChangeSummary` | Project gate health and next action for clients |
@@ -103,6 +107,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 12. Verification command detection prefers portable project-manifest commands and uses Fledge only when no native manifest is available.
 13. Persisted and hashed project paths use forward slashes on every operating system.
 14. Quiet reporting executes every configured command and preserves failures while suppressing only child stdout and stderr; normal checking and verification continue streaming diagnostics.
+15. Reopening current accepted evidence is rejected, and reopening stale evidence never reapplies an already canonical semantic delta.
 
 ## Behavioral Examples
 
@@ -124,6 +129,12 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 - **When** the feature branch rebases and unified checking computes meaningful changed paths
 - **Then** upstream-only paths are excluded and only the feature branch diff requires change coverage
 
+### Scenario: Review fixes stale accepted evidence
+
+- **Given** an accepted change whose governed delivery inputs changed after closing approval
+- **When** a human reopens it with an actor and reason
+- **Then** the prior verification and closing approval remain in audit history, strict checking stays red until fresh verification, and reacceptance records a new closing approval without reapplying canonical deltas
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -132,6 +143,8 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 | Missing or invalid semantic delta | Approval, verification, and unified check fail |
 | Verification command contains shell operators | Command is rejected without execution |
 | HEAD changes after verification | Acceptance requires re-verification |
+| Accepted delivery evidence is still current | Reopen is rejected without changing lifecycle or audit state |
+| Reopen actor or reason is empty | Reopen is rejected before any mutation |
 | Concurrent changes edit the same semantic key | Progress requires dependency ordering or rebase |
 
 ## Dependencies
@@ -165,3 +178,5 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle. It stores
 | 2026-07-11 | CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re: Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-11 | CHG-0009-make-accepted-evidence-squash-safe-and-harden-the-5-0-release-path: Make accepted evidence squash-safe and harden the 5.0 release path |
+| 2026-07-13 | Add audited reopen and re-verification for stale accepted delivery evidence |
+| 2026-07-13 | CHG-0015-add-audited-stale-accepted-change-reopening: Add audited stale accepted change reopening |

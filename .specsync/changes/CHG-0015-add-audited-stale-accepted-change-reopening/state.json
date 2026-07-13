@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0015-add-audited-stale-accepted-change-reopening",
+  "slug": "add-audited-stale-accepted-change-reopening",
+  "title": "Add audited stale accepted change reopening",
+  "description": "Add audited stale accepted change reopening",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "59bbfa766c6cce01ab815ab47db195b0629cc014",
+  "created_at": 1783949541,
+  "updated_at": 1783953472,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "cli_args"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/commands/change.rs",
+    "src/cli.rs",
+    "tests/integration/change.rs",
+    "site/src/content/docs/workflow.md",
+    "site/src/content/docs/cli.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Accepted stale evidence fails strict checks; an explicit human can reopen it with actor and reason; prior evidence remains inspectable; fresh verification and closing approval restore a strict pass; current evidence cannot be reopened; canonical deltas are not reapplied"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

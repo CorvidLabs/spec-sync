@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 2
+version: 4
 status: active
 files:
   - src/commands/change.rs
@@ -23,6 +23,7 @@ Exposes the verified SDD lifecycle through equivalent human-readable and structu
 1. Every operation delegates domain policy to the change module.
 2. Errors render consistently and exit non-zero.
 3. Status and interviews provide a concrete next action.
+4. Reopen renders the exact persisted versioned supersession event in deterministic JSON.
 
 ## Public API
 
@@ -44,12 +45,20 @@ Exposes the verified SDD lifecycle through equivalent human-readable and structu
 - **When** creation succeeds
 - **Then** JSON includes the record, gate summary, and deterministic questions
 
+### Scenario: Agent reopens stale accepted evidence
+
+- **Given** current governed inputs no longer match an accepted change's closing evidence
+- **When** `specsync --json change reopen <id> --actor <human> --reason <text>` succeeds
+- **Then** JSON contains the verifying change and versioned audit record with the superseded approval and prior verification
+
 ## Error Cases
 
 | Condition | Behavior |
 |-----------|----------|
 | Unknown change type | Descriptive error and exit 1 |
 | Invalid transition | Current and expected states plus exit 1 |
+| Missing actor or reason | Clap or domain validation exits non-zero without lifecycle mutation |
+| Current accepted evidence | Reopen reports that only stale delivery inputs are eligible and exits 1 |
 
 ## Dependencies
 
@@ -69,3 +78,5 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 |------|--------|
 | 2026-07-10 | Initial 5.0 change command |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-13 | Add text and deterministic JSON dispatch for audited stale-accepted reopen |
+| 2026-07-13 | CHG-0015-add-audited-stale-accepted-change-reopening: Add audited stale accepted change reopening |

@@ -22,7 +22,7 @@ draft → approved → implementing → verifying → accepted → archived
 | **Approved** | A human approves the definition digest | `change approve` |
 | **Implementing** | Code follows canonical specs plus approved deltas | `change start`, `check` |
 | **Verifying** | Tests and requirement evidence are recorded | `change verify` |
-| **Accepted** | Closing approval atomically updates canonical truth | `change accept` |
+| **Accepted** | Closing approval atomically updates canonical truth; stale review-fix evidence can be audited and reopened | `change accept`, `change reopen` |
 | **Archived** | The immutable workspace moves to dated history | `change archive` |
 
 Module maturity (`draft → review → active → stable → deprecated → archived`) remains separately available through `specsync lifecycle`.
@@ -62,6 +62,20 @@ specsync change archive CHG-0001-add-passkeys
 Verification runs only project-configured commands without a shell and streams their output. Its evidence is bound to both the commit and the tested working-tree inputs, so source, test, configuration, or contract edits require a fresh verification. Acceptance requires successful evidence, requirement-to-test/API traceability, complete tasks, conflict-free deltas, and closing human approval.
 
 Archive after the delivery branch is merged (or otherwise no longer differs from its comparison base). Until then, SpecSync keeps the accepted workspace active because the delivery diff still depends on its path coverage. This prevents the common gap where accepting and immediately archiving makes an unmerged implementation look unspecced.
+
+## 4. Reopen After Accepted Review Fixes
+
+If final review changes a governed source, test, configuration, policy, or contract input after acceptance, strict checking correctly rejects the stale closing evidence. Do not edit lifecycle JSON or archive the active workspace. Record an audited transition instead:
+
+```bash
+specsync change reopen CHG-0001-add-passkeys \
+  --actor "Ada Reviewer" \
+  --reason "Final review changed the authentication policy and tests"
+specsync change verify CHG-0001-add-passkeys
+specsync change accept CHG-0001-add-passkeys --actor "Ada Reviewer"
+```
+
+Reopen is allowed only when the accepted delivery-input digest is stale. It moves the change back to `verifying`, embeds the prior verification and superseded closing approval in append-only audit history, and leaves strict CI red until a fresh verification succeeds. Reacceptance records a new closing approval without applying the already-canonical semantic delta a second time. Use global `--json` to receive the deterministic change and versioned audit objects.
 
 The repository includes executable examples for a [complete lifecycle](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-lifecycle), [ordered concurrent changes](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-concurrent-changes), and a [five-epic product evolution](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-five-epics). Each creates a disposable Git project and runs the real CLI end to end.
 

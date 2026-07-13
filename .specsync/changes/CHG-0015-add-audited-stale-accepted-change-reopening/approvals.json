@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783950363,
+      "digest": "f093adb7455b1a0d1c7c12b52c3e258ad7cec2400dfd38980b32c3c91b53a106",
+      "note": "Approved in Codex thread for issue #351"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783953180,
+      "digest": "4d25e43961af4b7c10ba8e5c254346f835c5dc12184805099d5b95a22fce5e4d",
+      "note": "Reapproved corrected task artifact in Codex thread for issue #351"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783953472,
+      "digest": "aedbe3afda775c85b339569082dcd768c84e6c20b87b67c9fbd60147a50205da",
+      "note": "Accepted in Codex thread for issue #351 after successful verification and release dry run"
+    }
+  ],
+  "reopenings": []
+}

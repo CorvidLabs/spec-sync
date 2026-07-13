@@ -323,12 +323,13 @@ specsync change approve CHG-0001-add-passkeys
 specsync change start CHG-0001-add-passkeys
 specsync change verify CHG-0001-add-passkeys
 specsync change accept CHG-0001-add-passkeys
+specsync change reopen CHG-0001-add-passkeys --actor "Ada" --reason "Review fixes changed governed inputs"
 specsync change archive CHG-0001-add-passkeys
 specsync change check
 specsync change adopt --dry-run
 ```
 
-Definition and closing approvals are mandatory and digest-bound. `change adopt` enables SDD for an existing project and can import active/canonical OpenSpec or Spec Kit artifacts.
+Definition and closing approvals are mandatory and digest-bound. `change reopen` is the only supported recovery when accepted delivery inputs become stale: it requires an explicit actor and reason, preserves superseded evidence in audit history, returns to `verifying`, and requires fresh verification and closing approval. Current accepted evidence cannot be reopened. `change adopt` enables SDD for an existing project and can import active/canonical OpenSpec or Spec Kit artifacts.
 
 ### `lifecycle`
 

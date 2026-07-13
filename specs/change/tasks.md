@@ -13,3 +13,4 @@ spec: change.spec.md
 - [x] Implement adoption and external provenance import
 - [x] Complete full release validation
 - [x] Add protocol-clean quiet lifecycle checking for bounded PR reports
+- [x] Add audited stale-accepted reopen, strict re-verification, and immutable evidence history

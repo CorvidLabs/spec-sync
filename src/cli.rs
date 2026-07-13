@@ -371,6 +371,17 @@ pub enum ChangeAction {
         /// Change ID
         id: String,
     },
+    /// Reopen stale accepted evidence for a fresh verification and closing approval
+    Reopen {
+        /// Change ID
+        id: String,
+        /// Human actor authorizing the audited reopen transition
+        #[arg(long)]
+        actor: String,
+        /// Non-empty reason the accepted delivery evidence became stale
+        #[arg(long)]
+        reason: String,
+    },
     /// Record closing approval and atomically apply semantic deltas
     Accept {
         /// Change ID
@@ -663,5 +674,54 @@ mod tests {
                 action: ChangeAction::New { .. }
             })
         ));
+    }
+
+    #[test]
+    fn change_reopen_requires_and_collects_audit_inputs() {
+        let cli = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "reopen",
+            "CHG-0001-passkeys",
+            "--actor",
+            "Ada Reviewer",
+            "--reason",
+            "Final review changed governed inputs",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Some(Command::Change {
+                action: ChangeAction::Reopen {
+                    id,
+                    actor,
+                    reason,
+                }
+            }) if id == "CHG-0001-passkeys"
+                && actor == "Ada Reviewer"
+                && reason == "Final review changed governed inputs"
+        ));
+        assert!(
+            Cli::try_parse_from([
+                "specsync",
+                "change",
+                "reopen",
+                "CHG-0001-passkeys",
+                "--actor",
+                "Ada Reviewer",
+            ])
+            .is_err()
+        );
+        assert!(
+            Cli::try_parse_from([
+                "specsync",
+                "change",
+                "reopen",
+                "CHG-0001-passkeys",
+                "--reason",
+                "Review fix",
+            ])
+            .is_err()
+        );
     }
 }

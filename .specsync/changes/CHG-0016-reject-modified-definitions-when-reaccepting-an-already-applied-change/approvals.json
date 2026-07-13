@@ -65,6 +65,42 @@
       },
       "stale_acceptance_input_digest": "a825a1acbc7922558a96548e5d0af0415205fb84206d14efe537ef960dcd6bdc",
       "current_acceptance_input_digest": "eaafa16c674dbb9e3fa3506ef8d5e17a269b6a14c5856226f0229d1be4ea8d2b"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0016-reject-modified-definitions-when-reaccepting-an-already-applied-change",
+      "actor": "user:0xLeif",
+      "reason": "Refresh governed delivery evidence after the section-only verification fix",
+      "timestamp": 1783964398,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1783962770,
+        "digest": "85663cd3fe999cdad51aa35ec9a3c6e9c2240c0b5ab3930c72a20d8ea9a0bccd",
+        "note": "Accepted after integrated Trust v5.0.1 compatibility verification"
+      },
+      "prior_verification": {
+        "timestamp": 1783962757,
+        "commit": "b3e9f27ee02b0fa1972bde7275a48f4943d7631b",
+        "contract_digest": "5c7f7e88ac3dccc2ce17ab68363512b8145c147cbadc4b8234c9dfe3574b47f9",
+        "workspace_digest": "3e9da43cccc07ae6f4fa4376ebf8863c586a4ebac20964d84ed0cbf1dd8cb8c3",
+        "acceptance_input_digest": "eaafa16c674dbb9e3fa3506ef8d5e17a269b6a14c5856226f0229d1be4ea8d2b",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-017"
+        ]
+      },
+      "stale_acceptance_input_digest": "eaafa16c674dbb9e3fa3506ef8d5e17a269b6a14c5856226f0229d1be4ea8d2b",
+      "current_acceptance_input_digest": "ab3577a12f0cd909457af93f62bccb49180286acc6ababbc58a416fc971dfcec"
     }
   ]
 }

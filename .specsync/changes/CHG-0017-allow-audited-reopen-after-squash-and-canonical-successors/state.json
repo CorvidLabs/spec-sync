@@ -5,11 +5,11 @@
   "title": "Allow audited reopen after squash and canonical successors",
   "description": "Allow audited reopen after squash and canonical successors",
   "kind": "bug_fix",
-  "state": "accepted",
+  "state": "verifying",
   "canonical_applied": true,
   "base_commit": "ca766a0beca901b96978520afb07449dd1bd89e7",
   "created_at": 1783963022,
-  "updated_at": 1783963772,
+  "updated_at": 1783964388,
   "affected_specs": [
     "change"
   ],

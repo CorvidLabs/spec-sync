@@ -72,6 +72,42 @@
       },
       "stale_acceptance_input_digest": "ffa5b4babb973ac5b7f395ce0e4ce9d70be32b0ec0c6a834cc59d511256acadf",
       "current_acceptance_input_digest": "2dc244e9902cbeb4db83bbf09ea4883a830bce33bab2b5886555af6b3dc14916"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0017-allow-audited-reopen-after-squash-and-canonical-successors",
+      "actor": "user:0xLeif",
+      "reason": "Refresh governed delivery evidence after the section-only verification fix",
+      "timestamp": 1783964388,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783963772,
+        "digest": "d6e88ef192e5e56cad44e067a5a43027a7d51959d6839ce6adfbcb9c8b960230",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1783963760,
+        "commit": "3266d74f4923ceaf091e337c71fbd3351bd3079f",
+        "contract_digest": "e99fc041606c07fc7f86cd4e61c0b5da7c3a6ae667568823b5eae014f2de95dc",
+        "workspace_digest": "aa72bf2504b2f4d245a97071f4f25ea1a2e7716c331e27eb7a98fed82f391124",
+        "acceptance_input_digest": "2dc244e9902cbeb4db83bbf09ea4883a830bce33bab2b5886555af6b3dc14916",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-018"
+        ]
+      },
+      "stale_acceptance_input_digest": "2dc244e9902cbeb4db83bbf09ea4883a830bce33bab2b5886555af6b3dc14916",
+      "current_acceptance_input_digest": "ab3577a12f0cd909457af93f62bccb49180286acc6ababbc58a416fc971dfcec"
     }
   ]
 }

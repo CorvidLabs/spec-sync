@@ -1,6 +1,6 @@
 ---
 module: change
-version: 16
+version: 17
 status: active
 files:
   - src/change.rs
@@ -187,3 +187,4 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | 2026-07-13 | CHG-0016-reject-modified-definitions-when-reaccepting-an-already-applied-change: Reject modified definitions when reaccepting an already-applied change |
 | 2026-07-13 | Normalize compatible transitional definition evidence during explicit acceptance for older contract checkers |
 | 2026-07-13 | CHG-0017-allow-audited-reopen-after-squash-and-canonical-successors: Allow audited reopen after squash and canonical successors |
+| 2026-07-13 | CHG-0018-allow-section-only-semantic-deltas-to-satisfy-verification-evidence: Allow section-only semantic deltas to satisfy verification evidence |

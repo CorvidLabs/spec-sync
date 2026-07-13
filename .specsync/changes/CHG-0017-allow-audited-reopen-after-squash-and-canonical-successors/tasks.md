@@ -8,4 +8,4 @@ artifact: tasks
 - [x] Implement recorded acceptance and complete successor-governance predicates.
 - [x] Preserve all existing digest, approval, evidence, stale-input, actor, and reason checks.
 - [x] Add a real squash plus successor regression and retain arbitrary off-history rejection.
-- [ ] Complete the full native and governance validation matrix.
+- [x] Complete the full native validation matrix before lifecycle verification.

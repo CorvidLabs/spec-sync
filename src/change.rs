@@ -890,9 +890,11 @@ pub fn reopen_change(
         return Err("accepted change verification commit is not in current history, its canonical acceptance is not recorded in current history, and no current canonical successor governs its affected contract".into());
     }
     let current_acceptance_input_digest = acceptance_input_digest(root, &record, &[])?;
-    if current_acceptance_input_digest == stale_acceptance_input_digest {
+    if current_acceptance_input_digest == stale_acceptance_input_digest
+        && ensure_closing_approval_valid(root, &record).is_ok()
+    {
         return Err(
-            "accepted change verification is current; reopen is allowed only for stale delivery inputs"
+            "accepted change verification is current; reopen is allowed only when accepted evidence is invalid"
                 .into(),
         );
     }
@@ -1118,9 +1120,7 @@ pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
         ChangeState::Approved => "start".into(),
         ChangeState::Implementing => "verify".into(),
         ChangeState::Verifying => "accept".into(),
-        ChangeState::Accepted
-            if accepted_delivery_inputs_are_stale(root, record).unwrap_or(false) =>
-        {
+        ChangeState::Accepted if ensure_closing_approval_valid(root, record).is_err() => {
             "reopen".into()
         }
         ChangeState::Accepted => "archive".into(),
@@ -2969,15 +2969,6 @@ fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Resul
     Ok(())
 }
 
-fn accepted_delivery_inputs_are_stale(root: &Path, record: &ChangeRecord) -> Result<bool, String> {
-    let verification = load_verification(root, record)?;
-    let prior = verification
-        .acceptance_input_digest
-        .as_ref()
-        .ok_or_else(|| "accepted change is missing current delivery-input evidence".to_string())?;
-    Ok(acceptance_input_digest(root, record, &[])? != *prior)
-}
-
 fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     let verification = load_verification(root, record)?;
     if !verification.passed {
@@ -4478,7 +4469,7 @@ mod tests {
         successor = start_implementation(root, &successor.id).unwrap();
         fs::write(
             root.join("src/lib.rs"),
-            "pub fn ready() -> bool { false }\n",
+            "pub fn ready() -> bool { true }\n",
         )
         .unwrap();
         git(&["add", "."]);
@@ -4499,6 +4490,15 @@ mod tests {
         assert!(accepted_change_has_current_canonical_successors(
             root, &original
         ));
+        assert_eq!(
+            acceptance_input_digest(root, &original, &[]).unwrap(),
+            original_verification
+                .acceptance_input_digest
+                .clone()
+                .unwrap()
+        );
+        assert!(ensure_closing_approval_valid(root, &original).is_err());
+        assert_eq!(summarize_change(root, &original).next_action, "reopen");
 
         let reopened = reopen_change(
             root,
@@ -5281,7 +5281,10 @@ mod tests {
 
         let error =
             reopen_change(root, &record.id, "Reviewer".into(), "Not stale".into()).unwrap_err();
-        assert!(error.contains("only for stale delivery inputs"), "{error}");
+        assert!(
+            error.contains("only when accepted evidence is invalid"),
+            "{error}"
+        );
         fs::write(
             root.join("src/lib.rs"),
             "pub fn ready() -> bool { false }\n",

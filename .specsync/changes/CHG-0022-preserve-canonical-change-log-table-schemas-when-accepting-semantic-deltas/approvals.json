@@ -1,0 +1,33 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783977814,
+      "digest": "8a6052ac700671eb0234f39f69a2fb510e0395d68495a4b20944a2ecd4af4854",
+      "note": "Approved portable definition for reproduced Change Log schema regression"
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783977983,
+      "digest": "65741c611e0493ad175b2fcf9179f0d10cfe9365d44e93967c1cb30ce2d61227",
+      "note": "Approved final portable definition after truthful verification-lane task completion"
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783978073,
+      "digest": "24943ae6b954eceeae22b4745af135ace5c54940b905aa1a3ea9654cc7a3f1dd",
+      "note": "Approved final portable definition with explicit requirement-to-test evidence mapping"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783978096,
+      "digest": "4fc4e31ecd8fa59517f956b90274d04e913640ee975c05b4040621b7eef1b210",
+      "note": "Closing approval after native verification and reproduced schema regression coverage"
+    }
+  ],
+  "reopenings": []
+}

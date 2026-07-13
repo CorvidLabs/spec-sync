@@ -2415,21 +2415,65 @@ fn bump_version_scalar(raw: &str) -> Result<String, String> {
 }
 
 fn append_changelog(content: &str, id: &str, title: &str) -> String {
-    let row = format!("| {} | {id}: {} |", today(), title.replace('|', "\\|"));
+    let description = format!("{id}: {}", title.replace('|', "\\|"));
+    let default_row = format!("| {} | {description} |", today());
     if let Some(position) = content.rfind("## Change Log") {
         let search_start = position + "## Change Log".len();
         let section_end = content[search_start..]
             .find("\n## ")
             .map(|offset| search_start + offset)
             .unwrap_or(content.len());
+        let row = changelog_table_row(&content[search_start..section_end], content, &description)
+            .unwrap_or(default_row);
         let before = content[..section_end].trim_end();
         let after = &content[section_end..];
         return format!("{before}\n{row}\n{after}");
     }
     format!(
         "{}\n## Change Log\n\n| Date | Change |\n|------|--------|\n{row}\n",
-        content.trim_end()
+        content.trim_end(),
+        row = default_row,
     )
+}
+
+fn changelog_table_row(section: &str, spec: &str, description: &str) -> Option<String> {
+    let header = section
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with('|') && line.ends_with('|'))?;
+    let columns: Vec<&str> = header.trim_matches('|').split('|').map(str::trim).collect();
+    if columns.len() < 2 {
+        return None;
+    }
+
+    let version = spec.lines().find_map(|line| {
+        let raw = line.strip_prefix("version:")?.trim();
+        let without_comment = raw.split_once(" #").map_or(raw, |(value, _)| value);
+        Some(without_comment.trim().trim_matches(['\'', '"']).to_string())
+    });
+    let mut recognized_description = false;
+    let cells: Vec<String> = columns
+        .iter()
+        .map(|column| {
+            let normalized = column.to_ascii_lowercase();
+            if normalized == "version" {
+                version.clone().unwrap_or_default()
+            } else if normalized == "date" {
+                today()
+            } else if normalized.contains("change")
+                || normalized == "description"
+                || normalized == "notes"
+            {
+                recognized_description = true;
+                description.to_string()
+            } else if normalized == "author" {
+                "SpecSync".to_string()
+            } else {
+                String::new()
+            }
+        })
+        .collect();
+    recognized_description.then(|| format!("| {} |", cells.join(" | ")))
 }
 
 fn write_prepared_files(root: &Path, prepared: &[(PathBuf, String)]) -> Result<(), String> {
@@ -4145,6 +4189,40 @@ mod tests {
     use super::*;
     use std::sync::{Arc, Barrier, mpsc};
     use tempfile::TempDir;
+
+    // Verifies REQ-change-021.
+    #[test]
+    fn append_changelog_preserves_version_date_changes_schema() {
+        let spec = "---\nmodule: canary\nversion: 3\n---\n\n## Change Log\n\n| Version | Date | Changes |\n|---------|------|---------|\n| 2 | 2026-07-13 | Previous |\n";
+
+        let updated = append_changelog(spec, "CHG-0003", "Correct the change log");
+
+        assert!(updated.contains(&format!(
+            "| 3 | {} | CHG-0003: Correct the change log |",
+            today()
+        )));
+    }
+
+    #[test]
+    fn append_changelog_populates_date_author_change_schema() {
+        let spec = "---\nmodule: canary\nversion: 2\n---\n\n## Change Log\n\n| Date | Author | Change |\n|------|--------|--------|\n";
+
+        let updated = append_changelog(spec, "CHG-0002", "Document behavior");
+
+        assert!(updated.contains(&format!(
+            "| {} | SpecSync | CHG-0002: Document behavior |",
+            today()
+        )));
+    }
+
+    #[test]
+    fn append_changelog_keeps_default_two_column_schema() {
+        let spec = "---\nmodule: canary\nversion: 2\n---\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n";
+
+        let updated = append_changelog(spec, "CHG-0002", "Document behavior");
+
+        assert!(updated.contains(&format!("| {} | CHG-0002: Document behavior |", today())));
+    }
 
     #[test]
     fn effective_contract_workspaces_are_unique() {

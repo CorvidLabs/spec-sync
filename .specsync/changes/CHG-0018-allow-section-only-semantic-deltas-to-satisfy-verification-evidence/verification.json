@@ -1,9 +1,9 @@
 {
-  "timestamp": 1783976922,
-  "commit": "27dd307b84333905fbf8907a2c9082c27ebfb30d",
+  "timestamp": 1783978166,
+  "commit": "a36af58a4f9e79d5076059d050d6f41a0f14529d",
   "contract_digest": "13ed614e312e71c21a7ea0632e9a0872dbda267fe9c8bdc4d4581235550a25f9",
-  "workspace_digest": "81b3d783c869778f8a2576880cdfd02e1d35fc186cf55fc120fa6d6aae54f258",
-  "acceptance_input_digest": "cf219a26ec1365cb8c845c1e7af66628702d9a73219fee3d3500f023fa062843",
+  "workspace_digest": "88ae52edc77c03b0a181020c946748ac434d64cf1c129c97db61c68637ab684c",
+  "acceptance_input_digest": "0807b3b35b9c0f7bd39a4edec7d7d85b9cc6f6a015a77d7d946089bdb5f770aa",
   "passed": true,
   "commands": [
     {

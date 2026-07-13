@@ -2460,10 +2460,10 @@ fn changelog_table_row(section: &str, spec: &str, description: &str) -> Option<S
                 version.clone().unwrap_or_default()
             } else if normalized == "date" {
                 today()
-            } else if normalized.contains("change")
-                || normalized == "description"
-                || normalized == "notes"
-            {
+            } else if matches!(
+                normalized.as_str(),
+                "change" | "changes" | "description" | "notes"
+            ) {
                 recognized_description = true;
                 description.to_string()
             } else if normalized == "author" {
@@ -4222,6 +4222,18 @@ mod tests {
         let updated = append_changelog(spec, "CHG-0002", "Document behavior");
 
         assert!(updated.contains(&format!("| {} | CHG-0002: Document behavior |", today())));
+    }
+
+    #[test]
+    fn append_changelog_does_not_treat_similar_headers_as_change_columns() {
+        let spec = "---\nmodule: canary\nversion: 2\n---\n\n## Change Log\n\n| Date | Changer | Change |\n|------|---------|--------|\n";
+
+        let updated = append_changelog(spec, "CHG-0002", "Document behavior");
+
+        assert!(updated.contains(&format!(
+            "| {} |  | CHG-0002: Document behavior |",
+            today()
+        )));
     }
 
     #[test]

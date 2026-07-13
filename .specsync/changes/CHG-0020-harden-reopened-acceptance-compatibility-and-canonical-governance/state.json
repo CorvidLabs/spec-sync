@@ -5,11 +5,11 @@
   "title": "Harden reopened acceptance compatibility and canonical governance",
   "description": "Harden reopened acceptance compatibility and canonical governance",
   "kind": "bug_fix",
-  "state": "accepted",
+  "state": "verifying",
   "canonical_applied": true,
   "base_commit": "eca4a64cf91d5f263caa542077e6639976f13cd6",
   "created_at": 1783967018,
-  "updated_at": 1783981619,
+  "updated_at": 1783981812,
   "affected_specs": [
     "change"
   ],

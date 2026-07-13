@@ -5,11 +5,11 @@
   "title": "Preserve canonical Change Log table schemas when accepting semantic deltas",
   "description": "Preserve canonical Change Log table schemas when accepting semantic deltas",
   "kind": "bug_fix",
-  "state": "accepted",
+  "state": "verifying",
   "canonical_applied": true,
   "base_commit": "a36af58a4f9e79d5076059d050d6f41a0f14529d",
   "created_at": 1783977705,
-  "updated_at": 1783981622,
+  "updated_at": 1783981812,
   "affected_specs": [
     "change"
   ],

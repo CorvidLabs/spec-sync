@@ -9,4 +9,4 @@ artifact: tasks
 - [x] Reuse recorded accepted history and complete canonical-successor validation in the closing gate.
 - [x] Add a descendant-branch regression without weakening digest or approval checks.
 - [x] Update the canonical requirement.
-- [ ] Complete native, strict SpecSync, and hosted verification.
+- [ ] Complete native verification; run strict SpecSync and hosted verification after lifecycle closure.

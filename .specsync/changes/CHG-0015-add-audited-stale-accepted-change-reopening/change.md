@@ -1,6 +1,6 @@
 ---
 id: CHG-0015-add-audited-stale-accepted-change-reopening
-state: accepted
+state: verifying
 type: feature
 base_commit: 59bbfa766c6cce01ab815ab47db195b0629cc014
 ---

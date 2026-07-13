@@ -13,6 +13,13 @@
       "timestamp": 1783981798,
       "digest": "8119e038ee0b726e34a13a5c8d2eb9dba73e650b383c0c9718f94f3550ab1824",
       "note": "Approved final definition with explicit REQ-change-018 regression mapping"
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783982105,
+      "digest": "d0da4e523950d031eca19252680da146df7a0f9fda30f8287b7174368d06abe7",
+      "note": "Approved remote-default fail-closed design after positive and negative squash regressions passed"
     }
   ],
   "reopenings": []

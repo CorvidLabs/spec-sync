@@ -3082,10 +3082,9 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
     }
     if !verification_commit_is_accepted_current(root, &verification)
         && !accepted_workspace_is_integrated(root, record)
-        && !accepted_change_is_recorded_in_current_history(root, record)
-        && !accepted_change_has_current_canonical_successors(root, record)
+        && !accepted_change_is_recorded_on_remote_default(root, record)
     {
-        return Err("accepted change verification commit is not in current history, its canonical acceptance is not recorded in current history, and no current canonical successor governs its affected contract".into());
+        return Err("accepted change verification commit is not in current history and canonical acceptance is not recorded on the remote default branch".into());
     }
     Ok(())
 }
@@ -3952,13 +3951,23 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
 }
 
 fn accepted_change_is_recorded_in_current_history(root: &Path, record: &ChangeRecord) -> bool {
+    accepted_change_is_recorded_in_ref(root, record, "HEAD")
+}
+
+fn accepted_change_is_recorded_on_remote_default(root: &Path, record: &ChangeRecord) -> bool {
+    remote_default_ref(root).is_some_and(|remote_default| {
+        accepted_change_is_recorded_in_ref(root, record, &remote_default)
+    })
+}
+
+fn accepted_change_is_recorded_in_ref(root: &Path, record: &ChangeRecord, reference: &str) -> bool {
     let state = format!("{CHANGES_PATH}/{}/state.json", record.id);
     let Ok(repo_state) = git_repo_relative_path(root, &state) else {
         return false;
     };
     let top_state = format!(":(top){repo_state}");
     let history = Command::new("git")
-        .args(["log", "--format=%H", "--", top_state.as_str()])
+        .args(["log", "--format=%H", reference, "--", top_state.as_str()])
         .current_dir(root)
         .output();
     let Ok(history) = history else {
@@ -4232,10 +4241,7 @@ mod tests {
 
         let updated = append_changelog(spec, "CHG-0002", "Document behavior");
 
-        assert!(updated.contains(&format!(
-            "| {} |  | CHG-0002: Document behavior |",
-            today()
-        )));
+        assert!(updated.contains(&format!("| {} |  | CHG-0002: Document behavior |", today())));
     }
 
     #[test]
@@ -4471,6 +4477,7 @@ mod tests {
         assert!(archive_change(root, &record.id).is_ok());
     }
 
+    // Verifies REQ-change-018.
     #[test]
     fn accepted_evidence_survives_integrated_squash_merge_and_archives() {
         let temp = TempDir::new().unwrap();
@@ -4525,7 +4532,10 @@ mod tests {
         git(&["switch", "-c", "followup"]);
         git(&["commit", "--allow-empty", "-m", "followup"]);
         assert!(!accepted_workspace_is_integrated(root, &record));
-        assert!(accepted_change_is_recorded_in_current_history(root, &record));
+        assert!(accepted_change_is_recorded_in_current_history(
+            root, &record
+        ));
+        assert!(accepted_change_is_recorded_on_remote_default(root, &record));
         assert!(ensure_closing_approval_valid(root, &record).is_ok());
 
         git(&["switch", "main"]);

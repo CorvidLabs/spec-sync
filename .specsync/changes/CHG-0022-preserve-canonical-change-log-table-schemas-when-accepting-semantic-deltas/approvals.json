@@ -72,6 +72,42 @@
       },
       "stale_acceptance_input_digest": "c20ca583e2b208b8f6175bd4d1e7f4fd2a9352680ef6262b888d87e23ff46783",
       "current_acceptance_input_digest": "0e29392e0342ba0cf3b007cb98db074db1f3007fe1d83bd32fa0c68cbb6faeb3"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0022-preserve-canonical-change-log-table-schemas-when-accepting-semantic-deltas",
+      "actor": "user:0xLeif",
+      "reason": "CHG-0023 corrects descendant-branch squash validation and requires fresh shared lifecycle evidence",
+      "timestamp": 1783981812,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783981622,
+        "digest": "4ac7d48031eda33c918223a4b27532b6ea5cbf33e0e38e3fc2d0a9001e8b29f8",
+        "note": "Closing approval after rebasing PR #359, exact-header regression coverage, and successful native verification"
+      },
+      "prior_verification": {
+        "timestamp": 1783981606,
+        "commit": "ba890fc8b51a76e6eb0112c9150a4732a63ea23d",
+        "contract_digest": "24943ae6b954eceeae22b4745af135ace5c54940b905aa1a3ea9654cc7a3f1dd",
+        "workspace_digest": "2534ac836de90e6c3151f8d69cff45dab5c9a593b8820c0f7e8afec2432d169e",
+        "acceptance_input_digest": "0e29392e0342ba0cf3b007cb98db074db1f3007fe1d83bd32fa0c68cbb6faeb3",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-021"
+        ]
+      },
+      "stale_acceptance_input_digest": "0e29392e0342ba0cf3b007cb98db074db1f3007fe1d83bd32fa0c68cbb6faeb3",
+      "current_acceptance_input_digest": "62f0854f73e7c43d30867750d07ea1195510d1aa88c1fd9847b045cb6fd0d2eb"
     }
   ]
 }

@@ -1,0 +1,63 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783979483,
+      "digest": "0665b5c26a8322a1b34dbbfa27088e84b5d3e7f18031a0c9205bd25c46b204e9",
+      "note": "Approved the corrected full-section semantic delta for issue 356; it preserves every existing invariant and appends the new argument contract."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783979502,
+      "digest": "eb0f81647ccd4f3784a05127697443dad342a377cc0c1c5cf0a099c87dabd8eb",
+      "note": "Accepted after the complete 1533-unit and 188-integration verification command passed with the corrected full-section semantic delta."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783979550,
+      "digest": "f974f54d85418f22513eadabdad59796e22db5268d7124e0fe481689ee9fe526",
+      "note": "Reaccepted after the non-semantic trailing-whitespace correction and a fresh full verification pass."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0016-preserve-free-text-arguments-in-generated-agent-commands",
+      "actor": "user:0xLeif",
+      "reason": "Remove generated trailing whitespace from the canonical requirements companion before publication; semantic content is unchanged.",
+      "timestamp": 1783979529,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783979502,
+        "digest": "eb0f81647ccd4f3784a05127697443dad342a377cc0c1c5cf0a099c87dabd8eb",
+        "note": "Accepted after the complete 1533-unit and 188-integration verification command passed with the corrected full-section semantic delta."
+      },
+      "prior_verification": {
+        "timestamp": 1783979498,
+        "commit": "60bd655c2365addc3d7a37e95f5fc20c06a746ff",
+        "contract_digest": "0665b5c26a8322a1b34dbbfa27088e84b5d3e7f18031a0c9205bd25c46b204e9",
+        "workspace_digest": "d6da157206f9619aeb0bda8679c596d1abb72f56ec96f521f435e7524ab025a4",
+        "acceptance_input_digest": "825606321b643714ed28582ccc3718dfb73e72c929827ab8004657b1756198f1",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-agents-002"
+        ]
+      },
+      "stale_acceptance_input_digest": "825606321b643714ed28582ccc3718dfb73e72c929827ab8004657b1756198f1",
+      "current_acceptance_input_digest": "e7897d14b7ad57ad0041b99b8983f934351e5368da291d7084114f418c7a3823"
+    }
+  ]
+}

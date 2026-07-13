@@ -43,3 +43,16 @@ The system SHALL keep installed native agent artifacts and their canonical docum
 Acceptance Criteria
 - Claude, Cursor, and Gemini receive create-spec and create-change commands.
 - Codex receives the project-scoped lifecycle skill without a deprecated command file.
+
+### REQ-agents-002
+
+Generated agent integrations SHALL preserve complete user intent across each tool's documented argument syntax.
+
+Acceptance Criteria
+
+- Create-spec guidance removes supported flags before classifying the complete remaining input.
+- A complete single module identifier is preserved unchanged.
+- Quoted or unquoted natural-language descriptions are classified before a kebab-case module name is derived.
+- Gemini create-change guidance uses `{{args}}` and contains no `$ARGUMENTS` reference.
+- Every generated skill and create-change command quotes a free-text interview answer as one positional argument.
+- Reinstalling all four integrations remains deterministic and idempotent.

@@ -1,0 +1,18 @@
+{
+  "timestamp": 1783979543,
+  "commit": "60bd655c2365addc3d7a37e95f5fc20c06a746ff",
+  "contract_digest": "0665b5c26a8322a1b34dbbfa27088e84b5d3e7f18031a0c9205bd25c46b204e9",
+  "workspace_digest": "d4f972d7077d3a115e90f3296f5dc2ae717b3af4e7d6cbd7757f318c8138d494",
+  "acceptance_input_digest": "e7897d14b7ad57ad0041b99b8983f934351e5368da291d7084114f418c7a3823",
+  "passed": true,
+  "commands": [
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-agents-002"
+  ]
+}

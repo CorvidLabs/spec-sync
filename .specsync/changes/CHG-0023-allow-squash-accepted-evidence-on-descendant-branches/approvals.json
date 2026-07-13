@@ -6,6 +6,13 @@
       "timestamp": 1783981753,
       "digest": "f0ab94dade0106f2c7b7bf1c201a6013de2ef617efd624488fcad43f3d0b4116",
       "note": "Approved descendant-branch squash evidence correction after reproducing the strict-check failure"
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783981798,
+      "digest": "8119e038ee0b726e34a13a5c8d2eb9dba73e650b383c0c9718f94f3550ab1824",
+      "note": "Approved final definition with explicit REQ-change-018 regression mapping"
     }
   ],
   "reopenings": []

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 15
+version: 16
 status: active
 files:
   - src/change.rs
@@ -109,6 +109,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 14. Quiet reporting executes every configured command and preserves failures while suppressing only child stdout and stderr; normal checking and verification continue streaming diagnostics.
 15. Reopening current accepted evidence is rejected, and reopening stale evidence never reapplies an already canonical semantic delta.
 16. Reacceptance of an already-applied change requires the definition digest captured by the latest audited reopen event; further definition changes require a new change workspace.
+17. False default lifecycle fields remain absent from new persisted state, while definition validation recognizes both omitted and transitional explicit-false encodings so upgrades preserve existing approvals and verification; explicit acceptance appends stable definition evidence when the latest compatible approval uses the transitional encoding.
 
 ## Behavioral Examples
 
@@ -183,3 +184,4 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | 2026-07-13 | CHG-0015-add-audited-stale-accepted-change-reopening: Add audited stale accepted change reopening |
 | 2026-07-13 | Preserve legacy and transitional definition evidence when canonical application state is false |
 | 2026-07-13 | CHG-0016-reject-modified-definitions-when-reaccepting-an-already-applied-change: Reject modified definitions when reaccepting an already-applied change |
+| 2026-07-13 | Normalize compatible transitional definition evidence during explicit acceptance for older contract checkers |

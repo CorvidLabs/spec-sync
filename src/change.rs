@@ -988,9 +988,28 @@ pub fn accept_change(
     verification.acceptance_input_digest = Some(acceptance_input_digest(root, &record, &prepared)?);
     let closing_digest = closing_digest(&record, &verification);
     let mut ledger = load_approvals(root, &record)?;
+    let actor = resolve_actor(root, actor)?;
+    let stable_definition_digest = definition_digest(root, &record)?;
+    let latest_definition_digest = ledger
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "definition")
+        .map(|approval| approval.digest.as_str());
+    if latest_definition_digest != Some(stable_definition_digest.as_str()) {
+        ledger.approvals.push(ApprovalRecord {
+            gate: "definition".into(),
+            actor: actor.clone(),
+            timestamp: now(),
+            digest: stable_definition_digest,
+            note: Some(
+                "Normalized compatible definition evidence during explicit acceptance".into(),
+            ),
+        });
+    }
     ledger.approvals.push(ApprovalRecord {
         gate: "acceptance".into(),
-        actor: resolve_actor(root, actor)?,
+        actor,
         timestamp: now(),
         digest: closing_digest,
         note,
@@ -4572,6 +4591,49 @@ mod tests {
         save_change(root, &record).unwrap();
         let accepted_json = fs::read_to_string(state_path).unwrap();
         assert!(accepted_json.contains("\"canonical_applied\": true"));
+    }
+
+    #[test]
+    fn acceptance_normalizes_transitional_definition_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        let stable_digest = definition_digest(root, &record).unwrap();
+        let transitional_digest = definition_digest_with_explicit_false(root, &record).unwrap();
+        append_approval(
+            root,
+            &record,
+            "definition",
+            Some("Original reviewer".into()),
+            transitional_digest.clone(),
+            Some("Approved with transitional evidence".into()),
+        )
+        .unwrap();
+        record.state = ChangeState::Approved;
+        save_change(root, &record).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+
+        record = accept_change(
+            root,
+            &record.id,
+            Some("Release reviewer".into()),
+            Some("Accepted after verification".into()),
+        )
+        .unwrap();
+
+        let ledger = load_approvals(root, &record).unwrap();
+        assert_eq!(ledger.approvals.len(), 3);
+        assert_eq!(ledger.approvals[0].digest, transitional_digest);
+        assert_eq!(ledger.approvals[1].gate, "definition");
+        assert_eq!(ledger.approvals[1].actor, "Release reviewer");
+        assert_eq!(ledger.approvals[1].digest, stable_digest);
+        assert_eq!(
+            ledger.approvals[1].note.as_deref(),
+            Some("Normalized compatible definition evidence during explicit acceptance")
+        );
+        assert_eq!(ledger.approvals[2].gate, "acceptance");
+        assert!(ensure_definition_approval_valid(root, &record).is_ok());
     }
 
     #[test]

@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Legacy definition approvals survive the lifecycle schema extension** — false `canonical_applied` values remain absent from new persisted state and deterministic definition serialization, while validation recognizes both the original omitted form and the transitional explicit-false form. Upgrading either active schema-v1 encoding no longer invalidates its existing human approval or verification; reopened and accepted changes still persist true values.
+- **Legacy definition approvals survive the lifecycle schema extension** — false `canonical_applied` values remain absent from new persisted state and deterministic definition serialization, while validation recognizes both the original omitted form and the transitional explicit-false form. Explicit acceptance appends a stable definition approval when it encounters compatible transitional evidence, keeping older contract checkers interoperable without rewriting audit history. Upgrading either active schema-v1 encoding no longer invalidates its existing human approval or verification; reopened and accepted changes still persist true values.
 
 ## [5.0.1] - 2026-07-11
 

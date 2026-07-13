@@ -17,7 +17,7 @@ const SKILL_BODY: &str = r#"## Companion files
 For every meaningful source, test, public documentation, schema, or configuration change:
 
 1. Run `specsync change new "<intent>" --json` and conduct the returned interview with the user.
-2. Use `specsync change answer <id> <question-id> <answer> --json` until no questions remain.
+2. Use `specsync change answer <id> <question-id> "<answer>" --json` until no questions remain.
 3. Complete the adaptively selected artifacts and semantic deltas. Requirements use stable
    `REQ-<module>-<number>` IDs, a normative SHALL statement, and acceptance criteria.
 4. Ask the user for the definition approval, then run `specsync change approve <id>`.
@@ -80,18 +80,20 @@ the description to draft the spec's Purpose and Requirements.
 
 // ─── Create-spec command body (shared prose, per-tool argument syntax) ───────
 
-const CREATE_SPEC_STEPS_MD: &str = r#"1. Parse the arguments above: the first whitespace-separated token is the
-   module name. If the arguments also contain `--minimal` (in any position),
-   remove it and remember that minimal mode was requested.
-2. Look at whatever text remains. It will be one of:
-   - **A bare module name** — a short identifier like `auth-service` or
-     `billing`. Use it as-is.
-   - **A free-text feature description** — a sentence or phrase describing
-     what to build, e.g. `"I want a feature that lets users export their
-     data as CSV"`. In this case, invent a short, kebab-case module name that
-     captures the idea (e.g. `csv-export`). If the right name is ambiguous,
-     ask the user to confirm or rename it before continuing. Keep the full
-     description at hand — you'll use it in step 5.
+const CREATE_SPEC_STEPS_MD: &str = r#"1. Read the complete arguments above. Remove each standalone `--minimal` flag
+   (in any position) and remember that minimal mode was requested. Preserve
+   the complete remaining input for classification; do not extract a module
+   name yet. If nothing remains, ask the user for a module or description.
+2. Classify the complete remaining input as one of:
+   - **A bare module name** — the entire input is one identifier with no
+     whitespace, such as `auth-service` or `billing`. Use it as-is.
+   - **A free-text feature description** — any quoted or unquoted sentence or
+     phrase describing what to build, e.g. `"I want a feature that lets users
+     export their data as CSV"`. Only after making this classification, invent
+     a short, kebab-case module name that captures the idea (e.g. `csv-export`).
+     Never use only the first word as the module name. If the right name is
+     ambiguous, ask the user to confirm or rename it before continuing. Keep
+     the complete description at hand — you'll use it in step 5.
 3. If minimal mode was requested, run:
    ```
    specsync new <module-name>
@@ -112,18 +114,20 @@ const CREATE_SPEC_STEPS_MD: &str = r#"1. Parse the arguments above: the first wh
    (acceptance criteria) and `tasks.md` (initial task breakdown), if present.
 6. Run `specsync check` to confirm the new spec passes validation."#;
 
-const CREATE_SPEC_STEPS_TOML: &str = r#"1. Parse the arguments above: the first whitespace-separated token is the
-   module name. If the arguments also contain --minimal (in any position),
-   remove it and remember that minimal mode was requested.
-2. Look at whatever text remains. It will be one of:
-   - A bare module name - a short identifier like auth-service or billing.
-     Use it as-is.
-   - A free-text feature description - a sentence or phrase describing what
-     to build, e.g. "I want a feature that lets users export their data as
-     CSV". In this case, invent a short, kebab-case module name that captures
-     the idea (e.g. csv-export). If the right name is ambiguous, ask the user
-     to confirm or rename it before continuing. Keep the full description at
-     hand - you'll use it in step 5.
+const CREATE_SPEC_STEPS_TOML: &str = r#"1. Read the complete arguments above. Remove each standalone --minimal flag
+   (in any position) and remember that minimal mode was requested. Preserve
+   the complete remaining input for classification; do not extract a module
+   name yet. If nothing remains, ask the user for a module or description.
+2. Classify the complete remaining input as one of:
+   - A bare module name - the entire input is one identifier with no
+     whitespace, such as auth-service or billing. Use it as-is.
+   - A free-text feature description - any quoted or unquoted sentence or
+     phrase describing what to build, e.g. "I want a feature that lets users
+     export their data as CSV". Only after making this classification, invent
+     a short, kebab-case module name that captures the idea (e.g. csv-export).
+     Never use only the first word as the module name. If the right name is
+     ambiguous, ask the user to confirm or rename it before continuing. Keep
+     the complete description at hand - you'll use it in step 5.
 3. If minimal mode was requested, run:
    specsync new <module-name>
    This creates a minimal spec only (no companion files).
@@ -147,7 +151,7 @@ const CREATE_CHANGE_DESCRIPTION: &str =
 
 const CREATE_CHANGE_STEPS_MD: &str = r#"1. Run `specsync change new "$ARGUMENTS" --json`.
 2. Read the returned `questions` array and interview the user one question at a time.
-3. Record each answer with `specsync change answer <id> <question-id> <answer> --json`.
+3. Record each answer with `specsync change answer <id> <question-id> "<answer>" --json`.
 4. Continue until the question list is empty, then show the selected artifacts and next action.
 5. Do not approve, implement, verify, accept, or archive until the corresponding human gate or work stage is reached."#;
 
@@ -388,15 +392,20 @@ fn create_spec_command_content(tool: AgentTool) -> String {
 }
 
 fn create_change_command_content(tool: AgentTool) -> String {
+    let steps = match tool {
+        AgentTool::Gemini => CREATE_CHANGE_STEPS_MD.replace("$ARGUMENTS", "{{args}}"),
+        _ => CREATE_CHANGE_STEPS_MD.to_string(),
+    };
+
     match tool {
         AgentTool::Claude => format!(
-            "---\ndescription: {CREATE_CHANGE_DESCRIPTION}\nargument-hint: <change-description>\n---\n\n{CREATE_CHANGE_STEPS_MD}\n"
+            "---\ndescription: {CREATE_CHANGE_DESCRIPTION}\nargument-hint: <change-description>\n---\n\n{steps}\n"
         ),
-        AgentTool::Cursor => format!(
-            "Create a verified spec-sync SDD change.\n\nArguments: $ARGUMENTS\n\n{CREATE_CHANGE_STEPS_MD}\n"
-        ),
+        AgentTool::Cursor => {
+            format!("Create a verified spec-sync SDD change.\n\nArguments: $ARGUMENTS\n\n{steps}\n")
+        }
         AgentTool::Gemini => format!(
-            "description = \"{CREATE_CHANGE_DESCRIPTION}\"\n\nprompt = \"\"\"\nArguments: {{{{args}}}}\n\n{CREATE_CHANGE_STEPS_MD}\n\"\"\"\n"
+            "description = \"{CREATE_CHANGE_DESCRIPTION}\"\n\nprompt = \"\"\"\nArguments: {{{{args}}}}\n\n{steps}\n\"\"\"\n"
         ),
         AgentTool::Codex => unreachable!("Codex has no command file"),
     }
@@ -728,6 +737,77 @@ mod tests {
         assert_eq!(content.matches("\"\"\"").count(), 2);
 
         assert!(is_installed(tmp.path(), AgentTool::Gemini));
+    }
+
+    #[test]
+    fn create_spec_commands_classify_the_complete_remaining_input() {
+        let tmp = setup();
+
+        for tool in [AgentTool::Claude, AgentTool::Cursor, AgentTool::Gemini] {
+            install_agent(tmp.path(), tool).unwrap();
+            let path = tool.command_path(tmp.path()).unwrap();
+            let content = fs::read_to_string(path).unwrap();
+
+            assert!(content.contains("Remove each standalone"));
+            assert!(content.contains("the complete remaining input for classification"));
+            assert!(content.contains("the entire input is one identifier with no"));
+            assert!(content.contains("any quoted or unquoted sentence or"));
+            assert!(content.contains("Never use only the first word as the module name"));
+            assert!(!content.contains("first whitespace-separated token"));
+        }
+    }
+
+    #[test]
+    fn gemini_create_change_uses_native_args_and_quotes_answers() {
+        let tmp = setup();
+        install_agent(tmp.path(), AgentTool::Gemini).unwrap();
+
+        let path = AgentTool::Gemini.change_command_path(tmp.path()).unwrap();
+        let content = fs::read_to_string(path).unwrap();
+
+        assert!(content.contains("specsync change new \"{{args}}\" --json"));
+        assert!(content.contains("<question-id> \"<answer>\" --json"));
+        assert!(!content.contains("$ARGUMENTS"));
+    }
+
+    #[test]
+    fn every_generated_lifecycle_surface_quotes_free_text_answers() {
+        let tmp = setup();
+
+        for tool in AgentTool::all() {
+            install_agent(tmp.path(), *tool).unwrap();
+            let skill =
+                fs::read_to_string(tool.skill_dir(tmp.path()).unwrap().join("SKILL.md")).unwrap();
+            assert!(skill.contains("<question-id> \"<answer>\" --json"));
+
+            if let Some(path) = tool.change_command_path(tmp.path()) {
+                let command = fs::read_to_string(path).unwrap();
+                assert!(command.contains("<question-id> \"<answer>\" --json"));
+            }
+        }
+    }
+
+    #[test]
+    fn reinstall_keeps_all_generated_artifacts_byte_identical() {
+        let tmp = setup();
+
+        for tool in AgentTool::all() {
+            assert!(install_agent(tmp.path(), *tool).unwrap());
+            let mut paths = vec![tool.skill_dir(tmp.path()).unwrap().join("SKILL.md")];
+            paths.extend(tool.command_path(tmp.path()));
+            paths.extend(tool.change_command_path(tmp.path()));
+            let before = paths
+                .iter()
+                .map(|path| fs::read(path).unwrap())
+                .collect::<Vec<_>>();
+
+            assert!(!install_agent(tmp.path(), *tool).unwrap());
+            let after = paths
+                .iter()
+                .map(|path| fs::read(path).unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(before, after);
+        }
     }
 
     #[test]

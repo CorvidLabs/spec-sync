@@ -1,6 +1,6 @@
 ---
 module: agents
-version: 4
+version: 5
 status: stable
 files:
   - src/agents.rs
@@ -53,6 +53,7 @@ Installs native, tool-owned verified-SDD skills for Claude Code, Cursor, Codex, 
 7. Gemini's command file is TOML (`description`/`prompt` keys, `{{args}}` placeholder), hand-built as a string template since no `toml` crate dependency exists in this project.
 8. Empty targets list means "all tools", matching the `hooks` module's convention.
 9. `cmd_install` exits with code 1 if any tool installation fails.
+10. Generated create-spec and create-change assets preserve complete arguments using each tool's native placeholder and quote free-text interview answers as one CLI argument.
 
 ## Behavioral Examples
 
@@ -115,3 +116,4 @@ Installs native, tool-owned verified-SDD skills for Claude Code, Cursor, Codex, 
 | 2026-07-01 | claude | v2: `install_agent` overwrites artifacts whose existing content differs from the current template (content-aware upgrade), instead of only writing missing files |
 | 2026-07-01 | claude | Initial spec — native skill/command installation for Claude Code, Cursor, Codex, Gemini CLI |
 | 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
+| 2026-07-13 | CHG-0016-preserve-free-text-arguments-in-generated-agent-commands: Preserve free-text arguments in generated agent commands |

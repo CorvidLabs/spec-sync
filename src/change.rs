@@ -884,8 +884,10 @@ pub fn reopen_change(
     }
     if !verification_commit_is_accepted_current(root, &prior_verification)
         && !accepted_workspace_is_integrated(root, &record)
+        && !accepted_change_is_recorded_in_current_history(root, &record)
+        && !accepted_change_has_current_canonical_successors(root, &record)
     {
-        return Err("accepted change verification commit is not in current history and the accepted workspace is not integrated unchanged on the remote default branch".into());
+        return Err("accepted change verification commit is not in current history, its canonical acceptance is not recorded in current history, and no current canonical successor governs its affected contract".into());
     }
     let current_acceptance_input_digest = acceptance_input_digest(root, &record, &[])?;
     if current_acceptance_input_digest == stale_acceptance_input_digest {
@@ -3872,6 +3874,71 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
             .is_ok_and(|status| status.success())
 }
 
+fn accepted_change_is_recorded_in_current_history(root: &Path, record: &ChangeRecord) -> bool {
+    let state = format!("{CHANGES_PATH}/{}/state.json", record.id);
+    let Ok(repo_state) = git_repo_relative_path(root, &state) else {
+        return false;
+    };
+    let history = Command::new("git")
+        .args(["log", "--format=%H", "--", repo_state.as_str()])
+        .current_dir(root)
+        .output();
+    let Ok(history) = history else {
+        return false;
+    };
+    if !history.status.success() {
+        return false;
+    }
+    String::from_utf8_lossy(&history.stdout)
+        .lines()
+        .any(|commit| {
+            let object = format!("{commit}:{repo_state}");
+            let snapshot = Command::new("git")
+                .args(["show", object.as_str()])
+                .current_dir(root)
+                .output();
+            let Ok(snapshot) = snapshot else {
+                return false;
+            };
+            snapshot.status.success()
+                && serde_json::from_slice::<ChangeRecord>(&snapshot.stdout).is_ok_and(
+                    |historical| {
+                        historical.id == record.id && historical.state == ChangeState::Accepted
+                    },
+                )
+        })
+}
+
+fn accepted_change_has_current_canonical_successors(root: &Path, record: &ChangeRecord) -> bool {
+    let Ok(records) = list_changes_checked(root) else {
+        return false;
+    };
+    let successors: Vec<_> = records
+        .iter()
+        .filter(|candidate| {
+            candidate.id != record.id
+                && (candidate.canonical_applied || candidate.state == ChangeState::Accepted)
+                && candidate.created_at >= record.created_at
+                && candidate.id > record.id
+                && accepted_change_is_recorded_in_current_history(root, candidate)
+        })
+        .collect();
+    if successors.is_empty() {
+        return false;
+    }
+    let specs_governed = record.affected_specs.iter().all(|module| {
+        successors
+            .iter()
+            .any(|candidate| candidate.affected_specs.contains(module))
+    });
+    let paths_governed = record.affected_paths.iter().all(|path| {
+        successors
+            .iter()
+            .any(|candidate| record_covers_project_path(root, candidate, path))
+    });
+    specs_governed && paths_governed
+}
+
 fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
     let mut maximum = 0_u64;
     for base in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
@@ -4359,6 +4426,101 @@ mod tests {
         ));
         assert!(ensure_closing_approval_valid(&root, &record).is_ok());
         assert!(archive_change(&root, &record.id).is_ok());
+    }
+
+    #[test]
+    fn squash_merged_acceptance_reopens_after_a_current_canonical_successor() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "false"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        write_default_policy(root, Vec::new()).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["switch", "-c", "feature"]);
+
+        let mut original = completed_no_spec_record(root);
+        original = approve_definition(root, &original.id, Some("Reviewer".into()), None).unwrap();
+        original = start_implementation(root, &original.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement original"]);
+        verify_change(root, &original.id).unwrap();
+        original = accept_change(root, &original.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept original"]);
+        let original_verification = load_verification(root, &original).unwrap();
+
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "feature"]);
+        git(&["commit", "-m", "squash original"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        let mut successor = completed_no_spec_record(root);
+        successor = approve_definition(root, &successor.id, Some("Reviewer".into()), None).unwrap();
+        successor = start_implementation(root, &successor.id).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement successor"]);
+        verify_change(root, &successor.id).unwrap();
+        successor = accept_change(root, &successor.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept successor"]);
+
+        assert!(!verification_commit_is_accepted_current(
+            root,
+            &original_verification
+        ));
+        assert!(!accepted_workspace_is_integrated(root, &original));
+        assert!(accepted_change_is_recorded_in_current_history(
+            root, &original
+        ));
+        assert!(accepted_change_has_current_canonical_successors(
+            root, &original
+        ));
+
+        let reopened = reopen_change(
+            root,
+            &original.id,
+            "Release reviewer".into(),
+            "A later accepted change superseded the original governed source".into(),
+        )
+        .unwrap();
+        assert_eq!(reopened.change.state, ChangeState::Verifying);
+        assert_eq!(
+            reopened.audit.reason,
+            "A later accepted change superseded the original governed source"
+        );
+        assert_eq!(
+            reopened.audit.prior_verification.contract_digest,
+            original_verification.contract_digest
+        );
+        assert_eq!(
+            reopened.audit.prior_verification.acceptance_input_digest,
+            original_verification.acceptance_input_digest
+        );
+        assert_eq!(successor.state, ChangeState::Accepted);
     }
 
     #[test]

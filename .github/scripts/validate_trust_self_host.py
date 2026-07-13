@@ -8,9 +8,7 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
 TRUST_PATH = ROOT / ".trust.toml"
-SELF_HOST_PATH = ROOT / ".trust-self-host.toml"
 FLEDGE_PATH = ROOT / "fledge.toml"
-WORKFLOW_PATH = ROOT / ".github/workflows/trust.yml"
 EXPECTED_REASON = (
     "SpecSync self-hosts strict 100% contract validation with the source-built "
     "binary in the blocking lifecycle lane"
@@ -25,23 +23,14 @@ def fail(message: str) -> None:
 
 def main() -> None:
     trust = tomllib.loads(TRUST_PATH.read_text(encoding="utf-8"))
-    self_host = tomllib.loads(SELF_HOST_PATH.read_text(encoding="utf-8"))
     fledge = tomllib.loads(FLEDGE_PATH.read_text(encoding="utf-8"))
-    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     contract = trust.get("contract", {})
-    if contract.get("enabled") is not True:
-        fail("the default consumer-compatible contract component must remain enabled")
+    if contract.get("enabled") is not False:
+        fail("the duplicate released-binary contract component must be disabled")
     if contract.get("require_coverage") != 100:
         fail("the committed contract threshold must remain 100")
-    self_host_contract = self_host.get("contract", {})
-    if self_host_contract.get("enabled") is not False:
-        fail("the self-host policy must disable only the duplicate released-binary component")
-    if self_host_contract.get("require_coverage") != 100:
-        fail("the self-host policy must preserve the 100 percent threshold")
-    if self_host_contract.get("skip_reason") != EXPECTED_REASON:
+    if contract.get("skip_reason") != EXPECTED_REASON:
         fail("the repository-local exception reason changed")
-    if "config: .trust-self-host.toml" not in workflow:
-        fail("the SpecSync Trust workflow must select the explicit self-host policy")
 
     tasks = fledge.get("tasks", {})
     spec_check = tasks.get("spec-check", {})
@@ -54,9 +43,7 @@ def main() -> None:
     if verify_steps.index("trust-self-host-policy") > verify_steps.index("spec-check"):
         fail("the self-host policy must be validated before the contract check")
 
-    print(
-        "Trust self-host policy valid: default contract enabled and source-built strict contract blocking"
-    )
+    print("Trust self-host policy valid: source-built strict contract remains blocking")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,12 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783958686,
+      "digest": "374e9402a726ca52dc001822841305b116b68baadda647b5e1ca5a3adc83c749",
+      "note": "Approved after Rust 1.89 fmt, Clippy, full unit and integration suites, release build, RustSec audit, documentation tests/lint/build, and VS Code compile/package passed"
+    }
+  ],
+  "reopenings": []
+}

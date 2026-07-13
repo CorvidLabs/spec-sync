@@ -968,6 +968,18 @@ pub fn accept_change(
     validate_delta_files(root, &record)?;
     let records = list_changes_checked(root)?;
     validate_effective_contracts(root, &records).map_err(|errors| errors.join("; "))?;
+    if record.canonical_applied {
+        let ledger = load_approvals(root, &record)?;
+        let reopening = ledger.reopenings.last().ok_or_else(|| {
+            "cannot reaccept an already-applied change without audited reopen evidence".to_string()
+        })?;
+        if definition_digest(root, &record)? != reopening.prior_verification.contract_digest {
+            return Err(
+                "cannot accept a modified definition of an already-applied change; perform further spec changes in a new change workspace"
+                    .into(),
+            );
+        }
+    }
     let mut prepared = if record.canonical_applied {
         Vec::new()
     } else {
@@ -5058,6 +5070,49 @@ mod tests {
         assert_eq!(
             load_change(root, &record.id).unwrap().state,
             ChangeState::Accepted
+        );
+    }
+
+    #[test]
+    fn reaccept_rejects_definition_changes_after_canonical_application() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "Review fixes changed scoped delivery inputs".into(),
+        )
+        .unwrap()
+        .change;
+        fs::write(
+            change_dir(root, &record.id).join("testing.md"),
+            "# Testing\n\nThe modified definition must not be silently ignored.\n",
+        )
+        .unwrap();
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        verify_change(root, &record.id).unwrap();
+
+        let error = accept_change(root, &record.id, Some("Closer".into()), None).unwrap_err();
+        assert!(
+            error.contains("perform further spec changes in a new change workspace"),
+            "{error}"
+        );
+        assert_eq!(
+            load_change(root, &record.id).unwrap().state,
+            ChangeState::Verifying
         );
     }
 

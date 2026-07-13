@@ -470,6 +470,62 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
         .failure()
         .stderr(predicate::str::contains("verification evidence is stale"));
 
+    let docs_path = dir.join("docs.md");
+    let accepted_docs = fs::read_to_string(&docs_path).unwrap();
+    fs::write(
+        &docs_path,
+        "# Docs\n\nA modified definition cannot be silently ignored.\n",
+    )
+    .unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "Definition reviewer",
+        ])
+        .assert()
+        .success();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "verify", id])
+        .assert()
+        .success();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "accept",
+            id,
+            "--actor",
+            "Closing reviewer",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "perform further spec changes in a new change workspace",
+        ));
+    let rejected_ledger: Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("approvals.json")).unwrap()).unwrap();
+    assert_eq!(rejected_ledger["approvals"].as_array().unwrap().len(), 3);
+
+    fs::write(&docs_path, accepted_docs).unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "Definition reviewer",
+        ])
+        .assert()
+        .success();
+
     specsync()
         .args(["--root", root.to_str().unwrap(), "change", "verify", id])
         .assert()
@@ -492,6 +548,6 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
         .success();
     let ledger: Value =
         serde_json::from_str(&fs::read_to_string(dir.join("approvals.json")).unwrap()).unwrap();
-    assert_eq!(ledger["approvals"].as_array().unwrap().len(), 3);
+    assert_eq!(ledger["approvals"].as_array().unwrap().len(), 5);
     assert_eq!(ledger["reopenings"].as_array().unwrap().len(), 1);
 }

@@ -77,6 +77,8 @@ specsync change accept CHG-0001-add-passkeys --actor "Ada Reviewer"
 
 Reopen is allowed only when the accepted delivery-input digest is stale. It moves the change back to `verifying`, embeds the prior verification and superseded closing approval in append-only audit history, and leaves strict CI red until a fresh verification succeeds. Reacceptance records a new closing approval without applying the already-canonical semantic delta a second time. Use global `--json` to receive the deterministic change and versioned audit objects.
 
+The reopened definition must remain identical to the contract that originally applied the canonical delta. If review requires new or changed requirements, deltas, or other definition artifacts, create a new change workspace; reacceptance fails closed instead of silently ignoring those edits.
+
 The repository includes executable examples for a [complete lifecycle](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-lifecycle), [ordered concurrent changes](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-concurrent-changes), and a [five-epic product evolution](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-five-epics). Each creates a disposable Git project and runs the real CLI end to end.
 
 ---

@@ -17,3 +17,4 @@ Unit tests cover IDs, requirement grammar, semantic application, unsafe command 
 - `REQ-change-010`: root Action/manifest/lockfile and component-boundary tests.
 - `REQ-change-011`: `effective_contract_workspaces_are_unique` plus the existing effective-contract semantic tests.
 - `REQ-change-017`: unit and CLI integration coverage for accepted → stale failure → audited reopen → stale verifying failure → fresh verify → fresh accept, including preserved evidence, required audit fields, non-stale rejection, and deterministic JSON.
+- Legacy serialization coverage proves false `canonical_applied` values remain absent, omitted and transitional explicit-false definition evidence stays valid, and true values persist.

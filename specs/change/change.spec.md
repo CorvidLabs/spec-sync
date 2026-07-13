@@ -1,6 +1,6 @@
 ---
 module: change
-version: 13
+version: 14
 status: active
 files:
   - src/change.rs
@@ -108,6 +108,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 13. Persisted and hashed project paths use forward slashes on every operating system.
 14. Quiet reporting executes every configured command and preserves failures while suppressing only child stdout and stderr; normal checking and verification continue streaming diagnostics.
 15. Reopening current accepted evidence is rejected, and reopening stale evidence never reapplies an already canonical semantic delta.
+16. False default lifecycle fields remain absent from new persisted state, while definition validation recognizes both omitted and transitional explicit-false encodings so upgrades preserve existing approvals and verification.
 
 ## Behavioral Examples
 
@@ -180,3 +181,4 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | 2026-07-11 | CHG-0009-make-accepted-evidence-squash-safe-and-harden-the-5-0-release-path: Make accepted evidence squash-safe and harden the 5.0 release path |
 | 2026-07-13 | Add audited reopen and re-verification for stale accepted delivery evidence |
 | 2026-07-13 | CHG-0015-add-audited-stale-accepted-change-reopening: Add audited stale accepted change reopening |
+| 2026-07-13 | Preserve legacy and transitional definition evidence when canonical application state is false |

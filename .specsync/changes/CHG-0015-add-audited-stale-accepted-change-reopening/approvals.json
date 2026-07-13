@@ -20,7 +20,51 @@
       "timestamp": 1783953472,
       "digest": "aedbe3afda775c85b339569082dcd768c84e6c20b87b67c9fbd60147a50205da",
       "note": "Accepted in Codex thread for issue #351 after successful verification and release dry run"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783957663,
+      "digest": "8dddefe920c629d6ddf1e67256491f1f11a172acb943a19e2a1f89a61dbf65b4",
+      "note": "Reaccepted after CI compatibility verification for legacy and transitional definition evidence"
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0015-add-audited-stale-accepted-change-reopening",
+      "actor": "0xLeif",
+      "reason": "CI review fix preserves legacy and transitional definition evidence across the canonical-applied schema extension",
+      "timestamp": 1783955301,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1783953472,
+        "digest": "aedbe3afda775c85b339569082dcd768c84e6c20b87b67c9fbd60147a50205da",
+        "note": "Accepted in Codex thread for issue #351 after successful verification and release dry run"
+      },
+      "prior_verification": {
+        "timestamp": 1783953201,
+        "commit": "59bbfa766c6cce01ab815ab47db195b0629cc014",
+        "contract_digest": "4d25e43961af4b7c10ba8e5c254346f835c5dc12184805099d5b95a22fce5e4d",
+        "workspace_digest": "853e3cc6c5e84e9a0f7cb5c1ce7b4ca571bc5a52f464b36b5a92eb856e91e823",
+        "acceptance_input_digest": "eff07f7bee3379f615794348f88906fab20a9e109b62d0109a5ac157282394c7",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-017"
+        ]
+      },
+      "stale_acceptance_input_digest": "eff07f7bee3379f615794348f88906fab20a9e109b62d0109a5ac157282394c7",
+      "current_acceptance_input_digest": "a334a0bec553b2a9dd67950e15da37ba1c0ceaa55d30274a6a4303bb94d6b26b"
+    }
+  ]
 }

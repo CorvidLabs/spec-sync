@@ -11,3 +11,5 @@ The public lifecycle remains one module for 5.0 to avoid a late high-risk refact
 `check_project_quiet` shares all fail-closed validation with `check_project` but discards configured child-command output so `specsync comment` can emit a single bounded markdown protocol. Explicit verification and ordinary checks retain streamed diagnostics.
 
 Accepted review fixes use `change reopen`, which transitions only stale governed delivery evidence to `verifying`. The approval ledger appends a versioned reopen event containing the untouched prior verification and superseded closing approval. `canonical_applied` distinguishes re-verification from initial delivery so fresh acceptance cannot apply the semantic delta twice; it is lifecycle-only state and is excluded from definition approval digests.
+
+For schema-v1 compatibility, false `canonical_applied` values are omitted from new persisted JSON. Definition-evidence validation recognizes both the original omitted encoding and the transitional explicit-false encoding, preserving approvals and verification created on either side of the field's introduction; true values remain durable for reopened and accepted workspaces.

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Audited recovery for stale accepted changes** — `specsync change reopen <id> --actor <human> --reason <text>` now moves only stale accepted delivery evidence back to `verifying`, preserves the prior verification and superseded closing approval in versioned append-only audit metadata, keeps strict checking red until fresh verification, and requires a new closing approval before returning to `accepted`. Reacceptance does not reapply or version-bump semantic deltas that are already canonical, current evidence cannot be reopened, and global `--json` returns the deterministic change and audit objects.
 
+### Fixed
+
+- **Legacy definition approvals survive the lifecycle schema extension** — false `canonical_applied` values remain absent from new persisted state and deterministic definition serialization, while validation recognizes both the original omitted form and the transitional explicit-false form. Upgrading either active schema-v1 encoding no longer invalidates its existing human approval or verification; reopened and accepted changes still persist true values.
+
 ## [5.0.1] - 2026-07-11
 
 ### Fixed

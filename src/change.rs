@@ -285,7 +285,7 @@ pub struct ChangeRecord {
     pub description: String,
     pub kind: ChangeKind,
     pub state: ChangeState,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_false")]
     pub canonical_applied: bool,
     pub base_commit: Option<String>,
     pub created_at: u64,
@@ -863,7 +863,7 @@ pub fn reopen_change(
     if !prior_verification.passed {
         return Err("accepted change has failed verification evidence".into());
     }
-    if prior_verification.contract_digest != definition_digest(root, &record)? {
+    if !definition_digest_matches(root, &record, &prior_verification.contract_digest)? {
         return Err("accepted change verification contract is stale; restore the accepted definition before reopening delivery evidence".into());
     }
     let stale_acceptance_input_digest = prior_verification
@@ -954,7 +954,7 @@ pub fn accept_change(
             "verification is stale because HEAD changed; run `specsync change verify` again".into(),
         );
     }
-    if verification.contract_digest != definition_digest(root, &record)? {
+    if !definition_digest_matches(root, &record, &verification.contract_digest)? {
         return Err("verification is stale because the approved contract changed".into());
     }
     if verification.workspace_digest != project_input_digest(root)? {
@@ -1294,8 +1294,8 @@ fn check_project_with_command_output(
                             record.id
                         ));
                     } else if !verification_commit_is_current(root, &evidence, is_ci_project(root))
-                        || definition_digest(root, record)
-                            .map(|digest| digest != evidence.contract_digest)
+                        || definition_digest_matches(root, record, &evidence.contract_digest)
+                            .map(|matches| !matches)
                             .unwrap_or(true)
                         || project_input_digest(root)
                             .map(|digest| digest != evidence.workspace_digest)
@@ -2496,17 +2496,57 @@ fn delta_keys(root: &Path, record: &ChangeRecord) -> Result<BTreeSet<String>, St
 }
 
 fn definition_digest(root: &Path, record: &ChangeRecord) -> Result<String, String> {
-    let dir = change_dir(root, &record.id);
     let mut canonical_record = record.clone();
     canonical_record.state = ChangeState::Draft;
     canonical_record.canonical_applied = false;
     canonical_record.updated_at = 0;
-    let mut digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
-    digest.frame(
-        b"record",
-        &serde_json::to_vec(&canonical_record)
-            .map_err(|error| format!("failed to hash change state: {error}"))?,
+    let record_bytes = serde_json::to_vec(&canonical_record)
+        .map_err(|error| format!("failed to hash change state: {error}"))?;
+    definition_digest_from_record_bytes(root, record, &record_bytes)
+}
+
+fn definition_digest_with_explicit_false(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<String, String> {
+    let mut canonical_record = record.clone();
+    canonical_record.state = ChangeState::Draft;
+    canonical_record.canonical_applied = false;
+    canonical_record.updated_at = 0;
+    let mut record_bytes = serde_json::to_vec(&canonical_record)
+        .map_err(|error| format!("failed to hash change state: {error}"))?;
+    let state = b"\"state\":\"draft\"";
+    let state_start = record_bytes
+        .windows(state.len())
+        .position(|window| window == state)
+        .ok_or_else(|| "failed to locate canonical change state while hashing".to_string())?;
+    let insert_at = state_start + state.len();
+    record_bytes.splice(
+        insert_at..insert_at,
+        b",\"canonical_applied\":false".iter().copied(),
     );
+    definition_digest_from_record_bytes(root, record, &record_bytes)
+}
+
+fn definition_digest_matches(
+    root: &Path,
+    record: &ChangeRecord,
+    expected: &str,
+) -> Result<bool, String> {
+    if definition_digest(root, record)? == expected {
+        return Ok(true);
+    }
+    Ok(definition_digest_with_explicit_false(root, record)? == expected)
+}
+
+fn definition_digest_from_record_bytes(
+    root: &Path,
+    record: &ChangeRecord,
+    record_bytes: &[u8],
+) -> Result<String, String> {
+    let dir = change_dir(root, &record.id);
+    let mut digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
+    digest.frame(b"record", record_bytes);
     let mut files = Vec::new();
     for artifact in &record.selected_artifacts {
         files.push(dir.join(artifact.file_name()));
@@ -2888,7 +2928,7 @@ fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Resul
         .rev()
         .find(|approval| approval.gate == "definition")
         .ok_or_else(|| "definition approval is missing".to_string())?;
-    if approval.digest != definition_digest(root, record)? {
+    if !definition_digest_matches(root, record, &approval.digest)? {
         return Err(
             "definition approval is stale; approve the current artifact digest again".into(),
         );
@@ -2910,7 +2950,7 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
     if !verification.passed {
         return Err("accepted change has failed verification evidence".into());
     }
-    if verification.contract_digest != definition_digest(root, record)? {
+    if !definition_digest_matches(root, record, &verification.contract_digest)? {
         return Err("accepted change verification contract is stale".into());
     }
     let expected_inputs = verification
@@ -3939,6 +3979,10 @@ fn json_content<Value: Serialize>(value: &Value) -> Result<String, String> {
     Ok(format!("{content}\n"))
 }
 
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 fn now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -4480,6 +4524,42 @@ mod tests {
         .unwrap();
         assert_eq!(record.state, ChangeState::Approved);
         assert!(ensure_definition_approval_valid(temp.path(), &record).is_ok());
+    }
+
+    #[test]
+    fn false_canonical_application_preserves_legacy_definition_approvals() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        let state_path = change_dir(root, &record.id).join("state.json");
+
+        let draft_json = fs::read_to_string(&state_path).unwrap();
+        assert!(!draft_json.contains("canonical_applied"));
+        let stable_digest = definition_digest(root, &record).unwrap();
+        let explicit_false_digest = definition_digest_with_explicit_false(root, &record).unwrap();
+        assert_ne!(stable_digest, explicit_false_digest);
+        append_approval(
+            root,
+            &record,
+            "definition",
+            Some("Reviewer".into()),
+            explicit_false_digest,
+            Some("Approved with the transitional explicit-false encoding".into()),
+        )
+        .unwrap();
+        record.state = ChangeState::Approved;
+        save_change(root, &record).unwrap();
+
+        let approved_json = fs::read_to_string(&state_path).unwrap();
+        assert!(!approved_json.contains("canonical_applied"));
+        let loaded = load_change(root, &record.id).unwrap();
+        assert!(!loaded.canonical_applied);
+        assert!(ensure_definition_approval_valid(root, &loaded).is_ok());
+
+        record.canonical_applied = true;
+        save_change(root, &record).unwrap();
+        let accepted_json = fs::read_to_string(state_path).unwrap();
+        assert!(accepted_json.contains("\"canonical_applied\": true"));
     }
 
     #[test]

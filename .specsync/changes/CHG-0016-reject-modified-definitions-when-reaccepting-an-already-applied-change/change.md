@@ -1,6 +1,6 @@
 ---
 id: CHG-0016-reject-modified-definitions-when-reaccepting-an-already-applied-change
-state: verifying
+state: accepted
 type: bug_fix
 base_commit: b714411df7a19e19918a0ea932182243eddf83fd
 ---

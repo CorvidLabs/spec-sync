@@ -1,9 +1,10 @@
 {
-  "timestamp": 1783963522,
-  "commit": "4390f566b1497a01152497362d7f625af320938e",
-  "contract_digest": "956d97aa4a12e3edb8c1444a79572ce26cd42231d5b047d0021e4ec46b30e5d3",
+  "timestamp": 1783963582,
+  "commit": "183dcbfbb2b8df21bd79174f158c24b632435510",
+  "contract_digest": "e99fc041606c07fc7f86cd4e61c0b5da7c3a6ae667568823b5eae014f2de95dc",
   "workspace_digest": "2c70ec3463e22dabfed4ca2c9587881b77e8e6328b7f6e71e7127cf00c0256de",
-  "passed": false,
+  "acceptance_input_digest": "ffa5b4babb973ac5b7f395ce0e4ce9d70be32b0ec0c6a834cc59d511256acadf",
+  "passed": true,
   "commands": [
     {
       "command": "cargo test",

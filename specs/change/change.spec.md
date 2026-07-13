@@ -110,6 +110,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 15. Reopening current accepted evidence is rejected, and reopening stale evidence never reapplies an already canonical semantic delta.
 16. Reacceptance of an already-applied change requires the definition digest captured by the latest audited reopen event; further definition changes require a new change workspace.
 17. False default lifecycle fields remain absent from new persisted state, while definition validation recognizes both omitted and transitional explicit-false encodings so upgrades preserve existing approvals and verification; explicit acceptance appends stable definition evidence when the latest compatible approval uses the transitional encoding.
+18. Audited reopen accepts unreachable verification commits only when canonical acceptance is recorded in current history or later recorded canonical changes govern every affected contract surface.
 
 ## Behavioral Examples
 
@@ -185,3 +186,4 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | 2026-07-13 | Preserve legacy and transitional definition evidence when canonical application state is false |
 | 2026-07-13 | CHG-0016-reject-modified-definitions-when-reaccepting-an-already-applied-change: Reject modified definitions when reaccepting an already-applied change |
 | 2026-07-13 | Normalize compatible transitional definition evidence during explicit acceptance for older contract checkers |
+| 2026-07-13 | CHG-0017-allow-audited-reopen-after-squash-and-canonical-successors: Allow audited reopen after squash and canonical successors |

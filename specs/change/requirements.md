@@ -176,3 +176,13 @@ Acceptance Criteria
 - Reacceptance rejects a definition digest that differs from the latest pre-reopen verification contract and directs further spec work to a new change workspace.
 - A verifying already-applied change without audited reopen history fails closed.
 
+### REQ-change-018
+
+Audited reopening SHALL recognize canonical acceptance recorded in current Git history after squash integration or complete later canonical governance.
+
+Acceptance Criteria
+
+- Definition digest, passed evidence, closing approval, stale delivery inputs, actor, and reason remain mandatory.
+- An unreachable verification commit is allowed only when current history records acceptance or later recorded canonical changes govern every affected spec and path.
+- Arbitrary off-history evidence remains rejected.
+

@@ -29,5 +29,42 @@
       "note": null
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0017-allow-audited-reopen-after-squash-and-canonical-successors",
+      "actor": "user:0xLeif",
+      "reason": "Apply repository formatting required by the Trust gate before final evidence",
+      "timestamp": 1783963715,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783963593,
+        "digest": "3a56385fc38dd4878d6b0a45b6d3edb3882971a7a3bee17ef9d15edb985f0c48",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1783963582,
+        "commit": "183dcbfbb2b8df21bd79174f158c24b632435510",
+        "contract_digest": "e99fc041606c07fc7f86cd4e61c0b5da7c3a6ae667568823b5eae014f2de95dc",
+        "workspace_digest": "2c70ec3463e22dabfed4ca2c9587881b77e8e6328b7f6e71e7127cf00c0256de",
+        "acceptance_input_digest": "ffa5b4babb973ac5b7f395ce0e4ce9d70be32b0ec0c6a834cc59d511256acadf",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-018"
+        ]
+      },
+      "stale_acceptance_input_digest": "ffa5b4babb973ac5b7f395ce0e4ce9d70be32b0ec0c6a834cc59d511256acadf",
+      "current_acceptance_input_digest": "2dc244e9902cbeb4db83bbf09ea4883a830bce33bab2b5886555af6b3dc14916"
+    }
+  ]
 }

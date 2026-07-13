@@ -4467,11 +4467,7 @@ mod tests {
         let mut successor = completed_no_spec_record(root);
         successor = approve_definition(root, &successor.id, Some("Reviewer".into()), None).unwrap();
         successor = start_implementation(root, &successor.id).unwrap();
-        fs::write(
-            root.join("src/lib.rs"),
-            "pub fn ready() -> bool { true }\n",
-        )
-        .unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
         git(&["add", "."]);
         git(&["commit", "-m", "implement successor"]);
         verify_change(root, &successor.id).unwrap();

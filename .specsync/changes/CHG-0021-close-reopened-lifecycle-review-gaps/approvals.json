@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783976750,
+      "digest": "68d20d252bb4b4cb8c48a547b2c9654bef140d4c72ee64283098de7c77589549",
+      "note": "Definition approved for four thread-derived lifecycle consistency corrections and focused regressions."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783976869,
+      "digest": "6376b7998aa2e29b99e3c9e7c7452f236b5af8414a8164870f5f213cd3254846",
+      "note": "Accepted after four focused review regressions and all 1,729 Rust tests passed through the supported lifecycle."
+    }
+  ],
+  "reopenings": []
+}

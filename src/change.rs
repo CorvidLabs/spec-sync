@@ -746,6 +746,7 @@ pub fn approve_definition(
     append_approval(root, &record, "definition", actor, digest, note)?;
     record.state = match prior_state {
         ChangeState::Draft | ChangeState::Approved => ChangeState::Approved,
+        ChangeState::Verifying if record.canonical_applied => ChangeState::Verifying,
         ChangeState::Implementing | ChangeState::Verifying => ChangeState::Implementing,
         ChangeState::Accepted | ChangeState::Archived => prior_state,
     };
@@ -894,11 +895,9 @@ pub fn reopen_change(
         return Err("accepted change verification commit is not in current history, its canonical acceptance is not recorded in current history, and no current canonical successor governs its affected contract".into());
     }
     let current_acceptance_input_digest = acceptance_input_digest(root, &record, &[])?;
-    if current_acceptance_input_digest == stale_acceptance_input_digest
-        && ensure_closing_approval_valid(root, &record).is_ok()
-    {
+    if current_acceptance_input_digest == stale_acceptance_input_digest {
         return Err(
-            "accepted change verification is current; reopen is allowed only when accepted evidence is invalid"
+            "accepted change delivery inputs are current; reopen is allowed only when delivery evidence is stale"
                 .into(),
         );
     }
@@ -942,6 +941,23 @@ pub fn reopen_change(
     })
 }
 
+fn ensure_reopened_definition_unchanged(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    if !record.canonical_applied {
+        return Ok(());
+    }
+    let ledger = load_approvals(root, record)?;
+    let reopening = ledger.reopenings.last().ok_or_else(|| {
+        "cannot reaccept an already-applied change without audited reopen evidence".to_string()
+    })?;
+    if definition_digest_matches(root, record, &reopening.prior_verification.contract_digest)? {
+        return Ok(());
+    }
+    Err(
+        "cannot accept a modified definition of an already-applied change; perform further spec changes in a new change workspace"
+            .into(),
+    )
+}
+
 pub fn accept_change(
     root: &Path,
     id: &str,
@@ -976,19 +992,7 @@ pub fn accept_change(
     validate_delta_files(root, &record)?;
     let records = list_changes_checked(root)?;
     validate_effective_contracts(root, &records).map_err(|errors| errors.join("; "))?;
-    if record.canonical_applied {
-        let ledger = load_approvals(root, &record)?;
-        let reopening = ledger.reopenings.last().ok_or_else(|| {
-            "cannot reaccept an already-applied change without audited reopen evidence".to_string()
-        })?;
-        if !definition_digest_matches(root, &record, &reopening.prior_verification.contract_digest)?
-        {
-            return Err(
-                "cannot accept a modified definition of an already-applied change; perform further spec changes in a new change workspace"
-                    .into(),
-            );
-        }
-    }
+    ensure_reopened_definition_unchanged(root, &record)?;
     let mut prepared = if record.canonical_applied {
         Vec::new()
     } else {
@@ -1289,6 +1293,15 @@ fn check_project_with_command_output(
         }
         if record.state == ChangeState::Accepted
             && let Err(error) = ensure_closing_approval_valid(root, record)
+        {
+            report.errors.push(format!("{}: {error}", record.id));
+        }
+        if record.canonical_applied
+            && matches!(
+                record.state,
+                ChangeState::Implementing | ChangeState::Verifying
+            )
+            && let Err(error) = ensure_reopened_definition_unchanged(root, record)
         {
             report.errors.push(format!("{}: {error}", record.id));
         }
@@ -3897,8 +3910,9 @@ fn accepted_change_is_recorded_in_current_history(root: &Path, record: &ChangeRe
     let Ok(repo_state) = git_repo_relative_path(root, &state) else {
         return false;
     };
+    let top_state = format!(":(top){repo_state}");
     let history = Command::new("git")
-        .args(["log", "--format=%H", "--", repo_state.as_str()])
+        .args(["log", "--format=%H", "--", top_state.as_str()])
         .current_dir(root)
         .output();
     let Ok(history) = history else {
@@ -4470,7 +4484,19 @@ mod tests {
             &verification
         ));
         assert!(ensure_closing_approval_valid(&root, &record).is_ok());
-        assert!(archive_change(&root, &record.id).is_ok());
+        assert!(accepted_change_is_recorded_in_current_history(
+            &root, &record
+        ));
+        git(&["update-ref", "-d", "refs/remotes/origin/main"]);
+        assert!(ensure_closing_approval_valid(&root, &record).is_err());
+        let error = reopen_change(
+            &root,
+            &record.id,
+            "Reviewer".into(),
+            "The verification commit is off history".into(),
+        )
+        .unwrap_err();
+        assert!(error.contains("delivery inputs are current"), "{error}");
     }
 
     #[test]
@@ -5420,10 +5446,7 @@ mod tests {
 
         let error =
             reopen_change(root, &record.id, "Reviewer".into(), "Not stale".into()).unwrap_err();
-        assert!(
-            error.contains("only when accepted evidence is invalid"),
-            "{error}"
-        );
+        assert!(error.contains("delivery inputs are current"), "{error}");
         fs::write(
             root.join("src/lib.rs"),
             "pub fn ready() -> bool { false }\n",
@@ -5469,6 +5492,13 @@ mod tests {
         )
         .unwrap();
         record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        assert_eq!(record.state, ChangeState::Verifying);
+        let report = check_project(root);
+        assert!(
+            report.errors.iter().any(|error| {
+                error.contains("modified definition of an already-applied change")
+            })
+        );
         verify_change(root, &record.id).unwrap();
 
         let error = accept_change(root, &record.id, Some("Closer".into()), None).unwrap_err();

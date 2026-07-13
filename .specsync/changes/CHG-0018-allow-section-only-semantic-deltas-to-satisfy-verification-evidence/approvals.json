@@ -20,6 +20,13 @@
       "timestamp": 1783968727,
       "digest": "09a16195bfebe6150b3836146cbaff72f73af472c5840ea4248b247614143cce",
       "note": "Fresh closing approval after finalized CHG20 corrections passed 1,540 unit and 189 integration tests; canonical delta remained already applied."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783976923,
+      "digest": "61e0ff9d11c4ccff807ac0d712317bed31dc09c696986f547d00d1625abe9a33",
+      "note": "Fresh closing approval after the final CHG21 canonical contract settled and all 1,729 Rust tests passed."
     }
   ],
   "reopenings": [
@@ -58,6 +65,42 @@
       },
       "stale_acceptance_input_digest": "f761da3a28ea5da4bbfe50cb6a23d5a09f052d6c9e331db2e5d38a0cca0481b2",
       "current_acceptance_input_digest": "4ed52cbc51f611072eea8a42b9fe6e146fe2dc81f5a9723b7cd358752f37e563"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0018-allow-section-only-semantic-deltas-to-satisfy-verification-evidence",
+      "actor": "user:0xLeif",
+      "reason": "Four actionable review corrections changed the governed lifecycle implementation and require fresh native verification.",
+      "timestamp": 1783976766,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783968727,
+        "digest": "09a16195bfebe6150b3836146cbaff72f73af472c5840ea4248b247614143cce",
+        "note": "Fresh closing approval after finalized CHG20 corrections passed 1,540 unit and 189 integration tests; canonical delta remained already applied."
+      },
+      "prior_verification": {
+        "timestamp": 1783968702,
+        "commit": "eca4a64cf91d5f263caa542077e6639976f13cd6",
+        "contract_digest": "13ed614e312e71c21a7ea0632e9a0872dbda267fe9c8bdc4d4581235550a25f9",
+        "workspace_digest": "c293c74c26c40932f332fdbfbc45738c1db7f064bf473c59d6a5e7ecd8b41299",
+        "acceptance_input_digest": "4ed52cbc51f611072eea8a42b9fe6e146fe2dc81f5a9723b7cd358752f37e563",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-019"
+        ]
+      },
+      "stale_acceptance_input_digest": "4ed52cbc51f611072eea8a42b9fe6e146fe2dc81f5a9723b7cd358752f37e563",
+      "current_acceptance_input_digest": "6bff50850e6f8027811e5aec591b5acf9959904250de5c173e97e59eecedf075"
     }
   ]
 }

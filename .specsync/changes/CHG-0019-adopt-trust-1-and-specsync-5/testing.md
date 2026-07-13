@@ -1,5 +1,5 @@
 ---
-change: CHG-0015-adopt-trust-1-and-specsync-5
+change: CHG-0019-adopt-trust-1-and-specsync-5
 artifact: testing
 ---
 

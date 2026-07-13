@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783830619,
+      "digest": "b114454a8ab29aad31f1740ccf037acf9696961ef7ec40e4675e4069fdf8ac0f",
+      "note": "Authorized by the approved organization-wide SpecSync 5 / Trust 1 migration plan."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783966924,
+      "digest": "2b7de52a34d6edba9a51a7c696b85fa4165bbd5dd52c1f13a9e5afbe831e1e83",
+      "note": "Reapproved after reconciling the duplicate active change ID and completing hosted CI and protected-branch Trust configuration."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783967012,
+      "digest": "c42c0dc215b3c1f5493c85b30a6990fa28541e70661cb290e8beeda2e41036b5",
+      "note": "Accepted after the native verify lane passed, strict SpecSync coverage remained 100%, hosted CI was green, and the protected branch required Trust."
+    }
+  ],
+  "reopenings": []
+}

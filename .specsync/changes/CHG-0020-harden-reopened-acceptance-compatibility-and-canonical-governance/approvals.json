@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783967168,
+      "digest": "d832c71ff3f08498132ff486956ece8a9b04852da7285e11dfb0ce8530bf459b",
+      "note": "Approved the portable definition for the three validated review defects and their focused regressions."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783967682,
+      "digest": "527c29b2ac83ab6c75ffb903887f4d4b35c7c72bee55d06bce3a9226c9336668",
+      "note": "Reapproved the frozen portable definition after focused regressions and repo-pinned native test, release, and audit stages passed."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783967722,
+      "digest": "5dcfba312ecb963b462e7750983026df1ef6e80cbdc31bfd1f4906a9f5672e1b",
+      "note": "Accepted after 1,540 unit tests, 189 integration tests, focused regressions, release build, and RustSec audit passed; aggregate strict SpecSync and Trust remain pending the authorized stale-evidence refresh."
+    }
+  ],
+  "reopenings": []
+}

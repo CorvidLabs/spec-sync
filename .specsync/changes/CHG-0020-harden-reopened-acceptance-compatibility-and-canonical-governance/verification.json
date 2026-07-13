@@ -1,0 +1,18 @@
+{
+  "timestamp": 1783967703,
+  "commit": "eca4a64cf91d5f263caa542077e6639976f13cd6",
+  "contract_digest": "527c29b2ac83ab6c75ffb903887f4d4b35c7c72bee55d06bce3a9226c9336668",
+  "workspace_digest": "8e3325fda951e9caa29b2e6f51e1e78b307d8dfe71daaeeb280173d47349ca94",
+  "acceptance_input_digest": "f9bc187908d54cf23f40cd80a60d1d9b0c9ce2dd5c29aefba4d3d03f4237d4af",
+  "passed": true,
+  "commands": [
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-change-020"
+  ]
+}

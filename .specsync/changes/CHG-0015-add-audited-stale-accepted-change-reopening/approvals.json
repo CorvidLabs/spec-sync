@@ -55,6 +55,13 @@
       "timestamp": 1783964538,
       "digest": "e921c273833dc8cd98c0823c0779493816dba436b577482871208bcfc1f2ac42",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783968586,
+      "digest": "ef0577ac23c501001c6ea3c49d83832c4b71b38ae159c54110ddff3cc6824a30",
+      "note": "Fresh closing approval after finalized CHG20 corrections passed 1,540 unit and 189 integration tests; canonical delta remained already applied."
     }
   ],
   "reopenings": [
@@ -201,6 +208,42 @@
       },
       "stale_acceptance_input_digest": "7e6d605f0a19424d95b52535cadc3733d69b5727982423b3e93c1837fec5938b",
       "current_acceptance_input_digest": "4564fbf3dab8011a442ff8f3dbfcb16441d73540e71d0f281e0b664c4880e2b8"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0015-add-audited-stale-accepted-change-reopening",
+      "actor": "user:0xLeif",
+      "reason": "Finalized CHG20 review corrections changed governed code and canonical evidence; refresh delivery verification without replaying the applied delta.",
+      "timestamp": 1783968533,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783964538,
+        "digest": "e921c273833dc8cd98c0823c0779493816dba436b577482871208bcfc1f2ac42",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1783964515,
+        "commit": "5bdb81c41923ab69ce6504e7aa4eacf3c6bda79d",
+        "contract_digest": "876a9f888f2c295135cbc197d6759a82f7d44712e1b2be8c56eff95077a8059a",
+        "workspace_digest": "be7e52529787be21afe9fd25096ecffffa618108afb2ef06e8597f97817f1638",
+        "acceptance_input_digest": "4564fbf3dab8011a442ff8f3dbfcb16441d73540e71d0f281e0b664c4880e2b8",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-017"
+        ]
+      },
+      "stale_acceptance_input_digest": "4564fbf3dab8011a442ff8f3dbfcb16441d73540e71d0f281e0b664c4880e2b8",
+      "current_acceptance_input_digest": "232df93bcd48331dbeaeb92ffef7cb9f961f6d5198b944a1c94e711eced58345"
     }
   ]
 }

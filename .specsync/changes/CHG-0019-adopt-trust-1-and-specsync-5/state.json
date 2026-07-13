@@ -1,14 +1,15 @@
 {
   "schema_version": 1,
-  "id": "CHG-0015-adopt-trust-1-and-specsync-5",
+  "id": "CHG-0019-adopt-trust-1-and-specsync-5",
   "slug": "adopt-trust-1-and-specsync-5",
   "title": "Adopt Trust 1 and SpecSync 5",
   "description": "Adopt Trust 1 and SpecSync 5",
   "kind": "migration",
-  "state": "implementing",
+  "state": "accepted",
+  "canonical_applied": true,
   "base_commit": "59bbfa766c6cce01ab815ab47db195b0629cc014",
   "created_at": 1783830619,
-  "updated_at": 1783830619,
+  "updated_at": 1783967012,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/",

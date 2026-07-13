@@ -1,6 +1,6 @@
 ---
 module: change
-version: 17
+version: 18
 status: active
 files:
   - src/change.rs
@@ -188,3 +188,4 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | 2026-07-13 | Normalize compatible transitional definition evidence during explicit acceptance for older contract checkers |
 | 2026-07-13 | CHG-0017-allow-audited-reopen-after-squash-and-canonical-successors: Allow audited reopen after squash and canonical successors |
 | 2026-07-13 | CHG-0018-allow-section-only-semantic-deltas-to-satisfy-verification-evidence: Allow section-only semantic deltas to satisfy verification evidence |
+| 2026-07-13 | CHG-0020-harden-reopened-acceptance-compatibility-and-canonical-governance: Harden reopened acceptance compatibility and canonical governance |

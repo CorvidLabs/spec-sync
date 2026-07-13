@@ -13,7 +13,51 @@
       "timestamp": 1783964380,
       "digest": "46c549e3058bb8722bb3ce3631e2bfa19b193598be693122b2109a53623a2958",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783968727,
+      "digest": "09a16195bfebe6150b3836146cbaff72f73af472c5840ea4248b247614143cce",
+      "note": "Fresh closing approval after finalized CHG20 corrections passed 1,540 unit and 189 integration tests; canonical delta remained already applied."
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0018-allow-section-only-semantic-deltas-to-satisfy-verification-evidence",
+      "actor": "user:0xLeif",
+      "reason": "Finalized CHG20 review corrections changed governed code and canonical evidence; refresh delivery verification without replaying the applied delta.",
+      "timestamp": 1783968537,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783964380,
+        "digest": "46c549e3058bb8722bb3ce3631e2bfa19b193598be693122b2109a53623a2958",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1783964365,
+        "commit": "a3a4a269d3b34da403cbaef1f6588d46fcd4df08",
+        "contract_digest": "13ed614e312e71c21a7ea0632e9a0872dbda267fe9c8bdc4d4581235550a25f9",
+        "workspace_digest": "ca3c60b360ecf6f3a6cf3b72dca2d513a68f8d6780bf03a43f809ab300ca00bb",
+        "acceptance_input_digest": "f761da3a28ea5da4bbfe50cb6a23d5a09f052d6c9e331db2e5d38a0cca0481b2",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-019"
+        ]
+      },
+      "stale_acceptance_input_digest": "f761da3a28ea5da4bbfe50cb6a23d5a09f052d6c9e331db2e5d38a0cca0481b2",
+      "current_acceptance_input_digest": "4ed52cbc51f611072eea8a42b9fe6e146fe2dc81f5a9723b7cd358752f37e563"
+    }
+  ]
 }

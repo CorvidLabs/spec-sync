@@ -27,6 +27,13 @@
       "timestamp": 1783962770,
       "digest": "85663cd3fe999cdad51aa35ec9a3c6e9c2240c0b5ab3930c72a20d8ea9a0bccd",
       "note": "Accepted after integrated Trust v5.0.1 compatibility verification"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783964491,
+      "digest": "4b190957e0d65c26e85c8dbf178bca10b411814e33bb47412628aa9c6e012cf9",
+      "note": null
     }
   ],
   "reopenings": [

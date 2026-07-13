@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0017-allow-audited-reopen-after-squash-and-canonical-successors",
+  "slug": "allow-audited-reopen-after-squash-and-canonical-successors",
+  "title": "Allow audited reopen after squash and canonical successors",
+  "description": "Allow audited reopen after squash and canonical successors",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "ca766a0beca901b96978520afb07449dd1bd89e7",
+  "created_at": 1783963022,
+  "updated_at": 1783976913,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "tests/integration/change.rs",
+    "site/src/content/docs/workflow.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Reopen accepts passed accepted evidence with unchanged definition and valid closing approval when canonical acceptance is recorded in current history or every governed contract surface has a later recorded canonical successor; stale inputs and an explicit audit reason remain required; arbitrary off-history evidence remains rejected; squash and successor regressions pass"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

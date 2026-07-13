@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0020-harden-reopened-acceptance-compatibility-and-canonical-governance",
+  "slug": "harden-reopened-acceptance-compatibility-and-canonical-governance",
+  "title": "Harden reopened acceptance compatibility and canonical governance",
+  "description": "Harden reopened acceptance compatibility and canonical governance",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "eca4a64cf91d5f263caa542077e6639976f13cd6",
+  "created_at": 1783967018,
+  "updated_at": 1783976934,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "specs/change/requirements.md",
+    "specs/change/testing.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Reopened reacceptance accepts compatible omitted or transitional explicit-false lifecycle definition encodings",
+    "No-spec accepted changes never satisfy canonical successor governance",
+    "Reopened canonical-applied verifying changes validate current canonical modules without reapplying their deltas",
+    "Focused regressions and the repo-pinned native test, release, and audit stages pass; aggregate strict SpecSync and Trust remain configured for the final stale-evidence refresh"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

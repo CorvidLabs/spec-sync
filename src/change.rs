@@ -285,6 +285,8 @@ pub struct ChangeRecord {
     pub description: String,
     pub kind: ChangeKind,
     pub state: ChangeState,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub canonical_applied: bool,
     pub base_commit: Option<String>,
     pub created_at: u64,
     pub updated_at: u64,
@@ -318,9 +320,32 @@ pub struct ApprovalRecord {
     pub note: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReopenRecord {
+    pub schema_version: u32,
+    pub change_id: String,
+    pub actor: String,
+    pub reason: String,
+    pub timestamp: u64,
+    pub from_state: ChangeState,
+    pub to_state: ChangeState,
+    pub superseded_approval: ApprovalRecord,
+    pub prior_verification: VerificationRecord,
+    pub stale_acceptance_input_digest: String,
+    pub current_acceptance_input_digest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReopenResult {
+    pub change: ChangeRecord,
+    pub audit: ReopenRecord,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ApprovalLedger {
     pub approvals: Vec<ApprovalRecord>,
+    #[serde(default)]
+    pub reopenings: Vec<ReopenRecord>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -479,6 +504,7 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         description: description.trim().to_string(),
         kind,
         state: ChangeState::Draft,
+        canonical_applied: false,
         base_commit: git_output(root, &["rev-parse", "HEAD"]),
         created_at: now,
         updated_at: now,
@@ -720,6 +746,7 @@ pub fn approve_definition(
     append_approval(root, &record, "definition", actor, digest, note)?;
     record.state = match prior_state {
         ChangeState::Draft | ChangeState::Approved => ChangeState::Approved,
+        ChangeState::Verifying if record.canonical_applied => ChangeState::Verifying,
         ChangeState::Implementing | ChangeState::Verifying => ChangeState::Implementing,
         ChangeState::Accepted | ChangeState::Archived => prior_state,
     };
@@ -773,10 +800,12 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
         }
     }
     let requirement_ids = collect_requirement_ids(root, &record)?;
+    let has_semantic_acceptance_item = semantic_acceptance_item_exists(root, &record)?;
     let missing_evidence = requirement_evidence_missing(root, &record, &requirement_ids);
-    let passed = commands.iter().all(|command| command.success)
-        && acceptance_criteria_have_evidence(&record, &requirement_ids)
-        && missing_evidence.is_empty();
+    let commands_passed = commands.iter().all(|command| command.success);
+    let acceptance_evidence_present =
+        acceptance_criteria_have_evidence(&record, has_semantic_acceptance_item);
+    let passed = commands_passed && acceptance_evidence_present && missing_evidence.is_empty();
     let verification = VerificationRecord {
         timestamp: now(),
         commit: git_output(root, &["rev-parse", "HEAD"]),
@@ -796,8 +825,10 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
     save_change(root, &record)?;
     write_change_markdown(root, &record)?;
     if !verification.passed {
-        let detail = if missing_evidence.is_empty() {
+        let detail = if !commands_passed {
             "configured verification command failed".to_string()
+        } else if !acceptance_evidence_present {
+            "semantic acceptance evidence is missing".to_string()
         } else {
             format!(
                 "requirement evidence missing for {}",
@@ -809,6 +840,122 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
         ));
     }
     Ok(verification)
+}
+
+pub fn reopen_change(
+    root: &Path,
+    id: &str,
+    actor: String,
+    reason: String,
+) -> Result<ReopenResult, String> {
+    let _lock = acquire_project_lock(root)?;
+    let mut record = load_change(root, id)?;
+    require_state(
+        &record,
+        &[ChangeState::Accepted],
+        "reopen accepted evidence",
+    )?;
+    let actor = actor.trim();
+    if actor.is_empty() {
+        return Err("reopen requires a non-empty human actor passed with --actor".into());
+    }
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err("reopen requires a non-empty reason passed with --reason".into());
+    }
+    ensure_definition_approval_valid(root, &record)?;
+    let prior_verification = load_verification(root, &record)?;
+    if !prior_verification.passed {
+        return Err("accepted change has failed verification evidence".into());
+    }
+    if !definition_digest_matches(root, &record, &prior_verification.contract_digest)? {
+        return Err("accepted change verification contract is stale; restore the accepted definition before reopening delivery evidence".into());
+    }
+    let stale_acceptance_input_digest = prior_verification
+        .acceptance_input_digest
+        .clone()
+        .ok_or_else(|| "accepted change is missing current delivery-input evidence".to_string())?;
+    let expected_closing_digest = closing_digest(&record, &prior_verification);
+    let mut ledger = load_approvals(root, &record)?;
+    let superseded_approval = ledger
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "acceptance")
+        .cloned()
+        .ok_or_else(|| "accepted change is missing closing approval".to_string())?;
+    if superseded_approval.digest != expected_closing_digest {
+        return Err("accepted change closing approval does not match verification evidence".into());
+    }
+    if !verification_commit_is_accepted_current(root, &prior_verification)
+        && !accepted_workspace_is_integrated(root, &record)
+        && !accepted_change_is_recorded_in_current_history(root, &record)
+        && !accepted_change_has_current_canonical_successors(root, &record)
+    {
+        return Err("accepted change verification commit is not in current history, its canonical acceptance is not recorded in current history, and no current canonical successor governs its affected contract".into());
+    }
+    let current_acceptance_input_digest = acceptance_input_digest(root, &record, &[])?;
+    if current_acceptance_input_digest == stale_acceptance_input_digest {
+        return Err(
+            "accepted change delivery inputs are current; reopen is allowed only when delivery evidence is stale"
+                .into(),
+        );
+    }
+    let audit = ReopenRecord {
+        schema_version: 1,
+        change_id: record.id.clone(),
+        actor: actor.to_string(),
+        reason: reason.to_string(),
+        timestamp: now(),
+        from_state: ChangeState::Accepted,
+        to_state: ChangeState::Verifying,
+        superseded_approval,
+        prior_verification,
+        stale_acceptance_input_digest,
+        current_acceptance_input_digest,
+    };
+    ledger.reopenings.push(audit.clone());
+    record.state = ChangeState::Verifying;
+    record.canonical_applied = true;
+    record.updated_at = now();
+    write_prepared_files(
+        root,
+        &[
+            (
+                change_dir(root, &record.id).join("approvals.json"),
+                json_content(&ledger)?,
+            ),
+            (
+                change_dir(root, &record.id).join("state.json"),
+                json_content(&record)?,
+            ),
+            (
+                change_dir(root, &record.id).join("change.md"),
+                change_markdown_content(&record),
+            ),
+        ],
+    )?;
+    Ok(ReopenResult {
+        change: record,
+        audit,
+    })
+}
+
+fn ensure_reopened_definition_unchanged(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    if !record.canonical_applied {
+        return Ok(());
+    }
+    let ledger = load_approvals(root, record)?;
+    let reopening = ledger.reopenings.last().ok_or_else(|| {
+        "cannot reaccept an already-applied change without audited reopen evidence".to_string()
+    })?;
+    if definition_digest_matches(root, record, &reopening.prior_verification.contract_digest)? {
+        return Ok(());
+    }
+    Err(
+        "cannot accept a modified definition of an already-applied change; perform further spec changes in a new change workspace"
+            .into(),
+    )
 }
 
 pub fn accept_change(
@@ -831,7 +978,7 @@ pub fn accept_change(
             "verification is stale because HEAD changed; run `specsync change verify` again".into(),
         );
     }
-    if verification.contract_digest != definition_digest(root, &record)? {
+    if !definition_digest_matches(root, &record, &verification.contract_digest)? {
         return Err("verification is stale because the approved contract changed".into());
     }
     if verification.workspace_digest != project_input_digest(root)? {
@@ -845,13 +992,37 @@ pub fn accept_change(
     validate_delta_files(root, &record)?;
     let records = list_changes_checked(root)?;
     validate_effective_contracts(root, &records).map_err(|errors| errors.join("; "))?;
-    let mut prepared = prepare_delta_application(root, &record)?;
+    ensure_reopened_definition_unchanged(root, &record)?;
+    let mut prepared = if record.canonical_applied {
+        Vec::new()
+    } else {
+        prepare_delta_application(root, &record)?
+    };
     verification.acceptance_input_digest = Some(acceptance_input_digest(root, &record, &prepared)?);
     let closing_digest = closing_digest(&record, &verification);
     let mut ledger = load_approvals(root, &record)?;
+    let actor = resolve_actor(root, actor)?;
+    let stable_definition_digest = definition_digest(root, &record)?;
+    let latest_definition_digest = ledger
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "definition")
+        .map(|approval| approval.digest.as_str());
+    if latest_definition_digest != Some(stable_definition_digest.as_str()) {
+        ledger.approvals.push(ApprovalRecord {
+            gate: "definition".into(),
+            actor: actor.clone(),
+            timestamp: now(),
+            digest: stable_definition_digest,
+            note: Some(
+                "Normalized compatible definition evidence during explicit acceptance".into(),
+            ),
+        });
+    }
     ledger.approvals.push(ApprovalRecord {
         gate: "acceptance".into(),
-        actor: resolve_actor(root, actor)?,
+        actor,
         timestamp: now(),
         digest: closing_digest,
         note,
@@ -863,6 +1034,7 @@ pub fn accept_change(
         json_content(&verification)?,
     ));
     record.state = ChangeState::Accepted;
+    record.canonical_applied = true;
     record.updated_at = now();
     prepared.push((
         change_dir(root, &record.id).join("state.json"),
@@ -957,6 +1129,9 @@ pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
         ChangeState::Approved => "start".into(),
         ChangeState::Implementing => "verify".into(),
         ChangeState::Verifying => "accept".into(),
+        ChangeState::Accepted if ensure_closing_approval_valid(root, record).is_err() => {
+            "reopen".into()
+        }
         ChangeState::Accepted => "archive".into(),
         ChangeState::Archived => "none".into(),
     };
@@ -1121,6 +1296,15 @@ fn check_project_with_command_output(
         {
             report.errors.push(format!("{}: {error}", record.id));
         }
+        if record.canonical_applied
+            && matches!(
+                record.state,
+                ChangeState::Implementing | ChangeState::Verifying
+            )
+            && let Err(error) = ensure_reopened_definition_unchanged(root, record)
+        {
+            report.errors.push(format!("{}: {error}", record.id));
+        }
         for dependency in &record.dependencies {
             if dependency_reaches(root, dependency, &record.id, &mut BTreeSet::new()) {
                 report.errors.push(format!(
@@ -1161,8 +1345,8 @@ fn check_project_with_command_output(
                             record.id
                         ));
                     } else if !verification_commit_is_current(root, &evidence, is_ci_project(root))
-                        || definition_digest(root, record)
-                            .map(|digest| digest != evidence.contract_digest)
+                        || definition_digest_matches(root, record, &evidence.contract_digest)
+                            .map(|matches| !matches)
                             .unwrap_or(true)
                         || project_input_digest(root)
                             .map(|digest| digest != evidence.workspace_digest)
@@ -1516,11 +1700,33 @@ fn ensure_tasks_complete(root: &Path, record: &ChangeRecord) -> Result<(), Strin
     Ok(())
 }
 
-fn acceptance_criteria_have_evidence(record: &ChangeRecord, requirement_ids: &[String]) -> bool {
+fn acceptance_criteria_have_evidence(
+    record: &ChangeRecord,
+    has_semantic_acceptance_item: bool,
+) -> bool {
     if record.no_spec_change {
         return !record.acceptance_criteria.is_empty();
     }
-    !record.acceptance_criteria.is_empty() && !requirement_ids.is_empty()
+    !record.acceptance_criteria.is_empty() && has_semantic_acceptance_item
+}
+
+fn semantic_acceptance_item_exists(root: &Path, record: &ChangeRecord) -> Result<bool, String> {
+    if record.no_spec_change {
+        return Ok(true);
+    }
+    for module in &record.affected_specs {
+        let content =
+            read_bounded_change_text(&delta_path(root, record, module), "semantic delta")?;
+        if parse_delta(&content)?.iter().any(|item| {
+            matches!(
+                item.target,
+                DeltaTarget::Requirement | DeltaTarget::SpecSection
+            ) && item.operation != DeltaOperation::Removed
+        }) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn requirement_evidence_missing(root: &Path, record: &ChangeRecord, ids: &[String]) -> Vec<String> {
@@ -1569,6 +1775,7 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
                     record.state,
                     ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
                 )
+                && (!record.canonical_applied || record.state == ChangeState::Verifying)
         })
         .collect();
     if active.is_empty() {
@@ -1600,7 +1807,7 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
             }
         };
         for record in &active {
-            if !record.affected_specs.contains(&module) {
+            if record.canonical_applied || !record.affected_specs.contains(&module) {
                 continue;
             }
             let delta_path = delta_path(root, record, &module);
@@ -1807,7 +2014,7 @@ fn removed_requirement_ids(root: &Path) -> Result<BTreeSet<String>, String> {
     delta_roots.extend(
         list_changes_checked(root)?
             .into_iter()
-            .filter(|record| record.state == ChangeState::Accepted)
+            .filter(|record| record.state == ChangeState::Accepted || record.canonical_applied)
             .map(|record| change_dir(root, &record.id).join("deltas")),
     );
     delta_roots.push(root.join(ARCHIVE_PATH));
@@ -2264,7 +2471,9 @@ fn write_prepared_files(root: &Path, prepared: &[(PathBuf, String)]) -> Result<(
 }
 
 fn ensure_no_delta_conflicts(root: &Path, current: &ChangeRecord) -> Result<(), String> {
-    if matches!(current.state, ChangeState::Accepted | ChangeState::Archived) {
+    if current.canonical_applied
+        || matches!(current.state, ChangeState::Accepted | ChangeState::Archived)
+    {
         return Ok(());
     }
     let current_keys = delta_keys(root, current)?;
@@ -2274,6 +2483,7 @@ fn ensure_no_delta_conflicts(root: &Path, current: &ChangeRecord) -> Result<(), 
                 other.state,
                 ChangeState::Draft | ChangeState::Accepted | ChangeState::Archived
             )
+            || other.canonical_applied
             || change_depends_on(root, current, &other.id)
             || change_depends_on(root, &other, &current.id)
         {
@@ -2359,16 +2569,57 @@ fn delta_keys(root: &Path, record: &ChangeRecord) -> Result<BTreeSet<String>, St
 }
 
 fn definition_digest(root: &Path, record: &ChangeRecord) -> Result<String, String> {
-    let dir = change_dir(root, &record.id);
     let mut canonical_record = record.clone();
     canonical_record.state = ChangeState::Draft;
+    canonical_record.canonical_applied = false;
     canonical_record.updated_at = 0;
-    let mut digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
-    digest.frame(
-        b"record",
-        &serde_json::to_vec(&canonical_record)
-            .map_err(|error| format!("failed to hash change state: {error}"))?,
+    let record_bytes = serde_json::to_vec(&canonical_record)
+        .map_err(|error| format!("failed to hash change state: {error}"))?;
+    definition_digest_from_record_bytes(root, record, &record_bytes)
+}
+
+fn definition_digest_with_explicit_false(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<String, String> {
+    let mut canonical_record = record.clone();
+    canonical_record.state = ChangeState::Draft;
+    canonical_record.canonical_applied = false;
+    canonical_record.updated_at = 0;
+    let mut record_bytes = serde_json::to_vec(&canonical_record)
+        .map_err(|error| format!("failed to hash change state: {error}"))?;
+    let state = b"\"state\":\"draft\"";
+    let state_start = record_bytes
+        .windows(state.len())
+        .position(|window| window == state)
+        .ok_or_else(|| "failed to locate canonical change state while hashing".to_string())?;
+    let insert_at = state_start + state.len();
+    record_bytes.splice(
+        insert_at..insert_at,
+        b",\"canonical_applied\":false".iter().copied(),
     );
+    definition_digest_from_record_bytes(root, record, &record_bytes)
+}
+
+fn definition_digest_matches(
+    root: &Path,
+    record: &ChangeRecord,
+    expected: &str,
+) -> Result<bool, String> {
+    if definition_digest(root, record)? == expected {
+        return Ok(true);
+    }
+    Ok(definition_digest_with_explicit_false(root, record)? == expected)
+}
+
+fn definition_digest_from_record_bytes(
+    root: &Path,
+    record: &ChangeRecord,
+    record_bytes: &[u8],
+) -> Result<String, String> {
+    let dir = change_dir(root, &record.id);
+    let mut digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
+    digest.frame(b"record", record_bytes);
     let mut files = Vec::new();
     for artifact in &record.selected_artifacts {
         files.push(dir.join(artifact.file_name()));
@@ -2750,7 +3001,7 @@ fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Resul
         .rev()
         .find(|approval| approval.gate == "definition")
         .ok_or_else(|| "definition approval is missing".to_string())?;
-    if approval.digest != definition_digest(root, record)? {
+    if !definition_digest_matches(root, record, &approval.digest)? {
         return Err(
             "definition approval is stale; approve the current artifact digest again".into(),
         );
@@ -2763,7 +3014,7 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
     if !verification.passed {
         return Err("accepted change has failed verification evidence".into());
     }
-    if verification.contract_digest != definition_digest(root, record)? {
+    if !definition_digest_matches(root, record, &verification.contract_digest)? {
         return Err("accepted change verification contract is stale".into());
     }
     let expected_inputs = verification
@@ -3654,6 +3905,73 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
             .is_ok_and(|status| status.success())
 }
 
+fn accepted_change_is_recorded_in_current_history(root: &Path, record: &ChangeRecord) -> bool {
+    let state = format!("{CHANGES_PATH}/{}/state.json", record.id);
+    let Ok(repo_state) = git_repo_relative_path(root, &state) else {
+        return false;
+    };
+    let top_state = format!(":(top){repo_state}");
+    let history = Command::new("git")
+        .args(["log", "--format=%H", "--", top_state.as_str()])
+        .current_dir(root)
+        .output();
+    let Ok(history) = history else {
+        return false;
+    };
+    if !history.status.success() {
+        return false;
+    }
+    String::from_utf8_lossy(&history.stdout)
+        .lines()
+        .any(|commit| {
+            let object = format!("{commit}:{repo_state}");
+            let snapshot = Command::new("git")
+                .args(["show", object.as_str()])
+                .current_dir(root)
+                .output();
+            let Ok(snapshot) = snapshot else {
+                return false;
+            };
+            snapshot.status.success()
+                && serde_json::from_slice::<ChangeRecord>(&snapshot.stdout).is_ok_and(
+                    |historical| {
+                        historical.id == record.id && historical.state == ChangeState::Accepted
+                    },
+                )
+        })
+}
+
+fn accepted_change_has_current_canonical_successors(root: &Path, record: &ChangeRecord) -> bool {
+    let Ok(records) = list_changes_checked(root) else {
+        return false;
+    };
+    let successors: Vec<_> = records
+        .iter()
+        .filter(|candidate| {
+            candidate.id != record.id
+                && !candidate.no_spec_change
+                && (candidate.canonical_applied || candidate.state == ChangeState::Accepted)
+                && candidate.created_at >= record.created_at
+                && candidate.id > record.id
+                && accepted_change_is_recorded_in_current_history(root, candidate)
+        })
+        .collect();
+    if successors.is_empty() {
+        return false;
+    }
+    let specs_governed = record.affected_specs.iter().all(|module| {
+        successors
+            .iter()
+            .any(|candidate| candidate.affected_specs.contains(module))
+    });
+    let paths_governed = record.affected_paths.iter().all(|path| {
+        successors
+            .iter()
+            .any(|candidate| record_covers_project_path(root, candidate, path))
+    });
+    specs_governed && paths_governed
+}
+
 fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
     let mut maximum = 0_u64;
     for base in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
@@ -3792,6 +4110,10 @@ fn json_content<Value: Serialize>(value: &Value) -> Result<String, String> {
     Ok(format!("{content}\n"))
 }
 
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 fn now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -3910,6 +4232,32 @@ mod tests {
             )
             .unwrap();
         }
+        record
+    }
+
+    fn completed_section_only_record(root: &Path, delta: &str) -> ChangeRecord {
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::write(root.join("src/auth.rs"), "// Authentication module.\n").unwrap();
+        fs::write(
+            root.join("specs/auth/auth.spec.md"),
+            "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Legacy Notes\n\nRetained for compatibility.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+        let record = completed_record(root);
+        for artifact in &record.selected_artifacts {
+            let content = if *artifact == ArtifactKind::Tasks {
+                "# Tasks\n\n- [x] Complete the documentation change.\n"
+            } else {
+                "# Complete\n\nReviewed content.\n"
+            };
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                content,
+            )
+            .unwrap();
+        }
+        fs::write(delta_path(root, &record, "auth"), delta).unwrap();
         record
     }
 
@@ -4136,7 +4484,149 @@ mod tests {
             &verification
         ));
         assert!(ensure_closing_approval_valid(&root, &record).is_ok());
-        assert!(archive_change(&root, &record.id).is_ok());
+        assert!(accepted_change_is_recorded_in_current_history(
+            &root, &record
+        ));
+        git(&["update-ref", "-d", "refs/remotes/origin/main"]);
+        assert!(ensure_closing_approval_valid(&root, &record).is_err());
+        let error = reopen_change(
+            &root,
+            &record.id,
+            "Reviewer".into(),
+            "The verification commit is off history".into(),
+        )
+        .unwrap_err();
+        assert!(error.contains("delivery inputs are current"), "{error}");
+    }
+
+    #[test]
+    fn squash_merged_acceptance_reopens_after_a_current_canonical_successor() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "false"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        write_default_policy(root, Vec::new()).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["switch", "-c", "feature"]);
+
+        let mut original = completed_no_spec_record(root);
+        fs::write(
+            root.join("src/auth.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        original.affected_specs = vec!["auth".into()];
+        original.affected_paths = vec!["src/auth.rs".into()];
+        save_change(root, &original).unwrap();
+        write_change_markdown(root, &original).unwrap();
+        original = approve_definition(root, &original.id, Some("Reviewer".into()), None).unwrap();
+        original = start_implementation(root, &original.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement original"]);
+        verify_change(root, &original.id).unwrap();
+        original = accept_change(root, &original.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept original"]);
+        let original_verification = load_verification(root, &original).unwrap();
+
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "feature"]);
+        git(&["commit", "-m", "squash original"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        let mut no_spec_successor = completed_no_spec_record(root);
+        no_spec_successor.affected_specs = original.affected_specs.clone();
+        no_spec_successor.affected_paths = original.affected_paths.clone();
+        save_change(root, &no_spec_successor).unwrap();
+        write_change_markdown(root, &no_spec_successor).unwrap();
+        no_spec_successor =
+            approve_definition(root, &no_spec_successor.id, Some("Reviewer".into()), None).unwrap();
+        no_spec_successor = start_implementation(root, &no_spec_successor.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement no-spec successor"]);
+        verify_change(root, &no_spec_successor.id).unwrap();
+        no_spec_successor =
+            accept_change(root, &no_spec_successor.id, Some("Closer".into()), None).unwrap();
+        assert_eq!(no_spec_successor.state, ChangeState::Accepted);
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept no-spec successor"]);
+
+        assert!(!accepted_change_has_current_canonical_successors(
+            root, &original
+        ));
+
+        let delta = "## MODIFIED\n\n### SPEC SECTION Invariants\n\nA later semantic change governs authentication.\n";
+        let mut successor = completed_section_only_record(root, delta);
+        successor = approve_definition(root, &successor.id, Some("Reviewer".into()), None).unwrap();
+        successor = start_implementation(root, &successor.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement semantic successor"]);
+        verify_change(root, &successor.id).unwrap();
+        successor = accept_change(root, &successor.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept semantic successor"]);
+
+        assert!(!verification_commit_is_accepted_current(
+            root,
+            &original_verification
+        ));
+        assert!(!accepted_workspace_is_integrated(root, &original));
+        assert!(accepted_change_is_recorded_in_current_history(
+            root, &original
+        ));
+        assert!(accepted_change_has_current_canonical_successors(
+            root, &original
+        ));
+        assert_ne!(
+            acceptance_input_digest(root, &original, &[]).unwrap(),
+            original_verification
+                .acceptance_input_digest
+                .clone()
+                .unwrap()
+        );
+        assert!(ensure_closing_approval_valid(root, &original).is_err());
+        assert_eq!(summarize_change(root, &original).next_action, "reopen");
+
+        let reopened = reopen_change(
+            root,
+            &original.id,
+            "Release reviewer".into(),
+            "A later accepted change superseded the original governed source".into(),
+        )
+        .unwrap();
+        assert_eq!(reopened.change.state, ChangeState::Verifying);
+        assert_eq!(
+            reopened.audit.reason,
+            "A later accepted change superseded the original governed source"
+        );
+        assert_eq!(
+            reopened.audit.prior_verification.contract_digest,
+            original_verification.contract_digest
+        );
+        assert_eq!(
+            reopened.audit.prior_verification.acceptance_input_digest,
+            original_verification.acceptance_input_digest
+        );
+        assert_eq!(successor.state, ChangeState::Accepted);
     }
 
     #[test]
@@ -4333,6 +4823,144 @@ mod tests {
         .unwrap();
         assert_eq!(record.state, ChangeState::Approved);
         assert!(ensure_definition_approval_valid(temp.path(), &record).is_ok());
+    }
+
+    #[test]
+    fn false_canonical_application_preserves_legacy_definition_approvals() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        let state_path = change_dir(root, &record.id).join("state.json");
+
+        let draft_json = fs::read_to_string(&state_path).unwrap();
+        assert!(!draft_json.contains("canonical_applied"));
+        let stable_digest = definition_digest(root, &record).unwrap();
+        let explicit_false_digest = definition_digest_with_explicit_false(root, &record).unwrap();
+        assert_ne!(stable_digest, explicit_false_digest);
+        append_approval(
+            root,
+            &record,
+            "definition",
+            Some("Reviewer".into()),
+            explicit_false_digest,
+            Some("Approved with the transitional explicit-false encoding".into()),
+        )
+        .unwrap();
+        record.state = ChangeState::Approved;
+        save_change(root, &record).unwrap();
+
+        let approved_json = fs::read_to_string(&state_path).unwrap();
+        assert!(!approved_json.contains("canonical_applied"));
+        let loaded = load_change(root, &record.id).unwrap();
+        assert!(!loaded.canonical_applied);
+        assert!(ensure_definition_approval_valid(root, &loaded).is_ok());
+
+        record.canonical_applied = true;
+        save_change(root, &record).unwrap();
+        let accepted_json = fs::read_to_string(state_path).unwrap();
+        assert!(accepted_json.contains("\"canonical_applied\": true"));
+    }
+
+    #[test]
+    fn acceptance_normalizes_transitional_definition_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        let stable_digest = definition_digest(root, &record).unwrap();
+        let transitional_digest = definition_digest_with_explicit_false(root, &record).unwrap();
+        append_approval(
+            root,
+            &record,
+            "definition",
+            Some("Original reviewer".into()),
+            transitional_digest.clone(),
+            Some("Approved with transitional evidence".into()),
+        )
+        .unwrap();
+        record.state = ChangeState::Approved;
+        save_change(root, &record).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+
+        record = accept_change(
+            root,
+            &record.id,
+            Some("Release reviewer".into()),
+            Some("Accepted after verification".into()),
+        )
+        .unwrap();
+
+        let ledger = load_approvals(root, &record).unwrap();
+        assert_eq!(ledger.approvals.len(), 3);
+        assert_eq!(ledger.approvals[0].digest, transitional_digest);
+        assert_eq!(ledger.approvals[1].gate, "definition");
+        assert_eq!(ledger.approvals[1].actor, "Release reviewer");
+        assert_eq!(ledger.approvals[1].digest, stable_digest);
+        assert_eq!(
+            ledger.approvals[1].note.as_deref(),
+            Some("Normalized compatible definition evidence during explicit acceptance")
+        );
+        assert_eq!(ledger.approvals[2].gate, "acceptance");
+        assert!(ensure_definition_approval_valid(root, &record).is_ok());
+    }
+
+    #[test]
+    fn reaccept_accepts_transitional_pre_reopen_definition_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+
+        let transitional_digest = definition_digest_with_explicit_false(root, &record).unwrap();
+        let mut prior_verification = load_verification(root, &record).unwrap();
+        prior_verification.contract_digest = transitional_digest.clone();
+        write_json(
+            &change_dir(root, &record.id).join("verification.json"),
+            &prior_verification,
+        )
+        .unwrap();
+        let mut ledger = load_approvals(root, &record).unwrap();
+        let closing = ledger
+            .approvals
+            .iter_mut()
+            .rev()
+            .find(|approval| approval.gate == "acceptance")
+            .unwrap();
+        closing.digest = closing_digest(&record, &prior_verification);
+        write_json(
+            &change_dir(root, &record.id).join("approvals.json"),
+            &ledger,
+        )
+        .unwrap();
+        assert!(ensure_closing_approval_valid(root, &record).is_ok());
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "Delivery input changed after legacy acceptance".into(),
+        )
+        .unwrap()
+        .change;
+        assert_eq!(
+            load_approvals(root, &record).unwrap().reopenings[0]
+                .prior_verification
+                .contract_digest,
+            transitional_digest
+        );
+
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        assert_eq!(record.state, ChangeState::Accepted);
+        assert!(record.canonical_applied);
     }
 
     #[test]
@@ -4739,6 +5367,152 @@ mod tests {
     }
 
     #[test]
+    fn stale_accepted_change_reopens_with_audited_evidence_and_reaccepts() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        let prior_verification = load_verification(root, &record).unwrap();
+        let prior_ledger = load_approvals(root, &record).unwrap();
+        assert!(check_project(root).errors.is_empty());
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        let stale_report = check_project(root);
+        assert!(stale_report.errors.iter().any(|error| {
+            error.contains("accepted change verification is stale for current delivery inputs")
+        }));
+        assert_eq!(summarize_change(root, &record).next_action, "reopen");
+
+        let reopened = reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "Review fixes changed scoped delivery inputs".into(),
+        )
+        .unwrap();
+        record = reopened.change;
+        assert_eq!(record.state, ChangeState::Verifying);
+        assert!(record.canonical_applied);
+        assert_eq!(reopened.audit.superseded_approval.actor, "Closer");
+        assert_eq!(
+            reopened.audit.prior_verification.contract_digest,
+            prior_verification.contract_digest
+        );
+        let reopened_ledger = load_approvals(root, &record).unwrap();
+        assert_eq!(
+            reopened_ledger.approvals.len(),
+            prior_ledger.approvals.len()
+        );
+        assert_eq!(reopened_ledger.reopenings.len(), 1);
+        assert!(check_project(root).errors.iter().any(|error| {
+            error.contains("verification evidence is stale for the current commit or contract")
+        }));
+
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        assert_eq!(record.state, ChangeState::Accepted);
+        assert!(check_project(root).errors.is_empty());
+        let final_ledger = load_approvals(root, &record).unwrap();
+        assert_eq!(
+            final_ledger.approvals.len(),
+            prior_ledger.approvals.len() + 1
+        );
+        assert_eq!(final_ledger.reopenings.len(), 1);
+        assert_eq!(
+            final_ledger.reopenings[0]
+                .prior_verification
+                .contract_digest,
+            prior_verification.contract_digest
+        );
+    }
+
+    #[test]
+    fn reopen_rejects_current_evidence_and_requires_explicit_audit_fields() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+
+        let error =
+            reopen_change(root, &record.id, "Reviewer".into(), "Not stale".into()).unwrap_err();
+        assert!(error.contains("delivery inputs are current"), "{error}");
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        let error = reopen_change(root, &record.id, " ".into(), "Review fix".into()).unwrap_err();
+        assert!(error.contains("non-empty human actor"), "{error}");
+        let error = reopen_change(root, &record.id, "Reviewer".into(), " ".into()).unwrap_err();
+        assert!(error.contains("non-empty reason"), "{error}");
+        assert_eq!(
+            load_change(root, &record.id).unwrap().state,
+            ChangeState::Accepted
+        );
+    }
+
+    #[test]
+    fn reaccept_rejects_definition_changes_after_canonical_application() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "Review fixes changed scoped delivery inputs".into(),
+        )
+        .unwrap()
+        .change;
+        fs::write(
+            change_dir(root, &record.id).join("testing.md"),
+            "# Testing\n\nThe modified definition must not be silently ignored.\n",
+        )
+        .unwrap();
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        assert_eq!(record.state, ChangeState::Verifying);
+        let report = check_project(root);
+        assert!(
+            report.errors.iter().any(|error| {
+                error.contains("modified definition of an already-applied change")
+            })
+        );
+        verify_change(root, &record.id).unwrap();
+
+        let error = accept_change(root, &record.id, Some("Closer".into()), None).unwrap_err();
+        assert!(
+            error.contains("perform further spec changes in a new change workspace"),
+            "{error}"
+        );
+        assert_eq!(
+            load_change(root, &record.id).unwrap().state,
+            ChangeState::Verifying
+        );
+    }
+
+    #[test]
     fn acceptance_rechecks_late_dependency_state() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
@@ -4816,6 +5590,40 @@ mod tests {
                 .is_empty()
         );
         assert!(validate_effective_contracts(temp.path(), &[record]).is_ok());
+    }
+
+    #[test]
+    fn reopened_canonical_change_validates_current_canonical_contract() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let delta = "## ADDED\n\n### SPEC SECTION Invariants\n\nDuplicate invariant.\n";
+        let mut record = completed_section_only_record(root, delta);
+        record.state = ChangeState::Verifying;
+        record.canonical_applied = true;
+        save_change(root, &record).unwrap();
+
+        let canonical = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+        let item = parse_delta(delta).unwrap().remove(0);
+        assert!(
+            apply_markdown_block(&canonical, "## ", &item.key, &item.content, item.operation,)
+                .is_err(),
+            "the fixture must fail if an already-applied delta is replayed"
+        );
+        assert!(validate_effective_contracts(root, &[record.clone()]).is_ok());
+
+        fs::write(
+            root.join("specs/auth/auth.spec.md"),
+            "# Invalid current contract\n",
+        )
+        .unwrap();
+
+        let errors = validate_effective_contracts(root, &[record]).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("effective contract `auth`")),
+            "{errors:?}"
+        );
     }
 
     #[test]
@@ -4967,6 +5775,46 @@ mod tests {
         let archived = archive_change(root, &record.id).unwrap();
         assert!(archived.is_dir());
         assert!(!change_dir(root, &record.id).exists());
+    }
+
+    #[test]
+    fn section_only_semantic_delta_can_satisfy_acceptance_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_section_only_record(
+            root,
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and explicitly documented.\n",
+        );
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+
+        let verification = verify_change(root, &record.id).unwrap();
+
+        assert!(verification.passed);
+        assert!(verification.requirement_ids.is_empty());
+    }
+
+    #[test]
+    fn missing_semantic_acceptance_evidence_is_not_reported_as_command_failure() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_section_only_record(
+            root,
+            "## REMOVED\n### SPEC SECTION Legacy Notes\n\nRetired.\n",
+        );
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+
+        let error = verify_change(root, &record.id).unwrap_err();
+
+        assert!(
+            error.contains("semantic acceptance evidence is missing"),
+            "{error}"
+        );
+        assert!(
+            !error.contains("configured verification command failed"),
+            "{error}"
+        );
     }
 
     #[test]

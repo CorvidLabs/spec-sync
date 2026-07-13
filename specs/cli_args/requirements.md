@@ -15,6 +15,7 @@ The system SHALL declare the complete verified SDD change command grammar in the
 Acceptance Criteria
 - `Command` includes the `Change` namespace.
 - `ChangeAction` declares every lifecycle, inspection, checking, and adoption operation.
+- `ChangeAction::Reopen` requires a change ID, explicit human actor, and non-empty reason input.
 
 ### REQ-cli-args-002
 
@@ -35,4 +36,3 @@ Acceptance Criteria
 - `add-spec` help describes the required companion set and optional design artifact.
 - `new --full` help lists the required companion files and identifies `design.md` as optional.
 - Help-only corrections do not change argument parsing or command behavior.
-

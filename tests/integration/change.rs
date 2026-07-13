@@ -286,6 +286,7 @@ fn no_spec_change_completes_full_cli_lifecycle() {
   "custom_artifacts": {},
   "principles_file": null
 }
+
 "#,
     )
     .unwrap();
@@ -324,4 +325,229 @@ fn no_spec_change_completes_full_cli_lifecycle() {
             .unwrap()
             .any(|entry| entry.unwrap().file_name().to_string_lossy().ends_with(id))
     );
+}
+
+#[test]
+fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 1,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [],
+  "verification_commands": [],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    fs::write(root.join("README.md"), "Initial review instructions.\n").unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "new",
+            "Update review instructions",
+            "--kind",
+            "documentation",
+            "--path",
+            "README.md",
+            "--no-spec-change",
+            "--rationale",
+            "Documentation-only review guidance",
+        ])
+        .assert()
+        .success();
+    let id = "CHG-0001-update-review-instructions";
+    for (question, answer) in [
+        (
+            "acceptance_criteria",
+            "Reviewers can follow the release workflow",
+        ),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let dir = root.join(".specsync/changes").join(id);
+    fs::write(dir.join("context.md"), "# Context\n\nRelease review.\n").unwrap();
+    fs::write(dir.join("docs.md"), "# Docs\n\nReview instructions.\n").unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "Definition reviewer",
+        ])
+        .assert()
+        .success();
+    for command in ["start", "verify"] {
+        specsync()
+            .args(["--root", root.to_str().unwrap(), "change", command, id])
+            .assert()
+            .success();
+    }
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "accept",
+            id,
+            "--actor",
+            "Closing reviewer",
+        ])
+        .assert()
+        .success();
+
+    fs::write(root.join("README.md"), "Final review instructions.\n").unwrap();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "accepted change verification is stale for current delivery inputs",
+        ));
+    let output = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "reopen",
+            id,
+            "--actor",
+            "Release reviewer",
+            "--reason",
+            "Final review changed governed delivery inputs",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["change"]["state"], "verifying");
+    assert_eq!(value["audit"]["schema_version"], 1);
+    assert_eq!(value["audit"]["from_state"], "accepted");
+    assert_eq!(value["audit"]["to_state"], "verifying");
+    assert_eq!(
+        value["audit"]["superseded_approval"]["actor"],
+        "Closing reviewer"
+    );
+    assert_eq!(
+        value["audit"]["reason"],
+        "Final review changed governed delivery inputs"
+    );
+    let ledger: Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("approvals.json")).unwrap()).unwrap();
+    assert_eq!(ledger["approvals"].as_array().unwrap().len(), 2);
+    assert_eq!(ledger["reopenings"].as_array().unwrap().len(), 1);
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("verification evidence is stale"));
+
+    let docs_path = dir.join("docs.md");
+    let accepted_docs = fs::read_to_string(&docs_path).unwrap();
+    fs::write(
+        &docs_path,
+        "# Docs\n\nA modified definition cannot be silently ignored.\n",
+    )
+    .unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "Definition reviewer",
+        ])
+        .assert()
+        .success();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "verify", id])
+        .assert()
+        .success();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "accept",
+            id,
+            "--actor",
+            "Closing reviewer",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "perform further spec changes in a new change workspace",
+        ));
+    let rejected_ledger: Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("approvals.json")).unwrap()).unwrap();
+    assert_eq!(rejected_ledger["approvals"].as_array().unwrap().len(), 3);
+
+    fs::write(&docs_path, accepted_docs).unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "Definition reviewer",
+        ])
+        .assert()
+        .success();
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "verify", id])
+        .assert()
+        .success();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "accept",
+            id,
+            "--actor",
+            "Closing reviewer",
+        ])
+        .assert()
+        .success();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .assert()
+        .success();
+    let ledger: Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("approvals.json")).unwrap()).unwrap();
+    assert_eq!(ledger["approvals"].as_array().unwrap().len(), 5);
+    assert_eq!(ledger["reopenings"].as_array().unwrap().len(), 1);
 }

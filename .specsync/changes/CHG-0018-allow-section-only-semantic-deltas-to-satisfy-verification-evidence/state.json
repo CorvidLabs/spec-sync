@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0018-allow-section-only-semantic-deltas-to-satisfy-verification-evidence",
+  "slug": "allow-section-only-semantic-deltas-to-satisfy-verification-evidence",
+  "title": "Allow section-only semantic deltas to satisfy verification evidence",
+  "description": "Allow section-only semantic deltas to satisfy verification evidence",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "52b47f1bb9c7434d7bbcac7b2ac8a7c477737cd6",
+  "created_at": 1783964250,
+  "updated_at": 1783976923,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A section-only non-removed semantic delta verifies with empty requirement IDs; requirement mappings remain required for requirement deltas; missing semantic evidence is reported separately from command failure"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

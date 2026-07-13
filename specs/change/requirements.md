@@ -164,3 +164,49 @@ Acceptance Criteria
 - Binary bytes remain exact, while stable file kind and executable-mode evidence invalidate relevant delivery changes.
 - Cross-platform topology verification is independent of a runner's global line-ending checkout policy.
 
+### REQ-change-017
+
+The lifecycle SHALL provide an audited recovery transition when accepted verification becomes stale because governed delivery inputs changed.
+
+Acceptance Criteria
+- Reopen requires an explicit non-empty human actor and reason and rejects non-stale accepted evidence.
+- Reopen moves accepted evidence to verifying so strict checks remain red until a fresh verification run succeeds.
+- Prior definition approval, verification, and closing approval evidence remain inspectable in append-only audit history.
+- Reacceptance requires a new closing approval and does not reapply canonical deltas already accepted.
+- Reacceptance rejects a definition digest that differs from the latest pre-reopen verification contract and directs further spec work to a new change workspace.
+- A verifying already-applied change without audited reopen history fails closed.
+
+### REQ-change-018
+
+Audited reopening SHALL recognize canonical acceptance recorded in current Git history after squash integration or complete later canonical governance.
+
+Acceptance Criteria
+
+- Definition digest, passed evidence, closing approval, stale delivery inputs, actor, and reason remain mandatory.
+- An unreachable verification commit is allowed only when current history records acceptance or later recorded canonical changes govern every affected spec and path.
+- Arbitrary off-history evidence remains rejected.
+
+### REQ-change-019
+
+Verification SHALL recognize a non-removed requirement or spec-section delta item as semantic acceptance evidence when observable acceptance criteria are present.
+
+Acceptance Criteria
+
+- A section-only modified delta can pass with an empty requirement-ID list.
+- Requirement evidence mapping remains mandatory for every collected requirement ID.
+- A failed configured command, missing semantic acceptance evidence, and missing requirement evidence produce distinct diagnostics.
+
+### REQ-change-020
+
+Audited reacceptance SHALL preserve compatible legacy definition evidence while enforcing immutable reopened definitions, fresh evidence, semantic successor governance, and validation of every current canonical contract it reapproves.
+
+Acceptance Criteria
+- A prior verification digest using the transitional explicit-false lifecycle encoding remains compatible with the stable omitted-false encoding during reopened reacceptance.
+- An accepted no-spec change cannot satisfy the canonical-successor fallback, even when its affected paths and specs overlap.
+- A later recorded semantic canonical change can satisfy successor governance for every overlapping affected spec and path.
+- A reopened canonical-applied change validates its current canonical modules without replaying its already-applied semantic delta.
+- Strict project checks reject a reopened definition that reacceptance would reject.
+- Definition reapproval keeps a canonical-applied reopened record in the verifying state so fresh evidence remains mandatory.
+- Nested project history lookup anchors repository-relative workspace state paths at the Git repository top.
+- Reopen rejects a request when current delivery inputs match accepted evidence, regardless of another closing-validity failure.
+

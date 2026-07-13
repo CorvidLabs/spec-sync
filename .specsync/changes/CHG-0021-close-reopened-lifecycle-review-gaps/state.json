@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0021-close-reopened-lifecycle-review-gaps",
+  "slug": "close-reopened-lifecycle-review-gaps",
+  "title": "Close reopened lifecycle review gaps",
+  "description": "Close reopened lifecycle review gaps",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "27dd307b84333905fbf8907a2c9082c27ebfb30d",
+  "created_at": 1783976699,
+  "updated_at": 1783976869,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Strict checks reject modified reopened definitions before closing; definition reapproval keeps reopened evidence in the verifying lane; nested project history fallback finds top-relative state paths; reopen rejects current delivery inputs even when another closing-validity condition fails"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0016-reject-modified-definitions-when-reaccepting-an-already-applied-change",
+  "slug": "reject-modified-definitions-when-reaccepting-an-already-applied-change",
+  "title": "Reject modified definitions when reaccepting an already-applied change",
+  "description": "Reject modified definitions when reaccepting an already-applied change",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "b714411df7a19e19918a0ea932182243eddf83fd",
+  "created_at": 1783958270,
+  "updated_at": 1783976902,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "tests/integration/change.rs",
+    "site/src/content/docs/workflow.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Reacceptance of an already-applied change rejects any definition digest that differs from the audited pre-reopen contract; unchanged definitions still reaccept without reapplying canonical deltas; CLI and unit regressions prove the fail-closed behavior"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 6
+version: 8
 status: stable
 files:
   - src/cli.rs
@@ -14,7 +14,7 @@ depends_on:
 
 ## Purpose
 
-Defines the complete CLI argument grammar using Clap derive macros, including global options, canonical spec commands, agent integration, and the verified SDD `change` namespace.
+Defines the complete CLI argument grammar, including stale-only accepted-change reopen with required human actor and reason.
 
 ## Public API
 
@@ -32,7 +32,7 @@ Defines the complete CLI argument grammar using Clap derive macros, including gl
 | `HooksAction` | Sub-subcommand for `Hooks`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, copilot, agents, precommit, claude_code_hook) |
 | `AgentsAction` | Sub-subcommand for `Agents`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, codex, gemini) |
 | `LifecycleAction` | Sub-subcommand for `Lifecycle`: Promote, Demote, Set, Status, History, Guard, AutoPromote, Enforce — manages spec lifecycle transitions |
-| `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, List, Show, Status, Approve, Start, Verify, Accept, Archive, Check, Adopt |
+| `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, List, Show, Status, Approve, Start, Verify, Reopen, Accept, Archive, Check, Adopt |
 
 ## Invariants
 
@@ -44,6 +44,7 @@ Defines the complete CLI argument grammar using Clap derive macros, including gl
 6. Each `HooksAction::Install` / `Uninstall` variant carries identical boolean flags for symmetric install/uninstall
 7. Each `AgentsAction::Install` / `Uninstall` variant carries identical boolean flags for symmetric install/uninstall, mirroring `HooksAction`
 8. `Generate` exposes only deterministic uncovered/batch selection; provider and model flags are not accepted
+9. `ChangeAction::Reopen` requires both `--actor` and `--reason`; neither can be omitted from the CLI grammar
 
 ## Behavioral Examples
 
@@ -79,6 +80,7 @@ Defines the complete CLI argument grammar using Clap derive macros, including gl
 | Missing required argument (e.g., `new` without name) | Clap prints error listing required args |
 | Invalid `--enforcement` value | Clap prints accepted values: warn, enforce-new, strict |
 | Invalid `--format` value | Clap prints accepted values: text, json, markdown, github, table, csv |
+| `change reopen` without `--actor` or `--reason` | Clap names the missing required argument and exits non-zero |
 
 ## Dependencies
 
@@ -108,3 +110,5 @@ Defines the complete CLI argument grammar using Clap derive macros, including gl
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-11 | CHG-0012-correct-specsync-5-0-documentation-cli-help-and-hub-deep-links: Correct initialization and full-scaffold help while preserving the CLI grammar |
 | 2026-07-11 | CHG-0012-correct-specsync-5-0-documentation-cli-help-and-hub-deep-links: Correct SpecSync 5.0 documentation, CLI help, and hub deep links |
+| 2026-07-13 | Add required actor/reason grammar for audited stale-accepted reopen |
+| 2026-07-13 | CHG-0015-add-audited-stale-accepted-change-reopening: Add audited stale accepted change reopening |

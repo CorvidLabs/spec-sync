@@ -12,3 +12,4 @@ The system SHALL provide equivalent text and JSON interfaces for the complete SD
 
 - Humans receive concise next-action guidance.
 - Agents receive stable records, summaries, and question identifiers.
+- Audited reopen returns the verifying change and its versioned supersession event in deterministic JSON.

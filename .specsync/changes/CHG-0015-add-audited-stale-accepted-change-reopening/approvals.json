@@ -1,0 +1,292 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783950363,
+      "digest": "f093adb7455b1a0d1c7c12b52c3e258ad7cec2400dfd38980b32c3c91b53a106",
+      "note": "Approved in Codex thread for issue #351"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783953180,
+      "digest": "4d25e43961af4b7c10ba8e5c254346f835c5dc12184805099d5b95a22fce5e4d",
+      "note": "Reapproved corrected task artifact in Codex thread for issue #351"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783953472,
+      "digest": "aedbe3afda775c85b339569082dcd768c84e6c20b87b67c9fbd60147a50205da",
+      "note": "Accepted in Codex thread for issue #351 after successful verification and release dry run"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783957663,
+      "digest": "8dddefe920c629d6ddf1e67256491f1f11a172acb943a19e2a1f89a61dbf65b4",
+      "note": "Reaccepted after CI compatibility verification for legacy and transitional definition evidence"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783959006,
+      "digest": "0c18022b547c3ca17404132efd720cce7dc659156481e7cf251bbe915dd1df4b",
+      "note": "Accepted after verification against the final canonical change contract"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783961018,
+      "digest": "876a9f888f2c295135cbc197d6759a82f7d44712e1b2be8c56eff95077a8059a",
+      "note": "Normalized compatible definition evidence during explicit acceptance"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783961018,
+      "digest": "4bc83c8303ff5e47df1e73efa76b4e23b382e6cc945f236cdb3d538dde29227d",
+      "note": "Accepted after integrated safeguards and Trust v5.0.1 compatibility verification"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783964538,
+      "digest": "e921c273833dc8cd98c0823c0779493816dba436b577482871208bcfc1f2ac42",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783968586,
+      "digest": "ef0577ac23c501001c6ea3c49d83832c4b71b38ae159c54110ddff3cc6824a30",
+      "note": "Fresh closing approval after finalized CHG20 corrections passed 1,540 unit and 189 integration tests; canonical delta remained already applied."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783976891,
+      "digest": "aa3bf9b0fc57e738b4ec1049d826a9ca5de5a22befca62d02668a2b4509e3b47",
+      "note": "Fresh closing approval after the final CHG21 canonical contract settled and all 1,729 Rust tests passed."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0015-add-audited-stale-accepted-change-reopening",
+      "actor": "0xLeif",
+      "reason": "CI review fix preserves legacy and transitional definition evidence across the canonical-applied schema extension",
+      "timestamp": 1783955301,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1783953472,
+        "digest": "aedbe3afda775c85b339569082dcd768c84e6c20b87b67c9fbd60147a50205da",
+        "note": "Accepted in Codex thread for issue #351 after successful verification and release dry run"
+      },
+      "prior_verification": {
+        "timestamp": 1783953201,
+        "commit": "59bbfa766c6cce01ab815ab47db195b0629cc014",
+        "contract_digest": "4d25e43961af4b7c10ba8e5c254346f835c5dc12184805099d5b95a22fce5e4d",
+        "workspace_digest": "853e3cc6c5e84e9a0f7cb5c1ce7b4ca571bc5a52f464b36b5a92eb856e91e823",
+        "acceptance_input_digest": "eff07f7bee3379f615794348f88906fab20a9e109b62d0109a5ac157282394c7",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-017"
+        ]
+      },
+      "stale_acceptance_input_digest": "eff07f7bee3379f615794348f88906fab20a9e109b62d0109a5ac157282394c7",
+      "current_acceptance_input_digest": "a334a0bec553b2a9dd67950e15da37ba1c0ceaa55d30274a6a4303bb94d6b26b"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0015-add-audited-stale-accepted-change-reopening",
+      "actor": "user:0xLeif",
+      "reason": "PR review added fail-closed definition-integrity validation and regression coverage",
+      "timestamp": 1783958925,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1783957663,
+        "digest": "8dddefe920c629d6ddf1e67256491f1f11a172acb943a19e2a1f89a61dbf65b4",
+        "note": "Reaccepted after CI compatibility verification for legacy and transitional definition evidence"
+      },
+      "prior_verification": {
+        "timestamp": 1783955326,
+        "commit": "4f6f3b581e230ae57884c41354d48ff1b1612d2c",
+        "contract_digest": "876a9f888f2c295135cbc197d6759a82f7d44712e1b2be8c56eff95077a8059a",
+        "workspace_digest": "ce504be2af1ab678dc42d09cb9a3950385cfdf18bfdbea80d72725eb38cbbe9d",
+        "acceptance_input_digest": "a334a0bec553b2a9dd67950e15da37ba1c0ceaa55d30274a6a4303bb94d6b26b",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-017"
+        ]
+      },
+      "stale_acceptance_input_digest": "a334a0bec553b2a9dd67950e15da37ba1c0ceaa55d30274a6a4303bb94d6b26b",
+      "current_acceptance_input_digest": "1d80cc96ec3fe450fa9537804674996af45a2d5c559b58bcd32bb629a561bd3b"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0015-add-audited-stale-accepted-change-reopening",
+      "actor": "0xLeif",
+      "reason": "Trust v5.0.1 compatibility requires stable definition evidence after integrating final reacceptance safeguards",
+      "timestamp": 1783960995,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783959006,
+        "digest": "0c18022b547c3ca17404132efd720cce7dc659156481e7cf251bbe915dd1df4b",
+        "note": "Accepted after verification against the final canonical change contract"
+      },
+      "prior_verification": {
+        "timestamp": 1783958993,
+        "commit": "1d4aa853dbc890b276c76419bef70127c178334e",
+        "contract_digest": "876a9f888f2c295135cbc197d6759a82f7d44712e1b2be8c56eff95077a8059a",
+        "workspace_digest": "5b967b9cd6316539e715b2f84e33c0534160a6346bb42aae5020f17011a7e4bc",
+        "acceptance_input_digest": "580a6333e05c4d6baa09a6dc293583a4eac9ec2c99c742fe3db111b95121bae6",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-017"
+        ]
+      },
+      "stale_acceptance_input_digest": "580a6333e05c4d6baa09a6dc293583a4eac9ec2c99c742fe3db111b95121bae6",
+      "current_acceptance_input_digest": "7e6d605f0a19424d95b52535cadc3733d69b5727982423b3e93c1837fec5938b"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0015-add-audited-stale-accepted-change-reopening",
+      "actor": "user:0xLeif",
+      "reason": "Refresh governed delivery evidence after the section-only verification fix",
+      "timestamp": 1783964407,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1783961018,
+        "digest": "4bc83c8303ff5e47df1e73efa76b4e23b382e6cc945f236cdb3d538dde29227d",
+        "note": "Accepted after integrated safeguards and Trust v5.0.1 compatibility verification"
+      },
+      "prior_verification": {
+        "timestamp": 1783961012,
+        "commit": "b3e9f27ee02b0fa1972bde7275a48f4943d7631b",
+        "contract_digest": "876a9f888f2c295135cbc197d6759a82f7d44712e1b2be8c56eff95077a8059a",
+        "workspace_digest": "3e9da43cccc07ae6f4fa4376ebf8863c586a4ebac20964d84ed0cbf1dd8cb8c3",
+        "acceptance_input_digest": "7e6d605f0a19424d95b52535cadc3733d69b5727982423b3e93c1837fec5938b",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-017"
+        ]
+      },
+      "stale_acceptance_input_digest": "7e6d605f0a19424d95b52535cadc3733d69b5727982423b3e93c1837fec5938b",
+      "current_acceptance_input_digest": "4564fbf3dab8011a442ff8f3dbfcb16441d73540e71d0f281e0b664c4880e2b8"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0015-add-audited-stale-accepted-change-reopening",
+      "actor": "user:0xLeif",
+      "reason": "Finalized CHG20 review corrections changed governed code and canonical evidence; refresh delivery verification without replaying the applied delta.",
+      "timestamp": 1783968533,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783964538,
+        "digest": "e921c273833dc8cd98c0823c0779493816dba436b577482871208bcfc1f2ac42",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1783964515,
+        "commit": "5bdb81c41923ab69ce6504e7aa4eacf3c6bda79d",
+        "contract_digest": "876a9f888f2c295135cbc197d6759a82f7d44712e1b2be8c56eff95077a8059a",
+        "workspace_digest": "be7e52529787be21afe9fd25096ecffffa618108afb2ef06e8597f97817f1638",
+        "acceptance_input_digest": "4564fbf3dab8011a442ff8f3dbfcb16441d73540e71d0f281e0b664c4880e2b8",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-017"
+        ]
+      },
+      "stale_acceptance_input_digest": "4564fbf3dab8011a442ff8f3dbfcb16441d73540e71d0f281e0b664c4880e2b8",
+      "current_acceptance_input_digest": "232df93bcd48331dbeaeb92ffef7cb9f961f6d5198b944a1c94e711eced58345"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0015-add-audited-stale-accepted-change-reopening",
+      "actor": "user:0xLeif",
+      "reason": "Four actionable review corrections changed the governed lifecycle implementation and require fresh native verification.",
+      "timestamp": 1783976766,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783968586,
+        "digest": "ef0577ac23c501001c6ea3c49d83832c4b71b38ae159c54110ddff3cc6824a30",
+        "note": "Fresh closing approval after finalized CHG20 corrections passed 1,540 unit and 189 integration tests; canonical delta remained already applied."
+      },
+      "prior_verification": {
+        "timestamp": 1783968563,
+        "commit": "eca4a64cf91d5f263caa542077e6639976f13cd6",
+        "contract_digest": "876a9f888f2c295135cbc197d6759a82f7d44712e1b2be8c56eff95077a8059a",
+        "workspace_digest": "c293c74c26c40932f332fdbfbc45738c1db7f064bf473c59d6a5e7ecd8b41299",
+        "acceptance_input_digest": "232df93bcd48331dbeaeb92ffef7cb9f961f6d5198b944a1c94e711eced58345",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-017"
+        ]
+      },
+      "stale_acceptance_input_digest": "232df93bcd48331dbeaeb92ffef7cb9f961f6d5198b944a1c94e711eced58345",
+      "current_acceptance_input_digest": "bacbb8925a0fa291a1adfa7a56e3f8473719e0cb44fa0f0848dfe436944c7da9"
+    }
+  ]
+}

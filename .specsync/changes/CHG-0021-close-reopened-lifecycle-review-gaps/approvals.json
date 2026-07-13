@@ -20,6 +20,13 @@
       "timestamp": 1783978200,
       "digest": "2d61dfc6f86e4579dc41dbe9e5d7fcaefe72d517ca2f715830adf01334c61363",
       "note": "Fresh closing approval after CHG-0022 native verification; canonical delta remains non-replaying"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783981620,
+      "digest": "f9bca5bab58d9a695fcb5283cc17ce75b088a1ca6e8d96154497892b034757de",
+      "note": "Closing approval after rebasing PR #359, exact-header regression coverage, and successful native verification"
     }
   ],
   "reopenings": [
@@ -58,6 +65,42 @@
       },
       "stale_acceptance_input_digest": "4415657baa4c814801c5d414296e73bec5ab0633735f4552137ecd234f01aa55",
       "current_acceptance_input_digest": "c20ca583e2b208b8f6175bd4d1e7f4fd2a9352680ef6262b888d87e23ff46783"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0021-close-reopened-lifecycle-review-gaps",
+      "actor": "user:0xLeif",
+      "reason": "Rebased PR #359 onto merged main and refreshed delivery evidence after the exact changelog-header review correction",
+      "timestamp": 1783981357,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783978200,
+        "digest": "2d61dfc6f86e4579dc41dbe9e5d7fcaefe72d517ca2f715830adf01334c61363",
+        "note": "Fresh closing approval after CHG-0022 native verification; canonical delta remains non-replaying"
+      },
+      "prior_verification": {
+        "timestamp": 1783978189,
+        "commit": "a36af58a4f9e79d5076059d050d6f41a0f14529d",
+        "contract_digest": "68d20d252bb4b4cb8c48a547b2c9654bef140d4c72ee64283098de7c77589549",
+        "workspace_digest": "88ae52edc77c03b0a181020c946748ac434d64cf1c129c97db61c68637ab684c",
+        "acceptance_input_digest": "c20ca583e2b208b8f6175bd4d1e7f4fd2a9352680ef6262b888d87e23ff46783",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-020"
+        ]
+      },
+      "stale_acceptance_input_digest": "c20ca583e2b208b8f6175bd4d1e7f4fd2a9352680ef6262b888d87e23ff46783",
+      "current_acceptance_input_digest": "0e29392e0342ba0cf3b007cb98db074db1f3007fe1d83bd32fa0c68cbb6faeb3"
     }
   ]
 }

@@ -3082,8 +3082,10 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
     }
     if !verification_commit_is_accepted_current(root, &verification)
         && !accepted_workspace_is_integrated(root, record)
+        && !accepted_change_is_recorded_in_current_history(root, record)
+        && !accepted_change_has_current_canonical_successors(root, record)
     {
-        return Err("accepted change verification commit is not in current history and the accepted workspace is not integrated unchanged on the remote default branch".into());
+        return Err("accepted change verification commit is not in current history, its canonical acceptance is not recorded in current history, and no current canonical successor governs its affected contract".into());
     }
     Ok(())
 }
@@ -4519,6 +4521,14 @@ mod tests {
             &verification
         ));
         assert!(ensure_closing_approval_valid(root, &record).is_ok());
+
+        git(&["switch", "-c", "followup"]);
+        git(&["commit", "--allow-empty", "-m", "followup"]);
+        assert!(!accepted_workspace_is_integrated(root, &record));
+        assert!(accepted_change_is_recorded_in_current_history(root, &record));
+        assert!(ensure_closing_approval_valid(root, &record).is_ok());
+
+        git(&["switch", "main"]);
         assert!(archive_change(root, &record.id).is_ok());
     }
 

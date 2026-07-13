@@ -27,7 +27,51 @@
       "timestamp": 1783978096,
       "digest": "4fc4e31ecd8fa59517f956b90274d04e913640ee975c05b4040621b7eef1b210",
       "note": "Closing approval after native verification and reproduced schema regression coverage"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783981622,
+      "digest": "4ac7d48031eda33c918223a4b27532b6ea5cbf33e0e38e3fc2d0a9001e8b29f8",
+      "note": "Closing approval after rebasing PR #359, exact-header regression coverage, and successful native verification"
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0022-preserve-canonical-change-log-table-schemas-when-accepting-semantic-deltas",
+      "actor": "user:0xLeif",
+      "reason": "Rebased PR #359 onto merged main and refreshed delivery evidence after the exact changelog-header review correction",
+      "timestamp": 1783981357,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783978096,
+        "digest": "4fc4e31ecd8fa59517f956b90274d04e913640ee975c05b4040621b7eef1b210",
+        "note": "Closing approval after native verification and reproduced schema regression coverage"
+      },
+      "prior_verification": {
+        "timestamp": 1783978091,
+        "commit": "a36af58a4f9e79d5076059d050d6f41a0f14529d",
+        "contract_digest": "24943ae6b954eceeae22b4745af135ace5c54940b905aa1a3ea9654cc7a3f1dd",
+        "workspace_digest": "abe1096aa9fe94eb62d6761b909e569d185427cfe9dae3d70fe571e62489a13c",
+        "acceptance_input_digest": "c20ca583e2b208b8f6175bd4d1e7f4fd2a9352680ef6262b888d87e23ff46783",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-021"
+        ]
+      },
+      "stale_acceptance_input_digest": "c20ca583e2b208b8f6175bd4d1e7f4fd2a9352680ef6262b888d87e23ff46783",
+      "current_acceptance_input_digest": "0e29392e0342ba0cf3b007cb98db074db1f3007fe1d83bd32fa0c68cbb6faeb3"
+    }
+  ]
 }

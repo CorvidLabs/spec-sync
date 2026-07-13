@@ -1,0 +1,12 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783981753,
+      "digest": "f0ab94dade0106f2c7b7bf1c201a6013de2ef617efd624488fcad43f3d0b4116",
+      "note": "Approved descendant-branch squash evidence correction after reproducing the strict-check failure"
+    }
+  ],
+  "reopenings": []
+}

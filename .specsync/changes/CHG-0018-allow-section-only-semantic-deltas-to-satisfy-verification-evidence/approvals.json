@@ -41,6 +41,20 @@
       "timestamp": 1783981618,
       "digest": "83ed444577b89314e460dd83efc366c647ee993461478f225cefded5b3f2d9d3",
       "note": "Closing approval after rebasing PR #359, exact-header regression coverage, and successful native verification"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783982478,
+      "digest": "f048a8d5ad82c4bffe1c11927c60a635790bdf4309b5aa81c96ed4b0d8119f03",
+      "note": "Closing approval after successful native verification and evidence review."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783982674,
+      "digest": "9572f592b9bc6e6692474f2d511c5131cb440f1b6157fc37b239d86431837e66",
+      "note": "Closing approval after successful native verification against the stable canonical requirements."
     }
   ],
   "reopenings": [
@@ -223,6 +237,42 @@
       },
       "stale_acceptance_input_digest": "a9138b18a8409ef66428bf687ef804ec1856454e3f6820a0893bbf91831b4447",
       "current_acceptance_input_digest": "bc75b0adf8ae5e01cf71f4c21a349f05963c455327ef115ab835f3aa9921019e"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0018-allow-section-only-semantic-deltas-to-satisfy-verification-evidence",
+      "actor": "user:0xLeif",
+      "reason": "Canonical requirement deltas are now fully applied; refresh evidence against the stable delivery inputs.",
+      "timestamp": 1783982513,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783982478,
+        "digest": "f048a8d5ad82c4bffe1c11927c60a635790bdf4309b5aa81c96ed4b0d8119f03",
+        "note": "Closing approval after successful native verification and evidence review."
+      },
+      "prior_verification": {
+        "timestamp": 1783982242,
+        "commit": "a8c75981615b6cc88d67bc9989d0d28475010c30",
+        "contract_digest": "13ed614e312e71c21a7ea0632e9a0872dbda267fe9c8bdc4d4581235550a25f9",
+        "workspace_digest": "e8218c8e1f91f9bade145271ef6e98b44e0336b3b3b50962c33cc832caffde76",
+        "acceptance_input_digest": "a92cc0c9bad7d369743fec9f91873fc64eab20e487ff24d7511525fcf8365827",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-019"
+        ]
+      },
+      "stale_acceptance_input_digest": "a92cc0c9bad7d369743fec9f91873fc64eab20e487ff24d7511525fcf8365827",
+      "current_acceptance_input_digest": "1ebe6752066cf4e5c84e7458072df4ebccff95fb937a0c82607da9eb513a655c"
     }
   ]
 }

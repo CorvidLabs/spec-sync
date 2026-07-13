@@ -1,6 +1,6 @@
 ---
 id: CHG-0022-preserve-canonical-change-log-table-schemas-when-accepting-semantic-deltas
-state: verifying
+state: accepted
 type: bug_fix
 base_commit: a36af58a4f9e79d5076059d050d6f41a0f14529d
 ---

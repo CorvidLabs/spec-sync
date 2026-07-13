@@ -5,11 +5,11 @@
   "title": "Reject modified definitions when reaccepting an already-applied change",
   "description": "Reject modified definitions when reaccepting an already-applied change",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "b714411df7a19e19918a0ea932182243eddf83fd",
   "created_at": 1783958270,
-  "updated_at": 1783981811,
+  "updated_at": 1783982672,
   "affected_specs": [
     "change"
   ],

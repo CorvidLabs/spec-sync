@@ -20,6 +20,27 @@
       "timestamp": 1783982105,
       "digest": "d0da4e523950d031eca19252680da146df7a0f9fda30f8287b7174368d06abe7",
       "note": "Approved remote-default fail-closed design after positive and negative squash regressions passed"
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783982325,
+      "digest": "932d69f741fad9c15d305d18ecc2633ba834e5b2c6c349a36295299b12e12ef1",
+      "note": "Approved final remote-default contract after all focused regressions passed"
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783982373,
+      "digest": "6250ad8adc9ab5ba3e79c56e12fdf6395f9f5c0a6e359c85c8dba600047646df",
+      "note": "Approved final truthful task contract without claiming hosted success early"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783982481,
+      "digest": "3bed88e7f32ab1446186ff5f153512ccdbbc07c72c9394dccc93cb5f2b02ff36",
+      "note": "Closing approval after successful native verification and evidence review."
     }
   ],
   "reopenings": []

@@ -13,7 +13,58 @@
       "timestamp": 1783958968,
       "digest": "150fe1bb6ac4f1b598dc88e31ae91d3aa57297c63d7d6748161fb14e5516e507",
       "note": "Accepted after full native verification on the current Trust-migrated PR head"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783962770,
+      "digest": "5c7f7e88ac3dccc2ce17ab68363512b8145c147cbadc4b8234c9dfe3574b47f9",
+      "note": "Normalized compatible definition evidence during explicit acceptance"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783962770,
+      "digest": "85663cd3fe999cdad51aa35ec9a3c6e9c2240c0b5ab3930c72a20d8ea9a0bccd",
+      "note": "Accepted after integrated Trust v5.0.1 compatibility verification"
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0016-reject-modified-definitions-when-reaccepting-an-already-applied-change",
+      "actor": "0xLeif",
+      "reason": "Integrated Trust v5.0.1 definition-evidence compatibility changed governed delivery inputs",
+      "timestamp": 1783962740,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783958968,
+        "digest": "150fe1bb6ac4f1b598dc88e31ae91d3aa57297c63d7d6748161fb14e5516e507",
+        "note": "Accepted after full native verification on the current Trust-migrated PR head"
+      },
+      "prior_verification": {
+        "timestamp": 1783958954,
+        "commit": "1d4aa853dbc890b276c76419bef70127c178334e",
+        "contract_digest": "5c7f7e88ac3dccc2ce17ab68363512b8145c147cbadc4b8234c9dfe3574b47f9",
+        "workspace_digest": "6860fa2a0b326f1e941fa2490c7060403df3cfba75175ded35b10ce474e861fa",
+        "acceptance_input_digest": "a825a1acbc7922558a96548e5d0af0415205fb84206d14efe537ef960dcd6bdc",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-017"
+        ]
+      },
+      "stale_acceptance_input_digest": "a825a1acbc7922558a96548e5d0af0415205fb84206d14efe537ef960dcd6bdc",
+      "current_acceptance_input_digest": "eaafa16c674dbb9e3fa3506ef8d5e17a269b6a14c5856226f0229d1be4ea8d2b"
+    }
+  ]
 }

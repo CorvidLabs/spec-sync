@@ -34,6 +34,20 @@
       "timestamp": 1783959006,
       "digest": "0c18022b547c3ca17404132efd720cce7dc659156481e7cf251bbe915dd1df4b",
       "note": "Accepted after verification against the final canonical change contract"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1783961018,
+      "digest": "876a9f888f2c295135cbc197d6759a82f7d44712e1b2be8c56eff95077a8059a",
+      "note": "Normalized compatible definition evidence during explicit acceptance"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783961018,
+      "digest": "4bc83c8303ff5e47df1e73efa76b4e23b382e6cc945f236cdb3d538dde29227d",
+      "note": "Accepted after integrated safeguards and Trust v5.0.1 compatibility verification"
     }
   ],
   "reopenings": [
@@ -108,6 +122,42 @@
       },
       "stale_acceptance_input_digest": "a334a0bec553b2a9dd67950e15da37ba1c0ceaa55d30274a6a4303bb94d6b26b",
       "current_acceptance_input_digest": "1d80cc96ec3fe450fa9537804674996af45a2d5c559b58bcd32bb629a561bd3b"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0015-add-audited-stale-accepted-change-reopening",
+      "actor": "0xLeif",
+      "reason": "Trust v5.0.1 compatibility requires stable definition evidence after integrating final reacceptance safeguards",
+      "timestamp": 1783960995,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783959006,
+        "digest": "0c18022b547c3ca17404132efd720cce7dc659156481e7cf251bbe915dd1df4b",
+        "note": "Accepted after verification against the final canonical change contract"
+      },
+      "prior_verification": {
+        "timestamp": 1783958993,
+        "commit": "1d4aa853dbc890b276c76419bef70127c178334e",
+        "contract_digest": "876a9f888f2c295135cbc197d6759a82f7d44712e1b2be8c56eff95077a8059a",
+        "workspace_digest": "5b967b9cd6316539e715b2f84e33c0534160a6346bb42aae5020f17011a7e4bc",
+        "acceptance_input_digest": "580a6333e05c4d6baa09a6dc293583a4eac9ec2c99c742fe3db111b95121bae6",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-017"
+        ]
+      },
+      "stale_acceptance_input_digest": "580a6333e05c4d6baa09a6dc293583a4eac9ec2c99c742fe3db111b95121bae6",
+      "current_acceptance_input_digest": "7e6d605f0a19424d95b52535cadc3733d69b5727982423b3e93c1837fec5938b"
     }
   ]
 }

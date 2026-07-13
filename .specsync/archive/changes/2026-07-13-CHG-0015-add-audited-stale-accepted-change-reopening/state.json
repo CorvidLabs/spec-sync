@@ -5,11 +5,11 @@
   "title": "Add audited stale accepted change reopening",
   "description": "Add audited stale accepted change reopening",
   "kind": "feature",
-  "state": "accepted",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "59bbfa766c6cce01ab815ab47db195b0629cc014",
   "created_at": 1783949541,
-  "updated_at": 1783982671,
+  "updated_at": 1783984156,
   "affected_specs": [
     "change",
     "cmd_change",

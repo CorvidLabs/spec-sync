@@ -1,6 +1,6 @@
 ---
 id: CHG-0020-harden-reopened-acceptance-compatibility-and-canonical-governance
-state: accepted
+state: archived
 type: bug_fix
 base_commit: eca4a64cf91d5f263caa542077e6639976f13cd6
 ---

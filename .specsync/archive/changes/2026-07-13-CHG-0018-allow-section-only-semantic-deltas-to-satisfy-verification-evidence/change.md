@@ -1,6 +1,6 @@
 ---
 id: CHG-0018-allow-section-only-semantic-deltas-to-satisfy-verification-evidence
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 52b47f1bb9c7434d7bbcac7b2ac8a7c477737cd6
 ---

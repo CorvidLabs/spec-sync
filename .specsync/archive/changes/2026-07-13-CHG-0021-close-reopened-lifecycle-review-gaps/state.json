@@ -5,11 +5,11 @@
   "title": "Close reopened lifecycle review gaps",
   "description": "Close reopened lifecycle review gaps",
   "kind": "bug_fix",
-  "state": "accepted",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "27dd307b84333905fbf8907a2c9082c27ebfb30d",
   "created_at": 1783976699,
-  "updated_at": 1783982677,
+  "updated_at": 1783984159,
   "affected_specs": [
     "change"
   ],

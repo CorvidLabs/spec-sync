@@ -1,0 +1,18 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783975663,
+      "digest": "21d4841e79fa217927e52b0a3a77a7d3c12f6fcf8c37f7efd6a259237c76ab39",
+      "note": "Approved mechanical Rust 1.95 lint compatibility correction"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783975839,
+      "digest": "59ed97f770fb0883cf1cf0a35e881948af1f10c7b383cf696397208b88d549f5",
+      "note": "Closing approval after Rust 1.95 Clippy, full tests, strict SDD, and Trust verification passed"
+    }
+  ]
+}

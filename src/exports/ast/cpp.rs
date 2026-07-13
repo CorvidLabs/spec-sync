@@ -139,16 +139,14 @@ fn walk_field_list(node: &Node, src: &[u8], mut vis: Visibility, symbols: &mut V
                 // if a future grammar version ever does.
                 handle_node(&child, src, symbols);
             }
-            "friend_declaration" => {
+            "friend_declaration" if vis == Visibility::Public => {
                 // `friend std::ostream& operator<<(...);` wraps an inner
                 // `declaration` node (the friended function's prototype) as
                 // its only named child. Route it through the normal
                 // `declaration` handling (which itself checks `static` and
                 // extracts the function name) — gated on the current
                 // section's visibility like any other member declaration.
-                if vis == Visibility::Public {
-                    walk(&child, src, symbols);
-                }
+                walk(&child, src, symbols);
             }
             "alias_declaration"
                 // `using Pixel = std::uint32_t;` inside a class body is a

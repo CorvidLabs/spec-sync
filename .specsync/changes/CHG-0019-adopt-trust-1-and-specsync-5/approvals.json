@@ -20,7 +20,49 @@
       "timestamp": 1783967012,
       "digest": "c42c0dc215b3c1f5493c85b30a6990fa28541e70661cb290e8beeda2e41036b5",
       "note": "Accepted after the native verify lane passed, strict SpecSync coverage remained 100%, hosted CI was green, and the protected branch required Trust."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783983332,
+      "digest": "99a7df061edecd4a1e93ad57159d995c22881158ac83f6a134f26703d11dec1f",
+      "note": "Closing approval after the full native suite passed on the rebased successor and immutable-action compatibility was reviewed."
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0019-adopt-trust-1-and-specsync-5",
+      "actor": "user:0xLeif",
+      "reason": "Refresh accepted delivery evidence after documenting the SpecSync repository self-hosting path on the rebased successor branch.",
+      "timestamp": 1783983307,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783967012,
+        "digest": "c42c0dc215b3c1f5493c85b30a6990fa28541e70661cb290e8beeda2e41036b5",
+        "note": "Accepted after the native verify lane passed, strict SpecSync coverage remained 100%, hosted CI was green, and the protected branch required Trust."
+      },
+      "prior_verification": {
+        "timestamp": 1783966997,
+        "commit": "eca4a64cf91d5f263caa542077e6639976f13cd6",
+        "contract_digest": "2b7de52a34d6edba9a51a7c696b85fa4165bbd5dd52c1f13a9e5afbe831e1e83",
+        "workspace_digest": "be7e52529787be21afe9fd25096ecffffa618108afb2ef06e8597f97817f1638",
+        "acceptance_input_digest": "ed16a23c599bc906d5189f4c7555df0d5a731890cb32a988244b39cf2fb2e0bd",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "ed16a23c599bc906d5189f4c7555df0d5a731890cb32a988244b39cf2fb2e0bd",
+      "current_acceptance_input_digest": "217f0bb09e7a82f726e6488309d1a24757753b8454a07226b03e15c7148da52c"
+    }
+  ]
 }

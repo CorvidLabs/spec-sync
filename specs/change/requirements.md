@@ -184,6 +184,7 @@ Acceptance Criteria
 
 - Definition digest, passed evidence, closing approval, stale delivery inputs, actor, and reason remain mandatory.
 - An unreachable verification commit is allowed only when current history records acceptance or later recorded canonical changes govern every affected spec and path.
+- A descendant feature branch preserves squash-accepted evidence when the remote default branch records the accepted state and the definition, delivery inputs, and closing approval remain current.
 - Arbitrary off-history evidence remains rejected.
 
 ### REQ-change-019
@@ -210,3 +211,13 @@ Acceptance Criteria
 - Nested project history lookup anchors repository-relative workspace state paths at the Git repository top.
 - Reopen rejects a request when current delivery inputs match accepted evidence, regardless of another closing-validity failure.
 
+### REQ-change-021
+
+The lifecycle SHALL preserve the existing canonical Change Log table schema when acceptance appends its audit row.
+
+Acceptance Criteria
+
+- A `Version | Date | Changes` table receives the post-bump canonical version, current date, and accepted change description in that order.
+- A `Date | Author | Change` table receives the current date, `SpecSync`, and accepted change description in that order.
+- Existing two-column `Date | Change` tables retain their current output.
+- The appended row has the same number and order of cells as every recognized existing header.

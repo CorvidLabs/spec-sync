@@ -2415,21 +2415,65 @@ fn bump_version_scalar(raw: &str) -> Result<String, String> {
 }
 
 fn append_changelog(content: &str, id: &str, title: &str) -> String {
-    let row = format!("| {} | {id}: {} |", today(), title.replace('|', "\\|"));
+    let description = format!("{id}: {}", title.replace('|', "\\|"));
+    let default_row = format!("| {} | {description} |", today());
     if let Some(position) = content.rfind("## Change Log") {
         let search_start = position + "## Change Log".len();
         let section_end = content[search_start..]
             .find("\n## ")
             .map(|offset| search_start + offset)
             .unwrap_or(content.len());
+        let row = changelog_table_row(&content[search_start..section_end], content, &description)
+            .unwrap_or(default_row);
         let before = content[..section_end].trim_end();
         let after = &content[section_end..];
         return format!("{before}\n{row}\n{after}");
     }
     format!(
         "{}\n## Change Log\n\n| Date | Change |\n|------|--------|\n{row}\n",
-        content.trim_end()
+        content.trim_end(),
+        row = default_row,
     )
+}
+
+fn changelog_table_row(section: &str, spec: &str, description: &str) -> Option<String> {
+    let header = section
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with('|') && line.ends_with('|'))?;
+    let columns: Vec<&str> = header.trim_matches('|').split('|').map(str::trim).collect();
+    if columns.len() < 2 {
+        return None;
+    }
+
+    let version = spec.lines().find_map(|line| {
+        let raw = line.strip_prefix("version:")?.trim();
+        let without_comment = raw.split_once(" #").map_or(raw, |(value, _)| value);
+        Some(without_comment.trim().trim_matches(['\'', '"']).to_string())
+    });
+    let mut recognized_description = false;
+    let cells: Vec<String> = columns
+        .iter()
+        .map(|column| {
+            let normalized = column.to_ascii_lowercase();
+            if normalized == "version" {
+                version.clone().unwrap_or_default()
+            } else if normalized == "date" {
+                today()
+            } else if matches!(
+                normalized.as_str(),
+                "change" | "changes" | "description" | "notes"
+            ) {
+                recognized_description = true;
+                description.to_string()
+            } else if normalized == "author" {
+                "SpecSync".to_string()
+            } else {
+                String::new()
+            }
+        })
+        .collect();
+    recognized_description.then(|| format!("| {} |", cells.join(" | ")))
 }
 
 fn write_prepared_files(root: &Path, prepared: &[(PathBuf, String)]) -> Result<(), String> {
@@ -3038,8 +3082,9 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
     }
     if !verification_commit_is_accepted_current(root, &verification)
         && !accepted_workspace_is_integrated(root, record)
+        && !accepted_change_is_recorded_on_remote_default(root, record)
     {
-        return Err("accepted change verification commit is not in current history and the accepted workspace is not integrated unchanged on the remote default branch".into());
+        return Err("accepted change verification commit is not in current history and canonical acceptance is not recorded on the remote default branch".into());
     }
     Ok(())
 }
@@ -3906,13 +3951,23 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
 }
 
 fn accepted_change_is_recorded_in_current_history(root: &Path, record: &ChangeRecord) -> bool {
+    accepted_change_is_recorded_in_ref(root, record, "HEAD")
+}
+
+fn accepted_change_is_recorded_on_remote_default(root: &Path, record: &ChangeRecord) -> bool {
+    remote_default_ref(root).is_some_and(|remote_default| {
+        accepted_change_is_recorded_in_ref(root, record, &remote_default)
+    })
+}
+
+fn accepted_change_is_recorded_in_ref(root: &Path, record: &ChangeRecord, reference: &str) -> bool {
     let state = format!("{CHANGES_PATH}/{}/state.json", record.id);
     let Ok(repo_state) = git_repo_relative_path(root, &state) else {
         return false;
     };
     let top_state = format!(":(top){repo_state}");
     let history = Command::new("git")
-        .args(["log", "--format=%H", "--", top_state.as_str()])
+        .args(["log", "--format=%H", reference, "--", top_state.as_str()])
         .current_dir(root)
         .output();
     let Ok(history) = history else {
@@ -4145,6 +4200,49 @@ mod tests {
     use super::*;
     use std::sync::{Arc, Barrier, mpsc};
     use tempfile::TempDir;
+
+    // Verifies REQ-change-021.
+    #[test]
+    fn append_changelog_preserves_version_date_changes_schema() {
+        let spec = "---\nmodule: canary\nversion: 3\n---\n\n## Change Log\n\n| Version | Date | Changes |\n|---------|------|---------|\n| 2 | 2026-07-13 | Previous |\n";
+
+        let updated = append_changelog(spec, "CHG-0003", "Correct the change log");
+
+        assert!(updated.contains(&format!(
+            "| 3 | {} | CHG-0003: Correct the change log |",
+            today()
+        )));
+    }
+
+    #[test]
+    fn append_changelog_populates_date_author_change_schema() {
+        let spec = "---\nmodule: canary\nversion: 2\n---\n\n## Change Log\n\n| Date | Author | Change |\n|------|--------|--------|\n";
+
+        let updated = append_changelog(spec, "CHG-0002", "Document behavior");
+
+        assert!(updated.contains(&format!(
+            "| {} | SpecSync | CHG-0002: Document behavior |",
+            today()
+        )));
+    }
+
+    #[test]
+    fn append_changelog_keeps_default_two_column_schema() {
+        let spec = "---\nmodule: canary\nversion: 2\n---\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n";
+
+        let updated = append_changelog(spec, "CHG-0002", "Document behavior");
+
+        assert!(updated.contains(&format!("| {} | CHG-0002: Document behavior |", today())));
+    }
+
+    #[test]
+    fn append_changelog_does_not_treat_similar_headers_as_change_columns() {
+        let spec = "---\nmodule: canary\nversion: 2\n---\n\n## Change Log\n\n| Date | Changer | Change |\n|------|---------|--------|\n";
+
+        let updated = append_changelog(spec, "CHG-0002", "Document behavior");
+
+        assert!(updated.contains(&format!("| {} |  | CHG-0002: Document behavior |", today())));
+    }
 
     #[test]
     fn effective_contract_workspaces_are_unique() {
@@ -4379,6 +4477,7 @@ mod tests {
         assert!(archive_change(root, &record.id).is_ok());
     }
 
+    // Verifies REQ-change-018.
     #[test]
     fn accepted_evidence_survives_integrated_squash_merge_and_archives() {
         let temp = TempDir::new().unwrap();
@@ -4429,6 +4528,17 @@ mod tests {
             &verification
         ));
         assert!(ensure_closing_approval_valid(root, &record).is_ok());
+
+        git(&["switch", "-c", "followup"]);
+        git(&["commit", "--allow-empty", "-m", "followup"]);
+        assert!(!accepted_workspace_is_integrated(root, &record));
+        assert!(accepted_change_is_recorded_in_current_history(
+            root, &record
+        ));
+        assert!(accepted_change_is_recorded_on_remote_default(root, &record));
+        assert!(ensure_closing_approval_valid(root, &record).is_ok());
+
+        git(&["switch", "main"]);
         assert!(archive_change(root, &record.id).is_ok());
     }
 

@@ -27,6 +27,34 @@
       "timestamp": 1783976934,
       "digest": "49d84a209e3d00e5ddd6465fa04906ee44df3acad5f80e8c5c615f10ac1479af",
       "note": "Fresh closing approval after the final CHG21 canonical contract settled and all 1,729 Rust tests passed."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783978200,
+      "digest": "8738305c77534bd9da16b79724d4e0b00148bee6a2ab5ee99336f16bc8203f63",
+      "note": "Fresh closing approval after CHG-0022 native verification; canonical delta remains non-replaying"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783981619,
+      "digest": "e5bf42e3cbd118a7871c56ef030b85ba63f15ca695c5d11a257266a1d9703dfe",
+      "note": "Closing approval after rebasing PR #359, exact-header regression coverage, and successful native verification"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783982479,
+      "digest": "e71e1cad2c725f2f548b29a96983a83c18a99ca91e2a7495aab994b8ce4c1a0a",
+      "note": "Closing approval after successful native verification and evidence review."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783982675,
+      "digest": "90da69de4e7cfb5228ad87b1b2f1e3e5d21fef15d5f1c390d48290294ad69400",
+      "note": "Closing approval after successful native verification against the stable canonical requirements."
     }
   ],
   "reopenings": [
@@ -65,6 +93,150 @@
       },
       "stale_acceptance_input_digest": "f9bc187908d54cf23f40cd80a60d1d9b0c9ce2dd5c29aefba4d3d03f4237d4af",
       "current_acceptance_input_digest": "e4ed4bb13f495c76af72b97000fe7b47ba3e175f307ec2b47b3cd64c54b19471"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0020-harden-reopened-acceptance-compatibility-and-canonical-governance",
+      "actor": "user:0xLeif",
+      "reason": "CHG-0022 updates shared lifecycle delivery inputs and canonical governance; record fresh non-replaying evidence",
+      "timestamp": 1783978112,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783976934,
+        "digest": "49d84a209e3d00e5ddd6465fa04906ee44df3acad5f80e8c5c615f10ac1479af",
+        "note": "Fresh closing approval after the final CHG21 canonical contract settled and all 1,729 Rust tests passed."
+      },
+      "prior_verification": {
+        "timestamp": 1783976933,
+        "commit": "27dd307b84333905fbf8907a2c9082c27ebfb30d",
+        "contract_digest": "527c29b2ac83ab6c75ffb903887f4d4b35c7c72bee55d06bce3a9226c9336668",
+        "workspace_digest": "81b3d783c869778f8a2576880cdfd02e1d35fc186cf55fc120fa6d6aae54f258",
+        "acceptance_input_digest": "4415657baa4c814801c5d414296e73bec5ab0633735f4552137ecd234f01aa55",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-020"
+        ]
+      },
+      "stale_acceptance_input_digest": "4415657baa4c814801c5d414296e73bec5ab0633735f4552137ecd234f01aa55",
+      "current_acceptance_input_digest": "c20ca583e2b208b8f6175bd4d1e7f4fd2a9352680ef6262b888d87e23ff46783"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0020-harden-reopened-acceptance-compatibility-and-canonical-governance",
+      "actor": "user:0xLeif",
+      "reason": "Rebased PR #359 onto merged main and refreshed delivery evidence after the exact changelog-header review correction",
+      "timestamp": 1783981356,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783978200,
+        "digest": "8738305c77534bd9da16b79724d4e0b00148bee6a2ab5ee99336f16bc8203f63",
+        "note": "Fresh closing approval after CHG-0022 native verification; canonical delta remains non-replaying"
+      },
+      "prior_verification": {
+        "timestamp": 1783978178,
+        "commit": "a36af58a4f9e79d5076059d050d6f41a0f14529d",
+        "contract_digest": "527c29b2ac83ab6c75ffb903887f4d4b35c7c72bee55d06bce3a9226c9336668",
+        "workspace_digest": "88ae52edc77c03b0a181020c946748ac434d64cf1c129c97db61c68637ab684c",
+        "acceptance_input_digest": "c20ca583e2b208b8f6175bd4d1e7f4fd2a9352680ef6262b888d87e23ff46783",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-020"
+        ]
+      },
+      "stale_acceptance_input_digest": "c20ca583e2b208b8f6175bd4d1e7f4fd2a9352680ef6262b888d87e23ff46783",
+      "current_acceptance_input_digest": "0e29392e0342ba0cf3b007cb98db074db1f3007fe1d83bd32fa0c68cbb6faeb3"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0020-harden-reopened-acceptance-compatibility-and-canonical-governance",
+      "actor": "user:0xLeif",
+      "reason": "CHG-0023 corrects descendant-branch squash validation and requires fresh shared lifecycle evidence",
+      "timestamp": 1783981812,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783981619,
+        "digest": "e5bf42e3cbd118a7871c56ef030b85ba63f15ca695c5d11a257266a1d9703dfe",
+        "note": "Closing approval after rebasing PR #359, exact-header regression coverage, and successful native verification"
+      },
+      "prior_verification": {
+        "timestamp": 1783981540,
+        "commit": "ba890fc8b51a76e6eb0112c9150a4732a63ea23d",
+        "contract_digest": "527c29b2ac83ab6c75ffb903887f4d4b35c7c72bee55d06bce3a9226c9336668",
+        "workspace_digest": "2534ac836de90e6c3151f8d69cff45dab5c9a593b8820c0f7e8afec2432d169e",
+        "acceptance_input_digest": "0e29392e0342ba0cf3b007cb98db074db1f3007fe1d83bd32fa0c68cbb6faeb3",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-020"
+        ]
+      },
+      "stale_acceptance_input_digest": "0e29392e0342ba0cf3b007cb98db074db1f3007fe1d83bd32fa0c68cbb6faeb3",
+      "current_acceptance_input_digest": "62f0854f73e7c43d30867750d07ea1195510d1aa88c1fd9847b045cb6fd0d2eb"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0020-harden-reopened-acceptance-compatibility-and-canonical-governance",
+      "actor": "user:0xLeif",
+      "reason": "Canonical requirement deltas are now fully applied; refresh evidence against the stable delivery inputs.",
+      "timestamp": 1783982513,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783982479,
+        "digest": "e71e1cad2c725f2f548b29a96983a83c18a99ca91e2a7495aab994b8ce4c1a0a",
+        "note": "Closing approval after successful native verification and evidence review."
+      },
+      "prior_verification": {
+        "timestamp": 1783982269,
+        "commit": "a8c75981615b6cc88d67bc9989d0d28475010c30",
+        "contract_digest": "527c29b2ac83ab6c75ffb903887f4d4b35c7c72bee55d06bce3a9226c9336668",
+        "workspace_digest": "e8218c8e1f91f9bade145271ef6e98b44e0336b3b3b50962c33cc832caffde76",
+        "acceptance_input_digest": "c6c8ce03bcaadf7c12ac807a30d3657dc301f2ef0b00552059efb9278ff205f9",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-020"
+        ]
+      },
+      "stale_acceptance_input_digest": "c6c8ce03bcaadf7c12ac807a30d3657dc301f2ef0b00552059efb9278ff205f9",
+      "current_acceptance_input_digest": "63b92e41e4b538bb43c6c28b02b43c09bd13a62d50526d6a364fa4fec6e824de"
     }
   ]
 }

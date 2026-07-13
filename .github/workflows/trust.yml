@@ -18,6 +18,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.89.0
         with:
           components: rustfmt, clippy
+      # Native CI builds and exercises the pull-request binary before this immutable release gate.
       - name: CorvidLabs Trust gate
         id: trust
         uses: CorvidLabs/trust@9d32b5786d2e9e4d39fc581c0091c721ee3d4226 # v1.0.0

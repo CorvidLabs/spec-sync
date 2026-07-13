@@ -799,10 +799,12 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
         }
     }
     let requirement_ids = collect_requirement_ids(root, &record)?;
+    let has_semantic_acceptance_item = semantic_acceptance_item_exists(root, &record)?;
     let missing_evidence = requirement_evidence_missing(root, &record, &requirement_ids);
-    let passed = commands.iter().all(|command| command.success)
-        && acceptance_criteria_have_evidence(&record, &requirement_ids)
-        && missing_evidence.is_empty();
+    let commands_passed = commands.iter().all(|command| command.success);
+    let acceptance_evidence_present =
+        acceptance_criteria_have_evidence(&record, has_semantic_acceptance_item);
+    let passed = commands_passed && acceptance_evidence_present && missing_evidence.is_empty();
     let verification = VerificationRecord {
         timestamp: now(),
         commit: git_output(root, &["rev-parse", "HEAD"]),
@@ -822,8 +824,10 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
     save_change(root, &record)?;
     write_change_markdown(root, &record)?;
     if !verification.passed {
-        let detail = if missing_evidence.is_empty() {
+        let detail = if !commands_passed {
             "configured verification command failed".to_string()
+        } else if !acceptance_evidence_present {
+            "semantic acceptance evidence is missing".to_string()
         } else {
             format!(
                 "requirement evidence missing for {}",
@@ -1682,11 +1686,33 @@ fn ensure_tasks_complete(root: &Path, record: &ChangeRecord) -> Result<(), Strin
     Ok(())
 }
 
-fn acceptance_criteria_have_evidence(record: &ChangeRecord, requirement_ids: &[String]) -> bool {
+fn acceptance_criteria_have_evidence(
+    record: &ChangeRecord,
+    has_semantic_acceptance_item: bool,
+) -> bool {
     if record.no_spec_change {
         return !record.acceptance_criteria.is_empty();
     }
-    !record.acceptance_criteria.is_empty() && !requirement_ids.is_empty()
+    !record.acceptance_criteria.is_empty() && has_semantic_acceptance_item
+}
+
+fn semantic_acceptance_item_exists(root: &Path, record: &ChangeRecord) -> Result<bool, String> {
+    if record.no_spec_change {
+        return Ok(true);
+    }
+    for module in &record.affected_specs {
+        let content =
+            read_bounded_change_text(&delta_path(root, record, module), "semantic delta")?;
+        if parse_delta(&content)?.iter().any(|item| {
+            matches!(
+                item.target,
+                DeltaTarget::Requirement | DeltaTarget::SpecSection
+            ) && item.operation != DeltaOperation::Removed
+        }) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn requirement_evidence_missing(root: &Path, record: &ChangeRecord, ids: &[String]) -> Vec<String> {
@@ -4193,6 +4219,32 @@ mod tests {
         record
     }
 
+    fn completed_section_only_record(root: &Path, delta: &str) -> ChangeRecord {
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::write(root.join("src/auth.rs"), "// Authentication module.\n").unwrap();
+        fs::write(
+            root.join("specs/auth/auth.spec.md"),
+            "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Legacy Notes\n\nRetained for compatibility.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+        let record = completed_record(root);
+        for artifact in &record.selected_artifacts {
+            let content = if *artifact == ArtifactKind::Tasks {
+                "# Tasks\n\n- [x] Complete the documentation change.\n"
+            } else {
+                "# Complete\n\nReviewed content.\n"
+            };
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                content,
+            )
+            .unwrap();
+        }
+        fs::write(delta_path(root, &record, "auth"), delta).unwrap();
+        record
+    }
+
     #[test]
     fn change_ids_are_sequential_and_readable() {
         let temp = TempDir::new().unwrap();
@@ -5568,6 +5620,46 @@ mod tests {
         let archived = archive_change(root, &record.id).unwrap();
         assert!(archived.is_dir());
         assert!(!change_dir(root, &record.id).exists());
+    }
+
+    #[test]
+    fn section_only_semantic_delta_can_satisfy_acceptance_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_section_only_record(
+            root,
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and explicitly documented.\n",
+        );
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+
+        let verification = verify_change(root, &record.id).unwrap();
+
+        assert!(verification.passed);
+        assert!(verification.requirement_ids.is_empty());
+    }
+
+    #[test]
+    fn missing_semantic_acceptance_evidence_is_not_reported_as_command_failure() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_section_only_record(
+            root,
+            "## REMOVED\n### SPEC SECTION Legacy Notes\n\nRetired.\n",
+        );
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+
+        let error = verify_change(root, &record.id).unwrap_err();
+
+        assert!(
+            error.contains("semantic acceptance evidence is missing"),
+            "{error}"
+        );
+        assert!(
+            !error.contains("configured verification command failed"),
+            "{error}"
+        );
     }
 
     #[test]

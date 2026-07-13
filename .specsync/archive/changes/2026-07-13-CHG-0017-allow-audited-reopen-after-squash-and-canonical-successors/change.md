@@ -1,6 +1,6 @@
 ---
 id: CHG-0017-allow-audited-reopen-after-squash-and-canonical-successors
-state: accepted
+state: archived
 type: bug_fix
 base_commit: ca766a0beca901b96978520afb07449dd1bd89e7
 ---

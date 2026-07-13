@@ -1,6 +1,6 @@
 ---
 id: CHG-0021-close-reopened-lifecycle-review-gaps
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 27dd307b84333905fbf8907a2c9082c27ebfb30d
 ---

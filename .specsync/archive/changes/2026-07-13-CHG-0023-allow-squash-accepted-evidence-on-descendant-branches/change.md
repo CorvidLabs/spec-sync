@@ -1,6 +1,6 @@
 ---
 id: CHG-0023-allow-squash-accepted-evidence-on-descendant-branches
-state: accepted
+state: archived
 type: feature
 base_commit: ba890fc8b51a76e6eb0112c9150a4732a63ea23d
 ---

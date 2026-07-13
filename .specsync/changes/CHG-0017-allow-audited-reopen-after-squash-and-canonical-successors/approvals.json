@@ -13,6 +13,13 @@
       "timestamp": 1783963490,
       "digest": "956d97aa4a12e3edb8c1444a79572ce26cd42231d5b047d0021e4ec46b30e5d3",
       "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783963554,
+      "digest": "e99fc041606c07fc7f86cd4e61c0b5da7c3a6ae667568823b5eae014f2de95dc",
+      "note": null
     }
   ],
   "reopenings": []

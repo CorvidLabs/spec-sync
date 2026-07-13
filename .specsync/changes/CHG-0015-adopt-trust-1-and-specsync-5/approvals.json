@@ -6,6 +6,14 @@
       "timestamp": 1783830619,
       "digest": "b114454a8ab29aad31f1740ccf037acf9696961ef7ec40e4675e4069fdf8ac0f",
       "note": "Authorized by the approved organization-wide SpecSync 5 / Trust 1 migration plan."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783959375,
+      "digest": "3a61443e484bfbf431e643c8d88b99a56197e1a865af3e8ba60039862207805f",
+      "note": "Approved repository-only self-host exception after deterministic policy validation; source-built strict 100 percent contract remains blocking"
     }
-  ]
+  ],
+  "reopenings": []
 }

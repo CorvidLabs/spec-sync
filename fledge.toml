@@ -19,6 +19,9 @@ cmd = "cargo check"
 [tasks.spec-check]
 cmd = "cargo run -- check --strict --require-coverage 100 --force"
 
+[tasks.trust-self-host-policy]
+cmd = "python3 .github/scripts/validate_trust_self_host.py"
+
 [tasks.docs-test]
 cmd = "cd site && bun test"
 
@@ -60,6 +63,7 @@ steps = [
   { parallel = ["fmt", "lint", "check-types"] },
   "test",
   "build",
+  "trust-self-host-policy",
   "spec-check",
 ]
 
@@ -70,6 +74,7 @@ steps = [
   "test",
   "build",
   "audit",
+  "trust-self-host-policy",
   "spec-check",
   { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
 ]

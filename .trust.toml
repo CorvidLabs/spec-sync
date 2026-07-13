@@ -5,14 +5,9 @@ profile = "standard"
 command = ["fledge", "lanes", "run", "verify"]
 
 [contract]
-# SpecSync self-hosts its contract with the source-built `spec-check` task in
-# the blocking lifecycle lane. Trust's immutable v1 contract component runs
-# released SpecSync 5.0.1, which cannot validate lifecycle schema changes made
-# by a SpecSync pull request. This exception is repository-local and must not
-# be copied to consumers.
-enabled = false
+enabled = true
 require_coverage = 100
-skip_reason = "SpecSync self-hosts strict 100% contract validation with the source-built binary in the blocking lifecycle lane"
+skip_reason = ""
 
 [risk]
 threshold = "block"

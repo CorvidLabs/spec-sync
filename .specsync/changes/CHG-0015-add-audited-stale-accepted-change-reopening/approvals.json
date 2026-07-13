@@ -27,6 +27,13 @@
       "timestamp": 1783957663,
       "digest": "8dddefe920c629d6ddf1e67256491f1f11a172acb943a19e2a1f89a61dbf65b4",
       "note": "Reaccepted after CI compatibility verification for legacy and transitional definition evidence"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783959006,
+      "digest": "0c18022b547c3ca17404132efd720cce7dc659156481e7cf251bbe915dd1df4b",
+      "note": "Accepted after verification against the final canonical change contract"
     }
   ],
   "reopenings": [
@@ -65,6 +72,42 @@
       },
       "stale_acceptance_input_digest": "eff07f7bee3379f615794348f88906fab20a9e109b62d0109a5ac157282394c7",
       "current_acceptance_input_digest": "a334a0bec553b2a9dd67950e15da37ba1c0ceaa55d30274a6a4303bb94d6b26b"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0015-add-audited-stale-accepted-change-reopening",
+      "actor": "user:0xLeif",
+      "reason": "PR review added fail-closed definition-integrity validation and regression coverage",
+      "timestamp": 1783958925,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1783957663,
+        "digest": "8dddefe920c629d6ddf1e67256491f1f11a172acb943a19e2a1f89a61dbf65b4",
+        "note": "Reaccepted after CI compatibility verification for legacy and transitional definition evidence"
+      },
+      "prior_verification": {
+        "timestamp": 1783955326,
+        "commit": "4f6f3b581e230ae57884c41354d48ff1b1612d2c",
+        "contract_digest": "876a9f888f2c295135cbc197d6759a82f7d44712e1b2be8c56eff95077a8059a",
+        "workspace_digest": "ce504be2af1ab678dc42d09cb9a3950385cfdf18bfdbea80d72725eb38cbbe9d",
+        "acceptance_input_digest": "a334a0bec553b2a9dd67950e15da37ba1c0ceaa55d30274a6a4303bb94d6b26b",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-017"
+        ]
+      },
+      "stale_acceptance_input_digest": "a334a0bec553b2a9dd67950e15da37ba1c0ceaa55d30274a6a4303bb94d6b26b",
+      "current_acceptance_input_digest": "1d80cc96ec3fe450fa9537804674996af45a2d5c559b58bcd32bb629a561bd3b"
     }
   ]
 }

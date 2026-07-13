@@ -173,4 +173,6 @@ Acceptance Criteria
 - Reopen moves accepted evidence to verifying so strict checks remain red until a fresh verification run succeeds.
 - Prior definition approval, verification, and closing approval evidence remain inspectable in append-only audit history.
 - Reacceptance requires a new closing approval and does not reapply canonical deltas already accepted.
+- Reacceptance rejects a definition digest that differs from the latest pre-reopen verification contract and directs further spec work to a new change workspace.
+- A verifying already-applied change without audited reopen history fails closed.
 

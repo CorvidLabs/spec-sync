@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0016-keep-c-friend-extraction-compatible-with-rust-1-95-clippy",
+  "slug": "keep-c-friend-extraction-compatible-with-rust-1-95-clippy",
+  "title": "Keep C++ friend extraction compatible with Rust 1.95 Clippy",
+  "description": "Keep C++ friend extraction compatible with Rust 1.95 Clippy",
+  "kind": "refactor",
+  "state": "accepted",
+  "base_commit": "60bd655c2365addc3d7a37e95f5fc20c06a746ff",
+  "created_at": 1783976135,
+  "updated_at": 1783976186,
+  "affected_specs": [],
+  "affected_paths": [
+    "src/exports/ast/cpp.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "The guarded match is equivalent to the prior nested visibility condition and changes no extraction behavior or public contract.",
+  "acceptance_criteria": [
+    "Rust 1.95 Clippy passes with warnings denied; all C++ extractor tests pass unchanged"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

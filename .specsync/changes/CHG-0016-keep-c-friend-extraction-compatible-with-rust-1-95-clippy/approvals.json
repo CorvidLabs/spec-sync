@@ -1,0 +1,18 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783976167,
+      "digest": "4485ed748e5122c78270aa4a45f2213e577f616a23b51b8413de58b291db1d3c",
+      "note": "Approved as a non-semantic Rust 1.95 lint compatibility refactor."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783976186,
+      "digest": "57417ffe1c3011c9bf40f2ed7cd091573a6c4500216ee52d4993bbe75cf8adf7",
+      "note": "Accepted after Rust 1.95 Clippy, formatting, all 1,717 Rust tests, and the 12 focused C++ extractor tests passed without behavior changes."
+    }
+  ]
+}

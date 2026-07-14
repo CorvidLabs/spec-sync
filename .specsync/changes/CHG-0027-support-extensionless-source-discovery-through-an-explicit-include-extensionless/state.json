@@ -5,10 +5,11 @@
   "title": "Support extensionless source discovery through an explicit include_extensionless setting while preserving omitted and empty source_extensions defaults, with parser, scanner, strict file coverage, and LOC coverage regressions for extensionless-only and mixed projects",
   "description": "Support extensionless source discovery through an explicit include_extensionless setting while preserving omitted and empty source_extensions defaults, with parser, scanner, strict file coverage, and LOC coverage regressions for extensionless-only and mixed projects",
   "kind": "feature",
-  "state": "accepted",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "c98d29810f78abcdd6a2fec9b137667d3ab2fc5b",
   "created_at": 1784038025,
-  "updated_at": 1784039730,
+  "updated_at": 1784039829,
   "affected_specs": [
     "config",
     "validator"

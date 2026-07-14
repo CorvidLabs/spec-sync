@@ -42,5 +42,44 @@
       "digest": "738e27a948dc103653fea3e37daf6c6c5c09b851ff272703d5bbbfe414db5b18",
       "note": "Closing approval after the required native lane passed 1,567 unit tests, 195 integration tests, release build, and strict 100 percent file and LOC coverage with zero warnings"
     }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0027-support-extensionless-source-discovery-through-an-explicit-include-extensionless",
+      "actor": "user:0xLeif",
+      "reason": "Reopen solely to record fresh evidence after removing semantic-delta trailing blank lines required by git diff --check; no contract or product behavior changed",
+      "timestamp": 1784039829,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784039730,
+        "digest": "738e27a948dc103653fea3e37daf6c6c5c09b851ff272703d5bbbfe414db5b18",
+        "note": "Closing approval after the required native lane passed 1,567 unit tests, 195 integration tests, release build, and strict 100 percent file and LOC coverage with zero warnings"
+      },
+      "prior_verification": {
+        "timestamp": 1784039718,
+        "commit": "f5cdb3d693c27f5f123941222d0d33b4f299dc51",
+        "contract_digest": "b5d30c0ab6b9109d24a181a175dcf9106bf298025d333ddaa222e4212e91b373",
+        "workspace_digest": "7cdfe39ce8e080a209cec3000c874a7f84736f2e9a34e58efeba5f0514d05a23",
+        "acceptance_input_digest": "dfbaceac2894e9ae40c6ce00d3a3c9b89106f2d034944eebdca6614ec83f3124",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-config-003",
+          "REQ-validator-005"
+        ]
+      },
+      "stale_acceptance_input_digest": "dfbaceac2894e9ae40c6ce00d3a3c9b89106f2d034944eebdca6614ec83f3124",
+      "current_acceptance_input_digest": "5b5265bc095f6418a01635a3d575407b1d57c61744ee1e719ed6386564c47041"
+    }
   ]
 }

@@ -20,6 +20,13 @@
       "timestamp": 1784062319,
       "digest": "db3a92cf0689ae0fb3f8e0a663e39c602155f772186bc1547ce2b209466ad7f5",
       "note": "Closing approval after all six canonical contracts and every valid #377 finding passed 1,589 unit and 206 integration tests at f027bba7387f785f6ab81bf726c317d02356a096, including incremental cached ownership and normalized dot-segment transitions."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784062834,
+      "digest": "5438cd075d040def3b454c3354438bb5922ea072b151f122b51f011103f9a725",
+      "note": "Fresh closing approval after the valid ownership-normalization review correction passed 1,589 unit and 207 integration tests at 36d9bf8672cc1ae619cb4c1644a1fbbe3658688b."
     }
   ],
   "reopenings": [

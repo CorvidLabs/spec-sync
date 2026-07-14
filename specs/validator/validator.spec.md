@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 8
+version: 9
 status: stable
 files:
   - src/validator.rs
@@ -126,3 +126,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-14 | CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2: Stabilize SpecSync 5 lifecycle integrity and strict validation for 5.0.2 |
 | 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |
+| 2026-07-14 | CHG-0027-support-extensionless-source-discovery-through-an-explicit-include-extensionless: Support extensionless source discovery through an explicit include_extensionless setting while preserving omitted and empty source_extensions defaults, with parser, scanner, strict file coverage, and LOC coverage regressions for extensionless-only and mixed projects |

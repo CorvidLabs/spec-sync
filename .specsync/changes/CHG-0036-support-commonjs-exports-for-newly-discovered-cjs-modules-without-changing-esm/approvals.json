@@ -115,6 +115,42 @@
       },
       "stale_acceptance_input_digest": "e8cfd1e2a80e3123999fcf651abbcdea199f60e6b39ae4f41b3361f64c36c2f4",
       "current_acceptance_input_digest": "7f6838a29d87c55832cea6e86642cd764a2d0af267b553af1b25d19e2ec996a5"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0036-support-commonjs-exports-for-newly-discovered-cjs-modules-without-changing-esm",
+      "actor": "user:0xLeif",
+      "reason": "CHG-0039 updates the overlapping Unreleased changelog while preserving the accepted CommonJS behavior, so CHG-0036 requires fresh native verification and closing approval on the integrated delivery history.",
+      "timestamp": 1784062259,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784059982,
+        "digest": "d453db8a1ddd45cb387036e12f5be57b92c51078aaa3d9f69dc027455e574ae8",
+        "note": "Fresh native verification passed at 3383e15f68d90fe7be360d0e115ea948abbf29aa after CHG-0038 CommonJS hardening: 1,587 unit and 199 integration tests."
+      },
+      "prior_verification": {
+        "timestamp": 1784059949,
+        "commit": "3383e15f68d90fe7be360d0e115ea948abbf29aa",
+        "contract_digest": "e537cd77dbb5e09aa1d3fc2c7ab9541aa3942fdce8433b638ca9b220bceef749",
+        "workspace_digest": "c72d1f17ae5d0de8b21fb3eb8fbc2a8d85677c584452baadcdafba3e33c15516",
+        "acceptance_input_digest": "7f6838a29d87c55832cea6e86642cd764a2d0af267b553af1b25d19e2ec996a5",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-exports-002"
+        ]
+      },
+      "stale_acceptance_input_digest": "7f6838a29d87c55832cea6e86642cd764a2d0af267b553af1b25d19e2ec996a5",
+      "current_acceptance_input_digest": "4386bbf4a6d98aa07738f5fac2c14345d3836401e5f6d0fc10e6cebab2fc20b8"
     }
   ]
 }

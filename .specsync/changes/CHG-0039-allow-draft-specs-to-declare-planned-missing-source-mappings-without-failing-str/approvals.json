@@ -62,6 +62,13 @@
       "timestamp": 1784067593,
       "digest": "54dc48e759cd0998624ae2a2cd60b9fb4fb27ae699f013346396103db6af8aea",
       "note": "Closing approval after the CRLF ownership correction passed 1,589 unit tests, 214 integration tests, strict 100% coverage, and the exact-candidate Trust gate."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784069837,
+      "digest": "7a38e02ec5800f95e55ac216879223dcc79f6b9e629e5d6bdf4ebecce149a363",
+      "note": "Closing approval after the reviewed allocation correction passed 1,589 unit tests, 214 integration tests, the complete cross-platform hosted matrix, CodeQL, and Trust."
     }
   ],
   "reopenings": [

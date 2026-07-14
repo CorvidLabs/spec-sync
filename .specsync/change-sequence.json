@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 39,
-  "id": "CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+  "sequence": 40,
+  "id": "CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re",
   "acknowledged_collisions": [
     {
       "sequence": 16,

@@ -5,11 +5,10 @@
   "title": "Preserve free-text arguments in generated agent commands",
   "description": "Preserve free-text arguments in generated agent commands",
   "kind": "bug_fix",
-  "state": "accepted",
-  "canonical_applied": true,
+  "state": "archived",
   "base_commit": "60bd655c2365addc3d7a37e95f5fc20c06a746ff",
   "created_at": 1783979430,
-  "updated_at": 1783979550,
+  "updated_at": 1784039061,
   "affected_specs": [
     "agents"
   ],

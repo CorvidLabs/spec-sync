@@ -1,6 +1,6 @@
 ---
 id: CHG-0016-preserve-c-ast-behavior-under-rust-1-95-clippy
-state: accepted
+state: archived
 type: refactor
 base_commit: 60bd655c2365addc3d7a37e95f5fc20c06a746ff
 ---

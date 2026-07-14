@@ -5,11 +5,10 @@
   "title": "Address all unresolved review feedback on PR 366",
   "description": "Address all unresolved review feedback on PR 366",
   "kind": "feature",
-  "state": "accepted",
-  "canonical_applied": true,
+  "state": "archived",
   "base_commit": "f2a9d2cafdaff23c904a1fd73e5c8ac21f89ca89",
   "created_at": 1783991918,
-  "updated_at": 1783997131,
+  "updated_at": 1784039055,
   "affected_specs": [
     "change",
     "validator",

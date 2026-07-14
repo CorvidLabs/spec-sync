@@ -27,6 +27,13 @@
       "timestamp": 1784055147,
       "digest": "0b3b03ba919f229173c6f01f12fa86d6f1369e3e46941cec791b09197dd3eebd",
       "note": "Exact committed delivery b1820d0 passed all 1579 unit tests and 203 integration tests; canonical requirements are applied without placeholders."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784055526,
+      "digest": "057ac0895ea3715cff7c945bc26fab4e63ea994e81e70de9c985139284a7c1b7",
+      "note": "Review correction verified at cfbb5a2: duplicate ownership uses direct per-spec lookups; all 1579 unit tests and 203 integration tests pass."
     }
   ],
   "reopenings": [
@@ -68,6 +75,45 @@
       },
       "stale_acceptance_input_digest": "2a42a3ce6e090627f74635385cc813e2d7018c508890b9546e6e00f3fef17802",
       "current_acceptance_input_digest": "0547c678148990821e0f9f13b1fcd4c3e2952531a880b6e69f4ea12ce32a6822"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0036-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+      "actor": "user:0xLeif",
+      "reason": "Apply the valid review correction that changes duplicate-ownership validation from a project-wide scan per spec to direct per-spec file lookups; refresh evidence at cfbb5a2.",
+      "timestamp": 1784055506,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784055147,
+        "digest": "0b3b03ba919f229173c6f01f12fa86d6f1369e3e46941cec791b09197dd3eebd",
+        "note": "Exact committed delivery b1820d0 passed all 1579 unit tests and 203 integration tests; canonical requirements are applied without placeholders."
+      },
+      "prior_verification": {
+        "timestamp": 1784055140,
+        "commit": "b1820d0c0387ed177e7744517fab1f93088d19af",
+        "contract_digest": "42b615b4e50b4d19bd046066c432447bc0536e3a71ba9055756e6dad092086e3",
+        "workspace_digest": "700ece2be7f66feafb60d5d188a091ca5658c207caa58af5911e0cc2df511a05",
+        "acceptance_input_digest": "0547c678148990821e0f9f13b1fcd4c3e2952531a880b6e69f4ea12ce32a6822",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-commands-002",
+          "REQ-config-004",
+          "REQ-types-003",
+          "REQ-validator-007"
+        ]
+      },
+      "stale_acceptance_input_digest": "0547c678148990821e0f9f13b1fcd4c3e2952531a880b6e69f4ea12ce32a6822",
+      "current_acceptance_input_digest": "4f42812d006197a899df5169f70c7381e505c8a93f1141a2855239e4157863d8"
     }
   ]
 }

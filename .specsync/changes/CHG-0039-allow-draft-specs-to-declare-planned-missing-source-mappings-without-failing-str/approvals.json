@@ -262,6 +262,47 @@
       },
       "stale_acceptance_input_digest": "daa3ecd4f2de51e66d5a4caac7c09cc260af26005bc0920164e6a2eff37ee5f0",
       "current_acceptance_input_digest": "f55a3f6e1e7ce6f52809e80fffb7a1d304fe0f03d570ff8b292e90796c05f1a9"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+      "actor": "0xLeif",
+      "reason": "Approved CHG-0040 and CHG-0041 legitimately update this change's accepted delivery inputs.",
+      "timestamp": 1784073501,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784064489,
+        "digest": "4f0d667e2840eeae437d983e928e369ae44eb9f5f791a10854440e61fb1beb32",
+        "note": "Fresh closing approval after canonical config EOF cleanup passed 1,589 unit and 213 integration tests at b2c8215f88053afbb98e0ee4e7f5f47017f824e8."
+      },
+      "prior_verification": {
+        "timestamp": 1784064482,
+        "commit": "b2c8215f88053afbb98e0ee4e7f5f47017f824e8",
+        "contract_digest": "2c99f36762570d09587e407bbe56e755365bc0cd2c965529ef904370daec19e1",
+        "workspace_digest": "9a36fb4e60544569344af41b1136c355eb2963df455c8968d85dff31c9244752",
+        "acceptance_input_digest": "f55a3f6e1e7ce6f52809e80fffb7a1d304fe0f03d570ff8b292e90796c05f1a9",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-commands-002",
+          "REQ-comment-002",
+          "REQ-config-004",
+          "REQ-output-002",
+          "REQ-types-003",
+          "REQ-validator-007"
+        ]
+      },
+      "stale_acceptance_input_digest": "f55a3f6e1e7ce6f52809e80fffb7a1d304fe0f03d570ff8b292e90796c05f1a9",
+      "current_acceptance_input_digest": "bc4928a65c52035c4ece689a7f55d4004690a1889d664c910abd82f85f38b689"
     }
   ]
 }

@@ -147,6 +147,43 @@
       },
       "stale_acceptance_input_digest": "d0c98a938507fb9671aec2634979b0bae5c1707c26ad52d0c9fcb9fbcdad1101",
       "current_acceptance_input_digest": "fadaf1ac863471aeb803768a28358fee55456f58bf748c5b9b98971f89e675e9"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0035-count-mjs-and-cjs-files-as-default-typescript-sources-so-mapped-and-uncovered-mo",
+      "actor": "0xLeif",
+      "reason": "Approved CHG-0040 and CHG-0041 legitimately update this change's accepted delivery inputs.",
+      "timestamp": 1784073500,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784058602,
+        "digest": "8f14e8ed17a41fe8c72d16d3957f9d0a41fa602312a429b0a8bb1429d7f45f5f",
+        "note": "Fresh closing approval after the overlapping CHG-0037 integration fixture passed 1,582 unit tests and 199 integration tests at 0cd65664597a5f331f889c6d840806bb0765f87f."
+      },
+      "prior_verification": {
+        "timestamp": 1784058595,
+        "commit": "0cd65664597a5f331f889c6d840806bb0765f87f",
+        "contract_digest": "6c5b334ec7bdf678f86c486c2fd19277317b4346b47196e8be7a600a5913f8db",
+        "workspace_digest": "0ba6b2f2b24aa49d1afe0f240c0b4378229ccce087a80e1a799d952d547ceec4",
+        "acceptance_input_digest": "fadaf1ac863471aeb803768a28358fee55456f58bf748c5b9b98971f89e675e9",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-types-002",
+          "REQ-validator-006"
+        ]
+      },
+      "stale_acceptance_input_digest": "fadaf1ac863471aeb803768a28358fee55456f58bf748c5b9b98971f89e675e9",
+      "current_acceptance_input_digest": "4dfc5b3f67d05322f5699d886a4df4d55a64e710eb8b8f4fdb54b42057148daa"
     }
   ]
 }

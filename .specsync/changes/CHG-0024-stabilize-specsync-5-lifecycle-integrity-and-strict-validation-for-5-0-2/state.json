@@ -5,11 +5,11 @@
   "title": "Stabilize SpecSync 5 lifecycle integrity and strict validation for 5.0.2",
   "description": "Stabilize SpecSync 5 lifecycle integrity and strict validation for 5.0.2",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "21e44ecf33f4fe876820ef3ef8f19553341da15a",
   "created_at": 1783985502,
-  "updated_at": 1783996863,
+  "updated_at": 1783996957,
   "affected_specs": [
     "change",
     "validator"

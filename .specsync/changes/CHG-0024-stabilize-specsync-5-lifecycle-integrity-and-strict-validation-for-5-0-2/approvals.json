@@ -34,6 +34,13 @@
       "timestamp": 1783989507,
       "digest": "cef50f33b50e612b14756457f22b77e388ae0730fb6a3d3022ad9d8ff6e43ec6",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783996957,
+      "digest": "71085b6001a0bd955f199d7419200688b936a76a48bff9871de1b0466779c17f",
+      "note": "Closing approval after final-tree native verification following the private recursion-guard correction."
     }
   ],
   "reopenings": [

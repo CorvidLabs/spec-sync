@@ -388,7 +388,7 @@ fn filter_type_level_exports(content: &str, symbols: &[String], lang: Language) 
 }
 
 /// Resolve a TypeScript/JavaScript relative import to file content.
-/// Tries common extensions: .ts, .tsx, .js, .jsx, /index.ts, /index.js
+/// Tries TypeScript-family and JavaScript-family extensions and index files.
 fn resolve_ts_import(base_dir: &Path, import_path: &str) -> Option<String> {
     // Only resolve relative imports
     if !import_path.starts_with('.') {
@@ -403,7 +403,7 @@ fn resolve_ts_import(base_dir: &Path, import_path: &str) -> Option<String> {
     }
 
     // Try common extensions
-    for ext in &[".ts", ".tsx", ".js", ".jsx", ".mts", ".cts"] {
+    for ext in &[".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"] {
         let with_ext = target.with_extension(ext.trim_start_matches('.'));
         if with_ext.is_file() {
             return std::fs::read_to_string(&with_ext).ok();
@@ -411,7 +411,16 @@ fn resolve_ts_import(base_dir: &Path, import_path: &str) -> Option<String> {
     }
 
     // Try as directory with index file
-    for index in &["index.ts", "index.tsx", "index.js", "index.jsx"] {
+    for index in &[
+        "index.ts",
+        "index.tsx",
+        "index.js",
+        "index.jsx",
+        "index.mts",
+        "index.cts",
+        "index.mjs",
+        "index.cjs",
+    ] {
         let index_path = target.join(index);
         if index_path.is_file() {
             return std::fs::read_to_string(&index_path).ok();
@@ -650,5 +659,37 @@ mod scan_tests {
         let mut f = std::fs::File::create(&bad).unwrap();
         f.write_all(b"export function x() {}\n\xff\xfe").unwrap();
         assert_eq!(scan_exported_symbols(&bad), ExportScan::Unreadable);
+    }
+
+    #[test]
+    fn module_javascript_resolves_extensionless_file_and_index_barrels() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("values.mjs"),
+            "export const fromMjs = true;\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("legacy.cjs"), "exports.fromCjs = true;\n").unwrap();
+        std::fs::create_dir_all(dir.path().join("nested")).unwrap();
+        std::fs::write(
+            dir.path().join("nested/index.mjs"),
+            "export const fromIndex = true;\n",
+        )
+        .unwrap();
+        let barrel = dir.path().join("index.mjs");
+        std::fs::write(
+            &barrel,
+            "export * from './values';\nexport * from './legacy';\nexport * from './nested';\n",
+        )
+        .unwrap();
+
+        assert_eq!(
+            scan_exported_symbols(&barrel),
+            ExportScan::Parsed(vec![
+                "fromMjs".to_string(),
+                "fromCjs".to_string(),
+                "fromIndex".to_string(),
+            ])
+        );
     }
 }

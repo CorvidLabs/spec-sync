@@ -605,6 +605,44 @@ fn javascript_family_test_files_do_not_inflate_default_coverage_totals() {
 }
 
 #[test]
+fn extensionless_mjs_barrel_passes_strict_in_regex_and_ast_modes() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/modules")).unwrap();
+    write_config(root, "specs", &["src"]);
+    fs::write(
+        root.join("src/values.mjs"),
+        "export const fromMjs = true;\n",
+    )
+    .unwrap();
+    fs::write(root.join("src/index.mjs"), "export * from './values';\n").unwrap();
+    let spec = complete_coverage_spec("modules", &["src/values.mjs", "src/index.mjs"]).replace(
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|",
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n| `fromMjs` | none | boolean | Re-exported mjs value |",
+    );
+    fs::write(root.join("specs/modules/modules.spec.md"), spec).unwrap();
+
+    for parse_mode in ["regex", "ast"] {
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/config.toml"),
+            format!(
+                "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\nparse_mode = \"{parse_mode}\"\n"
+            ),
+        )
+        .unwrap();
+        specsync()
+            .args(["check", "--strict", "--force"])
+            .arg("--root")
+            .arg(root)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("1 specs checked: 1 passed"));
+    }
+}
+
+#[test]
 fn require_coverage_fails_when_below_threshold() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);

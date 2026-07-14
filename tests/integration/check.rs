@@ -573,6 +573,38 @@ fn uncovered_mjs_and_cjs_files_fail_strict_full_coverage() {
 }
 
 #[test]
+fn javascript_family_test_files_do_not_inflate_default_coverage_totals() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/index")).unwrap();
+    write_config(root, "specs", &["src"]);
+    fs::write(root.join("src/index.ts"), "// mapped\n").unwrap();
+    for filename in [
+        "index.test.js",
+        "index.spec.jsx",
+        "index.test.mjs",
+        "index.spec.cjs",
+    ] {
+        fs::write(root.join("src").join(filename), "// test-only\n").unwrap();
+    }
+    fs::write(
+        root.join("specs/index/index.spec.md"),
+        complete_coverage_spec("index", &["src/index.ts"]),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["coverage", "--strict", "--require-coverage", "100"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("File coverage: 1/1 (100%)"))
+        .stdout(predicate::str::contains("LOC coverage:  1/1 (100%)"));
+}
+
+#[test]
 fn require_coverage_fails_when_below_threshold() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);

@@ -27,6 +27,13 @@
       "timestamp": 1784054257,
       "digest": "23c7960a9852964d0c5706fbe9c1215d23019491a6f2dda190bc53668ff20189",
       "note": "Closing approval after the clean review correction passed 1,577 unit tests, 198 integration tests, strict specs, release build, and the Trust gate."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784058602,
+      "digest": "8f14e8ed17a41fe8c72d16d3957f9d0a41fa602312a429b0a8bb1429d7f45f5f",
+      "note": "Fresh closing approval after the overlapping CHG-0037 integration fixture passed 1,582 unit tests and 199 integration tests at 0cd65664597a5f331f889c6d840806bb0765f87f."
     }
   ],
   "reopenings": [

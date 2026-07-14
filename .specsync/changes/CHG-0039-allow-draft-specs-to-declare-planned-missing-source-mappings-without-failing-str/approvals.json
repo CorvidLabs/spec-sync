@@ -6,6 +6,13 @@
       "timestamp": 1784061760,
       "digest": "d9989ecd43985508fd22d18612617736190cbf35f1a2d9860ae247bc6247a82b",
       "note": "Definition reviewed against every valid #377 finding: complete six-module canonical contracts, incremental ownership across cached specs, normalized planned paths, strict opt-in behavior, separate notices, path safety, and exact coverage."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784062238,
+      "digest": "2c99f36762570d09587e407bbe56e755365bc0cd2c965529ef904370daec19e1",
+      "note": "Refreshed definition approval after incorporating every valid #377 review correction: all six canonical contract sections, full-inventory incremental ownership, normalized dot-segment mappings, and focused regression evidence."
     }
   ],
   "reopenings": []

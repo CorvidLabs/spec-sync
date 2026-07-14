@@ -5,6 +5,7 @@ spec: exports.spec.md
 ## Tasks
 
 - [x] Handle TypeScript `export =` (CommonJS-style default export) — captured in both regex and AST backends
+- [x] Extract statically named CommonJS assignments and object exports with regex/AST parity
 - [x] Restore Rust crate-contract visibility — `pub` and `pub(crate)` are included while `pub(super)`, `pub(self)`, and `pub(in path)` remain excluded in regex and AST backends
 
 ## Post-5.0 Roadmap

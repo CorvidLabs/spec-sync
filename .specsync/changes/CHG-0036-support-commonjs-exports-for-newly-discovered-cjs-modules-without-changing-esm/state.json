@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0036-support-commonjs-exports-for-newly-discovered-cjs-modules-without-changing-esm",
+  "slug": "support-commonjs-exports-for-newly-discovered-cjs-modules-without-changing-esm",
+  "title": "Support CommonJS exports for newly discovered .cjs modules without changing ESM behavior",
+  "description": "Support CommonJS exports for newly discovered .cjs modules without changing ESM behavior",
+  "kind": "feature",
+  "state": "implementing",
+  "base_commit": "096425ec9fc32e58f18aa2d42a7c65a30fac41cf",
+  "created_at": 1784054902,
+  "updated_at": 1784056326,
+  "affected_specs": [
+    "exports"
+  ],
+  "affected_paths": [
+    "src/exports/typescript.rs",
+    "src/exports/ast/typescript.rs",
+    "specs/exports",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Regex and AST modes extract direct CommonJS property assignments,Regex and AST modes extract statically named top-level object export keys while ignoring unresolved syntax,Existing TypeScript and ESM extraction remains unchanged and deduplicated,Focused regressions plus complete tests strict specs hosted CI and Trust pass"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [
+    "CHG-0035-count-mjs-and-cjs-files-as-default-typescript-sources-so-mapped-and-uncovered-mo"
+  ],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

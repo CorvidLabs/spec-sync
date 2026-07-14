@@ -36,6 +36,18 @@ static EXPORT_DEFAULT: LazyLock<Regex> = LazyLock::new(|| {
 static EXPORT_EQUALS: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"export\s*=\s*(\w+)").unwrap());
 
+/// `exports.name = value` or `module.exports.name = value`.
+static COMMONJS_PROPERTY_EXPORT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?m)(?:^|[^\w$.])(?:module\s*\.\s*)?exports\s*\.\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(?:[^=>]|$)",
+    )
+    .unwrap()
+});
+
+/// Start of a `module.exports = { ... }` object assignment.
+static COMMONJS_OBJECT_EXPORT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)(?:^|[^\w$.])module\s*\.\s*exports\s*=\s*\{").unwrap());
+
 /// Extract exported symbols from TypeScript/JavaScript source (without file resolution).
 ///
 /// Supports:
@@ -44,6 +56,7 @@ static EXPORT_EQUALS: LazyLock<Regex> =
 /// - Namespace re-exports: `export * as Name from './module'`
 /// - Default exports: `export default class Name`
 /// - CommonJS-style default exports: `export = Name`
+/// - Static CommonJS exports: `exports.name = value` and `module.exports = { name }`
 ///
 /// For wildcard `export * from` support, use `extract_exports_with_resolver`.
 #[cfg_attr(not(test), allow(dead_code))]
@@ -157,7 +170,198 @@ pub fn extract_exports_with_resolver(
         }
     }
 
+    for symbol in extract_commonjs_exports(content) {
+        if !symbols.contains(&symbol) {
+            symbols.push(symbol);
+        }
+    }
+
     symbols
+}
+
+/// Extract statically named CommonJS exports without executing source code.
+///
+/// The scanner masks comments and literals before matching assignments. Object
+/// exports include identifier shorthand, named identifier properties, and
+/// identifier-named methods. Computed keys and spreads remain intentionally
+/// unresolved.
+pub(super) fn extract_commonjs_exports(content: &str) -> Vec<String> {
+    let masked = mask_comments_and_literals(content);
+    let mut symbols = Vec::new();
+
+    for captures in COMMONJS_PROPERTY_EXPORT.captures_iter(&masked) {
+        if let Some(name) = captures.get(1) {
+            push_unique(&mut symbols, name.as_str());
+        }
+    }
+
+    for matched in COMMONJS_OBJECT_EXPORT.find_iter(&masked) {
+        let open_brace = matched.end() - 1;
+        extract_commonjs_object_keys(&masked, open_brace, &mut symbols);
+    }
+
+    symbols
+}
+
+fn mask_comments_and_literals(content: &str) -> String {
+    let bytes = content.as_bytes();
+    let mut masked = bytes.to_vec();
+    let mut index = 0;
+
+    while index < bytes.len() {
+        if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'/') {
+            masked[index] = b' ';
+            masked[index + 1] = b' ';
+            index += 2;
+            while index < bytes.len() && bytes[index] != b'\n' {
+                masked[index] = b' ';
+                index += 1;
+            }
+            continue;
+        }
+
+        if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'*') {
+            masked[index] = b' ';
+            masked[index + 1] = b' ';
+            index += 2;
+            while index < bytes.len() {
+                if bytes[index] == b'*' && bytes.get(index + 1) == Some(&b'/') {
+                    masked[index] = b' ';
+                    masked[index + 1] = b' ';
+                    index += 2;
+                    break;
+                }
+                if bytes[index] != b'\n' {
+                    masked[index] = b' ';
+                }
+                index += 1;
+            }
+            continue;
+        }
+
+        if matches!(bytes[index], b'\'' | b'"' | b'`') {
+            let quote = bytes[index];
+            masked[index] = b' ';
+            index += 1;
+            while index < bytes.len() {
+                if bytes[index] == b'\\' && index + 1 < bytes.len() {
+                    masked[index] = b' ';
+                    masked[index + 1] = b' ';
+                    index += 2;
+                    continue;
+                }
+
+                let current = bytes[index];
+                if current != b'\n' {
+                    masked[index] = b' ';
+                }
+                index += 1;
+
+                if current == quote || (quote != b'`' && current == b'\n') {
+                    break;
+                }
+            }
+            continue;
+        }
+
+        index += 1;
+    }
+
+    String::from_utf8(masked).expect("masking valid source preserves UTF-8")
+}
+
+fn extract_commonjs_object_keys(masked: &str, open_brace: usize, symbols: &mut Vec<String>) {
+    let bytes = masked.as_bytes();
+    let mut index = open_brace + 1;
+    let mut brace_depth = 1usize;
+    let mut bracket_depth = 0usize;
+    let mut paren_depth = 0usize;
+    let mut property_start = true;
+
+    while index < bytes.len() {
+        if property_start && brace_depth == 1 && bracket_depth == 0 && paren_depth == 0 {
+            while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+                index += 1;
+            }
+            if index >= bytes.len() || bytes[index] == b'}' {
+                return;
+            }
+
+            if is_identifier_start(bytes[index]) {
+                let name_start = index;
+                index += 1;
+                while index < bytes.len() && is_identifier_continue(bytes[index]) {
+                    index += 1;
+                }
+                let name = &masked[name_start..index];
+                let mut after_name = index;
+                while after_name < bytes.len() && bytes[after_name].is_ascii_whitespace() {
+                    after_name += 1;
+                }
+
+                if matches!(bytes.get(after_name), Some(b':' | b',' | b'}' | b'(')) {
+                    push_unique(symbols, name);
+                } else if matches!(name, "async" | "get" | "set") {
+                    let second_start = after_name;
+                    if second_start < bytes.len() && is_identifier_start(bytes[second_start]) {
+                        let mut second_end = second_start + 1;
+                        while second_end < bytes.len() && is_identifier_continue(bytes[second_end])
+                        {
+                            second_end += 1;
+                        }
+                        let mut after_second = second_end;
+                        while after_second < bytes.len()
+                            && bytes[after_second].is_ascii_whitespace()
+                        {
+                            after_second += 1;
+                        }
+                        if bytes.get(after_second) == Some(&b'(') {
+                            push_unique(symbols, &masked[second_start..second_end]);
+                        }
+                    }
+                }
+            }
+
+            property_start = false;
+        }
+
+        if index >= bytes.len() {
+            return;
+        }
+
+        match bytes[index] {
+            b'{' => brace_depth += 1,
+            b'}' => {
+                if brace_depth == 1 {
+                    return;
+                }
+                brace_depth -= 1;
+            }
+            b'[' => bracket_depth += 1,
+            b']' => bracket_depth = bracket_depth.saturating_sub(1),
+            b'(' => paren_depth += 1,
+            b')' => paren_depth = paren_depth.saturating_sub(1),
+            b',' if brace_depth == 1 && bracket_depth == 0 && paren_depth == 0 => {
+                property_start = true;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+}
+
+fn is_identifier_start(byte: u8) -> bool {
+    byte.is_ascii_alphabetic() || matches!(byte, b'_' | b'$')
+}
+
+fn is_identifier_continue(byte: u8) -> bool {
+    is_identifier_start(byte) || byte.is_ascii_digit()
+}
+
+fn push_unique(symbols: &mut Vec<String>, name: &str) {
+    if !symbols.iter().any(|symbol| symbol == name) {
+        symbols.push(name.to_string());
+    }
 }
 
 /// Strip `//` line comments and `/* */` block comments in one linear pass
@@ -387,6 +591,63 @@ export = AuthService;
         let src = r#"export=AuthService;"#;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["AuthService"]);
+    }
+
+    #[test]
+    fn test_commonjs_direct_and_object_exports() {
+        let src = r#"
+exports.direct = createDirect();
+module.exports.qualified = createQualified();
+module.exports = {
+    shorthand,
+    named: createNamed(),
+    method() { return true; },
+    async asyncMethod() { return true; },
+    nested: { value: true },
+};
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec![
+                "direct",
+                "qualified",
+                "shorthand",
+                "named",
+                "method",
+                "asyncMethod",
+                "nested"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_commonjs_ignores_non_static_and_non_code_names() {
+        let src = r#"
+// exports.commentOnly = true;
+const text = "module.exports.stringOnly = true";
+const template = `exports.templateOnly = true`;
+module.exports = {
+    [computed]: value,
+    ...extra,
+    visible,
+};
+other.exports.notModule = true;
+exports.notAssignment == true;
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["visible"]);
+    }
+
+    #[test]
+    fn test_commonjs_mixed_with_esm_is_deduplicated() {
+        let src = r#"
+export const shared = true;
+exports.shared = shared;
+module.exports = { shared, commonOnly };
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(symbols, vec!["shared", "commonOnly"]);
     }
 
     #[test]

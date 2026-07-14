@@ -7,7 +7,7 @@ spec: exports.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/exports/mod.rs` | cargo test exports:: | No inline tests in `mod.rs` itself; covered indirectly via the per-language backends and `tests/integration.rs`. Add focused coverage for `get_exported_symbols`, `get_exported_symbols_full`, `is_test_file`, `is_source_file`, `has_extension` before risky changes |
-| `src/exports/typescript.rs` | cargo test exports::typescript:: | `test_basic_exports`, `test_comments_stripped`, `test_re_exports`, `test_wildcard_namespace_export`, `test_wildcard_export_with_resolver`, `test_wildcard_export_without_resolver` |
+| `src/exports/typescript.rs` | cargo test exports::typescript:: | Existing ESM/re-export cases plus `test_commonjs_direct_and_object_exports`, `test_commonjs_ignores_non_static_and_non_code_names`, and `test_commonjs_mixed_with_esm_is_deduplicated` |
 | `src/exports/python.rs` | cargo test exports::python:: | `test_python_all`, `test_python_no_all`, `test_python_all_single_quotes`, `test_python_all_overrides_conventions`, `test_python_decorators_ignored`, `test_python_nested_not_captured` |
 | `src/exports/rust_lang.rs` | cargo test rust_lang | `test_rust_exports`, `test_pub_crate_included`, restricted-visibility exclusions, crate-visible re-exports, string/comment stripping, `test_real_registry_rs` |
 | `src/exports/go.rs` | cargo test exports::go:: | `test_go_exports`, `test_go_methods`, `test_go_comments_stripped`, `test_go_interface_declarations`, `test_go_const_var_groups`, `test_go_value_receiver` |
@@ -20,7 +20,7 @@ spec: exports.spec.md
 | `src/exports/ruby.rs` | cargo test exports::ruby:: | `test_ruby_class_and_methods`, `test_ruby_top_level_functions`, `test_ruby_visibility_toggle`, `test_ruby_skips_initialize` |
 | `src/exports/yaml.rs` | cargo test exports::yaml:: | `test_github_actions_workflow`, `test_docker_compose`, `test_anchors`, `test_top_level_only`, `test_four_space_indentation`, `test_four_space_nested_not_extracted` |
 | `src/exports/ast/mod.rs` | cargo test exports::ast::tests:: | Parity tests in `ast/tests.rs` cross-check AST vs regex output: `ts_basic_parity`, `ts_re_exports_with_alias`, `ts_wildcard_with_resolver`, `py_basic_parity`, `py_all_takes_precedence`, `rs_basic_parity`, `rs_pub_crate`, `rs_feature_gated`, `rs_pub_mod` |
-| `src/exports/ast/typescript.rs` | cargo test exports::ast::typescript:: | `test_basic_exports`, `test_re_exports_with_alias`, `test_wildcard_namespace`, `test_wildcard_with_resolver`, `test_default_export`, `test_async_abstract`, `test_conditional_export`, `test_export_type_clause`, `test_comments_not_exported` |
+| `src/exports/ast/typescript.rs` | cargo test exports::ast::typescript:: | Existing AST TypeScript cases plus `test_commonjs_exports_match_static_contract` for mixed ESM/CommonJS parity and negative syntax |
 | `src/exports/ast/python.rs` | cargo test exports::ast::python:: | `test_python_all`, `test_python_no_all`, `test_python_nested_not_captured`, `test_python_dunder_excluded`, `test_python_all_overrides`, `test_decorated_functions`, `test_conditional_import_init` |
 | `src/exports/ast/rust_lang.rs` | cargo test exports::ast::rust_lang:: | `test_rust_exports`, `test_pub_crate`, `test_async_unsafe`, `test_ignores_pub_in_strings`, `test_feature_gated`, `test_pub_mod` |
 | `tests/integration.rs` | cargo test --test integration fix_adds_undocumented_exports_to_spec | End-to-end fixture: `fix_adds_undocumented_exports_to_spec` |
@@ -33,6 +33,7 @@ spec: exports.spec.md
 | Flow | Fixture / Setup | Action | Expected Result |
 |------|-----------------|--------|-----------------|
 | Extract TypeScript exports | a `.ts` file containing `export function authenticate(token: string): User` | `get_exported_symbols(path)` is called | includes "authenticate" in the returned vector |
+| Extract CommonJS exports | a `.cjs` file containing `exports.direct = value` and `module.exports = { shorthand, named: value, [dynamic]: value, ...extra }` | regex or AST extraction is selected | includes "direct", "shorthand", and "named" exactly once; excludes "dynamic" and "extra" |
 | Extract Rust pub items | a `.rs` file containing `pub fn validate_spec(...)` | `get_exported_symbols(path)` is called | includes "validate_spec" in the returned vector |
 | Unsupported file type | an unsupported file (e.g., `.txt`) | `get_exported_symbols(path)` is called | returns an empty vector |
 | Extract PHP exports with visibility | a `.php` file with a `class AuthService` containing `public function validate()`, `private function internalCheck()`, and `public const DEFAULT_TTL` | `get_exported_symbols(path)` is called | includes "AuthService", "validate", "DEFAULT_TTL" but not "internalCheck" |

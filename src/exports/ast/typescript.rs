@@ -41,6 +41,12 @@ pub fn extract_exports_with_resolver(
 
     collect_exports(&root, src, &mut symbols, resolver);
 
+    for symbol in super::super::typescript::extract_commonjs_exports(content) {
+        if !symbols.contains(&symbol) {
+            symbols.push(symbol);
+        }
+    }
+
     symbols
 }
 
@@ -528,6 +534,30 @@ export function realExport(): void {}
 "#;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["realExport"]);
+    }
+
+    #[test]
+    fn test_commonjs_exports_match_static_contract() {
+        let src = r#"
+export const esm = true;
+exports.direct = createDirect();
+module.exports.qualified = createQualified();
+module.exports = {
+    esm,
+    shorthand,
+    named: createNamed(),
+    method() { return true; },
+    [computed]: value,
+    ...extra,
+};
+// exports.commentOnly = true;
+const text = "module.exports.stringOnly = true";
+"#;
+        let symbols = extract_exports(src);
+        assert_eq!(
+            symbols,
+            vec!["esm", "direct", "qualified", "shorthand", "named", "method"]
+        );
     }
 
     #[test]

@@ -3054,7 +3054,6 @@ fn project_input_is_volatile(path: &str) -> bool {
         "site/.astro/",
         ".specsync/changes/",
         ".specsync/archive/",
-        SEQUENCE_PATH,
         ".specsync/hashes.json",
         LOCK_PATH,
         TRANSACTION_PATH,
@@ -6229,6 +6228,7 @@ mod tests {
         .unwrap();
         let mut evidence = load_verification(root, &record).unwrap();
         evidence.contract_digest = definition_digest(root, &record).unwrap();
+        evidence.workspace_digest = project_input_digest(root).unwrap();
         write_json(
             &change_dir(root, &record.id).join("verification.json"),
             &evidence,
@@ -7058,6 +7058,35 @@ mod tests {
         fs::write(path, "second\n").unwrap();
         let second = project_input_digest(root).unwrap();
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn repository_backed_sequence_ledger_is_a_governed_delivery_input() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record.state = ChangeState::Implementing;
+        record.affected_paths = vec![".specsync".into()];
+        fs::write(
+            root.join(SEQUENCE_PATH),
+            r#"{"schema_version":1,"sequence":24,"id":"CHG-0024-first","acknowledged_collisions":[]}"#,
+        )
+        .unwrap();
+        let first_workspace = project_input_digest(root).unwrap();
+        let first_acceptance = acceptance_input_digest(root, &record, &[]).unwrap();
+
+        fs::write(
+            root.join(SEQUENCE_PATH),
+            r#"{"schema_version":1,"sequence":25,"id":"CHG-0025-second","acknowledged_collisions":[]}"#,
+        )
+        .unwrap();
+        let second_workspace = project_input_digest(root).unwrap();
+        let second_acceptance = acceptance_input_digest(root, &record, &[]).unwrap();
+
+        assert_ne!(first_workspace, second_workspace);
+        assert_ne!(first_acceptance, second_acceptance);
+        assert!(!project_input_is_volatile(SEQUENCE_PATH));
     }
 
     #[test]

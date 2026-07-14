@@ -27,7 +27,56 @@
       "timestamp": 1783988244,
       "digest": "f8866295ffebf136dff419bda48f93f945567b7a10ee2bbaa351ab1a0d765531",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1783989507,
+      "digest": "cef50f33b50e612b14756457f22b77e388ae0730fb6a3d3022ad9d8ff6e43ec6",
+      "note": null
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2",
+      "actor": "0xLeif",
+      "reason": "Hosted Trust 1.0.0 exposed that the committed change-sequence ledger must remain a governed delivery input compatible with the released SpecSync 5.0.1 contract gate",
+      "timestamp": 1783989400,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1783988244,
+        "digest": "f8866295ffebf136dff419bda48f93f945567b7a10ee2bbaa351ab1a0d765531",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1783988127,
+        "commit": "21e44ecf33f4fe876820ef3ef8f19553341da15a",
+        "contract_digest": "0eafdd5f8e512023308e22ca1ec4179a903072d7b5a0f8729f0d09fcc1d434e4",
+        "workspace_digest": "224506f5fd1d490dc0cb39d5e2e7e1a3b9381b7f86e39831f27b259e5efa15ff",
+        "acceptance_input_digest": "1bbd4150733b26c6917a9232ebd70d56154ed94879ffe31a4d3040a0abe54cd3",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-022",
+          "REQ-change-023",
+          "REQ-change-024",
+          "REQ-change-025",
+          "REQ-validator-002",
+          "REQ-validator-003"
+        ]
+      },
+      "stale_acceptance_input_digest": "1bbd4150733b26c6917a9232ebd70d56154ed94879ffe31a4d3040a0abe54cd3",
+      "current_acceptance_input_digest": "f21571c0e8a85b92555c314ac782c557db87a91d6d4f64d876b2cead9af41915"
+    }
+  ]
 }

@@ -22,6 +22,50 @@
         "REQ-validator-002",
         "REQ-validator-003"
       ]
+    },
+    {
+      "timestamp": 1783989422,
+      "commit": "7b3755d999162c6ea84a7125e1fc41672ca29aee",
+      "contract_digest": "0eafdd5f8e512023308e22ca1ec4179a903072d7b5a0f8729f0d09fcc1d434e4",
+      "workspace_digest": "b70a2aeb01ed20467f2a93c0d07aa9c4bf62f65aee8ff8bb9f492499e134386e",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-022",
+        "REQ-change-023",
+        "REQ-change-024",
+        "REQ-change-025",
+        "REQ-validator-002",
+        "REQ-validator-003"
+      ]
+    },
+    {
+      "timestamp": 1783989493,
+      "commit": "7b3755d999162c6ea84a7125e1fc41672ca29aee",
+      "contract_digest": "0eafdd5f8e512023308e22ca1ec4179a903072d7b5a0f8729f0d09fcc1d434e4",
+      "workspace_digest": "6cdfd6f7baab9eeefa8fd9483dbbafe7071d83cb888253472b2d3cf37332ca3f",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-022",
+        "REQ-change-023",
+        "REQ-change-024",
+        "REQ-change-025",
+        "REQ-validator-002",
+        "REQ-validator-003"
+      ]
     }
   ]
 }

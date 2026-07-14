@@ -21,6 +21,7 @@ static CONSUMED_BY_RE: LazyLock<Regex> =
 static FILE_REF_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\|\s*`([^`]+\.\w+)`\s*\|").unwrap());
 static NUMBERED_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^\d+\.\s+\S").unwrap());
+const STATIC_COVERAGE_EXTENSIONS: &[&str] = &["html", "htm", "css"];
 
 /// Check if a dependency reference is a cross-project reference.
 /// Cross-project refs use the format `owner/repo@module` (e.g. `corvid-labs/algochat@auth`).
@@ -135,15 +136,24 @@ fn find_source_files(
         .filter_map(|e| e.ok())
     {
         let path = entry.path();
-        if path.is_file()
-            && has_extension(path, &config.source_extensions)
-            && !is_test_file(path, root)
-        {
+        if path.is_file() && has_coverage_extension(path, config) && !is_test_file(path, root) {
             results.push(path.to_path_buf());
         }
     }
 
     results
+}
+
+fn has_coverage_extension(path: &Path, config: &SpecSyncConfig) -> bool {
+    if has_extension(path, &config.source_extensions) {
+        return true;
+    }
+    if !config.source_extensions.is_empty() {
+        return false;
+    }
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| STATIC_COVERAGE_EXTENSIONS.contains(&extension))
 }
 
 // ─── Single Spec Validation ──────────────────────────────────────────────
@@ -204,6 +214,8 @@ pub fn validate_spec(
     if fm.parsed_status() == Some(crate::types::SpecStatus::Archived) {
         return result;
     }
+
+    validate_companion_scaffold_markers(spec_path, root, &mut result);
 
     let config_hint = config
         .config_path
@@ -590,6 +602,129 @@ pub fn validate_spec(
     result
 }
 
+fn validate_companion_scaffold_markers(
+    spec_path: &Path,
+    root: &Path,
+    result: &mut ValidationResult,
+) {
+    const MARKERS: &[(&str, &str, &str)] = &[
+        (
+            "context.md",
+            "<!-- Describe the context and motivation for this module. -->",
+            "replace the generated context marker with concrete motivation",
+        ),
+        (
+            "context.md",
+            "- Record architectural or design decisions relevant to this spec.",
+            "record concrete architectural decisions",
+        ),
+        (
+            "context.md",
+            "- List the most important files an agent or new developer should read.",
+            "list concrete files to read",
+        ),
+        (
+            "context.md",
+            "- Summarize implemented behavior, active work, and known blockers.",
+            "summarize the current implementation status",
+        ),
+        (
+            "requirements.md",
+            "- As a developer, I want to <!-- describe the goal -->",
+            "replace the generated user-story marker",
+        ),
+        (
+            "requirements.md",
+            "- <!-- List measurable acceptance criteria. -->",
+            "list measurable acceptance criteria",
+        ),
+        (
+            "requirements.md",
+            "- Define acceptance criteria from the module's source behavior and user-facing responsibilities.",
+            "define concrete acceptance criteria",
+        ),
+        (
+            "testing.md",
+            "- <!-- List unit test scenarios. -->",
+            "list concrete automated test scenarios",
+        ),
+        (
+            "testing.md",
+            "List the automated tests and fixtures that protect this module.",
+            "list concrete automated tests and fixtures",
+        ),
+        (
+            "testing.md",
+            "List manual QA flows, platform checks, and review notes for this module.",
+            "record concrete manual QA flows",
+        ),
+        (
+            "tasks.md",
+            "- [ ] Add implementation, validation, or release tasks that belong to this spec.",
+            "replace the generated task with concrete work or remove it",
+        ),
+        (
+            "design.md",
+            "- Document layout structure, responsive breakpoints, and positioning rules.",
+            "document concrete layout behavior",
+        ),
+        (
+            "design.md",
+            "- Document component tree, inputs, outputs, and slots.",
+            "document the concrete component hierarchy",
+        ),
+        (
+            "design.md",
+            "- Document color, spacing, typography, and state token overrides.",
+            "document concrete design tokens",
+        ),
+        (
+            "design.md",
+            "- List icons, images, illustrations, and asset ownership.",
+            "list concrete assets and ownership",
+        ),
+    ];
+    let Some(directory) = spec_path.parent() else {
+        return;
+    };
+    for (file_name, marker, correction) in MARKERS {
+        let path = directory.join(file_name);
+        let Ok(content) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let mut fence: Option<char> = None;
+        for (index, line) in content.lines().enumerate() {
+            let trimmed = line.trim();
+            let fence_character = if trimmed.starts_with("```") {
+                Some('`')
+            } else if trimmed.starts_with("~~~") {
+                Some('~')
+            } else {
+                None
+            };
+            if let Some(character) = fence_character {
+                if fence == Some(character) {
+                    fence = None;
+                } else if fence.is_none() {
+                    fence = Some(character);
+                }
+                continue;
+            }
+            if fence.is_none() && trimmed == *marker {
+                let relative = path
+                    .strip_prefix(root)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                result.warnings.push(format!(
+                    "Unfilled companion scaffold marker at {relative}:{} — {correction}",
+                    index + 1
+                ));
+            }
+        }
+    }
+}
+
 /// Apply project-specific custom validation rules from config.
 fn apply_custom_rules(
     _spec_path: &Path,
@@ -877,6 +1012,96 @@ mod tests {
         assert_eq!(
             report.total_source_files, 1,
             "only src/gen should be excluded, leaving src/a.ts"
+        );
+    }
+
+    #[test]
+    fn configured_static_html_has_non_vacuous_coverage() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("landing")).unwrap();
+        fs::create_dir_all(root.join("specs/landing")).unwrap();
+        fs::write(root.join("landing/index.html"), "<main>Welcome</main>\n").unwrap();
+        fs::write(root.join("landing/logo.png"), [0_u8, 1, 2]).unwrap();
+        let spec_path = root.join("specs/landing/landing.spec.md");
+        fs::write(
+            &spec_path,
+            "---\nmodule: landing\nversion: 1\nstatus: stable\nfiles:\n  - landing/index.html\n---\n\n# Landing\n",
+        )
+        .unwrap();
+        let config = SpecSyncConfig {
+            specs_dir: "specs".into(),
+            source_dirs: vec!["landing".into()],
+            ..SpecSyncConfig::default()
+        };
+
+        let mapped = compute_coverage(root, std::slice::from_ref(&spec_path), &config);
+        assert_eq!(mapped.total_source_files, 1);
+        assert_eq!(mapped.specced_file_count, 1);
+        assert_eq!(mapped.coverage_percent, 100);
+        assert!(mapped.unspecced_files.is_empty());
+
+        let unmapped = compute_coverage(root, &[], &config);
+        assert_eq!(unmapped.total_source_files, 1);
+        assert_eq!(unmapped.specced_file_count, 0);
+        assert_eq!(unmapped.coverage_percent, 0);
+        assert_eq!(unmapped.unspecced_files, ["landing/index.html"]);
+    }
+
+    #[test]
+    fn companion_scaffold_markers_are_precise_and_ignore_fenced_examples() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let directory = root.join("specs/auth");
+        fs::create_dir_all(&directory).unwrap();
+        let spec_path = directory.join("auth.spec.md");
+        fs::write(&spec_path, "---\nmodule: auth\n---\n").unwrap();
+        fs::write(
+            directory.join("context.md"),
+            "# Context\n\n<!-- Describe the context and motivation for this module. -->\n",
+        )
+        .unwrap();
+        fs::write(
+            directory.join("requirements.md"),
+            "# Requirements\n\n```markdown\n- <!-- List measurable acceptance criteria. -->\n```\n\nThis prose discusses future acceptance criteria without using the generated marker.\n",
+        )
+        .unwrap();
+        fs::write(
+            directory.join("testing.md"),
+            "# Testing\n\nList the automated tests and fixtures that protect this module.\n",
+        )
+        .unwrap();
+        fs::write(
+            directory.join("design.md"),
+            "# Design\n\n## Layout\n\n- Document layout structure, responsive breakpoints, and positioning rules.\n\n## Components\n\n- Document component tree, inputs, outputs, and slots.\n\n## Tokens\n\n- Document color, spacing, typography, and state token overrides.\n\n## Assets\n\n- List icons, images, illustrations, and asset ownership.\n",
+        )
+        .unwrap();
+        let mut result = ValidationResult::new("specs/auth/auth.spec.md".into());
+
+        validate_companion_scaffold_markers(&spec_path, root, &mut result);
+
+        assert_eq!(result.warnings.len(), 6, "{:?}", result.warnings);
+        assert!(result.warnings.iter().any(|warning| {
+            warning.contains("specs/auth/context.md:3") && warning.contains("concrete motivation")
+        }));
+        assert!(result.warnings.iter().any(|warning| {
+            warning.contains("specs/auth/testing.md:3") && warning.contains("automated tests")
+        }));
+        for line in [5, 9, 13, 17] {
+            assert!(
+                result
+                    .warnings
+                    .iter()
+                    .any(|warning| warning.contains(&format!("specs/auth/design.md:{line}"))),
+                "missing design marker warning at line {line}: {:?}",
+                result.warnings
+            );
+        }
+        assert!(
+            !result
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("requirements.md"))
         );
     }
 
@@ -1516,7 +1741,7 @@ pub fn compute_coverage(
             for entry in entries.flatten() {
                 let path = entry.path();
                 if !path.is_file()
-                    || !has_extension(&path, &config.source_extensions)
+                    || !has_coverage_extension(&path, config)
                     || is_test_file(&path, root)
                 {
                     continue;

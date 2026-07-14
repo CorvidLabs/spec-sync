@@ -36,6 +36,8 @@ use std::process;
 
 use cli::{Cli, Command, LifecycleAction};
 
+const VERIFICATION_CONTEXT_ENV: &str = "SPECSYNC_VERIFICATION_CONTEXT";
+
 fn main() {
     let result = std::panic::catch_unwind(run);
     match result {
@@ -89,6 +91,10 @@ fn run() {
         stale: None,
         specs: vec![],
     });
+
+    if matches!(&command, Command::Change { .. } | Command::Lifecycle { .. }) {
+        reject_recursive_lifecycle_dispatch(format);
+    }
 
     match command {
         Command::Init => commands::init::cmd_init(&root),
@@ -262,6 +268,29 @@ fn run() {
         },
         Command::Change { action } => commands::change::cmd_change(&root, action, format),
     }
+}
+
+fn reject_recursive_lifecycle_dispatch(format: types::OutputFormat) {
+    let Some(error) = verification_recursion_error() else {
+        return;
+    };
+    match format {
+        types::OutputFormat::Json => println!("{}", serde_json::json!({ "error": error })),
+        _ => eprintln!("{} {error}", "error:".red().bold()),
+    }
+    process::exit(1);
+}
+
+fn verification_recursion_error() -> Option<String> {
+    let configured = std::env::var(VERIFICATION_CONTEXT_ENV).ok()?;
+    let executable = std::env::current_exe().ok()?;
+    let file_name = executable.file_name()?.to_string_lossy();
+    if file_name != "specsync" && file_name != "specsync.exe" {
+        return None;
+    }
+    Some(format!(
+        "recursive lifecycle verification detected while executing `{configured}`; verification commands must not invoke specsync check or change verification"
+    ))
 }
 
 #[cfg(test)]

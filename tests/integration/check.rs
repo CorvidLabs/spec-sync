@@ -346,6 +346,38 @@ Service.
         .stdout(predicate::str::contains("--strict mode"));
 }
 
+#[test]
+fn strict_rejects_unfilled_companion_scaffold_markers() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    fs::write(
+        root.join("specs/auth/context.md"),
+        "# Context\n\n<!-- Describe the context and motivation for this module. -->\n",
+    )
+    .unwrap();
+
+    specsync()
+        .arg("check")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Unfilled companion scaffold marker at specs/auth/context.md:3",
+        ));
+
+    specsync()
+        .arg("check")
+        .arg("--strict")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "Unfilled companion scaffold marker at specs/auth/context.md:3",
+        ));
+}
+
 // ─── 6. --require-coverage flag ─────────────────────────────────────────
 
 #[test]
@@ -361,6 +393,40 @@ fn require_coverage_passes_when_met() {
         .arg(&root)
         .assert()
         .success();
+}
+
+#[test]
+fn html_static_content_is_measured_by_strict_coverage() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    write_config(&root, "specs", &["landing"]);
+    fs::create_dir_all(root.join("landing")).unwrap();
+    fs::create_dir_all(root.join("specs/landing")).unwrap();
+    fs::write(root.join("landing/index.html"), "<main>Welcome</main>\n").unwrap();
+    let unmapped = valid_spec("landing", &[]).replace("files:\ndb_tables", "files: []\ndb_tables");
+    let spec_path = root.join("specs/landing/landing.spec.md");
+    fs::write(&spec_path, unmapped).unwrap();
+
+    specsync()
+        .arg("check")
+        .arg("--require-coverage")
+        .arg("100")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("File coverage: 0/1"));
+
+    fs::write(&spec_path, valid_spec("landing", &["landing/index.html"])).unwrap();
+    specsync()
+        .arg("check")
+        .arg("--require-coverage")
+        .arg("100")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("File coverage: 1/1"));
 }
 
 #[test]

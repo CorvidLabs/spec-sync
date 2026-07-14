@@ -62,3 +62,13 @@ Acceptance Criteria
 - `generate` has no provider/model flags.
 - MCP and agent installation commands remain available.
 
+### REQ-cli-003
+
+The root CLI dispatcher SHALL fail closed when a configured verification child re-enters lifecycle checking or mutation.
+
+Acceptance Criteria
+
+- `check`, `change`, and `lifecycle` command families consult the inherited verification context before dispatch.
+- A blocked nested command exits non-zero with one actionable diagnostic.
+- Commands outside the lifecycle boundary preserve current dispatch behavior.
+

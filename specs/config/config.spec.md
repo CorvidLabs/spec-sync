@@ -1,6 +1,6 @@
 ---
 module: config
-version: 5
+version: 6
 status: stable
 files:
   - src/config.rs
@@ -16,7 +16,7 @@ depends_on:
 
 ## Purpose
 
-Loads canonical project configuration from `.specsync/config.toml`, with compatibility fallbacks for `.specsync/config.json`, `.specsync.toml`, and `specsync.json`, then auto-detects source directories when configuration does not provide them.
+Loads canonical project configuration from `.specsync/config.toml`, with compatibility fallbacks for `.specsync/config.json`, `.specsync.toml`, and `specsync.json`, then auto-detects source directories from supported language and default static HTML, HTM, and CSS files when configuration does not provide them.
 
 ## Public API
 
@@ -113,6 +113,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | 2026-07-06 | Document fail-loud behavior for present-but-unreadable config (invariant 9): unreadable config/local-override files now warn loudly before falling back to defaults; clarified Error Cases table |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |
 
 ## Config File Structure
 

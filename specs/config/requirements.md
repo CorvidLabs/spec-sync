@@ -23,3 +23,13 @@ Acceptance Criteria
 - Legacy AI keys produce migration guidance without activating behavior.
 - The obsolete AI-only local override merge is removed.
 
+### REQ-config-002
+
+Configuration source-directory autodetection SHALL recognize default measurable static files in addition to language exports.
+
+Acceptance Criteria
+
+- Static-only root projects resolve to `.`.
+- Static-only nested projects resolve to the containing top-level directory.
+- Empty projects retain the `src` fallback.
+

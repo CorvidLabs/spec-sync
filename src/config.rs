@@ -46,6 +46,7 @@ const IGNORED_DIRS: &[&str] = &[
     "bin",
     "obj",
 ];
+const DEFAULT_STATIC_SOURCE_EXTENSIONS: &[&str] = &["html", "htm", "css"];
 
 /// Auto-detect source directories by first checking manifest files
 /// (Cargo.toml, Package.swift, build.gradle.kts, package.json, etc.),
@@ -98,7 +99,7 @@ fn detect_source_dirs_by_scan(root: &Path) -> Vec<String> {
             if dir_contains_source_files(&path, &ignored, 3) {
                 source_dirs.push(name);
             }
-        } else if path.is_file() && has_extension(&path, &[]) {
+        } else if path.is_file() && is_detectable_source_file(&path) {
             // Source file directly in root
             has_root_source_files = true;
         }
@@ -134,11 +135,19 @@ fn dir_contains_source_files(dir: &Path, ignored: &HashSet<&str>, max_depth: usi
         .filter_map(|e| e.ok())
     {
         let path = entry.path();
-        if path.is_file() && has_extension(path, &[]) {
+        if path.is_file() && is_detectable_source_file(path) {
             return true;
         }
     }
     false
+}
+
+fn is_detectable_source_file(path: &Path) -> bool {
+    has_extension(path, &[])
+        || path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| DEFAULT_STATIC_SOURCE_EXTENSIONS.contains(&extension))
 }
 
 /// Load config from TOML or JSON, falling back to defaults.
@@ -1884,6 +1893,28 @@ verify_issues = false
         fs::write(tmp.path().join("main.py"), "print('hello')").unwrap();
 
         let dirs = detect_source_dirs(tmp.path());
+        assert_eq!(dirs, vec!["."]);
+    }
+
+    #[test]
+    fn test_detect_source_dirs_nested_static_files() {
+        let tmp = TempDir::new().unwrap();
+        let landing = tmp.path().join("landing");
+        fs::create_dir(&landing).unwrap();
+        fs::write(landing.join("index.html"), "<main>Welcome</main>").unwrap();
+
+        let dirs = detect_source_dirs(tmp.path());
+
+        assert_eq!(dirs, vec!["landing"]);
+    }
+
+    #[test]
+    fn test_detect_source_dirs_root_static_files() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("site.css"), "body { color: black; }").unwrap();
+
+        let dirs = detect_source_dirs(tmp.path());
+
         assert_eq!(dirs, vec!["."]);
     }
 

@@ -24,6 +24,9 @@ spec: validator.spec.md
 - [x] Test file exclusion from coverage
 - [x] SQL schema table name extraction
 - [x] Exclude pattern matching (glob-style)
+- [x] Measure default HTML, HTM, and CSS sources in coverage
+- [x] Reject known unfilled companion scaffold markers in strict mode
+- [x] Reject every marker emitted by the built-in design companion template
 
 ## Gaps
 

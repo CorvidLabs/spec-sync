@@ -221,3 +221,79 @@ Acceptance Criteria
 - A `Date | Author | Change` table receives the current date, `SpecSync`, and accepted change description in that order.
 - Existing two-column `Date | Change` tables retain their current output.
 - The appended row has the same number and order of cells as every recognized existing header.
+
+### REQ-change-022
+
+The lifecycle SHALL prevent parallel branches from silently merging duplicate numeric change sequences while preserving exact historical collision evidence.
+
+Acceptance Criteria
+
+- Active and archived records are scanned together by numeric `CHG-NNNN` sequence.
+- Unacknowledged duplicate sequences fail with every conflicting full ID and path.
+- Repository-backed sequence claims make independent next-ID claims conflict during Git integration.
+- Existing accepted collisions can be baselined exactly without rewriting accepted state or evidence.
+
+### REQ-change-023
+
+Verification SHALL reject recursive lifecycle checks and preserve retryable attempt history without weakening unrelated gates.
+
+Acceptance Criteria
+
+- Direct and indirect re-entry fails once before repeated child execution.
+- Native-only verification executes once.
+- Failed attempts remain inspectable and a corrected retry can record passed latest evidence.
+- Other failed or stale changes continue failing closed.
+
+### REQ-change-024
+
+Strict lifecycle checking SHALL permit an exact current canonical successor to replace a stale accepted predecessor without hiding unrelated stale evidence.
+
+Acceptance Criteria
+
+- An implementing successor with current approved definition evidence can govern every affected module and path while reaching verification.
+- A verifying successor requires current passed evidence.
+- Draft, no-spec, partial, failed, abandoned, and stale-definition successors never suppress predecessor errors.
+- Accepted successors leave strict validation clean while preserving predecessor history.
+
+### REQ-change-025
+
+Semantic-delta preparation and application SHALL resolve canonical spec and companion paths through the committed registry.
+
+Acceptance Criteria
+
+- Registry-backed non-conventional module paths receive semantic spec and requirements updates.
+- Conventional paths remain the fallback when no mapping exists.
+- Unsafe registry paths fail closed.
+
+### REQ-change-026
+
+The lifecycle SHALL treat sequence claims and historical collision acknowledgements as protected exact repository evidence across arbitrarily wide numeric sequences.
+
+Acceptance Criteria
+
+- Numeric change sequences contain at least four ASCII digits and support values beyond 9999.
+- The committed sequence ledger always requires lifecycle coverage even when `.specsync/` is ignored.
+- Every newly allocated change automatically includes its generated sequence-ledger claim in its affected path scope.
+- An acknowledgement matches the exact currently located ID set and remains valid only when every member is accepted or archived.
+- Removed IDs, added IDs, single surviving records, and draft, approved, implementing, or verifying collision members fail closed.
+
+### REQ-change-027
+
+Configured verification SHALL reject direct and indirect entry into every SpecSync lifecycle command surface.
+
+Acceptance Criteria
+
+- Nested `check`, `change`, and `lifecycle` commands fail before performing validation or mutation.
+- Native verification commands remain unaffected and execute once.
+- The diagnostic names the configured parent command.
+
+### REQ-change-028
+
+Effective contract and canonical-successor validation SHALL use canonical repository resolution without redundant full-project hashing.
+
+Acceptance Criteria
+
+- Effective validation reads registry-backed canonical specs through the safe project-path resolver.
+- Conventional canonical paths remain the fallback when no registry mapping exists.
+- Unsafe registry mappings fail closed before effective validation.
+- The current project digest is computed at most once per canonical-successor candidate scan.

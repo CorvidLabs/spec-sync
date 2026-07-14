@@ -19,6 +19,7 @@ spec: cli.spec.md
 - [x] Make `check` the default subcommand when none is specified
 - [x] Remove embedded provider/model generation flags and preserve deterministic agent integrations
 - [x] Wrap `run()` in `catch_unwind` so panics surface a friendly bug-report message
+- [x] Block inherited verification recursion before dispatching `change` or `lifecycle` subcommands
 
 ## Gaps
 

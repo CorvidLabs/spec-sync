@@ -10,6 +10,8 @@ spec: validator.spec.md
 - **Levenshtein suggestions**: When a referenced file doesn't exist, the validator suggests similar filenames (edit distance ≤ 3) to help catch typos.
 - **Coverage excludes tests**: Test files (detected by `is_test_file()`) are excluded from coverage metrics, since test code doesn't need specs.
 - **Module detection cascade**: User-defined modules (config) → manifest-discovered modules → subdirectory scanning → flat file detection. Each level is a fallback.
+- **Static coverage is non-vacuous**: HTML, HTM, and CSS files participate in default source discovery even though they expose no API symbols.
+- **Generated companion markers fail strict**: Every known artifact-specific scaffold prompt emitted by the built-in templates, including all Layout, Components, Tokens, and Assets design bullets, emits a path-and-line warning outside fenced examples; strict mode promotes those warnings to errors.
 
 ## Files to Read First
 

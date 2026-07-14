@@ -35,6 +35,9 @@ spec: validator.spec.md
 | DB table not in schema | Error: "DB table not found in schema" | Keep or add a focused assertion before changing this behavior |
 | Missing required section | Error: "Missing required section: ## SectionName" | Keep or add a focused assertion before changing this behavior |
 | Dependency spec not found | Error: "Dependency spec not found" | Keep or add a focused assertion before changing this behavior |
+| Static HTML mapped or unmapped | Coverage denominator remains one and a 100% gate distinguishes `1/1` from `0/1` | Keep CLI fixtures for both cases |
+| Generated companion marker | Warning includes artifact path and source line; strict mode fails | Cover every supported artifact plus fenced and similar-prose negatives |
+| Built-in design markers | Layout, Components, Tokens, and Assets placeholders each produce a distinct warning | Keep the generated template lines and validator marker table in parity |
 
 ## Reviewer Checklist
 

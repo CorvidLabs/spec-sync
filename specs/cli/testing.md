@@ -28,6 +28,7 @@ spec: cli.spec.md
 | Coverage threshold | file coverage is 80% | `specsync check --require-coverage 90` is run | the process exits with code 1 and prints the unspecced files |
 | Deterministic generate | uncovered modules exist | `specsync generate` is run | local template specs and companions are created |
 | Retired provider/model flags | user supplies `--provider` or `--model` | Clap parses arguments | unknown arguments are rejected |
+| Recursive lifecycle dispatch | inherited verification context invokes `check`, `change`, or `lifecycle` | the binary dispatches | exits non-zero once and names the configured parent command |
 | Panic is caught | a subcommand panics internally | the binary runs | a "specsync panicked … please report it" message is printed and the process exits 1 (no raw backtrace) |
 | Resolve without network | specs have cross-project `depends_on` refs | `specsync resolve` is run (without `--remote`) | lists the refs but does not verify them against remote registries |
 | Fix auto-adds undocumented exports | a spec's source files have exports not documented in the Public API section | `specsync check --fix` is run | skeleton rows for the missing exports are appended to the Public API section and the spec file is written to disk |

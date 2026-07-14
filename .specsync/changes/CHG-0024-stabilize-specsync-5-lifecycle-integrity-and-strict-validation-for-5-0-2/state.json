@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2",
+  "slug": "stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2",
+  "title": "Stabilize SpecSync 5 lifecycle integrity and strict validation for 5.0.2",
+  "description": "Stabilize SpecSync 5 lifecycle integrity and strict validation for 5.0.2",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "21e44ecf33f4fe876820ef3ef8f19553341da15a",
+  "created_at": 1783985502,
+  "updated_at": 1783996957,
+  "affected_specs": [
+    "change",
+    "validator"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/validator.rs",
+    "tests",
+    "specs/change",
+    "specs/validator",
+    ".specsync",
+    "site/src/content/docs",
+    "Cargo.toml",
+    "Cargo.lock",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Strict validation detects unacknowledged numeric sequence collisions across active and archived workspaces and repository-backed sequence claims prevent parallel branches from silently reusing a number while historical accepted evidence remains immutable; recursive verification fails once without orphan processes; failed verification retries can succeed without weakening unrelated gates; approved canonical successors replace stale predecessors only for exactly governed modules; semantic deltas resolve registry-backed canonical paths; configured HTML and static sources count toward non-vacuous coverage; strict checking rejects unfilled companion scaffold markers with precise diagnostics; the focused and full validation suites plus SpecSync Trust Augur Attest and hosted platform checks pass"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "research",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 21
+version: 24
 status: active
 files:
   - src/change.rs
@@ -22,24 +22,25 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 2. Definition and closing approvals are portable records bound to deterministic SHA-256 digests.
 3. Approved semantic deltas form the effective future contract without mutating canonical specs before acceptance.
 4. Requirements use stable `REQ-<module>-<number>` IDs, normative SHALL statements, and acceptance criteria.
-5. Verification executes only project-configured commands without a shell and rejects unsafe shell syntax.
-6. Verification evidence is bound to the tested commit and working-tree inputs, and effective contracts must validate before acceptance.
-7. Invalid policy, unavailable coverage comparison, failed evidence, and stale ordering gates fail closed.
+5. Verification executes only project-configured commands without a shell and rejects direct or indirect entry into every lifecycle command surface.
+6. Verification evidence is bound to the tested commit and working-tree inputs, and registry-resolved effective contracts must validate before acceptance.
+7. Invalid policy, unavailable coverage comparison, failed evidence, stale ordering gates, and protected sequence-ledger edits without lifecycle coverage fail closed.
 8. Concurrent deltas follow declared dependency order and canonical Markdown application preserves unrelated sections.
 9. Approval validates complete module-scoped deltas, corrupt state fails closed, and archival failures remain retryable.
 10. Permanent requirement tombstones come only from accepted history, and default path coverage includes root delivery metadata.
 11. Concurrent effective-contract validations use isolated temporary workspaces.
 12. Stale accepted delivery evidence can return only to verifying through an explicit human actor and reason, while prior verification and closing evidence remain inspectable.
+13. Historical collision acknowledgements are exact immutable accepted-or-archived evidence and numeric sequence width has no four-digit upper bound.
 
 ## Public API
 
-### Exported Constants
+**Exported Constants**
 
 | Name | Description |
 |------|-------------|
 | `SDD_VERSION` | Current SDD project-layout version written by initialization |
 
-### Exported Types
+**Exported Types**
 
 | Type | Description |
 |------|-------------|
@@ -59,7 +60,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `ChangeSummary` | Human/agent status projection with gate health and next action |
 | `SddCheckReport` | Unified lifecycle validation errors, warnings, and checked-change count |
 
-### Exported Functions
+**Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
@@ -83,13 +84,19 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `adopt` | `root, dry_run, source` | `Result<Vec<String>, String>` | Preview or enable SDD and import OpenSpec or Spec Kit artifacts |
 | `detect_verification_commands` | `root: &Path` | `Vec<String>` | Detect explicit fledge, Cargo, Bun, or Swift test commands |
 
-### Exported Methods
+**Exported Methods**
 
 | Method | Description |
 |--------|-------------|
 | `as_str` | Return the stable serialized name for a change state or kind |
 | `parse` | Parse user-facing change-kind or artifact names into typed values |
 | `file_name` | Resolve an adaptive artifact to its safe Markdown filename |
+
+Acceptance Criteria
+
+- Nested lifecycle commands still fail once with the established deterministic contextual error.
+- The process marker and diagnostic helper remain private binary implementation details.
+- The canonical exported-function table contains no recursion helper.
 
 ## Invariants
 
@@ -193,3 +200,6 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | 2026-07-13 | CHG-0021-close-reopened-lifecycle-review-gaps: Close reopened lifecycle review gaps |
 | 2026-07-13 | CHG-0022-preserve-canonical-change-log-table-schemas-when-accepting-semantic-deltas: Preserve canonical Change Log table schemas when accepting semantic deltas |
 | 2026-07-13 | CHG-0023-allow-squash-accepted-evidence-on-descendant-branches: Allow squash-accepted evidence on descendant branches |
+| 2026-07-14 | CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2: Stabilize SpecSync 5 lifecycle integrity and strict validation for 5.0.2 |
+| 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |
+| 2026-07-14 | CHG-0026-keep-lifecycle-recursion-detection-private-while-preserving-deterministic-nested: Keep lifecycle recursion detection private while preserving deterministic nested-command failures |

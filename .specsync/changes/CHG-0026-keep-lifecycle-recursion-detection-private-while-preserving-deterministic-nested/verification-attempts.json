@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1783996529,
+      "commit": "033d5cc29bc9300a21ce4c25a9d055f6facfa40e",
+      "contract_digest": "6bad5c5e13b21176ad7f95d5302613b35c05de0d488adad558697c71eda79b8f",
+      "workspace_digest": "3281e6e90b0d89bba2661d7f8fcfab8ca72961216d009c394d029b67a1f63bee",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

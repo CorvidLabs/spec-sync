@@ -41,6 +41,13 @@
       "timestamp": 1784059982,
       "digest": "d453db8a1ddd45cb387036e12f5be57b92c51078aaa3d9f69dc027455e574ae8",
       "note": "Fresh native verification passed at 3383e15f68d90fe7be360d0e115ea948abbf29aa after CHG-0038 CommonJS hardening: 1,587 unit and 199 integration tests."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784062283,
+      "digest": "4cc26c5253bf6ded68259fec8c3472a1d19d06238aedd6d78eb5b1a883a9cc2e",
+      "note": "Fresh native verification passed at d9fc45c2e13d7847e9d1f4aa28dcde4964847617 after the CHG-0039 Unreleased changelog update: 1,589 unit and 206 integration tests."
     }
   ],
   "reopenings": [

@@ -51,6 +51,23 @@
       "requirement_ids": [
         "REQ-exports-002"
       ]
+    },
+    {
+      "timestamp": 1784062278,
+      "commit": "d9fc45c2e13d7847e9d1f4aa28dcde4964847617",
+      "contract_digest": "e537cd77dbb5e09aa1d3fc2c7ab9541aa3942fdce8433b638ca9b220bceef749",
+      "workspace_digest": "1c906810296a594f228ab7e3bada4367d78ec8bf38604d2cb487c66116beb2cc",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-exports-002"
+      ]
     }
   ]
 }

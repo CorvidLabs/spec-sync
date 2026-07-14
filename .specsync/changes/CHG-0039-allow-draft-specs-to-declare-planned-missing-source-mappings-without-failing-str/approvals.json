@@ -22,5 +22,47 @@
       "note": "Closing approval after all six canonical contracts and every valid #377 finding passed 1,589 unit and 206 integration tests at f027bba7387f785f6ab81bf726c317d02356a096, including incremental cached ownership and normalized dot-segment transitions."
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+      "actor": "user:0xLeif",
+      "reason": "A valid review correction requires duplicate ownership to ignore mappings rejected by the shared portable normalizer.",
+      "timestamp": 1784062796,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784062319,
+        "digest": "db3a92cf0689ae0fb3f8e0a663e39c602155f772186bc1547ce2b209466ad7f5",
+        "note": "Closing approval after all six canonical contracts and every valid #377 finding passed 1,589 unit and 206 integration tests at f027bba7387f785f6ab81bf726c317d02356a096, including incremental cached ownership and normalized dot-segment transitions."
+      },
+      "prior_verification": {
+        "timestamp": 1784062304,
+        "commit": "f027bba7387f785f6ab81bf726c317d02356a096",
+        "contract_digest": "2c99f36762570d09587e407bbe56e755365bc0cd2c965529ef904370daec19e1",
+        "workspace_digest": "1c906810296a594f228ab7e3bada4367d78ec8bf38604d2cb487c66116beb2cc",
+        "acceptance_input_digest": "c5dc01903e915da5297129d816f4aad7b1a3a64d013194d54bfc8ddd6419933d",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-commands-002",
+          "REQ-comment-002",
+          "REQ-config-004",
+          "REQ-output-002",
+          "REQ-types-003",
+          "REQ-validator-007"
+        ]
+      },
+      "stale_acceptance_input_digest": "c5dc01903e915da5297129d816f4aad7b1a3a64d013194d54bfc8ddd6419933d",
+      "current_acceptance_input_digest": "2d1052af5756174237b74859aef5badb741aae8cf624772165f68344eeaeb92c"
+    }
+  ]
 }

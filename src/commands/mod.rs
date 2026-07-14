@@ -299,9 +299,10 @@ pub fn run_validation(
             .replace('\\', "/");
         let mut existing_files = HashSet::new();
         for file in &parsed.frontmatter.files {
-            if root.join(file).is_file() && source_within_root(root, file) {
-                let normalized_file = crate::validator::normalize_source_mapping(file)
-                    .unwrap_or_else(|| file.replace('\\', "/"));
+            if root.join(file).is_file()
+                && source_within_root(root, file)
+                && let Some(normalized_file) = crate::validator::normalize_source_mapping(file)
+            {
                 let owners = file_owners.entry(normalized_file.clone()).or_default();
                 if !owners.contains(&owner) {
                     owners.push(owner.clone());

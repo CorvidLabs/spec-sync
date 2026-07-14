@@ -361,6 +361,38 @@ fn incremental_check_detects_duplicate_ownership_against_cached_specs() {
 }
 
 #[test]
+fn invalid_existing_mapping_is_not_tracked_as_duplicate_ownership() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/one")).unwrap();
+    fs::create_dir_all(root.join("specs/two")).unwrap();
+    let shared = root.join("src/shared.ts");
+    fs::write(&shared, "// shared\n").unwrap();
+    fs::write(
+        root.join("specs/one/one.spec.md"),
+        complete_coverage_spec("one", &[shared.to_string_lossy().as_ref()]),
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/two/two.spec.md"),
+        complete_coverage_spec("two", &["src/shared.ts"]),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Source file has duplicate spec ownership",
+        ).not());
+}
+
+#[test]
 fn draft_dot_segment_mapping_transitions_to_covered_file() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();

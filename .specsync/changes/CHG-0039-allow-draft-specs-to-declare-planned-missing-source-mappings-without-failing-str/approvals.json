@@ -1,4 +1,12 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784061760,
+      "digest": "d9989ecd43985508fd22d18612617736190cbf35f1a2d9860ae247bc6247a82b",
+      "note": "Definition reviewed against every valid #377 finding: complete six-module canonical contracts, incremental ownership across cached specs, normalized planned paths, strict opt-in behavior, separate notices, path safety, and exact coverage."
+    }
+  ],
   "reopenings": []
 }

@@ -48,6 +48,13 @@
       "timestamp": 1784063972,
       "digest": "baa66173e74ba6f6507442550a7abecf03ba1340ceb38dcd2a85c245886cec03",
       "note": "Fresh closing approval after fail-closed dangling-symlink containment passed 1,589 unit and 213 integration tests at 2a267aafcfb613889526c195f5df50addef41ba3."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784064489,
+      "digest": "4f0d667e2840eeae437d983e928e369ae44eb9f5f791a10854440e61fb1beb32",
+      "note": "Fresh closing approval after canonical config EOF cleanup passed 1,589 unit and 213 integration tests at b2c8215f88053afbb98e0ee4e7f5f47017f824e8."
     }
   ],
   "reopenings": [

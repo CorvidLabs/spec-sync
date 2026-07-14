@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Complete module JavaScript discovery** — default TypeScript-family source discovery now includes `.mjs` and `.cjs`, so mapped files contribute to real file and LOC totals and uncovered module files correctly fail strict 100 percent coverage.
+
 ## [5.0.2] - 2026-07-14
 
 ### Added

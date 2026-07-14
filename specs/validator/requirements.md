@@ -98,3 +98,13 @@ Acceptance Criteria
 - Coverage, generation, scaffold, new-spec, wizard, diff, and output scans share the extensionless rule.
 - Wizard discovery excludes directory entries before matching module names or extension rules.
 - Omitted or false configuration preserves existing source selection.
+
+### REQ-validator-006
+
+Default source discovery SHALL include `.mjs` and `.cjs` files in strict file and LOC coverage denominators.
+
+Acceptance Criteria
+
+- Mapped module files increase measured file and LOC totals using their real contents.
+- An uncovered `.mjs` or `.cjs` file prevents strict 100 percent coverage from passing.
+- Coverage output reports non-vacuous exact totals for mixed default-language projects.

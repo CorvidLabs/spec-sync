@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 34,
-  "id": "CHG-0034-support-extensionless-source-discovery-through-an-explicit-include-extensionless",
+  "sequence": 35,
+  "id": "CHG-0035-count-mjs-and-cjs-files-as-default-typescript-sources-so-mapped-and-uncovered-mo",
   "acknowledged_collisions": [
     {
       "sequence": 16,

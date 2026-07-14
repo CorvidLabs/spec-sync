@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0035-count-mjs-and-cjs-files-as-default-typescript-sources-so-mapped-and-uncovered-mo",
+  "slug": "count-mjs-and-cjs-files-as-default-typescript-sources-so-mapped-and-uncovered-mo",
+  "title": "Count mjs and cjs files as default TypeScript sources so mapped and uncovered module files contribute to strict file and LOC coverage denominators",
+  "description": "Count mjs and cjs files as default TypeScript sources so mapped and uncovered module files contribute to strict file and LOC coverage denominators",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+  "created_at": 1784052554,
+  "updated_at": 1784052913,
+  "affected_specs": [
+    "types",
+    "validator"
+  ],
+  "affected_paths": [
+    "src/types.rs",
+    "tests/integration/check.rs",
+    "specs/types",
+    "specs/validator",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Language::from_extension classifies mjs and cjs as TypeScript and TypeScript::extensions includes both suffixes.",
+    "A default-discovery fixture mapping ts, css, mjs, and cjs files reports exact file and non-zero LOC denominators instead of omitting module JavaScript.",
+    "Default-discovery fixtures with uncovered mjs or cjs files each fail strict require-coverage 100 and report those files in the denominator.",
+    "Existing JavaScript and TypeScript discovery remains compatible, canonical deltas and changelog are accurate, and the complete native and hosted gates pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "docs",
+    "research",
+    "requirements",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

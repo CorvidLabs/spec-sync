@@ -507,6 +507,72 @@ fn mixed_extensionless_project_has_non_vacuous_strict_coverage() {
 }
 
 #[test]
+fn default_discovery_counts_mjs_and_cjs_in_exact_coverage_totals() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/modules")).unwrap();
+    write_config(root, "specs", &["src"]);
+    fs::write(root.join("src/index.ts"), "// ts one\n// ts two\n").unwrap();
+    fs::write(root.join("src/render.mjs"), "// mjs one\n// mjs two\n").unwrap();
+    fs::write(root.join("src/config.cjs"), "// cjs one\n// cjs two\n").unwrap();
+    fs::write(root.join("src/theme.css"), "/* css one */\n/* css two */\n").unwrap();
+    fs::write(
+        root.join("specs/modules/modules.spec.md"),
+        complete_coverage_spec(
+            "modules",
+            &[
+                "src/index.ts",
+                "src/render.mjs",
+                "src/config.cjs",
+                "src/theme.css",
+            ],
+        ),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["coverage", "--strict", "--require-coverage", "100"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("File coverage: 4/4 (100%)"))
+        .stdout(predicate::str::contains("LOC coverage:  8/8 (100%)"));
+}
+
+#[test]
+fn uncovered_mjs_and_cjs_files_fail_strict_full_coverage() {
+    for extension in ["mjs", "cjs"] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("specs/index")).unwrap();
+        write_config(root, "specs", &["src"]);
+        fs::write(root.join("src/index.ts"), "// mapped\n").unwrap();
+        fs::write(
+            root.join(format!("src/unmapped.{extension}")),
+            "// uncovered\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("specs/index/index.spec.md"),
+            complete_coverage_spec("index", &["src/index.ts"]),
+        )
+        .unwrap();
+
+        specsync()
+            .args(["coverage", "--strict", "--require-coverage", "100"])
+            .arg("--root")
+            .arg(root)
+            .assert()
+            .failure()
+            .stdout(predicate::str::contains("File coverage: 1/2 (50%)"))
+            .stdout(predicate::str::contains("LOC coverage:  1/2 (50%)"));
+    }
+}
+
+#[test]
 fn require_coverage_fails_when_below_threshold() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);

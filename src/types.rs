@@ -567,7 +567,9 @@ impl Language {
     /// Detect language from file extension.
     pub fn from_extension(ext: &str) -> Option<Self> {
         match ext {
-            "ts" | "tsx" | "js" | "jsx" | "mts" | "cts" => Some(Language::TypeScript),
+            "ts" | "tsx" | "js" | "jsx" | "mts" | "cts" | "mjs" | "cjs" => {
+                Some(Language::TypeScript)
+            }
             "rs" => Some(Language::Rust),
             "go" => Some(Language::Go),
             "py" => Some(Language::Python),
@@ -608,7 +610,7 @@ impl Language {
     #[allow(dead_code)]
     pub fn extensions(&self) -> &[&str] {
         match self {
-            Language::TypeScript => &["ts", "tsx", "js", "jsx", "mts", "cts"],
+            Language::TypeScript => &["ts", "tsx", "js", "jsx", "mts", "cts", "mjs", "cjs"],
             Language::Rust => &["rs"],
             Language::Go => &["go"],
             Language::Python => &["py"],
@@ -698,6 +700,19 @@ impl Language {
             Language::PowerShell => &["Tests.ps1", ".Tests.ps1"],
             Language::Vala => &["Test.vala", "Tests.vala"],
         }
+    }
+}
+
+#[cfg(test)]
+mod language_extension_tests {
+    use super::Language;
+
+    #[test]
+    fn module_javascript_extensions_are_typescript_family_sources() {
+        assert_eq!(Language::from_extension("mjs"), Some(Language::TypeScript));
+        assert_eq!(Language::from_extension("cjs"), Some(Language::TypeScript));
+        assert!(Language::TypeScript.extensions().contains(&"mjs"));
+        assert!(Language::TypeScript.extensions().contains(&"cjs"));
     }
 }
 

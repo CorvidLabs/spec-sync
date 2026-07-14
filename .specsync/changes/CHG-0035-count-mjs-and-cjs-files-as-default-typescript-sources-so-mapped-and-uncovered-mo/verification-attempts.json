@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1784052765,
+      "commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "contract_digest": "6c5b334ec7bdf678f86c486c2fd19277317b4346b47196e8be7a600a5913f8db",
+      "workspace_digest": "f2d4a38f9dc116e811341b6192f14fe372fe62e3fd7748bb1f73733e96c14ebe",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-types-002",
+        "REQ-validator-006"
+      ]
+    },
+    {
+      "timestamp": 1784052909,
+      "commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "contract_digest": "6c5b334ec7bdf678f86c486c2fd19277317b4346b47196e8be7a600a5913f8db",
+      "workspace_digest": "a3eb05d2ebf389fe81f33bbc79bec701dc8c8a105e05a64848430eb31b5a31f5",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-types-002",
+        "REQ-validator-006"
+      ]
+    }
+  ]
+}

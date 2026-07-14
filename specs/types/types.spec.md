@@ -1,6 +1,6 @@
 ---
 module: types
-version: 3
+version: 4
 status: stable
 files:
   - src/types.rs
@@ -156,3 +156,4 @@ Core deterministic data structures and enums shared across the codebase: configu
 | 2026-06-07 | Remove `AiProvider::default_model` / `default_base_url` — the `corvid-ai` crate now owns the API endpoint registry and default models |
 | 2026-06-07 | Add `OpenRouter`; reclassify `Ollama` as an API provider (HTTP via corvid-ai, `OLLAMA_API_KEY`); `detection_order` is now API-only; deprecate the `claude`/`copilot` CLI providers |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
+| 2026-07-14 | CHG-0035-count-mjs-and-cjs-files-as-default-typescript-sources-so-mapped-and-uncovered-mo: Count mjs and cjs files as default TypeScript sources so mapped and uncovered module files contribute to strict file and LOC coverage denominators |

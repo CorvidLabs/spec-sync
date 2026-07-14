@@ -1,6 +1,6 @@
 ---
 id: CHG-0027-support-extensionless-source-discovery-through-an-explicit-include-extensionless
-state: verifying
+state: accepted
 type: feature
 base_commit: c98d29810f78abcdd6a2fec9b137667d3ab2fc5b
 ---

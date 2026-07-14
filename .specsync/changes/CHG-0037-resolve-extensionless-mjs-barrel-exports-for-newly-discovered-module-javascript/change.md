@@ -1,6 +1,6 @@
 ---
 id: CHG-0037-resolve-extensionless-mjs-barrel-exports-for-newly-discovered-module-javascript
-state: draft
+state: approved
 type: bug_fix
 base_commit: dac64a1bff31cc5af0b590c8a800468440048e1e
 ---

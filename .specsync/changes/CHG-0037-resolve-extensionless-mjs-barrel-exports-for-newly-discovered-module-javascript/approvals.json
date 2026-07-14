@@ -1,4 +1,12 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784058361,
+      "digest": "e66949c4c54a310717068cc37d7d8d3665e0216d3b808212a8e1ae34b4b5c29e",
+      "note": "Approve the scoped extensionless module JavaScript resolver contract, fixtures, and lifecycle dependency on accepted CHG-0036."
+    }
+  ],
   "reopenings": []
 }

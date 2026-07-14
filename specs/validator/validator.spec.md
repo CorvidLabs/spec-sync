@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 6
+version: 7
 status: stable
 files:
   - src/validator.rs
@@ -19,7 +19,7 @@ depends_on:
 
 ## Purpose
 
-Core validation engine for spec-sync. Validates individual spec files against source code (bidirectional), discovers spec and source files, extracts schema table names from SQL migrations, computes file and LOC coverage metrics, and resolves cross-project dependency references.
+Core validation engine for spec-sync. Validates individual specs and selected companion artifacts against source code, discovers spec and source files including configured static content, extracts schema table names from SQL migrations, computes non-vacuous file and LOC coverage metrics, and resolves cross-project dependency references.
 
 ## Public API
 
@@ -124,3 +124,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-03-25 | Initial spec |
 | 2026-04-06 | Document archive, compact, merge as consumers of find_spec_files; note hash_cache integration for incremental validation |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-14 | CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2: Stabilize SpecSync 5 lifecycle integrity and strict validation for 5.0.2 |

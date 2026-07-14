@@ -12,7 +12,9 @@ const POLICY_PATH: &str = ".specsync/sdd.json";
 const CHANGES_PATH: &str = ".specsync/changes";
 const ARCHIVE_PATH: &str = ".specsync/archive/changes";
 const LOCK_PATH: &str = ".specsync/change.lock";
+const SEQUENCE_PATH: &str = ".specsync/change-sequence.json";
 const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
+const VERIFICATION_CONTEXT_ENV: &str = "SPECSYNC_VERIFICATION_CONTEXT";
 const MAX_CHANGE_ARTIFACT_BYTES: u64 = 4 * 1024 * 1024;
 static EFFECTIVE_CONTRACT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -369,6 +371,34 @@ pub struct VerificationRecord {
     pub requirement_ids: Vec<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct VerificationAttemptLedger {
+    schema_version: u32,
+    attempts: Vec<VerificationRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct ChangeSequenceCollision {
+    sequence: u64,
+    ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ChangeSequenceLedger {
+    schema_version: u32,
+    sequence: u64,
+    id: String,
+    #[serde(default)]
+    acknowledged_collisions: Vec<ChangeSequenceCollision>,
+}
+
+#[derive(Debug)]
+struct LocatedChangeSequence {
+    sequence: u64,
+    id: String,
+    path: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InterviewQuestion {
     pub id: String,
@@ -462,6 +492,7 @@ pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> 
 
 pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
+    validate_change_sequences(root)?;
     let CreateChangeRequest {
         description,
         kind,
@@ -529,6 +560,7 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
                 .map_err(|error| format!("failed to write {}: {error}", path.display()))?;
         }
     }
+    update_change_sequence_claim(root, &record.id)?;
     Ok(record)
 }
 
@@ -584,6 +616,178 @@ fn list_changes_checked(root: &Path) -> Result<Vec<ChangeRecord>, String> {
     }
     records.sort_by(|left: &ChangeRecord, right: &ChangeRecord| left.id.cmp(&right.id));
     Ok(records)
+}
+
+fn change_sequence(id: &str) -> Option<u64> {
+    let digits = id.strip_prefix("CHG-")?.split('-').next()?;
+    if digits.len() != 4 || !digits.chars().all(|character| character.is_ascii_digit()) {
+        return None;
+    }
+    digits.parse().ok()
+}
+
+fn load_change_sequence_ledger(root: &Path) -> Result<Option<ChangeSequenceLedger>, String> {
+    let path = root.join(SEQUENCE_PATH);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content = fs::read_to_string(&path)
+        .map_err(|error| format!("failed to read change sequence ledger: {error}"))?;
+    let ledger: ChangeSequenceLedger = serde_json::from_str(&content)
+        .map_err(|error| format!("invalid change sequence ledger: {error}"))?;
+    if ledger.schema_version != 1 {
+        return Err(format!(
+            "unsupported change sequence ledger schema version {}",
+            ledger.schema_version
+        ));
+    }
+    if change_sequence(&ledger.id) != Some(ledger.sequence) {
+        return Err(format!(
+            "change sequence ledger claim `{}` does not match sequence {}",
+            ledger.id, ledger.sequence
+        ));
+    }
+    Ok(Some(ledger))
+}
+
+fn update_change_sequence_claim(root: &Path, id: &str) -> Result<(), String> {
+    let sequence = change_sequence(id).ok_or_else(|| format!("invalid change ID `{id}`"))?;
+    let acknowledged_collisions = load_change_sequence_ledger(root)?
+        .map(|ledger| ledger.acknowledged_collisions)
+        .unwrap_or_default();
+    write_json(
+        &root.join(SEQUENCE_PATH),
+        &ChangeSequenceLedger {
+            schema_version: 1,
+            sequence,
+            id: id.to_string(),
+            acknowledged_collisions,
+        },
+    )
+}
+
+fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, String> {
+    let mut located = Vec::new();
+    for (base, archived) in [
+        (root.join(CHANGES_PATH), false),
+        (root.join(ARCHIVE_PATH), true),
+    ] {
+        let entries = match fs::read_dir(&base) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(format!(
+                    "failed to read {} changes: {error}",
+                    if archived { "archived" } else { "active" }
+                ));
+            }
+        };
+        for entry in entries {
+            let entry = entry.map_err(|error| format!("failed to read change entry: {error}"))?;
+            if !entry
+                .file_type()
+                .map_err(|error| format!("failed to inspect change entry: {error}"))?
+                .is_dir()
+            {
+                continue;
+            }
+            let state_path = entry.path().join("state.json");
+            let content = match fs::read_to_string(&state_path) {
+                Ok(content) => content,
+                Err(error) if archived && error.kind() == std::io::ErrorKind::NotFound => {
+                    // Legacy archive entries can contain only semantic tombstones.
+                    // Without persisted state they are not lifecycle records and have
+                    // no numeric sequence identity to validate.
+                    continue;
+                }
+                Err(error) => {
+                    return Err(format!(
+                        "failed to read {} change state {}: {error}",
+                        if archived { "archived" } else { "active" },
+                        state_path.display()
+                    ));
+                }
+            };
+            let record: ChangeRecord = serde_json::from_str(&content).map_err(|error| {
+                format!(
+                    "invalid {} change state {}: {error}",
+                    if archived { "archived" } else { "active" },
+                    state_path.display()
+                )
+            })?;
+            let expected_id = if archived {
+                record.id.clone()
+            } else {
+                entry.file_name().into_string().map_err(|_| {
+                    format!(
+                        "active change directory is not valid UTF-8: {}",
+                        entry.path().display()
+                    )
+                })?
+            };
+            validate_loaded_change(&record, &expected_id, &state_path)?;
+            let sequence = change_sequence(&record.id)
+                .ok_or_else(|| format!("invalid change ID `{}`", record.id.escape_default()))?;
+            located.push(LocatedChangeSequence {
+                sequence,
+                id: record.id,
+                path: portable_project_path(root, &entry.path()),
+            });
+        }
+    }
+    Ok(located)
+}
+
+fn validate_change_sequences(root: &Path) -> Result<(), String> {
+    let located = located_change_sequences(root)?;
+    let ledger = load_change_sequence_ledger(root)?;
+    let mut groups: BTreeMap<u64, Vec<&LocatedChangeSequence>> = BTreeMap::new();
+    for change in &located {
+        groups.entry(change.sequence).or_default().push(change);
+    }
+    for changes in groups.values_mut() {
+        changes.sort_by(|left, right| left.id.cmp(&right.id));
+    }
+    for (sequence, changes) in groups.iter().filter(|(_, changes)| changes.len() > 1) {
+        let ids: Vec<String> = changes.iter().map(|change| change.id.clone()).collect();
+        let acknowledged = ledger.as_ref().is_some_and(|ledger| {
+            ledger.acknowledged_collisions.iter().any(|collision| {
+                let mut expected = collision.ids.clone();
+                expected.sort();
+                collision.sequence == *sequence && expected == ids
+            })
+        });
+        if !acknowledged {
+            let conflicts = changes
+                .iter()
+                .map(|change| format!("{} ({})", change.id, change.path))
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(format!(
+                "duplicate numeric change sequence CHG-{sequence:04}: {conflicts}; update from the default branch and create a new change ID"
+            ));
+        }
+    }
+    if let Some(ledger) = ledger {
+        let maximum = located
+            .iter()
+            .map(|change| change.sequence)
+            .max()
+            .unwrap_or(0);
+        if maximum != ledger.sequence {
+            return Err(format!(
+                "change sequence ledger claims CHG-{:04} but the highest recorded sequence is CHG-{maximum:04}",
+                ledger.sequence
+            ));
+        }
+        if !located.iter().any(|change| change.id == ledger.id) {
+            return Err(format!(
+                "change sequence ledger claim `{}` has no active or archived workspace",
+                ledger.id
+            ));
+        }
+    }
+    Ok(())
 }
 
 pub fn next_questions(record: &ChangeRecord) -> Vec<InterviewQuestion> {
@@ -771,6 +975,9 @@ pub fn start_implementation(root: &Path, id: &str) -> Result<ChangeRecord, Strin
 }
 
 pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String> {
+    if let Some(error) = verification_recursion_error() {
+        return Err(error);
+    }
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
     require_state(
@@ -787,6 +994,9 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
     validate_effective_contracts(root, &records).map_err(|errors| errors.join("; "))?;
     ensure_tasks_complete(root, &record)?;
     let policy = load_policy_checked(root)?.unwrap_or_default();
+    for configured in &policy.verification_commands {
+        reject_direct_lifecycle_verification(configured)?;
+    }
     let mut commands = Vec::new();
     for configured in policy.verification_commands {
         let status = run_configured_command(root, &configured, ConfiguredCommandOutput::Inherit)?;
@@ -816,10 +1026,7 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
         commands,
         requirement_ids,
     };
-    write_json(
-        &change_dir(root, &record.id).join("verification.json"),
-        &verification,
-    )?;
+    record_verification_attempt(root, &record, &verification)?;
     record.state = ChangeState::Verifying;
     record.updated_at = now();
     save_change(root, &record)?;
@@ -1198,6 +1405,13 @@ fn check_project_with_command_output(
     root: &Path,
     command_output: ConfiguredCommandOutput,
 ) -> SddCheckReport {
+    if let Some(error) = verification_recursion_error() {
+        return SddCheckReport {
+            enabled: true,
+            errors: vec![error],
+            ..SddCheckReport::default()
+        };
+    }
     let current_policy = match load_policy_checked(root) {
         Ok(policy) => policy,
         Err(error) => {
@@ -1227,6 +1441,13 @@ fn check_project_with_command_output(
             .is_some();
     if !is_versioned_sdd {
         return SddCheckReport::default();
+    }
+    if let Err(error) = validate_change_sequences(root) {
+        return SddCheckReport {
+            enabled: true,
+            errors: vec![error],
+            ..SddCheckReport::default()
+        };
     }
     let records = match list_changes_checked(root) {
         Ok(records) => records,
@@ -1293,6 +1514,8 @@ fn check_project_with_command_output(
         }
         if record.state == ChangeState::Accepted
             && let Err(error) = ensure_closing_approval_valid(root, record)
+            && (error != "accepted change verification is stale for current delivery inputs"
+                || !canonical_successor_governs_stale_predecessor(root, record, &records))
         {
             report.errors.push(format!("{}: {error}", record.id));
         }
@@ -2217,11 +2440,7 @@ fn prepare_delta_application(
     for module in &record.affected_specs {
         let delta = read_bounded_change_text(&delta_path(root, record, module), "semantic delta")?;
         let items = parse_delta(&delta)?;
-        let spec_path = root
-            .join(&specs_dir)
-            .join(module)
-            .join(format!("{module}.spec.md"));
-        let requirements_path = root.join(&specs_dir).join(module).join("requirements.md");
+        let (spec_path, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
         let mut spec = fs::read_to_string(&spec_path)
             .map_err(|error| format!("failed to read {}: {error}", spec_path.display()))?;
         let mut requirements = fs::read_to_string(&requirements_path)
@@ -2254,6 +2473,43 @@ fn prepare_delta_application(
         prepared.push((requirements_path, requirements));
     }
     Ok(prepared)
+}
+
+fn canonical_module_paths(
+    root: &Path,
+    specs_dir: &str,
+    module: &str,
+) -> Result<(PathBuf, PathBuf), String> {
+    let registry_path = crate::registry::local_registry_path(root);
+    let registered = if registry_path.exists() {
+        let registry = crate::registry::load_registry(root).ok_or_else(|| {
+            format!(
+                "failed to parse local registry {} while resolving `{module}`",
+                registry_path.display()
+            )
+        })?;
+        registry
+            .specs
+            .iter()
+            .find(|(registered_module, _)| registered_module == module)
+            .map(|(_, path)| path.clone())
+    } else {
+        None
+    };
+    let spec_path = if let Some(path) = registered {
+        safe_project_path(root, &path).map_err(|error| {
+            format!("unsafe registry path for canonical module `{module}`: {error}")
+        })?
+    } else {
+        root.join(specs_dir)
+            .join(module)
+            .join(format!("{module}.spec.md"))
+    };
+    let requirements_path = spec_path
+        .parent()
+        .ok_or_else(|| format!("canonical spec path has no parent: {}", spec_path.display()))?
+        .join("requirements.md");
+    Ok((spec_path, requirements_path))
 }
 
 fn apply_markdown_block(
@@ -2798,6 +3054,7 @@ fn project_input_is_volatile(path: &str) -> bool {
         "site/.astro/",
         ".specsync/changes/",
         ".specsync/archive/",
+        SEQUENCE_PATH,
         ".specsync/hashes.json",
         LOCK_PATH,
         TRANSACTION_PATH,
@@ -3134,6 +3391,43 @@ fn load_verification(root: &Path, record: &ChangeRecord) -> Result<VerificationR
         .map_err(|error| format!("invalid verification evidence: {error}"))
 }
 
+fn record_verification_attempt(
+    root: &Path,
+    record: &ChangeRecord,
+    verification: &VerificationRecord,
+) -> Result<(), String> {
+    let history_path = change_dir(root, &record.id).join("verification-attempts.json");
+    let mut history = if history_path.exists() {
+        let content = fs::read_to_string(&history_path)
+            .map_err(|error| format!("failed to read verification attempt history: {error}"))?;
+        let history: VerificationAttemptLedger = serde_json::from_str(&content)
+            .map_err(|error| format!("invalid verification attempt history: {error}"))?;
+        if history.schema_version != 1 {
+            return Err(format!(
+                "unsupported verification attempt history schema version {}",
+                history.schema_version
+            ));
+        }
+        history
+    } else {
+        VerificationAttemptLedger {
+            schema_version: 1,
+            attempts: Vec::new(),
+        }
+    };
+    history.attempts.push(verification.clone());
+    write_prepared_files(
+        root,
+        &[
+            (
+                change_dir(root, &record.id).join("verification.json"),
+                json_content(verification)?,
+            ),
+            (history_path, json_content(&history)?),
+        ],
+    )
+}
+
 fn uncovered_meaningful_paths(
     root: &Path,
     policy: &SddPolicy,
@@ -3405,13 +3699,55 @@ fn run_configured_command(
         .split_first()
         .ok_or_else(|| "empty verification command".to_string())?;
     let mut command = Command::new(program);
-    command.args(args).current_dir(root);
+    command
+        .args(args)
+        .current_dir(root)
+        .env(VERIFICATION_CONTEXT_ENV, configured);
     if matches!(output, ConfiguredCommandOutput::Suppress) {
         command.stdout(Stdio::null()).stderr(Stdio::null());
     }
     command.status().map_err(|error| {
         format!("failed to run configured verification command `{configured}`: {error}")
     })
+}
+
+fn verification_recursion_error() -> Option<String> {
+    let configured = std::env::var(VERIFICATION_CONTEXT_ENV).ok()?;
+    let executable = std::env::current_exe().ok()?;
+    let file_name = executable.file_name()?.to_string_lossy();
+    if file_name != "specsync" && file_name != "specsync.exe" {
+        return None;
+    }
+    Some(format!(
+        "recursive lifecycle verification detected while executing `{configured}`; verification commands must not invoke specsync check or change verification"
+    ))
+}
+
+fn reject_direct_lifecycle_verification(configured: &str) -> Result<(), String> {
+    let parts = shell_words(configured)?;
+    let Some((program, args)) = parts.split_first() else {
+        return Ok(());
+    };
+    let program_name = Path::new(program)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(program)
+        .trim_end_matches(".exe");
+    let invokes_specsync = program_name == "specsync"
+        || (program_name == "cargo"
+            && args.first().is_some_and(|argument| argument == "run")
+            && args.iter().any(|argument| {
+                matches!(
+                    argument.as_str(),
+                    "check" | "verify" | "change" | "lifecycle"
+                )
+            }));
+    if invokes_specsync {
+        return Err(format!(
+            "recursive lifecycle verification command `{configured}` is not allowed; run native verification here and keep specsync check as a top-level gate"
+        ));
+    }
+    Ok(())
 }
 
 fn is_ci() -> bool {
@@ -4027,6 +4363,53 @@ fn accepted_change_has_current_canonical_successors(root: &Path, record: &Change
     specs_governed && paths_governed
 }
 
+fn canonical_successor_governs_stale_predecessor(
+    root: &Path,
+    predecessor: &ChangeRecord,
+    records: &[ChangeRecord],
+) -> bool {
+    records.iter().any(|candidate| {
+        if candidate.id == predecessor.id
+            || candidate.no_spec_change
+            || change_sequence(&candidate.id) <= change_sequence(&predecessor.id)
+            || !matches!(
+                candidate.state,
+                ChangeState::Implementing | ChangeState::Verifying | ChangeState::Accepted
+            )
+            || validate_definition(root, candidate).is_err()
+            || ensure_definition_approval_valid(root, candidate).is_err()
+            || validate_delta_files(root, candidate).is_err()
+            || !semantic_acceptance_item_exists(root, candidate).unwrap_or(false)
+        {
+            return false;
+        }
+        let scopes_match = predecessor
+            .affected_specs
+            .iter()
+            .all(|module| candidate.affected_specs.contains(module))
+            && predecessor
+                .affected_paths
+                .iter()
+                .all(|path| record_covers_project_path(root, candidate, path));
+        if !scopes_match {
+            return false;
+        }
+        match candidate.state {
+            ChangeState::Implementing => true,
+            ChangeState::Verifying => load_verification(root, candidate).is_ok_and(|evidence| {
+                evidence.passed
+                    && verification_commit_is_current(root, &evidence, is_ci_project(root))
+                    && definition_digest_matches(root, candidate, &evidence.contract_digest)
+                        .unwrap_or(false)
+                    && project_input_digest(root)
+                        .is_ok_and(|digest| digest == evidence.workspace_digest)
+            }),
+            ChangeState::Accepted => ensure_closing_approval_valid(root, candidate).is_ok(),
+            _ => false,
+        }
+    })
+}
+
 fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
     let mut maximum = 0_u64;
     for base in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
@@ -4426,6 +4809,81 @@ mod tests {
             .collect();
         assert_eq!(ids.len(), 8);
         assert_eq!(list_changes(&root).len(), 8);
+    }
+
+    #[test]
+    fn sequence_ledger_rejects_unacknowledged_active_and_archived_collisions() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let first = create_change(
+            root,
+            CreateChangeRequest {
+                description: "First claim".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/first".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("fixture".into()),
+            },
+        )
+        .unwrap();
+        let mut archived = first.clone();
+        archived.id = "CHG-0001-archived-claim".into();
+        archived.slug = "archived-claim".into();
+        archived.state = ChangeState::Archived;
+        let archived_dir = root
+            .join(ARCHIVE_PATH)
+            .join("2026-07-13-CHG-0001-archived-claim");
+        fs::create_dir_all(&archived_dir).unwrap();
+        write_json(&archived_dir.join("state.json"), &archived).unwrap();
+
+        let error = validate_change_sequences(root).unwrap_err();
+        assert!(error.contains("duplicate numeric change sequence CHG-0001"));
+        assert!(error.contains(&first.id));
+        assert!(error.contains(&archived.id));
+        assert!(error.contains(".specsync/changes"));
+        assert!(error.contains(".specsync/archive/changes"));
+    }
+
+    #[test]
+    fn exact_historical_collision_baseline_preserves_immutable_records() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let first = create_change(
+            root,
+            CreateChangeRequest {
+                description: "First claim".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/first".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("fixture".into()),
+            },
+        )
+        .unwrap();
+        let mut second = first.clone();
+        second.id = "CHG-0001-second-claim".into();
+        second.slug = "second-claim".into();
+        fs::create_dir_all(change_dir(root, &second.id)).unwrap();
+        save_change(root, &second).unwrap();
+        let mut ids = vec![first.id.clone(), second.id.clone()];
+        ids.sort();
+        write_json(
+            &root.join(SEQUENCE_PATH),
+            &ChangeSequenceLedger {
+                schema_version: 1,
+                sequence: 1,
+                id: first.id.clone(),
+                acknowledged_collisions: vec![ChangeSequenceCollision { sequence: 1, ids }],
+            },
+        )
+        .unwrap();
+
+        assert!(validate_change_sequences(root).is_ok());
+        let ledger = load_change_sequence_ledger(root).unwrap().unwrap();
+        assert_eq!(ledger.id, first.id);
     }
 
     #[test]
@@ -5545,6 +6003,120 @@ mod tests {
     }
 
     #[test]
+    fn exact_canonical_successor_can_replace_stale_frontmatter_without_deadlock() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut predecessor = completed_section_only_record(
+            root,
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nOriginal governed behavior.\n",
+        );
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        predecessor =
+            approve_definition(root, &predecessor.id, Some("Reviewer".into()), None).unwrap();
+        predecessor = start_implementation(root, &predecessor.id).unwrap();
+        verify_change(root, &predecessor.id).unwrap();
+        predecessor = accept_change(root, &predecessor.id, Some("Closer".into()), None).unwrap();
+        assert!(check_project(root).errors.is_empty());
+
+        fs::write(
+            root.join("src/auth-extra.rs"),
+            "// Existing product surface.\n",
+        )
+        .unwrap();
+        let spec_path = root.join("specs/auth/auth.spec.md");
+        let expanded = fs::read_to_string(&spec_path).unwrap().replace(
+            "  - src/auth.rs\n",
+            "  - src/auth.rs\n  - src/auth-extra.rs\n",
+        );
+        fs::write(&spec_path, expanded).unwrap();
+        assert!(check_project(root).errors.iter().any(|error| {
+            error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
+        }));
+
+        let mut successor = create_change(
+            root,
+            CreateChangeRequest {
+                description: "Expand the governed auth surface".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["auth".into()],
+                affected_paths: vec!["src/auth.rs".into(), "src/auth-extra.rs".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: false,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        successor.acceptance_criteria = vec!["Both auth files remain governed".into()];
+        successor
+            .answers
+            .insert("public_contract".into(), "yes".into());
+        successor
+            .answers
+            .insert("architecture_risk".into(), "no".into());
+        save_change(root, &successor).unwrap();
+        write_change_markdown(root, &successor).unwrap();
+        for artifact in &successor.selected_artifacts {
+            fs::write(
+                change_dir(root, &successor.id).join(artifact.file_name()),
+                if *artifact == ArtifactKind::Tasks {
+                    "# Tasks\n\n- [x] Govern the expanded surface.\n"
+                } else {
+                    "# Complete\n\nReviewed successor evidence.\n"
+                },
+            )
+            .unwrap();
+        }
+        fs::write(
+            delta_path(root, &successor, "auth"),
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nBoth existing auth files remain governed.\n",
+        )
+        .unwrap();
+        successor = approve_definition(root, &successor.id, Some("Reviewer".into()), None).unwrap();
+        assert!(check_project(root).errors.iter().any(|error| {
+            error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
+        }));
+
+        successor = start_implementation(root, &successor.id).unwrap();
+        assert!(!check_project(root).errors.iter().any(|error| {
+            error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
+        }));
+
+        let mut policy = load_policy(root).unwrap();
+        policy.verification_commands =
+            vec!["cargo metadata --manifest-path definitely-missing/Cargo.toml".into()];
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        assert!(verify_change(root, &successor.id).is_err());
+        assert!(check_project(root).errors.iter().any(|error| {
+            error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
+        }));
+
+        policy.verification_commands.clear();
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        verify_change(root, &successor.id).unwrap();
+        assert!(!check_project(root).errors.iter().any(|error| {
+            error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
+        }));
+        successor = accept_change(root, &successor.id, Some("Closer".into()), None).unwrap();
+        assert_eq!(successor.state, ChangeState::Accepted);
+        assert!(check_project(root).errors.is_empty());
+    }
+
+    #[test]
     fn reopen_rejects_current_evidence_and_requires_explicit_audit_fields() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
@@ -5925,6 +6497,79 @@ mod tests {
             !error.contains("configured verification command failed"),
             "{error}"
         );
+    }
+
+    #[test]
+    fn direct_recursive_verification_command_is_rejected_before_execution() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut policy = SddPolicy::default();
+        policy.require_change_for_meaningful_files = false;
+        policy.verification_commands = vec!["specsync check --strict".into()];
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let mut record = completed_section_only_record(
+            root,
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+        );
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+
+        let error = verify_change(root, &record.id).unwrap_err();
+
+        assert!(error.contains("recursive lifecycle verification command"));
+        assert!(error.contains("specsync check --strict"));
+        assert_eq!(
+            load_change(root, &record.id).unwrap().state,
+            ChangeState::Implementing
+        );
+        assert!(
+            !change_dir(root, &record.id)
+                .join("verification.json")
+                .exists()
+        );
+        assert!(
+            !change_dir(root, &record.id)
+                .join("verification-attempts.json")
+                .exists()
+        );
+    }
+
+    #[test]
+    fn failed_native_verification_is_retryable_with_append_only_history() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut policy = SddPolicy::default();
+        policy.require_change_for_meaningful_files = false;
+        policy.verification_commands =
+            vec!["cargo metadata --manifest-path definitely-missing/Cargo.toml".into()];
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let mut record = completed_section_only_record(
+            root,
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+        );
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+
+        let first_error = verify_change(root, &record.id).unwrap_err();
+        assert!(first_error.contains("configured verification command failed"));
+        assert_eq!(
+            load_change(root, &record.id).unwrap().state,
+            ChangeState::Verifying
+        );
+
+        policy.verification_commands.clear();
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let successful = verify_change(root, &record.id).unwrap();
+        assert!(successful.passed);
+        let history: VerificationAttemptLedger = serde_json::from_slice(
+            &fs::read(change_dir(root, &record.id).join("verification-attempts.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(history.schema_version, 1);
+        assert_eq!(history.attempts.len(), 2);
+        assert!(!history.attempts[0].passed);
+        assert!(history.attempts[1].passed);
+        assert!(load_verification(root, &record).unwrap().passed);
     }
 
     #[test]
@@ -6620,6 +7265,95 @@ mod tests {
                 .iter()
                 .all(|(path, _)| path.starts_with(root.join("contracts")))
         );
+    }
+
+    #[test]
+    fn semantic_application_resolves_registry_backed_canonical_paths() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::create_dir_all(root.join("specs/client")).unwrap();
+        fs::write(
+            root.join(".specsync/registry.toml"),
+            "[registry]\nname = \"fixture\"\n\n[specs]\nclient-api = \"specs/client/client-api.spec.md\"\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("specs/client/client-api.spec.md"),
+            "---\nmodule: client-api\nversion: 1\nstatus: stable\nfiles: []\n---\n\n# Client API\n\n## Purpose\n\nClient API.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+        let record = create_change(
+            root,
+            CreateChangeRequest {
+                description: "Update client API".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["client-api".into()],
+                affected_paths: vec!["src/client.rs".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: false,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        fs::write(
+            delta_path(root, &record, "client-api"),
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nRegistry-backed behavior is stable.\n",
+        )
+        .unwrap();
+
+        let prepared = prepare_delta_application(root, &record).unwrap();
+
+        assert!(
+            prepared
+                .iter()
+                .any(|(path, _)| { path == &root.join("specs/client/client-api.spec.md") })
+        );
+        assert!(
+            prepared
+                .iter()
+                .any(|(path, _)| path == &root.join("specs/client/requirements.md"))
+        );
+        assert!(
+            !prepared
+                .iter()
+                .any(|(path, _)| path.starts_with(root.join("specs/client-api")))
+        );
+    }
+
+    #[test]
+    fn semantic_application_rejects_unsafe_registry_paths() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/registry.toml"),
+            "[registry]\nname = \"fixture\"\n\n[specs]\nauth = \"../../outside/auth.spec.md\"\n",
+        )
+        .unwrap();
+        let record = create_change(
+            root,
+            CreateChangeRequest {
+                description: "Update auth".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["auth".into()],
+                affected_paths: vec!["src/auth.rs".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: false,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        fs::write(
+            delta_path(root, &record, "auth"),
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nStable.\n",
+        )
+        .unwrap();
+
+        let error = prepare_delta_application(root, &record).unwrap_err();
+
+        assert!(error.contains("unsafe registry path"));
+        assert!(error.contains("escapes the project root"));
     }
 
     #[test]

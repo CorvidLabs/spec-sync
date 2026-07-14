@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "sequence": 24,
+  "id": "CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2",
+  "acknowledged_collisions": [
+    {
+      "sequence": 16,
+      "ids": [
+        "CHG-0016-preserve-c-ast-behavior-under-rust-1-95-clippy",
+        "CHG-0016-preserve-free-text-arguments-in-generated-agent-commands",
+        "CHG-0016-reject-modified-definitions-when-reaccepting-an-already-applied-change"
+      ]
+    }
+  ]
+}

@@ -39,6 +39,8 @@ specsync change answer CHG-0001-add-passkeys architecture_risk yes --json
 
 The shared deterministic engine asks only unresolved questions and selects requirements, research, design, plan, tasks, context, testing, docs, or custom artifacts according to change type and risk. Agent skills present the same questions conversationally.
 
+Every new change also updates `.specsync/change-sequence.json`. Because that claim is committed, two branches that independently select the same numeric sequence conflict during Git integration instead of silently creating duplicate `CHG-NNNN` records. Strict lifecycle checking scans active and archived workspaces together. Historical collisions can be preserved only by listing the exact sequence and complete set of immutable full IDs under `acknowledged_collisions`; adding or removing an ID makes the baseline fail closed.
+
 ## 2. Approve and Implement
 
 Complete selected artifacts and semantic deltas, then obtain explicit human approval:
@@ -59,7 +61,7 @@ specsync change accept CHG-0001-add-passkeys
 specsync change archive CHG-0001-add-passkeys
 ```
 
-Verification runs only project-configured commands without a shell and streams their output. Its evidence is bound to both the commit and the tested working-tree inputs, so source, test, configuration, or contract edits require a fresh verification. Acceptance requires successful evidence, requirement-to-test/API traceability, complete tasks, conflict-free deltas, and closing human approval.
+Verification runs only project-configured native test commands without a shell and streams their output. Do not configure `specsync check`, `specsync change`, `specsync lifecycle`, or an indirect Fledge lane that invokes them as a verification command: lifecycle checking remains a separate top-level gate, and recursive re-entry is rejected. Its evidence is bound to both the commit and the tested working-tree inputs, so source, test, configuration, or contract edits require a fresh verification. Every attempt is appended to `verification-attempts.json`; `verification.json` is the current projection, so a failed attempt remains inspectable and a corrected retry can pass. Acceptance requires successful evidence, requirement-to-test/API traceability, complete tasks, conflict-free deltas, and closing human approval.
 
 Archive after the delivery branch is merged (or otherwise no longer differs from its comparison base). Until then, SpecSync keeps the accepted workspace active because the delivery diff still depends on its path coverage. This prevents the common gap where accepting and immediately archiving makes an unmerged implementation look unspecced.
 
@@ -80,6 +82,8 @@ Reopen is allowed only when the accepted delivery-input digest is stale. It move
 Squash-integrated changes and changes partially superseded by later canonical work may also reopen when current Git history records their accepted state or later recorded canonical changes govern every affected contract surface. The unchanged definition, passed evidence, valid closing approval, stale delivery inputs, explicit actor, and audit reason remain mandatory; copied or arbitrary off-history evidence is rejected.
 
 The reopened definition must remain identical to the contract that originally applied the canonical delta. If review requires new or changed requirements, deltas, or other definition artifacts, create a new change workspace; reacceptance fails closed instead of silently ignoring those edits.
+
+When a later canonical change expands a governed contract, it can keep an accepted predecessor from deadlocking implementation only when it is an exact successor: it has a higher sequence, current human-approved definition, semantic deltas, and complete coverage of every predecessor spec and path. A verifying successor also needs fresh passed evidence. Draft, no-spec, partial, failed, stale-definition, or abandoned records never suppress predecessor errors.
 
 The repository includes executable examples for a [complete lifecycle](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-lifecycle), [ordered concurrent changes](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-concurrent-changes), and a [five-epic product evolution](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-five-epics). Each creates a disposable Git project and runs the real CLI end to end.
 
@@ -128,7 +132,7 @@ Creates `specs/auth/` with five files by default, plus optional `design.md` when
 | `testing.md` | Test strategy, QA checklists, edge cases | QA / Developer |
 | `design.md` *(opt-in)* | Layout, component hierarchy, design tokens | Design / Frontend |
 
-The spec file is the only one SpecSync validates against code. The companion files provide structured context for humans and AI agents working on the module.
+The spec file is validated bidirectionally against code. Companion files provide structured context for humans and AI agents, and strict mode also rejects known generated scaffold markers left in `context.md`, `requirements.md`, `testing.md`, `tasks.md`, or `design.md`. Diagnostics identify the artifact path and line; fenced examples containing a marker are ignored.
 
 > **Convention:** Requirements (user stories, acceptance criteria) belong in `requirements.md`, not as inline sections in the spec. Non-draft specs with inline `## Requirements` or `## Acceptance Criteria` sections will produce a warning.
 
@@ -219,7 +223,7 @@ specsync check --json
 specsync coverage
 ```
 
-Shows file and LOC coverage — what percentage of your source code has a spec. Use `--json` to get machine-readable output with `uncovered_files` sorted by size, so you can prioritize the largest gaps.
+Shows file and LOC coverage — what percentage of your source code has a spec. HTML, HTM, and CSS are measured by default alongside language sources, so static repositories produce real covered and uncovered counts rather than disappearing from the denominator. Use `--json` to get machine-readable output with `uncovered_files` sorted by size, so you can prioritize the largest gaps.
 
 ### Quality score
 

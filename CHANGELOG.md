@@ -7,14 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.2] - 2026-07-13
+
 ### Added
 
 - **Audited recovery for stale accepted changes** — `specsync change reopen <id> --actor <human> --reason <text>` now moves only stale accepted delivery evidence back to `verifying`, preserves the prior verification and superseded closing approval in versioned append-only audit metadata, keeps strict checking red until fresh verification, and requires a new closing approval before returning to `accepted`. Reacceptance does not reapply or version-bump semantic deltas that are already canonical, rejects modified definitions that would otherwise be silently ignored, recognizes squash-integrated acceptance and complete later canonical governance recorded in current history, rejects arbitrary off-history evidence, and returns deterministic change and audit objects through global `--json`.
+- **Repository-backed change sequence claims** — `.specsync/change-sequence.json` records the latest numeric claim so parallel branches collide during Git integration instead of silently reusing a `CHG-NNNN` sequence. Strict lifecycle checking scans active and archived records together, reports every conflicting full ID and path, and preserves the exact historical `CHG-0016` collision as an explicit immutable baseline.
 
 ### Fixed
 
 - **Section-only semantic changes verify correctly** — Non-removed requirement and spec-section delta items now both satisfy semantic acceptance evidence when observable criteria are present. Requirement IDs still require their own test or declared evidence, and verification now distinguishes missing semantic evidence from a configured command failure.
 - **Legacy definition approvals survive the lifecycle schema extension** — false `canonical_applied` values remain absent from new persisted state and deterministic definition serialization, while validation recognizes both the original omitted form and the transitional explicit-false form. Explicit acceptance appends a stable definition approval when it encounters compatible transitional evidence, keeping older contract checkers interoperable without rewriting audit history. Upgrading either active schema-v1 encoding no longer invalidates its existing human approval or verification; reopened and accepted changes still persist true values.
+- **Verification cannot recursively re-enter the lifecycle** — direct lifecycle commands are rejected before execution, indirect re-entry carries a process context that fails once, and failed attempts are retained in append-only history while a later corrected retry can become the current successful projection.
+- **Canonical successors can govern stale predecessors without deadlock** — an exact later implementing successor must have current definition approval and complete scope; a verifying successor additionally needs fresh passed evidence. Draft, partial, no-spec, failed, stale, or abandoned work never hides unrelated stale acceptance evidence.
+- **Semantic deltas honor registry-backed module paths** — acceptance resolves canonical spec and adjacent requirements files from the committed registry, preserves the conventional fallback for unregistered modules, and rejects absolute, traversing, malformed, or escaping paths.
+- **Static content participates in coverage** — HTML, HTM, and CSS files are measured by default, so mapped static content reports real covered files and unmapped content fails requested coverage gates instead of appearing as vacuous success.
+- **Strict validation rejects unfinished companion scaffolds** — generated context, requirements, testing, tasks, and design markers now produce artifact-specific path-and-line diagnostics; similar prose and fenced examples remain valid.
 
 ## [5.0.1] - 2026-07-11
 

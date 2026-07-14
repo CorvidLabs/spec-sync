@@ -21,3 +21,7 @@ Unit tests cover IDs, requirement grammar, semantic application, unsafe command 
 - `REQ-change-019`: section-only semantic evidence and distinct missing-evidence diagnostics are covered without weakening requirement-ID mappings.
 - `REQ-change-020`: reopened reacceptance covers transitional definition evidence, semantic-only successor governance, and validation of current canonical modules without replaying applied deltas.
 - Legacy serialization coverage proves false `canonical_applied` values remain absent, omitted and transitional explicit-false definition evidence stays valid, explicit acceptance appends stable evidence for older contract checkers, and true values persist.
+- Sequence-integrity coverage rejects unacknowledged active/archive collisions, accepts only the exact immutable historical baseline, and exercises the committed claim update.
+- Verification coverage rejects direct and indirect lifecycle recursion, retains failed attempts, and proves a corrected native retry can become current without deleting history.
+- Canonical-successor coverage exercises incomplete, stale, failed, implementing, verifying, and accepted successor states against stale predecessor evidence.
+- Registry-path coverage applies spec and requirements deltas to a non-conventional registered module and rejects unsafe mappings.

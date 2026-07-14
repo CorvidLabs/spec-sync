@@ -289,7 +289,8 @@ pub fn run_validation(
         let Ok(content) = std::fs::read_to_string(spec_file) else {
             continue;
         };
-        let Some(parsed) = parser::parse_frontmatter(&content) else {
+        let normalized = content.replace("\r\n", "\n");
+        let Some(parsed) = parser::parse_frontmatter(&normalized) else {
             continue;
         };
         if parsed.frontmatter.parsed_status() == Some(SpecStatus::Archived) {

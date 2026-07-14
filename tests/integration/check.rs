@@ -332,6 +332,32 @@ fn draft_existing_files_keep_ownership_and_path_safety_validation() {
         .stdout(predicate::str::contains("Planned source mapping").not());
 }
 
+#[test]
+fn crlf_specs_keep_duplicate_ownership_detection() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/one")).unwrap();
+    fs::create_dir_all(root.join("specs/two")).unwrap();
+    fs::write(root.join("src/shared.ts"), "// shared\n").unwrap();
+
+    for module in ["one", "two"] {
+        let spec = complete_coverage_spec(module, &["src/shared.ts"]).replace('\n', "\r\n");
+        fs::write(root.join(format!("specs/{module}/{module}.spec.md")), spec).unwrap();
+    }
+
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "Source file has duplicate spec ownership: src/shared.ts",
+        ));
+}
+
 #[cfg(unix)]
 #[test]
 fn draft_planned_mapping_rejects_symlinked_parent_escape() {

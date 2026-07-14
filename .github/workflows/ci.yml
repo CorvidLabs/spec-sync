@@ -134,9 +134,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
-      - uses: rustsec/audit-check@v2.0.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: dtolnay/rust-toolchain@1.89.0
+      - name: Install cargo-audit reproducibly
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - name: Audit dependencies
+        run: cargo audit --ignore RUSTSEC-2024-0384
 
   coverage:
     needs: classify

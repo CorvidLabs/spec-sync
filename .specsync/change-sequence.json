@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 26,
-  "id": "CHG-0026-keep-lifecycle-recursion-detection-private-while-preserving-deterministic-nested",
+  "sequence": 27,
+  "id": "CHG-0027-make-the-hosted-rustsec-audit-bootstrap-reproducible-on-specsync-rustc-1-89-by-i",
   "acknowledged_collisions": [
     {
       "sequence": 16,

@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784040566,
+      "digest": "4130104d64a339e90f1eec103a621095f347fb7f34a2f7869a9298c526f5ff3e",
+      "note": "Approved the reproducible RustSec audit bootstrap after confirming the hosted failure was an unlocked tool dependency above the repository Rust toolchain, with no product contract change."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784040638,
+      "digest": "9984b0b1fb14993ee2c6ee8adc3367073d20bdd9ab87193e98f16aa6125c7b7c",
+      "note": "Reapproved after replacing the circular hosted-CI task with the completed local workflow syntax and dependency-audit preparation; hosted CI remains an explicit acceptance criterion and is not claimed early."
+    }
+  ],
+  "reopenings": []
+}

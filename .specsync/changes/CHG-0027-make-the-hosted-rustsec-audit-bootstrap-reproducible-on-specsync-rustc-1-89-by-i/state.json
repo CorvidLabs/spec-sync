@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0027-make-the-hosted-rustsec-audit-bootstrap-reproducible-on-specsync-rustc-1-89-by-i",
+  "slug": "make-the-hosted-rustsec-audit-bootstrap-reproducible-on-specsync-rustc-1-89-by-i",
+  "title": "Make the hosted RustSec audit bootstrap reproducible on SpecSync rustc 1.89 by installing cargo-audit 0.22.2 with its published lockfile and retaining the acknowledged RUSTSEC-2024-0384 exception.",
+  "description": "Make the hosted RustSec audit bootstrap reproducible on SpecSync rustc 1.89 by installing cargo-audit 0.22.2 with its published lockfile and retaining the acknowledged RUSTSEC-2024-0384 exception.",
+  "kind": "operations",
+  "state": "verifying",
+  "base_commit": "c98d29810f78abcdd6a2fec9b137667d3ab2fc5b",
+  "created_at": 1784040399,
+  "updated_at": 1784040732,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "This changes only CI tool installation and invocation; it does not alter SpecSync runtime behavior or public contracts.",
+  "acceptance_criteria": [
+    "Hosted CI installs cargo-audit 0.22.2 successfully on rustc 1.89 using the crate lockfile; cargo audit runs against Cargo.lock; the existing RUSTSEC-2024-0384 exception is explicit and no additional advisory is accepted; the audit job passes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "research",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

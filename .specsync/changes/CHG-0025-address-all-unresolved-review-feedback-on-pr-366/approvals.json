@@ -77,6 +77,47 @@
       },
       "stale_acceptance_input_digest": "1b81262eae572b96c91ca3754713cee5c63fd6b52b8f245a43d9ab548b443b8a",
       "current_acceptance_input_digest": "0c3d1c143778a865fd70a84dc4d7f71d8944ea2badb87ea75d5ce349209c1501"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0025-address-all-unresolved-review-feedback-on-pr-366",
+      "actor": "user:0xLeif",
+      "reason": "Reverify accepted delivery evidence after the governed private recursion-guard correction changed shared lifecycle inputs.",
+      "timestamp": 1783996865,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783996064,
+        "digest": "1830c0b5b8edd676a3fa575d82967cd3af23476231fc03a500606d6f8dab3ea7",
+        "note": "Closing approval after explicit sequence-claim scoping and full native verification."
+      },
+      "prior_verification": {
+        "timestamp": 1783996011,
+        "commit": "7191365ad1a5a0f1d4cf94dafe11cadb0928d463",
+        "contract_digest": "ee5819f2f1397f1a05d72e9ee6ac5344a78609159f42c21e7d5dbf95f643c32e",
+        "workspace_digest": "a3999f88df39295b7f0eb437b5966fe203d1d68da30139602e55801574ad7c00",
+        "acceptance_input_digest": "0c3d1c143778a865fd70a84dc4d7f71d8944ea2badb87ea75d5ce349209c1501",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-026",
+          "REQ-change-027",
+          "REQ-change-028",
+          "REQ-cli-003",
+          "REQ-config-002",
+          "REQ-validator-004"
+        ]
+      },
+      "stale_acceptance_input_digest": "0c3d1c143778a865fd70a84dc4d7f71d8944ea2badb87ea75d5ce349209c1501",
+      "current_acceptance_input_digest": "daa4579cf57aaab312892790f6dc4017385a94bc5286be65fc6605041f4b7616"
     }
   ]
 }

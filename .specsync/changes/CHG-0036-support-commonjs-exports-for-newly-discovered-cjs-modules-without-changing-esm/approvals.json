@@ -34,6 +34,13 @@
       "timestamp": 1784058624,
       "digest": "30866cfc9f20a1687c99e5b0da58914f3d452db58e764922a62d34994962b721",
       "note": "Fresh closing approval after the combined CommonJS and extensionless resolver delivery passed 1,582 unit tests and 199 integration tests at e4a8f73110b22e1ee6a72c3a1a11cb19c1bb3f17."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784059982,
+      "digest": "d453db8a1ddd45cb387036e12f5be57b92c51078aaa3d9f69dc027455e574ae8",
+      "note": "Fresh native verification passed at 3383e15f68d90fe7be360d0e115ea948abbf29aa after CHG-0038 CommonJS hardening: 1,587 unit and 199 integration tests."
     }
   ],
   "reopenings": [

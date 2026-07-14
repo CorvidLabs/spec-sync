@@ -70,6 +70,47 @@
       },
       "stale_acceptance_input_digest": "c5dc01903e915da5297129d816f4aad7b1a3a64d013194d54bfc8ddd6419933d",
       "current_acceptance_input_digest": "2d1052af5756174237b74859aef5badb741aae8cf624772165f68344eeaeb92c"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+      "actor": "user:0xLeif",
+      "reason": "Rustfmt normalized the new ownership regression assertion after the review correction.",
+      "timestamp": 1784062866,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784062834,
+        "digest": "5438cd075d040def3b454c3354438bb5922ea072b151f122b51f011103f9a725",
+        "note": "Fresh closing approval after the valid ownership-normalization review correction passed 1,589 unit and 207 integration tests at 36d9bf8672cc1ae619cb4c1644a1fbbe3658688b."
+      },
+      "prior_verification": {
+        "timestamp": 1784062827,
+        "commit": "36d9bf8672cc1ae619cb4c1644a1fbbe3658688b",
+        "contract_digest": "2c99f36762570d09587e407bbe56e755365bc0cd2c965529ef904370daec19e1",
+        "workspace_digest": "b38a10793254d2dabba2df2d7a25be66fe5af052a32b10737faf1e1f67ac8950",
+        "acceptance_input_digest": "2d1052af5756174237b74859aef5badb741aae8cf624772165f68344eeaeb92c",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-commands-002",
+          "REQ-comment-002",
+          "REQ-config-004",
+          "REQ-output-002",
+          "REQ-types-003",
+          "REQ-validator-007"
+        ]
+      },
+      "stale_acceptance_input_digest": "2d1052af5756174237b74859aef5badb741aae8cf624772165f68344eeaeb92c",
+      "current_acceptance_input_digest": "54366dda7300f7d5e5a0915c75bf91ebccf6e79eb7dd128726adb29469a98b17"
     }
   ]
 }

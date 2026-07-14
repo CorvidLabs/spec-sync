@@ -387,9 +387,7 @@ fn invalid_existing_mapping_is_not_tracked_as_duplicate_ownership() {
         .arg(root)
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "Source file has duplicate spec ownership",
-        ).not());
+        .stdout(predicate::str::contains("Source file has duplicate spec ownership").not());
 }
 
 #[test]

@@ -5,6 +5,8 @@ artifact: testing
 
 # Testing
 
+This plan provides implementation evidence for `REQ-agents-003`.
+
 ## Focused regression
 
 - Extend `create_spec_commands_classify_the_complete_remaining_input` to assert that flag removal

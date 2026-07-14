@@ -22,7 +22,7 @@ draft → approved → implementing → verifying → accepted → archived
 | **Approved** | A human approves the definition digest | `change approve` |
 | **Implementing** | Code follows canonical specs plus approved deltas | `change start`, `check` |
 | **Verifying** | Tests and requirement evidence are recorded | `change verify` |
-| **Accepted** | Closing approval atomically updates canonical truth; stale review-fix evidence can be audited and reopened | `change accept`, `change reopen` |
+| **Accepted** | Closing approval atomically updates canonical truth; delivery evidence can be reopened and supported classification mistakes corrected with audit history | `change accept`, `change reopen`, `change correct` |
 | **Archived** | The immutable workspace moves to dated history | `change archive` |
 
 Module maturity (`draft → review → active → stable → deprecated → archived`) remains separately available through `specsync lifecycle`.
@@ -86,6 +86,24 @@ Squash-integrated changes and changes partially superseded by later canonical wo
 The reopened definition must remain identical to the contract that originally applied the canonical delta. If review requires new or changed requirements, deltas, or other definition artifacts, create a new change workspace; reacceptance fails closed instead of silently ignoring those edits.
 
 When a later canonical change expands a governed contract, it can keep an accepted predecessor from deadlocking implementation only when it is an exact successor: it has a higher sequence, current human-approved definition, semantic deltas, and complete coverage of every predecessor spec and path. A verifying successor also needs fresh passed evidence. Draft, no-spec, partial, failed, stale-definition, or abandoned records never suppress predecessor errors.
+
+## 5. Correct Accepted Classification Metadata
+
+Use `change correct` when the accepted delivery evidence is current but review proves that the original `public_contract` or `architecture_risk` answer was wrong:
+
+```bash
+specsync change correct CHG-0001-add-passkeys architecture_risk yes \
+  --actor "Ada Reviewer" \
+  --reason "The persistence boundary makes this an architectural change"
+# complete any newly selected research/design/plan/tasks/testing artifacts
+specsync change approve CHG-0001-add-passkeys --actor "Ada Reviewer"
+specsync change verify CHG-0001-add-passkeys
+specsync change accept CHG-0001-add-passkeys --actor "Ada Reviewer"
+```
+
+Correction is intentionally narrower than editing an accepted definition. It supports only the two closed yes/no classification fields. The original answers, selected artifacts, approvals, and verification remain unchanged and inspectable; `corrections.json` records the actor, reason, values, portable view digests, prior evidence, and artifacts added by each correction. Effective artifacts are monotonic, so changing a value back to `no` never removes scrutiny already recorded.
+
+Correction moves `accepted` to `verifying` and requires a fresh definition approval before verification plus a fresh closing approval before reacceptance. A second correction is available only after the first is reaccepted. Because canonical application remains recorded, reacceptance never applies or version-bumps the semantic delta twice. Use `change reopen` instead when the definition is unchanged and only governed delivery inputs made accepted evidence stale.
 
 The repository includes executable examples for a [complete lifecycle](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-lifecycle), [ordered concurrent changes](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-concurrent-changes), and a [five-epic product evolution](https://github.com/CorvidLabs/spec-sync/tree/main/examples/sdd-five-epics). Each creates a disposable Git project and runs the real CLI end to end.
 

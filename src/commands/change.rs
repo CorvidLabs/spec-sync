@@ -2,7 +2,9 @@ use colored::Colorize;
 use std::path::Path;
 use std::process;
 
-use crate::change::{self, ArtifactKind, ChangeKind, ChangeRecord, CreateChangeRequest};
+use crate::change::{
+    self, ArtifactKind, ChangeKind, ChangeRecord, CorrectionField, CreateChangeRequest,
+};
 use crate::cli::ChangeAction;
 use crate::types::OutputFormat;
 
@@ -34,26 +36,25 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                     },
                 )
             })
-            .map(|record| print_record(root, &record, format, true)),
+            .and_then(|record| print_record(root, &record, format, true)),
         ChangeAction::Answer {
             id,
             question,
             answer,
         } => change::answer_question(root, &id, &question, &answer)
-            .map(|record| print_record(root, &record, format, true)),
+            .and_then(|record| print_record(root, &record, format, true)),
         ChangeAction::Depend { id, on } => change::add_dependency(root, &id, &on)
-            .map(|record| print_record(root, &record, format, false)),
+            .and_then(|record| print_record(root, &record, format, false)),
         ChangeAction::List => {
             print_records(root, &change::list_changes(root), format);
             Ok(())
         }
-        ChangeAction::Show { id } => {
-            change::load_change(root, &id).map(|record| print_record(root, &record, format, true))
-        }
+        ChangeAction::Show { id } => change::load_change(root, &id)
+            .and_then(|record| print_record(root, &record, format, true)),
         ChangeAction::Status { id } => {
             if let Some(id) = id {
                 change::load_change(root, &id)
-                    .map(|record| print_record(root, &record, format, false))
+                    .and_then(|record| print_record(root, &record, format, false))
             } else {
                 print_records(root, &change::list_changes(root), format);
                 Ok(())
@@ -86,6 +87,43 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                 ),
             })
         }
+        ChangeAction::Correct {
+            id,
+            field,
+            value,
+            actor,
+            reason,
+        } => CorrectionField::parse(&field).and_then(|field| {
+            change::correct_interview_metadata(root, &id, field, value, actor, reason).map(
+                |result| match format {
+                    OutputFormat::Json => print_json(&result),
+                    _ => {
+                        println!(
+                            "{} {} corrected {} from {} to {} as {}",
+                            "✓".green(),
+                            result.change.id,
+                            result.correction.field.as_str(),
+                            result.correction.prior_effective_value,
+                            result.correction.corrected_value,
+                            result.correction.actor
+                        );
+                        if !result.correction.added_artifacts.is_empty() {
+                            println!(
+                                "  Added artifacts: {}",
+                                result
+                                    .correction
+                                    .added_artifacts
+                                    .iter()
+                                    .map(ArtifactKind::file_name)
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            );
+                        }
+                        println!("  Next: {}", result.summary.next_action);
+                    }
+                },
+            )
+        }),
         ChangeAction::Accept { id, actor, note } => change::accept_change(root, &id, actor, note)
             .map(|record| {
                 print_transition(
@@ -149,8 +187,15 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
     }
 }
 
-fn print_record(root: &Path, record: &ChangeRecord, format: OutputFormat, include_questions: bool) {
+fn print_record(
+    root: &Path,
+    record: &ChangeRecord,
+    format: OutputFormat,
+    include_questions: bool,
+) -> Result<(), String> {
     let summary = change::summarize_change(root, record);
+    let effective_definition = change::effective_change_definition(root, record)?;
+    let corrections = change::correction_history(root, record)?;
     let questions = if include_questions {
         change::next_questions(record)
     } else {
@@ -159,6 +204,8 @@ fn print_record(root: &Path, record: &ChangeRecord, format: OutputFormat, includ
     match format {
         OutputFormat::Json => print_json(&serde_json::json!({
             "change": record,
+            "effective_definition": effective_definition,
+            "corrections": corrections,
             "summary": summary,
             "questions": questions,
         })),
@@ -166,6 +213,33 @@ fn print_record(root: &Path, record: &ChangeRecord, format: OutputFormat, includ
             println!("{} {}", record.id.bold(), record.title);
             println!("  State: {}", record.state.as_str());
             println!("  Next: {}", summary.next_action);
+            if !corrections.is_empty() {
+                println!("  Corrections:");
+                for correction in &corrections {
+                    println!(
+                        "    {}: {} → {} by {} at {} — {}",
+                        correction.field.as_str(),
+                        correction.prior_effective_value,
+                        correction.corrected_value,
+                        correction.actor,
+                        correction.timestamp,
+                        correction.reason
+                    );
+                    println!(
+                        "      digests: {} → {}",
+                        correction.prior_view_digest, correction.corrected_view_digest
+                    );
+                }
+                println!(
+                    "  Effective answers: {}",
+                    effective_definition
+                        .answers
+                        .iter()
+                        .map(|(field, value)| format!("{field}={value}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+            }
             if include_questions && !questions.is_empty() {
                 println!("\nInterview:");
                 for question in questions {
@@ -177,6 +251,7 @@ fn print_record(root: &Path, record: &ChangeRecord, format: OutputFormat, includ
             }
         }
     }
+    Ok(())
 }
 
 fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat) {

@@ -94,6 +94,11 @@ const CREATE_SPEC_STEPS_MD: &str = r#"1. Read the complete arguments above. Remo
      Never use only the first word as the module name. If the right name is
      ambiguous, ask the user to confirm or rename it before continuing. Keep
      the complete description at hand — you'll use it in step 5.
+   Flag position does not change classification:
+   - `--minimal billing` and `billing --minimal` both select the bare module
+     `billing` in minimal mode.
+   - `--minimal I need CSV export` and `I need CSV export --minimal` both keep
+     the complete description and derive a name such as `csv-export`, not `I`.
 3. If minimal mode was requested, run:
    ```
    specsync new <module-name>
@@ -128,6 +133,11 @@ const CREATE_SPEC_STEPS_TOML: &str = r#"1. Read the complete arguments above. Re
      Never use only the first word as the module name. If the right name is
      ambiguous, ask the user to confirm or rename it before continuing. Keep
      the complete description at hand - you'll use it in step 5.
+   Flag position does not change classification:
+   - --minimal billing and billing --minimal both select the bare module
+     billing in minimal mode.
+   - --minimal I need CSV export and I need CSV export --minimal both keep the
+     complete description and derive a name such as csv-export, not I.
 3. If minimal mode was requested, run:
    specsync new <module-name>
    This creates a minimal spec only (no companion files).
@@ -753,7 +763,39 @@ mod tests {
             assert!(content.contains("the entire input is one identifier with no"));
             assert!(content.contains("any quoted or unquoted sentence or"));
             assert!(content.contains("Never use only the first word as the module name"));
+            assert!(content.contains("--minimal billing"));
+            assert!(content.contains("billing --minimal"));
+            assert!(content.contains("--minimal I need CSV export"));
+            assert!(content.contains("I need CSV export --minimal"));
+            assert!(content.contains("csv-export"));
+            assert!(content.contains("not `I`") || content.contains("not I"));
             assert!(!content.contains("first whitespace-separated token"));
+        }
+    }
+
+    #[test]
+    fn checked_in_create_spec_commands_match_generated_assets() {
+        let tmp = setup();
+        let fixtures = [
+            (
+                AgentTool::Claude,
+                include_str!("../.claude/commands/specsync/create-spec.md"),
+            ),
+            (
+                AgentTool::Cursor,
+                include_str!("../.cursor/commands/specsync-create-spec.md"),
+            ),
+            (
+                AgentTool::Gemini,
+                include_str!("../.gemini/commands/specsync/create-spec.toml"),
+            ),
+        ];
+
+        for (tool, checked_in) in fixtures {
+            assert!(install_agent(tmp.path(), tool).unwrap());
+            let generated = fs::read_to_string(tool.command_path(tmp.path()).unwrap()).unwrap();
+            assert_eq!(generated, checked_in, "{} command drifted", tool.name());
+            assert!(!install_agent(tmp.path(), tool).unwrap());
         }
     }
 

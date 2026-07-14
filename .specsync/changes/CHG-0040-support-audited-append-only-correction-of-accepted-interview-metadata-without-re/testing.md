@@ -5,6 +5,9 @@ artifact: testing
 
 # Testing
 
+This plan provides implementation evidence for `REQ-change-032`, `REQ-cli-args-004`, and
+`REQ-cmd-change-002`.
+
 ## Domain unit coverage
 
 - Correct `public_contract` and `architecture_risk` in both directions from an accepted workspace.

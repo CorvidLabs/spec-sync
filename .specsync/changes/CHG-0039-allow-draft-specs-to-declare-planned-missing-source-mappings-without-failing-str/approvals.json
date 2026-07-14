@@ -34,6 +34,13 @@
       "timestamp": 1784062892,
       "digest": "2d44646a68ecf1c7f558dddd25f2c83d4f387bf4c603a9d0b732f1adc74761de",
       "note": "Fresh closing approval after rustfmt and the ownership-normalization review correction passed 1,589 unit and 207 integration tests at 98f564ffe65df6ea4f732aee5ec00b845e490999."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784063785,
+      "digest": "2b2f2d69af0a3c48eeb7e9503d2f2799d7dd05ef5af45c4eb454420031c4f583",
+      "note": "Fresh closing approval after five valid review corrections passed 1,589 unit and 212 integration tests at efeb80567cb01586d3ac767c270fb2e7b87d790e."
     }
   ],
   "reopenings": [

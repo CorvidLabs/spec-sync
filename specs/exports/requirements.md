@@ -53,3 +53,14 @@ Acceptance Criteria
 - Narrower `pub(super)`, `pub(self)`, and `pub(in ...)` declarations remain excluded.
 - A multi-file fixture matching issue #334 passes strict phantom/undocumented export validation in both parse modes.
 
+### REQ-exports-002
+
+The TypeScript/JavaScript export scanner SHALL report statically named CommonJS exports in both regex and AST modes without changing existing ESM results.
+
+Acceptance Criteria
+
+- `exports.foo = ...` and `module.exports.foo = ...` report `foo`.
+- Top-level shorthand and named keys in `module.exports = { ... }` are reported.
+- Comments, strings, computed keys, and statically unresolved spreads do not report false exports.
+- Mixed ESM/CommonJS input is stable and deduplicated in both parsing modes.
+

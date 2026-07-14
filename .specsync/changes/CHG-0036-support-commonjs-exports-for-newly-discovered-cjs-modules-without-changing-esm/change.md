@@ -1,6 +1,6 @@
 ---
 id: CHG-0036-support-commonjs-exports-for-newly-discovered-cjs-modules-without-changing-esm
-state: implementing
+state: accepted
 type: feature
 base_commit: 096425ec9fc32e58f18aa2d42a7c65a30fac41cf
 ---

@@ -1,6 +1,6 @@
 ---
 module: exports
-version: 5
+version: 6
 status: stable
 files:
   - src/exports/mod.rs
@@ -323,3 +323,16 @@ text and is intentionally excluded by code-only Rust dependency extraction.
 | 2026-07-09 | Filter Rust `pub(crate)`/`pub(super)`/`pub(self)`/`pub(in path)` from exports; add TypeScript `export = Name` support |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-14 | CHG-0036-support-commonjs-exports-for-newly-discovered-cjs-modules-without-changing-esm: Support CommonJS exports for newly discovered .cjs modules without changing ESM behavior |
+
+## CommonJS Extraction
+
+The TypeScript/JavaScript backend supplements its ESM and TypeScript `export =` handling with static CommonJS name discovery in both regex and AST modes.
+
+- Direct `exports.foo = value` and `module.exports.foo = value` assignments report `foo`.
+- Top-level shorthand, named properties, and identifier-named methods in `module.exports = { ... }` report their static keys.
+- Comments, string and template literals, computed keys, and unresolved spreads never create exports.
+- Mixed ESM/CommonJS names are stable and deduplicated without executing source code.
+
+For `exports.foo = 1; module.exports = { bar, baz: value, [dynamic]: value, ...extra };`, both parsing modes report `foo`, `bar`, and `baz`, while ignoring `dynamic` and `extra` because their exported names are not statically determined.
+

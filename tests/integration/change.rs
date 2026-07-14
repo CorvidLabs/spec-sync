@@ -588,3 +588,30 @@ fn indirect_recursive_lifecycle_check_fails_once_with_context() {
     );
     assert!(stderr.contains("fledge lanes run verify"));
 }
+
+#[test]
+fn indirect_recursive_lifecycle_subcommands_fail_once_with_context() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    for args in [
+        vec!["--root", root.to_str().unwrap(), "change", "list"],
+        vec!["--root", root.to_str().unwrap(), "lifecycle", "enforce"],
+    ] {
+        let stderr = specsync()
+            .env("SPECSYNC_VERIFICATION_CONTEXT", "fledge run verify")
+            .args(args)
+            .assert()
+            .failure()
+            .get_output()
+            .stderr
+            .clone();
+        let stderr = String::from_utf8(stderr).unwrap();
+        assert_eq!(
+            stderr.matches("recursive lifecycle verification").count(),
+            1,
+            "{stderr}"
+        );
+        assert!(stderr.contains("fledge run verify"));
+    }
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1783994958,
+      "commit": "f2a9d2cafdaff23c904a1fd73e5c8ac21f89ca89",
+      "contract_digest": "ee5819f2f1397f1a05d72e9ee6ac5344a78609159f42c21e7d5dbf95f643c32e",
+      "workspace_digest": "0f5522bd187e2a4c5d8b3cd8fc4adca599a705b9a868a1ac88c373e6ab3ef29c",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-026",
+        "REQ-change-027",
+        "REQ-change-028",
+        "REQ-cli-003",
+        "REQ-config-002",
+        "REQ-validator-004"
+      ]
+    }
+  ]
+}

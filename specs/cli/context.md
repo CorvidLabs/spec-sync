@@ -13,11 +13,12 @@ spec: cli.spec.md
 - **Hook targets**: When no specific `--claude`/`--cursor`/etc. flags are given, an empty targets vec signals "all targets" to the hooks module.
 - **Panic guard**: `main()` wraps `run()` in `std::panic::catch_unwind` and prints a "please report it" message with the issue tracker URL instead of a raw backtrace.
 - **Deterministic generation**: `generate` accepts module selection only; coding-agent enrichment is reached through Agents or MCP, not embedded inference flags.
+- **Recursive lifecycle boundary**: Before dispatching `change` or `lifecycle`, `main.rs` consults the inherited verification context and exits once with a contextual diagnostic; the default/check path uses the same domain guard through unified checking.
 
 ## Files to Read First
 
 - `src/cli.rs` — the clap derive structs (`Cli`, `Command`, `LifecycleAction`, `HooksAction`) and their flags/help text; also holds the parser unit tests.
-- `src/main.rs` — `run()` dispatcher: builds `root`, resolves `--json`→format, defaults to `Check`, and matches every `Command` variant to a `commands::*` handler.
+- `src/main.rs` — `run()` dispatcher: builds `root`, resolves `--json`→format, defaults to `Check`, blocks recursive lifecycle-family dispatch, and matches every `Command` variant to a `commands::*` handler.
 
 ## Current Status
 

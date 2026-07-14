@@ -39,7 +39,7 @@ specsync change answer CHG-0001-add-passkeys architecture_risk yes --json
 
 The shared deterministic engine asks only unresolved questions and selects requirements, research, design, plan, tasks, context, testing, docs, or custom artifacts according to change type and risk. Agent skills present the same questions conversationally.
 
-Every new change also updates `.specsync/change-sequence.json`. Because that claim is committed, two branches that independently select the same numeric sequence conflict during Git integration instead of silently creating duplicate `CHG-NNNN` records. Strict lifecycle checking scans active and archived workspaces together. Historical collisions can be preserved only by listing the exact sequence and complete set of immutable full IDs under `acknowledged_collisions`; adding or removing an ID makes the baseline fail closed.
+Every new change also updates `.specsync/change-sequence.json`. Because that protected claim is committed, two branches that independently select the same numeric sequence conflict during Git integration instead of silently creating duplicate `CHG-NNNN` records. Sequences use at least four digits and continue past `CHG-9999`. Strict lifecycle checking scans active and archived workspaces together. Historical collisions can be preserved only by listing the exact sequence and complete set of immutable accepted or archived full IDs under `acknowledged_collisions`; adding or removing an ID, or including a mutable lifecycle state, makes the baseline fail closed.
 
 ## 2. Approve and Implement
 
@@ -223,7 +223,7 @@ specsync check --json
 specsync coverage
 ```
 
-Shows file and LOC coverage — what percentage of your source code has a spec. HTML, HTM, and CSS are measured by default alongside language sources, so static repositories produce real covered and uncovered counts rather than disappearing from the denominator. Use `--json` to get machine-readable output with `uncovered_files` sorted by size, so you can prioritize the largest gaps.
+Shows file and LOC coverage — what percentage of your source code has a spec. HTML, HTM, and CSS are auto-detected and measured by default alongside language sources, so zero-config static repositories produce real covered and uncovered counts rather than disappearing from the denominator. Use `--json` to get machine-readable output with `uncovered_files` sorted by size, so you can prioritize the largest gaps.
 
 ### Quality score
 

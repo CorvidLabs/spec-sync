@@ -90,6 +90,10 @@ fn run() {
         specs: vec![],
     });
 
+    if matches!(&command, Command::Change { .. } | Command::Lifecycle { .. }) {
+        reject_recursive_lifecycle_dispatch(format);
+    }
+
     match command {
         Command::Init => commands::init::cmd_init(&root),
         Command::Check {
@@ -262,6 +266,17 @@ fn run() {
         },
         Command::Change { action } => commands::change::cmd_change(&root, action, format),
     }
+}
+
+fn reject_recursive_lifecycle_dispatch(format: types::OutputFormat) {
+    let Some(error) = change::verification_recursion_error() else {
+        return;
+    };
+    match format {
+        types::OutputFormat::Json => println!("{}", serde_json::json!({ "error": error })),
+        _ => eprintln!("{} {error}", "error:".red().bold()),
+    }
+    process::exit(1);
 }
 
 #[cfg(test)]

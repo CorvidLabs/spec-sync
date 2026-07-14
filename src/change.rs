@@ -397,6 +397,7 @@ struct LocatedChangeSequence {
     sequence: u64,
     id: String,
     path: String,
+    historical: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -620,7 +621,7 @@ fn list_changes_checked(root: &Path) -> Result<Vec<ChangeRecord>, String> {
 
 fn change_sequence(id: &str) -> Option<u64> {
     let digits = id.strip_prefix("CHG-")?.split('-').next()?;
-    if digits.len() != 4 || !digits.chars().all(|character| character.is_ascii_digit()) {
+    if digits.len() < 4 || !digits.chars().all(|character| character.is_ascii_digit()) {
         return None;
     }
     digits.parse().ok()
@@ -728,10 +729,12 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
             validate_loaded_change(&record, &expected_id, &state_path)?;
             let sequence = change_sequence(&record.id)
                 .ok_or_else(|| format!("invalid change ID `{}`", record.id.escape_default()))?;
+            let historical = matches!(record.state, ChangeState::Accepted | ChangeState::Archived);
             located.push(LocatedChangeSequence {
                 sequence,
                 id: record.id,
                 path: portable_project_path(root, &entry.path()),
+                historical,
             });
         }
     }
@@ -747,6 +750,52 @@ fn validate_change_sequences(root: &Path) -> Result<(), String> {
     }
     for changes in groups.values_mut() {
         changes.sort_by(|left, right| left.id.cmp(&right.id));
+    }
+    if let Some(ledger) = &ledger {
+        let mut acknowledged_sequences = BTreeSet::new();
+        for collision in &ledger.acknowledged_collisions {
+            if !acknowledged_sequences.insert(collision.sequence) {
+                return Err(format!(
+                    "change sequence ledger contains duplicate acknowledgements for CHG-{:04}",
+                    collision.sequence
+                ));
+            }
+            let mut expected = collision.ids.clone();
+            expected.sort();
+            expected.dedup();
+            let actual = groups
+                .get(&collision.sequence)
+                .map(|changes| {
+                    changes
+                        .iter()
+                        .map(|change| change.id.clone())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            if expected.len() < 2 || expected.len() != collision.ids.len() {
+                return Err(format!(
+                    "acknowledged collision CHG-{:04} must contain at least two unique IDs",
+                    collision.sequence
+                ));
+            }
+            if expected != actual {
+                return Err(format!(
+                    "acknowledged collision CHG-{:04} no longer matches the exact historical ID set: expected [{}], found [{}]",
+                    collision.sequence,
+                    expected.join(", "),
+                    actual.join(", ")
+                ));
+            }
+            if groups
+                .get(&collision.sequence)
+                .is_some_and(|changes| changes.iter().any(|change| !change.historical))
+            {
+                return Err(format!(
+                    "acknowledged collision CHG-{:04} includes a mutable change; only immutable accepted or archived collisions can be acknowledged",
+                    collision.sequence
+                ));
+            }
+        }
     }
     for (sequence, changes) in groups.iter().filter(|(_, changes)| changes.len() > 1) {
         let ids: Vec<String> = changes.iter().map(|change| change.id.clone()).collect();
@@ -2016,10 +2065,15 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
     let schema_columns = crate::commands::build_schema_columns(root, &config);
     let mut errors = Vec::new();
     for module in modules {
-        let canonical = root
-            .join(&config.specs_dir)
-            .join(&module)
-            .join(format!("{module}.spec.md"));
+        let canonical = match canonical_module_paths(root, &config.specs_dir, &module) {
+            Ok((spec_path, _)) => spec_path,
+            Err(error) => {
+                errors.push(format!(
+                    "effective contract `{module}` cannot resolve canonical spec: {error}"
+                ));
+                continue;
+            }
+        };
         let mut spec = match fs::read_to_string(&canonical) {
             Ok(spec) => spec,
             Err(error) => {
@@ -3462,6 +3516,9 @@ fn uncovered_meaningful_paths(
     if adoption_bootstrap_covers_policy(root) {
         changed.remove(POLICY_PATH);
     }
+    if current_change_claim_covers_sequence_ledger(root, records) {
+        changed.remove(SEQUENCE_PATH);
+    }
     let covered: Vec<&str> = records
         .iter()
         .filter(|record| record_is_delivering(record))
@@ -3478,6 +3535,15 @@ fn uncovered_meaningful_paths(
         })
         .collect();
     Ok(uncovered)
+}
+
+fn current_change_claim_covers_sequence_ledger(root: &Path, records: &[ChangeRecord]) -> bool {
+    let Ok(Some(ledger)) = load_change_sequence_ledger(root) else {
+        return false;
+    };
+    records
+        .iter()
+        .any(|record| record.id == ledger.id && record_is_delivering(record))
 }
 
 fn record_is_delivering(record: &ChangeRecord) -> bool {
@@ -3622,6 +3688,7 @@ fn is_protected_sdd_path(path: &str) -> bool {
             | ".specsync/config.toml"
             | ".specsync/config.json"
             | ".specsync/version"
+            | ".specsync/change-sequence.json"
     )
 }
 
@@ -3710,7 +3777,7 @@ fn run_configured_command(
     })
 }
 
-fn verification_recursion_error() -> Option<String> {
+pub(crate) fn verification_recursion_error() -> Option<String> {
     let configured = std::env::var(VERIFICATION_CONTEXT_ENV).ok()?;
     let executable = std::env::current_exe().ok()?;
     let file_name = executable.file_name()?.to_string_lossy();
@@ -4367,6 +4434,7 @@ fn canonical_successor_governs_stale_predecessor(
     predecessor: &ChangeRecord,
     records: &[ChangeRecord],
 ) -> bool {
+    let current_project_digest = project_input_digest(root).ok();
     records.iter().any(|candidate| {
         if candidate.id == predecessor.id
             || candidate.no_spec_change
@@ -4400,8 +4468,9 @@ fn canonical_successor_governs_stale_predecessor(
                     && verification_commit_is_current(root, &evidence, is_ci_project(root))
                     && definition_digest_matches(root, candidate, &evidence.contract_digest)
                         .unwrap_or(false)
-                    && project_input_digest(root)
-                        .is_ok_and(|digest| digest == evidence.workspace_digest)
+                    && current_project_digest
+                        .as_ref()
+                        .is_some_and(|digest| digest == &evidence.workspace_digest)
             }),
             ChangeState::Accepted => ensure_closing_approval_valid(root, candidate).is_ok(),
             _ => false,
@@ -4849,7 +4918,7 @@ mod tests {
     fn exact_historical_collision_baseline_preserves_immutable_records() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        let first = create_change(
+        let mut first = create_change(
             root,
             CreateChangeRequest {
                 description: "First claim".into(),
@@ -4862,11 +4931,17 @@ mod tests {
             },
         )
         .unwrap();
+        first.state = ChangeState::Accepted;
+        save_change(root, &first).unwrap();
         let mut second = first.clone();
         second.id = "CHG-0001-second-claim".into();
         second.slug = "second-claim".into();
-        fs::create_dir_all(change_dir(root, &second.id)).unwrap();
-        save_change(root, &second).unwrap();
+        second.state = ChangeState::Archived;
+        let archived_dir = root
+            .join(ARCHIVE_PATH)
+            .join("2026-07-14-CHG-0001-second-claim");
+        fs::create_dir_all(&archived_dir).unwrap();
+        write_json(&archived_dir.join("state.json"), &second).unwrap();
         let mut ids = vec![first.id.clone(), second.id.clone()];
         ids.sort();
         write_json(
@@ -4883,6 +4958,57 @@ mod tests {
         assert!(validate_change_sequences(root).is_ok());
         let ledger = load_change_sequence_ledger(root).unwrap().unwrap();
         assert_eq!(ledger.id, first.id);
+
+        fs::remove_dir_all(archived_dir).unwrap();
+        let error = validate_change_sequences(root).unwrap_err();
+        assert!(error.contains("no longer matches the exact historical ID set"));
+        assert!(error.contains(&second.id));
+    }
+
+    #[test]
+    fn acknowledged_collision_rejects_mutable_active_records() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let first = create_change(
+            root,
+            CreateChangeRequest {
+                description: "First mutable claim".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/first".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("fixture".into()),
+            },
+        )
+        .unwrap();
+        let mut second = first.clone();
+        second.id = "CHG-0001-second-mutable-claim".into();
+        second.slug = "second-mutable-claim".into();
+        fs::create_dir_all(change_dir(root, &second.id)).unwrap();
+        save_change(root, &second).unwrap();
+        let mut ids = vec![first.id.clone(), second.id.clone()];
+        ids.sort();
+        write_json(
+            &root.join(SEQUENCE_PATH),
+            &ChangeSequenceLedger {
+                schema_version: 1,
+                sequence: 1,
+                id: first.id.clone(),
+                acknowledged_collisions: vec![ChangeSequenceCollision { sequence: 1, ids }],
+            },
+        )
+        .unwrap();
+
+        let error = validate_change_sequences(root).unwrap_err();
+        assert!(error.contains("includes a mutable change"));
+    }
+
+    #[test]
+    fn change_sequences_allow_more_than_four_digits() {
+        assert_eq!(change_sequence("CHG-9999-last-four-digit"), Some(9999));
+        assert_eq!(change_sequence("CHG-10000-first-five-digit"), Some(10000));
+        assert_eq!(change_sequence("CHG-123-too-short"), None);
     }
 
     #[test]
@@ -5812,7 +5938,7 @@ mod tests {
         record.state = ChangeState::Approved;
         assert_eq!(
             uncovered_meaningful_paths(root, &SddPolicy::default(), &[record.clone()]).unwrap(),
-            vec!["src/lib.rs"]
+            vec![SEQUENCE_PATH.to_string(), "src/lib.rs".into()]
         );
         record.state = ChangeState::Implementing;
         assert!(
@@ -7039,6 +7165,7 @@ mod tests {
         hostile.ignored_paths.push(".specsync/".into());
         assert!(path_is_meaningful(".specsync/sdd.json", &hostile));
         assert!(path_is_meaningful(".specsync/config.toml", &hostile));
+        assert!(path_is_meaningful(SEQUENCE_PATH, &hostile));
         assert!(!path_is_meaningful(
             ".specsync/adoption-report.json",
             &hostile
@@ -7302,6 +7429,8 @@ mod tests {
         let root = temp.path();
         fs::create_dir_all(root.join(".specsync")).unwrap();
         fs::create_dir_all(root.join("specs/client")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/client.rs"), "// client API\n").unwrap();
         fs::write(
             root.join(".specsync/registry.toml"),
             "[registry]\nname = \"fixture\"\n\n[specs]\nclient-api = \"specs/client/client-api.spec.md\"\n",
@@ -7309,7 +7438,7 @@ mod tests {
         .unwrap();
         fs::write(
             root.join("specs/client/client-api.spec.md"),
-            "---\nmodule: client-api\nversion: 1\nstatus: stable\nfiles: []\n---\n\n# Client API\n\n## Purpose\n\nClient API.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+            "---\nmodule: client-api\nversion: 1\nstatus: stable\nfiles:\n  - src/client.rs\n---\n\n# Client API\n\n## Purpose\n\nClient API.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
         )
         .unwrap();
         let record = create_change(
@@ -7348,6 +7477,10 @@ mod tests {
                 .iter()
                 .any(|(path, _)| path.starts_with(root.join("specs/client-api")))
         );
+
+        let mut effective_record = record;
+        effective_record.state = ChangeState::Approved;
+        assert!(validate_effective_contracts(root, &[effective_record]).is_ok());
     }
 
     #[test]
@@ -7383,6 +7516,16 @@ mod tests {
 
         assert!(error.contains("unsafe registry path"));
         assert!(error.contains("escapes the project root"));
+
+        let mut effective_record = record;
+        effective_record.state = ChangeState::Approved;
+        let errors = validate_effective_contracts(root, &[effective_record]).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("cannot resolve canonical spec")
+                    && error.contains("unsafe registry path"))
+        );
     }
 
     #[test]

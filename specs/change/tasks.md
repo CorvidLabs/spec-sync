@@ -20,3 +20,8 @@ spec: change.spec.md
 - [x] Reject recursive verification while preserving append-only retry history
 - [x] Allow only exact current canonical successors to govern stale predecessors
 - [x] Resolve semantic delta targets through the committed registry
+- [x] Resolve registry-backed paths during effective contract validation
+- [x] Protect sequence claims and restrict collision baselines to immutable history
+- [x] Support numeric change sequences wider than four digits
+- [x] Reject recursion through every lifecycle command family
+- [x] Reuse one project digest per canonical-successor scan

@@ -265,3 +265,35 @@ Acceptance Criteria
 - Conventional paths remain the fallback when no mapping exists.
 - Unsafe registry paths fail closed.
 
+### REQ-change-026
+
+The lifecycle SHALL treat sequence claims and historical collision acknowledgements as protected exact repository evidence across arbitrarily wide numeric sequences.
+
+Acceptance Criteria
+
+- Numeric change sequences contain at least four ASCII digits and support values beyond 9999.
+- The committed sequence ledger always requires lifecycle coverage even when `.specsync/` is ignored.
+- An acknowledgement matches the exact currently located ID set and remains valid only when every member is accepted or archived.
+- Removed IDs, added IDs, single surviving records, and draft, approved, implementing, or verifying collision members fail closed.
+
+### REQ-change-027
+
+Configured verification SHALL reject direct and indirect entry into every SpecSync lifecycle command surface.
+
+Acceptance Criteria
+
+- Nested `check`, `change`, and `lifecycle` commands fail before performing validation or mutation.
+- Native verification commands remain unaffected and execute once.
+- The diagnostic names the configured parent command.
+
+### REQ-change-028
+
+Effective contract and canonical-successor validation SHALL use canonical repository resolution without redundant full-project hashing.
+
+Acceptance Criteria
+
+- Effective validation reads registry-backed canonical specs through the safe project-path resolver.
+- Conventional canonical paths remain the fallback when no registry mapping exists.
+- Unsafe registry mappings fail closed before effective validation.
+- The current project digest is computed at most once per canonical-successor candidate scan.
+

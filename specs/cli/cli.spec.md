@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 8
+version: 9
 status: stable
 files:
   - src/main.rs
@@ -45,7 +45,7 @@ depends_on:
 
 ## Purpose
 
-The `specsync` command-line entry point parses global options, routes canonical validation and verified SDD lifecycle commands to focused handlers, and preserves equivalent human-readable and structured output without owning domain policy.
+The `specsync` command-line entry point parses global options, blocks configured verification children from recursively dispatching `check`, `change`, or `lifecycle` commands, routes canonical validation and verified SDD lifecycle commands to focused handlers, and preserves equivalent human-readable and structured output without owning domain policy.
 
 ## Public API
 
@@ -370,3 +370,4 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |

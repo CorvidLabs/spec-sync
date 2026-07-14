@@ -76,3 +76,14 @@ Acceptance Criteria
 - Similar prose and fenced examples are ignored.
 - Diagnostics identify companion path line and required correction.
 
+### REQ-validator-004
+
+Strict validation SHALL discover default static projects and reject every unfilled marker emitted by built-in companion templates.
+
+Acceptance Criteria
+
+- Zero-config root and nested HTML, HTM, and CSS files select their containing source directory.
+- Ignored directories remain excluded from static discovery.
+- Every generated Layout, Components, Tokens, and Assets design marker produces an artifact-specific line diagnostic.
+- Concrete replacements pass while fenced examples and similar prose remain ignored.
+

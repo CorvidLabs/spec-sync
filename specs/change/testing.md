@@ -25,3 +25,6 @@ Unit tests cover IDs, requirement grammar, semantic application, unsafe command 
 - Verification coverage rejects direct and indirect lifecycle recursion, retains failed attempts, and proves a corrected native retry can become current without deleting history.
 - Canonical-successor coverage exercises incomplete, stale, failed, implementing, verifying, and accepted successor states against stale predecessor evidence.
 - Registry-path coverage applies spec and requirements deltas to a non-conventional registered module and rejects unsafe mappings.
+- `REQ-change-026`: sequence coverage includes five-digit IDs, protected ledger paths, exact accepted/archive baselines, removed historical IDs, and rejected mutable collisions.
+- `REQ-change-027`: CLI integration runs inherited verification context through `check`, `change`, and `lifecycle` and asserts one contextual failure.
+- `REQ-change-028`: registry-backed effective-contract validation succeeds at the registered path, unsafe mappings fail before reads, and successor evaluation reuses one precomputed project digest.

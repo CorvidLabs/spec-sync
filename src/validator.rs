@@ -668,6 +668,21 @@ fn validate_companion_scaffold_markers(
             "- Document layout structure, responsive breakpoints, and positioning rules.",
             "document concrete layout behavior",
         ),
+        (
+            "design.md",
+            "- Document component tree, inputs, outputs, and slots.",
+            "document the concrete component hierarchy",
+        ),
+        (
+            "design.md",
+            "- Document color, spacing, typography, and state token overrides.",
+            "document concrete design tokens",
+        ),
+        (
+            "design.md",
+            "- List icons, images, illustrations, and asset ownership.",
+            "list concrete assets and ownership",
+        ),
     ];
     let Some(directory) = spec_path.parent() else {
         return;
@@ -1056,17 +1071,32 @@ mod tests {
             "# Testing\n\nList the automated tests and fixtures that protect this module.\n",
         )
         .unwrap();
+        fs::write(
+            directory.join("design.md"),
+            "# Design\n\n## Layout\n\n- Document layout structure, responsive breakpoints, and positioning rules.\n\n## Components\n\n- Document component tree, inputs, outputs, and slots.\n\n## Tokens\n\n- Document color, spacing, typography, and state token overrides.\n\n## Assets\n\n- List icons, images, illustrations, and asset ownership.\n",
+        )
+        .unwrap();
         let mut result = ValidationResult::new("specs/auth/auth.spec.md".into());
 
         validate_companion_scaffold_markers(&spec_path, root, &mut result);
 
-        assert_eq!(result.warnings.len(), 2, "{:?}", result.warnings);
+        assert_eq!(result.warnings.len(), 6, "{:?}", result.warnings);
         assert!(result.warnings.iter().any(|warning| {
             warning.contains("specs/auth/context.md:3") && warning.contains("concrete motivation")
         }));
         assert!(result.warnings.iter().any(|warning| {
             warning.contains("specs/auth/testing.md:3") && warning.contains("automated tests")
         }));
+        for line in [5, 9, 13, 17] {
+            assert!(
+                result
+                    .warnings
+                    .iter()
+                    .any(|warning| warning.contains(&format!("specs/auth/design.md:{line}"))),
+                "missing design marker warning at line {line}: {:?}",
+                result.warnings
+            );
+        }
         assert!(
             !result
                 .warnings

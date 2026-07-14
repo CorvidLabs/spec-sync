@@ -23,10 +23,10 @@
     },
     {
       "gate": "acceptance",
-      "actor": "user:0xLeif",
-      "timestamp": 1784046595,
-      "digest": "385806750a95e25ba3c0b4f4d6e9d8f7a6ae39f026d8a170b005600b3a353587",
-      "note": "Closing approval after the full native suite, exact strict coverage audit, public documentation, and canonical requirement updates passed."
+      "actor": "0xLeif",
+      "timestamp": 1784048107,
+      "digest": "74ae82f05bde53e962f48b3bbce89d7f1baf040dbde19c8cd3ecfeaf9693c74e",
+      "note": "Explicit closing approval after fresh verification and Trust; canonical application authorized together with predecessor reacceptance."
     }
   ],
   "reopenings": []

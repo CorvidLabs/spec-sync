@@ -166,7 +166,11 @@ fn detect_module_sources(
                 .filter_map(|e| e.ok())
             {
                 if entry.path().is_file()
-                    && exports::has_extension(entry.path(), &config.source_extensions)
+                    && exports::has_configured_extension(
+                        entry.path(),
+                        &config.source_extensions,
+                        config.include_extensionless,
+                    )
                 {
                     let rel = entry
                         .path()
@@ -186,7 +190,11 @@ fn detect_module_sources(
                 if path.is_file() {
                     let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
                     if stem == module_name
-                        && exports::has_extension(&path, &config.source_extensions)
+                        && exports::has_configured_extension(
+                            &path,
+                            &config.source_extensions,
+                            config.include_extensionless,
+                        )
                     {
                         let rel = path
                             .strip_prefix(root)

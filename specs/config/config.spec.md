@@ -132,4 +132,3 @@ The configuration file supports the following top-level sections:
 | `github` | `GitHubConfig` | GitHub integration settings (`repo`, `labels`, `create_on_drift`) |
 | `rules` | `ValidationRules` | Custom validation rules (`max_staleness_days`, etc.) |
 | `modules` | `Map<String, ModuleDefinition>` | User-defined module groupings |
-

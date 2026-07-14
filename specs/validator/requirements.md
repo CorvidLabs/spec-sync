@@ -86,4 +86,3 @@ Acceptance Criteria
 - Ignored directories remain excluded from static discovery.
 - Every generated Layout, Components, Tokens, and Assets design marker produces an artifact-specific line diagnostic.
 - Concrete replacements pass while fenced examples and similar prose remain ignored.
-

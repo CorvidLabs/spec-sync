@@ -492,6 +492,17 @@ pub fn has_extension(file_path: &Path, extensions: &[String]) -> bool {
     extensions.iter().any(|e| e == ext)
 }
 
+/// Check whether a file matches configured source discovery, including optional
+/// extensionless files in addition to the default or explicit extension set.
+pub fn has_configured_extension(
+    file_path: &Path,
+    extensions: &[String],
+    include_extensionless: bool,
+) -> bool {
+    (include_extensionless && file_path.extension().is_none())
+        || has_extension(file_path, extensions)
+}
+
 #[cfg(test)]
 mod is_test_file_tests {
     use super::is_test_file;
@@ -555,6 +566,48 @@ mod is_test_file_tests {
             Path::new("/home/user/myproject/tests/data.json"),
             root
         ));
+    }
+}
+
+#[cfg(test)]
+mod configured_extension_tests {
+    use super::has_configured_extension;
+    use std::path::Path;
+
+    #[test]
+    fn extensionless_is_additive_and_explicit() {
+        let extensions = vec!["sh".to_string()];
+        assert!(!has_configured_extension(
+            Path::new("bin/tool"),
+            &extensions,
+            false
+        ));
+        assert!(has_configured_extension(
+            Path::new("bin/tool"),
+            &extensions,
+            true
+        ));
+        assert!(has_configured_extension(
+            Path::new("bin/tool.sh"),
+            &extensions,
+            true
+        ));
+        assert!(!has_configured_extension(
+            Path::new("bin/tool.py"),
+            &extensions,
+            true
+        ));
+    }
+
+    #[test]
+    fn empty_extension_list_keeps_supported_language_defaults() {
+        assert!(has_configured_extension(
+            Path::new("src/lib.rs"),
+            &[],
+            false
+        ));
+        assert!(!has_configured_extension(Path::new("bin/tool"), &[], false));
+        assert!(has_configured_extension(Path::new("bin/tool"), &[], true));
     }
 }
 

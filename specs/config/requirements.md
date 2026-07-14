@@ -32,4 +32,3 @@ Acceptance Criteria
 - Static-only root projects resolve to `.`.
 - Static-only nested projects resolve to the containing top-level directory.
 - Empty projects retain the `src` fallback.
-

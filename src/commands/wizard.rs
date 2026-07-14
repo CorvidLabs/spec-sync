@@ -100,7 +100,11 @@ pub fn cmd_wizard(root: &Path) {
                         .and_then(|n| n.to_str())
                         .unwrap_or("");
                     (name == module_name || parent == module_name)
-                        && crate::exports::has_extension(e.path(), &config.source_extensions)
+                        && crate::exports::has_configured_extension(
+                            e.path(),
+                            &config.source_extensions,
+                            config.include_extensionless,
+                        )
                 })
                 .map(|e| {
                     e.path()

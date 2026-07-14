@@ -271,8 +271,11 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
                     .iter()
                     .filter(|f| {
                         let path = std::path::Path::new(f.as_str());
-                        crate::exports::has_extension(path, &config.source_extensions)
-                            && !specced_files.contains(*f)
+                        crate::exports::has_configured_extension(
+                            path,
+                            &config.source_extensions,
+                            config.include_extensionless,
+                        ) && !specced_files.contains(*f)
                     })
                     .collect();
 

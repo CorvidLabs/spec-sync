@@ -1,0 +1,25 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784038199,
+      "digest": "205951a0e422b5fa7baff7bc73dfead153c09c805a9fb839f6ba31d69150a52d",
+      "note": "Definition approved for issue #369: additive explicit configuration, consistent discovery, non-vacuous strict coverage, canonical specs, documentation, and complete native verification"
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784038672,
+      "digest": "3a05d2f88479ef17af5217c5720622101730ed93651cd642a4749ee1f6b7e254",
+      "note": "Definition reapproved after correcting complete repository scope and finalizing coherent acceptance criteria for issue #369"
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784039019,
+      "digest": "a87a12efd4d21510d99316a46a2d71f4ee7be1e204b4161650b8a773eef57840",
+      "note": "Definition reapproved with explicit requirement-to-test evidence and final repository scope"
+    }
+  ]
+}

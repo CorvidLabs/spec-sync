@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0027-support-extensionless-source-discovery-through-an-explicit-include-extensionless",
+  "slug": "support-extensionless-source-discovery-through-an-explicit-include-extensionless",
+  "title": "Support extensionless source discovery through an explicit include_extensionless setting while preserving omitted and empty source_extensions defaults, with parser, scanner, strict file coverage, and LOC coverage regressions for extensionless-only and mixed projects",
+  "description": "Support extensionless source discovery through an explicit include_extensionless setting while preserving omitted and empty source_extensions defaults, with parser, scanner, strict file coverage, and LOC coverage regressions for extensionless-only and mixed projects",
+  "kind": "feature",
+  "state": "implementing",
+  "base_commit": "c98d29810f78abcdd6a2fec9b137667d3ab2fc5b",
+  "created_at": 1784038025,
+  "updated_at": 1784039019,
+  "affected_specs": [
+    "config",
+    "validator"
+  ],
+  "affected_paths": [
+    "src",
+    "tests",
+    "specs/config",
+    "specs/validator",
+    "site/src/content/docs/configuration.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Configuration accepts include_extensionless = true while omitted or false include_extensionless and omitted or empty source_extensions retain existing default discovery.",
+    "An extensionless-only project discovers and maps a real source file with strict 100 percent file and LOC coverage over non-zero totals.",
+    "A mixed project discovers both configured suffixed and extensionless files with strict 100 percent file and LOC coverage over non-zero totals.",
+    "Parser, serialization, shared scanning, CLI integration, public documentation, canonical semantic deltas, and full native gates pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

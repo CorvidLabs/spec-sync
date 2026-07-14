@@ -3,6 +3,18 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
+fn complete_coverage_spec(module: &str, files: &[&str]) -> String {
+    valid_spec(module, files)
+        .replace(
+            "| Condition | Behavior |\n|-----------|----------|",
+            "| Condition | Behavior |\n|-----------|----------|\n| Invalid invocation | Exits non-zero without changing source files |",
+        )
+        .replace(
+            "| Date | Author | Change |\n|------|--------|--------|",
+            "| Date | Author | Change |\n|------|--------|--------|\n| 2026-07-14 | Integration test | Define the measured source fixture |",
+        )
+}
+
 // ─── 1. specsync check ──────────────────────────────────────────────────
 
 #[test]
@@ -427,6 +439,71 @@ fn html_static_content_is_measured_by_strict_coverage() {
         .assert()
         .success()
         .stdout(predicate::str::contains("File coverage: 1/1"));
+}
+
+#[test]
+fn extensionless_only_project_has_non_vacuous_strict_coverage() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("bin")).unwrap();
+    fs::create_dir_all(root.join("specs/tool")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"bin\"]\nsource_extensions = []\ninclude_extensionless = true\n",
+    )
+    .unwrap();
+    fs::write(root.join("bin/tool"), "#!/bin/sh\necho tool\n").unwrap();
+    fs::write(
+        root.join("specs/tool/tool.spec.md"),
+        complete_coverage_spec("tool", &["bin/tool"]),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["coverage", "--strict", "--require-coverage", "100"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("File coverage: 1/1 (100%)"))
+        .stdout(predicate::str::contains("LOC coverage:  2/2 (100%)"));
+}
+
+#[test]
+fn mixed_extensionless_project_has_non_vacuous_strict_coverage() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("bin")).unwrap();
+    fs::create_dir_all(root.join("specs/tool")).unwrap();
+    fs::create_dir_all(root.join("specs/helper")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"bin\"]\nsource_extensions = [\"sh\"]\ninclude_extensionless = true\n",
+    )
+    .unwrap();
+    fs::write(root.join("bin/tool"), "#!/bin/sh\necho tool\n").unwrap();
+    fs::write(root.join("bin/helper.sh"), "#!/bin/sh\necho helper\n").unwrap();
+    fs::write(
+        root.join("specs/tool/tool.spec.md"),
+        complete_coverage_spec("tool", &["bin/tool"]),
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/helper/helper.spec.md"),
+        complete_coverage_spec("helper", &["bin/helper.sh"]),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["coverage", "--strict", "--require-coverage", "100"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("File coverage: 2/2 (100%)"))
+        .stdout(predicate::str::contains("LOC coverage:  4/4 (100%)"));
 }
 
 #[test]

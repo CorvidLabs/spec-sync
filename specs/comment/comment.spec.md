@@ -1,6 +1,6 @@
 ---
 module: comment
-version: 3
+version: 4
 status: stable
 files:
   - src/comment.rs
@@ -20,11 +20,11 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 
 ## Public API
 
-### Exported Functions
+**Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `render_check_comment` | `total, passed, warnings, errors, all_errors, all_warnings, coverage, overall_passed, repo, branch` | `String` | Render full GitHub PR comment for `specsync check --format github` and `specsync comment` |
+| `render_check_comment` | `total, passed, warnings, errors, all_errors, all_warnings, all_notices, coverage, overall_passed, repo, branch` | `String` | Render the GitHub PR comment with separate error, warning, and planned-mapping notice sections for `specsync check --format github` and `specsync comment` |
 | `detect_branch` | `root: &Path` | `Option<String>` | Detect the current git branch name via `git rev-parse` |
 
 ## Invariants
@@ -92,3 +92,4 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-07 | Initial spec |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
+| 2026-07-14 | CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str: Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts |

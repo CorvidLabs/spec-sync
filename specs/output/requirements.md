@@ -43,3 +43,13 @@ Acceptance Criteria
 - `print_check_markdown` emits a `## SpecSync Check Results` block with a ✅/❌ status line, optional Errors/Warnings sections, and a Coverage section
 - `print_diff_markdown` emits a `## SpecSync Drift Report`; with no drift entries it reports either "No spec-tracked source files changed since `{base}`." or lists changed files not covered by any spec; with entries it tabulates added/removed exports per spec and flags spec-file-only modifications
 
+### REQ-output-002
+
+Markdown check output SHALL accept planned-mapping notices and render a distinct Planned Mappings section.
+
+Acceptance Criteria
+
+- The canonical `print_check_markdown` signature includes the notice collection.
+- Planned mappings are separate from errors and warnings.
+- The notice section does not alter validation state or pass/fail decisions.
+

@@ -1,6 +1,6 @@
 ---
 module: config
-version: 7
+version: 8
 status: stable
 files:
   - src/config.rs
@@ -115,6 +115,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |
 | 2026-07-14 | CHG-0034-support-extensionless-source-discovery-through-an-explicit-include-extensionless: Support extensionless source discovery through an explicit include_extensionless setting while preserving omitted and empty source_extensions defaults, with parser, scanner, strict file coverage, LOC coverage, and wizard regressions for extensionless-only and mixed projects |
+| 2026-07-14 | CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str: Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts |
 
 ## Config File Structure
 
@@ -129,7 +130,9 @@ The configuration file supports the following top-level sections:
 | `source_extensions` (`sourceExtensions` in legacy JSON) | `Vec<String>` | File extensions to consider as source files |
 | `exclude_patterns` (`excludePatterns` in legacy JSON) | `Vec<String>` | Glob patterns to exclude from coverage |
 | `required_sections` (`requiredSections` in legacy JSON) | `Vec<String>` | Sections every spec must contain |
+| `require_draft_files` (`requireDraftFiles` in legacy JSON) | `bool` | Require missing `draft` mappings to exist immediately instead of reporting them as planned (default: `false`) |
 | `schema_pattern` (`schemaPattern` in legacy JSON) | `String` | Regex for SQL CREATE TABLE extraction |
 | `github` | `GitHubConfig` | GitHub integration settings (`repo`, `labels`, `create_on_drift`) |
 | `rules` | `ValidationRules` | Custom validation rules (`max_staleness_days`, etc.) |
 | `modules` | `Map<String, ModuleDefinition>` | User-defined module groupings |
+

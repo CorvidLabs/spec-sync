@@ -1,6 +1,6 @@
 ---
 module: output
-version: 2
+version: 3
 status: stable
 files:
   - src/output.rs
@@ -20,14 +20,14 @@ Renders terminal and markdown output for spec-sync commands. Provides colored te
 
 ## Public API
 
-### Exported Functions
+**Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `print_summary` | `total, passed, warnings, _errors: usize` | `()` | Print colored one-line validation summary (green/yellow/red counts) |
 | `print_coverage_line` | `coverage: &CoverageReport` | `()` | Print file and LOC coverage percentages with color thresholds |
 | `print_coverage_report` | `coverage: &CoverageReport` | `()` | Print detailed coverage report: unspecced modules, uncovered files with LOC |
-| `print_check_markdown` | `total, passed, warnings, errors, all_errors, all_warnings, coverage, overall_passed` | `()` | Print full check results as markdown (for `--format markdown` or PR comments) |
+| `print_check_markdown` | `total, passed, warnings, errors, all_errors, all_warnings, all_notices, coverage, overall_passed` | `()` | Print check results with separate error, warning, and planned-mapping notice sections as markdown |
 | `print_diff_markdown` | `entries, changed_files, spec_files, _root, config, base` | `()` | Print drift report as markdown showing new/removed exports per spec since a base ref |
 
 ## Invariants
@@ -92,3 +92,4 @@ Renders terminal and markdown output for spec-sync commands. Provides colored te
 |------|--------|
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-14 | CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str: Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts |

@@ -13,6 +13,13 @@
       "timestamp": 1784062238,
       "digest": "2c99f36762570d09587e407bbe56e755365bc0cd2c965529ef904370daec19e1",
       "note": "Refreshed definition approval after incorporating every valid #377 review correction: all six canonical contract sections, full-inventory incremental ownership, normalized dot-segment mappings, and focused regression evidence."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784062319,
+      "digest": "db3a92cf0689ae0fb3f8e0a663e39c602155f772186bc1547ce2b209466ad7f5",
+      "note": "Closing approval after all six canonical contracts and every valid #377 finding passed 1,589 unit and 206 integration tests at f027bba7387f785f6ab81bf726c317d02356a096, including incremental cached ownership and normalized dot-segment transitions."
     }
   ],
   "reopenings": []

@@ -1,6 +1,6 @@
 ---
 id: CHG-0026-keep-lifecycle-recursion-detection-private-while-preserving-deterministic-nested
-state: implementing
+state: accepted
 type: refactor
 base_commit: a6706a5611b56d5998de59585386b6cec40b095e
 ---

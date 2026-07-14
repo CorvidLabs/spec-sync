@@ -1,6 +1,6 @@
 ---
 module: change
-version: 23
+version: 24
 status: active
 files:
   - src/change.rs
@@ -91,6 +91,12 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `as_str` | Return the stable serialized name for a change state or kind |
 | `parse` | Parse user-facing change-kind or artifact names into typed values |
 | `file_name` | Resolve an adaptive artifact to its safe Markdown filename |
+
+Acceptance Criteria
+
+- Nested lifecycle commands still fail once with the established deterministic contextual error.
+- The process marker and diagnostic helper remain private binary implementation details.
+- The canonical exported-function table contains no recursion helper.
 
 ## Invariants
 
@@ -196,3 +202,4 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | 2026-07-13 | CHG-0023-allow-squash-accepted-evidence-on-descendant-branches: Allow squash-accepted evidence on descendant branches |
 | 2026-07-14 | CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2: Stabilize SpecSync 5 lifecycle integrity and strict validation for 5.0.2 |
 | 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |
+| 2026-07-14 | CHG-0026-keep-lifecycle-recursion-detection-private-while-preserving-deterministic-nested: Keep lifecycle recursion detection private while preserving deterministic nested-command failures |

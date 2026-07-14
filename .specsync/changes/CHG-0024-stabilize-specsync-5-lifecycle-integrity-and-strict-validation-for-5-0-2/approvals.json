@@ -62,6 +62,13 @@
       "timestamp": 1784040933,
       "digest": "651eec1bcd12e8e0fec49bf9011f381137580bf3ac01e229a60d6ef5d4d783de",
       "note": "Fresh closing approval after PR 370 review corrections and complete native verification; prior approval history preserved."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784047856,
+      "digest": "2e7ba97eb45befa6a381c48d245e4af5ba4ccb3507fafc5f3068a28f633a0b1a",
+      "note": "Closing approval after exact-main native verification repaired the incomplete pre-squash transition without changing the accepted definition or product code."
     }
   ],
   "reopenings": [

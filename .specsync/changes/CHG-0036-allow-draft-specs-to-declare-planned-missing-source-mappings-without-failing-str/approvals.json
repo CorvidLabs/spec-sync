@@ -20,7 +20,54 @@
       "timestamp": 1784055075,
       "digest": "e3a6b23505475af3212a13eb3d9b482b4731158949c2ea38ae75cf415722572f",
       "note": "Native verification passed; planned draft mappings remain informational, excluded from coverage denominators, and restore fail-closed validation on activation or opt-in enforcement."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784055147,
+      "digest": "0b3b03ba919f229173c6f01f12fa86d6f1369e3e46941cec791b09197dd3eebd",
+      "note": "Exact committed delivery b1820d0 passed all 1579 unit tests and 203 integration tests; canonical requirements are applied without placeholders."
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0036-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+      "actor": "user:0xLeif",
+      "reason": "Refresh verification at exact committed delivery b1820d0 after canonical whitespace normalization.",
+      "timestamp": 1784055126,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784055075,
+        "digest": "e3a6b23505475af3212a13eb3d9b482b4731158949c2ea38ae75cf415722572f",
+        "note": "Native verification passed; planned draft mappings remain informational, excluded from coverage denominators, and restore fail-closed validation on activation or opt-in enforcement."
+      },
+      "prior_verification": {
+        "timestamp": 1784055068,
+        "commit": "a20ce51fbcc48ead4cfd550cc55a24ae48391075",
+        "contract_digest": "42b615b4e50b4d19bd046066c432447bc0536e3a71ba9055756e6dad092086e3",
+        "workspace_digest": "13634d51bd83a7de81311e9ffdeb4bac70b7ca9840534c96f44f853c6171eabd",
+        "acceptance_input_digest": "2a42a3ce6e090627f74635385cc813e2d7018c508890b9546e6e00f3fef17802",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-commands-002",
+          "REQ-config-004",
+          "REQ-types-003",
+          "REQ-validator-007"
+        ]
+      },
+      "stale_acceptance_input_digest": "2a42a3ce6e090627f74635385cc813e2d7018c508890b9546e6e00f3fef17802",
+      "current_acceptance_input_digest": "0547c678148990821e0f9f13b1fcd4c3e2952531a880b6e69f4ea12ce32a6822"
+    }
+  ]
 }

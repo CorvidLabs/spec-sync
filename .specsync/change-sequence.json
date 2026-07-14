@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 40,
-  "id": "CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re",
+  "sequence": 41,
+  "id": "CHG-0041-synchronize-generated-create-spec-agent-commands-with-the-corrected-free-text-pa",
   "acknowledged_collisions": [
     {
       "sequence": 16,

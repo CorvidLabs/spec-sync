@@ -33,17 +33,25 @@ pub fn cmd_comment(
     });
 
     // Use the same validation pipeline as `check` for consistent results
-    let (total_errors, total_warnings, passed, total, mut all_errors, mut all_warnings) =
-        run_validation(
-            root,
-            &spec_files,
-            &schema_tables,
-            &schema_columns,
-            &config,
-            true, // collect mode
-            false,
-            &ignore_rules,
-        );
+    let (
+        total_errors,
+        total_warnings,
+        passed,
+        total,
+        mut all_errors,
+        mut all_warnings,
+        all_notices,
+    ) = run_validation(
+        root,
+        &spec_files,
+        &spec_files,
+        &schema_tables,
+        &schema_columns,
+        &config,
+        true, // collect mode
+        false,
+        &ignore_rules,
+    );
 
     let coverage = compute_coverage(root, &spec_files, &config);
 
@@ -86,6 +94,7 @@ pub fn cmd_comment(
         display_errors,
         &all_errors,
         &all_warnings,
+        &all_notices,
         &coverage,
         overall_passed,
         repo.as_deref(),

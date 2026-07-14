@@ -299,16 +299,28 @@ pub fn validate_spec(
     for file in &fm.files {
         let full_path = root.join(file);
         if !full_path.exists() {
-            result.errors.push(format!("Source file not found: {file}"));
-            // Suggest similar files
-            if let Some(suggestion) = suggest_similar_file(root, file) {
-                result.fixes.push(format!(
-                    "Did you mean `{suggestion}`? Update the path in frontmatter"
+            let planned_draft_mapping = spec_status == Some(crate::types::SpecStatus::Draft)
+                && !config.require_draft_files
+                && planned_source_path_is_safe(file);
+            if planned_draft_mapping {
+                result.notices.push(format!(
+                    "Planned source mapping (draft; file not created yet): {file}"
                 ));
             } else {
-                result.fixes.push(format!(
-                    "Remove `{file}` from files list or create the source file"
-                ));
+                result.errors.push(format!("Source file not found: {file}"));
+                if !planned_source_path_is_safe(file) {
+                    result.fixes.push(format!(
+                        "Use a safe project-relative path for `{file}` (no absolute paths, `..`, drive prefixes, or backslashes)"
+                    ));
+                } else if let Some(suggestion) = suggest_similar_file(root, file) {
+                    result.fixes.push(format!(
+                        "Did you mean `{suggestion}`? Update the path in frontmatter"
+                    ));
+                } else {
+                    result.fixes.push(format!(
+                        "Remove `{file}` from files list or create the source file"
+                    ));
+                }
             }
         } else if !source_within_root(root, file) {
             result.errors.push(format!(
@@ -980,6 +992,37 @@ pub fn source_within_root(root: &Path, file: &str) -> bool {
     }
 }
 
+/// Whether a not-yet-created source mapping is a portable project-relative path.
+fn planned_source_path_is_safe(file: &str) -> bool {
+    !file.contains('\\') && normalize_source_mapping(file).is_some()
+}
+
+/// Normalize a safe project-relative source mapping for ownership and coverage.
+pub(crate) fn normalize_source_mapping(file: &str) -> Option<String> {
+    let portable = file.replace('\\', "/");
+    let path = Path::new(&portable);
+    if portable.is_empty()
+        || path.is_absolute()
+        || portable.as_bytes().get(1).is_some_and(|byte| *byte == b':')
+    {
+        return None;
+    }
+
+    let mut components = Vec::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::Normal(value) => {
+                components.push(value.to_string_lossy().into_owned());
+            }
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir
+            | std::path::Component::RootDir
+            | std::path::Component::Prefix(_) => return None,
+        }
+    }
+    (!components.is_empty()).then(|| components.join("/"))
+}
+
 #[cfg(test)]
 #[allow(clippy::items_after_test_module)]
 mod tests {
@@ -1543,7 +1586,9 @@ fn collect_specced_files(spec_files: &[PathBuf]) -> HashSet<String> {
             let content = content.replace("\r\n", "\n");
             if let Some(parsed) = parse_frontmatter(&content) {
                 for f in &parsed.frontmatter.files {
-                    specced.insert(f.clone());
+                    if let Some(normalized) = normalize_source_mapping(f) {
+                        specced.insert(normalized);
+                    }
                 }
             }
         }

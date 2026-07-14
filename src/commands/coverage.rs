@@ -31,16 +31,18 @@ pub fn cmd_coverage(
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);
     let ignore_rules = crate::ignore::IgnoreRules::default();
-    let (total_errors, total_warnings, passed, total, _all_errors, _all_warnings) = run_validation(
-        root,
-        &spec_files,
-        &schema_tables,
-        &schema_columns,
-        &config,
-        json,
-        false,
-        &ignore_rules,
-    );
+    let (total_errors, total_warnings, passed, total, _all_errors, _all_warnings, _all_notices) =
+        run_validation(
+            root,
+            &spec_files,
+            &spec_files,
+            &schema_tables,
+            &schema_columns,
+            &config,
+            json,
+            false,
+            &ignore_rules,
+        );
     let coverage = compute_coverage(root, &spec_files, &config);
 
     if json {

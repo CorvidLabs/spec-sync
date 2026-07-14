@@ -155,6 +155,8 @@ pub struct ValidationResult {
     pub spec_path: String,
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
+    /// Informational validation findings that never fail strict mode.
+    pub notices: Vec<String>,
     pub export_summary: Option<String>,
     /// Actionable fix suggestions mapped to errors.
     pub fixes: Vec<String>,
@@ -170,6 +172,7 @@ impl ValidationResult {
             spec_path,
             errors: Vec::new(),
             warnings: Vec::new(),
+            notices: Vec::new(),
             export_summary: None,
             fixes: Vec::new(),
             status: None,
@@ -268,6 +271,11 @@ pub struct SpecSyncConfig {
     /// Include files without a filename extension in source discovery.
     #[serde(default)]
     pub include_extensionless: bool,
+
+    /// Require files mapped by draft specs to exist immediately.
+    /// When false, safe missing draft paths are treated as planned mappings.
+    #[serde(default)]
+    pub require_draft_files: bool,
 
     /// Export granularity: "type" (top-level types only) or "member" (all public symbols).
     /// Default: "member" for backwards compatibility.
@@ -796,6 +804,7 @@ impl Default for SpecSyncConfig {
             exclude_patterns: default_exclude_patterns(),
             source_extensions: Vec::new(),
             include_extensionless: false,
+            require_draft_files: false,
             export_level: ExportLevel::default(),
             parse_mode: ParseMode::default(),
             modules: std::collections::HashMap::new(),

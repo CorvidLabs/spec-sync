@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Draft specs can map planned source files** — safe normalized missing paths in `draft` specs now produce non-failing planned-mapping notices and remain outside current file and LOC coverage. Creating the file or activating the spec restores normal validation, while `require_draft_files = true` keeps immediate existence enforcement available for strict repositories.
+
 - **Complete module JavaScript discovery** — default TypeScript-family source discovery now includes `.mjs` and `.cjs`, so mapped files contribute to real file and LOC totals and uncovered module files correctly fail strict 100 percent coverage.
 
 ## [5.0.2] - 2026-07-14

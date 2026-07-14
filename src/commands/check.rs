@@ -387,16 +387,18 @@ pub fn cmd_check(
     }
 
     let collect = !matches!(format, Text);
-    let (total_errors, total_warnings, passed, total, all_errors, all_warnings) = run_validation(
-        root,
-        &specs_to_validate,
-        &schema_tables,
-        &schema_columns,
-        &config,
-        collect,
-        explain,
-        &ignore_rules,
-    );
+    let (total_errors, total_warnings, passed, total, all_errors, all_warnings, all_notices) =
+        run_validation(
+            root,
+            &specs_to_validate,
+            &all_spec_files,
+            &schema_tables,
+            &schema_columns,
+            &config,
+            collect,
+            explain,
+            &ignore_rules,
+        );
     // Git-based staleness detection (--stale flag)
     let stale_threshold = stale.map(|opt| opt.unwrap_or(5));
     let mut git_stale_warnings: usize = 0;
@@ -515,6 +517,7 @@ pub fn cmd_check(
                 "passed": exit_code == 0,
                 "errors": all_errors,
                 "warnings": all_warnings,
+                "notices": all_notices,
                 "stale": stale_entries,
                 "specs_checked": total,
             });
@@ -537,6 +540,7 @@ pub fn cmd_check(
                 total_errors,
                 &all_errors,
                 &all_warnings,
+                &all_notices,
                 &coverage,
                 exit_code == 0,
             );
@@ -560,6 +564,7 @@ pub fn cmd_check(
                 total_errors,
                 &all_errors,
                 &all_warnings,
+                &all_notices,
                 &coverage,
                 exit_code == 0,
                 repo.as_deref(),

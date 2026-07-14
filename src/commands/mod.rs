@@ -29,7 +29,7 @@ pub mod view;
 pub mod wizard;
 
 use colored::Colorize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -40,7 +40,7 @@ use crate::schema;
 use crate::scoring;
 use crate::types;
 use crate::types::SpecStatus;
-use crate::validator::{find_spec_files, validate_spec};
+use crate::validator::{find_spec_files, source_within_root, validate_spec};
 
 pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConfig, Vec<PathBuf>) {
     let config = load_config(root);
@@ -251,29 +251,87 @@ pub fn build_schema_columns(
     }
 }
 
-/// Run validation, returning counts and collected error/warning strings.
-/// When `collect` is true, errors/warnings are collected into vectors instead of printing inline.
+/// Run validation, returning counts and collected error, warning, and notice strings.
+/// `ownership_spec_files` must contain the complete discovered inventory even
+/// when `spec_files` is an incremental subset.
+/// When `collect` is true, diagnostics are collected into vectors instead of printing inline.
 /// When `explain` is true (text mode), shows per-category score breakdown for each spec.
 #[allow(clippy::too_many_arguments)]
 pub fn run_validation(
     root: &Path,
     spec_files: &[PathBuf],
+    ownership_spec_files: &[PathBuf],
     schema_tables: &std::collections::HashSet<String>,
     schema_columns: &std::collections::HashMap<String, schema::SchemaTable>,
     config: &types::SpecSyncConfig,
     collect: bool,
     explain: bool,
     ignore_rules: &IgnoreRules,
-) -> (usize, usize, usize, usize, Vec<String>, Vec<String>) {
+) -> (
+    usize,
+    usize,
+    usize,
+    usize,
+    Vec<String>,
+    Vec<String>,
+    Vec<String>,
+) {
     let mut total_errors = 0;
     let mut total_warnings = 0;
     let mut passed = 0;
     let mut drafts_skipped = 0;
     let mut all_errors: Vec<String> = Vec::new();
     let mut all_warnings: Vec<String> = Vec::new();
+    let mut all_notices: Vec<String> = Vec::new();
+    let mut file_owners: HashMap<String, Vec<String>> = HashMap::new();
+    let mut spec_files_by_path: HashMap<PathBuf, HashSet<String>> = HashMap::new();
+    for spec_file in ownership_spec_files {
+        let Ok(content) = std::fs::read_to_string(spec_file) else {
+            continue;
+        };
+        let Some(parsed) = parser::parse_frontmatter(&content) else {
+            continue;
+        };
+        let owner = spec_file
+            .strip_prefix(root)
+            .unwrap_or(spec_file)
+            .to_string_lossy()
+            .replace('\\', "/");
+        let mut existing_files = HashSet::new();
+        for file in &parsed.frontmatter.files {
+            if root.join(file).is_file() && source_within_root(root, file) {
+                let normalized_file = crate::validator::normalize_source_mapping(file)
+                    .unwrap_or_else(|| file.replace('\\', "/"));
+                let owners = file_owners.entry(normalized_file.clone()).or_default();
+                if !owners.contains(&owner) {
+                    owners.push(owner.clone());
+                }
+                existing_files.insert(normalized_file);
+            }
+        }
+        spec_files_by_path.insert(spec_file.clone(), existing_files);
+    }
 
     for spec_file in spec_files {
-        let result = validate_spec(spec_file, root, schema_tables, schema_columns, config);
+        let mut result = validate_spec(spec_file, root, schema_tables, schema_columns, config);
+        let owner = spec_file
+            .strip_prefix(root)
+            .unwrap_or(spec_file)
+            .to_string_lossy()
+            .replace('\\', "/");
+        for file in spec_files_by_path.get(spec_file).into_iter().flatten() {
+            if let Some(owners) = file_owners.get(file).filter(|owners| owners.len() > 1) {
+                let others = owners
+                    .iter()
+                    .filter(|candidate| *candidate != &owner)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                result.errors.push(format!(
+                    "Source file has duplicate spec ownership: {file} (also mapped by {others})"
+                ));
+            }
+        }
         let is_draft = result.status == Some(SpecStatus::Draft);
         if is_draft {
             drafts_skipped += 1;
@@ -295,6 +353,12 @@ pub fn run_validation(
             let prefix = &result.spec_path;
             all_errors.extend(result.errors.iter().map(|e| format!("{prefix}: {e}")));
             all_warnings.extend(filtered_warnings.iter().map(|w| format!("{prefix}: {w}")));
+            all_notices.extend(
+                result
+                    .notices
+                    .iter()
+                    .map(|notice| format!("{prefix}: {notice}")),
+            );
             total_errors += result.errors.len();
             total_warnings += filtered_warnings.len();
             if result.errors.is_empty() {
@@ -328,11 +392,14 @@ pub fn run_validation(
             .collect();
         let has_files_field = !result.errors.iter().any(|e| e.contains("files (must be"));
 
-        if file_errors.is_empty() && has_files_field {
+        if file_errors.is_empty() && result.notices.is_empty() && has_files_field {
             println!("  {} All source files exist", "✓".green());
         } else {
             for e in &file_errors {
                 println!("  {} {e}", "✗".red());
+            }
+            for notice in &result.notices {
+                println!("  {} {notice}", "⊘".cyan());
             }
         }
 
@@ -578,6 +645,7 @@ pub fn run_validation(
         spec_files.len(),
         all_errors,
         all_warnings,
+        all_notices,
     )
 }
 

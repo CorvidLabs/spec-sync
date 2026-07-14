@@ -561,6 +561,19 @@ const text = "module.exports.stringOnly = true";
     }
 
     #[test]
+    fn test_commonjs_hardening_matches_static_contract() {
+        let src = r#"
+exports.first = exports.second = value;
+const expression = /exports.regexOnly = true/;
+function fill(exports) {
+    exports.functionOnly = true;
+}
+"#;
+
+        assert_eq!(extract_exports(src), vec!["first", "second"]);
+    }
+
+    #[test]
     fn test_conditional_export() {
         // Tree-sitter can see exports inside if blocks
         let src = r#"

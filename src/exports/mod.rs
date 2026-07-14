@@ -275,9 +275,10 @@ fn filter_type_level_exports(content: &str, symbols: &[String], lang: Language) 
 
     let type_pattern = match lang {
         Language::TypeScript => {
-            // class, interface, type, enum — but not function, const, var, let
+            // Exported ESM declarations, local classes later exported through
+            // CommonJS, and inline CommonJS class assignments.
             Regex::new(
-                r"(?m)export\s+(?:default\s+)?(?:abstract\s+)?(?:class|interface|type|enum)\s+(\w+)",
+                r"(?m)(?:\b(?:abstract\s+)?(?:class|interface|type|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)|(?:module\s*\.\s*)?exports\s*\.\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(?:abstract\s+)?class\b)",
             )
             .ok()
         }
@@ -374,7 +375,13 @@ fn filter_type_level_exports(content: &str, symbols: &[String], lang: Language) 
                 {
                     return None;
                 }
-                caps.get(2).map(|m| m.as_str().to_string())
+                if lang == Language::Rust {
+                    caps.get(2).map(|m| m.as_str().to_string())
+                } else {
+                    (1..caps.len())
+                        .find_map(|index| caps.get(index))
+                        .map(|name| name.as_str().to_string())
+                }
             })
             .collect(),
         None => return symbols.to_vec(),
@@ -622,7 +629,8 @@ mod configured_extension_tests {
 
 #[cfg(test)]
 mod scan_tests {
-    use super::{ExportScan, scan_exported_symbols};
+    use super::{ExportScan, scan_exported_symbols, scan_exported_symbols_full};
+    use crate::types::{ExportLevel, ParseMode};
     use std::io::Write;
 
     #[test]
@@ -691,5 +699,23 @@ mod scan_tests {
                 "fromIndex".to_string(),
             ])
         );
+    }
+
+    #[test]
+    fn commonjs_classes_survive_type_level_filtering_in_both_modes() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("classes.cjs");
+        std::fs::write(
+            &source,
+            "class Widget {}\nexports.Widget = Widget;\nexports.Inline = class {};\nexports.value = true;\n",
+        )
+        .unwrap();
+
+        for parse_mode in [ParseMode::Regex, ParseMode::Ast] {
+            assert_eq!(
+                scan_exported_symbols_full(&source, ExportLevel::Type, parse_mode),
+                ExportScan::Parsed(vec!["Widget".to_string(), "Inline".to_string()])
+            );
+        }
     }
 }

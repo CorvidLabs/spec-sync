@@ -64,6 +64,7 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
                                 &config.source_extensions,
                                 config.include_extensionless,
                             )
+                            && !crate::exports::is_test_file(e.path(), root)
                     })
                     .map(|e| {
                         e.path()
@@ -185,6 +186,33 @@ Document this module's responsibility, inputs, outputs, and ownership boundaries
             eprintln!("Failed to write {}: {e}", spec_file.display());
             process::exit(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add_spec_omits_module_javascript_test_sources() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let module = root.join("src/widget");
+        fs::create_dir_all(&module).unwrap();
+        fs::write(module.join("index.mjs"), "export const value = true;\n").unwrap();
+        fs::write(module.join("index.test.cjs"), "exports.helper = true;\n").unwrap();
+        fs::write(
+            module.join("index.spec.mjs"),
+            "export const fixture = true;\n",
+        )
+        .unwrap();
+
+        cmd_add_spec(root, "widget");
+
+        let spec = fs::read_to_string(root.join("specs/widget/widget.spec.md")).unwrap();
+        assert!(spec.contains("src/widget/index.mjs"), "{spec}");
+        assert!(!spec.contains("index.test.cjs"), "{spec}");
+        assert!(!spec.contains("index.spec.mjs"), "{spec}");
     }
 }
 

@@ -1,5 +1,6 @@
 use regex::Regex;
 use std::sync::LazyLock;
+use tree_sitter::{Parser, Tree};
 
 /// export function/class/interface/type/const/enum name
 ///
@@ -39,7 +40,7 @@ static EXPORT_EQUALS: LazyLock<Regex> =
 /// `exports.name = value` or `module.exports.name = value`.
 static COMMONJS_PROPERTY_EXPORT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)(?:^|[^\w$.])(?:module\s*\.\s*)?exports\s*\.\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(?:[^=>]|$)",
+        r"(?m)(?:^|[^\w$.])(?:module\s*\.\s*)?exports\s*\.\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*",
     )
     .unwrap()
 });
@@ -187,20 +188,81 @@ pub fn extract_exports_with_resolver(
 /// unresolved.
 pub(super) fn extract_commonjs_exports(content: &str) -> Vec<String> {
     let masked = mask_comments_and_literals(content);
+    let scope_tree = parse_scope_tree(content);
     let mut symbols = Vec::new();
 
-    for captures in COMMONJS_PROPERTY_EXPORT.captures_iter(&masked) {
-        if let Some(name) = captures.get(1) {
+    let mut property_cursor = 0;
+    while let Some(captures) = COMMONJS_PROPERTY_EXPORT.captures_at(&masked, property_cursor) {
+        let Some(name) = captures.get(1) else {
+            break;
+        };
+        if is_plain_assignment(&masked, captures.get(0).map_or(0, |matched| matched.end()))
+            && scope_tree
+                .as_ref()
+                .is_none_or(|tree| is_module_scope(tree, name.start()))
+        {
             push_unique(&mut symbols, name.as_str());
         }
+
+        // Resume inside the match so a chained RHS assignment can reuse the
+        // first assignment operator as its left boundary.
+        property_cursor = name.end().max(property_cursor + 1);
     }
 
     for matched in COMMONJS_OBJECT_EXPORT.find_iter(&masked) {
+        if scope_tree
+            .as_ref()
+            .is_some_and(|tree| !is_module_scope(tree, matched.start()))
+        {
+            continue;
+        }
         let open_brace = matched.end() - 1;
         extract_commonjs_object_keys(&masked, open_brace, &mut symbols);
     }
 
     symbols
+}
+
+fn parse_scope_tree(content: &str) -> Option<Tree> {
+    let mut parser = Parser::new();
+    let language = tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into();
+    parser.set_language(&language).ok()?;
+    parser.parse(content, None)
+}
+
+fn is_module_scope(tree: &Tree, byte_offset: usize) -> bool {
+    let Some(mut node) = tree
+        .root_node()
+        .descendant_for_byte_range(byte_offset, byte_offset.saturating_add(1))
+    else {
+        return true;
+    };
+
+    loop {
+        if matches!(
+            node.kind(),
+            "function_declaration"
+                | "function_expression"
+                | "generator_function_declaration"
+                | "generator_function"
+                | "arrow_function"
+                | "method_definition"
+        ) {
+            return false;
+        }
+        let Some(parent) = node.parent() else {
+            return true;
+        };
+        node = parent;
+    }
+}
+
+fn is_plain_assignment(masked: &str, after_match: usize) -> bool {
+    masked.as_bytes()[after_match..]
+        .iter()
+        .copied()
+        .find(|byte| !byte.is_ascii_whitespace())
+        .is_none_or(|byte| !matches!(byte, b'=' | b'>'))
 }
 
 fn mask_comments_and_literals(content: &str) -> String {
@@ -239,6 +301,18 @@ fn mask_comments_and_literals(content: &str) -> String {
             continue;
         }
 
+        if bytes[index] == b'/'
+            && let Some(end) = regex_literal_end(bytes, index)
+        {
+            for byte in &mut masked[index..end] {
+                if *byte != b'\n' {
+                    *byte = b' ';
+                }
+            }
+            index = end;
+            continue;
+        }
+
         if matches!(bytes[index], b'\'' | b'"' | b'`') {
             let quote = bytes[index];
             masked[index] = b' ';
@@ -268,6 +342,65 @@ fn mask_comments_and_literals(content: &str) -> String {
     }
 
     String::from_utf8(masked).expect("masking valid source preserves UTF-8")
+}
+
+fn regex_literal_end(bytes: &[u8], start: usize) -> Option<usize> {
+    let previous = bytes[..start]
+        .iter()
+        .rev()
+        .copied()
+        .find(|byte| !byte.is_ascii_whitespace());
+    if previous.is_some_and(|byte| {
+        !matches!(
+            byte,
+            b'=' | b'('
+                | b'['
+                | b'{'
+                | b','
+                | b':'
+                | b';'
+                | b'!'
+                | b'?'
+                | b'&'
+                | b'|'
+                | b'+'
+                | b'-'
+                | b'*'
+                | b'%'
+                | b'^'
+                | b'~'
+                | b'<'
+                | b'>'
+        )
+    }) {
+        return None;
+    }
+
+    let mut index = start + 1;
+    let mut in_character_class = false;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\\' if index + 1 < bytes.len() => index += 2,
+            b'[' => {
+                in_character_class = true;
+                index += 1;
+            }
+            b']' => {
+                in_character_class = false;
+                index += 1;
+            }
+            b'/' if !in_character_class => {
+                index += 1;
+                while index < bytes.len() && bytes[index].is_ascii_alphabetic() {
+                    index += 1;
+                }
+                return Some(index);
+            }
+            b'\n' => return None,
+            _ => index += 1,
+        }
+    }
+    None
 }
 
 fn extract_commonjs_object_keys(masked: &str, open_brace: usize, symbols: &mut Vec<String>) {
@@ -648,6 +781,25 @@ module.exports = { shared, commonOnly };
 "#;
         let symbols = extract_exports(src);
         assert_eq!(symbols, vec!["shared", "commonOnly"]);
+    }
+
+    #[test]
+    fn test_commonjs_chains_ignore_function_scopes_and_regex_literals() {
+        let src = r#"
+exports.first = exports.second = value;
+exports.third = module.exports.fourth = value;
+const expression = /exports.regexOnly = module.exports = { hidden }/gi;
+function fill(exports) {
+    exports.functionOnly = true;
+}
+const run = (module) => {
+    module.exports.arrowOnly = true;
+};
+"#;
+
+        let symbols = extract_exports(src);
+
+        assert_eq!(symbols, vec!["first", "second", "third", "fourth"]);
     }
 
     #[test]

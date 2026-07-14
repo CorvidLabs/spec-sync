@@ -171,6 +171,7 @@ fn detect_module_sources(
                         &config.source_extensions,
                         config.include_extensionless,
                     )
+                    && !exports::is_test_file(entry.path(), root)
                 {
                     let rel = entry
                         .path()
@@ -195,6 +196,7 @@ fn detect_module_sources(
                             &config.source_extensions,
                             config.include_extensionless,
                         )
+                        && !exports::is_test_file(&path, root)
                     {
                         let rel = path
                             .strip_prefix(root)
@@ -264,4 +266,29 @@ fn chrono_lite_today() -> String {
 
 fn is_leap(y: i64) -> bool {
     y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detected_sources_omit_module_javascript_tests() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let module = root.join("src/widget");
+        fs::create_dir_all(&module).unwrap();
+        fs::write(module.join("index.cjs"), "exports.value = true;\n").unwrap();
+        fs::write(module.join("index.test.cjs"), "exports.helper = true;\n").unwrap();
+        fs::write(
+            module.join("index.spec.mjs"),
+            "export const fixture = true;\n",
+        )
+        .unwrap();
+        let config = crate::types::SpecSyncConfig::default();
+
+        let files = detect_module_sources(root, "widget", &config);
+
+        assert_eq!(files, vec!["src/widget/index.cjs"]);
+    }
 }

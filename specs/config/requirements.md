@@ -54,4 +54,3 @@ Acceptance Criteria
 - Canonical TOML reads and emits `require_draft_files = true` without losing the value during migration.
 - Legacy JSON reads `requireDraftFiles` and recognizes it as a supported key.
 - The canonical configuration structure table documents both serialized names and behavior.
-

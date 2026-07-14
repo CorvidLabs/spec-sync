@@ -214,6 +214,47 @@
       },
       "stale_acceptance_input_digest": "38de50ef380e73f316bc9fb9899b867fb8d41e8bbcda36b6eac824e8e7d822fe",
       "current_acceptance_input_digest": "daa3ecd4f2de51e66d5a4caac7c09cc260af26005bc0920164e6a2eff37ee5f0"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+      "actor": "user:0xLeif",
+      "reason": "Range-level diff validation found two extra canonical config-spec EOF blank lines that require a non-semantic whitespace correction.",
+      "timestamp": 1784064461,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784063972,
+        "digest": "baa66173e74ba6f6507442550a7abecf03ba1340ceb38dcd2a85c245886cec03",
+        "note": "Fresh closing approval after fail-closed dangling-symlink containment passed 1,589 unit and 213 integration tests at 2a267aafcfb613889526c195f5df50addef41ba3."
+      },
+      "prior_verification": {
+        "timestamp": 1784063961,
+        "commit": "2a267aafcfb613889526c195f5df50addef41ba3",
+        "contract_digest": "2c99f36762570d09587e407bbe56e755365bc0cd2c965529ef904370daec19e1",
+        "workspace_digest": "82f56bd39969ee2ee2a9c6c9c5b3849ff1a9eb6755d6b39c474e5e472c899327",
+        "acceptance_input_digest": "daa3ecd4f2de51e66d5a4caac7c09cc260af26005bc0920164e6a2eff37ee5f0",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-commands-002",
+          "REQ-comment-002",
+          "REQ-config-004",
+          "REQ-output-002",
+          "REQ-types-003",
+          "REQ-validator-007"
+        ]
+      },
+      "stale_acceptance_input_digest": "daa3ecd4f2de51e66d5a4caac7c09cc260af26005bc0920164e6a2eff37ee5f0",
+      "current_acceptance_input_digest": "f55a3f6e1e7ce6f52809e80fffb7a1d304fe0f03d570ff8b292e90796c05f1a9"
     }
   ]
 }

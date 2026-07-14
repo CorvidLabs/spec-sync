@@ -1,0 +1,71 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784034181,
+      "digest": "7664553a68eaf9c46ea8d3a86af9ace3c2bc86032de44a66df543509647cafe0",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784034808,
+      "digest": "88a3212c5bfbb57319df6b0355b6c5655766d08b7200690e6ec19da140f3189f",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784035230,
+      "digest": "a1e1e569abd29961e7b39a83171a4a57bc27e9cdc75e877b6989c56889f64afb",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784036664,
+      "digest": "460d14208654440b7ef3eff0c064a7b25614561c0730d6bbdb2f56916e6ad4e8",
+      "note": null
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0029-address-all-remaining-review-feedback-from-pr-366",
+      "actor": "0xLeif",
+      "reason": "Accepted CHG-0030 legitimately updates the accepted src/change.rs input.",
+      "timestamp": 1784036411,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784035230,
+        "digest": "a1e1e569abd29961e7b39a83171a4a57bc27e9cdc75e877b6989c56889f64afb",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784035223,
+        "commit": "c98d29810f78abcdd6a2fec9b137667d3ab2fc5b",
+        "contract_digest": "88a3212c5bfbb57319df6b0355b6c5655766d08b7200690e6ec19da140f3189f",
+        "workspace_digest": "fc4ed56c5cba144ec8e20c8a2a54f3edc583865403807f3cab77745bad90d9b9",
+        "acceptance_input_digest": "39e23113a35391823fd18c611363fea0c6fb0e1222aa8384b62fafb34857750b",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-030",
+          "REQ-cli-004"
+        ]
+      },
+      "stale_acceptance_input_digest": "39e23113a35391823fd18c611363fea0c6fb0e1222aa8384b62fafb34857750b",
+      "current_acceptance_input_digest": "79d33248bdda486dd4cee4c4dceb0f052299a8288c8a133f1b49b6fb487997e6"
+    }
+  ]
+}

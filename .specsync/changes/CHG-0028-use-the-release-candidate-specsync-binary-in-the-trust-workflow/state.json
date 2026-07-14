@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0028-use-the-release-candidate-specsync-binary-in-the-trust-workflow",
+  "slug": "use-the-release-candidate-specsync-binary-in-the-trust-workflow",
+  "title": "Use the release candidate SpecSync binary in the Trust workflow",
+  "description": "Use the release candidate SpecSync binary in the Trust workflow",
+  "kind": "operations",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "c98d29810f78abcdd6a2fec9b137667d3ab2fc5b",
+  "created_at": 1784006715,
+  "updated_at": 1784035132,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/trust.yml",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "This changes only release-validation workflow wiring; it does not change the SpecSync product contract.",
+  "acceptance_criteria": [
+    "The Trust workflow builds the pull request binary and packages it in a checksum-verified runner-local mirror while hosted Trust passes without weakening lifecycle contract risk or provenance enforcement."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

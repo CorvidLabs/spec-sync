@@ -552,10 +552,12 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
     assert_eq!(ledger["reopenings"].as_array().unwrap().len(), 1);
 }
 
+// Verifies REQ-cli-004.
 #[test]
 fn indirect_recursive_lifecycle_check_fails_once_with_context() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
+    fs::write(root.join("specsync.json"), "{}\n").unwrap();
     fs::create_dir_all(root.join(".specsync")).unwrap();
     fs::write(
         root.join(".specsync/sdd.json"),
@@ -587,6 +589,7 @@ fn indirect_recursive_lifecycle_check_fails_once_with_context() {
         1
     );
     assert!(stderr.contains("fledge lanes run verify"));
+    assert!(!stderr.contains("Legacy 3.x layout detected"));
 }
 
 #[test]

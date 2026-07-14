@@ -72,3 +72,13 @@ Acceptance Criteria
 - A blocked nested command exits non-zero with one actionable diagnostic.
 - Commands outside the lifecycle boundary preserve current dispatch behavior.
 
+### REQ-cli-004
+
+The root CLI SHALL reject inherited verification re-entry before dispatching any lifecycle command handler.
+
+Acceptance Criteria
+
+- Explicit and default `check`, `change`, and `lifecycle` commands fail before handler-specific discovery, warnings, validation, or mutation.
+- The process emits one contextual diagnostic and exits non-zero.
+- Commands outside the lifecycle boundary preserve current dispatch behavior.
+

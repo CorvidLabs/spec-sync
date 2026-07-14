@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 9
+version: 10
 status: stable
 files:
   - src/main.rs
@@ -162,6 +162,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 21. `cmd_comment` without `--pr` prints the comment body to stdout; with `--pr N` posts via `gh` CLI
 22. `cmd_changelog` requires a git ref range (e.g., `v0.1..v0.2`); exits 1 if range is invalid
 23. `--enforcement` CLI flag overrides the effective loaded configuration (`.specsync/config.toml` first, with legacy compatibility fallbacks); `--strict` implies strict enforcement
+24. Inherited verification context rejects `check`, `change`, and `lifecycle` before handler dispatch, while unrelated commands preserve their current behavior.
 
 ## Behavioral Examples
 
@@ -371,3 +372,4 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |
+| 2026-07-14 | CHG-0029-address-all-remaining-review-feedback-from-pr-366: Address all remaining review feedback from PR 366 |

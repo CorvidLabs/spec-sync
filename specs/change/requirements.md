@@ -297,3 +297,27 @@ Acceptance Criteria
 - Conventional canonical paths remain the fallback when no registry mapping exists.
 - Unsafe registry mappings fail closed before effective validation.
 - The current project digest is computed at most once per canonical-successor candidate scan.
+
+### REQ-change-029
+
+Acceptance evidence SHALL preserve historical validity across valid later sequence claims without weakening current sequence-ledger integrity.
+
+Acceptance Criteria
+
+- Creating a later valid lifecycle record does not stale an earlier accepted record solely because the sequence ledger advanced.
+- The current ledger owner's acceptance evidence binds the exact ledger content.
+- Malformed claims, claims without a workspace, non-maximum claims, duplicate sequences, and invalid collision acknowledgements fail closed.
+- Every covered path other than a valid later-owned sequence ledger remains acceptance-digest input.
+
+### REQ-change-030
+
+Lifecycle enforcement SHALL preserve explicit user scope, registry authority, policy opt-out boundaries, and native verification commands while retaining fail-closed SpecSync recursion protection.
+
+Acceptance Criteria
+
+- Generated sequence bookkeeping does not satisfy or suppress the interview question for source, test, documentation, or configuration scope.
+- Registry-resolved canonical specs and companions participate in meaningful-path coverage and acceptance hashing.
+- The local registry is a protected lifecycle input because it controls canonical writes.
+- An explicitly disabled SDD policy returns without sequence-ledger validation.
+- Native `cargo run -- check` commands remain allowed unless Cargo is actually selecting the SpecSync binary.
+

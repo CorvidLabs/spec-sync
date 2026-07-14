@@ -92,7 +92,10 @@ fn run() {
         specs: vec![],
     });
 
-    if matches!(&command, Command::Change { .. } | Command::Lifecycle { .. }) {
+    if matches!(
+        &command,
+        Command::Check { .. } | Command::Change { .. } | Command::Lifecycle { .. }
+    ) {
         reject_recursive_lifecycle_dispatch(format);
     }
 

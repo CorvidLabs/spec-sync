@@ -310,6 +310,47 @@
       },
       "stale_acceptance_input_digest": "f55a3f6e1e7ce6f52809e80fffb7a1d304fe0f03d570ff8b292e90796c05f1a9",
       "current_acceptance_input_digest": "651c2db95ce024efd5cec6cb2ba0c08bd3f4b2e0639ed4699c7a2ffa1d3c88b4"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+      "actor": "0xLeif",
+      "reason": "PR #379 review correction avoids unconditional LF-only ownership pre-scan allocations while preserving CRLF normalization and duplicate ownership enforcement.",
+      "timestamp": 1784069093,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784067593,
+        "digest": "54dc48e759cd0998624ae2a2cd60b9fb4fb27ae699f013346396103db6af8aea",
+        "note": "Closing approval after the CRLF ownership correction passed 1,589 unit tests, 214 integration tests, strict 100% coverage, and the exact-candidate Trust gate."
+      },
+      "prior_verification": {
+        "timestamp": 1784067539,
+        "commit": "a7c566d5e3a5068d0a5ee263ee5f304766da95a6",
+        "contract_digest": "2c99f36762570d09587e407bbe56e755365bc0cd2c965529ef904370daec19e1",
+        "workspace_digest": "5b18bfbfecb8645828b25ab81edc426c9508bd24493c4683f2760f6d63fd8532",
+        "acceptance_input_digest": "731b8dedc7361a42d912c6dae617a4d7f7c2d1f99d4bb73b89109f948998eae6",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-commands-002",
+          "REQ-comment-002",
+          "REQ-config-004",
+          "REQ-output-002",
+          "REQ-types-003",
+          "REQ-validator-007"
+        ]
+      },
+      "stale_acceptance_input_digest": "731b8dedc7361a42d912c6dae617a4d7f7c2d1f99d4bb73b89109f948998eae6",
+      "current_acceptance_input_digest": "9b6c55554878ca83d22a85166c9f3ebdf3fe0ee33b4cb893a3fb7200177c38a5"
     }
   ]
 }

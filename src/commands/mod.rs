@@ -289,7 +289,11 @@ pub fn run_validation(
         let Ok(content) = std::fs::read_to_string(spec_file) else {
             continue;
         };
-        let normalized = content.replace("\r\n", "\n");
+        let normalized = if content.contains("\r\n") {
+            std::borrow::Cow::Owned(content.replace("\r\n", "\n"))
+        } else {
+            std::borrow::Cow::Borrowed(content.as_str())
+        };
         let Some(parsed) = parser::parse_frontmatter(&normalized) else {
             continue;
         };

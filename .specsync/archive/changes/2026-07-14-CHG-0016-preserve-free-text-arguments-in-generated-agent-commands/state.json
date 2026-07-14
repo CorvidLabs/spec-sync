@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0016-preserve-free-text-arguments-in-generated-agent-commands",
+  "slug": "preserve-free-text-arguments-in-generated-agent-commands",
+  "title": "Preserve free-text arguments in generated agent commands",
+  "description": "Preserve free-text arguments in generated agent commands",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "60bd655c2365addc3d7a37e95f5fc20c06a746ff",
+  "created_at": 1783979430,
+  "updated_at": 1784051198,
+  "affected_specs": [
+    "agents"
+  ],
+  "affected_paths": [
+    "src/agents.rs",
+    "specs/agents"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Generated create-spec instructions strip supported flags before classifying the complete remaining input; bare identifiers remain unchanged; natural-language descriptions never become first-word module names; Gemini create-change uses its args placeholder and never ARGUMENTS; every integration quotes multi-word interview answers as one argument; installing all four integrations stays deterministic and idempotent; focused and full Rust tests pass"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

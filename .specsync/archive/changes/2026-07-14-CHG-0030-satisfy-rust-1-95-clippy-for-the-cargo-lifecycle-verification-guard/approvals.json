@@ -1,0 +1,68 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784036074,
+      "digest": "78cec0e6e4fbe6b3faa6d31d48c77e83f1bf541b3b37f4027c87a7131ff02790",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784036242,
+      "digest": "803db8c27b64f769f176ac4c47d14bd82d9d2d39fc022b6a4560dafb181bb4d9",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784036296,
+      "digest": "6d5baf510be42cfdd92b44b637c8b892fa9285077641e838512411ad5f85f08f",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784051485,
+      "digest": "a07436cc7245f242caf4c6f430a3ca150b48a979e4bf79c96201993b6bc975cd",
+      "note": null
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0030-satisfy-rust-1-95-clippy-for-the-cargo-lifecycle-verification-guard",
+      "actor": "0xLeif",
+      "reason": "Accepted CHG-0033 legitimately updated the accepted src/change.rs delivery input after CHG-0030; archiving the canonical successors now requires fresh CHG-0030 evidence before archival.",
+      "timestamp": 1784051240,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784036296,
+        "digest": "6d5baf510be42cfdd92b44b637c8b892fa9285077641e838512411ad5f85f08f",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784036260,
+        "commit": "c98d29810f78abcdd6a2fec9b137667d3ab2fc5b",
+        "contract_digest": "803db8c27b64f769f176ac4c47d14bd82d9d2d39fc022b6a4560dafb181bb4d9",
+        "workspace_digest": "aefc17093cb5e1e8209f233fe45c534ee9c1a853d7b04d022c1d760753a4a4a5",
+        "acceptance_input_digest": "3233bf74fca0aef1c6b36f01c9870d1a8e90b507cb26fc1d53cddbcf280482d6",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "3233bf74fca0aef1c6b36f01c9870d1a8e90b507cb26fc1d53cddbcf280482d6",
+      "current_acceptance_input_digest": "e719351a2a5e67d3eb0e3312239bfebb743d5fa56ddb943f73615472d6374414"
+    }
+  ]
+}

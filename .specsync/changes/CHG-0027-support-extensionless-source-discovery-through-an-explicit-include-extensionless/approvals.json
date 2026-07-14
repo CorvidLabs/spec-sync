@@ -20,6 +20,13 @@
       "timestamp": 1784039019,
       "digest": "a87a12efd4d21510d99316a46a2d71f4ee7be1e204b4161650b8a773eef57840",
       "note": "Definition reapproved with explicit requirement-to-test evidence and final repository scope"
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784039151,
+      "digest": "529abde22ab0ef45dc788d3fe5f94b702eafeed86cbb93b7b86a85200dabeb32",
+      "note": "Definition reapproved with the protected sequence ledger explicitly included in delivery scope"
     }
   ]
 }

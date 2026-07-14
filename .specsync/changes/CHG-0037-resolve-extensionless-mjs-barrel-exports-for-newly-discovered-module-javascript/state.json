@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0037-resolve-extensionless-mjs-barrel-exports-for-newly-discovered-module-javascript",
+  "slug": "resolve-extensionless-mjs-barrel-exports-for-newly-discovered-module-javascript",
+  "title": "Resolve extensionless mjs barrel exports for newly discovered module JavaScript sources",
+  "description": "Resolve extensionless mjs barrel exports for newly discovered module JavaScript sources",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "dac64a1bff31cc5af0b590c8a800468440048e1e",
+  "created_at": 1784058230,
+  "updated_at": 1784058247,
+  "affected_specs": [
+    "exports"
+  ],
+  "affected_paths": [
+    "src/exports",
+    "specs/exports",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "An extensionless export-star barrel in an mjs source resolves a sibling mjs module and reports its public names.",
+    "The resolver probes module JavaScript file and index variants without regressing existing TypeScript or JavaScript resolution.",
+    "Strict validation passes for the regression fixture in both regex and AST parse modes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [
+    "CHG-0036-support-commonjs-exports-for-newly-discovered-cjs-modules-without-changing-esm"
+  ],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

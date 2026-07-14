@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 36,
-  "id": "CHG-0036-support-commonjs-exports-for-newly-discovered-cjs-modules-without-changing-esm",
+  "sequence": 37,
+  "id": "CHG-0037-resolve-extensionless-mjs-barrel-exports-for-newly-discovered-module-javascript",
   "acknowledged_collisions": [
     {
       "sequence": 16,

@@ -5,10 +5,10 @@
   "title": "Harden CommonJS export extraction and exclude module JavaScript tests from generated specs",
   "description": "Harden CommonJS export extraction and exclude module JavaScript tests from generated specs",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "044eb584769487b8c43f1509a22d1693893d9894",
   "created_at": 1784059329,
-  "updated_at": 1784059354,
+  "updated_at": 1784059420,
   "affected_specs": [
     "exports",
     "cmd_new",

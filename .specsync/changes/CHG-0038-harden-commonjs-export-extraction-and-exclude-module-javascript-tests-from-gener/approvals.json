@@ -1,4 +1,12 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784059420,
+      "digest": "a8dd94ee5171949fc69b020fcfcba2ca9904e2152c6f3be40ee0ab977ddc2019",
+      "note": "Approve the scoped late-review corrections, deterministic regressions, and generated-spec test exclusion contract."
+    }
+  ],
   "reopenings": []
 }

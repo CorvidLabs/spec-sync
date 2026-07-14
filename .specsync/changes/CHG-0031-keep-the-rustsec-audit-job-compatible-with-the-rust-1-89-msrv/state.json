@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0031-keep-the-rustsec-audit-job-compatible-with-the-rust-1-89-msrv",
+  "slug": "keep-the-rustsec-audit-job-compatible-with-the-rust-1-89-msrv",
+  "title": "Keep the RustSec audit job compatible with the Rust 1.89 MSRV",
+  "description": "Keep the RustSec audit job compatible with the Rust 1.89 MSRV",
+  "kind": "operations",
+  "state": "implementing",
+  "base_commit": "e5c6829df0d65a1b3ae18b2d1dccd47c422b9208",
+  "created_at": 1784038252,
+  "updated_at": 1784039469,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "This changes only CI tool installation wiring; the security audit policy and SpecSync product contract remain unchanged.",
+  "acceptance_criteria": [
+    "The audit job installs cargo-audit 0.22.2 with its lockfile under Rust 1.89",
+    "executes cargo audit without weakening advisory checks",
+    "and the required CI gate passes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "research",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

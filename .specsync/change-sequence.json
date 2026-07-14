@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 30,
-  "id": "CHG-0030-satisfy-rust-1-95-clippy-for-the-cargo-lifecycle-verification-guard",
+  "sequence": 31,
+  "id": "CHG-0031-keep-the-rustsec-audit-job-compatible-with-the-rust-1-89-msrv",
   "acknowledged_collisions": [
     {
       "sequence": 16,

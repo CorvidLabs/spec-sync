@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 31,
-  "id": "CHG-0031-keep-the-rustsec-audit-job-compatible-with-the-rust-1-89-msrv",
+  "sequence": 32,
+  "id": "CHG-0032-address-all-actionable-review-findings-on-pr-370-with-regression-coverage",
   "acknowledged_collisions": [
     {
       "sequence": 16,

@@ -20,7 +20,51 @@
       "timestamp": 1784035043,
       "digest": "2565c2e3d0458f7b9bac2691ed5bf41c0fdd46f43439bcae842a2b9d937f643b",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784041166,
+      "digest": "bdf512eb921d9bb7b41d31aff2f5f888f9a0350d9a83a05d3403ac6538a1686e",
+      "note": "Fresh closing approval after PR 370 review corrections and complete native verification; prior approval history preserved."
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0027-preserve-accepted-evidence-across-valid-later-sequence-claims",
+      "actor": "user:0xLeif",
+      "reason": "PR 370 review corrections changed the governed lifecycle implementation; refresh native evidence without replaying the already-applied semantic delta.",
+      "timestamp": 1784040862,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784035043,
+        "digest": "2565c2e3d0458f7b9bac2691ed5bf41c0fdd46f43439bcae842a2b9d937f643b",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784034870,
+        "commit": "c98d29810f78abcdd6a2fec9b137667d3ab2fc5b",
+        "contract_digest": "08b11339586c84f4f39e6a800d81e80c11aeaaa4d7d4de8b1bed4fbf15598b45",
+        "workspace_digest": "3c9485c722e63a653e9d5bd62be4a885178c63ce362237614955ff9a2267e1ac",
+        "acceptance_input_digest": "c2daf347e93995cee96bd0f4724b48becee099cd122e32c32f968bd3b035cbad",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-029"
+        ]
+      },
+      "stale_acceptance_input_digest": "c2daf347e93995cee96bd0f4724b48becee099cd122e32c32f968bd3b035cbad",
+      "current_acceptance_input_digest": "5ffa5d08dc85d74f5f8227651fad1d036473784fdd96f6a88d6aaa37970cb7d8"
+    }
+  ]
 }

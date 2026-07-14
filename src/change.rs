@@ -3391,7 +3391,11 @@ fn historical_sequence_ledger_acceptance_content(
         schema_version: ledger.schema_version,
         sequence,
         id: record.id.clone(),
-        acknowledged_collisions: ledger.acknowledged_collisions,
+        acknowledged_collisions: ledger
+            .acknowledged_collisions
+            .into_iter()
+            .filter(|collision| collision.sequence <= sequence)
+            .collect(),
     };
     Ok(Some(json_content(&historical)?.into_bytes()))
 }
@@ -3613,17 +3617,12 @@ fn record_covers_project_path(root: &Path, record: &ChangeRecord, path: &str) ->
     record.affected_specs.iter().any(|module| {
         canonical_module_paths(root, &specs_dir, module)
             .ok()
-            .and_then(|(spec_path, _)| spec_path.parent().map(Path::to_path_buf))
-            .map(|module_dir| {
-                let relative = portable_project_path(root, &module_dir);
-                let scope = if relative.is_empty() {
-                    ".".to_string()
-                } else {
-                    format!("{}/", relative.trim_end_matches('/'))
-                };
-                path_matches_scope(path, &scope)
+            .is_some_and(|(spec_path, requirements_path)| {
+                [spec_path, requirements_path]
+                    .iter()
+                    .map(|canonical| portable_project_path(root, canonical))
+                    .any(|canonical| path == canonical)
             })
-            .unwrap_or(false)
     })
 }
 
@@ -3732,6 +3731,7 @@ fn is_protected_sdd_path(path: &str) -> bool {
             | ".specsync/config.toml"
             | ".specsync/config.json"
             | ".specsync/registry.toml"
+            | "specsync-registry.toml"
             | ".specsync/version"
             | ".specsync/change-sequence.json"
     )
@@ -3832,15 +3832,8 @@ fn reject_direct_lifecycle_verification(root: &Path, configured: &str) -> Result
         .and_then(|name| name.to_str())
         .unwrap_or(program)
         .trim_end_matches(".exe");
-    let enters_lifecycle = args.iter().any(|argument| {
-        matches!(
-            argument.as_str(),
-            "check" | "verify" | "change" | "lifecycle"
-        )
-    });
-    let invokes_specsync = enters_lifecycle
-        && (program_name == "specsync"
-            || (program_name == "cargo" && cargo_run_targets_specsync(root, args)));
+    let invokes_specsync = program_name == "specsync"
+        || (program_name == "cargo" && cargo_run_targets_specsync(root, args));
     if invokes_specsync {
         return Err(format!(
             "recursive lifecycle verification command `{configured}` is not allowed; run native verification here and keep specsync check as a top-level gate"
@@ -3867,6 +3860,17 @@ fn cargo_run_targets_specsync(root: &Path, args: &[String]) -> bool {
         if let Some(target) = argument.strip_prefix("--bin=") {
             return target == "specsync";
         }
+        if matches!(argument.as_str(), "-p" | "--package") {
+            return args
+                .get(index + 1)
+                .is_some_and(|package| package == "specsync");
+        }
+        if let Some(package) = argument
+            .strip_prefix("--package=")
+            .or_else(|| argument.strip_prefix("-p"))
+        {
+            return package == "specsync";
+        }
         if matches!(argument.as_str(), "--example" | "--test" | "--bench")
             || argument.starts_with("--example=")
             || argument.starts_with("--test=")
@@ -3888,8 +3892,8 @@ fn cargo_package_value(manifest: &str, key: &str) -> Option<String> {
     let mut in_package = false;
     for line in manifest.lines() {
         let line = line.trim();
-        if line.starts_with('[') {
-            in_package = line == "[package]";
+        if line.starts_with('[') && line.ends_with(']') {
+            in_package = line[1..line.len() - 1].trim() == "package";
             continue;
         }
         if !in_package {
@@ -3901,11 +3905,19 @@ fn cargo_package_value(manifest: &str, key: &str) -> Option<String> {
         if candidate.trim() != key {
             continue;
         }
-        let value = value.trim();
+        let value = value
+            .split_once('#')
+            .map_or(value, |(value, _)| value)
+            .trim();
         return Some(
             value
                 .strip_prefix('"')
                 .and_then(|value| value.strip_suffix('"'))
+                .or_else(|| {
+                    value
+                        .strip_prefix('\'')
+                        .and_then(|value| value.strip_suffix('\''))
+                })
                 .unwrap_or(value)
                 .to_string(),
         );
@@ -6775,13 +6787,28 @@ mod tests {
             reject_direct_lifecycle_verification(root, "cargo run --bin specsync -- check")
                 .is_err()
         );
+        assert!(
+            reject_direct_lifecycle_verification(root, "cargo run -p specsync -- check").is_err()
+        );
+        assert!(
+            reject_direct_lifecycle_verification(root, "cargo run --package specsync -- check")
+                .is_err()
+        );
+        assert!(reject_direct_lifecycle_verification(root, "specsync --strict").is_err());
 
         fs::write(
             root.join("Cargo.toml"),
-            "[package]\nname = \"specsync\"\nversion = \"0.1.0\"\n",
+            "[ package ]\nname = 'specsync' # lifecycle CLI\nversion = \"0.1.0\"\n",
         )
         .unwrap();
         assert!(reject_direct_lifecycle_verification(root, "cargo run -- check").is_err());
+        assert_eq!(
+            cargo_package_value(
+                "[ package ]\nname = 'specsync' # lifecycle CLI\n[dependencies]\nname = \"ignored\"\n",
+                "name"
+            ),
+            Some("specsync".into())
+        );
     }
 
     // Verifies REQ-change-030.
@@ -7335,6 +7362,7 @@ mod tests {
         assert!(path_is_meaningful(".specsync/sdd.json", &hostile));
         assert!(path_is_meaningful(".specsync/config.toml", &hostile));
         assert!(path_is_meaningful(".specsync/registry.toml", &hostile));
+        assert!(path_is_meaningful("specsync-registry.toml", &hostile));
         assert!(path_is_meaningful(SEQUENCE_PATH, &hostile));
         assert!(!path_is_meaningful(
             ".specsync/adoption-report.json",
@@ -7388,6 +7416,61 @@ mod tests {
         assert_ne!(first_workspace, second_workspace);
         assert_eq!(first_acceptance, second_acceptance);
         assert!(!project_input_is_volatile(SEQUENCE_PATH));
+    }
+
+    // Verifies REQ-change-029.
+    #[test]
+    fn later_collision_acknowledgements_do_not_stale_earlier_sequence_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut predecessor = completed_no_spec_record(root);
+        predecessor.state = ChangeState::Implementing;
+        predecessor.affected_paths = vec![SEQUENCE_PATH.into()];
+        save_change(root, &predecessor).unwrap();
+        let before = acceptance_input_digest(root, &predecessor, &[]).unwrap();
+
+        let mut successor = create_change(
+            root,
+            CreateChangeRequest {
+                description: "Later sequence owner".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/later".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("fixture".into()),
+            },
+        )
+        .unwrap();
+        successor.state = ChangeState::Accepted;
+        save_change(root, &successor).unwrap();
+        let mut duplicate = successor.clone();
+        duplicate.id = "CHG-0002-archived-collision".into();
+        duplicate.slug = "archived-collision".into();
+        duplicate.state = ChangeState::Archived;
+        let archived_dir = root
+            .join(ARCHIVE_PATH)
+            .join("2026-07-14-CHG-0002-archived-collision");
+        fs::create_dir_all(&archived_dir).unwrap();
+        write_json(&archived_dir.join("state.json"), &duplicate).unwrap();
+        let mut ids = vec![successor.id.clone(), duplicate.id.clone()];
+        ids.sort();
+        write_json(
+            &root.join(SEQUENCE_PATH),
+            &ChangeSequenceLedger {
+                schema_version: 1,
+                sequence: 2,
+                id: successor.id,
+                acknowledged_collisions: vec![ChangeSequenceCollision { sequence: 2, ids }],
+            },
+        )
+        .unwrap();
+
+        assert!(validate_change_sequences(root).is_ok());
+        assert_eq!(
+            before,
+            acceptance_input_digest(root, &predecessor, &[]).unwrap()
+        );
     }
 
     #[test]
@@ -7691,14 +7774,19 @@ mod tests {
             &delivering,
             "specs/client/requirements.md"
         ));
+        assert!(!record_covers_project_path(
+            root,
+            &delivering,
+            "specs/client/unrelated.md"
+        ));
         let first_acceptance = acceptance_input_digest(root, &delivering, &[]).unwrap();
         fs::write(
-            root.join("specs/client/requirements.md"),
-            "# Requirements\n\nUpdated.\n",
+            root.join("specs/client/unrelated.md"),
+            "# Unrelated\n\nUpdated.\n",
         )
         .unwrap();
         let second_acceptance = acceptance_input_digest(root, &delivering, &[]).unwrap();
-        assert_ne!(first_acceptance, second_acceptance);
+        assert_eq!(first_acceptance, second_acceptance);
         fs::write(
             delta_path(root, &record, "client-api"),
             "## MODIFIED\n### SPEC SECTION Invariants\n\nRegistry-backed behavior is stable.\n",

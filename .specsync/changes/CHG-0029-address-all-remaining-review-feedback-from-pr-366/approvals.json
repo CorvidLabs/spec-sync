@@ -27,6 +27,13 @@
       "timestamp": 1784036664,
       "digest": "460d14208654440b7ef3eff0c064a7b25614561c0730d6bbdb2f56916e6ad4e8",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784041270,
+      "digest": "a0bcfd6b6a79abbf562ddbb390f49608b1ddcc7474df697bfe260d3cb0440b32",
+      "note": "Fresh closing approval after PR 370 review corrections and complete native verification; prior approval history preserved."
     }
   ],
   "reopenings": [
@@ -66,6 +73,43 @@
       },
       "stale_acceptance_input_digest": "39e23113a35391823fd18c611363fea0c6fb0e1222aa8384b62fafb34857750b",
       "current_acceptance_input_digest": "79d33248bdda486dd4cee4c4dceb0f052299a8288c8a133f1b49b6fb487997e6"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0029-address-all-remaining-review-feedback-from-pr-366",
+      "actor": "user:0xLeif",
+      "reason": "PR 370 review corrections changed the governed lifecycle implementation; refresh native evidence without replaying the already-applied semantic delta.",
+      "timestamp": 1784040867,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784036664,
+        "digest": "460d14208654440b7ef3eff0c064a7b25614561c0730d6bbdb2f56916e6ad4e8",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784036428,
+        "commit": "c98d29810f78abcdd6a2fec9b137667d3ab2fc5b",
+        "contract_digest": "88a3212c5bfbb57319df6b0355b6c5655766d08b7200690e6ec19da140f3189f",
+        "workspace_digest": "aefc17093cb5e1e8209f233fe45c534ee9c1a853d7b04d022c1d760753a4a4a5",
+        "acceptance_input_digest": "79d33248bdda486dd4cee4c4dceb0f052299a8288c8a133f1b49b6fb487997e6",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-030",
+          "REQ-cli-004"
+        ]
+      },
+      "stale_acceptance_input_digest": "79d33248bdda486dd4cee4c4dceb0f052299a8288c8a133f1b49b6fb487997e6",
+      "current_acceptance_input_digest": "84b4d80c919a317d1881c7f5af177291c3fba808fe2af0ebb43963d06404ace3"
     }
   ]
 }

@@ -6,6 +6,13 @@
       "timestamp": 1784071006,
       "digest": "33abf8f7cbcf0f6070135299382fb5b5e85a2914b0f61ae337e6f0b59b9b547b",
       "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784073076,
+      "digest": "d31d94603a4aa76595f95c85ad718f1898a8586918fc8dd4a7ba76ac90c49836",
+      "note": null
     }
   ],
   "reopenings": []

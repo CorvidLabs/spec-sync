@@ -1,5 +1,5 @@
 ---
-change: CHG-0027-support-extensionless-source-discovery-through-an-explicit-include-extensionless
+change: CHG-0034-support-extensionless-source-discovery-through-an-explicit-include-extensionless
 artifact: docs
 ---
 

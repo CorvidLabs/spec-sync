@@ -20,6 +20,13 @@
       "timestamp": 1784052913,
       "digest": "a261483ed6ae30e148586b8176a36a8e5059ac0e38687d2bc61a63e29195e9ec",
       "note": "Refreshed closing approval after canonical EOF normalization and a second complete 1,774-test native verification."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784053183,
+      "digest": "b13e4b1d7bdd1aefb37b9f07534fe1b94f80b60562a4e9627a0ccd5d7ee062ef",
+      "note": "Closing approval after the formatted review correction passed all 1,577 unit and 197 integration tests."
     }
   ],
   "reopenings": [
@@ -59,6 +66,43 @@
       },
       "stale_acceptance_input_digest": "3a150aca727592ee127e18c0fa6173cc34805af06d4007be7811d9026f4fdff2",
       "current_acceptance_input_digest": "db7d5ac353fd0589b5ec6897593c460b88e8a949dd95b026adb811abe03a473f"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0035-count-mjs-and-cjs-files-as-default-typescript-sources-so-mapped-and-uncovered-mo",
+      "actor": "user:0xLeif",
+      "reason": "Refresh delivery evidence after the required Fledge formatting step normalized the review correction.",
+      "timestamp": 1784053159,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784052913,
+        "digest": "a261483ed6ae30e148586b8176a36a8e5059ac0e38687d2bc61a63e29195e9ec",
+        "note": "Refreshed closing approval after canonical EOF normalization and a second complete 1,774-test native verification."
+      },
+      "prior_verification": {
+        "timestamp": 1784052909,
+        "commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+        "contract_digest": "6c5b334ec7bdf678f86c486c2fd19277317b4346b47196e8be7a600a5913f8db",
+        "workspace_digest": "a3eb05d2ebf389fe81f33bbc79bec701dc8c8a105e05a64848430eb31b5a31f5",
+        "acceptance_input_digest": "db7d5ac353fd0589b5ec6897593c460b88e8a949dd95b026adb811abe03a473f",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-types-002",
+          "REQ-validator-006"
+        ]
+      },
+      "stale_acceptance_input_digest": "db7d5ac353fd0589b5ec6897593c460b88e8a949dd95b026adb811abe03a473f",
+      "current_acceptance_input_digest": "d144b9da322bdfedf8c21bcf5f6862d94b01db4856986003ea8f307757863aca"
     }
   ]
 }

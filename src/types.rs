@@ -649,7 +649,21 @@ impl Language {
     /// File patterns to exclude (test files, etc.).
     pub fn test_patterns(&self) -> &[&str] {
         match self {
-            Language::TypeScript => &[".test.ts", ".spec.ts", ".test.tsx", ".spec.tsx", ".d.ts"],
+            Language::TypeScript => &[
+                ".test.ts",
+                ".spec.ts",
+                ".test.tsx",
+                ".spec.tsx",
+                ".test.js",
+                ".spec.js",
+                ".test.jsx",
+                ".spec.jsx",
+                ".test.mjs",
+                ".spec.mjs",
+                ".test.cjs",
+                ".spec.cjs",
+                ".d.ts",
+            ],
             Language::Rust => &[], // Rust tests are inline, not separate files
             Language::Go => &["_test.go"],
             Language::Python => &["test_", "_test.py"],
@@ -713,6 +727,18 @@ mod language_extension_tests {
         assert_eq!(Language::from_extension("cjs"), Some(Language::TypeScript));
         assert!(Language::TypeScript.extensions().contains(&"mjs"));
         assert!(Language::TypeScript.extensions().contains(&"cjs"));
+        for pattern in [
+            ".test.js",
+            ".spec.js",
+            ".test.jsx",
+            ".spec.jsx",
+            ".test.mjs",
+            ".spec.mjs",
+            ".test.cjs",
+            ".spec.cjs",
+        ] {
+            assert!(Language::TypeScript.test_patterns().contains(&pattern));
+        }
     }
 }
 

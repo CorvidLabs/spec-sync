@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1784059857,
+      "commit": "232f484f5e6e772b4d8f76b73cbedf861d2f583c",
+      "contract_digest": "a8dd94ee5171949fc69b020fcfcba2ca9904e2152c6f3be40ee0ab977ddc2019",
+      "workspace_digest": "8a9f3cddd64486a72b35f6f2ca3e4e4f3999b898e7ac52af517b5d0b4861a407",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-new-002",
+        "REQ-cmd-scaffold-002",
+        "REQ-exports-004"
+      ]
+    }
+  ]
+}

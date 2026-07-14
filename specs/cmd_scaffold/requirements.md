@@ -48,3 +48,12 @@ Acceptance Criteria
 - `cmd_scaffold` registers the new module in `specsync-registry.toml` only when that file already exists at the repo root
 - On success, paths are printed relative to `root` with a checkmark; auto-detected source counts are reported
 
+### REQ-cmd-scaffold-002
+
+The add-spec scaffold SHALL exclude recognized test files from auto-detected module sources.
+
+Acceptance Criteria
+
+- JavaScript-family `.test.*` and `.spec.*` files are omitted.
+- Production files with configured or default source extensions remain included.
+

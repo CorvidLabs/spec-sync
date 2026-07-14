@@ -45,3 +45,12 @@ Acceptance Criteria
 - `--full` invokes `generator::generate_companion_files_for_spec`, creating `tasks.md`, `context.md`, `requirements.md`, `testing.md`, and `design.md` only when `companions.design` is enabled in config.
 - An existing target spec file causes exit code 1 with an error message; the command never overwrites it.
 
+### REQ-cmd-new-002
+
+The new command SHALL exclude recognized test files from auto-detected module sources.
+
+Acceptance Criteria
+
+- JavaScript-family `.test.*` and `.spec.*` files are omitted.
+- Production files with configured or default source extensions remain included.
+

@@ -6,6 +6,13 @@
       "timestamp": 1784059420,
       "digest": "a8dd94ee5171949fc69b020fcfcba2ca9904e2152c6f3be40ee0ab977ddc2019",
       "note": "Approve the scoped late-review corrections, deterministic regressions, and generated-spec test exclusion contract."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784059868,
+      "digest": "9d971947029bd1a3289c417c1f19e75d1c415aa8ec9e015088ba6a798daf4c29",
+      "note": "Native verification passed at 232f484f5e6e772b4d8f76b73cbedf861d2f583c: 1,587 unit and 199 integration tests, including chained CommonJS assignments, module-scope filtering, regex-literal masking, CommonJS class type filtering, and module-JavaScript test-file exclusion regressions."
     }
   ],
   "reopenings": []

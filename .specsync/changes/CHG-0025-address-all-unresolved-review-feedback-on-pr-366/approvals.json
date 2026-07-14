@@ -34,6 +34,13 @@
       "timestamp": 1783996064,
       "digest": "1830c0b5b8edd676a3fa575d82967cd3af23476231fc03a500606d6f8dab3ea7",
       "note": "Closing approval after explicit sequence-claim scoping and full native verification."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783997131,
+      "digest": "aa7908d8a34e96f047666abee16ae893e9bcd98603aa388f440880c805b956ec",
+      "note": "Closing approval after final-tree native verification following the private recursion-guard correction."
     }
   ],
   "reopenings": [

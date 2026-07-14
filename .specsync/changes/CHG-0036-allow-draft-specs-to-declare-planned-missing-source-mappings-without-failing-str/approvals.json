@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784054156,
+      "digest": "9651885b4ba786122d98ac96799f2ef1e1a3fdba87230c6e7ee22c564a809a32",
+      "note": "Approved the stacked CHG-0036 definition for truthful planned draft mappings, strict opt-in enforcement, structural safety, ownership validation, and format-complete notices."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784054806,
+      "digest": "42b615b4e50b4d19bd046066c432447bc0536e3a71ba9055756e6dad092086e3",
+      "note": "Reapproved the completed portable definition after expanding command/reporting scope and recording exact focused evidence."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784055075,
+      "digest": "e3a6b23505475af3212a13eb3d9b482b4731158949c2ea38ae75cf415722572f",
+      "note": "Native verification passed; planned draft mappings remain informational, excluded from coverage denominators, and restore fail-closed validation on activation or opt-in enforcement."
+    }
+  ],
+  "reopenings": []
+}

@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0036-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+  "slug": "allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+  "title": "Allow draft specs to declare planned missing source mappings without failing strict validation or changing coverage denominators",
+  "description": "Allow draft specs to declare planned missing source mappings without failing strict validation or changing coverage denominators",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "a20ce51fbcc48ead4cfd550cc55a24ae48391075",
+  "created_at": 1784054045,
+  "updated_at": 1784055075,
+  "affected_specs": [
+    "config",
+    "types",
+    "validator",
+    "commands"
+  ],
+  "affected_paths": [
+    "src/types.rs",
+    "src/config.rs",
+    "src/validator.rs",
+    "src/commands/mod.rs",
+    "src/commands/check.rs",
+    "src/commands",
+    "src/output.rs",
+    "src/comment.rs",
+    "tests/integration",
+    "specs/config",
+    "specs/types",
+    "specs/validator",
+    "specs/commands",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "By default, missing files mapped by draft specs produce explicit planned-mapping notices while strict validation passes.",
+    "Planned missing paths never enter current file or LOC coverage denominators, while real mapped files retain structural, safety, readability, and ownership validation.",
+    "Changing the same spec to active makes a missing mapping a strict error, and creating the planned file transitions it into normal mapping and coverage without configuration changes.",
+    "The default-false require_draft_files setting round-trips through TOML and legacy JSON and makes missing draft mappings fail for teams that opt in.",
+    "Draft-only, mixed draft and active, activation, file-creation, duplicate ownership, unsafe-path, configuration, native, and hosted regressions pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [
+    "CHG-0035-count-mjs-and-cjs-files-as-default-typescript-sources-so-mapped-and-uncovered-mo"
+  ],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

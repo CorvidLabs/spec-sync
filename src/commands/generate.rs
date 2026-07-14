@@ -64,7 +64,7 @@ fn cmd_generate_all(
         }
         (0, 0, 0, 0)
     } else {
-        let (te, tw, p, t, _, _) = run_validation(
+        let (te, tw, p, t, _, _, _) = run_validation(
             root,
             &spec_files,
             &schema_tables,
@@ -94,7 +94,7 @@ fn cmd_generate_all(
         } else {
             let schema_tables = get_schema_table_names(root, &config);
             let schema_columns = build_schema_columns(root, &config);
-            let (te, tw, _, _, _, _) = run_validation(
+            let (te, tw, _, _, _, _, _) = run_validation(
                 root,
                 &spec_files,
                 &schema_tables,
@@ -155,7 +155,7 @@ fn cmd_generate_all(
         let schema_columns = build_schema_columns(root, &config);
         coverage = compute_coverage(root, &spec_files, &config);
         if !spec_files.is_empty() {
-            let (te, tw, p, t, _, _) = run_validation(
+            let (te, tw, p, t, _, _, _) = run_validation(
                 root,
                 &spec_files,
                 &schema_tables,
@@ -258,7 +258,7 @@ fn cmd_generate_batch(
             let schema_tables = get_schema_table_names(root, &config);
             let schema_columns = build_schema_columns(root, &config);
             let ignore_rules = crate::ignore::IgnoreRules::default();
-            let (te, tw, _, _, _, _) = run_validation(
+            let (te, tw, _, _, _, _, _) = run_validation(
                 root,
                 &spec_files,
                 &schema_tables,
@@ -344,7 +344,7 @@ fn cmd_generate_batch(
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);
     let ignore_rules = crate::ignore::IgnoreRules::default();
-    let (total_errors, total_warnings, passed, total, _, _) = run_validation(
+    let (total_errors, total_warnings, passed, total, _, _, _) = run_validation(
         root,
         &spec_files,
         &schema_tables,

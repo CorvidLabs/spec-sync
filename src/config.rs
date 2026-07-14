@@ -401,6 +401,9 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
     if config.include_extensionless {
         lines.push("include_extensionless = true".to_string());
     }
+    if config.require_draft_files {
+        lines.push("require_draft_files = true".to_string());
+    }
 
     lines.push(toml_array_line(
         "required_sections",
@@ -623,6 +626,8 @@ const KNOWN_JSON_KEYS: &[&str] = &[
     "excludeDirs",
     "excludePatterns",
     "sourceExtensions",
+    "includeExtensionless",
+    "requireDraftFiles",
     "exportLevel",
     "parseMode",
     "modules",
@@ -851,6 +856,7 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                 "exclude_patterns" => config.exclude_patterns = parse_toml_string_array(value),
                 "source_extensions" => config.source_extensions = parse_toml_string_array(value),
                 "include_extensionless" => config.include_extensionless = parse_toml_bool(value),
+                "require_draft_files" => config.require_draft_files = parse_toml_bool(value),
                 key if LEGACY_AI_TOML_KEYS.contains(&key) => warn_retired_ai_key(key),
                 "export_level" => {
                     let s = parse_toml_string(value);
@@ -2248,6 +2254,35 @@ verify_issues = false
                 .unwrap();
         assert!(config.source_extensions.is_empty());
         assert!(config.include_extensionless);
+    }
+
+    #[test]
+    fn test_config_to_toml_roundtrips_require_draft_files() {
+        let default_config = SpecSyncConfig::default();
+        assert!(!default_config.require_draft_files);
+        assert!(!config_to_toml(&default_config).contains("require_draft_files"));
+        assert!(!roundtrip_toml(&default_config).require_draft_files);
+
+        let enabled = SpecSyncConfig {
+            require_draft_files: true,
+            ..SpecSyncConfig::default()
+        };
+        assert!(config_to_toml(&enabled).contains("require_draft_files = true"));
+        assert!(roundtrip_toml(&enabled).require_draft_files);
+    }
+
+    #[test]
+    fn test_toml_and_legacy_json_read_require_draft_files() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "require_draft_files = true\n",
+        )
+        .unwrap();
+        assert!(load_config(tmp.path()).require_draft_files);
+
+        let json: SpecSyncConfig = serde_json::from_str(r#"{"requireDraftFiles": true}"#).unwrap();
+        assert!(json.require_draft_files);
     }
 
     #[test]

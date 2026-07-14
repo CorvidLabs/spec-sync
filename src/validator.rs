@@ -299,16 +299,28 @@ pub fn validate_spec(
     for file in &fm.files {
         let full_path = root.join(file);
         if !full_path.exists() {
-            result.errors.push(format!("Source file not found: {file}"));
-            // Suggest similar files
-            if let Some(suggestion) = suggest_similar_file(root, file) {
-                result.fixes.push(format!(
-                    "Did you mean `{suggestion}`? Update the path in frontmatter"
+            let planned_draft_mapping = spec_status == Some(crate::types::SpecStatus::Draft)
+                && !config.require_draft_files
+                && planned_source_path_is_safe(file);
+            if planned_draft_mapping {
+                result.notices.push(format!(
+                    "Planned source mapping (draft; file not created yet): {file}"
                 ));
             } else {
-                result.fixes.push(format!(
-                    "Remove `{file}` from files list or create the source file"
-                ));
+                result.errors.push(format!("Source file not found: {file}"));
+                if !planned_source_path_is_safe(file) {
+                    result.fixes.push(format!(
+                        "Use a safe project-relative path for `{file}` (no absolute paths, `..`, drive prefixes, or backslashes)"
+                    ));
+                } else if let Some(suggestion) = suggest_similar_file(root, file) {
+                    result.fixes.push(format!(
+                        "Did you mean `{suggestion}`? Update the path in frontmatter"
+                    ));
+                } else {
+                    result.fixes.push(format!(
+                        "Remove `{file}` from files list or create the source file"
+                    ));
+                }
             }
         } else if !source_within_root(root, file) {
             result.errors.push(format!(
@@ -978,6 +990,21 @@ pub fn source_within_root(root: &Path, file: &str) -> bool {
         (Ok(canon_root), Ok(canon_full)) => canon_full.starts_with(&canon_root),
         _ => true,
     }
+}
+
+/// Whether a not-yet-created source mapping is a portable project-relative path.
+fn planned_source_path_is_safe(file: &str) -> bool {
+    let path = Path::new(file);
+    !file.is_empty()
+        && !file.contains('\\')
+        && !path.is_absolute()
+        && file.as_bytes().get(1).is_none_or(|byte| *byte != b':')
+        && path.components().all(|component| {
+            matches!(
+                component,
+                std::path::Component::Normal(_) | std::path::Component::CurDir
+            )
+        })
 }
 
 #[cfg(test)]

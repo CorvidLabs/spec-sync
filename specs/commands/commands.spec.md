@@ -1,6 +1,6 @@
 ---
 module: commands
-version: 7
+version: 8
 status: stable
 files:
   - src/commands/mod.rs
@@ -169,3 +169,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-04-11 | Add lifecycle submodule and filter_by_status function |
 | 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-14 | CHG-0036-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str: Allow draft specs to declare planned missing source mappings without failing strict validation or changing coverage denominators |

@@ -43,3 +43,14 @@ The system SHALL describe registered command modules using their current persist
 Acceptance Criteria
 - The init registry entry names the `.specsync/` 5.0 layout rather than the removed root JSON layout.
 - Command documentation remains consistent with the dispatched modules.
+
+### REQ-commands-002
+
+Check reporting SHALL expose planned mapping notices separately from warnings in text, JSON, Markdown, and GitHub formats.
+
+Acceptance Criteria
+
+- Text output identifies each planned path without printing a misleading all-files-exist check.
+- Structured JSON includes a deterministic notices array.
+- Markdown and GitHub reports include a planned mappings section.
+- Notice-only results remain passing under strict enforcement.

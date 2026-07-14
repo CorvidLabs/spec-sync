@@ -93,6 +93,7 @@ pub fn print_check_markdown(
     errors: usize,
     all_errors: &[String],
     all_warnings: &[String],
+    all_notices: &[String],
     coverage: &types::CoverageReport,
     overall_passed: bool,
 ) {
@@ -116,6 +117,14 @@ pub fn print_check_markdown(
         println!("### Warnings\n");
         for w in all_warnings {
             println!("- {w}");
+        }
+        println!();
+    }
+
+    if !all_notices.is_empty() {
+        println!("### Planned Mappings\n");
+        for notice in all_notices {
+            println!("- {notice}");
         }
         println!();
     }

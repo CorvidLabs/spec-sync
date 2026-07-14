@@ -86,6 +86,233 @@ fn check_missing_source_file_fails() {
 }
 
 #[test]
+fn draft_planned_mapping_passes_strict_and_is_absent_from_coverage() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/current")).unwrap();
+    fs::create_dir_all(root.join("specs/future")).unwrap();
+    fs::write(root.join("src/current.ts"), "// current\n").unwrap();
+    fs::write(
+        root.join("specs/current/current.spec.md"),
+        complete_coverage_spec("current", &["src/current.ts"]),
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/future/future.spec.md"),
+        complete_coverage_spec("future", &["src/future.ts"])
+            .replace("status: active", "status: draft"),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--strict", "--require-coverage", "100", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Planned source mapping (draft; file not created yet): src/future.ts",
+        ))
+        .stdout(predicate::str::contains("File coverage: 1/1 (100%)"))
+        .stdout(predicate::str::contains("LOC coverage:  1/1 (100%)"));
+
+    let json = specsync()
+        .args(["check", "--strict", "--force", "--format", "json"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: serde_json::Value = serde_json::from_slice(&json).unwrap();
+    assert_eq!(value["passed"], true);
+    assert_eq!(value["warnings"], serde_json::json!([]));
+    assert!(
+        value["notices"][0]
+            .as_str()
+            .unwrap()
+            .contains("src/future.ts")
+    );
+
+    for format in ["markdown", "github"] {
+        specsync()
+            .args(["check", "--strict", "--force", "--format", format])
+            .arg("--root")
+            .arg(root)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("### Planned Mappings"))
+            .stdout(predicate::str::contains("src/future.ts"));
+    }
+
+    fs::write(root.join("src/future.ts"), "// now implemented\n").unwrap();
+    specsync()
+        .args(["check", "--strict", "--require-coverage", "100", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("File coverage: 2/2 (100%)"))
+        .stdout(predicate::str::contains("LOC coverage:  2/2 (100%)"))
+        .stdout(predicate::str::contains("Planned source mapping").not());
+}
+
+#[test]
+fn mixed_draft_and_active_missing_mappings_only_exempt_the_draft() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("specs/draft")).unwrap();
+    fs::create_dir_all(root.join("specs/active")).unwrap();
+    fs::write(
+        root.join("specs/draft/draft.spec.md"),
+        complete_coverage_spec("draft", &["src/planned.ts"])
+            .replace("status: active", "status: draft"),
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/active/active.spec.md"),
+        complete_coverage_spec("active", &["src/missing.ts"]),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Planned source mapping"))
+        .stdout(predicate::str::contains(
+            "Source file not found: src/missing.ts",
+        ));
+}
+
+#[test]
+fn draft_mapping_transitions_on_activation_and_file_creation() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("specs/future")).unwrap();
+    let spec_path = root.join("specs/future/future.spec.md");
+    let active = complete_coverage_spec("future", &["src/future.ts"]);
+    fs::write(
+        &spec_path,
+        active.replace("status: active", "status: draft"),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Planned source mapping"));
+
+    fs::write(&spec_path, &active).unwrap();
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Source file not found"));
+
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/future.ts"), "// implemented\n").unwrap();
+    specsync()
+        .args(["check", "--strict", "--require-coverage", "100", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("File coverage: 1/1 (100%)"))
+        .stdout(predicate::str::contains("Planned source mapping").not());
+}
+
+#[test]
+fn require_draft_files_restores_missing_file_errors() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::write(
+        root.join(".specsync.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\nrequire_draft_files = true\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/future")).unwrap();
+    fs::write(
+        root.join("specs/future/future.spec.md"),
+        complete_coverage_spec("future", &["src/future.ts"])
+            .replace("status: active", "status: draft"),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "Source file not found: src/future.ts",
+        ));
+}
+
+#[test]
+fn draft_existing_files_keep_ownership_and_path_safety_validation() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/one")).unwrap();
+    fs::create_dir_all(root.join("specs/two")).unwrap();
+    fs::write(root.join("src/shared.ts"), "// shared\n").unwrap();
+    fs::write(
+        root.join("specs/one/one.spec.md"),
+        complete_coverage_spec("one", &["src/shared.ts"])
+            .replace("status: active", "status: draft"),
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/two/two.spec.md"),
+        complete_coverage_spec("two", &["src/shared.ts"]),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "Source file has duplicate spec ownership: src/shared.ts",
+        ));
+
+    fs::write(
+        root.join("specs/one/one.spec.md"),
+        complete_coverage_spec("one", &["../outside.ts"])
+            .replace("status: active", "status: draft"),
+    )
+    .unwrap();
+    fs::remove_file(root.join("specs/two/two.spec.md")).unwrap();
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "Source file not found: ../outside.ts",
+        ))
+        .stdout(predicate::str::contains("Planned source mapping").not());
+}
+
+#[test]
 fn check_undocumented_export_warns() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().to_path_buf();

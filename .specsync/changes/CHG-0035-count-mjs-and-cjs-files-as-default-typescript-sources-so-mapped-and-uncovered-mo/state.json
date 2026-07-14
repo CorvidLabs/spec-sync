@@ -5,11 +5,11 @@
   "title": "Count mjs and cjs files as default TypeScript sources so mapped and uncovered module files contribute to strict file and LOC coverage denominators",
   "description": "Count mjs and cjs files as default TypeScript sources so mapped and uncovered module files contribute to strict file and LOC coverage denominators",
   "kind": "bug_fix",
-  "state": "accepted",
+  "state": "verifying",
   "canonical_applied": true,
   "base_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
   "created_at": 1784052554,
-  "updated_at": 1784054257,
+  "updated_at": 1784058576,
   "affected_specs": [
     "types",
     "validator"

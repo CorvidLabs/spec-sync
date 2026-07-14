@@ -103,6 +103,43 @@
       },
       "stale_acceptance_input_digest": "db7d5ac353fd0589b5ec6897593c460b88e8a949dd95b026adb811abe03a473f",
       "current_acceptance_input_digest": "d0c98a938507fb9671aec2634979b0bae5c1707c26ad52d0c9fcb9fbcdad1101"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0035-count-mjs-and-cjs-files-as-default-typescript-sources-so-mapped-and-uncovered-mo",
+      "actor": "user:0xLeif",
+      "reason": "CHG-0037 added a strict module JavaScript regression in the overlapping integration test path, so the accepted coverage delivery requires fresh aggregate verification.",
+      "timestamp": 1784058576,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784054257,
+        "digest": "23c7960a9852964d0c5706fbe9c1215d23019491a6f2dda190bc53668ff20189",
+        "note": "Closing approval after the clean review correction passed 1,577 unit tests, 198 integration tests, strict specs, release build, and the Trust gate."
+      },
+      "prior_verification": {
+        "timestamp": 1784054113,
+        "commit": "60144d67a13a00a1c1b719e9048d49d1bff7779e",
+        "contract_digest": "6c5b334ec7bdf678f86c486c2fd19277317b4346b47196e8be7a600a5913f8db",
+        "workspace_digest": "205d568eb4f706e710999911faa6e20e7a07ad5e152b2c58c12f83826864a023",
+        "acceptance_input_digest": "d0c98a938507fb9671aec2634979b0bae5c1707c26ad52d0c9fcb9fbcdad1101",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-types-002",
+          "REQ-validator-006"
+        ]
+      },
+      "stale_acceptance_input_digest": "d0c98a938507fb9671aec2634979b0bae5c1707c26ad52d0c9fcb9fbcdad1101",
+      "current_acceptance_input_digest": "fadaf1ac863471aeb803768a28358fee55456f58bf748c5b9b98971f89e675e9"
     }
   ]
 }

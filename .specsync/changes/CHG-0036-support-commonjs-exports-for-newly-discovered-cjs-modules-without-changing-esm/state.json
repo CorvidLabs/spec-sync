@@ -5,11 +5,11 @@
   "title": "Support CommonJS exports for newly discovered .cjs modules without changing ESM behavior",
   "description": "Support CommonJS exports for newly discovered .cjs modules without changing ESM behavior",
   "kind": "feature",
-  "state": "accepted",
+  "state": "verifying",
   "canonical_applied": true,
   "base_commit": "096425ec9fc32e58f18aa2d42a7c65a30fac41cf",
   "created_at": 1784054902,
-  "updated_at": 1784057431,
+  "updated_at": 1784058576,
   "affected_specs": [
     "exports"
   ],

@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784040278,
+      "digest": "0592823b318c3df9cd1815251b265c039ce8c829bd6a5b6f7cd91120b807c501",
+      "note": "Definition approved for the five bounded PR 370 review corrections and their exact regression boundary."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784040382,
+      "digest": "0592823b318c3df9cd1815251b265c039ce8c829bd6a5b6f7cd91120b807c501",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784040542,
+      "digest": "09b039530e66695e3117f6bc632604ff8a821bf2241d2e03210d76eb8586fda0",
+      "note": "Definition re-approved after all five bounded corrections, regression tests, and truthful completed native tasks were reviewed."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784040717,
+      "digest": "73323fffde3ae77c4fa96199d67114bc59e17c6cea97af7c0aa74187cb959cf3",
+      "note": "Definition re-approved with explicit non-vacuous evidence mappings for REQ-change-029 and REQ-change-030."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784040793,
+      "digest": "e2371e14b4f64fa124a87d748521f04d0bd629fe57d1c7e01eccbde8d7e6f129",
+      "note": "Closing approval after 1,568 unit tests, 193 integration tests, Clippy, formatting, and explicit REQ-change-029/030 evidence all passed; hosted CI remains pending."
+    }
+  ],
+  "reopenings": []
+}

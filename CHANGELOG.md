@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Lifecycle intent and scope preservation** — change interviews keep acceptance-criteria prose intact unless callers explicitly provide a JSON string array, recursive Cargo verification honors safe `--manifest-path` selection before mutating evidence, and affected spec modules cover only their canonical spec and standard companion files.
+
 ## [5.0.2] - 2026-07-13
 
 ### Added

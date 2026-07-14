@@ -41,6 +41,27 @@
       "timestamp": 1783997131,
       "digest": "aa7908d8a34e96f047666abee16ae893e9bcd98603aa388f440880c805b956ec",
       "note": "Closing approval after final-tree native verification following the private recursion-guard correction."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784035473,
+      "digest": "46b0f87eb573eda1592f12eac80315a630144ac8b8ad54d15e8170f820cf1b18",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784037558,
+      "digest": "238f5e7296a869e42e93b9e2be78372b6bc1406e649be114d5871d841daa84c6",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784041001,
+      "digest": "6b4f4bd5077197895a7bd1ec21310c6183fd54c33ce7cf31c0f13cd9ba0cf74d",
+      "note": "Fresh closing approval after PR 370 review corrections and complete native verification; prior approval history preserved."
     }
   ],
   "reopenings": [
@@ -125,6 +146,170 @@
       },
       "stale_acceptance_input_digest": "0c3d1c143778a865fd70a84dc4d7f71d8944ea2badb87ea75d5ce349209c1501",
       "current_acceptance_input_digest": "daa4579cf57aaab312892790f6dc4017385a94bc5286be65fc6605041f4b7616"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0025-address-all-unresolved-review-feedback-on-pr-366",
+      "actor": "0xLeif",
+      "reason": "Accepted src/change.rs inputs were legitimately updated by the canonical CHG-0027 and CHG-0029 applications.",
+      "timestamp": 1784035310,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1783997131,
+        "digest": "aa7908d8a34e96f047666abee16ae893e9bcd98603aa388f440880c805b956ec",
+        "note": "Closing approval after final-tree native verification following the private recursion-guard correction."
+      },
+      "prior_verification": {
+        "timestamp": 1783997012,
+        "commit": "990dbd6f874c7282faf9797003d163fae3736abd",
+        "contract_digest": "ee5819f2f1397f1a05d72e9ee6ac5344a78609159f42c21e7d5dbf95f643c32e",
+        "workspace_digest": "86e6cecedac64b4d6dfaca58904f94da14a48244034e6f0b02ad8ee207ab64c3",
+        "acceptance_input_digest": "daa4579cf57aaab312892790f6dc4017385a94bc5286be65fc6605041f4b7616",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-026",
+          "REQ-change-027",
+          "REQ-change-028",
+          "REQ-cli-003",
+          "REQ-config-002",
+          "REQ-validator-004"
+        ]
+      },
+      "stale_acceptance_input_digest": "daa4579cf57aaab312892790f6dc4017385a94bc5286be65fc6605041f4b7616",
+      "current_acceptance_input_digest": "9ccd8004d3e6a68aa9af037f7655822666dc69e74649f364f364c542c86d9287"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0025-address-all-unresolved-review-feedback-on-pr-366",
+      "actor": "0xLeif",
+      "reason": "Accepted CHG-0030 legitimately updates the accepted src/change.rs input.",
+      "timestamp": 1784037035,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784035473,
+        "digest": "46b0f87eb573eda1592f12eac80315a630144ac8b8ad54d15e8170f820cf1b18",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784035412,
+        "commit": "c98d29810f78abcdd6a2fec9b137667d3ab2fc5b",
+        "contract_digest": "ee5819f2f1397f1a05d72e9ee6ac5344a78609159f42c21e7d5dbf95f643c32e",
+        "workspace_digest": "ec715672c1bb35fee50814a97fa651583e8e030ff100fe634687c9d9354a6d1d",
+        "acceptance_input_digest": "9ccd8004d3e6a68aa9af037f7655822666dc69e74649f364f364c542c86d9287",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-026",
+          "REQ-change-027",
+          "REQ-change-028",
+          "REQ-cli-003",
+          "REQ-config-002",
+          "REQ-validator-004"
+        ]
+      },
+      "stale_acceptance_input_digest": "9ccd8004d3e6a68aa9af037f7655822666dc69e74649f364f364c542c86d9287",
+      "current_acceptance_input_digest": "7ccabe5ee2ea8e420c8ab61d59f11f739b7c64df211b5c27d2b3825997e42e3f"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0025-address-all-unresolved-review-feedback-on-pr-366",
+      "actor": "user:0xLeif",
+      "reason": "PR 370 review corrections changed the governed lifecycle implementation; refresh native evidence without replaying the already-applied semantic delta.",
+      "timestamp": 1784040851,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784037558,
+        "digest": "238f5e7296a869e42e93b9e2be78372b6bc1406e649be114d5871d841daa84c6",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784037110,
+        "commit": "c98d29810f78abcdd6a2fec9b137667d3ab2fc5b",
+        "contract_digest": "ee5819f2f1397f1a05d72e9ee6ac5344a78609159f42c21e7d5dbf95f643c32e",
+        "workspace_digest": "aefc17093cb5e1e8209f233fe45c534ee9c1a853d7b04d022c1d760753a4a4a5",
+        "acceptance_input_digest": "7ccabe5ee2ea8e420c8ab61d59f11f739b7c64df211b5c27d2b3825997e42e3f",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-026",
+          "REQ-change-027",
+          "REQ-change-028",
+          "REQ-cli-003",
+          "REQ-config-002",
+          "REQ-validator-004"
+        ]
+      },
+      "stale_acceptance_input_digest": "7ccabe5ee2ea8e420c8ab61d59f11f739b7c64df211b5c27d2b3825997e42e3f",
+      "current_acceptance_input_digest": "7f82853c89a3245faa683619a6aa4f3462f59a4b6ada6222cda33d154dbeb9cf"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0025-address-all-unresolved-review-feedback-on-pr-366",
+      "actor": "0xLeif",
+      "reason": "Verified CHG-0033 legitimately updates the accepted src/change.rs input.",
+      "timestamp": 1784046504,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784041001,
+        "digest": "6b4f4bd5077197895a7bd1ec21310c6183fd54c33ce7cf31c0f13cd9ba0cf74d",
+        "note": "Fresh closing approval after PR 370 review corrections and complete native verification; prior approval history preserved."
+      },
+      "prior_verification": {
+        "timestamp": 1784040988,
+        "commit": "f622d09778e0e78b1fd8dea97f7c5e657e2b7c79",
+        "contract_digest": "ee5819f2f1397f1a05d72e9ee6ac5344a78609159f42c21e7d5dbf95f643c32e",
+        "workspace_digest": "d8a2265700699bd52e9d6cee9b787938df77989115a0f3df6498f66a431d4e3e",
+        "acceptance_input_digest": "7f82853c89a3245faa683619a6aa4f3462f59a4b6ada6222cda33d154dbeb9cf",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-026",
+          "REQ-change-027",
+          "REQ-change-028",
+          "REQ-cli-003",
+          "REQ-config-002",
+          "REQ-validator-004"
+        ]
+      },
+      "stale_acceptance_input_digest": "7f82853c89a3245faa683619a6aa4f3462f59a4b6ada6222cda33d154dbeb9cf",
+      "current_acceptance_input_digest": "d376a51540a3c02d95f646471157eb9ffcdc8c3543a5f3e2c3551ca32913c989"
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 26,
-  "id": "CHG-0026-keep-lifecycle-recursion-detection-private-while-preserving-deterministic-nested",
+  "sequence": 33,
+  "id": "CHG-0033-close-final-5-0-2-lifecycle-review-and-intent-preservation-gaps",
   "acknowledged_collisions": [
     {
       "sequence": 16,

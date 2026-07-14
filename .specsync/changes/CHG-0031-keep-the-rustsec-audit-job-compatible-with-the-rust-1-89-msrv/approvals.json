@@ -1,0 +1,47 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784039282,
+      "digest": "1abb6081edc12dbe47a5187719bcbf51dcd39c0dc44e03d4a90c71c543bd22e8",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784039469,
+      "digest": "84826d7c5aacaee19b674230e369b5f81360795d724910da2e60327a12acf0b0",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784039608,
+      "digest": "84826d7c5aacaee19b674230e369b5f81360795d724910da2e60327a12acf0b0",
+      "note": "Definition approved for the bounded CI audit installer correction; advisory enforcement remains unchanged."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784039675,
+      "digest": "f27de9ccf9430ef45801b43ecbccce4ed85e43097b4dc604384cf9c11d8aaeb3",
+      "note": "Definition re-approved after replacing the circular hosted-CI task with the truthful completed required-gate configuration task."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784039813,
+      "digest": "792e7a8751609b2cbeca63c3414caf34f416b9aff8a005e6fd66d92bba472916",
+      "note": "Definition refreshed after native verification evidence was recorded; scope and semantics remain unchanged."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784039951,
+      "digest": "94798e2fb2572db067b7816445b59ce7ae3b306f708e8f21d4ecf1be502bd946",
+      "note": "Closing approval after actionlint and the complete native 1,567-unit plus 193-integration verification passed; hosted audit remains pending and is not claimed here."
+    }
+  ],
+  "reopenings": []
+}

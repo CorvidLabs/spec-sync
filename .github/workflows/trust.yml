@@ -18,7 +18,25 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.89.0
         with:
           components: rustfmt, clippy
-      # Native CI builds and exercises the pull-request binary before this immutable release gate.
+      - name: Package SpecSync release candidate for Trust
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release --locked
+          mirror="${RUNNER_TEMP}/specsync-trust-mirror"
+          binary="specsync-linux-x86_64"
+          mkdir -p "$mirror"
+          cp target/release/specsync "$mirror/$binary"
+          tar -czf "$mirror/$binary.tar.gz" -C "$mirror" "$binary"
+          (
+            cd "$mirror"
+            sha256sum "$binary.tar.gz" > "$binary.tar.gz.sha256"
+          )
+      # Trust revalidates this checksum-protected runner-local mirror before
+      # exercising the pull-request binary as the immutable contract gate.
       - name: CorvidLabs Trust gate
         id: trust
-        uses: CorvidLabs/trust@9d32b5786d2e9e4d39fc581c0091c721ee3d4226 # v1.0.0
+        uses: CorvidLabs/trust@ada07787b6e3f9ec31e3d2abe469d71a2024ddfd # v1.0.1
+        with:
+          specsync-version: "5.0.2"
+          specsync-download-base-url: file://${{ runner.temp }}/specsync-trust-mirror

@@ -37,6 +37,8 @@ specsync change answer CHG-0001-add-passkeys public_contract yes --json
 specsync change answer CHG-0001-add-passkeys architecture_risk yes --json
 ```
 
+Acceptance criteria preserve the submitted prose as one criterion, including commas and line breaks. To submit more than one criterion, pass an explicit JSON string array such as `'["Passkey login works", "Recovery remains available"]'`. Scope questions such as `affected_specs` and `affected_paths` continue to accept comma- or newline-separated lists.
+
 The shared deterministic engine asks only unresolved questions and selects requirements, research, design, plan, tasks, context, testing, docs, or custom artifacts according to change type and risk. Agent skills present the same questions conversationally.
 
 Every new change also updates `.specsync/change-sequence.json`. Because that protected claim is committed, two branches that independently select the same numeric sequence conflict during Git integration instead of silently creating duplicate `CHG-NNNN` records. Sequences use at least four digits and continue past `CHG-9999`. Strict lifecycle checking scans active and archived workspaces together. Historical collisions can be preserved only by listing the exact sequence and complete set of immutable accepted or archived full IDs under `acknowledged_collisions`; adding or removing an ID, or including a mutable lifecycle state, makes the baseline fail closed.

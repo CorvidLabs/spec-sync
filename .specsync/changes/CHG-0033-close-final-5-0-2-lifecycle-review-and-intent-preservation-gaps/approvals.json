@@ -1,0 +1,33 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784044922,
+      "digest": "810bf4d46fe288e9a3428a4159f8cc96c302406ac6f5fadabfcc10965c46f374",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784045766,
+      "digest": "3adcdb4cf4aa832e4eff05988dd5f6a3a82592f5f260d31b34014f8ff4cc5604",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784046392,
+      "digest": "bb11468a62abd06c8b89070450ff93ac5fdd2fcb5f44f6475af9dbe88573a10f",
+      "note": "Reapproved after audit repair with exact implementation, docs, changelog, canonical companion, and sequence-ledger scope."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784046595,
+      "digest": "385806750a95e25ba3c0b4f4d6e9d8f7a6ae39f026d8a170b005600b3a353587",
+      "note": "Closing approval after the full native suite, exact strict coverage audit, public documentation, and canonical requirement updates passed."
+    }
+  ],
+  "reopenings": []
+}

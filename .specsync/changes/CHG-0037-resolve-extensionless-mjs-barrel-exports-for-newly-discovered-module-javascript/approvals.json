@@ -6,6 +6,13 @@
       "timestamp": 1784058361,
       "digest": "e66949c4c54a310717068cc37d7d8d3665e0216d3b808212a8e1ae34b4b5c29e",
       "note": "Approve the scoped extensionless module JavaScript resolver contract, fixtures, and lifecycle dependency on accepted CHG-0036."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784058432,
+      "digest": "45bd2f1031f6379288550107fa98a6f27c8d00e9e22e05739e0dfaabcba5b68e",
+      "note": "Closing approval after successful native verification at 82562f3787302e8f3efd67262a4c1d6f99c3cc00: 1,582 unit tests and 199 integration tests passed, including strict regex/AST module JavaScript barrel regressions."
     }
   ],
   "reopenings": []

@@ -1,6 +1,6 @@
 ---
 module: exports
-version: 6
+version: 7
 status: stable
 files:
   - src/exports/mod.rs
@@ -324,6 +324,7 @@ text and is intentionally excluded by code-only Rust dependency extraction.
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-14 | CHG-0036-support-commonjs-exports-for-newly-discovered-cjs-modules-without-changing-esm: Support CommonJS exports for newly discovered .cjs modules without changing ESM behavior |
+| 2026-07-14 | CHG-0037-resolve-extensionless-mjs-barrel-exports-for-newly-discovered-module-javascript: Resolve extensionless mjs barrel exports for newly discovered module JavaScript sources |
 
 ## CommonJS Extraction
 

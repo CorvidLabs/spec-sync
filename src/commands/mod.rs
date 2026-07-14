@@ -281,6 +281,7 @@ pub fn run_validation(
     let mut all_warnings: Vec<String> = Vec::new();
     let mut all_notices: Vec<String> = Vec::new();
     let mut file_owners: HashMap<String, Vec<String>> = HashMap::new();
+    let mut spec_files_by_path: HashMap<PathBuf, HashSet<String>> = HashMap::new();
     for spec_file in spec_files {
         let Ok(content) = std::fs::read_to_string(spec_file) else {
             continue;
@@ -293,14 +294,18 @@ pub fn run_validation(
             .unwrap_or(spec_file)
             .to_string_lossy()
             .replace('\\', "/");
+        let mut existing_files = HashSet::new();
         for file in &parsed.frontmatter.files {
             if root.join(file).is_file() && source_within_root(root, file) {
-                let owners = file_owners.entry(file.replace('\\', "/")).or_default();
+                let normalized_file = file.replace('\\', "/");
+                let owners = file_owners.entry(normalized_file.clone()).or_default();
                 if !owners.contains(&owner) {
                     owners.push(owner.clone());
                 }
+                existing_files.insert(normalized_file);
             }
         }
+        spec_files_by_path.insert(spec_file.clone(), existing_files);
     }
 
     for spec_file in spec_files {
@@ -310,8 +315,8 @@ pub fn run_validation(
             .unwrap_or(spec_file)
             .to_string_lossy()
             .replace('\\', "/");
-        for (file, owners) in &file_owners {
-            if owners.len() > 1 && owners.iter().any(|candidate| candidate == &owner) {
+        for file in spec_files_by_path.get(spec_file).into_iter().flatten() {
+            if let Some(owners) = file_owners.get(file).filter(|owners| owners.len() > 1) {
                 let others = owners
                     .iter()
                     .filter(|candidate| *candidate != &owner)

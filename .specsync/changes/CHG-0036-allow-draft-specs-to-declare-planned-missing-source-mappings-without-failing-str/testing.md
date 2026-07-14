@@ -27,3 +27,8 @@ Canonical requirement evidence:
 
 - `REQ-config-004`: `config::tests::test_config_to_toml_roundtrips_require_draft_files` and `test_toml_and_legacy_json_read_require_draft_files`.
 - `REQ-types-003`, `REQ-validator-007`, and `REQ-commands-002`: the five planned-mapping integration regressions validate notice separation, strict behavior, transitions, ownership, safety, and every check output format.
+
+Review correction evidence:
+
+- duplicate-ownership reporting records the existing files for each spec during the ownership pass, then performs direct lookups only for those files instead of scanning every project mapping for every spec;
+- `cargo test --test integration draft_existing_files_keep_ownership_and_path_safety_validation` passes after the optimization.

@@ -52,7 +52,6 @@ Acceptance Criteria
 
 - `run_validation` returns deterministic notice strings as a seventh tuple member.
 - Text output identifies each planned path without printing a misleading all-files-exist check.
-- Structured JSON includes a deterministic notices array.
+- Structured JSON includes a deterministic notices array on normal, SDD-error, unmatched-filter, and no-spec exit paths.
 - Markdown and GitHub reports include a planned mappings section.
 - Notice-only results remain passing under strict enforcement.
-

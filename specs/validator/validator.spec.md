@@ -33,8 +33,8 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 | `get_schema_table_names` | `root, config` | `HashSet<String>` | Extract table names from SQL schema files using configurable regex |
 | `is_cross_project_ref` | `dep: &str` | `bool` | Check if a dependency string is a cross-project ref (`owner/repo@module`) |
 | `parse_cross_project_ref` | `dep: &str` | `Option<(&str, &str)>` | Parse cross-project ref into (owner/repo, module) tuple |
-| `normalize_source_mapping` | `file: &str` | `Option<String>` | Normalize a safe project-relative mapping by removing redundant current-directory segments and rejecting absolute, parent, or prefixed paths; shared by ownership and coverage |
-| `source_within_root` | `root: &Path, file: &str` | `bool` | Whether a `files:` entry resolves inside the project root (rejects absolute/`..`/symlink escapes); shared guard for every export-extraction site |
+| `normalize_source_mapping` | `file: &str` | `Option<String>` | Normalize a safe project-relative mapping by removing redundant current-directory segments and rejecting absolute, parent, or prefixed paths; callers also reject backslashes so ownership, validation, and coverage share one portable mapping contract |
+| `source_within_root` | `root: &Path, file: &str` | `bool` | Whether a `files:` entry or the nearest existing ancestor of a missing leaf resolves inside the project root (rejects absolute/`..`/symlink-parent escapes); shared guard for every export-extraction site |
 
 ## Invariants
 

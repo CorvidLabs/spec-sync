@@ -53,6 +53,7 @@ fn sdd_failure_json_preserves_check_schema() {
         "passed",
         "errors",
         "warnings",
+        "notices",
         "stale",
         "specs_checked",
         "sdd",
@@ -60,6 +61,25 @@ fn sdd_failure_json_preserves_check_schema() {
         assert!(value.get(key).is_some(), "missing JSON key {key}");
     }
     assert_eq!(value["passed"], false);
+    assert_eq!(value["notices"], serde_json::json!([]));
+}
+
+#[test]
+fn no_specs_json_preserves_empty_notices_channel() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+
+    let assert = specsync()
+        .args(["check", "--format", "json"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success();
+    let value: serde_json::Value =
+        serde_json::from_slice(&assert.get_output().stdout).expect("single valid JSON result");
+    assert_eq!(value["notices"], serde_json::json!([]));
 }
 
 #[test]
@@ -307,9 +327,126 @@ fn draft_existing_files_keep_ownership_and_path_safety_validation() {
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            "Source file not found: ../outside.ts",
+            "Source mapping is not a safe project-relative path: ../outside.ts",
         ))
         .stdout(predicate::str::contains("Planned source mapping").not());
+}
+
+#[cfg(unix)]
+#[test]
+fn draft_planned_mapping_rejects_symlinked_parent_escape() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("specs/future")).unwrap();
+    symlink(outside.path(), root.join("src")).unwrap();
+    fs::write(
+        root.join("specs/future/future.spec.md"),
+        complete_coverage_spec("future", &["src/future.ts"])
+            .replace("status: active", "status: draft"),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "resolves outside the project root",
+        ))
+        .stdout(predicate::str::contains("Planned source mapping").not());
+}
+
+#[test]
+fn archived_specs_are_absent_from_duplicate_ownership() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/current")).unwrap();
+    fs::create_dir_all(root.join("specs/archived")).unwrap();
+    fs::write(root.join("src/shared.ts"), "// shared\n").unwrap();
+    fs::write(
+        root.join("specs/current/current.spec.md"),
+        complete_coverage_spec("current", &["src/shared.ts"]),
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/archived/archived.spec.md"),
+        complete_coverage_spec("archived", &["src/shared.ts"])
+            .replace("status: active", "status: archived"),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Source file has duplicate spec ownership").not());
+}
+
+#[test]
+fn backslash_mapping_is_rejected_and_does_not_count_toward_coverage() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/invalid")).unwrap();
+    fs::write(root.join("src/shared.ts"), "// shared\n").unwrap();
+    fs::write(
+        root.join("specs/invalid/invalid.spec.md"),
+        complete_coverage_spec("invalid", &["src\\shared.ts"]),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--require-coverage", "100", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "Source mapping is not a safe project-relative path",
+        ))
+        .stdout(predicate::str::contains("File coverage: 0/1 (0%)"));
+}
+
+#[test]
+fn existing_parent_segment_mapping_is_rejected_before_owner_lookup() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src/nested")).unwrap();
+    fs::create_dir_all(root.join("specs/one")).unwrap();
+    fs::create_dir_all(root.join("specs/two")).unwrap();
+    fs::write(root.join("src/shared.ts"), "// shared\n").unwrap();
+    fs::write(
+        root.join("specs/one/one.spec.md"),
+        complete_coverage_spec("one", &["src/nested/../shared.ts"]),
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/two/two.spec.md"),
+        complete_coverage_spec("two", &["src/shared.ts"]),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "Source mapping is not a safe project-relative path",
+        ));
 }
 
 #[test]
@@ -361,7 +498,7 @@ fn incremental_check_detects_duplicate_ownership_against_cached_specs() {
 }
 
 #[test]
-fn invalid_existing_mapping_is_not_tracked_as_duplicate_ownership() {
+fn invalid_existing_mapping_is_rejected_before_ownership_or_coverage() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     write_config(root, "specs", &["src"]);
@@ -386,8 +523,10 @@ fn invalid_existing_mapping_is_not_tracked_as_duplicate_ownership() {
         .arg("--root")
         .arg(root)
         .assert()
-        .success()
-        .stdout(predicate::str::contains("Source file has duplicate spec ownership").not());
+        .failure()
+        .stdout(predicate::str::contains(
+            "Source mapping is not a safe project-relative path",
+        ));
 }
 
 #[test]

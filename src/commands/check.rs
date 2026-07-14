@@ -108,6 +108,7 @@ pub fn cmd_check(
                         "passed": false,
                         "errors": sdd_report.errors,
                         "warnings": sdd_report.warnings,
+                        "notices": [],
                         "stale": [],
                         "specs_checked": 0,
                         "sdd": sdd_report,
@@ -147,6 +148,7 @@ pub fn cmd_check(
                     "passed": false,
                     "errors": [format!("No specs matched: {}", spec_filters.join(", "))],
                     "warnings": [],
+                    "notices": [],
                     "stale": [],
                     "specs_checked": 0,
                 });
@@ -179,6 +181,7 @@ pub fn cmd_check(
                     "passed": exit_code == 0,
                     "errors": [],
                     "warnings": [],
+                    "notices": [],
                     "stale": [],
                     "specs_checked": 0,
                 });

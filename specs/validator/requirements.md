@@ -118,8 +118,8 @@ Acceptance Criteria
 - Draft planned mappings pass strict validation with explicit notices.
 - Activating the spec or enabling `require_draft_files` restores the missing-file error.
 - Creating the file transitions it to normal mapping and coverage.
-- Existing files retain containment, readability, and duplicate-ownership validation.
+- Existing files retain containment, readability, and duplicate-ownership validation; archived specs never contribute owners.
 - Incremental checks detect owners from unchanged cached specs.
 - Redundant dot segments cannot create coverage mismatches.
-- Unsafe paths remain errors in every lifecycle status.
-
+- Absolute, parent-segment, prefixed, and backslash mappings remain errors in every lifecycle status and never count toward ownership or coverage.
+- A missing planned leaf beneath an existing symlinked parent that resolves outside the project is rejected before notice emission.

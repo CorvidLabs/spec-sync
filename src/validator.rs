@@ -298,21 +298,38 @@ pub fn validate_spec(
     // false-PASS of the core API-surface guarantee.
     for file in &fm.files {
         let full_path = root.join(file);
-        if !full_path.exists() {
-            let planned_draft_mapping = spec_status == Some(crate::types::SpecStatus::Draft)
-                && !config.require_draft_files
-                && planned_source_path_is_safe(file);
+        let safe_project_relative = planned_source_path_is_safe(file);
+        if full_path.exists() && !source_within_root(root, file) {
+            result.errors.push(format!(
+                "Source file `{file}` resolves outside the project root and is ignored for security"
+            ));
+            result.fixes.push(format!(
+                "Use a path inside the project (no absolute paths, `..` escapes, or symlinks that leave the project), or remove `{file}` from the files list"
+            ));
+        } else if !safe_project_relative {
+            result.errors.push(format!(
+                "Source mapping is not a safe project-relative path: {file}"
+            ));
+            result.fixes.push(format!(
+                "Use a safe project-relative path for `{file}` (no absolute paths, `..`, drive prefixes, or backslashes)"
+            ));
+        } else if !source_within_root(root, file) {
+            result.errors.push(format!(
+                "Source file `{file}` resolves outside the project root and is ignored for security"
+            ));
+            result.fixes.push(format!(
+                "Use a path inside the project (no absolute paths, `..` escapes, or symlinks that leave the project), or remove `{file}` from the files list"
+            ));
+        } else if !full_path.exists() {
+            let planned_draft_mapping =
+                spec_status == Some(crate::types::SpecStatus::Draft) && !config.require_draft_files;
             if planned_draft_mapping {
                 result.notices.push(format!(
                     "Planned source mapping (draft; file not created yet): {file}"
                 ));
             } else {
                 result.errors.push(format!("Source file not found: {file}"));
-                if !planned_source_path_is_safe(file) {
-                    result.fixes.push(format!(
-                        "Use a safe project-relative path for `{file}` (no absolute paths, `..`, drive prefixes, or backslashes)"
-                    ));
-                } else if let Some(suggestion) = suggest_similar_file(root, file) {
+                if let Some(suggestion) = suggest_similar_file(root, file) {
                     result.fixes.push(format!(
                         "Did you mean `{suggestion}`? Update the path in frontmatter"
                     ));
@@ -322,13 +339,6 @@ pub fn validate_spec(
                     ));
                 }
             }
-        } else if !source_within_root(root, file) {
-            result.errors.push(format!(
-                "Source file `{file}` resolves outside the project root and is ignored for security"
-            ));
-            result.fixes.push(format!(
-                "Use a path inside the project (no absolute paths, `..` escapes, or symlinks that leave the project), or remove `{file}` from the files list"
-            ));
         } else if full_path.is_file() {
             let ext = full_path.extension().and_then(|e| e.to_str()).unwrap_or("");
             let is_supported = crate::types::Language::from_extension(ext).is_some();
@@ -977,19 +987,24 @@ fn suggest_similar_file(root: &Path, missing_file: &str) -> Option<String> {
 /// PR comments (a hostile-repo info-disclosure vector, the same threat model as a
 /// committed executable configuration).
 ///
-/// Returns `true` when the path does not yet resolve (nonexistent/unreadable) so
-/// the existence check reports those instead; containment is only enforced for
-/// paths that actually resolve on disk (which is where a leak could occur).
+/// For a missing leaf, canonicalizes the nearest existing ancestor so a
+/// symlinked parent cannot turn a planned in-project path into a future escape.
+/// Returns `false` when the project root or every path ancestor is unreadable.
 ///
 /// Shared: every site that reads a `files:` entry's CONTENT (export extraction in
 /// `score`, `check --fix`, `diff`, `new`, …) must gate on this, or the out-of-root
 /// identifier leak reopens through that command.
 pub fn source_within_root(root: &Path, file: &str) -> bool {
     let full = root.join(file);
-    match (root.canonicalize(), full.canonicalize()) {
-        (Ok(canon_root), Ok(canon_full)) => canon_full.starts_with(&canon_root),
-        _ => true,
+    let Ok(canon_root) = root.canonicalize() else {
+        return false;
+    };
+    for candidate in full.ancestors() {
+        if let Ok(canonical) = candidate.canonicalize() {
+            return canonical.starts_with(&canon_root);
+        }
     }
+    false
 }
 
 /// Whether a not-yet-created source mapping is a portable project-relative path.
@@ -1585,8 +1600,13 @@ fn collect_specced_files(spec_files: &[PathBuf]) -> HashSet<String> {
         if let Ok(content) = fs::read_to_string(spec_file) {
             let content = content.replace("\r\n", "\n");
             if let Some(parsed) = parse_frontmatter(&content) {
+                if parsed.frontmatter.parsed_status() == Some(crate::types::SpecStatus::Archived) {
+                    continue;
+                }
                 for f in &parsed.frontmatter.files {
-                    if let Some(normalized) = normalize_source_mapping(f) {
+                    if planned_source_path_is_safe(f)
+                        && let Some(normalized) = normalize_source_mapping(f)
+                    {
                         specced.insert(normalized);
                     }
                 }

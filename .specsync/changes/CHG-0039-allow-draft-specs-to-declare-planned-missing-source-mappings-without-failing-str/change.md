@@ -1,6 +1,6 @@
 ---
 id: CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str
-state: accepted
+state: verifying
 type: feature
 base_commit: eb91993ba5289e317dcfc22156c6202b85273c98
 ---

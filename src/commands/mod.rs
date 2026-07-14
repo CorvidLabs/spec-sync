@@ -292,6 +292,9 @@ pub fn run_validation(
         let Some(parsed) = parser::parse_frontmatter(&content) else {
             continue;
         };
+        if parsed.frontmatter.parsed_status() == Some(SpecStatus::Archived) {
+            continue;
+        }
         let owner = spec_file
             .strip_prefix(root)
             .unwrap_or(spec_file)
@@ -301,6 +304,7 @@ pub fn run_validation(
         for file in &parsed.frontmatter.files {
             if root.join(file).is_file()
                 && source_within_root(root, file)
+                && !file.contains('\\')
                 && let Some(normalized_file) = crate::validator::normalize_source_mapping(file)
             {
                 let owners = file_owners.entry(normalized_file.clone()).or_default();

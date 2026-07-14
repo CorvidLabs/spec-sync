@@ -16,5 +16,6 @@ The audit job now installs the pinned Rust 1.89 toolchain, installs `cargo-audit
 with `--locked`, and runs `cargo audit` directly. `actionlint` passes for the updated workflow.
 The same `cargo-audit 0.22.2` executable also completed under Rust 1.89 locally, scanning all
 218 locked dependencies without a vulnerability failure. It retained the existing allowed
-unmaintained-crate warning for `instant`. The hosted audit and aggregate required gate remain to
-be confirmed after the change is pushed.
+unmaintained-crate warning for `instant`. GitHub Actions run `29341255244` then passed the hosted
+`audit` job, including both the locked installation and security scan, and passed the aggregate
+`Required CI gate`.

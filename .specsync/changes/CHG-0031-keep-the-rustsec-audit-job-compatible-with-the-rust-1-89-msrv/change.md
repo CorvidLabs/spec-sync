@@ -1,6 +1,6 @@
 ---
 id: CHG-0031-keep-the-rustsec-audit-job-compatible-with-the-rust-1-89-msrv
-state: implementing
+state: accepted
 type: operations
 base_commit: e5c6829df0d65a1b3ae18b2d1dccd47c422b9208
 ---

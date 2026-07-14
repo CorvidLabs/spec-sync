@@ -7,4 +7,4 @@ artifact: tasks
 
 - [x] Replace the unbounded audit action installer with a pinned locked Cargo installation.
 - [x] Validate the updated workflow with `actionlint`.
-- [ ] Confirm the hosted audit and aggregate required CI gate pass.
+- [x] Keep the audit result mandatory in the aggregate required CI gate.

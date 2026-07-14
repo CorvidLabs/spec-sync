@@ -494,7 +494,7 @@ pub fn has_extension(file_path: &Path, extensions: &[String]) -> bool {
 
 /// Check whether a file matches configured source discovery, including optional
 /// extensionless files in addition to the default or explicit extension set.
-pub fn has_configured_extension(
+pub(super) fn has_configured_extension(
     file_path: &Path,
     extensions: &[String],
     include_extensionless: bool,

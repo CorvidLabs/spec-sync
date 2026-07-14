@@ -14,7 +14,6 @@ const ARCHIVE_PATH: &str = ".specsync/archive/changes";
 const LOCK_PATH: &str = ".specsync/change.lock";
 const SEQUENCE_PATH: &str = ".specsync/change-sequence.json";
 const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
-const VERIFICATION_CONTEXT_ENV: &str = "SPECSYNC_VERIFICATION_CONTEXT";
 const MAX_CHANGE_ARTIFACT_BYTES: u64 = 4 * 1024 * 1024;
 static EFFECTIVE_CONTRACT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -1030,7 +1029,7 @@ pub fn start_implementation(root: &Path, id: &str) -> Result<ChangeRecord, Strin
 }
 
 pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String> {
-    if let Some(error) = verification_recursion_error() {
+    if let Some(error) = crate::verification_recursion_error() {
         return Err(error);
     }
     let _lock = acquire_project_lock(root)?;
@@ -1460,7 +1459,7 @@ fn check_project_with_command_output(
     root: &Path,
     command_output: ConfiguredCommandOutput,
 ) -> SddCheckReport {
-    if let Some(error) = verification_recursion_error() {
+    if let Some(error) = crate::verification_recursion_error() {
         return SddCheckReport {
             enabled: true,
             errors: vec![error],
@@ -3762,25 +3761,13 @@ fn run_configured_command(
     command
         .args(args)
         .current_dir(root)
-        .env(VERIFICATION_CONTEXT_ENV, configured);
+        .env(crate::VERIFICATION_CONTEXT_ENV, configured);
     if matches!(output, ConfiguredCommandOutput::Suppress) {
         command.stdout(Stdio::null()).stderr(Stdio::null());
     }
     command.status().map_err(|error| {
         format!("failed to run configured verification command `{configured}`: {error}")
     })
-}
-
-pub(crate) fn verification_recursion_error() -> Option<String> {
-    let configured = std::env::var(VERIFICATION_CONTEXT_ENV).ok()?;
-    let executable = std::env::current_exe().ok()?;
-    let file_name = executable.file_name()?.to_string_lossy();
-    if file_name != "specsync" && file_name != "specsync.exe" {
-        return None;
-    }
-    Some(format!(
-        "recursive lifecycle verification detected while executing `{configured}`; verification commands must not invoke specsync check or change verification"
-    ))
 }
 
 fn reject_direct_lifecycle_verification(configured: &str) -> Result<(), String> {

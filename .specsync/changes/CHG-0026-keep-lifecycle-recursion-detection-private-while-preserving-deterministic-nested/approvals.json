@@ -1,0 +1,12 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1783996208,
+      "digest": "6bad5c5e13b21176ad7f95d5302613b35c05de0d488adad558697c71eda79b8f",
+      "note": "Definition approval for private recursion guard with unchanged lifecycle diagnostics."
+    }
+  ],
+  "reopenings": []
+}

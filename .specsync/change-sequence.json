@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 25,
-  "id": "CHG-0025-address-all-unresolved-review-feedback-on-pr-366",
+  "sequence": 26,
+  "id": "CHG-0026-keep-lifecycle-recursion-detection-private-while-preserving-deterministic-nested",
   "acknowledged_collisions": [
     {
       "sequence": 16,

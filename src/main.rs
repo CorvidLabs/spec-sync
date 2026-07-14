@@ -36,6 +36,8 @@ use std::process;
 
 use cli::{Cli, Command, LifecycleAction};
 
+const VERIFICATION_CONTEXT_ENV: &str = "SPECSYNC_VERIFICATION_CONTEXT";
+
 fn main() {
     let result = std::panic::catch_unwind(run);
     match result {
@@ -269,7 +271,7 @@ fn run() {
 }
 
 fn reject_recursive_lifecycle_dispatch(format: types::OutputFormat) {
-    let Some(error) = change::verification_recursion_error() else {
+    let Some(error) = verification_recursion_error() else {
         return;
     };
     match format {
@@ -277,6 +279,18 @@ fn reject_recursive_lifecycle_dispatch(format: types::OutputFormat) {
         _ => eprintln!("{} {error}", "error:".red().bold()),
     }
     process::exit(1);
+}
+
+fn verification_recursion_error() -> Option<String> {
+    let configured = std::env::var(VERIFICATION_CONTEXT_ENV).ok()?;
+    let executable = std::env::current_exe().ok()?;
+    let file_name = executable.file_name()?.to_string_lossy();
+    if file_name != "specsync" && file_name != "specsync.exe" {
+        return None;
+    }
+    Some(format!(
+        "recursive lifecycle verification detected while executing `{configured}`; verification commands must not invoke specsync check or change verification"
+    ))
 }
 
 #[cfg(test)]

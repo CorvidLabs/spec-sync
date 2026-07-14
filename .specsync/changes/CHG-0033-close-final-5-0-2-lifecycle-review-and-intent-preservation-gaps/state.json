@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0033-close-final-5-0-2-lifecycle-review-and-intent-preservation-gaps",
+  "slug": "close-final-5-0-2-lifecycle-review-and-intent-preservation-gaps",
+  "title": "Close final 5.0.2 lifecycle review and intent-preservation gaps",
+  "description": "Close final 5.0.2 lifecycle review and intent-preservation gaps",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "dc91f80d180460f65e7c57cdb0c4598f34124a8e",
+  "created_at": 1784044464,
+  "updated_at": 1784046595,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "specs/change",
+    "site/src/content/docs/workflow.md",
+    "site/src/content/docs/cli.md",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Cargo manifest selection blocks recursive SpecSync verification before mutation; affected modules cover only their exact canonical spec and existing configured companion files; free-text acceptance criteria preserve punctuation exactly; focused regressions and the full Trust lane pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

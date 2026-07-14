@@ -34,6 +34,13 @@
       "timestamp": 1784041270,
       "digest": "a0bcfd6b6a79abbf562ddbb390f49608b1ddcc7474df697bfe260d3cb0440b32",
       "note": "Fresh closing approval after PR 370 review corrections and complete native verification; prior approval history preserved."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784046753,
+      "digest": "8d79064a56621c9e7568d11a23fccca06ec2eb5e3e00e5e68927dcca28fd914c",
+      "note": "Refreshed closing approval after the authorized CHG-0033 contract update and successful full native verification."
     }
   ],
   "reopenings": [
@@ -110,6 +117,43 @@
       },
       "stale_acceptance_input_digest": "79d33248bdda486dd4cee4c4dceb0f052299a8288c8a133f1b49b6fb487997e6",
       "current_acceptance_input_digest": "84b4d80c919a317d1881c7f5af177291c3fba808fe2af0ebb43963d06404ace3"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0029-address-all-remaining-review-feedback-from-pr-366",
+      "actor": "0xLeif",
+      "reason": "Verified CHG-0033 legitimately updates the accepted src/change.rs input.",
+      "timestamp": 1784046505,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784041270,
+        "digest": "a0bcfd6b6a79abbf562ddbb390f49608b1ddcc7474df697bfe260d3cb0440b32",
+        "note": "Fresh closing approval after PR 370 review corrections and complete native verification; prior approval history preserved."
+      },
+      "prior_verification": {
+        "timestamp": 1784041256,
+        "commit": "f622d09778e0e78b1fd8dea97f7c5e657e2b7c79",
+        "contract_digest": "88a3212c5bfbb57319df6b0355b6c5655766d08b7200690e6ec19da140f3189f",
+        "workspace_digest": "d8a2265700699bd52e9d6cee9b787938df77989115a0f3df6498f66a431d4e3e",
+        "acceptance_input_digest": "84b4d80c919a317d1881c7f5af177291c3fba808fe2af0ebb43963d06404ace3",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-030",
+          "REQ-cli-004"
+        ]
+      },
+      "stale_acceptance_input_digest": "84b4d80c919a317d1881c7f5af177291c3fba808fe2af0ebb43963d06404ace3",
+      "current_acceptance_input_digest": "c1605ea7c301ec974ab6dd8ff0a11b86efcaf77aba45bdc225d915a3a6c02b71"
     }
   ]
 }

@@ -30,6 +30,36 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1784046591,
+      "commit": "dc91f80d180460f65e7c57cdb0c4598f34124a8e",
+      "contract_digest": "6bad5c5e13b21176ad7f95d5302613b35c05de0d488adad558697c71eda79b8f",
+      "workspace_digest": "57f5df5a81546506f261dadff6ced916be684b9bbf923caa8ab3661e7f9706a0",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1784046649,
+      "commit": "dc91f80d180460f65e7c57cdb0c4598f34124a8e",
+      "contract_digest": "6bad5c5e13b21176ad7f95d5302613b35c05de0d488adad558697c71eda79b8f",
+      "workspace_digest": "682e22782b3cb7c16b93bd4df94f315eb6f4ff8de745cbeff80610b096e7564f",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

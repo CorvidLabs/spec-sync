@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 32,
-  "id": "CHG-0032-address-all-actionable-review-findings-on-pr-370-with-regression-coverage",
+  "sequence": 33,
+  "id": "CHG-0033-close-final-5-0-2-lifecycle-review-and-intent-preservation-gaps",
   "acknowledged_collisions": [
     {
       "sequence": 16,

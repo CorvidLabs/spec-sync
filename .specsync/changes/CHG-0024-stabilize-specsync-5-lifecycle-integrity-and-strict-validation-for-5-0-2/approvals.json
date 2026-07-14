@@ -269,6 +269,47 @@
       },
       "stale_acceptance_input_digest": "b623a8b364160aa001585fca21925722816d9fe5eea08bd964f09777906db460",
       "current_acceptance_input_digest": "2c12797b7ebffecb9bbb0f3a5c55609a2651698af68ca37d283fb375ab6f16e6"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2",
+      "actor": "0xLeif",
+      "reason": "Verified CHG-0033 legitimately updates the accepted src/change.rs input.",
+      "timestamp": 1784046504,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784040933,
+        "digest": "651eec1bcd12e8e0fec49bf9011f381137580bf3ac01e229a60d6ef5d4d783de",
+        "note": "Fresh closing approval after PR 370 review corrections and complete native verification; prior approval history preserved."
+      },
+      "prior_verification": {
+        "timestamp": 1784040918,
+        "commit": "f622d09778e0e78b1fd8dea97f7c5e657e2b7c79",
+        "contract_digest": "0eafdd5f8e512023308e22ca1ec4179a903072d7b5a0f8729f0d09fcc1d434e4",
+        "workspace_digest": "d8a2265700699bd52e9d6cee9b787938df77989115a0f3df6498f66a431d4e3e",
+        "acceptance_input_digest": "2c12797b7ebffecb9bbb0f3a5c55609a2651698af68ca37d283fb375ab6f16e6",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-022",
+          "REQ-change-023",
+          "REQ-change-024",
+          "REQ-change-025",
+          "REQ-validator-002",
+          "REQ-validator-003"
+        ]
+      },
+      "stale_acceptance_input_digest": "2c12797b7ebffecb9bbb0f3a5c55609a2651698af68ca37d283fb375ab6f16e6",
+      "current_acceptance_input_digest": "2f21719796733de51d6aa712d8a10e5249cecd7a962862b35e2cc879182682b7"
     }
   ]
 }

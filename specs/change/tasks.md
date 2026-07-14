@@ -25,3 +25,6 @@ spec: change.spec.md
 - [x] Support numeric change sequences wider than four digits
 - [x] Reject recursion through every lifecycle command family
 - [x] Reuse one project digest per canonical-successor scan
+- [x] Detect recursive Cargo verification through safe explicit manifest selection
+- [x] Cover exact canonical companion files without directory overreach
+- [x] Preserve prose acceptance criteria with question-aware list parsing

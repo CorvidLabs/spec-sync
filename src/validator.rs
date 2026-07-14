@@ -1000,8 +1000,14 @@ pub fn source_within_root(root: &Path, file: &str) -> bool {
         return false;
     };
     for candidate in full.ancestors() {
-        if let Ok(canonical) = candidate.canonicalize() {
-            return canonical.starts_with(&canon_root);
+        match candidate.symlink_metadata() {
+            Ok(_) => {
+                return candidate
+                    .canonicalize()
+                    .is_ok_and(|canonical| canonical.starts_with(&canon_root));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(_) => return false,
         }
     }
     false

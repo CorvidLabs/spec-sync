@@ -122,4 +122,4 @@ Acceptance Criteria
 - Incremental checks detect owners from unchanged cached specs.
 - Redundant dot segments cannot create coverage mismatches.
 - Absolute, parent-segment, prefixed, and backslash mappings remain errors in every lifecycle status and never count toward ownership or coverage.
-- A missing planned leaf beneath an existing symlinked parent that resolves outside the project is rejected before notice emission.
+- A missing planned leaf beneath an existing symlinked parent that resolves outside the project or cannot be resolved is rejected before notice emission.

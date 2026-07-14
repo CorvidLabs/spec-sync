@@ -362,6 +362,36 @@ fn draft_planned_mapping_rejects_symlinked_parent_escape() {
         .stdout(predicate::str::contains("Planned source mapping").not());
 }
 
+#[cfg(unix)]
+#[test]
+fn draft_planned_mapping_rejects_dangling_symlink_parent() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("specs/future")).unwrap();
+    symlink(outside.path().join("missing"), root.join("src")).unwrap();
+    fs::write(
+        root.join("specs/future/future.spec.md"),
+        complete_coverage_spec("future", &["src/future.ts"])
+            .replace("status: active", "status: draft"),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "resolves outside the project root",
+        ))
+        .stdout(predicate::str::contains("Planned source mapping").not());
+}
+
 #[test]
 fn archived_specs_are_absent_from_duplicate_ownership() {
     let tmp = TempDir::new().unwrap();

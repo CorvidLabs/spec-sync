@@ -166,6 +166,47 @@
       },
       "stale_acceptance_input_digest": "54366dda7300f7d5e5a0915c75bf91ebccf6e79eb7dd128726adb29469a98b17",
       "current_acceptance_input_digest": "d14a442c8c87d530f07ff71011adc4335c774d0a2a88ce17028184880808fe4a"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+      "actor": "user:0xLeif",
+      "reason": "Independent review found unresolved existing symlink ancestors must fail closed instead of being skipped during planned-path containment.",
+      "timestamp": 1784063936,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784063785,
+        "digest": "2b2f2d69af0a3c48eeb7e9503d2f2799d7dd05ef5af45c4eb454420031c4f583",
+        "note": "Fresh closing approval after five valid review corrections passed 1,589 unit and 212 integration tests at efeb80567cb01586d3ac767c270fb2e7b87d790e."
+      },
+      "prior_verification": {
+        "timestamp": 1784063774,
+        "commit": "efeb80567cb01586d3ac767c270fb2e7b87d790e",
+        "contract_digest": "2c99f36762570d09587e407bbe56e755365bc0cd2c965529ef904370daec19e1",
+        "workspace_digest": "f8703c36143859f104a20adb173d1a28cd18c5b821ea13458c695a5a9de11cb8",
+        "acceptance_input_digest": "38de50ef380e73f316bc9fb9899b867fb8d41e8bbcda36b6eac824e8e7d822fe",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-commands-002",
+          "REQ-comment-002",
+          "REQ-config-004",
+          "REQ-output-002",
+          "REQ-types-003",
+          "REQ-validator-007"
+        ]
+      },
+      "stale_acceptance_input_digest": "38de50ef380e73f316bc9fb9899b867fb8d41e8bbcda36b6eac824e8e7d822fe",
+      "current_acceptance_input_digest": "daa3ecd4f2de51e66d5a4caac7c09cc260af26005bc0920164e6a2eff37ee5f0"
     }
   ]
 }

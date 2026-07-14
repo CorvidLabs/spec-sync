@@ -29,5 +29,47 @@
       "note": null
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0025-address-all-unresolved-review-feedback-on-pr-366",
+      "actor": "user:0xLeif",
+      "reason": "Replace implicit sequence-claim attribution with an explicit generated affected-path scope and retain truthful archive fixtures.",
+      "timestamp": 1783995959,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1783995075,
+        "digest": "e1675683da705e0595a12e2fef8bd8cd1454ea351099d620ac9170c5c13bb52d",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1783994958,
+        "commit": "f2a9d2cafdaff23c904a1fd73e5c8ac21f89ca89",
+        "contract_digest": "ee5819f2f1397f1a05d72e9ee6ac5344a78609159f42c21e7d5dbf95f643c32e",
+        "workspace_digest": "0f5522bd187e2a4c5d8b3cd8fc4adca599a705b9a868a1ac88c373e6ab3ef29c",
+        "acceptance_input_digest": "1b81262eae572b96c91ca3754713cee5c63fd6b52b8f245a43d9ab548b443b8a",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-026",
+          "REQ-change-027",
+          "REQ-change-028",
+          "REQ-cli-003",
+          "REQ-config-002",
+          "REQ-validator-004"
+        ]
+      },
+      "stale_acceptance_input_digest": "1b81262eae572b96c91ca3754713cee5c63fd6b52b8f245a43d9ab548b443b8a",
+      "current_acceptance_input_digest": "0c3d1c143778a865fd70a84dc4d7f71d8944ea2badb87ea75d5ce349209c1501"
+    }
+  ]
 }

@@ -513,12 +513,18 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         crate::commands::validate_module_name(module)
             .map_err(|error| format!("invalid affected spec: {error}"))?;
     }
-    let affected_paths: Vec<String> = affected_paths
+    let mut affected_paths: Vec<String> = affected_paths
         .iter()
         .map(|path| {
             normalize_project_path(path).map_err(|error| format!("invalid affected path: {error}"))
         })
         .collect::<Result<_, _>>()?;
+    if !affected_paths
+        .iter()
+        .any(|scope| path_matches_scope(SEQUENCE_PATH, scope))
+    {
+        affected_paths.push(SEQUENCE_PATH.into());
+    }
     let slug = slugify(&description);
     let id = next_change_id(root, &slug)?;
     let now = now();
@@ -3516,9 +3522,6 @@ fn uncovered_meaningful_paths(
     if adoption_bootstrap_covers_policy(root) {
         changed.remove(POLICY_PATH);
     }
-    if current_change_claim_covers_sequence_ledger(root, records) {
-        changed.remove(SEQUENCE_PATH);
-    }
     let covered: Vec<&str> = records
         .iter()
         .filter(|record| record_is_delivering(record))
@@ -3535,15 +3538,6 @@ fn uncovered_meaningful_paths(
         })
         .collect();
     Ok(uncovered)
-}
-
-fn current_change_claim_covers_sequence_ledger(root: &Path, records: &[ChangeRecord]) -> bool {
-    let Ok(Some(ledger)) = load_change_sequence_ledger(root) else {
-        return false;
-    };
-    records
-        .iter()
-        .any(|record| record.id == ledger.id && record_is_delivering(record))
 }
 
 fn record_is_delivering(record: &ChangeRecord) -> bool {
@@ -5056,6 +5050,8 @@ mod tests {
         record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
         let error = archive_change(root, &record.id).unwrap_err();
         assert!(error.contains("archive after merge"));
+        git(&["add", "."]);
+        git(&["commit", "-m", "record accepted lifecycle evidence"]);
         git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
         assert!(archive_change(root, &record.id).is_ok());
     }
@@ -5934,7 +5930,7 @@ mod tests {
         git(&["add", "src/lib.rs"]);
         git(&["commit", "-m", "feature"]);
         let mut record = completed_record(root);
-        record.affected_paths = vec!["src/".into()];
+        record.affected_paths = vec!["src/".into(), SEQUENCE_PATH.into()];
         record.state = ChangeState::Approved;
         assert_eq!(
             uncovered_meaningful_paths(root, &SddPolicy::default(), &[record.clone()]).unwrap(),
@@ -7562,7 +7558,7 @@ mod tests {
         let mut record = completed_record(root);
         record.base_commit = Some(original_base);
         record.state = ChangeState::Implementing;
-        record.affected_paths = vec!["src/".into()];
+        record.affected_paths = vec!["src/".into(), SEQUENCE_PATH.into()];
         let policy = SddPolicy::default();
         assert!(
             uncovered_meaningful_paths(root, &policy, &[record])
@@ -8099,6 +8095,8 @@ mod tests {
         }
 
         assert!(archive_change(root, &records[0].id).is_err());
+        git(&["add", "."]);
+        git(&["commit", "-m", "record accepted lifecycle evidence"]);
         git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
         assert!(archive_change(root, &records[0].id).is_ok());
     }

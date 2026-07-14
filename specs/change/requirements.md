@@ -273,6 +273,7 @@ Acceptance Criteria
 
 - Numeric change sequences contain at least four ASCII digits and support values beyond 9999.
 - The committed sequence ledger always requires lifecycle coverage even when `.specsync/` is ignored.
+- Every newly allocated change automatically includes its generated sequence-ledger claim in its affected path scope.
 - An acknowledgement matches the exact currently located ID set and remains valid only when every member is accepted or archived.
 - Removed IDs, added IDs, single surviving records, and draft, approved, implementing, or verifying collision members fail closed.
 
@@ -296,4 +297,3 @@ Acceptance Criteria
 - Conventional canonical paths remain the fallback when no registry mapping exists.
 - Unsafe registry mappings fail closed before effective validation.
 - The current project digest is computed at most once per canonical-successor candidate scan.
-

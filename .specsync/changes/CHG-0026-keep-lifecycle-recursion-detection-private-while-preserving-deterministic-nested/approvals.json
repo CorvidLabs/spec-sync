@@ -23,10 +23,10 @@
     },
     {
       "gate": "acceptance",
-      "actor": "user:0xLeif",
-      "timestamp": 1784046659,
-      "digest": "456ce14e2cddaa1d03b6620e7192e096a00299b2446d819f33fbabe402ebcd41",
-      "note": "Refreshed closing approval after the authorized CHG-0033 contract update and successful full native verification."
+      "actor": "0xLeif",
+      "timestamp": 1784048151,
+      "digest": "70defd5e27902a484ba844d7543efbab8997a91fabbf981861c7502952c515e6",
+      "note": "Explicit reacceptance after verified CHG-0033 legitimately updated the accepted src/change.rs input."
     }
   ],
   "reopenings": [

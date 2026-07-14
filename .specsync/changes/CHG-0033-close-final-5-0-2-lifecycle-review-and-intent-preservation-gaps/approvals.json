@@ -23,56 +23,11 @@
     },
     {
       "gate": "acceptance",
-      "actor": "user:0xLeif",
-      "timestamp": 1784046595,
-      "digest": "385806750a95e25ba3c0b4f4d6e9d8f7a6ae39f026d8a170b005600b3a353587",
-      "note": "Closing approval after the full native suite, exact strict coverage audit, public documentation, and canonical requirement updates passed."
-    },
-    {
-      "gate": "acceptance",
-      "actor": "user:0xLeif",
-      "timestamp": 1784049536,
-      "digest": "79fee564108febbf6b160ed3ad0d6d49af7347e9e445969b8b830efdbc5c3396",
-      "note": "Refreshed closing approval after CHG-0034 extensionless discovery integration and successful full native verification."
+      "actor": "0xLeif",
+      "timestamp": 1784048107,
+      "digest": "74ae82f05bde53e962f48b3bbce89d7f1baf040dbde19c8cd3ecfeaf9693c74e",
+      "note": "Explicit closing approval after fresh verification and Trust; canonical application authorized together with predecessor reacceptance."
     }
   ],
-  "reopenings": [
-    {
-      "schema_version": 1,
-      "change_id": "CHG-0033-close-final-5-0-2-lifecycle-review-and-intent-preservation-gaps",
-      "actor": "user:0xLeif",
-      "reason": "Refresh accepted delivery evidence after CHG-0034 extensionless discovery contract and implementation.",
-      "timestamp": 1784049520,
-      "from_state": "accepted",
-      "to_state": "verifying",
-      "superseded_approval": {
-        "gate": "acceptance",
-        "actor": "user:0xLeif",
-        "timestamp": 1784046595,
-        "digest": "385806750a95e25ba3c0b4f4d6e9d8f7a6ae39f026d8a170b005600b3a353587",
-        "note": "Closing approval after the full native suite, exact strict coverage audit, public documentation, and canonical requirement updates passed."
-      },
-      "prior_verification": {
-        "timestamp": 1784046570,
-        "commit": "dc91f80d180460f65e7c57cdb0c4598f34124a8e",
-        "contract_digest": "bb11468a62abd06c8b89070450ff93ac5fdd2fcb5f44f6475af9dbe88573a10f",
-        "workspace_digest": "57f5df5a81546506f261dadff6ced916be684b9bbf923caa8ab3661e7f9706a0",
-        "acceptance_input_digest": "5c8c815886c71abcf9623dcf4ce175e9b03bf79f2f224c52bdf3a43e54ad21ef",
-        "passed": true,
-        "commands": [
-          {
-            "command": "cargo test",
-            "success": true,
-            "exit_code": 0
-          }
-        ],
-        "requirement_ids": [
-          "REQ-change-030",
-          "REQ-change-031"
-        ]
-      },
-      "stale_acceptance_input_digest": "5c8c815886c71abcf9623dcf4ce175e9b03bf79f2f224c52bdf3a43e54ad21ef",
-      "current_acceptance_input_digest": "bf2b8df1bbdf6e11ca078dcad0ad8b79de2e3de5eca26aa2a46d90dfa9de13d8"
-    }
-  ]
+  "reopenings": []
 }

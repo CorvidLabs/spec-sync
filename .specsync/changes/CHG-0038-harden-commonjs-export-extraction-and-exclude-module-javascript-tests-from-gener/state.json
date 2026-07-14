@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0038-harden-commonjs-export-extraction-and-exclude-module-javascript-tests-from-gener",
+  "slug": "harden-commonjs-export-extraction-and-exclude-module-javascript-tests-from-gener",
+  "title": "Harden CommonJS export extraction and exclude module JavaScript tests from generated specs",
+  "description": "Harden CommonJS export extraction and exclude module JavaScript tests from generated specs",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "044eb584769487b8c43f1509a22d1693893d9894",
+  "created_at": 1784059329,
+  "updated_at": 1784059354,
+  "affected_specs": [
+    "exports",
+    "cmd_new",
+    "cmd_scaffold"
+  ],
+  "affected_paths": [
+    "src/exports",
+    "src/commands/new.rs",
+    "src/commands/scaffold.rs",
+    "specs/exports",
+    "specs/cmd_new",
+    "specs/cmd_scaffold",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Chained CommonJS property assignments report every static export without phantom names from function-local aliases or regular-expression literals.",
+    "Type-level scans preserve statically exported CommonJS classes in regex and AST modes.",
+    "New and scaffold omit recognized JavaScript-family test files while retaining production module sources.",
+    "All existing ESM TypeScript CommonJS and generation behavior remains green in the complete native and hosted matrices."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [
+    "CHG-0037-resolve-extensionless-mjs-barrel-exports-for-newly-discovered-module-javascript"
+  ],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 37,
-  "id": "CHG-0037-resolve-extensionless-mjs-barrel-exports-for-newly-discovered-module-javascript",
+  "sequence": 38,
+  "id": "CHG-0038-harden-commonjs-export-extraction-and-exclude-module-javascript-tests-from-gener",
   "acknowledged_collisions": [
     {
       "sequence": 16,

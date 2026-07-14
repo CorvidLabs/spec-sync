@@ -27,6 +27,13 @@
       "timestamp": 1783995075,
       "digest": "e1675683da705e0595a12e2fef8bd8cd1454ea351099d620ac9170c5c13bb52d",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1783996064,
+      "digest": "1830c0b5b8edd676a3fa575d82967cd3af23476231fc03a500606d6f8dab3ea7",
+      "note": "Closing approval after explicit sequence-claim scoping and full native verification."
     }
   ],
   "reopenings": [

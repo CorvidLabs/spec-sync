@@ -1,6 +1,6 @@
 ---
 id: CHG-0025-address-all-unresolved-review-feedback-on-pr-366
-state: verifying
+state: accepted
 type: feature
 base_commit: f2a9d2cafdaff23c904a1fd73e5c8ac21f89ca89
 ---

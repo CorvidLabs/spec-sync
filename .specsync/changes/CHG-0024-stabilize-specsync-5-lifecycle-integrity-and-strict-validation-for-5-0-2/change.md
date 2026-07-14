@@ -1,6 +1,6 @@
 ---
 id: CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2
-state: verifying
+state: accepted
 type: feature
 base_commit: 21e44ecf33f4fe876820ef3ef8f19553341da15a
 ---

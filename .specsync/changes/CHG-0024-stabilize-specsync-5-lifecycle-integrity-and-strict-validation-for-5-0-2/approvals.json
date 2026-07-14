@@ -69,6 +69,27 @@
       "timestamp": 1784047856,
       "digest": "2e7ba97eb45befa6a381c48d245e4af5ba4ccb3507fafc5f3068a28f633a0b1a",
       "note": "Closing approval after exact-main native verification repaired the incomplete pre-squash transition without changing the accepted definition or product code."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784049464,
+      "digest": "589e472636dd559f0b909d7cea0dd23ebfd6436fc4ad784517bc5934c4369da5",
+      "note": "Refreshed closing approval after CHG-0034 extensionless discovery integration and successful full native verification."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784049629,
+      "digest": "9c4653674463d2e2169b5b411ccf96096f5adff5632ee695d08ef2b9afedfc3c",
+      "note": "Refreshed closing approval after non-semantic canonical Markdown EOF normalization and successful native verification."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784049816,
+      "digest": "ca4b16940840d4549fbf1715a0cc2cc60c49c38250277daed3f945b1bc27b20e",
+      "note": "Refreshed closing approval after removing superseded CHG-0027 canonical history, correcting the spec version, and passing native verification."
     }
   ],
   "reopenings": [
@@ -317,6 +338,129 @@
       },
       "stale_acceptance_input_digest": "2c12797b7ebffecb9bbb0f3a5c55609a2651698af68ca37d283fb375ab6f16e6",
       "current_acceptance_input_digest": "2f21719796733de51d6aa712d8a10e5249cecd7a962862b35e2cc879182682b7"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2",
+      "actor": "user:0xLeif",
+      "reason": "Refresh accepted delivery evidence after CHG-0034 extensionless discovery contract and implementation.",
+      "timestamp": 1784049451,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784047856,
+        "digest": "2e7ba97eb45befa6a381c48d245e4af5ba4ccb3507fafc5f3068a28f633a0b1a",
+        "note": "Closing approval after exact-main native verification repaired the incomplete pre-squash transition without changing the accepted definition or product code."
+      },
+      "prior_verification": {
+        "timestamp": 1784047844,
+        "commit": "eeebe807adb258a93a2c896af2d70a46859fe899",
+        "contract_digest": "0eafdd5f8e512023308e22ca1ec4179a903072d7b5a0f8729f0d09fcc1d434e4",
+        "workspace_digest": "682e22782b3cb7c16b93bd4df94f315eb6f4ff8de745cbeff80610b096e7564f",
+        "acceptance_input_digest": "ff59600ae6769b55c911eb38efa9f8d3378ec6f56bf410d7270db9e1d043d3a6",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-022",
+          "REQ-change-023",
+          "REQ-change-024",
+          "REQ-change-025",
+          "REQ-validator-002",
+          "REQ-validator-003"
+        ]
+      },
+      "stale_acceptance_input_digest": "ff59600ae6769b55c911eb38efa9f8d3378ec6f56bf410d7270db9e1d043d3a6",
+      "current_acceptance_input_digest": "4ad7dcb2d47d4c7b43f80096082b4348150b391cc1729446b8703c7d08fee519"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2",
+      "actor": "user:0xLeif",
+      "reason": "Refresh delivery evidence after non-semantic canonical Markdown EOF normalization.",
+      "timestamp": 1784049600,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784049464,
+        "digest": "589e472636dd559f0b909d7cea0dd23ebfd6436fc4ad784517bc5934c4369da5",
+        "note": "Refreshed closing approval after CHG-0034 extensionless discovery integration and successful full native verification."
+      },
+      "prior_verification": {
+        "timestamp": 1784049461,
+        "commit": "3a466aefc0e2296858481d2800d6cd05be2f9dc7",
+        "contract_digest": "0eafdd5f8e512023308e22ca1ec4179a903072d7b5a0f8729f0d09fcc1d434e4",
+        "workspace_digest": "22bd9a6e07039b71c9a106ce013b92dfa8a6011af7e9969758da2e4780da30f7",
+        "acceptance_input_digest": "4ad7dcb2d47d4c7b43f80096082b4348150b391cc1729446b8703c7d08fee519",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-022",
+          "REQ-change-023",
+          "REQ-change-024",
+          "REQ-change-025",
+          "REQ-validator-002",
+          "REQ-validator-003"
+        ]
+      },
+      "stale_acceptance_input_digest": "4ad7dcb2d47d4c7b43f80096082b4348150b391cc1729446b8703c7d08fee519",
+      "current_acceptance_input_digest": "c284e49791cb9ed3c146dd86d927f51b5b51be082b4898e8856905d400ceade5"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2",
+      "actor": "user:0xLeif",
+      "reason": "Refresh delivery evidence after removing superseded CHG-0027 canonical history and correcting the spec version.",
+      "timestamp": 1784049801,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784049629,
+        "digest": "9c4653674463d2e2169b5b411ccf96096f5adff5632ee695d08ef2b9afedfc3c",
+        "note": "Refreshed closing approval after non-semantic canonical Markdown EOF normalization and successful native verification."
+      },
+      "prior_verification": {
+        "timestamp": 1784049621,
+        "commit": "3a466aefc0e2296858481d2800d6cd05be2f9dc7",
+        "contract_digest": "0eafdd5f8e512023308e22ca1ec4179a903072d7b5a0f8729f0d09fcc1d434e4",
+        "workspace_digest": "0240fed9463ed8c7b5a494d6f5ad54b42a6a6cfd7121a3fdcca1f88bfddfd034",
+        "acceptance_input_digest": "c284e49791cb9ed3c146dd86d927f51b5b51be082b4898e8856905d400ceade5",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-022",
+          "REQ-change-023",
+          "REQ-change-024",
+          "REQ-change-025",
+          "REQ-validator-002",
+          "REQ-validator-003"
+        ]
+      },
+      "stale_acceptance_input_digest": "c284e49791cb9ed3c146dd86d927f51b5b51be082b4898e8856905d400ceade5",
+      "current_acceptance_input_digest": "8ed8d261935e69a22ba01589a8017b6c4d58e3ded9c4fd8a05b53f1b1d0f0609"
     }
   ]
 }

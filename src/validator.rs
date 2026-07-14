@@ -1,5 +1,5 @@
 use crate::config::{default_schema_pattern, discover_manifest_modules};
-use crate::exports::{get_exported_symbols_full, has_extension, is_test_file};
+use crate::exports::{get_exported_symbols_full, has_configured_extension, is_test_file};
 use crate::parser::{
     body_has_section, find_section_offset, find_stub_sections, get_missing_sections,
     get_near_miss_sections, get_spec_symbols, parse_frontmatter,
@@ -145,7 +145,11 @@ fn find_source_files(
 }
 
 fn has_coverage_extension(path: &Path, config: &SpecSyncConfig) -> bool {
-    if has_extension(path, &config.source_extensions) {
+    if has_configured_extension(
+        path,
+        &config.source_extensions,
+        config.include_extensionless,
+    ) {
         return true;
     }
     if !config.source_extensions.is_empty() {

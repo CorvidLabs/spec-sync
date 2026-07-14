@@ -265,6 +265,10 @@ pub struct SpecSyncConfig {
     #[serde(default)]
     pub source_extensions: Vec<String>,
 
+    /// Include files without a filename extension in source discovery.
+    #[serde(default)]
+    pub include_extensionless: bool,
+
     /// Export granularity: "type" (top-level types only) or "member" (all public symbols).
     /// Default: "member" for backwards compatibility.
     #[serde(default)]
@@ -750,6 +754,7 @@ impl Default for SpecSyncConfig {
             exclude_dirs: default_exclude_dirs(),
             exclude_patterns: default_exclude_patterns(),
             source_extensions: Vec::new(),
+            include_extensionless: false,
             export_level: ExportLevel::default(),
             parse_mode: ParseMode::default(),
             modules: std::collections::HashMap::new(),

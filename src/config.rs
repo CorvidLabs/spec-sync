@@ -398,6 +398,9 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
             &config.source_extensions,
         ));
     }
+    if config.include_extensionless {
+        lines.push("include_extensionless = true".to_string());
+    }
 
     lines.push(toml_array_line(
         "required_sections",
@@ -847,6 +850,7 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                 "exclude_dirs" => config.exclude_dirs = parse_toml_string_array(value),
                 "exclude_patterns" => config.exclude_patterns = parse_toml_string_array(value),
                 "source_extensions" => config.source_extensions = parse_toml_string_array(value),
+                "include_extensionless" => config.include_extensionless = parse_toml_bool(value),
                 key if LEGACY_AI_TOML_KEYS.contains(&key) => warn_retired_ai_key(key),
                 "export_level" => {
                     let s = parse_toml_string(value);
@@ -2204,6 +2208,46 @@ verify_issues = false
         config.lifecycle.track_history = false;
         assert!(config_to_toml(&config).contains("track_history = false"));
         assert!(!roundtrip_toml(&config).lifecycle.track_history);
+    }
+
+    #[test]
+    fn test_config_to_toml_roundtrips_include_extensionless() {
+        let default_config = SpecSyncConfig::default();
+        assert!(!default_config.include_extensionless);
+        assert!(
+            !config_to_toml(&default_config).contains("include_extensionless"),
+            "the false default should be omitted"
+        );
+        assert!(!roundtrip_toml(&default_config).include_extensionless);
+
+        let enabled = SpecSyncConfig {
+            include_extensionless: true,
+            ..SpecSyncConfig::default()
+        };
+        assert!(config_to_toml(&enabled).contains("include_extensionless = true"));
+        assert!(roundtrip_toml(&enabled).include_extensionless);
+    }
+
+    #[test]
+    fn test_toml_reads_explicit_false_include_extensionless() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "source_extensions = []\ninclude_extensionless = false\n",
+        )
+        .unwrap();
+        let config = load_config(tmp.path());
+        assert!(config.source_extensions.is_empty());
+        assert!(!config.include_extensionless);
+    }
+
+    #[test]
+    fn test_legacy_json_reads_include_extensionless() {
+        let config: SpecSyncConfig =
+            serde_json::from_str(r#"{"sourceExtensions": [], "includeExtensionless": true}"#)
+                .unwrap();
+        assert!(config.source_extensions.is_empty());
+        assert!(config.include_extensionless);
     }
 
     #[test]

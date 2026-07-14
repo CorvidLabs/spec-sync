@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Explicit extensionless source discovery** — `include_extensionless = true` adds files such as `bin/tool` to coverage and generation scans without changing the established default behavior of omitted or empty `source_extensions`. Extensionless-only and mixed projects now produce non-vacuous strict file and LOC coverage when enabled.
+
 ### Fixed
 
 - **Lifecycle intent and scope preservation** — change interviews keep acceptance-criteria prose intact unless callers explicitly provide a JSON string array, recursive Cargo verification honors safe `--manifest-path` selection before mutating evidence, and affected spec modules cover only their canonical spec and standard companion files.

@@ -39,6 +39,7 @@ schema_pattern = "CREATE (?:VIRTUAL )?TABLE(?:\\s+IF NOT EXISTS)?\\s+(\\w+)"
 exclude_dirs = ["__tests__"]
 exclude_patterns = ["**/__tests__/**", "**/*.test.ts"]
 source_extensions = ["rs", "ts"]
+include_extensionless = true
 required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
 export_level = "member"
 parse_mode = "ast"
@@ -75,10 +76,13 @@ All keys use `snake_case`. `specsync migrate` preserves explicit empty arrays an
 | `exclude_dirs` | string[] | common test directories | Directory exclusions |
 | `exclude_patterns` | string[] | common test globs | Additive source exclusions |
 | `source_extensions` | string[] | all supported | Restrict source discovery |
+| `include_extensionless` | boolean | `false` | Add files without a filename extension to source discovery |
 | `export_level` | `member` or `type` | `member` | Public-symbol validation depth |
 | `parse_mode` | `regex` or `ast` | `regex` | Extraction strategy where AST support exists |
 | `enforcement` | `warn`, `enforce-new`, or `strict` | `warn` | Default failure policy |
 | `task_archive_days` | integer | unset | Age threshold used by task archival |
+
+An omitted or empty `source_extensions` list continues to select all supported language extensions. Set `include_extensionless = true` to additionally discover files such as `bin/tool`; it is additive whether `source_extensions` uses the defaults or an explicit list.
 
 ## Validation rules
 

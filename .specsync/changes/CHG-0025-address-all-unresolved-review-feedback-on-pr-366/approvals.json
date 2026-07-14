@@ -69,6 +69,27 @@
       "timestamp": 1784047883,
       "digest": "7810d4e3ad8f5fe20bcf8ae48be9891346d35370258d7ac04940236ce911320f",
       "note": "Closing approval after exact-main native verification repaired the incomplete pre-squash transition without changing the accepted definition or product code."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784049487,
+      "digest": "30740376869940ca15f9ec574234977cf0dbb28b368afd1ec9655a69b708c04b",
+      "note": "Refreshed closing approval after CHG-0034 extensionless discovery integration and successful full native verification."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784049651,
+      "digest": "95b10d1b0ecc70e0b1514db214f48482f48d47b12a5214187d95764d4b4f7f6e",
+      "note": "Refreshed closing approval after non-semantic canonical Markdown EOF normalization and successful native verification."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784049847,
+      "digest": "f61f6020bf35ccb0ae05467b70c45dd488f9d22c257d3cd7c46e3954548325a7",
+      "note": "Refreshed closing approval after removing superseded CHG-0027 canonical history, correcting the spec version, and passing native verification."
     }
   ],
   "reopenings": [
@@ -317,6 +338,129 @@
       },
       "stale_acceptance_input_digest": "7f82853c89a3245faa683619a6aa4f3462f59a4b6ada6222cda33d154dbeb9cf",
       "current_acceptance_input_digest": "d376a51540a3c02d95f646471157eb9ffcdc8c3543a5f3e2c3551ca32913c989"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0025-address-all-unresolved-review-feedback-on-pr-366",
+      "actor": "user:0xLeif",
+      "reason": "Refresh accepted delivery evidence after CHG-0034 extensionless discovery contract and implementation.",
+      "timestamp": 1784049469,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784047883,
+        "digest": "7810d4e3ad8f5fe20bcf8ae48be9891346d35370258d7ac04940236ce911320f",
+        "note": "Closing approval after exact-main native verification repaired the incomplete pre-squash transition without changing the accepted definition or product code."
+      },
+      "prior_verification": {
+        "timestamp": 1784047874,
+        "commit": "eeebe807adb258a93a2c896af2d70a46859fe899",
+        "contract_digest": "ee5819f2f1397f1a05d72e9ee6ac5344a78609159f42c21e7d5dbf95f643c32e",
+        "workspace_digest": "682e22782b3cb7c16b93bd4df94f315eb6f4ff8de745cbeff80610b096e7564f",
+        "acceptance_input_digest": "1d116c4a7d33bd54fa2eff462c1ea80aa142e08378a6a42f8f4ed337b31e263d",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-026",
+          "REQ-change-027",
+          "REQ-change-028",
+          "REQ-cli-003",
+          "REQ-config-002",
+          "REQ-validator-004"
+        ]
+      },
+      "stale_acceptance_input_digest": "1d116c4a7d33bd54fa2eff462c1ea80aa142e08378a6a42f8f4ed337b31e263d",
+      "current_acceptance_input_digest": "bef754829c4cc2510988ae6d64d93df4b5fe8dba6d089110959c6caf2cb90c8e"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0025-address-all-unresolved-review-feedback-on-pr-366",
+      "actor": "user:0xLeif",
+      "reason": "Refresh delivery evidence after non-semantic canonical Markdown EOF normalization.",
+      "timestamp": 1784049634,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784049487,
+        "digest": "30740376869940ca15f9ec574234977cf0dbb28b368afd1ec9655a69b708c04b",
+        "note": "Refreshed closing approval after CHG-0034 extensionless discovery integration and successful full native verification."
+      },
+      "prior_verification": {
+        "timestamp": 1784049479,
+        "commit": "3a466aefc0e2296858481d2800d6cd05be2f9dc7",
+        "contract_digest": "ee5819f2f1397f1a05d72e9ee6ac5344a78609159f42c21e7d5dbf95f643c32e",
+        "workspace_digest": "22bd9a6e07039b71c9a106ce013b92dfa8a6011af7e9969758da2e4780da30f7",
+        "acceptance_input_digest": "bef754829c4cc2510988ae6d64d93df4b5fe8dba6d089110959c6caf2cb90c8e",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-026",
+          "REQ-change-027",
+          "REQ-change-028",
+          "REQ-cli-003",
+          "REQ-config-002",
+          "REQ-validator-004"
+        ]
+      },
+      "stale_acceptance_input_digest": "bef754829c4cc2510988ae6d64d93df4b5fe8dba6d089110959c6caf2cb90c8e",
+      "current_acceptance_input_digest": "70d8e4c1d9fd923d5f2b0ef432cef2528f6a78374b006f7935b4c3f6529eedfc"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0025-address-all-unresolved-review-feedback-on-pr-366",
+      "actor": "user:0xLeif",
+      "reason": "Refresh delivery evidence after removing superseded CHG-0027 canonical history and correcting the spec version.",
+      "timestamp": 1784049821,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784049651,
+        "digest": "95b10d1b0ecc70e0b1514db214f48482f48d47b12a5214187d95764d4b4f7f6e",
+        "note": "Refreshed closing approval after non-semantic canonical Markdown EOF normalization and successful native verification."
+      },
+      "prior_verification": {
+        "timestamp": 1784049646,
+        "commit": "3a466aefc0e2296858481d2800d6cd05be2f9dc7",
+        "contract_digest": "ee5819f2f1397f1a05d72e9ee6ac5344a78609159f42c21e7d5dbf95f643c32e",
+        "workspace_digest": "0240fed9463ed8c7b5a494d6f5ad54b42a6a6cfd7121a3fdcca1f88bfddfd034",
+        "acceptance_input_digest": "70d8e4c1d9fd923d5f2b0ef432cef2528f6a78374b006f7935b4c3f6529eedfc",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-026",
+          "REQ-change-027",
+          "REQ-change-028",
+          "REQ-cli-003",
+          "REQ-config-002",
+          "REQ-validator-004"
+        ]
+      },
+      "stale_acceptance_input_digest": "70d8e4c1d9fd923d5f2b0ef432cef2528f6a78374b006f7935b4c3f6529eedfc",
+      "current_acceptance_input_digest": "0375144db4d5c26f5bcb6baafaf39ef7678c737c1396dffa6bf3cef9bd92db2c"
     }
   ]
 }

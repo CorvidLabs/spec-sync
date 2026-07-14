@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 33,
-  "id": "CHG-0033-close-final-5-0-2-lifecycle-review-and-intent-preservation-gaps",
+  "sequence": 34,
+  "id": "CHG-0034-support-extensionless-source-discovery-through-an-explicit-include-extensionless",
   "acknowledged_collisions": [
     {
       "sequence": 16,

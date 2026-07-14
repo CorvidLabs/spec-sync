@@ -34,7 +34,52 @@
       "timestamp": 1784040793,
       "digest": "e2371e14b4f64fa124a87d748521f04d0bd629fe57d1c7e01eccbde8d7e6f129",
       "note": "Closing approval after 1,568 unit tests, 193 integration tests, Clippy, formatting, and explicit REQ-change-029/030 evidence all passed; hosted CI remains pending."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784049515,
+      "digest": "0b7cb2e9bbb594e435f642a8288039542e91c066fad073b50aaa9ff32f1b000e",
+      "note": "Refreshed closing approval after CHG-0034 extensionless discovery integration and successful full native verification."
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0032-address-all-actionable-review-findings-on-pr-370-with-regression-coverage",
+      "actor": "user:0xLeif",
+      "reason": "Refresh accepted delivery evidence after CHG-0034 extensionless discovery contract and implementation.",
+      "timestamp": 1784049491,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784040793,
+        "digest": "e2371e14b4f64fa124a87d748521f04d0bd629fe57d1c7e01eccbde8d7e6f129",
+        "note": "Closing approval after 1,568 unit tests, 193 integration tests, Clippy, formatting, and explicit REQ-change-029/030 evidence all passed; hosted CI remains pending."
+      },
+      "prior_verification": {
+        "timestamp": 1784040778,
+        "commit": "f622d09778e0e78b1fd8dea97f7c5e657e2b7c79",
+        "contract_digest": "73323fffde3ae77c4fa96199d67114bc59e17c6cea97af7c0aa74187cb959cf3",
+        "workspace_digest": "205d09045f4e84a633f1a5de794f4692a58e6f6bef910b9d0d2c06da899f626c",
+        "acceptance_input_digest": "110649d06daba2bed5fc61571ed415c7f4c8e51c154492cad0839ccd53ebc912",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-029",
+          "REQ-change-030"
+        ]
+      },
+      "stale_acceptance_input_digest": "110649d06daba2bed5fc61571ed415c7f4c8e51c154492cad0839ccd53ebc912",
+      "current_acceptance_input_digest": "100ed6f66cb36374d4b4bd03f3a950cde24722c0992562e7bf5a7d327930ceca"
+    }
+  ]
 }

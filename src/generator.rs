@@ -1,4 +1,4 @@
-use crate::exports::{has_extension, is_test_file};
+use crate::exports::{has_configured_extension, is_test_file};
 use crate::types::{CoverageReport, Language, SpecSyncConfig};
 use colored::Colorize;
 use std::fs;
@@ -530,7 +530,11 @@ fn find_module_source_files(dir: &Path, config: &SpecSyncConfig, root: &Path) ->
     for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
         if path.is_file()
-            && has_extension(path, &config.source_extensions)
+            && has_configured_extension(
+                path,
+                &config.source_extensions,
+                config.include_extensionless,
+            )
             && !is_test_file(path, root)
         {
             results.push(path.to_string_lossy().to_string());
@@ -585,7 +589,11 @@ pub fn find_files_for_module(
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if !path.is_file()
-                        || !has_extension(&path, &config.source_extensions)
+                        || !has_configured_extension(
+                            &path,
+                            &config.source_extensions,
+                            config.include_extensionless,
+                        )
                         || is_test_file(&path, root)
                     {
                         continue;
@@ -620,7 +628,11 @@ pub fn find_single_source_fallback(root: &Path, config: &SpecSyncConfig) -> Opti
         for entry in WalkDir::new(&base).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
             if !path.is_file()
-                || !has_extension(path, &config.source_extensions)
+                || !has_configured_extension(
+                    path,
+                    &config.source_extensions,
+                    config.include_extensionless,
+                )
                 || is_test_file(path, root)
             {
                 continue;

@@ -88,19 +88,13 @@ pub fn cmd_wizard(root: &Path) {
             walkdir::WalkDir::new(&full_src)
                 .into_iter()
                 .filter_map(|e| e.ok())
-                .filter(|e| {
-                    if !e.path().is_file() {
-                        return false;
-                    }
-                    let name = e.path().file_stem().and_then(|n| n.to_str()).unwrap_or("");
-                    let parent = e
-                        .path()
-                        .parent()
-                        .and_then(|p| p.file_name())
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("");
-                    (name == module_name || parent == module_name)
-                        && crate::exports::has_extension(e.path(), &config.source_extensions)
+                .filter(|entry| {
+                    is_wizard_source_candidate(
+                        entry.path(),
+                        &module_name,
+                        &config.source_extensions,
+                        config.include_extensionless,
+                    )
                 })
                 .map(|e| {
                     e.path()
@@ -326,5 +320,45 @@ depends_on: {depends_yaml}
             eprintln!("Failed to write {}: {e}", spec_file.display());
             process::exit(1);
         }
+    }
+}
+
+fn is_wizard_source_candidate(
+    path: &Path,
+    module_name: &str,
+    source_extensions: &[String],
+    include_extensionless: bool,
+) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    let name = path
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .unwrap_or("");
+    let parent = path
+        .parent()
+        .and_then(|parent| parent.file_name())
+        .and_then(|name| name.to_str())
+        .unwrap_or("");
+    (name == module_name || parent == module_name)
+        && crate::exports::has_configured_extension(path, source_extensions, include_extensionless)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_wizard_source_candidate;
+    use std::fs;
+
+    #[test]
+    fn wizard_source_candidates_exclude_matching_directories() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let directory = temp.path().join("tool");
+        fs::create_dir(&directory).expect("matching directory");
+        let source = directory.join("tool");
+        fs::write(&source, "#!/bin/sh\n").expect("extensionless source");
+
+        assert!(!is_wizard_source_candidate(&directory, "tool", &[], true));
+        assert!(is_wizard_source_candidate(&source, "tool", &[], true));
     }
 }

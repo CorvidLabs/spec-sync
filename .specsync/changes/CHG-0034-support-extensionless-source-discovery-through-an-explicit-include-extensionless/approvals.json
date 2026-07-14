@@ -1,0 +1,115 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784049129,
+      "digest": "8f9ce53f65958f42fa5f44dd96c8037c525f8d08c8dc81376ac3392b3fcef809",
+      "note": "Definition approval after dependency rebase and review of the extensionless discovery contract, canonical deltas, public docs, coverage fixtures, and wizard file-boundary regression."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784049372,
+      "digest": "85f03c9143b3f9b078d5d6298f44f992d9ebe3d851070703f53ff52879769d11",
+      "note": "Definition approval for the corrected exact-main base commit and unchanged extensionless discovery contract."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784049438,
+      "digest": "7b13bd9eb76c50dc21d34ecc9d49abcb05f25d35c9d4e27cd80af954063f9826",
+      "note": "Closing approval after exact-main base correction and successful native verification of extensionless discovery, wizard filtering, strict coverage, and documentation."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784049676,
+      "digest": "41ae29925fc32d7f0d013781ce87a752dd272828f068093d0a75d6de206b8170",
+      "note": "Refreshed closing approval after non-semantic canonical Markdown EOF normalization and successful native verification."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784049881,
+      "digest": "b2274a096ef2827b0495102c88d81bf12abe23f18852f7cd07ab487b08203e20",
+      "note": "Refreshed closing approval after removing superseded CHG-0027 canonical history, correcting the spec version, and passing native verification."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0034-support-extensionless-source-discovery-through-an-explicit-include-extensionless",
+      "actor": "user:0xLeif",
+      "reason": "Refresh delivery evidence after non-semantic canonical Markdown EOF normalization.",
+      "timestamp": 1784049657,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784049438,
+        "digest": "7b13bd9eb76c50dc21d34ecc9d49abcb05f25d35c9d4e27cd80af954063f9826",
+        "note": "Closing approval after exact-main base correction and successful native verification of extensionless discovery, wizard filtering, strict coverage, and documentation."
+      },
+      "prior_verification": {
+        "timestamp": 1784049434,
+        "commit": "3a466aefc0e2296858481d2800d6cd05be2f9dc7",
+        "contract_digest": "85f03c9143b3f9b078d5d6298f44f992d9ebe3d851070703f53ff52879769d11",
+        "workspace_digest": "4dc0d73569ce761e50e6914179cab700c1059d91a8a43d6db57ec88cb556cb6e",
+        "acceptance_input_digest": "7220f1c63093745a793f786d435b16221ce1a86a7abe577a5b5c98656ab11dba",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-config-003",
+          "REQ-validator-005"
+        ]
+      },
+      "stale_acceptance_input_digest": "7220f1c63093745a793f786d435b16221ce1a86a7abe577a5b5c98656ab11dba",
+      "current_acceptance_input_digest": "64e56bc1b13007998bbae2c8ab5271f26c640af5296c5b7d24702493b50a3a24"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0034-support-extensionless-source-discovery-through-an-explicit-include-extensionless",
+      "actor": "user:0xLeif",
+      "reason": "Refresh delivery evidence after removing superseded CHG-0027 canonical history and correcting the spec version.",
+      "timestamp": 1784049854,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784049676,
+        "digest": "41ae29925fc32d7f0d013781ce87a752dd272828f068093d0a75d6de206b8170",
+        "note": "Refreshed closing approval after non-semantic canonical Markdown EOF normalization and successful native verification."
+      },
+      "prior_verification": {
+        "timestamp": 1784049671,
+        "commit": "3a466aefc0e2296858481d2800d6cd05be2f9dc7",
+        "contract_digest": "85f03c9143b3f9b078d5d6298f44f992d9ebe3d851070703f53ff52879769d11",
+        "workspace_digest": "0240fed9463ed8c7b5a494d6f5ad54b42a6a6cfd7121a3fdcca1f88bfddfd034",
+        "acceptance_input_digest": "64e56bc1b13007998bbae2c8ab5271f26c640af5296c5b7d24702493b50a3a24",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-config-003",
+          "REQ-validator-005"
+        ]
+      },
+      "stale_acceptance_input_digest": "64e56bc1b13007998bbae2c8ab5271f26c640af5296c5b7d24702493b50a3a24",
+      "current_acceptance_input_digest": "aef4b2ad10099df1438087392c3d0e35b5ba6668f27674b37f859aa148f6898a"
+    }
+  ]
+}

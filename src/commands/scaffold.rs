@@ -59,7 +59,11 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
                     .filter_map(|e| e.ok())
                     .filter(|e| {
                         e.path().is_file()
-                            && crate::exports::has_extension(e.path(), &config.source_extensions)
+                            && crate::exports::has_configured_extension(
+                                e.path(),
+                                &config.source_extensions,
+                                config.include_extensionless,
+                            )
                     })
                     .map(|e| {
                         e.path()

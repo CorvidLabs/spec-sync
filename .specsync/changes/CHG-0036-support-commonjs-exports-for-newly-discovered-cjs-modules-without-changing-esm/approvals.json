@@ -72,6 +72,42 @@
       },
       "stale_acceptance_input_digest": "7f4bfa0cf1a1e8191f9f74cf28785bd8e305cf6a128a5986b2066c208abd6697",
       "current_acceptance_input_digest": "e8cfd1e2a80e3123999fcf651abbcdea199f60e6b39ae4f41b3361f64c36c2f4"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0036-support-commonjs-exports-for-newly-discovered-cjs-modules-without-changing-esm",
+      "actor": "user:0xLeif",
+      "reason": "CHG-0038 hardened the overlapping CommonJS export scanner and updated the canonical exports contract, so CHG-0036 requires fresh native verification and closing approval against the integrated implementation.",
+      "timestamp": 1784059893,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784058624,
+        "digest": "30866cfc9f20a1687c99e5b0da58914f3d452db58e764922a62d34994962b721",
+        "note": "Fresh closing approval after the combined CommonJS and extensionless resolver delivery passed 1,582 unit tests and 199 integration tests at e4a8f73110b22e1ee6a72c3a1a11cb19c1bb3f17."
+      },
+      "prior_verification": {
+        "timestamp": 1784058616,
+        "commit": "e4a8f73110b22e1ee6a72c3a1a11cb19c1bb3f17",
+        "contract_digest": "e537cd77dbb5e09aa1d3fc2c7ab9541aa3942fdce8433b638ca9b220bceef749",
+        "workspace_digest": "0ba6b2f2b24aa49d1afe0f240c0b4378229ccce087a80e1a799d952d547ceec4",
+        "acceptance_input_digest": "e8cfd1e2a80e3123999fcf651abbcdea199f60e6b39ae4f41b3361f64c36c2f4",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-exports-002"
+        ]
+      },
+      "stale_acceptance_input_digest": "e8cfd1e2a80e3123999fcf651abbcdea199f60e6b39ae4f41b3361f64c36c2f4",
+      "current_acceptance_input_digest": "7f6838a29d87c55832cea6e86642cd764a2d0af267b553af1b25d19e2ec996a5"
     }
   ]
 }

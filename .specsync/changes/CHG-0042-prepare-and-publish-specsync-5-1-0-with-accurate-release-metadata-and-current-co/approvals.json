@@ -22,5 +22,40 @@
       "note": "Accepted by 0xLeif after fresh lifecycle verification, strict specs, complete tests, hosted cross-platform CI, CodeQL, Trust, provenance verification, and a clean review-thread audit."
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0042-prepare-and-publish-specsync-5-1-0-with-accurate-release-metadata-and-current-co",
+      "actor": "0xLeif",
+      "reason": "The late comparison documentation review correction legitimately updates the accepted site/src/content/docs/why-specsync.md delivery input.",
+      "timestamp": 1784089148,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784088309,
+        "digest": "c9f12c851aadee5b7d36384da0e3a950d59763d674429504635bf22cf0f22173",
+        "note": "Accepted by 0xLeif after fresh lifecycle verification, strict specs, complete tests, hosted cross-platform CI, CodeQL, Trust, provenance verification, and a clean review-thread audit."
+      },
+      "prior_verification": {
+        "timestamp": 1784088047,
+        "commit": "4dc4caa0ade6305baf13aafd9b4758ac99f422b9",
+        "contract_digest": "99ec482ef920dec58348d788b3d134726f7475d4a01517adf8a155be6ff1a611",
+        "workspace_digest": "bc7f3caa6d7fa69c41fcfcad9abb23f94e68ea900c126af2eb1586836f37235d",
+        "acceptance_input_digest": "fc978d939a1f3c3761894fdfff4ad4a3ac066c42da29fa0b3c166e024e035b01",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "fc978d939a1f3c3761894fdfff4ad4a3ac066c42da29fa0b3c166e024e035b01",
+      "current_acceptance_input_digest": "b70a81639f606e8a269982759991c7d9ec8d3d6398140801cae313eaeca2a215"
+    }
+  ]
 }

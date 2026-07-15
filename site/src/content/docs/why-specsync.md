@@ -43,7 +43,7 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 
 ### vs. Spec Kit, OpenSpec, and BMAD
 
-[Spec Kit](https://github.github.com/spec-kit/) provides guided SDD plus configurable, resumable workflows and human gates. [OpenSpec](https://github.com/Fission-AI/OpenSpec) provides a lightweight action graph, semantic deltas, synchronization, and archival. [BMAD Method](https://docs.bmad-method.org/) provides a broader agent-led product workflow spanning discovery through implementation and review. The comparison below was verified against Spec Kit 0.12.15, OpenSpec 1.6.0, and BMAD 6.10.0 on 2026-07-14 and distinguishes deterministic blocking enforcement from configurable or agentic workflows:
+[Spec Kit](https://github.github.com/spec-kit/) provides guided SDD plus configurable, resumable workflows and human gates. [OpenSpec](https://github.com/Fission-AI/OpenSpec) provides a lightweight action graph, semantic deltas, synchronization, and archival. [BMAD Method](https://docs.bmad-method.org/) provides a broader agent-led product workflow spanning discovery through implementation and review. The comparison below was verified against Spec Kit 0.12.15 and OpenSpec 1.6.0 on 2026-07-14 and distinguishes deterministic blocking enforcement from configurable or agentic workflows:
 
 | SDD capability | SpecSync 5.1 | Spec Kit core | OpenSpec core |
 |:---------------|:-------------:|:-------------:|:-------------:|

@@ -41,11 +41,11 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 
 ## Detailed Comparisons
 
-### vs. Spec Kit and OpenSpec
+### vs. Spec Kit, OpenSpec, and BMAD
 
-[Spec Kit](https://github.github.com/spec-kit/) provides guided SDD plus configurable, resumable workflows and human gates. [OpenSpec](https://github.com/Fission-AI/OpenSpec) provides an action-based artifact graph, semantic deltas, agentic verification, synchronization, and archival. The comparison below was verified against their official documentation on 2026-07-11 and distinguishes deterministic blocking enforcement from configurable or agentic workflows:
+[Spec Kit](https://github.github.com/spec-kit/) provides guided SDD plus configurable, resumable workflows and human gates. [OpenSpec](https://github.com/Fission-AI/OpenSpec) provides a lightweight action graph, semantic deltas, synchronization, and archival. [BMAD Method](https://docs.bmad-method.org/) provides a broader agent-led product workflow spanning discovery through implementation and review. The comparison below was verified against Spec Kit 0.12.15 and OpenSpec 1.6.0 on 2026-07-14 and distinguishes deterministic blocking enforcement from configurable or agentic workflows:
 
-| SDD capability | SpecSync 5.0 | Spec Kit core | OpenSpec core |
+| SDD capability | SpecSync 5.1 | Spec Kit core | OpenSpec core |
 |:---------------|:-------------:|:-------------:|:-------------:|
 | Deterministic adaptive interview | **Yes** | Template/workflow driven | Schema/instruction driven |
 | Optional artifacts selected by risk | **Yes** | Presets/workflows | Configurable schemas |
@@ -62,6 +62,8 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 Sources: [Spec Kit workflows](https://github.github.com/spec-kit/reference/workflows.html), [Spec Kit recommended workflow](https://github.github.com/spec-kit/quickstart.html), [OpenSpec commands](https://github.com/Fission-AI/OpenSpec/blob/main/docs/commands.md), and [OpenSpec workflows](https://github.com/Fission-AI/OpenSpec/blob/main/docs/workflows.md).
 
 For evaluator-ready detail, see [SpecSync vs Spec Kit](comparisons/spec-kit/), [SpecSync vs OpenSpec](comparisons/openspec/), [using them together](comparisons/using-together/), and the [adversarial drift proof](comparisons/adversarial-proof/).
+
+BMAD solves a broader planning and delivery problem than this three-column enforcement matrix. See [SpecSync vs BMAD](comparisons/bmad/) for the product-method boundary and integration pattern.
 
 SpecSync does not attempt to win by generating more Markdown. Its differentiator is that an approved specification becomes a deterministic executable CI contract: code, exports, requirements, tests, deltas, approvals, and archival state must agree before the change can close.
 

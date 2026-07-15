@@ -1,6 +1,6 @@
 ---
 id: CHG-0038-harden-commonjs-export-extraction-and-exclude-module-javascript-tests-from-gener
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 044eb584769487b8c43f1509a22d1693893d9894
 ---

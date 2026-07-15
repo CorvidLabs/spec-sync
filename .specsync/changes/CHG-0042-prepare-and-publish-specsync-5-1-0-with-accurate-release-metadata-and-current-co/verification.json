@@ -1,0 +1,16 @@
+{
+  "timestamp": 1784091001,
+  "commit": "7739ea17b067ef636c106ceca6bcf59eee8e6213",
+  "contract_digest": "99ec482ef920dec58348d788b3d134726f7475d4a01517adf8a155be6ff1a611",
+  "workspace_digest": "b52a072889bfad2e97fe2dae51c0bcf0465b70bf227b04b164bebcb9d3612cec",
+  "acceptance_input_digest": "b70a81639f606e8a269982759991c7d9ec8d3d6398140801cae313eaeca2a215",
+  "passed": true,
+  "commands": [
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0042-prepare-and-publish-specsync-5-1-0-with-accurate-release-metadata-and-current-co",
+  "slug": "prepare-and-publish-specsync-5-1-0-with-accurate-release-metadata-and-current-co",
+  "title": "Prepare and publish SpecSync 5.1.0 with accurate release metadata and current competitive documentation",
+  "description": "Prepare and publish SpecSync 5.1.0 with accurate release metadata and current competitive documentation",
+  "kind": "operations",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "6aa3e2891d0a950092b4aeadc511b5d0c7992579",
+  "created_at": 1784085957,
+  "updated_at": 1784091010,
+  "affected_specs": [],
+  "affected_paths": [
+    "Cargo.toml",
+    "Cargo.lock",
+    "CHANGELOG.md",
+    ".github/workflows/trust.yml",
+    "site/src/content/docs/comparisons",
+    "site/src/content/docs/why-specsync.md",
+    ".specsync/archive/changes",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "The release packages already accepted canonical behavior; this change updates version, changelog, release workflow metadata, archives integrated evidence, and public comparison documentation without changing runtime contracts.",
+  "acceptance_criteria": [
+    "Cargo package and lock metadata report version 5.1.0 while historical references remain unchanged",
+    "CHANGELOG.md contains a dated 5.1.0 section and release link that accurately summarizes accepted changes",
+    "The Trust workflow validates with SpecSync 5.1.0",
+    "Comparison documentation reflects current Spec Kit 0.12.15, OpenSpec 1.6.0, and BMAD 6.10.0 capabilities without claiming feature parity",
+    "All integrated accepted changes are archived and no stale active lifecycle records remain",
+    "Strict specs, complete tests, release build, documentation checks, hosted CI, Trust, and provenance verification pass before tagging v5.1.0"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

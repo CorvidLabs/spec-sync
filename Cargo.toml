@@ -1,6 +1,6 @@
 [package]
 name = "specsync"
-version = "5.0.2"
+version = "5.1.0"
 edition = "2024"
 rust-version = "1.89"
 description = "Bidirectional spec-to-code validation with schema column checking — 33 languages, single binary"

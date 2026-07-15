@@ -56,3 +56,19 @@ Acceptance Criteria
 - Gemini create-change guidance uses `{{args}}` and contains no `$ARGUMENTS` reference.
 - Every generated skill and create-change command quotes a free-text interview answer as one positional argument.
 - Reinstalling all four integrations remains deterministic and idempotent.
+
+### REQ-agents-003
+
+Checked-in project-native create-spec commands SHALL remain exact current installer outputs and SHALL
+classify the complete non-flag input before selecting or deriving a module name.
+
+Acceptance Criteria
+
+- Claude, Cursor, and Gemini checked-in commands remove standalone `--minimal` flags before
+  classifying the remaining input.
+- A bare identifier is preserved unchanged, while quoted or unquoted free text derives a meaningful
+  kebab-case slug and never uses only its first word.
+- Guidance demonstrates `--minimal` before and after both a bare module and a free-text description.
+- Tests byte-compare freshly installed commands with checked-in assets and prove a second install is
+  idempotent.
+

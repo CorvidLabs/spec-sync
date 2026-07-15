@@ -118,6 +118,27 @@
       "timestamp": 1784117234,
       "digest": "e8514419ccc0a9dea66038b0b9cd1d30932c21c16c6b406e581cc4f38399aad2",
       "note": "Reapprove completed bounded immutable Git evidence redesign, scoped candidate discovery, controlled autocrlf checkout semantics, and deterministic adversarial regressions after all exact local gates."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784117451,
+      "digest": "13da14f36f0464b5c64a94cf327a1b065b8a94227f98e45861eb13eb0d898a83",
+      "note": "Approve fail-closed repository detection and inventory-capture generation binding for audit finding 1806051 and follow-up TOCTOU review."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784117514,
+      "digest": "c06772ef4a2c75b8ff3dc9b114d78356e08666c37e5bd91d009a4d08f35dce46",
+      "note": "Approve fail-closed repository detection, generation-bound discovery, deadline-safe subprocess cleanup, literal pathspecs, and exact-candidate stage inspection from the completed audit."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784117574,
+      "digest": "c695c38abe3da27be499f56577535144d25d1b97f9c472388b1b19beac35665a",
+      "note": "Approve complete audit scope including fail-closed definition inventory and streaming volatile pruning."
     }
   ],
   "reopenings": []

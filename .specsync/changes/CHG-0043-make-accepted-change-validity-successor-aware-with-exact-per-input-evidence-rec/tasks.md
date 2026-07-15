@@ -75,3 +75,22 @@ artifact: tasks
 - [x] Resolve and fingerprint the environment-aware effective index and actual split dependency.
 - [x] Reject unresolved stages only for selected candidates while validating global index framing.
 - [x] Add injected command failure, alternate-index mutation, overflow, and scoped-stage regressions.
+- [ ] Distinguish an affirmative plain non-repository from operational `rev-parse` failures before selecting non-Git evidence.
+- [ ] Fail closed with bounded diagnostics when Git markers or permission, configuration, corruption, ownership, or dubious-repository errors make detection inconclusive.
+- [ ] Add plain-directory and broken-repository detection regressions and pass focused plus full relevant local gates.
+- [ ] Bind Git and non-Git path discovery to the same bounded retry generation as payload capture.
+- [ ] Compare pre/post inventories and immutable candidate snapshots so tracked or untracked additions and removals cannot escape evidence.
+- [ ] Add deterministic discovery/capture mutation regressions for tracked, untracked, Git, and non-Git governed paths.
+- [ ] Add a justified test-injectable wall-clock deadline to bounded Git subprocess execution.
+- [ ] Guarantee child kill/wait and pipe-thread cleanup across timeout, overflow, pipe acquisition, polling, and panic/error exits.
+- [ ] Add silent-hang timeout/reap and injected cleanup-failure regressions.
+- [ ] Encode every exact Git candidate as a top-level literal pathspec and every discovery scope with explicit literal recursion semantics.
+- [ ] Apply literal pathspec handling consistently to discovery, dirty-state, visibility, fsmonitor, and attribute commands.
+- [ ] Add tracked, dirty, untracked, and scoped regressions for glob metacharacters and leading-colon filenames without unrelated over-selection.
+- [ ] Query stage/object metadata only in bounded literal exact-candidate batches and aggregate caps across batches.
+- [ ] Require exactly one stage-zero entry for each tracked candidate, reject relevant unresolved stages, and never parse unrelated index entries.
+- [ ] Add a huge-unrelated-index narrow-candidate regression proving unrelated index scale cannot block scoped evidence.
+- [ ] Enumerate definition delta artifacts fail-closed with bounded errors for unreadable directories, entry failures, invalid names, and racing entries.
+- [ ] Bind definition inventory enumeration to the same immutable candidate capture and add platform-feasible failure regressions.
+- [ ] Prune volatile Git results and filesystem subtrees during streaming discovery before descent and inventory bounds.
+- [ ] Preserve explicitly governed exact delivery paths while proving huge or unreadable volatile trees cannot block nonvolatile evidence.

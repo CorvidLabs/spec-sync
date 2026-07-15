@@ -1589,9 +1589,9 @@ fn validate_trusted_correction_history(
     references.dedup();
     let shallow = git_output(root, &["rev-parse", "--is-shallow-repository"])
         .is_some_and(|value| value == "true");
-    if shallow && !current.corrections.is_empty() {
+    if shallow && !shallow_history_is_complete_for_change(root, record, &references)? {
         return Err(format!(
-            "cannot validate append-only correction history for {} from a shallow Git checkout; fetch complete trusted history",
+            "cannot validate append-only correction history for {} from an incomplete shallow Git checkout; fetch through its recorded base commit",
             record.id
         ));
     }
@@ -1624,6 +1624,11 @@ fn validate_trusted_correction_history(
     let output = Command::new("git")
         .arg("rev-list")
         .args(&reference_args)
+        .args(
+            shallow
+                .then(|| record.base_commit.as_ref().map(|base| format!("^{base}")))
+                .flatten(),
+        )
         .arg("--")
         .arg(&active_directory)
         .arg(&archive_glob)
@@ -1638,7 +1643,6 @@ fn validate_trusted_correction_history(
         .filter(|commit| !commit.is_empty())
         .map(str::to_string)
         .collect();
-    let mut anchored = false;
     for commit in commits {
         for directory in historical_change_directories(root, &commit, &record.id)? {
             let Some(anchor) =
@@ -1646,7 +1650,6 @@ fn validate_trusted_correction_history(
             else {
                 continue;
             };
-            anchored = true;
             if current.corrections.len() < anchor.corrections.len() {
                 return Err(format!(
                     "correction history rollback detected for {}: trusted commit {} preserves {} correction(s), but the current ledger has {}",
@@ -1675,12 +1678,6 @@ fn validate_trusted_correction_history(
             }
         }
     }
-    if shallow && (!current.corrections.is_empty() || anchored) {
-        return Err(format!(
-            "cannot validate append-only correction history for {} from a shallow Git checkout; fetch complete trusted history",
-            record.id
-        ));
-    }
     let mut cache = cache
         .lock()
         .map_err(|_| "trusted correction history cache is unavailable".to_string())?;
@@ -1689,6 +1686,71 @@ fn validate_trusted_correction_history(
     }
     cache.insert(cache_key);
     Ok(())
+}
+
+fn shallow_history_is_complete_for_change(
+    root: &Path,
+    record: &ChangeRecord,
+    references: &[String],
+) -> Result<bool, String> {
+    let Some(base) = record.base_commit.as_deref() else {
+        return Ok(false);
+    };
+    let commit_object = format!("{base}^{{commit}}");
+    if !Command::new("git")
+        .args(["cat-file", "-e", commit_object.as_str()])
+        .current_dir(root)
+        .output()
+        .is_ok_and(|output| output.status.success())
+    {
+        return Ok(false);
+    }
+    if !historical_change_directories(root, base, &record.id)?.is_empty() {
+        return Ok(false);
+    }
+    if !references.iter().all(|reference| {
+        Command::new("git")
+            .args(["merge-base", "--is-ancestor", base, reference])
+            .current_dir(root)
+            .status()
+            .is_ok_and(|status| status.success())
+    }) {
+        return Ok(false);
+    }
+    let Some(shallow_path) = git_output(root, &["rev-parse", "--git-path", "shallow"]) else {
+        return Ok(false);
+    };
+    let shallow_path = Path::new(&shallow_path);
+    let shallow_path = if shallow_path.is_absolute() {
+        shallow_path.to_path_buf()
+    } else {
+        root.join(shallow_path)
+    };
+    let boundaries = fs::read_to_string(&shallow_path).map_err(|error| {
+        format!(
+            "failed to read shallow Git boundaries {}: {error}",
+            shallow_path.display()
+        )
+    })?;
+    for boundary in boundaries.lines().filter(|line| !line.trim().is_empty()) {
+        let reachable = references.iter().any(|reference| {
+            Command::new("git")
+                .args(["merge-base", "--is-ancestor", boundary, reference])
+                .current_dir(root)
+                .status()
+                .is_ok_and(|status| status.success())
+        });
+        if reachable
+            && !Command::new("git")
+                .args(["merge-base", "--is-ancestor", boundary, base])
+                .current_dir(root)
+                .status()
+                .is_ok_and(|status| status.success())
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 fn historical_change_directories(
@@ -8067,6 +8129,103 @@ mod tests {
         fs::write(root.join(".git/shallow"), format!("{head}\n")).unwrap();
         let error = effective_change_definition(root, &correction.change).unwrap_err();
         assert!(error.contains("shallow Git checkout"), "{error}");
+    }
+
+    // Verifies REQ-change-032.
+    #[test]
+    fn shallow_rollback_tip_cannot_hide_a_corrected_acceptance() {
+        let temp = TempDir::new().unwrap();
+        let source = temp.path().join("source");
+        let clone = temp.path().join("clone");
+        fs::create_dir_all(&source).unwrap();
+        let git = |root: &Path, args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git {} failed",
+                args.join(" ")
+            );
+        };
+        git(&source, &["init", "-b", "main"]);
+        git(&source, &["config", "user.email", "test@example.com"]);
+        git(&source, &["config", "user.name", "Test"]);
+        fs::write(source.join("README.md"), "# Fixture\n").unwrap();
+        git(&source, &["add", "."]);
+        git(&source, &["commit", "-m", "base"]);
+        write_default_policy(&source, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(&source);
+        record = accept_completed_record(&source, record);
+        git(&source, &["add", "."]);
+        git(&source, &["commit", "-m", "accept original definition"]);
+        let original = git_output(&source, &["rev-parse", "HEAD"]).unwrap();
+
+        let correction = correct_interview_metadata(
+            &source,
+            &record.id,
+            CorrectionField::ArchitectureRisk,
+            "yes".into(),
+            "Reviewer".into(),
+            "The accepted verification path has architectural risk".into(),
+        )
+        .unwrap();
+        for artifact in &correction.correction.added_artifacts {
+            fs::write(
+                change_dir(&source, &record.id).join(artifact.file_name()),
+                if *artifact == ArtifactKind::Tasks {
+                    "# Tasks\n\n- [x] Review the corrected classification.\n"
+                } else {
+                    "# Complete\n\nThe corrected classification was reviewed.\n"
+                },
+            )
+            .unwrap();
+        }
+        record = approve_definition(&source, &record.id, Some("Reviewer".into()), None).unwrap();
+        verify_change(&source, &record.id).unwrap();
+        record = accept_change(&source, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&source, &["add", "."]);
+        git(&source, &["commit", "-m", "accept corrected definition"]);
+
+        let workspace = format!("{CHANGES_PATH}/{}", record.id);
+        git(
+            &source,
+            &["restore", "--source", original.as_str(), "--", &workspace],
+        );
+        git(&source, &["add", "."]);
+        git(&source, &["commit", "-m", "rollback lifecycle workspace"]);
+        let source_url = format!("file://{}", source.display());
+        git(
+            temp.path(),
+            &[
+                "clone",
+                "--depth",
+                "1",
+                source_url.as_str(),
+                clone.to_str().unwrap(),
+            ],
+        );
+        let rolled_back = load_change(&clone, &record.id).unwrap();
+        assert_eq!(rolled_back.correction_count, 0);
+        let error = effective_change_definition(&clone, &rolled_back).unwrap_err();
+        assert!(error.contains("incomplete shallow Git checkout"), "{error}");
+
+        let new_record = create_change(
+            &clone,
+            CreateChangeRequest {
+                description: "Add a local shallow-checkout note".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["README.md".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Local documentation only".into()),
+            },
+        )
+        .unwrap();
+        assert!(effective_change_definition(&clone, &new_record).is_ok());
     }
 
     // Verifies REQ-change-032.

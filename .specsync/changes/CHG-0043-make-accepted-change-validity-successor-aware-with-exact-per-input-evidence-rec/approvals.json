@@ -48,6 +48,13 @@
       "timestamp": 1784107671,
       "digest": "2e56d05705c3c89e82362fe9c66fd01b5dbddeb556a01e331269af98b94c0488",
       "note": "Reapproved after evidence-bound Git index, symlink topology, attribute, and artifact-size corrections passed the complete local regression matrix."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784108277,
+      "digest": "767d470417e8dfbd2c5064122e38d835933e2ddefbed0a5f983ae384ebe7c49a",
+      "note": "Approve candidate-scoped stable-index evidence, bounded attribute inspection, visibility and conversion boundaries, and sparse legacy topology corrections."
     }
   ],
   "reopenings": []

@@ -23,7 +23,14 @@ Focused unit and integration regressions will prove:
 - deleting a tracked symlink yields a deterministic missing/mode-zero entry in project freshness, manifest acceptance, and legacy acceptance instead of reading the historical target or failing on the absent path;
 - portable project paths reject POSIX absolute, drive-prefixed, backslash, UNC/device, control-character, dot-component, empty, and separator-ambiguous forms consistently; symlink targets apply their narrower normative rejection classes consistently;
 - valid relative symlink targets containing `./`, interior `./`, repeated separators, trailing separators, or `..` remain accepted with exact bytes rather than being normalized or rejected;
-- assume-unchanged paths, materialized skip-worktree paths, unmerged stages, custom filters, and working-tree encodings fail before canonical index substitution, while absent skip-worktree files use canonical blobs and remain checkout-shape independent;
+- assume-unchanged paths, materialized fsmonitor-valid paths, materialized skip-worktree paths, unmerged stages, custom filters, working-tree encodings, and ident transformations fail before canonical index substitution, while absent skip-worktree files use canonical blobs and remain checkout-shape independent;
+- a changed path explicitly marked fsmonitor-valid cannot be silently canonicalized from the index, including when a custom fsmonitor hook is configured;
+- real ident checkout expansion is rejected before canonical substitution, while ordinary text/eol normalization remains supported;
+- visibility flags and attributes on unrelated excluded paths do not block evidence for the exact governed candidate set;
+- broad content-conversion attributes still reject candidate regular files but do not falsely block canonical symlink targets or gitlink object IDs;
+- an attribute inventory whose combined NUL-delimited input and output exceed operating-system pipe capacity completes deterministically through bounded batches and still rejects an attributed path near the end of the inventory;
+- an index mutation between evidence reads causes a bounded retry or deterministic fail-closed result instead of mixing index generations;
+- sparse-absent tracked legacy archive and baseline files remain present through canonical index bytes, while dirty archived symlink replacements use current file/missing/non-file topology;
 - a modified tracked symlink replaced by a regular file signs file topology/current bytes, while deletion signs missing and a clean materialized symlink retains canonical symlink topology;
 - definition artifact caps bind canonical clean bytes and current dirty/untracked bytes rather than host-smudged metadata length;
 - same-payload mode and kind transitions produce different `specsync.acceptance-entry.v1` full-entry digests and require exact succession tuples;

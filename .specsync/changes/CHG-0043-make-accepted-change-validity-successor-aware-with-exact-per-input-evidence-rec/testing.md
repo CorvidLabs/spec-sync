@@ -35,6 +35,7 @@ Focused unit and integration regressions will prove:
 - deleting a previously bound authority baseline makes definition reapproval fail closed instead of retaining the stale baseline digest;
 - a modified tracked symlink replaced by a regular file signs file topology/current bytes, while deletion signs missing and a clean materialized symlink retains canonical symlink topology;
 - definition artifact caps bind canonical clean bytes and current dirty/untracked bytes rather than host-smudged metadata length;
+- selected definition artifacts reject clean tracked, dirty, and untracked symlinks before reading any internal or external target, independently of referent size;
 - same-payload mode and kind transitions produce different `specsync.acceptance-entry.v1` full-entry digests and require exact succession tuples;
 - CHG43's governed integration test path is classified exact-only, accepts without invented module ownership, and requires reopen after later modification;
 - recursive successor chains validate and cycles fail closed deterministically;

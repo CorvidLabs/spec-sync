@@ -55,6 +55,8 @@ artifact: tasks
 - [ ] Bound candidate count, aggregate path bytes, attribute batches, and NUL output parsing before payload and owner work.
 - [ ] Include sparse-absent tracked entries in legacy archive and baseline evidence and classify dirty archived symlinks from current topology.
 - [ ] Reject dirty or untracked authority-baseline absence without retaining a stale definition binding.
+- [ ] Require selected definition artifacts to be regular files and reject symlinks before payload or size reads.
 - [ ] Add a regression inventory exceeding pipe capacity and prove deterministic completion plus late-path rejection.
 - [ ] Add excluded-path, fsmonitor-valid, ident-expansion, subprocess-failure, index-mutation, oversized-input/output, sparse archive, and deleted-baseline regressions.
+- [ ] Add clean, dirty, untracked, external-target, and oversized-referent definition-artifact symlink regressions.
 - [ ] Pass focused, format, lint, type-check, and full local test gates for the batching correction.

@@ -76,6 +76,13 @@
       "timestamp": 1784108471,
       "digest": "a387c873bbd916fcdb5e0b6071bbb604f7301eaa0eb388246f4421ddacbafe13",
       "note": "Reapprove explicit fail-closed authority-baseline deletion semantics with no stale definition binding."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784108512,
+      "digest": "cf46ae52bd35025e3c05e69b08b51faccfe5ff3134aaa5a9ba67886955924834",
+      "note": "Reapprove regular-file-only definition artifact topology and pre-read symlink rejection."
     }
   ],
   "reopenings": []

@@ -87,6 +87,7 @@ Acceptance Criteria
 - Manifest schema, strictly sorted unique portable paths, sorted unique owners, supported kind/mode pairs, lowercase SHA-256 digests, and fixed entry/path/owner bounds validate fail closed.
 - Candidate-scoped Git evidence is bounded to 100,000 paths, 4,096 bytes per path, and 64 MiB aggregate path bytes before payload/owner work; NUL-safe attribute batches reject active regular-file `filter`, `working-tree-encoding`, and `ident` conversion without blocking unrelated, symlink, or gitlink paths.
 - Canonical substitution rejects governed assume-unchanged, materialized fsmonitor-valid, materialized skip-worktree, and unmerged paths, preserves absent sparse index topology, and retries or fails closed when the index or split-index generation changes during inspection.
+- Selected lifecycle definition artifacts are regular files; clean tracked, dirty, and untracked symlinks fail closed before any referent payload or size read.
 - Source owners come only from the immutable post-delta canonical snapshot; unmapped production source paths fail and recognized governed test/fixture paths plus delivery metadata are exact-only.
 - Symlinks hash exact portable target bytes and reject non-portable targets; gitlinks hash the exact index/tree object ID instead of checked-out directory topology.
 - Full-entry topology digests use `specsync.acceptance-entry.v1` over path, kind, mode, and payload digest so same-payload mode/kind transitions remain distinct.

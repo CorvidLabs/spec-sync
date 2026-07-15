@@ -382,6 +382,23 @@ pub enum ChangeAction {
         #[arg(long)]
         reason: String,
     },
+    /// Correct supported accepted interview metadata through append-only audit evidence
+    Correct {
+        /// Accepted change ID
+        id: String,
+        /// Supported interview field to correct
+        #[arg(value_parser = ["public_contract", "architecture_risk"])]
+        field: String,
+        /// Corrected canonical value
+        #[arg(value_parser = ["yes", "no"])]
+        value: String,
+        /// Human actor authorizing the correction
+        #[arg(long)]
+        actor: String,
+        /// Non-empty reason the accepted metadata is inaccurate
+        #[arg(long)]
+        reason: String,
+    },
     /// Record closing approval and atomically apply semantic deltas
     Accept {
         /// Change ID
@@ -720,6 +737,82 @@ mod tests {
                 "CHG-0001-passkeys",
                 "--reason",
                 "Review fix",
+            ])
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn change_correct_requires_supported_values_and_audit_inputs() {
+        let cli = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "correct",
+            "CHG-0001-passkeys",
+            "public_contract",
+            "yes",
+            "--actor",
+            "Ada Reviewer",
+            "--reason",
+            "The accepted delta changed public behavior",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Some(Command::Change {
+                action: ChangeAction::Correct {
+                    id,
+                    field,
+                    value,
+                    actor,
+                    reason,
+                }
+            }) if id == "CHG-0001-passkeys"
+                && field == "public_contract"
+                && value == "yes"
+                && actor == "Ada Reviewer"
+                && reason == "The accepted delta changed public behavior"
+        ));
+        assert!(
+            Cli::try_parse_from([
+                "specsync",
+                "change",
+                "correct",
+                "CHG-0001-passkeys",
+                "acceptance_criteria",
+                "yes",
+                "--actor",
+                "Ada",
+                "--reason",
+                "Wrong field",
+            ])
+            .is_err()
+        );
+        assert!(
+            Cli::try_parse_from([
+                "specsync",
+                "change",
+                "correct",
+                "CHG-0001-passkeys",
+                "architecture_risk",
+                "maybe",
+                "--actor",
+                "Ada",
+                "--reason",
+                "Wrong value",
+            ])
+            .is_err()
+        );
+        assert!(
+            Cli::try_parse_from([
+                "specsync",
+                "change",
+                "correct",
+                "CHG-0001-passkeys",
+                "architecture_risk",
+                "yes",
+                "--actor",
+                "Ada",
             ])
             .is_err()
         );

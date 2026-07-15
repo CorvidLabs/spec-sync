@@ -338,3 +338,22 @@ Acceptance Criteria
 - Boolean and scalar interview answers retain their existing semantics.
 - Persisted state and rendered change documents preserve the parsed criterion text without silent fragments.
 
+### REQ-change-032
+
+The verified lifecycle SHALL support human-authorized, append-only correction of explicitly
+supported accepted interview metadata without rewriting history or replaying canonical deltas.
+
+Acceptance Criteria
+
+- Only `public_contract` and `architecture_risk` accept normalized `yes` or `no` corrections.
+- Every event preserves the original value and records the prior effective value, corrected value,
+  actor, non-empty reason, timestamp, added artifacts, prior gate evidence, and portable
+  domain-separated prior/corrected metadata-view digests.
+- Effective answers and selected artifacts are derived from a validated ordered correction ledger;
+  artifacts are monotonic and malformed, truncated, reordered, unsupported, or tampered history
+  fails closed.
+- A correction moves an accepted canonically applied change to verifying and requires fresh
+  definition approval, verification, and closing approval.
+- Corrected acceptance prepares no canonical semantic-delta application, and repeated corrections
+  preserve all earlier evidence across portable checkouts and squash integration.
+

@@ -2,18 +2,25 @@ Create a new spec-sync module spec.
 
 Arguments: $ARGUMENTS
 
-1. Parse the arguments above: the first whitespace-separated token is the
-   module name. If the arguments also contain `--minimal` (in any position),
-   remove it and remember that minimal mode was requested.
-2. Look at whatever text remains. It will be one of:
-   - **A bare module name** — a short identifier like `auth-service` or
-     `billing`. Use it as-is.
-   - **A free-text feature description** — a sentence or phrase describing
-     what to build, e.g. `"I want a feature that lets users export their
-     data as CSV"`. In this case, invent a short, kebab-case module name that
-     captures the idea (e.g. `csv-export`). If the right name is ambiguous,
-     ask the user to confirm or rename it before continuing. Keep the full
-     description at hand — you'll use it in step 5.
+1. Read the complete arguments above. Remove each standalone `--minimal` flag
+   (in any position) and remember that minimal mode was requested. Preserve
+   the complete remaining input for classification; do not extract a module
+   name yet. If nothing remains, ask the user for a module or description.
+2. Classify the complete remaining input as one of:
+   - **A bare module name** — the entire input is one identifier with no
+     whitespace, such as `auth-service` or `billing`. Use it as-is.
+   - **A free-text feature description** — any quoted or unquoted sentence or
+     phrase describing what to build, e.g. `"I want a feature that lets users
+     export their data as CSV"`. Only after making this classification, invent
+     a short, kebab-case module name that captures the idea (e.g. `csv-export`).
+     Never use only the first word as the module name. If the right name is
+     ambiguous, ask the user to confirm or rename it before continuing. Keep
+     the complete description at hand — you'll use it in step 5.
+   Flag position does not change classification:
+   - `--minimal billing` and `billing --minimal` both select the bare module
+     `billing` in minimal mode.
+   - `--minimal I need CSV export` and `I need CSV export --minimal` both keep
+     the complete description and derive a name such as `csv-export`, not `I`.
 3. If minimal mode was requested, run:
    ```
    specsync new <module-name>

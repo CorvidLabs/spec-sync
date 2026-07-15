@@ -14,6 +14,7 @@ const ARCHIVE_PATH: &str = ".specsync/archive/changes";
 const LOCK_PATH: &str = ".specsync/change.lock";
 const SEQUENCE_PATH: &str = ".specsync/change-sequence.json";
 const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
+const CORRECTIONS_FILE: &str = "corrections.json";
 const MAX_CHANGE_ARTIFACT_BYTES: u64 = 4 * 1024 * 1024;
 const CANONICAL_SPEC_COMPANIONS: [&str; 5] = [
     "requirements.md",
@@ -28,6 +29,7 @@ const DEFINITION_DIGEST_DOMAIN: &[u8] = b"specsync.definition-digest.v2";
 const PROJECT_DIGEST_DOMAIN: &[u8] = b"specsync.project-input-digest.v2";
 const ACCEPTANCE_DIGEST_DOMAIN: &[u8] = b"specsync.acceptance-input-digest.v2";
 const CLOSING_DIGEST_DOMAIN: &[u8] = b"specsync.closing-digest.v2";
+const CORRECTION_VIEW_DIGEST_DOMAIN: &[u8] = b"specsync.correction-view-digest.v1";
 
 struct FramedDigest {
     hasher: Sha256,
@@ -296,6 +298,8 @@ pub struct ChangeRecord {
     pub state: ChangeState,
     #[serde(default, skip_serializing_if = "is_false")]
     pub canonical_applied: bool,
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    pub correction_count: u64,
     pub base_commit: Option<String>,
     pub created_at: u64,
     pub updated_at: u64,
@@ -348,6 +352,100 @@ pub struct ReopenRecord {
 pub struct ReopenResult {
     pub change: ChangeRecord,
     pub audit: ReopenRecord,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CorrectionField {
+    PublicContract,
+    ArchitectureRisk,
+}
+
+impl CorrectionField {
+    pub fn parse(value: &str) -> Result<Self, String> {
+        match value.trim().to_ascii_lowercase().replace('-', "_").as_str() {
+            "public_contract" => Ok(Self::PublicContract),
+            "architecture_risk" => Ok(Self::ArchitectureRisk),
+            _ => Err(format!(
+                "unsupported correction field `{value}` (expected public_contract or architecture_risk)"
+            )),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::PublicContract => "public_contract",
+            Self::ArchitectureRisk => "architecture_risk",
+        }
+    }
+
+    fn required_artifacts(self) -> &'static [ArtifactKind] {
+        const PUBLIC_CONTRACT: &[ArtifactKind] = &[ArtifactKind::Requirements, ArtifactKind::Docs];
+        const ARCHITECTURE_RISK: &[ArtifactKind] = &[
+            ArtifactKind::Research,
+            ArtifactKind::Design,
+            ArtifactKind::Plan,
+            ArtifactKind::Tasks,
+            ArtifactKind::Testing,
+        ];
+        match self {
+            Self::PublicContract => PUBLIC_CONTRACT,
+            Self::ArchitectureRisk => ARCHITECTURE_RISK,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CorrectionRecord {
+    pub schema_version: u32,
+    pub sequence: u64,
+    pub change_id: String,
+    pub field: CorrectionField,
+    pub original_value: String,
+    pub prior_effective_value: String,
+    pub corrected_value: String,
+    pub actor: String,
+    pub reason: String,
+    pub timestamp: u64,
+    pub prior_view_digest: String,
+    pub corrected_view_digest: String,
+    pub added_artifacts: Vec<ArtifactKind>,
+    pub superseded_definition_approval: ApprovalRecord,
+    pub superseded_closing_approval: ApprovalRecord,
+    pub prior_verification: VerificationRecord,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EffectiveChangeDefinition {
+    pub answers: BTreeMap<String, String>,
+    pub selected_artifacts: Vec<ArtifactKind>,
+    pub view_digest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CorrectionResult {
+    pub change: ChangeRecord,
+    pub correction: CorrectionRecord,
+    pub effective_definition: EffectiveChangeDefinition,
+    pub corrections: Vec<CorrectionRecord>,
+    pub summary: ChangeSummary,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CorrectionLedger {
+    schema_version: u32,
+    corrections: Vec<CorrectionRecord>,
+}
+
+impl Default for CorrectionLedger {
+    fn default() -> Self {
+        Self {
+            schema_version: 1,
+            corrections: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -422,6 +520,12 @@ pub struct ChangeSummary {
     pub state: ChangeState,
     pub approval_valid: bool,
     pub artifacts_complete: bool,
+    #[serde(default)]
+    pub correction_valid: bool,
+    #[serde(default)]
+    pub correction_count: usize,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub corrected_fields: BTreeMap<String, String>,
     pub next_action: String,
 }
 
@@ -550,6 +654,7 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         kind,
         state: ChangeState::Draft,
         canonical_applied: false,
+        correction_count: 0,
         base_commit: git_output(root, &["rev-parse", "HEAD"]),
         created_at: now,
         updated_at: now,
@@ -1224,19 +1329,446 @@ pub fn reopen_change(
     })
 }
 
+#[derive(Serialize)]
+struct CorrectionDigestPayload<'a> {
+    schema_version: u32,
+    sequence: u64,
+    change_id: &'a str,
+    field: CorrectionField,
+    original_value: &'a str,
+    prior_effective_value: &'a str,
+    corrected_value: &'a str,
+    actor: &'a str,
+    reason: &'a str,
+    timestamp: u64,
+    added_artifacts: &'a [ArtifactKind],
+    superseded_definition_approval: &'a ApprovalRecord,
+    superseded_closing_approval: &'a ApprovalRecord,
+    prior_verification: &'a VerificationRecord,
+}
+
+fn canonical_correction_value(value: &str) -> Result<String, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "yes" | "y" | "true" | "1" => Ok("yes".into()),
+        "no" | "n" | "false" | "0" => Ok("no".into()),
+        _ => Err(format!(
+            "unsupported correction value `{value}` (expected yes or no)"
+        )),
+    }
+}
+
+fn initial_correction_view_digest(record: &ChangeRecord) -> Result<String, String> {
+    let mut digest = FramedDigest::new(CORRECTION_VIEW_DIGEST_DOMAIN);
+    digest.frame(b"change-id", record.id.as_bytes());
+    for field in [
+        CorrectionField::PublicContract,
+        CorrectionField::ArchitectureRisk,
+    ] {
+        let value = record
+            .answers
+            .get(field.as_str())
+            .map(String::as_str)
+            .unwrap_or("<missing>");
+        if value != "<missing>" {
+            canonical_correction_value(value)?;
+        }
+        digest.frame(field.as_str().as_bytes(), value.as_bytes());
+    }
+    let artifacts = serde_json::to_vec(&record.selected_artifacts)
+        .map_err(|error| format!("failed to hash original artifact selection: {error}"))?;
+    digest.frame(b"selected-artifacts", &artifacts);
+    Ok(digest.finish())
+}
+
+fn corrected_view_digest(previous: &str, record: &CorrectionRecord) -> Result<String, String> {
+    let payload = CorrectionDigestPayload {
+        schema_version: record.schema_version,
+        sequence: record.sequence,
+        change_id: &record.change_id,
+        field: record.field,
+        original_value: &record.original_value,
+        prior_effective_value: &record.prior_effective_value,
+        corrected_value: &record.corrected_value,
+        actor: &record.actor,
+        reason: &record.reason,
+        timestamp: record.timestamp,
+        added_artifacts: &record.added_artifacts,
+        superseded_definition_approval: &record.superseded_definition_approval,
+        superseded_closing_approval: &record.superseded_closing_approval,
+        prior_verification: &record.prior_verification,
+    };
+    let payload = serde_json::to_vec(&payload)
+        .map_err(|error| format!("failed to hash correction event: {error}"))?;
+    let mut digest = FramedDigest::new(CORRECTION_VIEW_DIGEST_DOMAIN);
+    digest.frame(b"prior-view", previous.as_bytes());
+    digest.frame(b"correction", &payload);
+    Ok(digest.finish())
+}
+
+fn validate_correction_records(
+    record: &ChangeRecord,
+    corrections: &[CorrectionRecord],
+) -> Result<EffectiveChangeDefinition, String> {
+    if record.correction_count != corrections.len() as u64 {
+        return Err(format!(
+            "correction ledger length {} does not match state.json correction_count {}",
+            corrections.len(),
+            record.correction_count
+        ));
+    }
+    let mut answers = record.answers.clone();
+    let mut selected_artifacts = record.selected_artifacts.clone();
+    let mut view_digest = initial_correction_view_digest(record)?;
+
+    for (index, correction) in corrections.iter().enumerate() {
+        let expected_sequence = index as u64 + 1;
+        if correction.schema_version != 1 {
+            return Err(format!(
+                "unsupported correction schema version {} at sequence {expected_sequence}",
+                correction.schema_version
+            ));
+        }
+        if correction.sequence != expected_sequence {
+            return Err(format!(
+                "correction sequence is not contiguous: expected {expected_sequence}, found {}",
+                correction.sequence
+            ));
+        }
+        if correction.change_id != record.id {
+            return Err(format!(
+                "correction sequence {expected_sequence} belongs to `{}` instead of `{}`",
+                correction.change_id, record.id
+            ));
+        }
+        if correction.actor.trim().is_empty() || correction.reason.trim().is_empty() {
+            return Err(format!(
+                "correction sequence {expected_sequence} is missing its human actor or reason"
+            ));
+        }
+        if correction.superseded_definition_approval.gate != "definition"
+            || correction.superseded_closing_approval.gate != "acceptance"
+            || !correction.prior_verification.passed
+            || correction.superseded_definition_approval.digest
+                != correction.prior_verification.contract_digest
+        {
+            return Err(format!(
+                "correction sequence {expected_sequence} contains invalid prior gate evidence"
+            ));
+        }
+        if correction.superseded_closing_approval.digest
+            != closing_digest(record, &correction.prior_verification)
+        {
+            return Err(format!(
+                "correction sequence {expected_sequence} prior closing evidence is inconsistent"
+            ));
+        }
+
+        let field = correction.field.as_str();
+        let original = record.answers.get(field).ok_or_else(|| {
+            format!("accepted change is missing original `{field}` interview metadata")
+        })?;
+        canonical_correction_value(original)?;
+        if correction.original_value != *original {
+            return Err(format!(
+                "correction sequence {expected_sequence} original `{field}` value does not match state.json"
+            ));
+        }
+        let prior = answers.get(field).ok_or_else(|| {
+            format!("correction sequence {expected_sequence} has no prior `{field}` value")
+        })?;
+        if correction.prior_effective_value != *prior {
+            return Err(format!(
+                "correction sequence {expected_sequence} prior `{field}` value breaks the append-only chain"
+            ));
+        }
+        let corrected = canonical_correction_value(&correction.corrected_value)?;
+        if corrected != correction.corrected_value
+            || corrected == canonical_correction_value(prior)?
+        {
+            return Err(format!(
+                "correction sequence {expected_sequence} must contain a changed canonical yes/no value"
+            ));
+        }
+
+        let expected_added: Vec<ArtifactKind> = if corrected == "yes" {
+            correction
+                .field
+                .required_artifacts()
+                .iter()
+                .filter(|artifact| !selected_artifacts.contains(artifact))
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        };
+        if correction.added_artifacts != expected_added {
+            return Err(format!(
+                "correction sequence {expected_sequence} has a non-monotonic or incomplete artifact selection"
+            ));
+        }
+        if correction.prior_view_digest != view_digest {
+            return Err(format!(
+                "correction sequence {expected_sequence} prior view digest is invalid"
+            ));
+        }
+        let expected_digest = corrected_view_digest(&view_digest, correction)?;
+        if correction.corrected_view_digest != expected_digest {
+            return Err(format!(
+                "correction sequence {expected_sequence} corrected view digest is invalid"
+            ));
+        }
+
+        answers.insert(field.into(), corrected);
+        selected_artifacts.extend(expected_added);
+        view_digest = expected_digest;
+    }
+
+    Ok(EffectiveChangeDefinition {
+        answers,
+        selected_artifacts,
+        view_digest,
+    })
+}
+
+fn validate_correction_records_for_prefix(
+    record: &ChangeRecord,
+    corrections: &[CorrectionRecord],
+) -> Result<EffectiveChangeDefinition, String> {
+    let mut prefix_record = record.clone();
+    prefix_record.correction_count = corrections.len() as u64;
+    validate_correction_records(&prefix_record, corrections)
+}
+
+fn load_correction_ledger(root: &Path, record: &ChangeRecord) -> Result<CorrectionLedger, String> {
+    let path = find_change_dir(root, &record.id)?.join(CORRECTIONS_FILE);
+    if !path.exists() {
+        return Ok(CorrectionLedger::default());
+    }
+    let content = read_bounded_change_text(&path, "correction ledger")?;
+    let ledger: CorrectionLedger = serde_json::from_str(&content)
+        .map_err(|error| format!("invalid correction ledger {}: {error}", path.display()))?;
+    if ledger.schema_version != 1 {
+        return Err(format!(
+            "unsupported correction ledger schema version {}",
+            ledger.schema_version
+        ));
+    }
+    Ok(ledger)
+}
+
+pub fn effective_change_definition(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<EffectiveChangeDefinition, String> {
+    let ledger = load_correction_ledger(root, record)?;
+    validate_correction_records(record, &ledger.corrections)
+}
+
+pub fn correction_history(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Vec<CorrectionRecord>, String> {
+    let ledger = load_correction_ledger(root, record)?;
+    validate_correction_records(record, &ledger.corrections)?;
+    Ok(ledger.corrections)
+}
+
+pub fn correct_interview_metadata(
+    root: &Path,
+    id: &str,
+    field: CorrectionField,
+    value: String,
+    actor: String,
+    reason: String,
+) -> Result<CorrectionResult, String> {
+    let _lock = acquire_project_lock(root)?;
+    let mut record = load_change(root, id)?;
+    require_state(
+        &record,
+        &[ChangeState::Accepted],
+        "correct accepted interview metadata",
+    )?;
+    if !record.canonical_applied {
+        return Err("accepted metadata correction requires canonical application evidence".into());
+    }
+    let actor = actor.trim();
+    if actor.is_empty() {
+        return Err(
+            "metadata correction requires a non-empty human actor passed with --actor".into(),
+        );
+    }
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err("metadata correction requires a non-empty reason passed with --reason".into());
+    }
+    let corrected_value = canonical_correction_value(&value)?;
+    if record.no_spec_change && field == CorrectionField::PublicContract && corrected_value == "yes"
+    {
+        return Err(
+            "cannot correct public_contract to yes on a no-spec change; use a successor change"
+                .into(),
+        );
+    }
+
+    ensure_definition_approval_valid(root, &record)?;
+    ensure_closing_approval_valid(root, &record)?;
+    let prior_verification = load_verification(root, &record)?;
+    let approvals = load_approvals(root, &record)?;
+    let superseded_definition_approval = approvals
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "definition")
+        .cloned()
+        .ok_or_else(|| "accepted change is missing definition approval".to_string())?;
+    let superseded_closing_approval = approvals
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "acceptance")
+        .cloned()
+        .ok_or_else(|| "accepted change is missing closing approval".to_string())?;
+
+    let mut ledger = load_correction_ledger(root, &record)?;
+    let effective = validate_correction_records(&record, &ledger.corrections)?;
+    let original_value = record.answers.get(field.as_str()).cloned().ok_or_else(|| {
+        format!(
+            "accepted change is missing original `{}` interview metadata",
+            field.as_str()
+        )
+    })?;
+    canonical_correction_value(&original_value)?;
+    let prior_effective_value = effective
+        .answers
+        .get(field.as_str())
+        .cloned()
+        .ok_or_else(|| format!("effective definition is missing `{}`", field.as_str()))?;
+    if canonical_correction_value(&prior_effective_value)? == corrected_value {
+        return Err(format!(
+            "`{}` is already `{corrected_value}`; correction must change the effective value",
+            field.as_str()
+        ));
+    }
+    let added_artifacts: Vec<ArtifactKind> = if corrected_value == "yes" {
+        field
+            .required_artifacts()
+            .iter()
+            .filter(|artifact| !effective.selected_artifacts.contains(artifact))
+            .cloned()
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let mut correction = CorrectionRecord {
+        schema_version: 1,
+        sequence: ledger.corrections.len() as u64 + 1,
+        change_id: record.id.clone(),
+        field,
+        original_value,
+        prior_effective_value,
+        corrected_value,
+        actor: actor.into(),
+        reason: reason.into(),
+        timestamp: now(),
+        prior_view_digest: effective.view_digest,
+        corrected_view_digest: String::new(),
+        added_artifacts,
+        superseded_definition_approval,
+        superseded_closing_approval,
+        prior_verification,
+    };
+    correction.corrected_view_digest =
+        corrected_view_digest(&correction.prior_view_digest, &correction)?;
+    ledger.corrections.push(correction.clone());
+
+    record.state = ChangeState::Verifying;
+    record.correction_count = ledger.corrections.len() as u64;
+    record.updated_at = now();
+    let effective_definition = validate_correction_records(&record, &ledger.corrections)?;
+    let dir = change_dir(root, &record.id);
+    let mut prepared = vec![
+        (dir.join(CORRECTIONS_FILE), json_content(&ledger)?),
+        (dir.join("state.json"), json_content(&record)?),
+        (dir.join("change.md"), change_markdown_content(&record)),
+    ];
+    for artifact in &correction.added_artifacts {
+        let path = dir.join(artifact.file_name());
+        if !path.exists() {
+            prepared.push((path, artifact_template(root, artifact, &record)));
+        }
+    }
+    write_prepared_files(root, &prepared)?;
+    let corrections = ledger.corrections;
+    let summary = summarize_change(root, &record);
+    Ok(CorrectionResult {
+        change: record,
+        correction,
+        effective_definition,
+        corrections,
+        summary,
+    })
+}
+
 fn ensure_reopened_definition_unchanged(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     if !record.canonical_applied {
         return Ok(());
     }
-    let ledger = load_approvals(root, record)?;
-    let reopening = ledger.reopenings.last().ok_or_else(|| {
-        "cannot reaccept an already-applied change without audited reopen evidence".to_string()
-    })?;
-    if definition_digest_matches(root, record, &reopening.prior_verification.contract_digest)? {
-        return Ok(());
+    let approval_ledger = load_approvals(root, record)?;
+    let correction_ledger = load_correction_ledger(root, record)?;
+    validate_correction_records(record, &correction_ledger.corrections)?;
+
+    let approval_position = |target: &ApprovalRecord| {
+        approval_ledger.approvals.iter().rposition(|approval| {
+            approval.gate == target.gate
+                && approval.actor == target.actor
+                && approval.timestamp == target.timestamp
+                && approval.digest == target.digest
+                && approval.note == target.note
+        })
+    };
+    let correction_recovery = correction_ledger.corrections.last().and_then(|correction| {
+        approval_position(&correction.superseded_closing_approval)
+            .map(|position| (position, correction))
+    });
+    let reopen_recovery = approval_ledger.reopenings.last().and_then(|reopening| {
+        approval_position(&reopening.superseded_approval).map(|position| (position, reopening))
+    });
+
+    match correction_recovery {
+        Some((position, correction))
+            if reopen_recovery
+                .as_ref()
+                .is_none_or(|(reopen_position, _)| position > *reopen_position) =>
+        {
+            let prior_count = correction.sequence.saturating_sub(1);
+            let expected = &correction.prior_verification.contract_digest;
+            if definition_digest_for_correction_count(root, record, prior_count, false)?
+                == *expected
+                || definition_digest_for_correction_count(root, record, prior_count, true)?
+                    == *expected
+            {
+                return Ok(());
+            }
+            return Err(
+                "cannot accept a correction after the previously accepted definition changed; restore prior artifacts and deltas or use a successor change"
+                    .into(),
+            );
+        }
+        _ => {}
     }
+
+    if let Some((_, reopening)) = reopen_recovery {
+        if definition_digest_matches(root, record, &reopening.prior_verification.contract_digest)? {
+            return Ok(());
+        }
+        return Err(
+            "cannot accept a modified definition of an already-applied change; perform further spec changes in a new change workspace"
+                .into(),
+        );
+    }
+
     Err(
-        "cannot accept a modified definition of an already-applied change; perform further spec changes in a new change workspace"
+        "cannot reaccept an already-applied change without audited reopen or correction evidence"
             .into(),
     )
 }
@@ -1404,14 +1936,44 @@ pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
 }
 
 pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
+    let effective = effective_change_definition(root, record);
+    let correction_valid = effective.is_ok();
+    let corrected_fields = effective
+        .as_ref()
+        .map(|definition| {
+            definition
+                .answers
+                .iter()
+                .filter(|(field, value)| record.answers.get(*field) != Some(*value))
+                .map(|(field, value)| (field.clone(), value.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
     let approval_valid = ensure_definition_approval_valid(root, record).is_ok();
     let artifacts_complete = validate_artifacts(root, record).is_ok();
+    let verification_current = || {
+        let Ok(verification) = load_verification(root, record) else {
+            return false;
+        };
+        verification.passed
+            && definition_digest_matches(root, record, &verification.contract_digest)
+                .unwrap_or(false)
+            && verification.commit == git_output(root, &["rev-parse", "HEAD"])
+            && project_input_digest(root)
+                .is_ok_and(|digest| verification.workspace_digest == digest)
+    };
     let next_action = match record.state {
         ChangeState::Draft if next_questions(record).is_empty() => "approve".into(),
         ChangeState::Draft => "answer interview".into(),
         ChangeState::Approved => "start".into(),
+        ChangeState::Implementing if !artifacts_complete => "complete artifacts".into(),
+        ChangeState::Implementing if !approval_valid => "approve".into(),
         ChangeState::Implementing => "verify".into(),
+        ChangeState::Verifying if !artifacts_complete => "complete artifacts".into(),
+        ChangeState::Verifying if !approval_valid => "approve".into(),
+        ChangeState::Verifying if !verification_current() => "verify".into(),
         ChangeState::Verifying => "accept".into(),
+        ChangeState::Accepted if !correction_valid => "repair correction ledger".into(),
         ChangeState::Accepted if ensure_closing_approval_valid(root, record).is_err() => {
             "reopen".into()
         }
@@ -1424,6 +1986,9 @@ pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
         state: record.state,
         approval_valid,
         artifacts_complete,
+        correction_valid,
+        correction_count: record.correction_count as usize,
+        corrected_fields,
         next_action,
     }
 }
@@ -1892,6 +2457,7 @@ fn add_artifact(record: &mut ChangeRecord, artifact: ArtifactKind) {
 }
 
 fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    let effective = effective_change_definition(root, record)?;
     if record.description.trim().is_empty() {
         return Err("description is empty".into());
     }
@@ -1920,7 +2486,7 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
     }
     if record.no_spec_change
         && !is_legacy_self_adoption_record(record)
-        && record
+        && effective
             .answers
             .get("public_contract")
             .is_some_and(|answer| is_yes(answer))
@@ -1961,7 +2527,8 @@ fn is_legacy_self_adoption_record(record: &ChangeRecord) -> bool {
 
 fn validate_artifacts(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     let dir = change_dir(root, &record.id);
-    for artifact in &record.selected_artifacts {
+    let effective = effective_change_definition(root, record)?;
+    for artifact in &effective.selected_artifacts {
         let path = dir.join(artifact.file_name());
         let content = read_bounded_change_text(&path, "artifact")?;
         if content.contains("<!-- TODO") || content.trim().is_empty() {
@@ -1985,7 +2552,8 @@ fn read_bounded_change_text(path: &Path, kind: &str) -> Result<String, String> {
 }
 
 fn ensure_tasks_complete(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    if !record.selected_artifacts.contains(&ArtifactKind::Tasks) {
+    let effective = effective_change_definition(root, record)?;
+    if !effective.selected_artifacts.contains(&ArtifactKind::Tasks) {
         return Ok(());
     }
     let path = change_dir(root, &record.id).join("tasks.md");
@@ -2950,36 +3518,55 @@ fn delta_keys(root: &Path, record: &ChangeRecord) -> Result<BTreeSet<String>, St
 }
 
 fn definition_digest(root: &Path, record: &ChangeRecord) -> Result<String, String> {
+    definition_digest_for_correction_count(root, record, record.correction_count, false)
+}
+
+fn definition_digest_for_correction_count(
+    root: &Path,
+    record: &ChangeRecord,
+    correction_count: u64,
+    explicit_false: bool,
+) -> Result<String, String> {
+    let ledger = load_correction_ledger(root, record)?;
+    validate_correction_records(record, &ledger.corrections)?;
+    if correction_count > ledger.corrections.len() as u64 {
+        return Err(format!(
+            "requested correction view {correction_count} exceeds ledger length {}",
+            ledger.corrections.len()
+        ));
+    }
     let mut canonical_record = record.clone();
     canonical_record.state = ChangeState::Draft;
     canonical_record.canonical_applied = false;
+    canonical_record.correction_count = correction_count;
     canonical_record.updated_at = 0;
-    let record_bytes = serde_json::to_vec(&canonical_record)
+    let mut record_bytes = serde_json::to_vec(&canonical_record)
         .map_err(|error| format!("failed to hash change state: {error}"))?;
-    definition_digest_from_record_bytes(root, record, &record_bytes)
+    if explicit_false {
+        let state = b"\"state\":\"draft\"";
+        let state_start = record_bytes
+            .windows(state.len())
+            .position(|window| window == state)
+            .ok_or_else(|| "failed to locate canonical change state while hashing".to_string())?;
+        let insert_at = state_start + state.len();
+        record_bytes.splice(
+            insert_at..insert_at,
+            b",\"canonical_applied\":false".iter().copied(),
+        );
+    }
+    definition_digest_from_record_bytes(
+        root,
+        record,
+        &record_bytes,
+        &ledger.corrections[..correction_count as usize],
+    )
 }
 
 fn definition_digest_with_explicit_false(
     root: &Path,
     record: &ChangeRecord,
 ) -> Result<String, String> {
-    let mut canonical_record = record.clone();
-    canonical_record.state = ChangeState::Draft;
-    canonical_record.canonical_applied = false;
-    canonical_record.updated_at = 0;
-    let mut record_bytes = serde_json::to_vec(&canonical_record)
-        .map_err(|error| format!("failed to hash change state: {error}"))?;
-    let state = b"\"state\":\"draft\"";
-    let state_start = record_bytes
-        .windows(state.len())
-        .position(|window| window == state)
-        .ok_or_else(|| "failed to locate canonical change state while hashing".to_string())?;
-    let insert_at = state_start + state.len();
-    record_bytes.splice(
-        insert_at..insert_at,
-        b",\"canonical_applied\":false".iter().copied(),
-    );
-    definition_digest_from_record_bytes(root, record, &record_bytes)
+    definition_digest_for_correction_count(root, record, record.correction_count, true)
 }
 
 fn definition_digest_matches(
@@ -2997,12 +3584,14 @@ fn definition_digest_from_record_bytes(
     root: &Path,
     record: &ChangeRecord,
     record_bytes: &[u8],
+    corrections: &[CorrectionRecord],
 ) -> Result<String, String> {
     let dir = change_dir(root, &record.id);
     let mut digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
     digest.frame(b"record", record_bytes);
+    let effective = validate_correction_records_for_prefix(record, corrections)?;
     let mut files = Vec::new();
-    for artifact in &record.selected_artifacts {
+    for artifact in &effective.selected_artifacts {
         files.push(dir.join(artifact.file_name()));
     }
     if let Ok(entries) = fs::read_dir(dir.join("deltas")) {
@@ -3030,6 +3619,17 @@ fn definition_digest_from_record_bytes(
             .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
         let (kind, mode) = digest_file_kind_and_mode(&relative, &path, &git_modes)?;
         digest.entry(&relative, kind, mode, &content);
+    }
+    if !corrections.is_empty() {
+        let path = dir.join(CORRECTIONS_FILE);
+        let relative = strict_portable_project_path(root, &path)?;
+        let ledger = CorrectionLedger {
+            schema_version: 1,
+            corrections: corrections.to_vec(),
+        };
+        let content = json_content(&ledger)?;
+        let mode = git_modes.get(&relative).copied().unwrap_or(0o100644);
+        digest.entry(&relative, b"file", mode, content.as_bytes());
     }
     Ok(digest.finish())
 }
@@ -4904,6 +5504,10 @@ fn is_false(value: &bool) -> bool {
     !*value
 }
 
+fn is_zero_u64(value: &u64) -> bool {
+    *value == 0
+}
+
 fn now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -5092,6 +5696,14 @@ mod tests {
         }
         fs::write(delta_path(root, &record, "auth"), delta).unwrap();
         record
+    }
+
+    fn accept_completed_record(root: &Path, mut record: ChangeRecord) -> ChangeRecord {
+        record =
+            approve_definition(root, &record.id, Some("Definition reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        accept_change(root, &record.id, Some("Closing reviewer".into()), None).unwrap()
     }
 
     #[test]
@@ -6602,6 +7214,276 @@ mod tests {
         assert_eq!(
             load_change(root, &record.id).unwrap().state,
             ChangeState::Verifying
+        );
+    }
+
+    // Verifies REQ-change-032.
+    #[test]
+    fn accepted_metadata_correction_preserves_original_evidence_and_adds_artifacts() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let record = accept_completed_record(root, completed_no_spec_record(root));
+        let original_answers = record.answers.clone();
+        let original_artifacts = record.selected_artifacts.clone();
+        let original_approvals =
+            serde_json::to_value(load_approvals(root, &record).unwrap()).unwrap();
+        let prior_verification = load_verification(root, &record).unwrap();
+
+        let result = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::ArchitectureRisk,
+            "yes".into(),
+            "Release reviewer".into(),
+            "The accepted change affects persisted lifecycle architecture".into(),
+        )
+        .unwrap();
+
+        assert_eq!(result.change.state, ChangeState::Verifying);
+        assert!(result.change.canonical_applied);
+        assert_eq!(result.change.correction_count, 1);
+        assert_eq!(result.change.answers, original_answers);
+        assert_eq!(result.change.selected_artifacts, original_artifacts);
+        assert_eq!(result.correction.original_value, "no");
+        assert_eq!(result.correction.prior_effective_value, "no");
+        assert_eq!(result.correction.corrected_value, "yes");
+        assert_eq!(
+            result.correction.prior_verification.contract_digest,
+            prior_verification.contract_digest
+        );
+        assert_eq!(
+            result.correction.added_artifacts,
+            vec![
+                ArtifactKind::Research,
+                ArtifactKind::Design,
+                ArtifactKind::Plan,
+            ]
+        );
+        assert_eq!(
+            result
+                .effective_definition
+                .answers
+                .get("architecture_risk")
+                .map(String::as_str),
+            Some("yes")
+        );
+        assert_eq!(result.summary.next_action, "complete artifacts");
+        assert!(!result.summary.approval_valid);
+        assert_eq!(
+            serde_json::to_value(load_approvals(root, &result.change).unwrap()).unwrap(),
+            original_approvals
+        );
+        for artifact in &result.correction.added_artifacts {
+            let content =
+                fs::read_to_string(change_dir(root, &record.id).join(artifact.file_name()))
+                    .unwrap();
+            assert!(content.contains("<!-- TODO"));
+        }
+        let error = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::PublicContract,
+            "yes".into(),
+            "Release reviewer".into(),
+            "A second correction cannot bypass reacceptance".into(),
+        )
+        .unwrap_err();
+        assert!(error.contains("expected accepted"), "{error}");
+    }
+
+    #[test]
+    fn metadata_correction_rejects_noops_unsupported_fields_and_missing_audit_inputs() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let record = accept_completed_record(root, completed_no_spec_record(root));
+
+        let error = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::ArchitectureRisk,
+            "no".into(),
+            "Reviewer".into(),
+            "No change".into(),
+        )
+        .unwrap_err();
+        assert!(error.contains("already `no`"), "{error}");
+        let error = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::ArchitectureRisk,
+            "yes".into(),
+            " ".into(),
+            "Missing actor".into(),
+        )
+        .unwrap_err();
+        assert!(error.contains("non-empty human actor"), "{error}");
+        let error = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::ArchitectureRisk,
+            "yes".into(),
+            "Reviewer".into(),
+            " ".into(),
+        )
+        .unwrap_err();
+        assert!(error.contains("non-empty reason"), "{error}");
+        assert!(CorrectionField::parse("acceptance_criteria").is_err());
+        assert!(!change_dir(root, &record.id).join(CORRECTIONS_FILE).exists());
+        assert_eq!(
+            load_change(root, &record.id).unwrap().state,
+            ChangeState::Accepted
+        );
+    }
+
+    #[test]
+    fn correction_values_preserve_supported_boolean_aliases() {
+        for value in ["yes", "y", "true", "1", " YES "] {
+            assert_eq!(canonical_correction_value(value).unwrap(), "yes");
+        }
+        for value in ["no", "n", "false", "0", " NO "] {
+            assert_eq!(canonical_correction_value(value).unwrap(), "no");
+        }
+        assert!(canonical_correction_value("maybe").is_err());
+    }
+
+    #[test]
+    fn corrected_acceptance_requires_fresh_gates_and_never_replays_canonical_deltas() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let delta = "## MODIFIED\n\n### SPEC SECTION Invariants\n\nCorrected metadata never replays this canonical section.\n";
+        let mut record = completed_section_only_record(root, delta);
+        record.answers.insert("public_contract".into(), "no".into());
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        record = accept_completed_record(root, record);
+        let canonical_path = root.join("specs/auth/auth.spec.md");
+        let canonical_after_first_accept = fs::read_to_string(&canonical_path).unwrap();
+
+        let first = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::PublicContract,
+            "yes".into(),
+            "Release reviewer".into(),
+            "The accepted semantic delta changed the public contract".into(),
+        )
+        .unwrap();
+        assert!(first.correction.added_artifacts.is_empty());
+        assert_eq!(first.summary.next_action, "approve");
+        assert!(ensure_definition_approval_valid(root, &first.change).is_err());
+        record =
+            approve_definition(root, &record.id, Some("Definition reviewer".into()), None).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closing reviewer".into()), None).unwrap();
+        assert_eq!(
+            fs::read_to_string(&canonical_path).unwrap(),
+            canonical_after_first_accept
+        );
+        assert_eq!(correction_history(root, &record).unwrap().len(), 1);
+
+        let second = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::PublicContract,
+            "no".into(),
+            "Release reviewer".into(),
+            "A later audit restored the original classification".into(),
+        )
+        .unwrap();
+        assert_eq!(second.correction.sequence, 2);
+        record =
+            approve_definition(root, &record.id, Some("Definition reviewer".into()), None).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closing reviewer".into()), None).unwrap();
+
+        assert_eq!(
+            record.answers.get("public_contract").map(String::as_str),
+            Some("no")
+        );
+        assert_eq!(record.correction_count, 2);
+        assert_eq!(correction_history(root, &record).unwrap().len(), 2);
+        assert_eq!(
+            effective_change_definition(root, &record)
+                .unwrap()
+                .answers
+                .get("public_contract")
+                .map(String::as_str),
+            Some("no")
+        );
+        assert_eq!(
+            fs::read_to_string(canonical_path).unwrap(),
+            canonical_after_first_accept
+        );
+    }
+
+    #[test]
+    fn correction_ledgers_fail_closed_and_hash_portably() {
+        let first = TempDir::new().unwrap();
+        let root = first.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let accepted = accept_completed_record(root, completed_no_spec_record(root));
+        let result = correct_interview_metadata(
+            root,
+            &accepted.id,
+            CorrectionField::ArchitectureRisk,
+            "yes".into(),
+            "Release reviewer".into(),
+            "Architecture classification was stale".into(),
+        )
+        .unwrap();
+        let record = result.change;
+        let ledger_path = change_dir(root, &record.id).join(CORRECTIONS_FILE);
+        let valid_ledger = fs::read_to_string(&ledger_path).unwrap();
+
+        fs::remove_file(&ledger_path).unwrap();
+        let error = effective_change_definition(root, &record).unwrap_err();
+        assert!(
+            error.contains("does not match state.json correction_count"),
+            "{error}"
+        );
+        fs::write(&ledger_path, &valid_ledger).unwrap();
+
+        let mut tampered: serde_json::Value = serde_json::from_str(&valid_ledger).unwrap();
+        tampered["corrections"][0]["sequence"] = serde_json::json!(2);
+        write_json(&ledger_path, &tampered).unwrap();
+        let error = effective_change_definition(root, &record).unwrap_err();
+        assert!(error.contains("sequence is not contiguous"), "{error}");
+        fs::write(&ledger_path, &valid_ledger).unwrap();
+
+        let mut unsupported: serde_json::Value = serde_json::from_str(&valid_ledger).unwrap();
+        unsupported["corrections"][0]["field"] = serde_json::json!("acceptance_criteria");
+        write_json(&ledger_path, &unsupported).unwrap();
+        let error = effective_change_definition(root, &record).unwrap_err();
+        assert!(error.contains("invalid correction ledger"), "{error}");
+        fs::write(&ledger_path, &valid_ledger).unwrap();
+
+        let mut tampered_definition: serde_json::Value =
+            serde_json::from_str(&valid_ledger).unwrap();
+        tampered_definition["corrections"][0]["superseded_definition_approval"]["digest"] =
+            serde_json::json!("forged-definition-digest");
+        write_json(&ledger_path, &tampered_definition).unwrap();
+        let error = effective_change_definition(root, &record).unwrap_err();
+        assert!(error.contains("invalid prior gate evidence"), "{error}");
+        fs::write(&ledger_path, &valid_ledger).unwrap();
+
+        let second = TempDir::new().unwrap();
+        let second_root = second.path();
+        let second_dir = change_dir(second_root, &record.id);
+        fs::create_dir_all(second_dir.join("deltas")).unwrap();
+        save_change(second_root, &record).unwrap();
+        fs::write(second_dir.join(CORRECTIONS_FILE), valid_ledger).unwrap();
+        let effective = effective_change_definition(root, &record).unwrap();
+        for artifact in &effective.selected_artifacts {
+            let content =
+                fs::read(change_dir(root, &record.id).join(artifact.file_name())).unwrap();
+            fs::write(second_dir.join(artifact.file_name()), content).unwrap();
+        }
+        assert_eq!(
+            definition_digest(root, &record).unwrap(),
+            definition_digest(second_root, &record).unwrap()
         );
     }
 

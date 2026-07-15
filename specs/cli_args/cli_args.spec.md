@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 8
+version: 9
 status: stable
 files:
   - src/cli.rs
@@ -18,13 +18,13 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 
 ## Public API
 
-### Exported Structs
+**Exported Structs**
 
 | Type | Description |
 |------|-------------|
 | `Cli` | Top-level Clap parser struct with global flags (`--strict`, `--root`, `--format`, `--json`, `--enforcement`, `--require-coverage`) and a subcommand field |
 
-### Exported Enums
+**Exported Enums**
 
 | Type | Description |
 |------|-------------|
@@ -32,7 +32,7 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | `HooksAction` | Sub-subcommand for `Hooks`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, copilot, agents, precommit, claude_code_hook) |
 | `AgentsAction` | Sub-subcommand for `Agents`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, codex, gemini) |
 | `LifecycleAction` | Sub-subcommand for `Lifecycle`: Promote, Demote, Set, Status, History, Guard, AutoPromote, Enforce — manages spec lifecycle transitions |
-| `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, List, Show, Status, Approve, Start, Verify, Reopen, Accept, Archive, Check, Adopt |
+| `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, List, Show, Status, Approve, Start, Verify, Reopen, Correct, Accept, Archive, Check, Adopt |
 
 ## Invariants
 
@@ -112,3 +112,4 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | 2026-07-11 | CHG-0012-correct-specsync-5-0-documentation-cli-help-and-hub-deep-links: Correct SpecSync 5.0 documentation, CLI help, and hub deep links |
 | 2026-07-13 | Add required actor/reason grammar for audited stale-accepted reopen |
 | 2026-07-13 | CHG-0015-add-audited-stale-accepted-change-reopening: Add audited stale accepted change reopening |
+| 2026-07-15 | CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re: Support audited append-only correction of accepted interview metadata without replaying canonical deltas |

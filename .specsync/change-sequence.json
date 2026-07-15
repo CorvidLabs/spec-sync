@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 39,
-  "id": "CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+  "sequence": 41,
+  "id": "CHG-0041-synchronize-generated-create-spec-agent-commands-with-the-corrected-free-text-pa",
   "acknowledged_collisions": [
     {
       "sequence": 16,

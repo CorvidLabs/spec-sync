@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 4
+version: 5
 status: active
 files:
   - src/commands/change.rs
@@ -24,6 +24,7 @@ Exposes the verified SDD lifecycle through equivalent human-readable and structu
 2. Errors render consistently and exit non-zero.
 3. Status and interviews provide a concrete next action.
 4. Reopen renders the exact persisted versioned supersession event in deterministic JSON.
+5. Correct, show, and status render the same validated effective definition and ordered correction history used by lifecycle gates.
 
 ## Public API
 
@@ -80,3 +81,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-13 | Add text and deterministic JSON dispatch for audited stale-accepted reopen |
 | 2026-07-13 | CHG-0015-add-audited-stale-accepted-change-reopening: Add audited stale accepted change reopening |
+| 2026-07-15 | CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re: Support audited append-only correction of accepted interview metadata without replaying canonical deltas |

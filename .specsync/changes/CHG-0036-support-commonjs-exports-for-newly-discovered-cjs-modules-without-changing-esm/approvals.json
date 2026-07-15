@@ -48,6 +48,13 @@
       "timestamp": 1784062283,
       "digest": "4cc26c5253bf6ded68259fec8c3472a1d19d06238aedd6d78eb5b1a883a9cc2e",
       "note": "Fresh native verification passed at d9fc45c2e13d7847e9d1f4aa28dcde4964847617 after the CHG-0039 Unreleased changelog update: 1,589 unit and 206 integration tests."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784073805,
+      "digest": "2fd4c88a01a711d96469e0e8390b7954de1cbbda65676df3a6d23b02bc7569d1",
+      "note": null
     }
   ],
   "reopenings": [
@@ -158,6 +165,42 @@
       },
       "stale_acceptance_input_digest": "7f6838a29d87c55832cea6e86642cd764a2d0af267b553af1b25d19e2ec996a5",
       "current_acceptance_input_digest": "4386bbf4a6d98aa07738f5fac2c14345d3836401e5f6d0fc10e6cebab2fc20b8"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0036-support-commonjs-exports-for-newly-discovered-cjs-modules-without-changing-esm",
+      "actor": "0xLeif",
+      "reason": "Approved CHG-0040 and CHG-0041 legitimately update this change's accepted delivery inputs.",
+      "timestamp": 1784073500,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784062283,
+        "digest": "4cc26c5253bf6ded68259fec8c3472a1d19d06238aedd6d78eb5b1a883a9cc2e",
+        "note": "Fresh native verification passed at d9fc45c2e13d7847e9d1f4aa28dcde4964847617 after the CHG-0039 Unreleased changelog update: 1,589 unit and 206 integration tests."
+      },
+      "prior_verification": {
+        "timestamp": 1784062278,
+        "commit": "d9fc45c2e13d7847e9d1f4aa28dcde4964847617",
+        "contract_digest": "e537cd77dbb5e09aa1d3fc2c7ab9541aa3942fdce8433b638ca9b220bceef749",
+        "workspace_digest": "1c906810296a594f228ab7e3bada4367d78ec8bf38604d2cb487c66116beb2cc",
+        "acceptance_input_digest": "4386bbf4a6d98aa07738f5fac2c14345d3836401e5f6d0fc10e6cebab2fc20b8",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-exports-002"
+        ]
+      },
+      "stale_acceptance_input_digest": "4386bbf4a6d98aa07738f5fac2c14345d3836401e5f6d0fc10e6cebab2fc20b8",
+      "current_acceptance_input_digest": "2a36f164790e910a264cb14770340b880d7eb6429be540aafeaf404fb3ef8c19"
     }
   ]
 }

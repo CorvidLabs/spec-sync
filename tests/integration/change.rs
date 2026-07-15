@@ -552,6 +552,213 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
     assert_eq!(ledger["reopenings"].as_array().unwrap().len(), 1);
 }
 
+// Verifies REQ-change-032, REQ-cli-args-004, and REQ-cmd-change-002.
+#[test]
+fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 1,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [],
+  "verification_commands": [],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    fs::write(root.join("README.md"), "Lifecycle guidance.\n").unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "new",
+            "Correct lifecycle classification",
+            "--kind",
+            "bug-fix",
+            "--path",
+            "README.md",
+            "--no-spec-change",
+            "--rationale",
+            "The accepted implementation is unchanged",
+        ])
+        .assert()
+        .success();
+    let id = "CHG-0001-correct-lifecycle-classification";
+    for (question, answer) in [
+        ("acceptance_criteria", "Correction evidence is inspectable"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let dir = root.join(".specsync/changes").join(id);
+    fs::write(dir.join("context.md"), "# Context\n\nComplete.\n").unwrap();
+    fs::write(
+        dir.join("testing.md"),
+        "# Testing\n\nCorrection evidence is inspectable.\n",
+    )
+    .unwrap();
+    fs::write(dir.join("tasks.md"), "# Tasks\n\n- [x] Complete.\n").unwrap();
+    for command in ["approve", "start", "verify", "accept"] {
+        let mut args = vec!["--root", root.to_str().unwrap(), "change", command, id];
+        if matches!(command, "approve" | "accept") {
+            args.extend(["--actor", "Lifecycle reviewer"]);
+        }
+        specsync().args(args).assert().success();
+    }
+
+    let output = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "correct",
+            id,
+            "architecture_risk",
+            "yes",
+            "--actor",
+            "Release reviewer",
+            "--reason",
+            "The lifecycle implementation affects persisted architecture",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["change"]["state"], "verifying");
+    assert_eq!(value["change"]["answers"]["architecture_risk"], "no");
+    assert_eq!(value["change"]["correction_count"], 1);
+    assert_eq!(value["correction"]["original_value"], "no");
+    assert_eq!(value["correction"]["prior_effective_value"], "no");
+    assert_eq!(value["correction"]["corrected_value"], "yes");
+    assert_eq!(value["correction"]["actor"], "Release reviewer");
+    assert!(
+        !value["correction"]["prior_view_digest"]
+            .as_str()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        !value["correction"]["corrected_view_digest"]
+            .as_str()
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        value["effective_definition"]["answers"]["architecture_risk"],
+        "yes"
+    );
+    assert_eq!(value["summary"]["next_action"], "complete artifacts");
+    assert_eq!(value["corrections"].as_array().unwrap().len(), 1);
+
+    for artifact in ["research.md", "design.md", "plan.md"] {
+        fs::write(
+            dir.join(artifact),
+            format!("# {}\n\nComplete.\n", artifact.trim_end_matches(".md")),
+        )
+        .unwrap();
+    }
+    let show_output = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "show",
+            id,
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let show: Value = serde_json::from_slice(&show_output).unwrap();
+    assert_eq!(
+        show["effective_definition"]["answers"]["architecture_risk"],
+        "yes"
+    );
+    assert_eq!(
+        show["corrections"][0]["reason"],
+        "The lifecycle implementation affects persisted architecture"
+    );
+    assert_eq!(show["summary"]["next_action"], "approve");
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "Definition reviewer",
+        ])
+        .assert()
+        .success();
+    let status = specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "status", id])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let status = String::from_utf8(status).unwrap();
+    assert!(status.contains("architecture_risk: no → yes by Release reviewer"));
+    assert!(status.contains("architecture_risk=yes"));
+    assert!(status.contains("Next: verify"));
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "verify", id])
+        .assert()
+        .success();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "accept",
+            id,
+            "--actor",
+            "Closing reviewer",
+        ])
+        .assert()
+        .success();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .assert()
+        .success();
+
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("state.json")).unwrap()).unwrap();
+    assert_eq!(state["answers"]["architecture_risk"], "no");
+    assert_eq!(state["correction_count"], 1);
+    let corrections: Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("corrections.json")).unwrap()).unwrap();
+    assert_eq!(corrections["corrections"].as_array().unwrap().len(), 1);
+}
+
 // Verifies REQ-cli-004.
 #[test]
 fn indirect_recursive_lifecycle_check_fails_once_with_context() {

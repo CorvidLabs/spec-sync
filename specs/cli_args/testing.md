@@ -14,3 +14,5 @@ spec: cli_args.spec.md
 | Agents/MCP/Change | Commands continue parsing |
 | `change reopen <id> --actor <human> --reason <text>` | Parses the audited transition inputs |
 | `change reopen` missing actor/reason | Clap rejects the incomplete command |
+| `change correct <id> <field> <value> --actor <human> --reason <text>` | Parses only the supported audited correction grammar (`REQ-cli-args-004`) |
+| `change correct` with an unsupported field/value or missing actor/reason | Clap rejects the command before domain mutation |

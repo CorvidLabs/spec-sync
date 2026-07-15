@@ -577,6 +577,10 @@ mod tests {
         tempfile::tempdir().unwrap()
     }
 
+    fn normalize_checkout_line_endings(content: &str) -> String {
+        content.replace("\r\n", "\n")
+    }
+
     // ── AgentTool::all / name / from_str ───────────────────────────
 
     #[test]
@@ -794,9 +798,22 @@ mod tests {
         for (tool, checked_in) in fixtures {
             assert!(install_agent(tmp.path(), tool).unwrap());
             let generated = fs::read_to_string(tool.command_path(tmp.path()).unwrap()).unwrap();
-            assert_eq!(generated, checked_in, "{} command drifted", tool.name());
+            assert_eq!(
+                generated,
+                normalize_checkout_line_endings(checked_in),
+                "{} command drifted",
+                tool.name()
+            );
             assert!(!install_agent(tmp.path(), tool).unwrap());
         }
+    }
+
+    #[test]
+    fn checked_in_asset_parity_normalizes_windows_checkout_line_endings() {
+        assert_eq!(
+            normalize_checkout_line_endings("first\r\nsecond\r\n"),
+            "first\nsecond\n"
+        );
     }
 
     #[test]

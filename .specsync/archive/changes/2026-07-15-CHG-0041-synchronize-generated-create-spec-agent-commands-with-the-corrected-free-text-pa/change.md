@@ -1,6 +1,6 @@
 ---
 id: CHG-0041-synchronize-generated-create-spec-agent-commands-with-the-corrected-free-text-pa
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 44aab88697a141e65b0a16d4bc4fd8704972d435
 ---

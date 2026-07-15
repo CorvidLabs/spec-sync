@@ -2,7 +2,7 @@
 title: "Adversarial SDD Proof"
 description: "Separate knowledge preservation from deterministic API and schema drift detection."
 section: "Comparisons"
-order: 4
+order: 5
 ---
 
 An SDD tool can preserve excellent knowledge without deterministically proving that code still matches it. This matrix separates those jobs.

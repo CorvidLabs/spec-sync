@@ -1,26 +1,25 @@
 ---
-title: "Using SpecSync with Spec Kit or OpenSpec"
-description: "Map equivalent artifacts and assign one clear owner for intent, implementation context, and enforceable contracts."
+title: "Using SpecSync with Spec Kit, OpenSpec, or BMAD"
+description: "Map planning artifacts to one clear owner for intent, implementation context, and enforceable contracts."
 section: "Comparisons"
-order: 3
+order: 4
 ---
 
-Different filenames do not mean missing capability. The tools package similar knowledge around different units: SpecSync centers durable modules plus verified changes, Spec Kit centers feature execution, and OpenSpec centers proposals plus canonical behavior.
+Different filenames do not mean missing capability. The tools package related knowledge around different units: SpecSync centers durable modules plus verified changes, Spec Kit centers feature execution, OpenSpec centers proposals plus canonical behavior, and BMAD centers progressive product-development context.
 
 ## Artifact equivalence
 
-| Knowledge or gate | SpecSync | Spec Kit | OpenSpec |
-|---|---|---|---|
-| Project principles | Policy `principles_file` / repository instructions | `.specify/memory/constitution.md` | Project configuration and agent instructions |
-| Product intent and acceptance criteria | Module `requirements.md`; change `requirements.md` | Feature `spec.md` | `proposal.md` plus delta requirements/scenarios |
-| Current technical/module contract | `*.spec.md` | Feature `spec.md` under a chosen persistence model | `openspec/specs/<domain>/spec.md` |
-| Proposed contract change | `deltas/<module>.md` | No direct core semantic-delta artifact | `changes/<name>/specs/<domain>/spec.md` |
-| Architecture and rationale | Durable `context.md`; optional change `design.md` | `plan.md`, `research.md`, `data-model.md`, `contracts/` | `design.md` and `proposal.md` |
-| Work breakdown | `tasks.md` | `tasks.md` | `tasks.md` |
-| Quality/evidence plan | `testing.md`, requirement evidence, verification record | `checklists/`, analyze/converge results, workflow logs | validate/verify results and completed tasks |
-| Definition review | Mandatory digest-bound approval | Optional workflow gate or team review | Proposal review convention |
-| Closing review | Mandatory closing approval bound to verification | Optional workflow gate/team review | Archive confirmation/workflow |
-| History | Accepted workspace then immutable archive | Feature folders under the team's persistence model | `changes/archive/` |
+| Knowledge or gate | SpecSync | Spec Kit | OpenSpec | BMAD |
+|---|---|---|---|---|
+| Project principles | Policy / repository instructions | Constitution | Project config/instructions | Project context |
+| Product intent | Requirements/change artifacts | Feature spec | Proposal plus deltas | Brief, PRD, or lean SPEC |
+| Technical contract | `*.spec.md` | Feature artifacts | Canonical domain spec | Architecture/story context |
+| Architecture | Context/design | Plan/research/contracts | Design/proposal | Architecture workflow |
+| Work breakdown | Tasks | Tasks | Tasks | Epics and stories |
+| Quality/evidence | Testing plus verification record | Checklists/analyze/workflow logs | Validate/verify results | Readiness, review, optional TEA |
+| Definition review | Mandatory digest-bound gate | Optional workflow gate | Review convention | Workflow checkpoint |
+| Closing review | Mandatory evidence-bound gate | Optional workflow/team review | Archive workflow | Code/release review workflows |
+| History | Accepted then immutable archive | Chosen persistence model | Change archive | Planning and implementation artifacts |
 
 The rows are equivalent by **purpose**, not identical guarantees. For example, Spec Kit's `analyze` and OpenSpec's verification can reason across artifacts through an agent, while SpecSync's `verification.json` and source validators are deterministic records consumed by CI.
 
@@ -43,9 +42,16 @@ specsync change adopt
 
 The import preserves canonical and active OpenSpec material for migration. After adoption, choose one owner for semantic deltas. Maintaining the same requirement independently in both active change systems invites conflicting canonical merges.
 
-## Pattern 3: Split ownership by boundary
+## Pattern 3: BMAD for product delivery, SpecSync for proof
 
-- Use Spec Kit or OpenSpec for product/feature exploration.
+1. Use BMAD's appropriate planning track to shape intent, architecture, and stories.
+2. Translate durable technical boundaries into SpecSync requirements and module contracts.
+3. Let BMAD agents implement and review while SpecSync checks the resulting repository.
+4. Require SpecSync verification and closing approval before the delivery is accepted.
+
+## Pattern 4: Split ownership by boundary
+
+- Use Spec Kit, OpenSpec, or BMAD for product/feature exploration.
 - Use SpecSync for library modules, public exports, database schemas, cross-module dependencies, and merge enforcement.
 - Link the feature artifact to stable SpecSync requirement IDs and change IDs.
 

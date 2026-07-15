@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.1.0] - 2026-07-14
+
 ### Added
 
 - **Audited correction of accepted interview metadata** — `specsync change correct <id> <field> <value> --actor <human> --reason <text>` can correct the supported `public_contract` and `architecture_risk` classifications without rewriting accepted history. Original answers and evidence remain inspectable in an append-only correction chain, newly required artifacts are added monotonically, and the change must receive fresh definition approval, verification, and closing approval without replaying an already-applied semantic delta.
+- **CommonJS export contracts** — `.cjs` modules and CommonJS-style JavaScript now expose statically named `exports.<name>`, `module.exports.<name>`, and top-level object-assignment keys to regex and AST validation without changing existing ESM or TypeScript behavior.
 
 ### Fixed
 
@@ -722,6 +725,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
+[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v5.1.0...HEAD
+[5.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.1.0
 [5.0.2]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.0.2
 [5.0.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.0.1
 [5.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.0.0

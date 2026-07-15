@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 41,
-  "id": "CHG-0041-synchronize-generated-create-spec-agent-commands-with-the-corrected-free-text-pa",
+  "sequence": 42,
+  "id": "CHG-0042-prepare-and-publish-specsync-5-1-0-with-accurate-release-metadata-and-current-co",
   "acknowledged_collisions": [
     {
       "sequence": 16,

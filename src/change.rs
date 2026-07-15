@@ -19,6 +19,9 @@ const LOCK_PATH: &str = ".specsync/change.lock";
 const SEQUENCE_PATH: &str = ".specsync/change-sequence.json";
 const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
 const CORRECTIONS_FILE: &str = "corrections.json";
+const PORTABLE_DEFINITION_PROJECTION_V501: &str = "specsync-5.0.1";
+const DEFINITION_APPROVAL_PAIR_DOMAIN: &[u8] = b"specsync.definition-approval-pair.v1";
+const CORRECTION_PREFIX_DOMAIN: &[u8] = b"specsync.correction-prefix.v1";
 const MAX_CHANGE_ARTIFACT_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_GIT_EVIDENCE_PATHS: usize = 100_000;
 const MAX_GIT_EVIDENCE_PATH_BYTES: usize = 64 * 1024 * 1024;
@@ -471,6 +474,30 @@ pub struct ApprovalRecord {
     pub timestamp: u64,
     pub digest: String,
     pub note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub definition_pair: Option<DefinitionApprovalPairV1>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DefinitionApprovalPairRole {
+    Current,
+    Legacy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DefinitionApprovalPairV1 {
+    pub schema_version: u32,
+    pub projection: String,
+    pub pair_id: String,
+    pub role: DefinitionApprovalPairRole,
+    pub change_id: String,
+    pub correction_count: u64,
+    pub correction_prefix_digest: String,
+    pub current_digest: String,
+    pub legacy_digest: String,
+    pub event_index: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1434,6 +1461,25 @@ pub fn approve_definition(
     actor: Option<String>,
     note: Option<String>,
 ) -> Result<ChangeRecord, String> {
+    approve_definition_with_projection(root, id, actor, note, false)
+}
+
+pub fn approve_definition_portable_v501(
+    root: &Path,
+    id: &str,
+    actor: Option<String>,
+    note: Option<String>,
+) -> Result<ChangeRecord, String> {
+    approve_definition_with_projection(root, id, actor, note, true)
+}
+
+fn approve_definition_with_projection(
+    root: &Path,
+    id: &str,
+    actor: Option<String>,
+    note: Option<String>,
+    portable_v501: bool,
+) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
     require_state(
@@ -1451,8 +1497,12 @@ pub fn approve_definition(
     let prior_state = record.state;
     validate_definition(root, &record)?;
     validate_delta_files(root, &record)?;
-    let digest = definition_digest(root, &record)?;
-    append_approval(root, &record, "definition", actor, digest, note)?;
+    if portable_v501 {
+        append_portable_definition_approval_v501(root, &record, actor, note)?;
+    } else {
+        let digest = definition_digest(root, &record)?;
+        append_approval(root, &record, "definition", actor, digest, note)?;
+    }
     record.state = match prior_state {
         ChangeState::Draft | ChangeState::Approved => ChangeState::Approved,
         ChangeState::Verifying if record.canonical_applied => ChangeState::Verifying,
@@ -2313,12 +2363,15 @@ fn closing_authenticated_correction_anchor(
     if !verification.passed || verification.acceptance_input_digest.is_none() {
         return Ok(None);
     }
-    let definition_matches = approvals
-        .approvals
-        .iter()
-        .rev()
-        .find(|approval| approval.gate == "definition")
-        .is_some_and(|approval| approval.digest == verification.contract_digest);
+    let correction_prefix = correction_prefix_digest(&state, &corrections.corrections)?;
+    let definition_matches = resolve_definition_approval_event(
+        &state,
+        &approvals,
+        &verification.contract_digest,
+        None,
+        &correction_prefix,
+    )
+    .is_ok();
     let closing_matches = approvals
         .approvals
         .iter()
@@ -2589,13 +2642,8 @@ pub fn correct_interview_metadata(
     ensure_closing_approval_valid(root, &record)?;
     let prior_verification = load_verification(root, &record)?;
     let approvals = load_approvals(root, &record)?;
-    let superseded_definition_approval = approvals
-        .approvals
-        .iter()
-        .rev()
-        .find(|approval| approval.gate == "definition")
-        .cloned()
-        .ok_or_else(|| "accepted change is missing definition approval".to_string())?;
+    let superseded_definition_approval =
+        effective_definition_approval(root, &record, &approvals)?.clone();
     let superseded_closing_approval = approvals
         .approvals
         .iter()
@@ -2797,13 +2845,9 @@ pub fn accept_change(
     let mut ledger = load_approvals(root, &record)?;
     let actor = resolve_actor(root, actor)?;
     let stable_definition_digest = definition_digest(root, &record)?;
-    let latest_definition_digest = ledger
-        .approvals
-        .iter()
-        .rev()
-        .find(|approval| approval.gate == "definition")
-        .map(|approval| approval.digest.as_str());
-    if latest_definition_digest != Some(stable_definition_digest.as_str()) {
+    let definition_is_stable =
+        effective_definition_approval(root, &record, &ledger)?.digest == stable_definition_digest;
+    if !definition_is_stable {
         ledger.approvals.push(ApprovalRecord {
             gate: "definition".into(),
             actor: actor.clone(),
@@ -2812,6 +2856,7 @@ pub fn accept_change(
             note: Some(
                 "Normalized compatible definition evidence during explicit acceptance".into(),
             ),
+            definition_pair: None,
         });
     }
     ledger.approvals.push(ApprovalRecord {
@@ -2820,6 +2865,7 @@ pub fn accept_change(
         timestamp: now(),
         digest: closing_digest,
         note,
+        definition_pair: None,
     });
     let approvals_path = change_dir(root, &record.id).join("approvals.json");
     prepared.push((approvals_path, json_content(&ledger)?));
@@ -3215,8 +3261,10 @@ fn check_project_with_command_output(
         if let Err(error) = validate_definition(root, record) {
             report.errors.push(format!("{}: {error}", record.id));
         }
-        if !matches!(record.state, ChangeState::Draft)
-            && let Err(error) = ensure_definition_approval_valid(root, record)
+        if matches!(
+            record.state,
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+        ) && let Err(error) = ensure_definition_approval_valid(root, record)
         {
             report.errors.push(format!("{}: {error}", record.id));
         }
@@ -4847,9 +4895,22 @@ fn definition_digest_from_record_bytes(
     record_bytes: &[u8],
     corrections: &[CorrectionRecord],
 ) -> Result<String, String> {
+    let snapshot = definition_artifact_snapshot(root, record, corrections)?;
+    definition_digest_from_snapshot(record, record_bytes, corrections, &snapshot)
+}
+
+#[derive(Debug, Clone)]
+struct DefinitionArtifactSnapshot {
+    entries: Vec<(String, u32, Vec<u8>, Option<String>)>,
+    correction_mode: Option<u32>,
+}
+
+fn definition_artifact_snapshot(
+    root: &Path,
+    record: &ChangeRecord,
+    corrections: &[CorrectionRecord],
+) -> Result<DefinitionArtifactSnapshot, String> {
     let dir = find_change_dir(root, &record.id)?;
-    let mut digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
-    digest.frame(b"record", record_bytes);
     let effective = validate_correction_records_for_prefix(record, corrections)?;
     let mut files: Vec<(String, PathBuf)> = Vec::new();
     for artifact in &effective.selected_artifacts {
@@ -4910,6 +4971,7 @@ fn definition_digest_from_record_bytes(
     let candidates = candidate_paths.iter().cloned().collect();
     let evidence = git_regular_file_evidence(root, &candidates)?;
     let mut correction_mode = None;
+    let mut captured = Vec::new();
     for ((relative, path), candidate) in files.into_iter().zip(candidate_paths) {
         let entry = evidence.entry(&candidate)?;
         if entry.kind != AcceptanceInputKind::File || !matches!(entry.mode, 0o100644 | 0o100755) {
@@ -4928,8 +4990,30 @@ fn definition_digest_from_record_bytes(
         if relative.ends_with(&format!("/{CORRECTIONS_FILE}")) {
             correction_mode = Some(entry.mode);
         } else {
-            digest.entry(&relative, b"file", entry.mode, &entry.payload);
+            captured.push((
+                relative,
+                entry.mode,
+                entry.payload.clone(),
+                entry.object.clone(),
+            ));
         }
+    }
+    Ok(DefinitionArtifactSnapshot {
+        entries: captured,
+        correction_mode,
+    })
+}
+
+fn definition_digest_from_snapshot(
+    record: &ChangeRecord,
+    record_bytes: &[u8],
+    corrections: &[CorrectionRecord],
+    snapshot: &DefinitionArtifactSnapshot,
+) -> Result<String, String> {
+    let mut digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
+    digest.frame(b"record", record_bytes);
+    for (relative, mode, payload, _) in &snapshot.entries {
+        digest.entry(relative, b"file", *mode, payload);
     }
     if !corrections.is_empty() {
         let relative = format!("{CHANGES_PATH}/{}/{CORRECTIONS_FILE}", record.id);
@@ -4938,9 +5022,131 @@ fn definition_digest_from_record_bytes(
             corrections: corrections.to_vec(),
         };
         let content = json_content(&ledger)?;
-        let mode = correction_mode
+        let mode = snapshot
+            .correction_mode
             .ok_or_else(|| "captured correction ledger mode is missing".to_string())?;
         digest.entry(&relative, b"file", mode, content.as_bytes());
+    }
+    Ok(digest.finish())
+}
+
+#[derive(Serialize)]
+struct DefinitionProjectionV501<'a> {
+    schema_version: u32,
+    id: &'a str,
+    slug: &'a str,
+    title: &'a str,
+    description: &'a str,
+    kind: ChangeKind,
+    state: ChangeState,
+    base_commit: &'a Option<String>,
+    created_at: u64,
+    updated_at: u64,
+    affected_specs: &'a [String],
+    affected_paths: &'a [String],
+    no_spec_change: bool,
+    no_spec_change_rationale: &'a Option<String>,
+    acceptance_criteria: &'a [String],
+    selected_artifacts: &'a [ArtifactKind],
+    dependencies: &'a [String],
+    answers: &'a BTreeMap<String, String>,
+}
+
+fn portable_definition_digest_pair_v501(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(String, String, String), String> {
+    if record.legacy_archive_baseline_digest.is_none() {
+        return Err(
+            "SpecSync 5.0.1 portable approval requires a versioned legacy archive baseline binding"
+                .into(),
+        );
+    }
+    if record.canonical_applied || record.correction_count != 0 || !record.supersedes.is_empty() {
+        return Err(
+            "SpecSync 5.0.1 portable projection rejects unsupported nonempty post-5.0.1 definition fields"
+                .into(),
+        );
+    }
+    let correction_ledger = load_correction_ledger(root, record)?;
+    if correction_ledger.schema_version != 1 || !correction_ledger.corrections.is_empty() {
+        return Err(
+            "SpecSync 5.0.1 portable projection rejects unsupported correction history".into(),
+        );
+    }
+    let mut canonical = record.clone();
+    canonical.state = ChangeState::Draft;
+    canonical.canonical_applied = false;
+    canonical.correction_count = 0;
+    canonical.updated_at = 0;
+    let current_bytes = serde_json::to_vec(&canonical)
+        .map_err(|error| format!("failed to hash current change state: {error}"))?;
+    let legacy_bytes = definition_projection_bytes_v501(record)?;
+    let snapshot = definition_artifact_snapshot(root, record, &[])?;
+    for (relative, _, captured_payload, object) in &snapshot.entries {
+        let working_payload = fs::read(root.join(relative)).map_err(|error| {
+            format!(
+                "SpecSync 5.0.1 portable projection cannot read working-tree definition artifact `{relative}`: {error}"
+            )
+        })?;
+        let canonical_payload = match object {
+            Some(object) => git_blob_bytes(root, object)?,
+            None => captured_payload.clone(),
+        };
+        if working_payload != canonical_payload {
+            return Err(format!(
+                "SpecSync 5.0.1 portable projection requires canonical working-tree bytes for `{relative}`; use a canonical LF release checkout"
+            ));
+        }
+    }
+    let current = definition_digest_from_snapshot(record, &current_bytes, &[], &snapshot)?;
+    let projected = definition_digest_from_snapshot(record, &legacy_bytes, &[], &snapshot)?;
+    if current == projected {
+        return Err("portable definition pair digests must be distinct".into());
+    }
+    let correction_prefix = correction_prefix_digest(record, &[])?;
+    Ok((current, projected, correction_prefix))
+}
+
+fn definition_projection_bytes_v501(record: &ChangeRecord) -> Result<Vec<u8>, String> {
+    let mut canonical = record.clone();
+    canonical.state = ChangeState::Draft;
+    canonical.updated_at = 0;
+    let legacy = DefinitionProjectionV501 {
+        schema_version: canonical.schema_version,
+        id: &canonical.id,
+        slug: &canonical.slug,
+        title: &canonical.title,
+        description: &canonical.description,
+        kind: canonical.kind,
+        state: canonical.state,
+        base_commit: &canonical.base_commit,
+        created_at: canonical.created_at,
+        updated_at: canonical.updated_at,
+        affected_specs: &canonical.affected_specs,
+        affected_paths: &canonical.affected_paths,
+        no_spec_change: canonical.no_spec_change,
+        no_spec_change_rationale: &canonical.no_spec_change_rationale,
+        acceptance_criteria: &canonical.acceptance_criteria,
+        selected_artifacts: &canonical.selected_artifacts,
+        dependencies: &canonical.dependencies,
+        answers: &canonical.answers,
+    };
+    serde_json::to_vec(&legacy)
+        .map_err(|error| format!("failed to hash SpecSync 5.0.1 projection: {error}"))
+}
+
+fn correction_prefix_digest(
+    record: &ChangeRecord,
+    corrections: &[CorrectionRecord],
+) -> Result<String, String> {
+    let mut digest = FramedDigest::new(CORRECTION_PREFIX_DOMAIN);
+    digest.frame(b"change-id", record.id.as_bytes());
+    digest.frame(b"count", corrections.len().to_string().as_bytes());
+    for correction in corrections {
+        let bytes = serde_json::to_vec(correction)
+            .map_err(|error| format!("failed to hash correction prefix: {error}"))?;
+        digest.frame(b"correction", &bytes);
     }
     Ok(digest.finish())
 }
@@ -7796,20 +8002,127 @@ fn historical_sequence_ledger_acceptance_content(
     Ok(Some(json_content(&historical)?.into_bytes()))
 }
 
-fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    let ledger = load_approvals(root, record)?;
-    let approval = ledger
+fn resolve_definition_approval_event<'a>(
+    record: &ChangeRecord,
+    ledger: &'a ApprovalLedger,
+    expected_current_digest: &str,
+    expected_legacy_digest: Option<&str>,
+    expected_correction_prefix: &str,
+) -> Result<&'a ApprovalRecord, String> {
+    let index = ledger
         .approvals
         .iter()
-        .rev()
-        .find(|approval| approval.gate == "definition")
+        .rposition(|approval| approval.gate == "definition")
         .ok_or_else(|| "definition approval is missing".to_string())?;
-    if !definition_digest_matches(root, record, &approval.digest)? {
-        return Err(
-            "definition approval is stale; approve the current artifact digest again".into(),
-        );
+    let terminal = &ledger.approvals[index];
+    let Some(legacy_metadata) = terminal.definition_pair.as_ref() else {
+        if terminal.digest != expected_current_digest {
+            return Err(
+                "definition approval is stale; approve the current artifact digest again".into(),
+            );
+        }
+        return Ok(terminal);
+    };
+    if legacy_metadata.schema_version != 1
+        || legacy_metadata.projection != PORTABLE_DEFINITION_PROJECTION_V501
+        || legacy_metadata.role != DefinitionApprovalPairRole::Legacy
+        || legacy_metadata.change_id != record.id
+        || legacy_metadata.correction_count != record.correction_count
+        || legacy_metadata.correction_prefix_digest != expected_correction_prefix
+        || legacy_metadata.event_index.checked_add(1) != Some(index as u64)
+    {
+        return Err("portable definition approval has invalid terminal metadata".into());
     }
-    Ok(())
+    let current_index = index
+        .checked_sub(1)
+        .ok_or_else(|| "portable definition approval is missing its current member".to_string())?;
+    let current = &ledger.approvals[current_index];
+    let current_metadata = current
+        .definition_pair
+        .as_ref()
+        .ok_or_else(|| "portable definition approval current member is unmarked".to_string())?;
+    if current.gate != "definition"
+        || current_metadata.schema_version != legacy_metadata.schema_version
+        || current_metadata.projection != legacy_metadata.projection
+        || current_metadata.pair_id != legacy_metadata.pair_id
+        || current_metadata.role != DefinitionApprovalPairRole::Current
+        || current_metadata.change_id != legacy_metadata.change_id
+        || current_metadata.correction_count != legacy_metadata.correction_count
+        || current_metadata.correction_prefix_digest != legacy_metadata.correction_prefix_digest
+        || current_metadata.current_digest != legacy_metadata.current_digest
+        || current_metadata.legacy_digest != legacy_metadata.legacy_digest
+        || current_metadata.event_index != legacy_metadata.event_index
+        || current_metadata.event_index != current_index as u64
+        || current.actor != terminal.actor
+        || current.timestamp != terminal.timestamp
+        || current.digest == terminal.digest
+        || current.digest != expected_current_digest
+        || current.digest != current_metadata.current_digest
+        || terminal.digest != legacy_metadata.legacy_digest
+        || expected_legacy_digest.is_some_and(|expected| terminal.digest != expected)
+    {
+        return Err("portable definition approval pair is malformed or stale".into());
+    }
+    let expected_pair_id = definition_approval_pair_id(
+        record,
+        current_index as u64,
+        &current.actor,
+        current.timestamp,
+        expected_correction_prefix,
+        &current.digest,
+        &terminal.digest,
+    );
+    if legacy_metadata.pair_id != expected_pair_id
+        || ledger
+            .approvals
+            .iter()
+            .filter(|approval| {
+                approval
+                    .definition_pair
+                    .as_ref()
+                    .is_some_and(|metadata| metadata.pair_id == legacy_metadata.pair_id)
+            })
+            .count()
+            != 2
+    {
+        return Err("portable definition approval pair is duplicated or replayed".into());
+    }
+    Ok(current)
+}
+
+fn effective_definition_approval<'a>(
+    root: &Path,
+    record: &ChangeRecord,
+    ledger: &'a ApprovalLedger,
+) -> Result<&'a ApprovalRecord, String> {
+    let latest = ledger
+        .approvals
+        .iter()
+        .rfind(|approval| approval.gate == "definition")
+        .ok_or_else(|| "definition approval is missing".to_string())?;
+    let corrections = load_correction_ledger(root, record)?;
+    let prefix = correction_prefix_digest(record, &corrections.corrections)?;
+    if latest.definition_pair.is_some() {
+        let (current, legacy, portable_prefix) =
+            portable_definition_digest_pair_v501(root, record)?;
+        if prefix != portable_prefix {
+            return Err("portable definition approval correction prefix is stale".into());
+        }
+        return resolve_definition_approval_event(record, ledger, &current, Some(&legacy), &prefix);
+    }
+    let current = definition_digest(root, record)?;
+    match resolve_definition_approval_event(record, ledger, &current, None, &prefix) {
+        Ok(approval) => Ok(approval),
+        Err(_) => {
+            let transitional = definition_digest_with_explicit_false(root, record)?;
+            resolve_definition_approval_event(record, ledger, &transitional, None, &prefix)
+        }
+    }
+}
+
+fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    let ledger = load_approvals(root, record)?;
+    effective_definition_approval(root, record, &ledger).map(|_| ())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -8774,11 +9087,100 @@ fn append_approval(
         timestamp: now(),
         digest,
         note,
+        definition_pair: None,
     });
     write_json(
         &change_dir(root, &record.id).join("approvals.json"),
         &ledger,
     )
+}
+
+fn append_portable_definition_approval_v501(
+    root: &Path,
+    record: &ChangeRecord,
+    actor: Option<String>,
+    note: Option<String>,
+) -> Result<(), String> {
+    let (current_digest, legacy_digest, correction_prefix_digest) =
+        portable_definition_digest_pair_v501(root, record)?;
+    let actor = resolve_actor(root, actor)?;
+    let timestamp = now();
+    let path = change_dir(root, &record.id).join("approvals.json");
+    let content = fs::read_to_string(&path)
+        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+    let mut document: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|error| format!("invalid approval ledger {}: {error}", path.display()))?;
+    let ledger: ApprovalLedger = serde_json::from_value(document.clone())
+        .map_err(|error| format!("invalid approval ledger {}: {error}", path.display()))?;
+    let event_index = ledger.approvals.len() as u64;
+    let pair_id = definition_approval_pair_id(
+        record,
+        event_index,
+        &actor,
+        timestamp,
+        &correction_prefix_digest,
+        &current_digest,
+        &legacy_digest,
+    );
+    let metadata = |role| DefinitionApprovalPairV1 {
+        schema_version: 1,
+        projection: PORTABLE_DEFINITION_PROJECTION_V501.into(),
+        pair_id: pair_id.clone(),
+        role,
+        change_id: record.id.clone(),
+        correction_count: record.correction_count,
+        correction_prefix_digest: correction_prefix_digest.clone(),
+        current_digest: current_digest.clone(),
+        legacy_digest: legacy_digest.clone(),
+        event_index,
+    };
+    let current = ApprovalRecord {
+        gate: "definition".into(),
+        actor: actor.clone(),
+        timestamp,
+        digest: current_digest.clone(),
+        note,
+        definition_pair: Some(metadata(DefinitionApprovalPairRole::Current)),
+    };
+    let legacy = ApprovalRecord {
+        gate: "definition".into(),
+        actor,
+        timestamp,
+        digest: legacy_digest.clone(),
+        note: Some("Portable SpecSync 5.0.1 definition projection".into()),
+        definition_pair: Some(metadata(DefinitionApprovalPairRole::Legacy)),
+    };
+    let approvals = document
+        .get_mut("approvals")
+        .and_then(serde_json::Value::as_array_mut)
+        .ok_or_else(|| "approval ledger approvals must be an array".to_string())?;
+    approvals.push(serde_json::to_value(current).map_err(|error| error.to_string())?);
+    approvals.push(serde_json::to_value(legacy).map_err(|error| error.to_string())?);
+    write_prepared_files(root, &[(path, json_content(&document)?)])
+}
+
+fn definition_approval_pair_id(
+    record: &ChangeRecord,
+    event_index: u64,
+    actor: &str,
+    timestamp: u64,
+    correction_prefix_digest: &str,
+    current_digest: &str,
+    legacy_digest: &str,
+) -> String {
+    let mut digest = FramedDigest::new(DEFINITION_APPROVAL_PAIR_DOMAIN);
+    digest.frame(b"change-id", record.id.as_bytes());
+    digest.frame(b"event-index", event_index.to_string().as_bytes());
+    digest.frame(
+        b"correction-count",
+        record.correction_count.to_string().as_bytes(),
+    );
+    digest.frame(b"correction-prefix", correction_prefix_digest.as_bytes());
+    digest.frame(b"actor", actor.as_bytes());
+    digest.frame(b"timestamp", timestamp.to_string().as_bytes());
+    digest.frame(b"current", current_digest.as_bytes());
+    digest.frame(b"legacy", legacy_digest.as_bytes());
+    digest.finish()
 }
 
 fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
@@ -13696,6 +14098,318 @@ mod tests {
         .unwrap();
         assert_eq!(record.state, ChangeState::Approved);
         assert!(ensure_definition_approval_valid(temp.path(), &record).is_ok());
+    }
+
+    fn portable_definition_record(root: &Path) -> ChangeRecord {
+        let mut record = completed_no_spec_record(root);
+        record.legacy_archive_baseline_digest = Some("a".repeat(64));
+        save_change(root, &record).unwrap();
+        record
+    }
+
+    #[test]
+    fn marked_portable_definition_pair_is_atomic_current_and_fail_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = portable_definition_record(root);
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        fs::write(&approvals_path, "{\n  \"approvals\": []\n}\n").unwrap();
+
+        append_portable_definition_approval_v501(
+            root,
+            &record,
+            Some("user:0xLeif".into()),
+            Some("Approve portable definition".into()),
+        )
+        .unwrap();
+        let persisted: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&approvals_path).unwrap()).unwrap();
+        assert!(persisted.get("reopenings").is_none());
+        let ledger = load_approvals(root, &record).unwrap();
+        assert_eq!(ledger.approvals.len(), 2);
+        assert!(ensure_definition_approval_valid(root, &record).is_ok());
+        let effective = effective_definition_approval(root, &record, &ledger).unwrap();
+        assert_eq!(
+            effective.definition_pair.as_ref().unwrap().role,
+            DefinitionApprovalPairRole::Current
+        );
+        let (current, legacy, prefix) =
+            portable_definition_digest_pair_v501(root, &record).unwrap();
+        assert_eq!(effective.digest, current);
+        assert_eq!(ledger.approvals[1].digest, legacy);
+        assert_ne!(current, legacy);
+        assert_eq!(ledger.approvals[0].actor, ledger.approvals[1].actor);
+        assert_eq!(ledger.approvals[0].timestamp, ledger.approvals[1].timestamp);
+
+        let assert_invalid = |mut candidate: ApprovalLedger| {
+            assert!(
+                resolve_definition_approval_event(
+                    &record,
+                    &candidate,
+                    &current,
+                    Some(&legacy),
+                    &prefix,
+                )
+                .is_err()
+            );
+            candidate.approvals.clear();
+        };
+
+        let mut wrong_actor = ledger.clone();
+        wrong_actor.approvals[1].actor = "another-reviewer".into();
+        assert_invalid(wrong_actor);
+        let mut wrong_timestamp = ledger.clone();
+        wrong_timestamp.approvals[1].timestamp += 1;
+        assert_invalid(wrong_timestamp);
+        let mut reversed = ledger.clone();
+        reversed.approvals.swap(0, 1);
+        assert_invalid(reversed);
+        let mut wrong_digest = ledger.clone();
+        wrong_digest.approvals[1].digest = "b".repeat(64);
+        assert_invalid(wrong_digest);
+        let mut same_digest = ledger.clone();
+        same_digest.approvals[1].digest = same_digest.approvals[0].digest.clone();
+        same_digest.approvals[1]
+            .definition_pair
+            .as_mut()
+            .unwrap()
+            .legacy_digest = same_digest.approvals[0].digest.clone();
+        assert_invalid(same_digest);
+        let mut intervening = ledger.clone();
+        intervening.approvals.insert(
+            1,
+            ApprovalRecord {
+                gate: "acceptance".into(),
+                actor: "Closer".into(),
+                timestamp: intervening.approvals[0].timestamp,
+                digest: "c".repeat(64),
+                note: None,
+                definition_pair: None,
+            },
+        );
+        assert_invalid(intervening);
+        for field in [
+            "pair",
+            "change",
+            "correction",
+            "prefix",
+            "event",
+            "projection",
+        ] {
+            let mut malformed = ledger.clone();
+            let metadata = malformed.approvals[1].definition_pair.as_mut().unwrap();
+            match field {
+                "pair" => metadata.pair_id = "d".repeat(64),
+                "change" => metadata.change_id = "CHG-9999-other".into(),
+                "correction" => metadata.correction_count = 1,
+                "prefix" => metadata.correction_prefix_digest = "e".repeat(64),
+                "event" => metadata.event_index = 42,
+                "projection" => metadata.projection = "specsync-5.0.0".into(),
+                _ => unreachable!(),
+            }
+            assert_invalid(malformed);
+        }
+        let mut replayed = ledger.clone();
+        replayed.approvals.extend(ledger.approvals.clone());
+        assert_invalid(replayed);
+        let mut loose = ledger.clone();
+        for approval in &mut loose.approvals {
+            approval.definition_pair = None;
+        }
+        assert_invalid(loose);
+
+        let mut followed_by_closing = ledger.clone();
+        followed_by_closing.approvals.push(ApprovalRecord {
+            gate: "acceptance".into(),
+            actor: "Closer".into(),
+            timestamp: ledger.approvals[1].timestamp + 1,
+            digest: "f".repeat(64),
+            note: None,
+            definition_pair: None,
+        });
+        assert!(
+            resolve_definition_approval_event(
+                &record,
+                &followed_by_closing,
+                &current,
+                Some(&legacy),
+                &prefix,
+            )
+            .is_ok()
+        );
+        let mut superseded_by_ordinary = ledger.clone();
+        superseded_by_ordinary.approvals[0]
+            .definition_pair
+            .as_mut()
+            .unwrap()
+            .pair_id = "0".repeat(64);
+        superseded_by_ordinary.approvals.push(ApprovalRecord {
+            gate: "definition".into(),
+            actor: "Later reviewer".into(),
+            timestamp: ledger.approvals[1].timestamp + 1,
+            digest: current.clone(),
+            note: None,
+            definition_pair: None,
+        });
+        assert!(
+            resolve_definition_approval_event(
+                &record,
+                &superseded_by_ordinary,
+                &current,
+                None,
+                &prefix,
+            )
+            .is_ok()
+        );
+
+        fs::write(
+            change_dir(root, &record.id).join("context.md"),
+            "# Changed definition\n",
+        )
+        .unwrap();
+        assert!(ensure_definition_approval_valid(root, &record).is_err());
+    }
+
+    #[test]
+    fn portable_projection_rejects_unsupported_nonempty_v501_fields() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = portable_definition_record(root);
+        assert!(portable_definition_digest_pair_v501(root, &record).is_ok());
+
+        let mut canonical = record.clone();
+        canonical.canonical_applied = true;
+        assert!(portable_definition_digest_pair_v501(root, &canonical).is_err());
+        let mut corrected = record.clone();
+        corrected.correction_count = 1;
+        assert!(portable_definition_digest_pair_v501(root, &corrected).is_err());
+        let mut successor = record;
+        successor.supersedes.push(SupersedesEdge {
+            predecessor_id: "CHG-0000-predecessor".into(),
+            obligations: Vec::new(),
+        });
+        assert!(portable_definition_digest_pair_v501(root, &successor).is_err());
+    }
+
+    #[test]
+    fn v501_record_projection_is_frozen_across_new_field_representations() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = portable_definition_record(root);
+        let expected = definition_projection_bytes_v501(&record).unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&expected).unwrap();
+        for omitted in [
+            "canonical_applied",
+            "correction_count",
+            "supersedes",
+            "legacy_archive_baseline_digest",
+        ] {
+            assert!(value.get(omitted).is_none(), "{omitted}");
+        }
+
+        let mut archived = record.clone();
+        archived.state = ChangeState::Archived;
+        archived.updated_at += 100;
+        archived.canonical_applied = true;
+        archived.correction_count = 2;
+        archived.supersedes.push(SupersedesEdge {
+            predecessor_id: "CHG-0000-predecessor".into(),
+            obligations: Vec::new(),
+        });
+        archived.legacy_archive_baseline_digest = Some("b".repeat(64));
+        assert_eq!(
+            definition_projection_bytes_v501(&archived).unwrap(),
+            expected
+        );
+
+        let mut explicit_false = record;
+        explicit_false.canonical_applied = false;
+        explicit_false.correction_count = 0;
+        explicit_false.supersedes.clear();
+        explicit_false.legacy_archive_baseline_digest = None;
+        assert_eq!(
+            definition_projection_bytes_v501(&explicit_false).unwrap(),
+            expected
+        );
+    }
+
+    #[test]
+    fn portable_projection_rejects_clean_crlf_smudging_before_ledger_mutation() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = portable_definition_record(root);
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "true"]);
+        git(&["add", "."]);
+        git(&["commit", "-m", "canonical definition"]);
+
+        let context = change_dir(root, &record.id).join("context.md");
+        let lf = fs::read_to_string(&context).unwrap();
+        fs::write(&context, lf.replace('\n', "\r\n")).unwrap();
+        assert!(
+            Command::new("git")
+                .args(["diff", "--quiet", "--", context.to_str().unwrap()])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        let before = fs::read(&approvals_path).unwrap();
+        let error =
+            append_portable_definition_approval_v501(root, &record, Some("Reviewer".into()), None)
+                .unwrap_err();
+        assert!(error.contains("context.md"), "{error}");
+        assert!(error.contains("canonical LF release checkout"), "{error}");
+        assert_eq!(fs::read(approvals_path).unwrap(), before);
+    }
+
+    #[test]
+    fn strict_check_requires_definition_approval_only_in_gated_active_states() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        assert!(
+            !check_project(root)
+                .errors
+                .iter()
+                .any(|error| error.contains("definition approval"))
+        );
+
+        record.state = ChangeState::Approved;
+        save_change(root, &record).unwrap();
+        for state in [
+            ChangeState::Approved,
+            ChangeState::Implementing,
+            ChangeState::Verifying,
+        ] {
+            record.state = state;
+            save_change(root, &record).unwrap();
+            assert!(check_project(root).errors.iter().any(|error| {
+                error.contains(&record.id) && error.contains("definition approval is missing")
+            }));
+        }
+        record.state = ChangeState::Draft;
+        save_change(root, &record).unwrap();
+        assert!(
+            !check_project(root)
+                .errors
+                .iter()
+                .any(|error| error.contains("definition approval"))
+        );
     }
 
     #[test]

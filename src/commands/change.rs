@@ -68,9 +68,18 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                 Ok(())
             }
         }
-        ChangeAction::Approve { id, actor, note } => {
-            change::approve_definition(root, &id, actor, note)
-                .map(|record| print_transition(&record, format, "definition approved"))
+        ChangeAction::Approve {
+            id,
+            actor,
+            note,
+            portable_5_0_1,
+        } => {
+            let result = if portable_5_0_1 {
+                change::approve_definition_portable_v501(root, &id, actor, note)
+            } else {
+                change::approve_definition(root, &id, actor, note)
+            };
+            result.map(|record| print_transition(&record, format, "definition approved"))
         }
         ChangeAction::Start { id } => change::start_implementation(root, &id)
             .map(|record| print_transition(&record, format, "implementation started")),

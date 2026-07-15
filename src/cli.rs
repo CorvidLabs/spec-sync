@@ -376,6 +376,9 @@ pub enum ChangeAction {
         /// Optional approval note
         #[arg(long)]
         note: Option<String>,
+        /// Atomically append a marked current/SpecSync-5.0.1 portable definition pair
+        #[arg(long)]
+        portable_5_0_1: bool,
     },
     /// Transition an approved change into implementation
     Start {

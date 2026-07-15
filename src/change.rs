@@ -6,6 +6,7 @@ use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 pub const SDD_VERSION: &str = "5.0.0";
 const POLICY_PATH: &str = ".specsync/sdd.json";
@@ -24,6 +25,7 @@ const CANONICAL_SPEC_COMPANIONS: [&str; 5] = [
     "design.md",
 ];
 static EFFECTIVE_CONTRACT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+static TRUSTED_CORRECTION_HISTORY_CACHE: OnceLock<Mutex<BTreeSet<String>>> = OnceLock::new();
 
 const DEFINITION_DIGEST_DOMAIN: &[u8] = b"specsync.definition-digest.v2";
 const PROJECT_DIGEST_DOMAIN: &[u8] = b"specsync.project-input-digest.v2";
@@ -1541,18 +1543,20 @@ fn validate_correction_records_for_prefix(
 
 fn load_correction_ledger(root: &Path, record: &ChangeRecord) -> Result<CorrectionLedger, String> {
     let path = find_change_dir(root, &record.id)?.join(CORRECTIONS_FILE);
-    if !path.exists() {
-        return Ok(CorrectionLedger::default());
-    }
-    let content = read_bounded_change_text(&path, "correction ledger")?;
-    let ledger: CorrectionLedger = serde_json::from_str(&content)
-        .map_err(|error| format!("invalid correction ledger {}: {error}", path.display()))?;
+    let ledger = if path.exists() {
+        let content = read_bounded_change_text(&path, "correction ledger")?;
+        serde_json::from_str(&content)
+            .map_err(|error| format!("invalid correction ledger {}: {error}", path.display()))?
+    } else {
+        CorrectionLedger::default()
+    };
     if ledger.schema_version != 1 {
         return Err(format!(
             "unsupported correction ledger schema version {}",
             ledger.schema_version
         ));
     }
+    validate_trusted_correction_history(root, record, &ledger)?;
     Ok(ledger)
 }
 
@@ -1562,6 +1566,414 @@ pub fn effective_change_definition(
 ) -> Result<EffectiveChangeDefinition, String> {
     let ledger = load_correction_ledger(root, record)?;
     validate_correction_records(record, &ledger.corrections)
+}
+
+fn validate_trusted_correction_history(
+    root: &Path,
+    record: &ChangeRecord,
+    current: &CorrectionLedger,
+) -> Result<(), String> {
+    let Some(head) = git_output(root, &["rev-parse", "--verify", "HEAD"]) else {
+        // A project that has not entered Git history has no trusted historical
+        // anchor yet. Its local correction chain is still validated below by
+        // `validate_correction_records`.
+        return Ok(());
+    };
+    let mut references = vec![head];
+    if let Some(remote_default) = remote_default_ref(root) {
+        references.push(
+            git_output(root, &["rev-parse", "--verify", &remote_default]).unwrap_or(remote_default),
+        );
+    }
+    references.sort();
+    references.dedup();
+    let shallow = git_output(root, &["rev-parse", "--is-shallow-repository"])
+        .is_some_and(|value| value == "true");
+    if shallow && !current.corrections.is_empty() {
+        return Err(format!(
+            "cannot validate append-only correction history for {} from a shallow Git checkout; fetch complete trusted history",
+            record.id
+        ));
+    }
+    let ledger_bytes = serde_json::to_vec(current)
+        .map_err(|error| format!("failed to cache correction history validation: {error}"))?;
+    let mut cache_digest = FramedDigest::new(b"specsync.trusted-correction-cache.v1");
+    cache_digest.frame(b"root", root.to_string_lossy().as_bytes());
+    cache_digest.frame(b"change-id", record.id.as_bytes());
+    cache_digest.frame(b"references", references.join("\n").as_bytes());
+    cache_digest.frame(b"shallow", if shallow { b"true" } else { b"false" });
+    cache_digest.frame(b"ledger", &ledger_bytes);
+    let cache_key = cache_digest.finish();
+    let cache = TRUSTED_CORRECTION_HISTORY_CACHE.get_or_init(|| Mutex::new(BTreeSet::new()));
+    if cache
+        .lock()
+        .map_err(|_| "trusted correction history cache is unavailable".to_string())?
+        .contains(&cache_key)
+    {
+        return Ok(());
+    }
+
+    let active_directory = git_repo_relative_path(root, &format!("{CHANGES_PATH}/{}", record.id))?;
+    let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
+    let archive_glob = format!(
+        ":(glob,top){}/**/*-{}/**",
+        archive_root.trim_end_matches('/'),
+        record.id
+    );
+    let reference_args: Vec<&str> = references.iter().map(String::as_str).collect();
+    let output = Command::new("git")
+        .arg("rev-list")
+        .args(&reference_args)
+        .arg("--")
+        .arg(&active_directory)
+        .arg(&archive_glob)
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to inspect trusted correction history: {error}"))?;
+    if !output.status.success() {
+        return Err("failed to enumerate trusted correction history".into());
+    }
+    let commits: BTreeSet<String> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|commit| !commit.is_empty())
+        .map(str::to_string)
+        .collect();
+    let mut anchored = false;
+    for commit in commits {
+        for directory in historical_change_directories(root, &commit, &record.id)? {
+            let Some(anchor) =
+                closing_authenticated_correction_anchor(root, &commit, &directory, &record.id)?
+            else {
+                continue;
+            };
+            anchored = true;
+            if current.corrections.len() < anchor.corrections.len() {
+                return Err(format!(
+                    "correction history rollback detected for {}: trusted commit {} preserves {} correction(s), but the current ledger has {}",
+                    record.id,
+                    commit,
+                    anchor.corrections.len(),
+                    current.corrections.len()
+                ));
+            }
+            for (index, historical) in anchor.corrections.iter().enumerate() {
+                let historical = serde_json::to_vec(historical).map_err(|error| {
+                    format!("failed to canonicalize trusted correction history: {error}")
+                })?;
+                let candidate =
+                    serde_json::to_vec(&current.corrections[index]).map_err(|error| {
+                        format!("failed to canonicalize current correction history: {error}")
+                    })?;
+                if candidate != historical {
+                    return Err(format!(
+                        "correction history divergence detected for {} at sequence {} from trusted commit {}",
+                        record.id,
+                        index + 1,
+                        commit
+                    ));
+                }
+            }
+        }
+    }
+    if shallow && (!current.corrections.is_empty() || anchored) {
+        return Err(format!(
+            "cannot validate append-only correction history for {} from a shallow Git checkout; fetch complete trusted history",
+            record.id
+        ));
+    }
+    let mut cache = cache
+        .lock()
+        .map_err(|_| "trusted correction history cache is unavailable".to_string())?;
+    if cache.len() >= 4096 {
+        cache.clear();
+    }
+    cache.insert(cache_key);
+    Ok(())
+}
+
+fn historical_change_directories(
+    root: &Path,
+    commit: &str,
+    change_id: &str,
+) -> Result<Vec<String>, String> {
+    let active_state =
+        git_repo_relative_path(root, &format!("{CHANGES_PATH}/{change_id}/state.json"))?;
+    let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
+    let output = Command::new("git")
+        .args([
+            "ls-tree",
+            "-r",
+            "--name-only",
+            commit,
+            "--",
+            active_state.as_str(),
+            archive_root.as_str(),
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to inspect correction history at {commit}: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "failed to inspect trusted correction paths at commit {commit}"
+        ));
+    }
+    let active_directory = active_state
+        .strip_suffix("/state.json")
+        .unwrap_or(active_state.as_str());
+    let archive_prefix = format!("{}/", archive_root.trim_end_matches('/'));
+    let archive_suffix = format!("-{change_id}/state.json");
+    let mut directories = BTreeSet::new();
+    for path in String::from_utf8_lossy(&output.stdout).lines() {
+        if path == active_state {
+            directories.insert(active_directory.to_string());
+        } else if path.starts_with(&archive_prefix)
+            && path.ends_with(&archive_suffix)
+            && let Some(directory) = path.strip_suffix("/state.json")
+        {
+            directories.insert(directory.to_string());
+        }
+    }
+    Ok(directories.into_iter().collect())
+}
+
+fn closing_authenticated_correction_anchor(
+    root: &Path,
+    commit: &str,
+    directory: &str,
+    change_id: &str,
+) -> Result<Option<CorrectionLedger>, String> {
+    let Some(state_bytes) = git_file_at_commit(root, commit, &format!("{directory}/state.json"))?
+    else {
+        return Ok(None);
+    };
+    let Ok(state) = serde_json::from_slice::<ChangeRecord>(&state_bytes) else {
+        return Ok(None);
+    };
+    if state.id != change_id
+        || state.state != ChangeState::Accepted
+        || !state.canonical_applied
+        || state.correction_count == 0
+    {
+        return Ok(None);
+    }
+    let Some(correction_bytes) =
+        git_file_at_commit(root, commit, &format!("{directory}/{CORRECTIONS_FILE}"))?
+    else {
+        return Ok(None);
+    };
+    let Ok(corrections) = serde_json::from_slice::<CorrectionLedger>(&correction_bytes) else {
+        return Ok(None);
+    };
+    if corrections.schema_version != 1
+        || corrections.corrections.len() as u64 != state.correction_count
+        || validate_correction_records(&state, &corrections.corrections).is_err()
+    {
+        return Ok(None);
+    }
+    let Some(approval_bytes) =
+        git_file_at_commit(root, commit, &format!("{directory}/approvals.json"))?
+    else {
+        return Ok(None);
+    };
+    let Some(verification_bytes) =
+        git_file_at_commit(root, commit, &format!("{directory}/verification.json"))?
+    else {
+        return Ok(None);
+    };
+    let (Ok(approvals), Ok(verification)) = (
+        serde_json::from_slice::<ApprovalLedger>(&approval_bytes),
+        serde_json::from_slice::<VerificationRecord>(&verification_bytes),
+    ) else {
+        return Ok(None);
+    };
+    if !verification.passed || verification.acceptance_input_digest.is_none() {
+        return Ok(None);
+    }
+    let definition_matches = approvals
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "definition")
+        .is_some_and(|approval| approval.digest == verification.contract_digest);
+    let closing_matches = approvals
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "acceptance")
+        .is_some_and(|approval| approval.digest == closing_digest(&state, &verification));
+    let contract_matches = historical_definition_digest_matches(
+        root,
+        commit,
+        directory,
+        &state,
+        &corrections,
+        &verification.contract_digest,
+    )?;
+    if !definition_matches || !closing_matches || !contract_matches {
+        return Ok(None);
+    }
+    Ok(Some(corrections))
+}
+
+fn historical_definition_digest_matches(
+    root: &Path,
+    commit: &str,
+    directory: &str,
+    record: &ChangeRecord,
+    corrections: &CorrectionLedger,
+    expected: &str,
+) -> Result<bool, String> {
+    for explicit_false in [false, true] {
+        let mut canonical_record = record.clone();
+        canonical_record.state = ChangeState::Draft;
+        canonical_record.canonical_applied = false;
+        canonical_record.updated_at = 0;
+        let mut record_bytes = serde_json::to_vec(&canonical_record)
+            .map_err(|error| format!("failed to hash historical change state: {error}"))?;
+        if explicit_false {
+            let state = b"\"state\":\"draft\"";
+            let Some(state_start) = record_bytes
+                .windows(state.len())
+                .position(|window| window == state)
+            else {
+                return Ok(false);
+            };
+            record_bytes.splice(
+                state_start + state.len()..state_start + state.len(),
+                b",\"canonical_applied\":false".iter().copied(),
+            );
+        }
+        let effective = validate_correction_records(record, &corrections.corrections)?;
+        let repo_prefix = git_repo_relative_path(root, "")?;
+        let local_directory = directory.strip_prefix(&repo_prefix).unwrap_or(directory);
+        let mut files = Vec::new();
+        for artifact in &effective.selected_artifacts {
+            files.push((
+                format!("{directory}/{}", artifact.file_name()),
+                format!("{local_directory}/{}", artifact.file_name()),
+            ));
+        }
+        let delta_directory = format!("{directory}/deltas");
+        let output = Command::new("git")
+            .args([
+                "ls-tree",
+                "-r",
+                "--name-only",
+                commit,
+                "--",
+                delta_directory.as_str(),
+            ])
+            .current_dir(root)
+            .output()
+            .map_err(|error| format!("failed to inspect historical deltas: {error}"))?;
+        if !output.status.success() {
+            return Ok(false);
+        }
+        for path in String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter(|path| !path.is_empty())
+        {
+            files.push((
+                path.to_string(),
+                path.strip_prefix(&repo_prefix).unwrap_or(path).to_string(),
+            ));
+        }
+        let policy_path = git_repo_relative_path(root, POLICY_PATH)?;
+        if let Some(policy_bytes) = git_file_at_commit(root, commit, &policy_path)?
+            && let Ok(policy) = serde_json::from_slice::<SddPolicy>(&policy_bytes)
+            && let Some(principles) = policy.principles_file
+        {
+            let local_path = strict_portable_relative_path(&principles)?;
+            files.push((git_repo_relative_path(root, &local_path)?, local_path));
+        }
+        files.sort_by(|left, right| left.1.cmp(&right.1));
+        files.dedup_by(|left, right| left.1 == right.1);
+
+        let mut digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
+        digest.frame(b"record", &record_bytes);
+        let mut complete = true;
+        for (repo_path, local_path) in files {
+            let Some((mode, content)) = git_entry_at_commit(root, commit, &repo_path)? else {
+                complete = false;
+                break;
+            };
+            let kind: &[u8] = match mode {
+                0o120000 => b"symlink",
+                0o160000 => b"gitlink",
+                _ => b"file",
+            };
+            digest.entry(&local_path, kind, mode, &content);
+        }
+        if !complete {
+            continue;
+        }
+        if !corrections.corrections.is_empty() {
+            let repo_path = format!("{directory}/{CORRECTIONS_FILE}");
+            let local_path = format!("{local_directory}/{CORRECTIONS_FILE}");
+            let Some((mode, _)) = git_entry_at_commit(root, commit, &repo_path)? else {
+                continue;
+            };
+            digest.entry(
+                &local_path,
+                b"file",
+                mode,
+                json_content(corrections)?.as_bytes(),
+            );
+        }
+        if digest.finish() == expected {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn git_entry_at_commit(
+    root: &Path,
+    commit: &str,
+    path: &str,
+) -> Result<Option<(u32, Vec<u8>)>, String> {
+    let output = Command::new("git")
+        .args(["ls-tree", commit, "--", path])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to inspect trusted historical entry: {error}"))?;
+    if !output.status.success() || output.stdout.is_empty() {
+        return Ok(None);
+    }
+    let line = String::from_utf8_lossy(&output.stdout);
+    let Some((metadata, listed_path)) = line.trim_end().split_once('\t') else {
+        return Ok(None);
+    };
+    if listed_path != path {
+        return Ok(None);
+    }
+    let mut fields = metadata.split_whitespace();
+    let Some(mode) = fields.next() else {
+        return Ok(None);
+    };
+    let Some(kind) = fields.next() else {
+        return Ok(None);
+    };
+    if kind != "blob" {
+        return Ok(None);
+    }
+    let mode = u32::from_str_radix(mode, 8)
+        .map_err(|_| format!("invalid historical Git mode `{mode}`"))?;
+    Ok(git_file_at_commit(root, commit, path)?.map(|content| (mode, content)))
+}
+
+fn git_file_at_commit(root: &Path, commit: &str, path: &str) -> Result<Option<Vec<u8>>, String> {
+    let object = format!("{commit}:{path}");
+    let output = Command::new("git")
+        .args(["show", object.as_str()])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to read trusted correction history: {error}"))?;
+    if output.status.success() {
+        Ok(Some(output.stdout))
+    } else {
+        Ok(None)
+    }
 }
 
 pub fn correction_history(
@@ -7417,6 +7829,309 @@ mod tests {
             fs::read_to_string(canonical_path).unwrap(),
             canonical_after_first_accept
         );
+    }
+
+    // Verifies REQ-change-032.
+    #[test]
+    fn trusted_history_rejects_correction_rollback_and_divergent_same_count() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git {} failed",
+                args.join(" ")
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "false"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_section_only_record(
+            root,
+            "## MODIFIED\n\n### SPEC SECTION Invariants\n\nAccepted passkey changes retain lifecycle evidence.\n",
+        );
+        record.answers.insert("public_contract".into(), "no".into());
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base definition"]);
+        record = accept_completed_record(root, record);
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept original definition"]);
+
+        let first = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::ArchitectureRisk,
+            "yes".into(),
+            "Reviewer".into(),
+            "The accepted implementation has architectural risk".into(),
+        )
+        .unwrap();
+        for artifact in &first.correction.added_artifacts {
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                if *artifact == ArtifactKind::Tasks {
+                    "# Tasks\n\n- [x] Review the corrected classification.\n"
+                } else {
+                    "# Complete\n\nThe corrected classification was reviewed.\n"
+                },
+            )
+            .unwrap();
+        }
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept first correction"]);
+        let first_commit = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+
+        let second = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::ArchitectureRisk,
+            "no".into(),
+            "Reviewer".into(),
+            "A follow-up audit removed the architectural risk".into(),
+        )
+        .unwrap();
+        assert_eq!(second.correction.sequence, 2);
+        assert!(effective_change_definition(root, &second.change).is_ok());
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept second correction"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let second_commit = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        let workspace = format!("{CHANGES_PATH}/{}", record.id);
+
+        git(&[
+            "restore",
+            "--source",
+            first_commit.as_str(),
+            "--",
+            &workspace,
+        ]);
+        let rolled_back = load_change(root, &record.id).unwrap();
+        let error = effective_change_definition(root, &rolled_back).unwrap_err();
+        assert!(
+            error.contains("correction history rollback detected"),
+            "{error}"
+        );
+        git(&[
+            "restore",
+            "--source",
+            second_commit.as_str(),
+            "--",
+            &workspace,
+        ]);
+
+        git(&["switch", "-c", "divergent", first_commit.as_str()]);
+        let stale = load_change(root, &record.id).unwrap();
+        let error = effective_change_definition(root, &stale).unwrap_err();
+        assert!(
+            error.contains("correction history rollback detected"),
+            "{error}"
+        );
+        git(&["update-ref", "-d", "refs/remotes/origin/main"]);
+        let divergent = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::PublicContract,
+            "yes".into(),
+            "Reviewer".into(),
+            "The public contract classification was corrected independently".into(),
+        )
+        .unwrap();
+        git(&[
+            "update-ref",
+            "refs/remotes/origin/main",
+            second_commit.as_str(),
+        ]);
+        let error = effective_change_definition(root, &divergent.change).unwrap_err();
+        assert!(
+            error.contains("correction history divergence detected"),
+            "{error}"
+        );
+    }
+
+    // Verifies REQ-change-032.
+    #[test]
+    fn archived_change_uses_prior_active_correction_anchor() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "false"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        git(&["add", "."]);
+        git(&["commit", "-m", "base definition"]);
+        record = accept_completed_record(root, record);
+        let correction = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::ArchitectureRisk,
+            "yes".into(),
+            "Reviewer".into(),
+            "The accepted verification path has architectural risk".into(),
+        )
+        .unwrap();
+        for artifact in &correction.correction.added_artifacts {
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                if *artifact == ArtifactKind::Tasks {
+                    "# Tasks\n\n- [x] Review the corrected classification.\n"
+                } else {
+                    "# Complete\n\nThe corrected classification was reviewed.\n"
+                },
+            )
+            .unwrap();
+        }
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept corrected definition"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let archive = archive_change(root, &record.id).unwrap();
+        let archived = load_change(root, &record.id).unwrap();
+        assert_eq!(archived.state, ChangeState::Archived);
+        assert!(effective_change_definition(root, &archived).is_ok());
+
+        let mut ledger = load_correction_ledger(root, &archived).unwrap();
+        ledger.corrections.clear();
+        write_json(&archive.join(CORRECTIONS_FILE), &ledger).unwrap();
+        let mut rolled_back = archived;
+        rolled_back.correction_count = 0;
+        write_json(&archive.join("state.json"), &rolled_back).unwrap();
+        let error = effective_change_definition(root, &rolled_back).unwrap_err();
+        assert!(
+            error.contains("correction history rollback detected"),
+            "{error}"
+        );
+    }
+
+    // Verifies REQ-change-032.
+    #[test]
+    fn shallow_history_with_corrections_fails_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        git(&["add", "."]);
+        git(&["commit", "-m", "base definition"]);
+        record = accept_completed_record(root, record);
+        let correction = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::ArchitectureRisk,
+            "yes".into(),
+            "Reviewer".into(),
+            "The accepted verification path has architectural risk".into(),
+        )
+        .unwrap();
+        let head = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        fs::write(root.join(".git/shallow"), format!("{head}\n")).unwrap();
+        let error = effective_change_definition(root, &correction.change).unwrap_err();
+        assert!(error.contains("shallow Git checkout"), "{error}");
+    }
+
+    // Verifies REQ-change-032.
+    #[test]
+    fn accepted_snapshot_with_a_stale_contract_is_not_an_anchor() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        git(&["add", "."]);
+        git(&["commit", "-m", "base definition"]);
+        record = accept_completed_record(root, record);
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept original definition"]);
+        let original = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+
+        let correction = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::ArchitectureRisk,
+            "yes".into(),
+            "Reviewer".into(),
+            "The accepted verification path has architectural risk".into(),
+        )
+        .unwrap();
+        for artifact in &correction.correction.added_artifacts {
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                if *artifact == ArtifactKind::Tasks {
+                    "# Tasks\n\n- [x] Review the corrected classification.\n"
+                } else {
+                    "# Complete\n\nThe corrected classification was reviewed.\n"
+                },
+            )
+            .unwrap();
+        }
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        fs::write(
+            change_dir(root, &record.id).join("testing.md"),
+            "# Complete\n\nChanged after the accepted contract was approved.\n",
+        )
+        .unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "record stale accepted contract snapshot"]);
+
+        let workspace = format!("{CHANGES_PATH}/{}", record.id);
+        git(&["restore", "--source", original.as_str(), "--", &workspace]);
+        let rolled_back = load_change(root, &record.id).unwrap();
+        assert_eq!(rolled_back.correction_count, 0);
+        assert!(effective_change_definition(root, &rolled_back).is_ok());
     }
 
     #[test]

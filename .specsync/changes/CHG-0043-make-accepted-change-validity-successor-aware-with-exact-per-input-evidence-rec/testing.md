@@ -18,6 +18,9 @@ Focused unit and integration regressions will prove:
 - an acceptance commit whose immediate parent already contains implementation bytes cannot fabricate succession; the trusted signed base tree supplies old bytes and the descendant accepted-transition tree supplies new bytes;
 - acknowledged same-sequence predecessor IDs sort deterministically by full ID after numeric sequence;
 - deletion, file/executable mode, symlink target, gitlink, missing, and non-file changes remain distinct;
+- clean tracked inputs hash canonical index blob bytes across LF and CRLF-smudged checkouts, while dirty tracked and untracked inputs continue to hash their current working-tree bytes;
+- tracked symlinks hash their canonical Git target payload even when the host materializes them as ordinary files;
+- portable path and symlink-target validation returns the same result on every host for POSIX absolute, drive-prefixed, backslash, UNC/device, control-character, dot-component, empty, and valid relative forms;
 - same-payload mode and kind transitions produce different `specsync.acceptance-entry.v1` full-entry digests and require exact succession tuples;
 - CHG43's governed integration test path is classified exact-only, accepts without invented module ownership, and requires reopen after later modification;
 - recursive successor chains validate and cycles fail closed deterministically;
@@ -49,6 +52,7 @@ Canonical requirement evidence covers `REQ-change-012`, `REQ-change-014`, `REQ-c
 Verification commands:
 
 - focused `cargo test` filters for manifest, successor, legacy, reopen, status, and archive behavior;
+- the eight Windows regressions run with `core.autocrlf=true` so canonical tree bytes, transition reconstruction, project freshness, and archive retry/restore remain host-independent;
 - `fledge lanes run verify`;
 - `specsync check --strict --require-coverage 100 --force`;
 - `specsync agents status`;

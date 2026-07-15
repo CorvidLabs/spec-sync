@@ -26,3 +26,8 @@ artifact: tasks
 - [x] Prepare the strict SpecSync and Trust verification matrix without claiming post-acceptance or hosted results early.
 - [x] Pass and record the native unit, integration, format, type-check, lint, and release-build gates on the exact reconciled head.
 - [x] Prepare strict SpecSync and Trust verification for the exact reconciled head without claiming post-verification results early.
+- [x] Reproduce the eight Windows failures with forced `core.autocrlf=true` and isolate host-native path parsing plus checkout-smudged byte reads as the causes.
+- [ ] Use canonical index blobs for clean tracked files and symlinks while preserving current bytes for dirty and untracked paths.
+- [ ] Make portable project-path and symlink-target validation independent of host path semantics.
+- [ ] Add CRLF, clean-index, dirty-working-tree, materialized-symlink, and portable path/target regressions.
+- [ ] Pass the focused Windows regression matrix and the full local verification gates without platform ignores.

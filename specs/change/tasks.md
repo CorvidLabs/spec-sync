@@ -29,3 +29,4 @@ spec: change.spec.md
 - [x] Cover exact canonical companion files without directory overreach
 - [x] Preserve prose acceptance criteria with question-aware list parsing
 - [x] Add audited append-only correction for supported accepted interview metadata
+- [x] Harden trusted correction-history scans for unresolved remote refs and quoted or Unicode Git paths

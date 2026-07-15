@@ -1581,9 +1581,11 @@ fn validate_trusted_correction_history(
     };
     let mut references = vec![head];
     if let Some(remote_default) = remote_default_ref(root) {
-        references.push(
-            git_output(root, &["rev-parse", "--verify", &remote_default]).unwrap_or(remote_default),
-        );
+        let remote_default_commit = format!("{remote_default}^{{commit}}");
+        if let Some(resolved) = git_output(root, &["rev-parse", "--verify", &remote_default_commit])
+        {
+            references.push(resolved);
+        }
     }
     references.sort();
     references.dedup();
@@ -1794,15 +1796,19 @@ fn historical_change_directories(
     let active_state =
         git_repo_relative_path(root, &format!("{CHANGES_PATH}/{change_id}/state.json"))?;
     let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
+    let active_state_pathspec = format!(":(top,literal){active_state}");
+    let archive_root_pathspec = format!(":(top,literal){archive_root}");
     let output = Command::new("git")
         .args([
             "ls-tree",
+            "-z",
             "-r",
+            "--full-name",
             "--name-only",
             commit,
             "--",
-            active_state.as_str(),
-            archive_root.as_str(),
+            active_state_pathspec.as_str(),
+            archive_root_pathspec.as_str(),
         ])
         .current_dir(root)
         .output()
@@ -1818,7 +1824,7 @@ fn historical_change_directories(
     let archive_prefix = format!("{}/", archive_root.trim_end_matches('/'));
     let archive_suffix = format!("-{change_id}/state.json");
     let mut directories = BTreeSet::new();
-    for path in String::from_utf8_lossy(&output.stdout).lines() {
+    for path in nul_terminated_git_paths(&output.stdout, "trusted correction paths")? {
         if path == active_state {
             directories.insert(active_directory.to_string());
         } else if path.starts_with(&archive_prefix)
@@ -1949,14 +1955,17 @@ fn historical_definition_digest_matches(
             ));
         }
         let delta_directory = format!("{directory}/deltas");
+        let delta_pathspec = format!(":(top,literal){delta_directory}");
         let output = Command::new("git")
             .args([
                 "ls-tree",
+                "-z",
                 "-r",
+                "--full-name",
                 "--name-only",
                 commit,
                 "--",
-                delta_directory.as_str(),
+                delta_pathspec.as_str(),
             ])
             .current_dir(root)
             .output()
@@ -1964,13 +1973,10 @@ fn historical_definition_digest_matches(
         if !output.status.success() {
             return Ok(false);
         }
-        for path in String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .filter(|path| !path.is_empty())
-        {
+        for path in nul_terminated_git_paths(&output.stdout, "historical delta paths")? {
             files.push((
-                path.to_string(),
-                path.strip_prefix(&repo_prefix).unwrap_or(path).to_string(),
+                path.clone(),
+                path.strip_prefix(&repo_prefix).unwrap_or(&path).to_string(),
             ));
         }
         let policy_path = git_repo_relative_path(root, POLICY_PATH)?;
@@ -2027,19 +2033,39 @@ fn git_entry_at_commit(
     commit: &str,
     path: &str,
 ) -> Result<Option<(u32, Vec<u8>)>, String> {
+    let pathspec = format!(":(top,literal){path}");
     let output = Command::new("git")
-        .args(["ls-tree", commit, "--", path])
+        .args([
+            "ls-tree",
+            "-z",
+            "--full-name",
+            commit,
+            "--",
+            pathspec.as_str(),
+        ])
         .current_dir(root)
         .output()
         .map_err(|error| format!("failed to inspect trusted historical entry: {error}"))?;
     if !output.status.success() || output.stdout.is_empty() {
         return Ok(None);
     }
-    let line = String::from_utf8_lossy(&output.stdout);
-    let Some((metadata, listed_path)) = line.trim_end().split_once('\t') else {
+    let mut entries = output
+        .stdout
+        .split(|byte| *byte == b'\0')
+        .filter(|entry| !entry.is_empty());
+    let Some(entry) = entries.next() else {
         return Ok(None);
     };
-    if listed_path != path {
+    if entries.next().is_some() {
+        return Ok(None);
+    }
+    let Some(separator) = entry.iter().position(|byte| *byte == b'\t') else {
+        return Ok(None);
+    };
+    let metadata = std::str::from_utf8(&entry[..separator])
+        .map_err(|_| "invalid UTF-8 in historical Git entry metadata".to_string())?;
+    let listed_path = &entry[separator + 1..];
+    if listed_path != path.as_bytes() {
         return Ok(None);
     }
     let mut fields = metadata.split_whitespace();
@@ -2055,6 +2081,18 @@ fn git_entry_at_commit(
     let mode = u32::from_str_radix(mode, 8)
         .map_err(|_| format!("invalid historical Git mode `{mode}`"))?;
     Ok(git_file_at_commit(root, commit, path)?.map(|content| (mode, content)))
+}
+
+fn nul_terminated_git_paths(output: &[u8], context: &str) -> Result<Vec<String>, String> {
+    output
+        .split(|byte| *byte == b'\0')
+        .filter(|path| !path.is_empty())
+        .map(|path| {
+            std::str::from_utf8(path)
+                .map(str::to_string)
+                .map_err(|_| format!("invalid UTF-8 in {context}"))
+        })
+        .collect()
 }
 
 fn git_file_at_commit(root: &Path, commit: &str, path: &str) -> Result<Option<Vec<u8>>, String> {
@@ -8056,6 +8094,111 @@ mod tests {
             error.contains("correction history divergence detected"),
             "{error}"
         );
+    }
+
+    // Verifies REQ-change-032.
+    #[test]
+    fn trusted_history_ignores_a_dangling_remote_default_symbolic_ref() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git {} failed",
+                args.join(" ")
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let record = accept_completed_record(root, completed_no_spec_record(root));
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept definition"]);
+        git(&[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/missing",
+        ]);
+
+        assert!(effective_change_definition(root, &record).is_ok());
+    }
+
+    // Verifies REQ-change-032.
+    #[test]
+    fn historical_git_paths_are_nul_safe_in_a_quoted_non_ascii_project_directory() {
+        let temp = TempDir::new().unwrap();
+        let repository = temp.path();
+        let root = repository.join("fixtures/naïve \"quoted\"");
+        fs::create_dir_all(&root).unwrap();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(repository)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git {} failed",
+                args.join(" ")
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(&root, Vec::new()).unwrap();
+        let mut record = completed_section_only_record(
+            &root,
+            "## MODIFIED\n\n### SPEC SECTION Invariants\n\nHistorical paths remain byte-delimited.\n",
+        );
+        record.answers.insert("public_contract".into(), "no".into());
+        save_change(&root, &record).unwrap();
+        write_change_markdown(&root, &record).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base definition"]);
+        record = accept_completed_record(&root, record);
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept original definition"]);
+
+        record = correct_interview_metadata(
+            &root,
+            &record.id,
+            CorrectionField::PublicContract,
+            "yes".into(),
+            "Reviewer".into(),
+            "The accepted semantic delta changes a public contract".into(),
+        )
+        .unwrap()
+        .change;
+        record = approve_definition(&root, &record.id, Some("Reviewer".into()), None).unwrap();
+        verify_change(&root, &record.id).unwrap();
+        record = accept_change(&root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept corrected definition"]);
+
+        let commit = git_output(&root, &["rev-parse", "HEAD"]).unwrap();
+        let directory =
+            git_repo_relative_path(&root, &format!("{CHANGES_PATH}/{}", record.id)).unwrap();
+        assert_eq!(
+            historical_change_directories(&root, &commit, &record.id).unwrap(),
+            vec![directory.clone()]
+        );
+        assert!(
+            closing_authenticated_correction_anchor(&root, &commit, &directory, &record.id)
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            git_entry_at_commit(&root, &commit, &format!("{directory}/state.json"))
+                .unwrap()
+                .is_some()
+        );
+        assert!(effective_change_definition(&root, &record).is_ok());
     }
 
     // Verifies REQ-change-032.

@@ -1,6 +1,6 @@
 ---
 id: CHG-0042-prepare-and-publish-specsync-5-1-0-with-accurate-release-metadata-and-current-co
-state: verifying
+state: accepted
 type: operations
 base_commit: 6aa3e2891d0a950092b4aeadc511b5d0c7992579
 ---

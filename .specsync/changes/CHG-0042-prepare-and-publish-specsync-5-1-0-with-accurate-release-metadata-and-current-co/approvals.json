@@ -20,6 +20,13 @@
       "timestamp": 1784088309,
       "digest": "c9f12c851aadee5b7d36384da0e3a950d59763d674429504635bf22cf0f22173",
       "note": "Accepted by 0xLeif after fresh lifecycle verification, strict specs, complete tests, hosted cross-platform CI, CodeQL, Trust, provenance verification, and a clean review-thread audit."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784091010,
+      "digest": "c5d558c327f4e8ca0d5cac13eaad8ac0cbdfa56bf6768a20153b83d0a41ca9da",
+      "note": "Reaccepted by 0xLeif after the late comparison review correction, exact-HEAD lifecycle verification, complete tests, hosted cross-platform CI, CodeQL, documentation build, strict specs, Trust, provenance verification, and resolution of the addressed PR #385 thread."
     }
   ],
   "reopenings": [

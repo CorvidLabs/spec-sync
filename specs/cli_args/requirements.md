@@ -48,4 +48,3 @@ Acceptance Criteria
   non-empty reason input.
 - Help distinguishes accepted metadata correction from delivery-only `change reopen`.
 - Missing audit arguments and invalid field/value choices fail through deterministic Clap errors.
-

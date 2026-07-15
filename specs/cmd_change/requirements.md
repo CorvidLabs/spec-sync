@@ -27,4 +27,3 @@ Acceptance Criteria
 - Show and status expose corrected effective values and history rather than silently reporting the
   original answer as current.
 - Domain failures exit non-zero and emit no success output.
-

@@ -71,4 +71,3 @@ Acceptance Criteria
 - Guidance demonstrates `--minimal` before and after both a bare module and a free-text description.
 - Tests byte-compare freshly installed commands with checked-in assets and prove a second install is
   idempotent.
-

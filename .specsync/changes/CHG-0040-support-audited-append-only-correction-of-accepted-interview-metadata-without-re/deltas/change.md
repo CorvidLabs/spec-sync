@@ -111,4 +111,3 @@ Acceptance Criteria
 - Nested lifecycle commands still fail once with the established deterministic contextual error.
 - The process marker and diagnostic helper remain private binary implementation details.
 - Correction inspection exposes typed portable records without exposing mutable ledger internals.
-

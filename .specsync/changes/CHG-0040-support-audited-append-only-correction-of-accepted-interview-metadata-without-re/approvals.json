@@ -41,6 +41,41 @@
       "timestamp": 1784076563,
       "digest": "6d69f3bc95d6bb7ce922bdd8e0f4ccfbf73baab75dc145d457e175fcd37e61ca",
       "note": "Fresh evidence-only closing approval after 1,597 unit and 214 integration tests passed at 407a197 following canonical EOF normalization; no semantic delivery changes."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784079131,
+      "digest": "2732fd1c9bd73f29045e7b791cbf3ea91d61454170182fbf66009e74437fab3f",
+      "note": "Closing approval after trusted-history monotonicity and shallow completeness review at dbd5034eb36308f42ebada841471e9b0e3892226; 1,602 unit and 214 integration tests passed with no semantic delta replay."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784081135,
+      "digest": "e261f8783d73a6d25d1c9205b6aeab0a1487958a342b7e2ab95335c3ba68b6c0",
+      "note": "Definition approval for PR #383 review corrections covering verified remote refs and NUL-safe historical path parsing"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784081228,
+      "digest": "f6497221e85289612bef4697f02cadbdb9eef3917a16a05e3329fe6096dd59ec",
+      "note": "Closing approval after PR #383 review corrections passed 1,604 unit and 215 integration tests at c7a50a3a70801238f13f285b06364ac3aaaf0fff"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784082177,
+      "digest": "2d99438e30dff14f1c86b04a42473119c9656c845795da679c001febed251b06",
+      "note": "Closing approval after archived-only and TREESAME merge rollback regressions passed 1,606 unit and 215 integration tests at aaed8f8cb637228e9c05268ac68eb7818d7a45c7"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784082924,
+      "digest": "d04e13a6f638c5e498523fc8abe0cc2033842442667696e4ed180a1451e4b4da",
+      "note": "Closing approval after the Windows-safe Unicode and space path regression passed 1,606 unit and 215 integration tests at 99e46e3f4377769dd4e30673b54058ab8dae7b37"
     }
   ],
   "reopenings": [
@@ -119,6 +154,158 @@
       },
       "stale_acceptance_input_digest": "e047bfca67986bc268db2bd8b0af8e9632800eaf1b4246c68627880fe0c30645",
       "current_acceptance_input_digest": "e55317d578912a33cb6cce51037276141bba114d0e8024461a52ead953df7542"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re",
+      "actor": "0xLeif",
+      "reason": "Implementation review found that accepted correction history was not anchored monotonically to closing-authenticated snapshots reachable from trusted Git history; reopen solely to verify the non-semantic conformance correction.",
+      "timestamp": 1784077805,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784076563,
+        "digest": "6d69f3bc95d6bb7ce922bdd8e0f4ccfbf73baab75dc145d457e175fcd37e61ca",
+        "note": "Fresh evidence-only closing approval after 1,597 unit and 214 integration tests passed at 407a197 following canonical EOF normalization; no semantic delivery changes."
+      },
+      "prior_verification": {
+        "timestamp": 1784076562,
+        "commit": "407a1972d1269dac93cf13a8e1e293138f70595e",
+        "contract_digest": "e261f8783d73a6d25d1c9205b6aeab0a1487958a342b7e2ab95335c3ba68b6c0",
+        "workspace_digest": "8f6f01f12d3e1d5bcc765c1b5f7a2acbcd7be134efc2b0540c253058df42369e",
+        "acceptance_input_digest": "e55317d578912a33cb6cce51037276141bba114d0e8024461a52ead953df7542",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-032",
+          "REQ-cli-args-004",
+          "REQ-cmd-change-002"
+        ]
+      },
+      "stale_acceptance_input_digest": "e55317d578912a33cb6cce51037276141bba114d0e8024461a52ead953df7542",
+      "current_acceptance_input_digest": "d4df0df1cabe01371d24cd4a342c8c6fc693de1a79d5b4edb487657ba2b1db98"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re",
+      "actor": "user:0xLeif",
+      "reason": "Address actionable PR review corrections for dangling remote-default refs and NUL-safe historical Git path parsing",
+      "timestamp": 1784081068,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784079131,
+        "digest": "2732fd1c9bd73f29045e7b791cbf3ea91d61454170182fbf66009e74437fab3f",
+        "note": "Closing approval after trusted-history monotonicity and shallow completeness review at dbd5034eb36308f42ebada841471e9b0e3892226; 1,602 unit and 214 integration tests passed with no semantic delta replay."
+      },
+      "prior_verification": {
+        "timestamp": 1784079102,
+        "commit": "dbd5034eb36308f42ebada841471e9b0e3892226",
+        "contract_digest": "e261f8783d73a6d25d1c9205b6aeab0a1487958a342b7e2ab95335c3ba68b6c0",
+        "workspace_digest": "a4ee7d60649e3dabf9015816d6a1ea3ecf2892e9ccfe39723f6a5263f833da27",
+        "acceptance_input_digest": "45ae82ac52deb8f3012ee9b31b94fa660ba1ba10cd4d5eaa05aa9711f43b5874",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-032",
+          "REQ-cli-args-004",
+          "REQ-cmd-change-002"
+        ]
+      },
+      "stale_acceptance_input_digest": "45ae82ac52deb8f3012ee9b31b94fa660ba1ba10cd4d5eaa05aa9711f43b5874",
+      "current_acceptance_input_digest": "8ba60afe0786c5eeedc0b88b0a304bc2eb821bf22d1b4de6c404195f5f6323d3"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re",
+      "actor": "user:0xLeif",
+      "reason": "Address PR #383 correctness review for archived-only anchors and TREESAME merge history",
+      "timestamp": 1784081908,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784081228,
+        "digest": "f6497221e85289612bef4697f02cadbdb9eef3917a16a05e3329fe6096dd59ec",
+        "note": "Closing approval after PR #383 review corrections passed 1,604 unit and 215 integration tests at c7a50a3a70801238f13f285b06364ac3aaaf0fff"
+      },
+      "prior_verification": {
+        "timestamp": 1784081211,
+        "commit": "c7a50a3a70801238f13f285b06364ac3aaaf0fff",
+        "contract_digest": "e261f8783d73a6d25d1c9205b6aeab0a1487958a342b7e2ab95335c3ba68b6c0",
+        "workspace_digest": "2767b277f1e8a60f55c662e6084f8d446b4f7422d547161fc75c643467fb6bd4",
+        "acceptance_input_digest": "8ba60afe0786c5eeedc0b88b0a304bc2eb821bf22d1b4de6c404195f5f6323d3",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-032",
+          "REQ-cli-args-004",
+          "REQ-cmd-change-002"
+        ]
+      },
+      "stale_acceptance_input_digest": "8ba60afe0786c5eeedc0b88b0a304bc2eb821bf22d1b4de6c404195f5f6323d3",
+      "current_acceptance_input_digest": "6bbcdbab27eb76f1be8a36523b5be3bcdf4348041b4fcfdce176fed3ad0c2b8a"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re",
+      "actor": "user:0xLeif",
+      "reason": "Make the NUL-safe Unicode path regression portable to Windows by removing an invalid fixture character",
+      "timestamp": 1784082841,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784082177,
+        "digest": "2d99438e30dff14f1c86b04a42473119c9656c845795da679c001febed251b06",
+        "note": "Closing approval after archived-only and TREESAME merge rollback regressions passed 1,606 unit and 215 integration tests at aaed8f8cb637228e9c05268ac68eb7818d7a45c7"
+      },
+      "prior_verification": {
+        "timestamp": 1784082156,
+        "commit": "aaed8f8cb637228e9c05268ac68eb7818d7a45c7",
+        "contract_digest": "e261f8783d73a6d25d1c9205b6aeab0a1487958a342b7e2ab95335c3ba68b6c0",
+        "workspace_digest": "5ba16ce0c12eec8664517cbb5e8054e4fedb217dfe7b4297e766fc151c56881b",
+        "acceptance_input_digest": "6bbcdbab27eb76f1be8a36523b5be3bcdf4348041b4fcfdce176fed3ad0c2b8a",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-032",
+          "REQ-cli-args-004",
+          "REQ-cmd-change-002"
+        ]
+      },
+      "stale_acceptance_input_digest": "6bbcdbab27eb76f1be8a36523b5be3bcdf4348041b4fcfdce176fed3ad0c2b8a",
+      "current_acceptance_input_digest": "b4fa9ce1f2302b88564c4dfb8b3fc10eb500cc54e6c0ae4fb5781bbbf5b35cbe"
     }
   ]
 }

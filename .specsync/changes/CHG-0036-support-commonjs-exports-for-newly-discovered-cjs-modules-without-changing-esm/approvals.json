@@ -48,6 +48,13 @@
       "timestamp": 1784062283,
       "digest": "4cc26c5253bf6ded68259fec8c3472a1d19d06238aedd6d78eb5b1a883a9cc2e",
       "note": "Fresh native verification passed at d9fc45c2e13d7847e9d1f4aa28dcde4964847617 after the CHG-0039 Unreleased changelog update: 1,589 unit and 206 integration tests."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784073805,
+      "digest": "2fd4c88a01a711d96469e0e8390b7954de1cbbda65676df3a6d23b02bc7569d1",
+      "note": null
     }
   ],
   "reopenings": [

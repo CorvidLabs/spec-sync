@@ -1621,14 +1621,47 @@ fn validate_trusted_correction_history(
         record.id
     );
     let reference_args: Vec<&str> = references.iter().map(String::as_str).collect();
+    let active_corrections = format!("{active_directory}/{CORRECTIONS_FILE}");
+    let archive_corrections_glob = format!(
+        ":(glob,top){}/**/*-{}/{}",
+        archive_root.trim_end_matches('/'),
+        record.id,
+        CORRECTIONS_FILE
+    );
+    let history_exclusion = shallow
+        .then(|| record.base_commit.as_ref().map(|base| format!("^{base}")))
+        .flatten();
+    let mut correction_probe = Command::new("git");
+    correction_probe
+        .args(["rev-list", "--max-count=1"])
+        .args(&reference_args);
+    if let Some(exclusion) = &history_exclusion {
+        correction_probe.arg(exclusion);
+    }
+    let correction_probe = correction_probe
+        .arg("--")
+        .arg(&active_corrections)
+        .arg(&archive_corrections_glob)
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to probe trusted correction history: {error}"))?;
+    if !correction_probe.status.success() {
+        return Err("failed to probe trusted correction history".into());
+    }
+    if correction_probe.stdout.is_empty() {
+        let mut cache = cache
+            .lock()
+            .map_err(|_| "trusted correction history cache is unavailable".to_string())?;
+        if cache.len() >= 4096 {
+            cache.clear();
+        }
+        cache.insert(cache_key);
+        return Ok(());
+    }
     let output = Command::new("git")
         .arg("rev-list")
         .args(&reference_args)
-        .args(
-            shallow
-                .then(|| record.base_commit.as_ref().map(|base| format!("^{base}")))
-                .flatten(),
-        )
+        .args(history_exclusion)
         .arg("--")
         .arg(&active_directory)
         .arg(&archive_glob)

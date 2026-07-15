@@ -50,7 +50,11 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `ChangeKind` | Deterministic policy classification for feature, bug fix, refactor, migration, documentation, and operations work |
 | `ArtifactKind` | Built-in or custom adaptive companion artifact selection |
 | `SddPolicy` | Versioned enforcement, path, verification-command, template, and principles configuration |
-| `ChangeRecord` | Durable machine state preserving the originally accepted interview metadata for one change workspace |
+| `SuccessionObligation` | Definition-bound predecessor path, canonical owner module, and full predecessor entry digest |
+| `SupersedesEdge` | Durable predecessor ID and its sorted semantic succession obligations |
+| `ChangeRecord` | Durable machine state for one change workspace, including omitted-when-empty supersedes edges |
+| `LegacyArchiveBaselineV1` | Definition- and closing-bound authority, cutoff, and sorted legacy archive subtree entries |
+| `LegacyArchiveBaselineEntryV1` | Archive ID, canonical dated path, unique introduction commit, and exact subtree digest |
 | `CreateChangeRequest` | Validated creation inputs grouped for CLI, imports, and agent clients |
 | `ApprovalRecord` | Actor, timestamp, gate, digest, and optional note for one approval |
 | `ReopenRecord` | Immutable audit event preserving superseded closing approval, prior verification, actor, reason, transition, and stale/current input digests |
@@ -61,10 +65,18 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `CorrectionResult` | Deterministic corrected change, event, effective definition, history, and gate-summary projection |
 | `ApprovalLedger` | Ordered portable approval and reopen history |
 | `CommandEvidence` | Exit evidence for one configured verification command |
-| `VerificationRecord` | Commit-bound verification result, contract digest, command results, and requirement coverage |
+| `AcceptanceInputKind` | Canonical file, symlink, gitlink, missing, or non-file topology kind |
+| `AcceptanceInputEntryV1` | Bounded path, kind, mode, payload digest, full-entry digest, and sorted owners for one accepted input |
+| `AcceptanceManifestV1` | Versioned sorted per-input acceptance manifest |
+| `SemanticSuccessionTupleV1` | Exact predecessor, path, module, old-entry digest, and new-entry digest transition |
+| `SemanticSuccessionEvidenceV1` | Versioned sorted one-to-one closing evidence for approved supersedes obligations |
+| `VerificationRecord` | Commit-bound verification result, contract digest, commands, requirement coverage, and optional acceptance manifest/succession evidence |
 | `InterviewQuestion` | Stable deterministic question with choices and recommendation |
-| `ChangeSummary` | Human/agent status projection with gate health, correction health, and next action |
-| `SddCheckReport` | Unified lifecycle validation errors, warnings, and checked-change count |
+| `TerminalEvidenceValidity` | State-aware exact, successor-covered, stale, authenticated-history, or corrupt-history evidence conclusion |
+| `TerminalEvidenceSummary` | Shared terminal validity plus optional fail-closed reason |
+| `TerminalEvidenceResult` | Change ID paired with its shared terminal-evidence summary |
+| `ChangeSummary` | Human/agent status projection with gate health, next action, and optional terminal-evidence summary |
+| `SddCheckReport` | Unified lifecycle errors, warnings, checked-change count, and terminal-evidence results |
 
 **Exported Functions**
 
@@ -78,6 +90,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Return deterministic unanswered interview questions |
 | `answer_question` | `root, id, question, answer` | `Result<ChangeRecord, String>` | Persist an interview answer and update adaptive artifacts |
 | `add_dependency` | `root, id, dependency` | `Result<ChangeRecord, String>` | Declare ordering between active changes and invalidate stale approval digests |
+| `add_supersedes_obligation` | `root, id, predecessor, path, module, predecessor_entry_digest` | `Result<ChangeRecord, String>` | Add one validated definition-bound semantic succession obligation to a draft |
 | `approve_definition` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Validate and record mandatory definition approval |
 | `start_implementation` | `root, id` | `Result<ChangeRecord, String>` | Enter implementation after approval and conflict validation |
 | `verify_change` | `root, id` | `Result<VerificationRecord, String>` | Run configured tests and record commit/contract evidence |

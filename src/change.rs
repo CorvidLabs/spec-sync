@@ -878,7 +878,23 @@ fn change_sequence(id: &str) -> Option<u64> {
     if digits.len() < 4 || !digits.chars().all(|character| character.is_ascii_digit()) {
         return None;
     }
-    digits.parse().ok()
+    let sequence: u64 = digits.parse().ok()?;
+    let canonical = if sequence < 10_000 {
+        format!("{sequence:04}")
+    } else {
+        sequence.to_string()
+    };
+    (digits == canonical).then_some(sequence)
+}
+
+#[cfg(test)]
+fn change_id_sorts_after(candidate: &str, predecessor: &str) -> bool {
+    match (change_sequence(candidate), change_sequence(predecessor)) {
+        (Some(candidate_sequence), Some(predecessor_sequence)) => {
+            (candidate_sequence, candidate) > (predecessor_sequence, predecessor)
+        }
+        _ => false,
+    }
 }
 
 fn load_change_sequence_ledger(root: &Path) -> Result<Option<ChangeSequenceLedger>, String> {
@@ -8572,7 +8588,7 @@ fn accepted_change_has_current_canonical_successors(root: &Path, record: &Change
                 && !candidate.no_spec_change
                 && (candidate.canonical_applied || candidate.state == ChangeState::Accepted)
                 && candidate.created_at >= record.created_at
-                && candidate.id > record.id
+                && change_id_sorts_after(&candidate.id, &record.id)
                 && accepted_change_is_recorded_in_current_history(root, candidate)
         })
         .collect();
@@ -10243,6 +10259,25 @@ mod tests {
         assert_eq!(change_sequence("CHG-9999-last-four-digit"), Some(9999));
         assert_eq!(change_sequence("CHG-10000-first-five-digit"), Some(10000));
         assert_eq!(change_sequence("CHG-123-too-short"), None);
+        assert_eq!(change_sequence("CHG-abcd-malformed"), None);
+        assert_eq!(change_sequence("CHG-09999-noncanonical-width"), None);
+        assert_eq!(change_sequence("CHG-18446744073709551616-overflow"), None);
+        assert!(change_id_sorts_after(
+            "CHG-10000-first-five-digit",
+            "CHG-9999-last-four-digit"
+        ));
+        assert!(change_id_sorts_after(
+            "CHG-9999-second-collision",
+            "CHG-9999-first-collision"
+        ));
+        assert!(!change_id_sorts_after(
+            "CHG-09999-noncanonical-width",
+            "CHG-9999-last-four-digit"
+        ));
+        assert!(!change_id_sorts_after(
+            "CHG-10000-first-five-digit",
+            "not-a-change-id"
+        ));
     }
 
     #[test]

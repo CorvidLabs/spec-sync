@@ -1,0 +1,12 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784098940,
+      "digest": "7ba2ed926fb2c01b78177c3ae8128b12ec57810137a81e4677d0efb695d25536",
+      "note": "Definition approved after review of the fresh main-descendant artifacts, numeric ordering boundary criteria, fail-closed malformed-ID coverage, and narrowly scoped release documentation corrections."
+    }
+  ],
+  "reopenings": []
+}

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 43,
-  "id": "CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec",
+  "sequence": 44,
+  "id": "CHG-0044-harden-canonical-numeric-change-ordering-across-chg-9999-to-chg-10000-and-correc",
   "acknowledged_collisions": [
     {
       "sequence": 16,

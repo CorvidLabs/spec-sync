@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Generated create-spec commands stay synchronized** — Claude, Cursor, and Gemini now classify the complete non-flag input regardless of where `--minimal` appears, preserving bare module identifiers and deriving a deterministic slug from free text instead of using its first word. A byte-for-byte installer parity test prevents the checked-in command assets from drifting from their shared templates again (#367).
 - **Draft specs can map planned source files** — safe normalized missing paths in `draft` specs now produce non-failing planned-mapping notices and remain outside current file and LOC coverage. Creating the file or activating the spec restores normal validation, while `require_draft_files = true` keeps immediate existence enforcement available for strict repositories.
 
-- **Complete module JavaScript discovery** — default TypeScript-family source discovery now includes `.mjs` and `.cjs`, so mapped files contribute to real file and LOC totals and uncovered module files correctly fail strict 100 percent coverage.
+- **Complete module JavaScript discovery and barrels** — default TypeScript-family source discovery now includes `.mjs` and `.cjs`, so mapped files contribute to real file and LOC totals and uncovered module files correctly fail strict 100 percent coverage. Extensionless export-star targets in module-JavaScript barrels also resolve sibling `.mjs` and `.cjs` modules in regex and AST modes.
 
 ## [5.0.2] - 2026-07-14
 

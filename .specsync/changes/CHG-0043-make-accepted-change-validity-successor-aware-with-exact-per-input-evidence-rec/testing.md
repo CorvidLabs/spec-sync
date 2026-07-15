@@ -41,6 +41,8 @@ Focused unit and integration regressions will prove:
 - unrelated excluded unmerged stages do not block a scoped digest, while a relevant unmerged stage fails closed;
 - capped concurrent stdout/stderr drains kill and reap an overflowing child before retaining unbounded output;
 - sparse-absent tracked legacy archive and baseline files remain present through canonical index bytes, while dirty archived symlink replacements use current file/missing/non-file topology;
+- strict checking partitions one shared bounded evidence generation across every baseline archive without cross-subtree leakage, while an explicitly scoped real `.specsync/archive/` path retains sparse-absent tracked entries;
+- strict checking evaluates all verifying records against one stable project-input snapshot and reports one shared baseline-authority failure instead of repeating it for every legacy archive;
 - deleting a previously bound authority baseline makes definition reapproval fail closed instead of retaining the stale baseline digest;
 - first approval of an authority covering a missing baseline fails instead of producing an unbound definition, while unrelated changes still no-op;
 - clean tracked executable definition artifacts remain valid regular files while symlink/gitlink/non-file topology fails closed;
@@ -60,7 +62,7 @@ Focused unit and integration regressions will prove:
 - historical-integrity cache results are never reused as recursive candidate-valid results;
 - archive preflight authenticates the target and recursively validates active accepted roots and dependent candidates without blocking on unrelated archive drift;
 - a provable legacy archive passes historical integrity and an unverifiable legacy archive fails closed;
-- all 43 standalone archives present at exact release-branch cutoff `7739ea17b067ef636c106ceca6bcf59eee8e6213` authenticate only through a strictly sorted unique baseline ledger bound into CHG43's definition and, after acceptance, its manifest-backed closing and trusted acceptance/history anchor;
+- all 44 standalone archives present at exact released-main cutoff `fc6e70bccd5af61043183e247f37b1f9a9b92247` authenticate only through a strictly sorted unique baseline ledger bound into CHG43's definition and, after acceptance, its manifest-backed closing and trusted acceptance/history anchor;
 - the pre-accept bootstrap passes only with exact ledger bytes, definition-bound ledger digest, valid authority definition approval, and a canonical cutoff equal to the authority base and ancestral to current history; after authority acceptance the same corpus requires manifest-backed closing/history authority and cannot downgrade to bootstrap;
 - downgrade/unknown schema, wrong authority, stale ledger bytes, unavailable objects, arbitrary ancestor/descendant/divergent or otherwise mismatched cutoff, post-cutoff/zero/multiple introductions, unsorted/duplicate entries, and modern manifest archives without snapshots never use the baseline fallback;
 - editing, adding, deleting, chmodding, symlinking, gitlinking, or replacing any baseline archive subtree entry fails historical integrity;

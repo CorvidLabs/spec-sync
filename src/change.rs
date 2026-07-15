@@ -3311,20 +3311,47 @@ fn check_project_with_command_output(
             }
         }
     }
+    let mut archived_integrity_cache = ArchivedIntegrityCache::default();
+    let mut shared_legacy_error_reported = false;
     for record in all_records
         .values()
         .filter(|record| record.state == ChangeState::Archived)
     {
-        if let Err(error) = validate_archived_integrity(root, record) {
-            report.errors.push(format!(
-                "{}: archived change historical integrity is invalid: {error}",
-                record.id
-            ));
+        if let Err(error) =
+            validate_archived_integrity_with_cache(root, record, &mut archived_integrity_cache)
+        {
+            let is_shared_legacy_error = archived_integrity_cache
+                .legacy
+                .as_ref()
+                .and_then(|result| result.as_ref().err())
+                == Some(&error);
+            if is_shared_legacy_error {
+                if !shared_legacy_error_reported {
+                    report.errors.push(format!(
+                        "legacy archive baseline historical integrity is invalid: {error}"
+                    ));
+                    shared_legacy_error_reported = true;
+                }
+            } else {
+                report.errors.push(format!(
+                    "{}: archived change historical integrity is invalid: {error}",
+                    record.id
+                ));
+            }
         }
     }
     if let Err(errors) = validate_effective_contracts(root, &records) {
         report.errors.extend(errors);
     }
+    let verifying_project_digest = if records
+        .iter()
+        .any(|record| record.state == ChangeState::Verifying)
+    {
+        Some(project_input_digest(root))
+    } else {
+        None
+    };
+    let mut project_digest_error_reported = false;
     for record in &records {
         if matches!(
             record.state,
@@ -3352,11 +3379,31 @@ fn check_project_with_command_output(
                             "{}: latest verification evidence failed",
                             record.id
                         ));
-                    } else if !verification_is_current(root, record, &evidence) {
-                        report.errors.push(format!(
-                            "{}: verification evidence is stale for the current commit or contract",
-                            record.id
-                        ));
+                    } else if let Some(result) = &verifying_project_digest {
+                        match result {
+                            Ok(project_digest) => {
+                                if verification_is_current_checked_with_project_digest(
+                                    root,
+                                    record,
+                                    &evidence,
+                                    project_digest,
+                                )
+                                .is_err()
+                                {
+                                    report.errors.push(format!(
+                                        "{}: verification evidence is stale for the current commit or contract",
+                                        record.id
+                                    ));
+                                }
+                            }
+                            Err(error) if !project_digest_error_reported => {
+                                report.errors.push(format!(
+                                    "failed to capture shared verification project inputs: {error}"
+                                ));
+                                project_digest_error_reported = true;
+                            }
+                            Err(_) => {}
+                        }
                     }
                 }
                 Err(error) => report.errors.push(format!("{}: {error}", record.id)),
@@ -5514,7 +5561,9 @@ where
             }
         };
         let mut before_paths = discover()?;
-        before_paths.retain(|path| !project_input_is_volatile(path));
+        before_paths.retain(|path| {
+            !project_input_is_volatile(path) || explicitly_scoped_path(scopes, path)
+        });
         before_paths.extend(extra_candidates.iter().cloned());
         before_paths.sort();
         before_paths.dedup();
@@ -5523,7 +5572,9 @@ where
         hook(attempt, root);
 
         let mut after_paths = discover()?;
-        after_paths.retain(|path| !project_input_is_volatile(path));
+        after_paths.retain(|path| {
+            !project_input_is_volatile(path) || explicitly_scoped_path(scopes, path)
+        });
         after_paths.extend(extra_candidates.iter().cloned());
         after_paths.sort();
         after_paths.dedup();
@@ -5545,6 +5596,17 @@ where
         }
     }
     unreachable!()
+}
+
+fn explicitly_scoped_path(scopes: Option<&BTreeSet<String>>, path: &str) -> bool {
+    scopes.is_some_and(|scopes| {
+        scopes.iter().any(|scope| {
+            path == scope
+                || path
+                    .strip_prefix(scope)
+                    .is_some_and(|suffix| suffix.starts_with('/'))
+        })
+    })
 }
 
 fn project_input_is_volatile(path: &str) -> bool {
@@ -8301,10 +8363,29 @@ fn validate_archived_accepted_snapshot(root: &Path, archived: &ChangeRecord) -> 
     Ok(())
 }
 
+#[derive(Debug)]
+struct LegacyArchiveBaselineContext {
+    baseline: LegacyArchiveBaselineV1,
+    snapshots: BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>,
+}
+
+#[derive(Debug, Default)]
+struct ArchivedIntegrityCache {
+    legacy: Option<Result<LegacyArchiveBaselineContext, String>>,
+}
+
 fn validate_archived_integrity(root: &Path, archived: &ChangeRecord) -> Result<(), String> {
+    validate_archived_integrity_with_cache(root, archived, &mut ArchivedIntegrityCache::default())
+}
+
+fn validate_archived_integrity_with_cache(
+    root: &Path,
+    archived: &ChangeRecord,
+    cache: &mut ArchivedIntegrityCache,
+) -> Result<(), String> {
     let workspace = find_change_dir(root, &archived.id)?;
     if !workspace.join("accepted-state.json").exists() {
-        return authenticate_legacy_archive_baseline(root, archived, &workspace);
+        return authenticate_legacy_archive_baseline(root, archived, &workspace, cache);
     }
     validate_archived_accepted_snapshot(root, archived)?;
     let verification = load_verification(root, archived)?;
@@ -8361,6 +8442,7 @@ fn authenticate_legacy_archive_baseline(
     root: &Path,
     archived: &ChangeRecord,
     workspace: &Path,
+    cache: &mut ArchivedIntegrityCache,
 ) -> Result<(), String> {
     let verification = load_verification(root, archived)?;
     if verification.acceptance_manifest.is_some() || verification.semantic_succession.is_some() {
@@ -8387,6 +8469,122 @@ fn authenticate_legacy_archive_baseline(
         .find(|approval| approval.gate == "acceptance")
         .ok_or_else(|| "legacy archive is missing stored closing approval".to_string())?;
 
+    if cache.legacy.is_none() {
+        cache.legacy = Some(load_legacy_archive_baseline_context(root));
+    }
+    let context = cache
+        .legacy
+        .as_ref()
+        .expect("legacy archive cache was initialized")
+        .as_ref()
+        .map_err(Clone::clone)?;
+    let baseline = &context.baseline;
+    let cutoff = baseline.cutoff_commit.clone();
+
+    let archive_root = root.join(ARCHIVE_PATH);
+    let relative_workspace = workspace.strip_prefix(&archive_root).map_err(|_| {
+        format!(
+            "legacy archive workspace is outside {}",
+            archive_root.display()
+        )
+    })?;
+    let project_subtree = format!(
+        "{}/{}",
+        ARCHIVE_PATH,
+        strict_portable_relative_path(
+            relative_workspace
+                .to_str()
+                .ok_or_else(|| "legacy archive path is not UTF-8".to_string())?
+        )?
+    );
+    let baseline_entry = legacy_baseline_entry(baseline, &archived.id)?;
+    if baseline_entry.archive_path != project_subtree {
+        return Err(format!(
+            "legacy archive `{}` baseline path does not match its unique workspace",
+            archived.id
+        ));
+    }
+    let repo_subtree = git_repo_relative_path(root, &project_subtree)?;
+    let current = context.snapshots.get(&archived.id).ok_or_else(|| {
+        format!(
+            "legacy archive `{}` has no captured baseline subtree",
+            archived.id
+        )
+    })?;
+    if legacy_archive_subtree_digest(current)? != baseline_entry.subtree_digest {
+        return Err(format!(
+            "legacy archive `{}` subtree does not match its baseline digest",
+            archived.id
+        ));
+    }
+    let introduction = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            &format!("{}^{{commit}}", baseline_entry.introduction_commit),
+        ],
+    )
+    .ok_or_else(|| {
+        format!(
+            "legacy archive `{}` introduction is unavailable",
+            archived.id
+        )
+    })?;
+    if introduction != baseline_entry.introduction_commit {
+        return Err(format!(
+            "legacy archive `{}` introduction must be a canonical commit ID",
+            archived.id
+        ));
+    }
+    ensure_git_ancestor(root, &introduction, &cutoff, "legacy archive cutoff")?;
+    let pathspec = format!(":(top,literal){repo_subtree}");
+    let output = Command::new("git")
+        .args([
+            "log",
+            "--format=%H",
+            "--diff-filter=A",
+            &cutoff,
+            "--",
+            &pathspec,
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to inspect legacy archive introductions: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "failed to inspect legacy archive introductions at cutoff `{cutoff}`"
+        ));
+    }
+    let mut anchors = BTreeSet::new();
+    for commit in String::from_utf8_lossy(&output.stdout).lines() {
+        let parents =
+            git_output(root, &["rev-list", "--parents", "-n", "1", commit]).unwrap_or_default();
+        let parent_has_subtree = parents.split_whitespace().skip(1).any(|parent| {
+            !git_tree_snapshot(root, parent, &repo_subtree)
+                .unwrap_or_default()
+                .is_empty()
+        });
+        if parent_has_subtree {
+            continue;
+        }
+        if git_tree_snapshot(root, commit, &repo_subtree).is_ok_and(|tree| &tree == current) {
+            anchors.insert(commit.to_string());
+        }
+    }
+    if anchors.len() != 1 || !anchors.contains(&introduction) {
+        return Err(format!(
+            "legacy archive `{}` requires its one baseline-bound pre-cutoff introduction anchor, found {}",
+            archived.id,
+            anchors.len()
+        ));
+    }
+    Ok(())
+}
+
+fn load_legacy_archive_baseline_context(
+    root: &Path,
+) -> Result<LegacyArchiveBaselineContext, String> {
     let baseline_path = root.join(LEGACY_BASELINE_PATH);
     let baseline_bytes = fs::read(&baseline_path)
         .map_err(|error| format!("failed to read legacy archive baseline: {error}"))?;
@@ -8457,100 +8655,26 @@ fn authenticate_legacy_archive_baseline(
         }
     }
 
-    let archive_root = root.join(ARCHIVE_PATH);
-    let relative_workspace = workspace.strip_prefix(&archive_root).map_err(|_| {
-        format!(
-            "legacy archive workspace is outside {}",
-            archive_root.display()
-        )
-    })?;
-    let project_subtree = format!(
-        "{}/{}",
-        ARCHIVE_PATH,
-        strict_portable_relative_path(
-            relative_workspace
-                .to_str()
-                .ok_or_else(|| "legacy archive path is not UTF-8".to_string())?
-        )?
-    );
-    let baseline_entry = legacy_baseline_entry(&baseline, &archived.id)?;
-    if baseline_entry.archive_path != project_subtree {
-        return Err(format!(
-            "legacy archive `{}` baseline path does not match its unique workspace",
-            archived.id
-        ));
-    }
-    let repo_subtree = git_repo_relative_path(root, &project_subtree)?;
-    let current = archive_workspace_snapshot(root, workspace, &project_subtree)?;
-    if legacy_archive_subtree_digest(&current)? != baseline_entry.subtree_digest {
-        return Err(format!(
-            "legacy archive `{}` subtree does not match its baseline digest",
-            archived.id
-        ));
-    }
-    let introduction = git_output(
-        root,
-        &[
-            "rev-parse",
-            "--verify",
-            &format!("{}^{{commit}}", baseline_entry.introduction_commit),
-        ],
-    )
-    .ok_or_else(|| {
-        format!(
-            "legacy archive `{}` introduction is unavailable",
-            archived.id
-        )
-    })?;
-    if introduction != baseline_entry.introduction_commit {
-        return Err(format!(
-            "legacy archive `{}` introduction must be a canonical commit ID",
-            archived.id
-        ));
-    }
-    ensure_git_ancestor(root, &introduction, &cutoff, "legacy archive cutoff")?;
-    let pathspec = format!(":(top,literal){repo_subtree}");
-    let output = Command::new("git")
-        .args([
-            "log",
-            "--format=%H",
-            "--diff-filter=A",
-            &cutoff,
-            "--",
-            &pathspec,
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to inspect legacy archive introductions: {error}"))?;
-    if !output.status.success() {
-        return Err(format!(
-            "failed to inspect legacy archive introductions at cutoff `{cutoff}`"
-        ));
-    }
-    let mut anchors = BTreeSet::new();
-    for commit in String::from_utf8_lossy(&output.stdout).lines() {
-        let parents =
-            git_output(root, &["rev-list", "--parents", "-n", "1", commit]).unwrap_or_default();
-        let parent_has_subtree = parents.split_whitespace().skip(1).any(|parent| {
-            !git_tree_snapshot(root, parent, &repo_subtree)
-                .unwrap_or_default()
-                .is_empty()
-        });
-        if parent_has_subtree {
-            continue;
-        }
-        if git_tree_snapshot(root, commit, &repo_subtree).is_ok_and(|tree| tree == current) {
-            anchors.insert(commit.to_string());
-        }
-    }
-    if anchors.len() != 1 || !anchors.contains(&introduction) {
-        return Err(format!(
-            "legacy archive `{}` requires its one baseline-bound pre-cutoff introduction anchor, found {}",
-            archived.id,
-            anchors.len()
-        ));
-    }
-    Ok(())
+    let scopes = baseline
+        .entries
+        .iter()
+        .map(|entry| entry.archive_path.clone())
+        .collect();
+    let (project_paths, evidence) =
+        stable_discovered_evidence(root, Some(&scopes), &BTreeSet::new(), false)?;
+    let snapshots = baseline
+        .entries
+        .iter()
+        .map(|entry| {
+            archive_snapshot_from_evidence(&project_paths, &evidence, &entry.archive_path)
+                .map(|snapshot| (entry.id.clone(), snapshot))
+        })
+        .collect::<Result<_, _>>()?;
+
+    Ok(LegacyArchiveBaselineContext {
+        baseline,
+        snapshots,
+    })
 }
 
 fn legacy_baseline_entry<'a>(
@@ -8661,12 +8785,12 @@ fn legacy_archive_subtree_digest(
     Ok(digest.finish())
 }
 
+#[cfg(test)]
 fn archive_workspace_snapshot(
     root: &Path,
     workspace: &Path,
     project_subtree: &str,
 ) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
-    let prefix = format!("{project_subtree}/");
     let mut workspace_paths = BTreeSet::new();
     for entry in walkdir::WalkDir::new(workspace).follow_links(false) {
         let entry = entry.map_err(|error| format!("failed to inspect legacy archive: {error}"))?;
@@ -8680,16 +8804,24 @@ fn archive_workspace_snapshot(
     let scopes = BTreeSet::from([project_subtree.to_string()]);
     let (project_paths, evidence) =
         stable_discovered_evidence(root, Some(&scopes), &workspace_paths, false)?;
+    archive_snapshot_from_evidence(&project_paths, &evidence, project_subtree)
+}
+
+fn archive_snapshot_from_evidence(
+    project_paths: &[String],
+    evidence: &GitEvidence,
+    project_subtree: &str,
+) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
+    let prefix = format!("{project_subtree}/");
     let mut snapshot = BTreeMap::new();
     for project_path in project_paths {
-        let relative = project_path
-            .strip_prefix(&prefix)
-            .ok_or_else(|| "legacy archive path escaped its subtree".to_string())?
-            .to_string();
-        let entry = evidence.entry(&project_path)?;
+        let Some(relative) = project_path.strip_prefix(&prefix) else {
+            continue;
+        };
+        let entry = evidence.entry(project_path)?;
         match entry.kind {
             AcceptanceInputKind::File | AcceptanceInputKind::Symlink => {
-                snapshot.insert(relative, (entry.mode, entry.payload.clone()));
+                snapshot.insert(relative.to_string(), (entry.mode, entry.payload.clone()));
             }
             AcceptanceInputKind::Missing => {}
             AcceptanceInputKind::Gitlink | AcceptanceInputKind::NonFile => {
@@ -10278,19 +10410,34 @@ fn verification_is_current_checked(
     record: &ChangeRecord,
     evidence: &VerificationRecord,
 ) -> Result<(), String> {
+    let project_digest = project_input_digest(root)?;
+    verification_is_current_checked_with_project_digest(root, record, evidence, &project_digest)
+}
+
+fn verification_is_current_checked_with_project_digest(
+    root: &Path,
+    record: &ChangeRecord,
+    evidence: &VerificationRecord,
+    project_digest: &str,
+) -> Result<(), String> {
     if !evidence.passed {
         return Err("latest verification evidence failed".into());
     }
     if !definition_digest_matches(root, record, &evidence.contract_digest)? {
         return Err("verification contract digest is stale".into());
     }
-    if project_input_digest(root)? != evidence.workspace_digest {
+    if project_digest != evidence.workspace_digest {
         return Err("verification project-input digest is stale".into());
     }
-    ensure_verification_persistence_consistent(root, &record.id, Some((record, evidence)))?;
+    ensure_verification_persistence_consistent(
+        root,
+        &record.id,
+        Some((record, evidence)),
+        project_digest,
+    )?;
     let persisted_ids = verification_persistence_descendants(root, evidence)?;
     for id in persisted_ids {
-        ensure_verification_persistence_consistent(root, &id, None)?;
+        ensure_verification_persistence_consistent(root, &id, None, project_digest)?;
     }
     Ok(())
 }
@@ -10458,6 +10605,7 @@ fn ensure_verification_persistence_consistent(
     root: &Path,
     id: &str,
     expected: Option<(&ChangeRecord, &VerificationRecord)>,
+    project_digest: &str,
 ) -> Result<(), String> {
     if !change_dir(root, id).is_dir() {
         return Err(format!(
@@ -10477,7 +10625,7 @@ fn ensure_verification_persistence_consistent(
             "verification persistence for `{id}` has a stale contract digest"
         ));
     }
-    if project_input_digest(root)? != verification.workspace_digest {
+    if project_digest != verification.workspace_digest {
         return Err(format!(
             "verification persistence for `{id}` has a stale project-input digest"
         ));
@@ -12184,8 +12332,9 @@ mod tests {
         quiet_git(root, &["init", "-b", "main"]);
         quiet_git(root, &["config", "user.email", "test@example.com"]);
         quiet_git(root, &["config", "user.name", "Test"]);
-        fs::create_dir_all(root.join("archive")).unwrap();
-        fs::write(root.join("archive/sparse.txt"), "canonical sparse\n").unwrap();
+        let archive = ".specsync/archive/changes/2026-07-15-CHG-0001-sparse";
+        fs::create_dir_all(root.join(archive)).unwrap();
+        fs::write(root.join(archive).join("sparse.txt"), "canonical sparse\n").unwrap();
         let target = root.join("target");
         fs::write(&target, "../shared/tool").unwrap();
         let output = Command::new("git")
@@ -12196,21 +12345,65 @@ mod tests {
         assert!(output.status.success());
         let object = String::from_utf8(output.stdout).unwrap().trim().to_string();
         fs::remove_file(target).unwrap();
-        quiet_git(root, &["add", "archive/sparse.txt"]);
-        let cache_info = format!("120000,{object},archive/link");
+        quiet_git(root, &["add", &format!("{archive}/sparse.txt")]);
+        let cache_info = format!("120000,{object},{archive}/link");
         quiet_git(root, &["update-index", "--add", "--cacheinfo", &cache_info]);
         quiet_git(root, &["commit", "-m", "track archive topology"]);
         quiet_git(
             root,
-            &["update-index", "--skip-worktree", "archive/sparse.txt"],
+            &[
+                "update-index",
+                "--skip-worktree",
+                &format!("{archive}/sparse.txt"),
+            ],
         );
-        fs::remove_file(root.join("archive/sparse.txt")).unwrap();
-        fs::write(root.join("archive/link"), "regular replacement\n").unwrap();
+        fs::remove_file(root.join(archive).join("sparse.txt")).unwrap();
+        fs::write(root.join(archive).join("link"), "regular replacement\n").unwrap();
 
-        let snapshot = archive_workspace_snapshot(root, &root.join("archive"), "archive").unwrap();
+        let snapshot = archive_workspace_snapshot(root, &root.join(archive), archive).unwrap();
         assert_eq!(snapshot.get("sparse.txt").unwrap().1, b"canonical sparse\n");
         assert_eq!(snapshot.get("link").unwrap().0, 0o100644);
         assert_eq!(snapshot.get("link").unwrap().1, b"regular replacement\n");
+    }
+
+    #[test]
+    fn shared_archive_evidence_is_partitioned_by_exact_baseline_subtree() {
+        let first = ".specsync/archive/changes/2026-07-15-CHG-0001-first/state.json";
+        let second = ".specsync/archive/changes/2026-07-15-CHG-0002-second/state.json";
+        let evidence = GitEvidence {
+            modes: BTreeMap::new(),
+            entries: BTreeMap::from([
+                (
+                    first.to_string(),
+                    GitCapturedEntry {
+                        kind: AcceptanceInputKind::File,
+                        mode: 0o100644,
+                        object: None,
+                        payload: b"first".to_vec(),
+                    },
+                ),
+                (
+                    second.to_string(),
+                    GitCapturedEntry {
+                        kind: AcceptanceInputKind::File,
+                        mode: 0o100755,
+                        object: None,
+                        payload: b"second".to_vec(),
+                    },
+                ),
+            ]),
+        };
+        let paths = vec![first.to_string(), second.to_string()];
+
+        let snapshot = archive_snapshot_from_evidence(
+            &paths,
+            &evidence,
+            ".specsync/archive/changes/2026-07-15-CHG-0001-first",
+        )
+        .unwrap();
+
+        assert_eq!(snapshot.len(), 1);
+        assert_eq!(snapshot["state.json"], (0o100644, b"first".to_vec()));
     }
 
     #[cfg(unix)]

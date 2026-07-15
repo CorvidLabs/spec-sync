@@ -2,7 +2,7 @@
   "schema_version": 1,
   "domain": "specsync.legacy-archive-baseline.v1",
   "authority_change_id": "CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec",
-  "cutoff_commit": "fc5f9ac2695a4416b1e99e590b35bd47de00347c",
+  "cutoff_commit": "fc6e70bccd5af61043183e247f37b1f9a9b92247",
   "entries": [
     {
       "id": "CHG-0001-bootstrap-and-ship-the-verified-specsync-5-0-full-sdd-lifecycle",
@@ -261,6 +261,12 @@
       "archive_path": ".specsync/archive/changes/2026-07-15-CHG-0041-synchronize-generated-create-spec-agent-commands-with-the-corrected-free-text-pa",
       "introduction_commit": "fc5f9ac2695a4416b1e99e590b35bd47de00347c",
       "subtree_digest": "01f2db199d96cb2e4771b5f4b533fb601f473152e87608b2577db6ac4cccbeba"
+    },
+    {
+      "id": "CHG-0042-prepare-and-publish-specsync-5-1-0-with-accurate-release-metadata-and-current-co",
+      "archive_path": ".specsync/archive/changes/2026-07-15-CHG-0042-prepare-and-publish-specsync-5-1-0-with-accurate-release-metadata-and-current-co",
+      "introduction_commit": "6c694f7a810bc85094a982cf266a96139ba5748f",
+      "subtree_digest": "456fcb41db275d890bbac10f6dbbb4df3e6c591db2ad29094a4c66cebb1de1c1"
     }
   ]
 }

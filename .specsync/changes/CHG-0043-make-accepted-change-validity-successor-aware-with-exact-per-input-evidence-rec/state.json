@@ -6,7 +6,7 @@
   "description": "Make accepted-change validity successor-aware with exact per-input evidence, recursive cycle-safe validation, fail-closed legacy compatibility, and safe archived successors",
   "kind": "bug_fix",
   "state": "implementing",
-  "base_commit": "fc5f9ac2695a4416b1e99e590b35bd47de00347c",
+  "base_commit": "fc6e70bccd5af61043183e247f37b1f9a9b92247",
   "created_at": 1784097967,
   "updated_at": 1784125793,
   "affected_specs": [
@@ -54,7 +54,7 @@
     "plan"
   ],
   "dependencies": [],
-  "legacy_archive_baseline_digest": "f66df5852c22c98d2e49123706ee979ede796d97e25c5478b30d3a66254f31a4",
+  "legacy_archive_baseline_digest": "c42f88ccef2c9bce21e2d9c11b45346e68ea0c6aadbc029a1af17469f340b94f",
   "answers": {
     "architecture_risk": "yes",
     "public_contract": "yes"

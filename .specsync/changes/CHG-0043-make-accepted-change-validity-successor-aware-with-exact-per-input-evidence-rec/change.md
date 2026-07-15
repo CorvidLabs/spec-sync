@@ -2,7 +2,7 @@
 id: CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec
 state: implementing
 type: bug_fix
-base_commit: fc5f9ac2695a4416b1e99e590b35bd47de00347c
+base_commit: fc6e70bccd5af61043183e247f37b1f9a9b92247
 ---
 
 # Make accepted-change validity successor-aware with exact per-input evidence, recursive cycle-safe validation, fail-closed legacy compatibility, and safe archived successors

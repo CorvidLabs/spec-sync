@@ -113,3 +113,6 @@ artifact: tasks
 - [x] Make strict lifecycle checking reject invalid required approvals in Approved, Implementing, and Verifying states without blocking Draft interview work.
 - [x] Add deterministic portable-pair and strict-check parity regressions, including actual immutable SpecSync 5.0.1 golden validation and malformed/replayed pair coverage.
 - [x] Prepare the focused, full, format, lint, type-check, and release-build matrix for the final exact approval compatibility candidate.
+- [x] Reconcile the released CHG42 archive into the definition-bound legacy baseline without modifying its historical bytes.
+- [x] Share one bounded legacy-archive evidence capture across strict checking and preserve sparse-absent entries under explicit archive scopes.
+- [x] Reuse one stable project-input snapshot across all verifying records in a strict check and collapse shared baseline-authority failures into one actionable diagnostic.

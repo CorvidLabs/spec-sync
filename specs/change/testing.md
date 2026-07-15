@@ -16,6 +16,8 @@ Unit tests cover IDs, requirement grammar, semantic application, unsafe command 
 - `REQ-change-009`: delta approval, module-scoped IDs, corrupt state, retryable archive, tombstone, and Spec Kit import tests.
 - `REQ-change-010`: root Action/manifest/lockfile and component-boundary tests.
 - `REQ-change-011`: `effective_contract_workspaces_are_unique` plus the existing effective-contract semantic tests.
+- `REQ-change-013`: exact verification-persistence allowlisting, canonical commit identity, state/latest-attempt consistency, malicious state mutation, source-change-then-revert, mixed commits, nested project roots, and local/CI/GitHub Actions parity tests.
+- `REQ-change-016`: exact-head and multiple evidence-only descendants, every-parent merge validation, pre-verification side-branch edit/revert rejection, nonancestor failure, and shared `change status`/`change check` outcomes.
 - `REQ-change-017`: unit and CLI integration coverage for accepted → stale failure → audited reopen → stale verifying failure → fresh verify → fresh accept, including preserved evidence, required audit fields, non-stale rejection, and deterministic JSON.
 - `REQ-change-018`: squash-history regressions prove recorded acceptance fallback, rejection of overlapping no-spec successors, and successful governance by a later semantic canonical successor.
 - `REQ-change-019`: section-only semantic evidence and distinct missing-evidence diagnostics are covered without weakening requirement-ID mappings.

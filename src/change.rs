@@ -505,14 +505,14 @@ pub struct ApprovalLedger {
     pub reopenings: Vec<ReopenRecord>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommandEvidence {
     pub command: String,
     pub success: bool,
     pub exit_code: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerificationRecord {
     pub timestamp: u64,
     pub commit: Option<String>,
@@ -1495,7 +1495,6 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
     record.state = ChangeState::Verifying;
     record.updated_at = now();
     save_change(root, &record)?;
-    write_change_markdown(root, &record)?;
     if !verification.passed {
         let detail = if !commands_passed {
             "configured verification command failed".to_string()
@@ -2881,15 +2880,8 @@ pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
     let approval_valid = ensure_definition_approval_valid(root, record).is_ok();
     let artifacts_complete = validate_artifacts(root, record).is_ok();
     let verification_current = || {
-        let Ok(verification) = load_verification(root, record) else {
-            return false;
-        };
-        verification.passed
-            && definition_digest_matches(root, record, &verification.contract_digest)
-                .unwrap_or(false)
-            && verification.commit == git_output(root, &["rev-parse", "HEAD"])
-            && project_input_digest(root)
-                .is_ok_and(|digest| verification.workspace_digest == digest)
+        load_verification(root, record)
+            .is_ok_and(|verification| verification_is_current(root, record, &verification))
     };
     let terminal_evidence = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
         .then(|| terminal_evidence_summary(root, record));
@@ -3184,14 +3176,7 @@ fn check_project_with_command_output(
                             "{}: latest verification evidence failed",
                             record.id
                         ));
-                    } else if !verification_commit_is_current(root, &evidence, is_ci_project(root))
-                        || definition_digest_matches(root, record, &evidence.contract_digest)
-                            .map(|matches| !matches)
-                            .unwrap_or(true)
-                        || project_input_digest(root)
-                            .map(|digest| digest != evidence.workspace_digest)
-                            .unwrap_or(true)
-                    {
+                    } else if !verification_is_current(root, record, &evidence) {
                         report.errors.push(format!(
                             "{}: verification evidence is stale for the current commit or contract",
                             record.id
@@ -8454,22 +8439,242 @@ fn validate_loaded_change(
     Ok(())
 }
 
-fn verification_commit_is_current(
+fn verification_is_current(
+    root: &Path,
+    record: &ChangeRecord,
+    evidence: &VerificationRecord,
+) -> bool {
+    verification_is_current_checked(root, record, evidence).is_ok()
+}
+
+fn verification_is_current_checked(
+    root: &Path,
+    record: &ChangeRecord,
+    evidence: &VerificationRecord,
+) -> Result<(), String> {
+    if !evidence.passed {
+        return Err("latest verification evidence failed".into());
+    }
+    if !definition_digest_matches(root, record, &evidence.contract_digest)? {
+        return Err("verification contract digest is stale".into());
+    }
+    if project_input_digest(root)? != evidence.workspace_digest {
+        return Err("verification project-input digest is stale".into());
+    }
+    ensure_verification_persistence_consistent(root, &record.id, Some((record, evidence)))?;
+    let persisted_ids = verification_persistence_descendants(root, evidence)?;
+    for id in persisted_ids {
+        ensure_verification_persistence_consistent(root, &id, None)?;
+    }
+    Ok(())
+}
+
+fn verification_persistence_descendants(
     root: &Path,
     evidence: &VerificationRecord,
-    allow_ancestor: bool,
-) -> bool {
-    let Some(commit) = evidence.commit.as_deref() else {
-        return false;
-    };
-    if !allow_ancestor {
-        return git_output(root, &["rev-parse", "HEAD"]).as_deref() == Some(commit);
+) -> Result<BTreeSet<String>, String> {
+    let stored_commit = evidence
+        .commit
+        .as_deref()
+        .ok_or_else(|| "verification commit is missing".to_string())?;
+    if stored_commit.len() != 40
+        || !stored_commit
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err("verification commit is not a canonical full object ID".into());
     }
-    Command::new("git")
-        .args(["merge-base", "--is-ancestor", commit, "HEAD"])
+    let commit_expression = format!("{stored_commit}^{{commit}}");
+    let commit = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &commit_expression,
+        ],
+    )
+    .ok_or_else(|| "verification commit does not resolve to a commit".to_string())?;
+    if commit != stored_commit {
+        return Err("verification commit is not a canonical full object ID".into());
+    }
+    let head = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"])
+        .ok_or_else(|| "HEAD does not resolve to a commit".to_string())?;
+    if head.len() != 40
+        || !head
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err("HEAD is not a canonical full object ID".into());
+    }
+    let ancestor = Command::new("git")
+        .args(["merge-base", "--is-ancestor", &commit, &head])
         .current_dir(root)
         .status()
-        .is_ok_and(|status| status.success())
+        .map_err(|error| format!("failed to validate verification ancestry: {error}"))?;
+    if !ancestor.success() {
+        return Err("verification commit is not an ancestor of HEAD".into());
+    }
+    let range = format!("{commit}..{head}");
+    let output = Command::new("git")
+        .args(["rev-list", "--reverse", &range])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to enumerate verification descendants: {error}"))?;
+    if !output.status.success() {
+        return Err("failed to enumerate verification descendants".into());
+    }
+    let commits = std::str::from_utf8(&output.stdout)
+        .map_err(|_| "verification descendant history is not valid UTF-8".to_string())?;
+    let raw_project_prefix = git_output_allow_empty(root, &["rev-parse", "--show-prefix"])
+        .ok_or_else(|| {
+            "failed to resolve the project path within its Git repository".to_string()
+        })?;
+    let project_prefix = if raw_project_prefix.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "{}/",
+            strict_portable_relative_path(raw_project_prefix.trim_end_matches('/'))?
+        )
+    };
+    let mut persisted_ids = BTreeSet::new();
+    for descendant in commits.lines().filter(|line| !line.is_empty()) {
+        let parents = git_output(root, &["rev-list", "--parents", "-n", "1", descendant])
+            .ok_or_else(|| {
+                format!("failed to load parents for verification descendant {descendant}")
+            })?;
+        let fields: Vec<&str> = parents.split_whitespace().collect();
+        if fields.first().copied() != Some(descendant) || fields.len() < 2 {
+            return Err(format!(
+                "verification descendant {descendant} has ambiguous parent history"
+            ));
+        }
+        for parent in &fields[1..] {
+            let output = Command::new("git")
+                .args([
+                    "diff-tree",
+                    "--no-commit-id",
+                    "--name-only",
+                    "--no-renames",
+                    "-z",
+                    "-r",
+                    parent,
+                    descendant,
+                ])
+                .current_dir(root)
+                .output()
+                .map_err(|error| {
+                    format!(
+                        "failed to inspect verification descendant {descendant} against parent {parent}: {error}"
+                    )
+                })?;
+            if !output.status.success() {
+                return Err(format!(
+                    "failed to inspect verification descendant {descendant} against parent {parent}"
+                ));
+            }
+            for raw_path in output
+                .stdout
+                .split(|byte| *byte == 0)
+                .filter(|path| !path.is_empty())
+            {
+                let path = std::str::from_utf8(raw_path)
+                    .map_err(|_| "verification descendant contains a non-UTF-8 path".to_string())?;
+                let repository_path = strict_portable_relative_path(path)?;
+                let path = if project_prefix.is_empty() {
+                    repository_path
+                } else {
+                    repository_path
+                        .strip_prefix(&project_prefix)
+                        .filter(|path| !path.is_empty())
+                        .ok_or_else(|| {
+                            format!(
+                                "verification descendant changed path outside project root `{repository_path}`"
+                            )
+                        })?
+                        .to_string()
+                };
+                let path = strict_portable_relative_path(&path)?;
+                persisted_ids.insert(supported_verification_persistence_id(&path)?);
+            }
+        }
+    }
+    Ok(persisted_ids)
+}
+
+fn supported_verification_persistence_id(path: &str) -> Result<String, String> {
+    let parts: Vec<&str> = path.split('/').collect();
+    if parts.len() != 4 || parts[0] != ".specsync" || parts[1] != "changes" {
+        return Err(format!(
+            "verification descendant changed disallowed path `{path}`"
+        ));
+    }
+    let id = parts[2];
+    validate_change_id(id)?;
+    if change_sequence(id).is_none() {
+        return Err(format!(
+            "verification descendant uses noncanonical change ID `{id}`"
+        ));
+    }
+    if !matches!(
+        parts[3],
+        "state.json" | "verification.json" | "verification-attempts.json"
+    ) {
+        return Err(format!(
+            "verification descendant changed disallowed path `{path}`"
+        ));
+    }
+    Ok(id.to_string())
+}
+
+fn ensure_verification_persistence_consistent(
+    root: &Path,
+    id: &str,
+    expected: Option<(&ChangeRecord, &VerificationRecord)>,
+) -> Result<(), String> {
+    if !change_dir(root, id).is_dir() {
+        return Err(format!(
+            "verification persistence references non-active change `{id}`"
+        ));
+    }
+    let record = load_change(root, id)?;
+    if record.state != ChangeState::Verifying {
+        return Err(format!(
+            "verification persistence for `{id}` has state `{}` instead of `verifying`",
+            record.state.as_str()
+        ));
+    }
+    let verification = load_verification(root, &record)?;
+    if !definition_digest_matches(root, &record, &verification.contract_digest)? {
+        return Err(format!(
+            "verification persistence for `{id}` has a stale contract digest"
+        ));
+    }
+    if project_input_digest(root)? != verification.workspace_digest {
+        return Err(format!(
+            "verification persistence for `{id}` has a stale project-input digest"
+        ));
+    }
+    let history_path = change_dir(root, id).join("verification-attempts.json");
+    let history: VerificationAttemptLedger = serde_json::from_slice(
+        &fs::read(&history_path)
+            .map_err(|error| format!("failed to read {}: {error}", history_path.display()))?,
+    )
+    .map_err(|error| format!("invalid verification attempt history: {error}"))?;
+    if history.schema_version != 1 || history.attempts.last() != Some(&verification) {
+        return Err(format!(
+            "verification persistence for `{id}` does not match its latest attempt"
+        ));
+    }
+    if let Some((expected_record, expected_verification)) = expected
+        && (&record != expected_record || &verification != expected_verification)
+    {
+        return Err(format!(
+            "verification persistence for `{id}` is inconsistent with loaded lifecycle state"
+        ));
+    }
+    Ok(())
 }
 
 fn verification_commit_is_accepted_current(root: &Path, evidence: &VerificationRecord) -> bool {
@@ -14491,45 +14696,305 @@ mod tests {
         );
     }
 
-    #[test]
-    fn ci_verification_accepts_evidence_from_an_ancestor_commit() {
+    fn quiet_git(root: &Path, args: &[&str]) -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    }
+
+    fn commit_paths(root: &Path, paths: &[&str], message: &str) {
+        let output = Command::new("git")
+            .args(["add", "--"])
+            .args(paths)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        quiet_git(root, &["commit", "-m", message]);
+    }
+
+    fn verification_history_fixture() -> (TempDir, String, VerificationRecord) {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        let git = |args: &[&str]| {
-            assert!(
-                Command::new("git")
-                    .args(args)
-                    .current_dir(root)
-                    .status()
-                    .unwrap()
-                    .success()
-            );
-        };
-        git(&["init", "-b", "main"]);
-        git(&["config", "user.email", "test@example.com"]);
-        git(&["config", "user.name", "Test"]);
-        fs::write(root.join("one.txt"), "one\n").unwrap();
-        git(&["add", "one.txt"]);
-        git(&["commit", "-m", "one"]);
-        let verified_commit = git_output(root, &["rev-parse", "HEAD"]);
-        fs::write(root.join("two.txt"), "two\n").unwrap();
-        git(&["add", "two.txt"]);
-        git(&["commit", "-m", "two"]);
-        let evidence = VerificationRecord {
-            timestamp: now(),
-            commit: verified_commit,
-            contract_digest: "contract".into(),
-            workspace_digest: "workspace".into(),
-            acceptance_input_digest: None,
-            acceptance_manifest: None,
-            semantic_succession: None,
-            passed: true,
-            commands: Vec::new(),
-            requirement_ids: Vec::new(),
-        };
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        quiet_git(root, &["add", "seed.txt"]);
+        quiet_git(root, &["commit", "-m", "seed"]);
+        let mut policy = SddPolicy::default();
+        policy.require_change_for_meaningful_files = false;
+        policy.verification_commands.clear();
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "implement"]);
+        let evidence = verify_change(root, &record.id).unwrap();
+        let record = load_change(root, &record.id).unwrap();
+        assert!(verification_is_current(root, &record, &evidence));
+        (temp, record.id, evidence)
+    }
 
-        assert!(verification_commit_is_current(root, &evidence, true));
-        assert!(!verification_commit_is_current(root, &evidence, false));
+    fn verification_persistence_paths(id: &str) -> [String; 3] {
+        [
+            format!(".specsync/changes/{id}/state.json"),
+            format!(".specsync/changes/{id}/verification.json"),
+            format!(".specsync/changes/{id}/verification-attempts.json"),
+        ]
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn verification_persistence_allowlist_is_exact_and_canonical() {
+        let id = "CHG-0001-harden-verification";
+        for name in [
+            "state.json",
+            "verification.json",
+            "verification-attempts.json",
+        ] {
+            assert_eq!(
+                supported_verification_persistence_id(&format!(".specsync/changes/{id}/{name}"))
+                    .unwrap(),
+                id
+            );
+        }
+        for path in [
+            ".specsync/archive/changes/CHG-0001-harden-verification/state.json",
+            ".specsync/changes/CHG-0001-harden-verification/approvals.json",
+            ".specsync/changes/CHG-0001-harden-verification/tasks.md",
+            ".specsync/changes/CHG-0001-harden-verification/change.md",
+            ".specsync/changes/CHG-0001-harden-verification/state.json/nested",
+            ".specsync/change-sequence.json",
+            ".specsync/hashes.json",
+            ".specsync/change.lock",
+            ".specsync/change-transaction.json",
+            "specs/change/change.spec.md",
+            ".specsync/sdd.json",
+            ".trust.toml",
+            "src/lib.rs",
+            "tests/change.rs",
+            "target/debug/specsync",
+            "node_modules/package/index.js",
+            ".specsync/changes/CHG-123-short/state.json",
+            ".specsync/changes/CHG-09999-wide-leading-zero/state.json",
+            ".specsync/changes/CHG-18446744073709551616-overflow/state.json",
+        ] {
+            assert!(
+                supported_verification_persistence_id(path).is_err(),
+                "unexpectedly allowed {path}"
+            );
+        }
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn exact_and_multiple_verification_persistence_commits_remain_current() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let paths = verification_persistence_paths(&id);
+        for (index, path) in paths.iter().enumerate() {
+            commit_paths(root, &[path], &format!("persist verification {index}"));
+        }
+        let record = load_change(root, &id).unwrap();
+        assert!(verification_is_current(root, &record, &evidence));
+        assert_eq!(summarize_change(root, &record).next_action, "accept");
+        assert!(!check_project(root).errors.iter().any(|error| {
+            error.contains(&id) && error.contains("verification evidence is stale")
+        }));
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn source_change_then_revert_remains_stale() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let paths = verification_persistence_paths(&id);
+        let path_refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+        commit_paths(root, &path_refs, "persist verification");
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        commit_paths(root, &["src/lib.rs"], "change source");
+        fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+        commit_paths(root, &["src/lib.rs"], "revert source");
+        let record = load_change(root, &id).unwrap();
+        assert_eq!(
+            project_input_digest(root).unwrap(),
+            evidence.workspace_digest
+        );
+        assert!(!verification_is_current(root, &record, &evidence));
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn mixed_persistence_and_source_commit_is_stale() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        let paths = verification_persistence_paths(&id);
+        let mut committed: Vec<&str> = paths.iter().map(String::as_str).collect();
+        committed.push("src/lib.rs");
+        commit_paths(root, &committed, "mix evidence and source");
+        let record = load_change(root, &id).unwrap();
+        assert!(!verification_is_current(root, &record, &evidence));
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn malicious_state_contract_mutation_is_stale() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let paths = verification_persistence_paths(&id);
+        let path_refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+        commit_paths(root, &path_refs, "persist verification");
+        let mut record = load_change(root, &id).unwrap();
+        record.title = "mutated contract".into();
+        save_change(root, &record).unwrap();
+        commit_paths(root, &[&paths[0]], "mutate state contract");
+        let record = load_change(root, &id).unwrap();
+        assert!(!verification_is_current(root, &record, &evidence));
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn verification_commit_identity_must_be_canonical_and_ancestral() {
+        let (temp, _, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let canonical = evidence.commit.clone().unwrap();
+        for invalid in [
+            canonical[..12].to_string(),
+            "HEAD".into(),
+            "main".into(),
+            "HEAD~1".into(),
+            "-n1".into(),
+            "f".repeat(40),
+        ] {
+            let mut candidate = evidence.clone();
+            candidate.commit = Some(invalid);
+            assert!(verification_persistence_descendants(root, &candidate).is_err());
+        }
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn evidence_only_merge_checks_every_parent_and_remains_current() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let paths = verification_persistence_paths(&id);
+        let path_refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+        commit_paths(root, &path_refs, "persist verification on main");
+        quiet_git(
+            root,
+            &[
+                "switch",
+                "-c",
+                "evidence-side",
+                evidence.commit.as_deref().unwrap(),
+            ],
+        );
+        let mut checkout = Command::new("git");
+        let output = checkout
+            .args(["checkout", "main", "--"])
+            .args(&path_refs)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        commit_paths(root, &path_refs, "persist verification on side");
+        quiet_git(root, &["merge", "--no-ff", "main", "-m", "merge evidence"]);
+        let record = load_change(root, &id).unwrap();
+        assert!(verification_is_current(root, &record, &evidence));
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn preverification_side_branch_change_and_revert_is_stale_after_merge() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let paths = verification_persistence_paths(&id);
+        let path_refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+        commit_paths(root, &path_refs, "persist verification");
+        let preverification = quiet_git(
+            root,
+            &[
+                "rev-parse",
+                &format!("{}^", evidence.commit.as_deref().unwrap()),
+            ],
+        );
+        quiet_git(root, &["switch", "-c", "tainted-side", &preverification]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/taint.rs"), "pub fn tainted() {}\n").unwrap();
+        commit_paths(root, &["src/taint.rs"], "taint source");
+        fs::remove_file(root.join("src/taint.rs")).unwrap();
+        commit_paths(root, &["src/taint.rs"], "revert source taint");
+        quiet_git(
+            root,
+            &["merge", "--no-ff", "main", "-m", "merge verified work"],
+        );
+        let record = load_change(root, &id).unwrap();
+        assert_eq!(
+            project_input_digest(root).unwrap(),
+            evidence.workspace_digest
+        );
+        assert!(!verification_is_current(root, &record, &evidence));
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn nested_project_strips_repository_prefix_and_rejects_outside_changes() {
+        let temp = TempDir::new().unwrap();
+        let repository = temp.path();
+        let root = repository.join("packages/app");
+        fs::create_dir_all(&root).unwrap();
+        quiet_git(repository, &["init", "-b", "main"]);
+        quiet_git(repository, &["config", "user.email", "test@example.com"]);
+        quiet_git(repository, &["config", "user.name", "Test"]);
+        fs::write(repository.join("seed.txt"), "seed\n").unwrap();
+        quiet_git(repository, &["add", "seed.txt"]);
+        quiet_git(repository, &["commit", "-m", "seed"]);
+        let mut policy = SddPolicy::default();
+        policy.require_change_for_meaningful_files = false;
+        policy.verification_commands.clear();
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let mut record = completed_no_spec_record(&root);
+        record = approve_definition(&root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(&root, &record.id).unwrap();
+        quiet_git(repository, &["add", "--all"]);
+        quiet_git(repository, &["commit", "-m", "implement nested project"]);
+        let evidence = verify_change(&root, &record.id).unwrap();
+        let project_paths = verification_persistence_paths(&record.id);
+        let repository_paths: Vec<String> = project_paths
+            .iter()
+            .map(|path| format!("packages/app/{path}"))
+            .collect();
+        let repository_path_refs: Vec<&str> = repository_paths.iter().map(String::as_str).collect();
+        commit_paths(
+            repository,
+            &repository_path_refs,
+            "persist nested verification",
+        );
+        let record = load_change(&root, &record.id).unwrap();
+        assert!(verification_is_current(&root, &record, &evidence));
+        fs::write(repository.join("outside.txt"), "outside\n").unwrap();
+        commit_paths(repository, &["outside.txt"], "change outside project");
+        assert!(!verification_is_current(&root, &record, &evidence));
     }
 
     #[test]

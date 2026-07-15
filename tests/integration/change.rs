@@ -6,6 +6,209 @@ use std::process::Command;
 use tempfile::TempDir;
 
 #[test]
+fn verification_freshness_status_and_check_are_environment_independent() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::write(root.join("seed.txt"), "seed\n").unwrap();
+    git(&["add", "seed.txt"]);
+    git(&["commit", "-m", "seed"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "version": 1,
+            "enabled": true,
+            "require_change_for_meaningful_files": false,
+            "meaningful_paths": ["src/", ".specsync/sdd.json"],
+            "ignored_paths": [".specsync/"],
+            "verification_commands": [],
+            "custom_artifacts": {},
+            "principles_file": null
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Harden verification freshness",
+            "--kind",
+            "bug-fix",
+            "--path",
+            "src/lib.rs",
+            "--no-spec-change",
+            "--rationale",
+            "Internal lifecycle behavior only",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+    for (question, answer) in [
+        ("acceptance_criteria", "Verification freshness is portable"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let shown = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "show",
+            id,
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let shown: Value = serde_json::from_slice(&shown).unwrap();
+    for artifact in shown["change"]["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let content = if name == "tasks" {
+            "# Tasks\n\n- [x] Complete verification preparation.\n"
+        } else {
+            "# Complete\n\nReviewed lifecycle evidence.\n"
+        };
+        fs::write(
+            root.join(format!(".specsync/changes/{id}/{name}.md")),
+            content,
+        )
+        .unwrap();
+    }
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "Reviewer",
+        ])
+        .assert()
+        .success();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "start", id])
+        .assert()
+        .success();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "implement"]);
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "verify", id])
+        .assert()
+        .success();
+    for name in [
+        "state.json",
+        "verification.json",
+        "verification-attempts.json",
+    ] {
+        git(&["add", &format!(".specsync/changes/{id}/{name}")]);
+    }
+    git(&["commit", "-m", "persist verification"]);
+
+    let assert_surfaces = |expected_action: &str, check_succeeds: bool, environment: &str| {
+        let configure = |command: &mut assert_cmd::Command| {
+            command
+                .env_remove("CI")
+                .env_remove("GITHUB_ACTIONS")
+                .env_remove("GITHUB_WORKSPACE");
+            match environment {
+                "ci" => {
+                    command.env("CI", "true");
+                }
+                "github" => {
+                    command
+                        .env("GITHUB_ACTIONS", "true")
+                        .env("GITHUB_WORKSPACE", root);
+                }
+                _ => {}
+            }
+        };
+        let mut status = specsync();
+        configure(&mut status);
+        let output = status
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "--json",
+                "change",
+                "status",
+                id,
+            ])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["summary"]["next_action"], expected_action);
+        let mut check = specsync();
+        configure(&mut check);
+        let assertion = check
+            .args(["--root", root.to_str().unwrap(), "change", "check"])
+            .assert();
+        if check_succeeds {
+            assertion.success();
+        } else {
+            assertion.failure();
+        }
+    };
+    for environment in ["local", "ci", "github"] {
+        assert_surfaces("accept", true, environment);
+    }
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { false }\n",
+    )
+    .unwrap();
+    git(&["add", "src/lib.rs"]);
+    git(&["commit", "-m", "change governed input"]);
+    for environment in ["local", "ci", "github"] {
+        assert_surfaces("verify", false, environment);
+    }
+}
+
+#[test]
 fn change_new_json_returns_state_and_interview() {
     let temp = TempDir::new().unwrap();
     let output = specsync()

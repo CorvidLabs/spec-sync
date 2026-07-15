@@ -23,7 +23,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 3. Approved semantic deltas form the effective future contract without mutating canonical specs before acceptance.
 4. Requirements use stable `REQ-<module>-<number>` IDs, normative SHALL statements, and acceptance criteria.
 5. Verification executes only project-configured commands without a shell and rejects direct or indirect entry into every lifecycle command surface.
-6. Verification evidence is bound to the tested commit and working-tree inputs, and registry-resolved effective contracts must validate before acceptance.
+6. Verification evidence is bound to the tested commit and working-tree inputs; descendant freshness is environment-independent and permits only internally consistent supported verification-persistence commits after inspecting every commit and parent edge.
 7. Invalid policy, unavailable coverage comparison, failed evidence, stale ordering gates, and protected sequence-ledger edits without lifecycle coverage fail closed.
 8. Concurrent deltas follow declared dependency order and canonical Markdown application preserves unrelated sections.
 9. Approval validates complete module-scoped deltas, corrupt state fails closed, and archival failures remain retryable.
@@ -87,8 +87,8 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `correction_history` | `root, record` | `Result<Vec<CorrectionRecord>, String>` | Load validated append-only correction records for inspection clients |
 | `accept_change` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Record closing approval and atomically apply semantic deltas only when not already canonical |
 | `archive_change` | `root, id` | `Result<PathBuf, String>` | Move an accepted workspace into the dated archive |
-| `summarize_change` | `root, record` | `ChangeSummary` | Project gate health, correction health, and next action for clients |
-| `check_project` | `root: &Path` | `SddCheckReport` | Validate lifecycle state, approvals, corrections, conflicts, deltas, and path coverage |
+| `summarize_change` | `root, record` | `ChangeSummary` | Project gate health, correction health, and next action using the shared verification-freshness predicate |
+| `check_project` | `root: &Path` | `SddCheckReport` | Validate lifecycle state, approvals, corrections, conflicts, deltas, path coverage, and shared verification freshness |
 | `check_project_quiet` | `root: &Path` | `SddCheckReport` | Run the same fail-closed lifecycle check while suppressing configured command output for machine-consumable report protocols |
 | `adopt` | `root, dry_run, source` | `Result<Vec<String>, String>` | Preview or enable SDD and import OpenSpec or Spec Kit artifacts |
 | `detect_verification_commands` | `root: &Path` | `Vec<String>` | Detect explicit fledge, Cargo, Bun, or Swift test commands |
@@ -130,6 +130,7 @@ Acceptance Criteria
 19. Acceptance appends a Change Log row matching the canonical table's existing column schema and uses the post-bump version when the schema includes `Version`.
 20. Generated bookkeeping never replaces explicit delivery scope; registry authority, policy enablement, and native command identity are evaluated consistently before lifecycle enforcement.
 21. Trusted correction-history discovery ignores unresolved remote-default references and parses Git tree paths without quoting ambiguity; regression fixtures preserve quoted-path coverage where supported while remaining valid on Windows.
+22. Local and hosted verification freshness inspect every intervening commit against every parent, permit only the three supported persistence files below canonical active-change IDs, and never infer safety from a net diff or broad volatile-path exclusion.
 
 ## Behavioral Examples
 
@@ -157,6 +158,12 @@ Acceptance Criteria
 - **When** a human reopens it with an actor and reason
 - **Then** the prior verification and closing approval remain in audit history, strict checking stays red until fresh verification, and reacceptance records a new closing approval without reapplying canonical deltas
 
+### Scenario: Persisted verification evidence
+
+- **Given** a supported verification run passed on the current commit
+- **When** one or more descendant commits persist only its canonical state, verification, and attempt-ledger files
+- **Then** local status, local strict checking, and hosted checking all keep the evidence current while matching contract and project-input digests remain mandatory
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -165,6 +172,7 @@ Acceptance Criteria
 | Missing or invalid semantic delta | Approval, verification, and unified check fail |
 | Verification command contains shell operators | Command is rejected without execution |
 | HEAD changes after verification | Acceptance requires re-verification |
+| Any intervening commit changes a disallowed path, even if later reverted | Status and strict checking require re-verification in every environment |
 | Accepted delivery evidence is still current | Reopen is rejected without changing lifecycle or audit state |
 | Reopen actor or reason is empty | Reopen is rejected before any mutation |
 | Concurrent changes edit the same semantic key | Progress requires dependency ordering or rebase |

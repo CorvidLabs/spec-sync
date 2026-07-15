@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 44,
-  "id": "CHG-0044-harden-canonical-numeric-change-ordering-across-chg-9999-to-chg-10000-and-correc",
+  "sequence": 45,
+  "id": "CHG-0045-unify-local-and-ci-verification-freshness-so-descendant-evidence-only-commits-re",
   "acknowledged_collisions": [
     {
       "sequence": 16,

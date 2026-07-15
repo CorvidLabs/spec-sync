@@ -62,6 +62,13 @@
       "timestamp": 1784081228,
       "digest": "f6497221e85289612bef4697f02cadbdb9eef3917a16a05e3329fe6096dd59ec",
       "note": "Closing approval after PR #383 review corrections passed 1,604 unit and 215 integration tests at c7a50a3a70801238f13f285b06364ac3aaaf0fff"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784082177,
+      "digest": "2d99438e30dff14f1c86b04a42473119c9656c845795da679c001febed251b06",
+      "note": "Closing approval after archived-only and TREESAME merge rollback regressions passed 1,606 unit and 215 integration tests at aaed8f8cb637228e9c05268ac68eb7818d7a45c7"
     }
   ],
   "reopenings": [

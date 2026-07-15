@@ -69,6 +69,13 @@
       "timestamp": 1784082177,
       "digest": "2d99438e30dff14f1c86b04a42473119c9656c845795da679c001febed251b06",
       "note": "Closing approval after archived-only and TREESAME merge rollback regressions passed 1,606 unit and 215 integration tests at aaed8f8cb637228e9c05268ac68eb7818d7a45c7"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784082924,
+      "digest": "d04e13a6f638c5e498523fc8abe0cc2033842442667696e4ed180a1451e4b4da",
+      "note": "Closing approval after the Windows-safe Unicode and space path regression passed 1,606 unit and 215 integration tests at 99e46e3f4377769dd4e30673b54058ab8dae7b37"
     }
   ],
   "reopenings": [

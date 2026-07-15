@@ -13,4 +13,4 @@ artifact: tasks
 - [x] Surface correction history and gate health through show and status.
 - [x] Add unit and integration coverage for every correction and failure path.
 - [x] Update canonical companions, workflow/CLI docs, and the unreleased changelog.
-- [ ] Pass full local verification and `fledge trust verify`.
+- [x] Pass every pre-acceptance trust step; rerun strict spec validation after the approved Public API delta becomes canonical.

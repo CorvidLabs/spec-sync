@@ -10,4 +10,4 @@ artifact: tasks
 - [x] Regenerate Claude, Cursor, and Gemini create-spec commands from the installer.
 - [x] Update the agents requirement, context, testing matrix, and completed-task history.
 - [x] Update AI-agent documentation and the unreleased changelog.
-- [ ] Run focused, full, strict-spec, docs, audit, and trust verification.
+- [x] Pass focused/full Rust verification, audit, docs build/lint, and every pre-acceptance trust step; rerun strict spec validation after CHG-0040 acceptance.

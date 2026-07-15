@@ -97,6 +97,13 @@
       "timestamp": 1784109820,
       "digest": "c7ee8e1f91f1ffb5eb4889f63574f25e1f7bee4ce1c2e5cbaac8f35d6ea0c1c1",
       "note": "Approve exact pre-inspection candidate filtering for volatile project paths and record-scoped acceptance evidence."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784110043,
+      "digest": "2557ef9884ead85609b63f94c65ee5c2d619241a07ad7bdaaae96811a87d2b64",
+      "note": "Reapprove the coherent bounded Git evidence redesign with captured candidate snapshots, fatal post-detection failures, effective-index support, and scoped stages."
     }
   ],
   "reopenings": []

@@ -1,6 +1,6 @@
 ---
 id: CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re
-state: verifying
+state: accepted
 type: feature
 base_commit: 7ea73117168c72086bfc43e020c37904e0b6d7c5
 ---

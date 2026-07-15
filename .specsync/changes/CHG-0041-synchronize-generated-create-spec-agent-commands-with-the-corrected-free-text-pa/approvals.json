@@ -34,6 +34,13 @@
       "timestamp": 1784075572,
       "digest": "12dbd5700bb1cf34f13686998842a1f2fe963e487914af5a23593c7ea0a10af6",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784076317,
+      "digest": "ae09e669a1d2f49df1e2c0f59413485654b45b679cf90fa7f2c4034b76eee0da",
+      "note": "Fresh closing approval after 1,597 unit and 214 integration tests passed at 74c6257, including Windows CRLF and published-crate fixture portability coverage."
     }
   ],
   "reopenings": [

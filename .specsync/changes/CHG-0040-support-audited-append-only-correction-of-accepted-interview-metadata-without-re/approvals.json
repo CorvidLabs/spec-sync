@@ -27,6 +27,13 @@
       "timestamp": 1784074092,
       "digest": "a7a985d243bc71ea57e5d96ec7c9876df92022185c38b433545ff746680824eb",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784076315,
+      "digest": "5f2e22bafdea427876540331092de623c6af89a977246cee907e8f4e80d7aba8",
+      "note": "Fresh closing approval after 1,597 unit and 214 integration tests passed at 74c6257, with stable-Rust, boolean-alias, and prior-definition tamper regressions."
     }
   ],
   "reopenings": [

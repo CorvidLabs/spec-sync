@@ -34,6 +34,13 @@
       "timestamp": 1784106457,
       "digest": "4b966682f0f7dd03becf70b4e9e416a08c6c1efb440953b4c98514b2f8c0cd91",
       "note": "Approve exact relative symlink target semantics and deletion correction after independent audit"
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784106950,
+      "digest": "1683b6863ef38200e9fb39027762e77b6add1b809d9ca558aa17d9f4aac4acdb",
+      "note": "Approve fail-closed Git index visibility, attribute, topology, and authoritative-size boundaries after independent audit"
     }
   ],
   "reopenings": []

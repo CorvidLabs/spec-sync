@@ -40,3 +40,8 @@ artifact: tasks
 - [x] Audit portable symlink validation against CHG43's normative relative-target rule.
 - [ ] Preserve exact valid relative target forms while retaining host-independent rejection of absolute, drive, backslash/UNC/device, empty, and control-character targets.
 - [ ] Add exact-byte regressions for valid relative target forms.
+- [ ] Fail closed on hidden/materialized/ambiguous index states while preserving canonical absent sparse-checkout inputs.
+- [ ] Reject custom filters and working-tree encodings through NUL-safe attribute inspection before index substitution.
+- [ ] Classify modified tracked symlinks from current topology rather than historical index mode.
+- [ ] Enforce definition artifact limits on authoritative signed bytes with safe dirty/untracked pre-checks.
+- [ ] Add deterministic regressions for every audited index, attribute, topology, and size boundary.

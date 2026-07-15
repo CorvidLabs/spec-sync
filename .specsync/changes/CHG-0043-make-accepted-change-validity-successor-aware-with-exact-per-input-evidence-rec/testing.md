@@ -23,6 +23,9 @@ Focused unit and integration regressions will prove:
 - deleting a tracked symlink yields a deterministic missing/mode-zero entry in project freshness, manifest acceptance, and legacy acceptance instead of reading the historical target or failing on the absent path;
 - portable project paths reject POSIX absolute, drive-prefixed, backslash, UNC/device, control-character, dot-component, empty, and separator-ambiguous forms consistently; symlink targets apply their narrower normative rejection classes consistently;
 - valid relative symlink targets containing `./`, interior `./`, repeated separators, trailing separators, or `..` remain accepted with exact bytes rather than being normalized or rejected;
+- assume-unchanged paths, materialized skip-worktree paths, unmerged stages, custom filters, and working-tree encodings fail before canonical index substitution, while absent skip-worktree files use canonical blobs and remain checkout-shape independent;
+- a modified tracked symlink replaced by a regular file signs file topology/current bytes, while deletion signs missing and a clean materialized symlink retains canonical symlink topology;
+- definition artifact caps bind canonical clean bytes and current dirty/untracked bytes rather than host-smudged metadata length;
 - same-payload mode and kind transitions produce different `specsync.acceptance-entry.v1` full-entry digests and require exact succession tuples;
 - CHG43's governed integration test path is classified exact-only, accepts without invented module ownership, and requires reopen after later modification;
 - recursive successor chains validate and cycles fail closed deterministically;

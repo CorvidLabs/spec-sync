@@ -6138,8 +6138,11 @@ fn git_worktree_state_for(
         .current_dir(root)
         .output()
         .map_err(|error| format!("failed to inspect Git fsmonitor configuration: {error}"))?;
-    if fsmonitor_config.status.success()
-        && !fsmonitor_config.stdout.is_empty()
+    let fsmonitor_value = String::from_utf8_lossy(&fsmonitor_config.stdout);
+    let fsmonitor_active = fsmonitor_config.status.success()
+        && !fsmonitor_value.trim().is_empty()
+        && !fsmonitor_value.trim().eq_ignore_ascii_case("false");
+    if fsmonitor_active
         && candidates
             .iter()
             .any(|path| fs::symlink_metadata(root.join(path)).is_ok())

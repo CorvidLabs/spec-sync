@@ -7,8 +7,8 @@ artifact: tasks
 
 - [x] Merge the fully verified Windows portability follow-up.
 - [x] Archive CHG-0036, CHG-0038, CHG-0040, and CHG-0041 after integration.
-- [ ] Update package, lockfile, changelog, release link, and Trust workflow version.
-- [ ] Refresh Spec Kit and OpenSpec comparisons and add BMAD coverage.
-- [ ] Run the complete local release and trust verification matrix.
-- [ ] Publish the release PR and address hosted review/CI findings.
-- [ ] Obtain closing approval, merge, archive CHG-0042, and publish v5.1.0.
+- [x] Update package, lockfile, changelog, release link, and Trust workflow version.
+- [x] Refresh Spec Kit and OpenSpec comparisons and add BMAD coverage.
+- [x] Complete the release and Trust verification matrix with local and hosted evidence.
+- [x] Publish the draft release PR and audit hosted CI and all review-thread surfaces.
+- [x] Stage the verified release candidate for explicit closing approval without merging or tagging it.

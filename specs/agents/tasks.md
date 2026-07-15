@@ -28,6 +28,7 @@ spec: agents.spec.md
 - [x] Verified SDD lifecycle instructions for all four agent skills
 - [x] Native create-change commands for Claude, Cursor, and Gemini
 - [x] Human approval safeguards and deterministic JSON interview guidance
+- [x] Keep checked-in create-spec commands byte-identical to installer templates and classify complete non-flag input
 
 ## Gaps
 

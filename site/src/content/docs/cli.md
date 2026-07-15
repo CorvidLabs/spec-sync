@@ -324,6 +324,7 @@ specsync change start CHG-0001-add-passkeys
 specsync change verify CHG-0001-add-passkeys
 specsync change accept CHG-0001-add-passkeys
 specsync change reopen CHG-0001-add-passkeys --actor "Ada" --reason "Review fixes changed governed inputs"
+specsync change correct CHG-0001-add-passkeys architecture_risk yes --actor "Ada" --reason "Review found architectural impact"
 specsync change archive CHG-0001-add-passkeys
 specsync change check
 specsync change adopt --dry-run
@@ -331,7 +332,7 @@ specsync change adopt --dry-run
 
 `acceptance_criteria` preserves scalar prose exactly; use a JSON array of strings to provide multiple criteria. `affected_specs` and `affected_paths` retain comma- and newline-separated list input.
 
-Definition and closing approvals are mandatory and digest-bound. `change reopen` is the only supported recovery when accepted delivery inputs become stale: it requires an explicit actor and reason, preserves superseded evidence in audit history, returns to `verifying`, and requires fresh verification and closing approval. Current accepted evidence cannot be reopened. `change adopt` enables SDD for an existing project and can import active/canonical OpenSpec or Spec Kit artifacts.
+Definition and closing approvals are mandatory and digest-bound. Use `change reopen` when accepted delivery inputs became stale but the approved definition is unchanged. Use `change correct` when review proves an accepted `public_contract` or `architecture_risk` answer was wrong. Correction requires an explicit actor and reason, preserves the original answer and prior evidence in an append-only ledger, can only add newly required artifacts, returns to `verifying`, and requires fresh definition approval, verification, and closing approval. Correct/show/status expose both original and effective values in text and global `--json` output. Unsupported fields, values other than `yes`/`no`, no-op corrections, incomplete audit inputs, and non-accepted workspaces fail without mutation. Neither recovery path reapplies an already-canonical semantic delta. `change adopt` enables SDD for an existing project and can import active/canonical OpenSpec or Spec Kit artifacts.
 
 ### `lifecycle`
 

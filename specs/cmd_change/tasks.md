@@ -9,3 +9,4 @@ spec: cmd_change.spec.md
 - [x] Add consistent error handling
 - [x] Complete release validation
 - [x] Dispatch audited stale-accepted reopen in text and JSON formats
+- [x] Dispatch accepted metadata correction with equivalent text and JSON projections

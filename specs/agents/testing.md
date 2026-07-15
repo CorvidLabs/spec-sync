@@ -11,6 +11,7 @@ spec: agents.spec.md
 | `src/agents.rs` (install/idempotency) | cargo test agents:: | `install_claude_creates_skill_and_command`, `install_cursor_command_has_no_frontmatter`, `install_codex_creates_skill_only`, `install_gemini_creates_skill_and_command`, `install_is_idempotent`, `install_does_not_rewrite_unchanged_content` |
 | `src/agents.rs` (content-aware reinstall) | cargo test agents:: | `install_overwrites_stale_skill_content`, `install_overwrites_stale_command_content` |
 | `src/agents.rs` (status/uninstall) | cargo test agents:: | `is_installed_returns_false_for_empty_dir`, `uninstall_returns_false_when_not_installed`, `uninstall_claude_removes_skill_and_command`, `uninstall_preserves_sibling_commands`, `uninstall_cursor_flat_file_does_not_touch_commands_dir`, `uninstall_gemini_removes_skill_and_command`, `uninstall_codex_removes_skill_only` |
+| `src/agents.rs` (create-spec parsing/parity) | cargo test agents:: | `create_spec_commands_classify_the_complete_remaining_input`, `checked_in_create_spec_commands_match_generated_assets`; covers `REQ-agents-003` flag-position, full-input classification, checked-in byte parity, and reinstall idempotency |
 
 ## Manual Testing
 

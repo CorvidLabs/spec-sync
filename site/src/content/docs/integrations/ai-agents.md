@@ -37,6 +37,8 @@ Claude Code, Cursor, Codex, and Gemini receive a native project skill. Claude, C
 
 Changing agents does not change lifecycle state or artifact semantics because the CLI remains the shared workflow engine.
 
+The create-spec commands classify the complete input after removing standalone supported flags. A bare identifier stays unchanged (`--minimal billing` and `billing --minimal` both select `billing`), while free text keeps its full meaning (`I need CSV export --minimal` derives a short name such as `csv-export`, never `I`). Re-run `specsync agents install` after upgrading SpecSync to refresh stale generated command content.
+
 ## MCP Server
 
 ```bash

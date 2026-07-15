@@ -1,0 +1,124 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784071006,
+      "digest": "33abf8f7cbcf0f6070135299382fb5b5e85a2914b0f61ae337e6f0b59b9b547b",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784073076,
+      "digest": "d31d94603a4aa76595f95c85ad718f1898a8586918fc8dd4a7ba76ac90c49836",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784073972,
+      "digest": "e261f8783d73a6d25d1c9205b6aeab0a1487958a342b7e2ab95335c3ba68b6c0",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784074092,
+      "digest": "a7a985d243bc71ea57e5d96ec7c9876df92022185c38b433545ff746680824eb",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784076315,
+      "digest": "5f2e22bafdea427876540331092de623c6af89a977246cee907e8f4e80d7aba8",
+      "note": "Fresh closing approval after 1,597 unit and 214 integration tests passed at 74c6257, with stable-Rust, boolean-alias, and prior-definition tamper regressions."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784076563,
+      "digest": "6d69f3bc95d6bb7ce922bdd8e0f4ccfbf73baab75dc145d457e175fcd37e61ca",
+      "note": "Fresh evidence-only closing approval after 1,597 unit and 214 integration tests passed at 407a197 following canonical EOF normalization; no semantic delivery changes."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re",
+      "actor": "user:0xLeif",
+      "reason": "Actionable review found missing prior-definition digest validation and stable-Rust portability in the accepted correction implementation; reopen solely to verify those corrections without replaying canonical deltas.",
+      "timestamp": 1784076119,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784074092,
+        "digest": "a7a985d243bc71ea57e5d96ec7c9876df92022185c38b433545ff746680824eb",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784074002,
+        "commit": "6a79c75da5ac7b93c5464e77cc6dea6335bfb33a",
+        "contract_digest": "e261f8783d73a6d25d1c9205b6aeab0a1487958a342b7e2ab95335c3ba68b6c0",
+        "workspace_digest": "675ee034ab8874ae0157352f986624cadc687b261740b5fed6c176ca4fbe1831",
+        "acceptance_input_digest": "ac9a986ec974e67ca4333b881ef16f7bbc3bd9528ba043c6040f1753255fe9e7",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-032",
+          "REQ-cli-args-004",
+          "REQ-cmd-change-002"
+        ]
+      },
+      "stale_acceptance_input_digest": "ac9a986ec974e67ca4333b881ef16f7bbc3bd9528ba043c6040f1753255fe9e7",
+      "current_acceptance_input_digest": "e047bfca67986bc268db2bd8b0af8e9632800eaf1b4246c68627880fe0c30645"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re",
+      "actor": "user:0xLeif",
+      "reason": "Canonical requirement companion EOF normalization changed accepted delivery inputs after reacceptance; reopen solely for fresh aggregate verification without semantic changes.",
+      "timestamp": 1784076464,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784076315,
+        "digest": "5f2e22bafdea427876540331092de623c6af89a977246cee907e8f4e80d7aba8",
+        "note": "Fresh closing approval after 1,597 unit and 214 integration tests passed at 74c6257, with stable-Rust, boolean-alias, and prior-definition tamper regressions."
+      },
+      "prior_verification": {
+        "timestamp": 1784076260,
+        "commit": "74c62579d304a80ede9b76b13a4ec48a1941e484",
+        "contract_digest": "e261f8783d73a6d25d1c9205b6aeab0a1487958a342b7e2ab95335c3ba68b6c0",
+        "workspace_digest": "56917e83a0f092acae2cb0340d8a4ed4ac5736ea3bc5a076adaf05811a90e9a0",
+        "acceptance_input_digest": "e047bfca67986bc268db2bd8b0af8e9632800eaf1b4246c68627880fe0c30645",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-032",
+          "REQ-cli-args-004",
+          "REQ-cmd-change-002"
+        ]
+      },
+      "stale_acceptance_input_digest": "e047bfca67986bc268db2bd8b0af8e9632800eaf1b4246c68627880fe0c30645",
+      "current_acceptance_input_digest": "e55317d578912a33cb6cce51037276141bba114d0e8024461a52ead953df7542"
+    }
+  ]
+}

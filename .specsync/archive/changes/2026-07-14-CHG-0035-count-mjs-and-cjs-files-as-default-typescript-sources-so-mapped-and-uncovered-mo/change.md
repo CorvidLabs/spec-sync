@@ -1,6 +1,6 @@
 ---
 id: CHG-0035-count-mjs-and-cjs-files-as-default-typescript-sources-so-mapped-and-uncovered-mo
-state: accepted
+state: archived
 type: bug_fix
 base_commit: a9422aedbe12a3c50787c1fcc074749232f25dfe
 ---

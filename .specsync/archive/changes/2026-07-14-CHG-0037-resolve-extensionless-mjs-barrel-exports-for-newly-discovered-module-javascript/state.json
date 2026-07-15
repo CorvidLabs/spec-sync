@@ -5,11 +5,11 @@
   "title": "Resolve extensionless mjs barrel exports for newly discovered module JavaScript sources",
   "description": "Resolve extensionless mjs barrel exports for newly discovered module JavaScript sources",
   "kind": "bug_fix",
-  "state": "accepted",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "dac64a1bff31cc5af0b590c8a800468440048e1e",
   "created_at": 1784058230,
-  "updated_at": 1784058432,
+  "updated_at": 1784072968,
   "affected_specs": [
     "exports"
   ],

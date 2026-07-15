@@ -28,3 +28,4 @@ spec: change.spec.md
 - [x] Detect recursive Cargo verification through safe explicit manifest selection
 - [x] Cover exact canonical companion files without directory overreach
 - [x] Preserve prose acceptance criteria with question-aware list parsing
+- [x] Add audited append-only correction for supported accepted interview metadata

@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1784074131,
+      "commit": "75ec85bf1ecfce4a862e6ff473ef7a41faf3e455",
+      "contract_digest": "985c98d156c664d2562245d4b229e74efe8def1cdc723cf60576f2d09b04f1ab",
+      "workspace_digest": "3dbe996025198c5858813370e83a0c6e6ba75202ec6182fc0a2d019cedfd1a3b",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-003"
+      ]
+    },
+    {
+      "timestamp": 1784075396,
+      "commit": "b75d106c95087415cc9fe5c5fa40faacb0e95d2d",
+      "contract_digest": "985c98d156c664d2562245d4b229e74efe8def1cdc723cf60576f2d09b04f1ab",
+      "workspace_digest": "4bf219d7f704beb430ca8cc16a847ad67343a45009839eb260e1bc4c430133ef",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-003"
+      ]
+    },
+    {
+      "timestamp": 1784075562,
+      "commit": "9b7e291f52ec6387a1a80d916df1647ada8d3c23",
+      "contract_digest": "985c98d156c664d2562245d4b229e74efe8def1cdc723cf60576f2d09b04f1ab",
+      "workspace_digest": "4bf219d7f704beb430ca8cc16a847ad67343a45009839eb260e1bc4c430133ef",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-003"
+      ]
+    },
+    {
+      "timestamp": 1784076303,
+      "commit": "74c62579d304a80ede9b76b13a4ec48a1941e484",
+      "contract_digest": "985c98d156c664d2562245d4b229e74efe8def1cdc723cf60576f2d09b04f1ab",
+      "workspace_digest": "56917e83a0f092acae2cb0340d8a4ed4ac5736ea3bc5a076adaf05811a90e9a0",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-003"
+      ]
+    },
+    {
+      "timestamp": 1784076543,
+      "commit": "407a1972d1269dac93cf13a8e1e293138f70595e",
+      "contract_digest": "985c98d156c664d2562245d4b229e74efe8def1cdc723cf60576f2d09b04f1ab",
+      "workspace_digest": "8f6f01f12d3e1d5bcc765c1b5f7a2acbcd7be134efc2b0540c253058df42369e",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-003"
+      ]
+    }
+  ]
+}

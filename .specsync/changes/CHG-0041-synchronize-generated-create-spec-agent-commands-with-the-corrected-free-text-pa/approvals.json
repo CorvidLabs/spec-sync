@@ -1,0 +1,163 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784071006,
+      "digest": "b5a6d2fd5865067672c316052d716599922ce69e47a82b3dea3003e35da666f3",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784073077,
+      "digest": "1f76722a654d870231244b708ea7287f281876397bb45b2d23eb3da059df1f85",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784073972,
+      "digest": "985c98d156c664d2562245d4b229e74efe8def1cdc723cf60576f2d09b04f1ab",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784074201,
+      "digest": "bbe6d66fe085219c515e01ede1c091391006dc3a648456d2a5282c673da64e36",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784075572,
+      "digest": "12dbd5700bb1cf34f13686998842a1f2fe963e487914af5a23593c7ea0a10af6",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784076317,
+      "digest": "ae09e669a1d2f49df1e2c0f59413485654b45b679cf90fa7f2c4034b76eee0da",
+      "note": "Fresh closing approval after 1,597 unit and 214 integration tests passed at 74c6257, including Windows CRLF and published-crate fixture portability coverage."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784076565,
+      "digest": "06c447d24f72f7b690ea5cedaa5ad49bb22587438a005874ba994dd923c13e6c",
+      "note": "Fresh evidence-only closing approval after 1,597 unit and 214 integration tests passed at 407a197 following canonical EOF normalization; no semantic delivery changes."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0041-synchronize-generated-create-spec-agent-commands-with-the-corrected-free-text-pa",
+      "actor": "0xLeif",
+      "reason": "The Windows CRLF parity fix legitimately updates its accepted src/agents.rs input.",
+      "timestamp": 1784075357,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784074201,
+        "digest": "bbe6d66fe085219c515e01ede1c091391006dc3a648456d2a5282c673da64e36",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784074131,
+        "commit": "75ec85bf1ecfce4a862e6ff473ef7a41faf3e455",
+        "contract_digest": "985c98d156c664d2562245d4b229e74efe8def1cdc723cf60576f2d09b04f1ab",
+        "workspace_digest": "3dbe996025198c5858813370e83a0c6e6ba75202ec6182fc0a2d019cedfd1a3b",
+        "acceptance_input_digest": "fbbfdbb0a21d565f13466356806279860420fb483140dcc7ccc9e00c9e98ff48",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-agents-003"
+        ]
+      },
+      "stale_acceptance_input_digest": "fbbfdbb0a21d565f13466356806279860420fb483140dcc7ccc9e00c9e98ff48",
+      "current_acceptance_input_digest": "d7104ea7f0d3b59e122dbdd4e273172d2a43d61f8cb0ea08224854f7b03aca90"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0041-synchronize-generated-create-spec-agent-commands-with-the-corrected-free-text-pa",
+      "actor": "user:0xLeif",
+      "reason": "Actionable review found crate packaging could not compile the repository-fixture parity test, and Windows line endings changed the accepted agent input; reopen solely for fresh native verification.",
+      "timestamp": 1784076121,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784075572,
+        "digest": "12dbd5700bb1cf34f13686998842a1f2fe963e487914af5a23593c7ea0a10af6",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784075562,
+        "commit": "9b7e291f52ec6387a1a80d916df1647ada8d3c23",
+        "contract_digest": "985c98d156c664d2562245d4b229e74efe8def1cdc723cf60576f2d09b04f1ab",
+        "workspace_digest": "4bf219d7f704beb430ca8cc16a847ad67343a45009839eb260e1bc4c430133ef",
+        "acceptance_input_digest": "d7104ea7f0d3b59e122dbdd4e273172d2a43d61f8cb0ea08224854f7b03aca90",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-agents-003"
+        ]
+      },
+      "stale_acceptance_input_digest": "d7104ea7f0d3b59e122dbdd4e273172d2a43d61f8cb0ea08224854f7b03aca90",
+      "current_acceptance_input_digest": "1f0c0d243907b56007a2de9d9e8790e2c8023882b6f8a24f0b6949444864bbc0"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0041-synchronize-generated-create-spec-agent-commands-with-the-corrected-free-text-pa",
+      "actor": "user:0xLeif",
+      "reason": "Canonical agent requirement companion EOF normalization changed accepted delivery inputs after reacceptance; reopen solely for fresh aggregate verification without semantic changes.",
+      "timestamp": 1784076467,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784076317,
+        "digest": "ae09e669a1d2f49df1e2c0f59413485654b45b679cf90fa7f2c4034b76eee0da",
+        "note": "Fresh closing approval after 1,597 unit and 214 integration tests passed at 74c6257, including Windows CRLF and published-crate fixture portability coverage."
+      },
+      "prior_verification": {
+        "timestamp": 1784076303,
+        "commit": "74c62579d304a80ede9b76b13a4ec48a1941e484",
+        "contract_digest": "985c98d156c664d2562245d4b229e74efe8def1cdc723cf60576f2d09b04f1ab",
+        "workspace_digest": "56917e83a0f092acae2cb0340d8a4ed4ac5736ea3bc5a076adaf05811a90e9a0",
+        "acceptance_input_digest": "1f0c0d243907b56007a2de9d9e8790e2c8023882b6f8a24f0b6949444864bbc0",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-agents-003"
+        ]
+      },
+      "stale_acceptance_input_digest": "1f0c0d243907b56007a2de9d9e8790e2c8023882b6f8a24f0b6949444864bbc0",
+      "current_acceptance_input_digest": "0ed4d9c8cc8d77fcf2af4c48e79334a5c7a0a03b2468e32655fd7436b9fb62c1"
+    }
+  ]
+}

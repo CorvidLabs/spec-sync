@@ -5,10 +5,10 @@
   "title": "Make lifecycle verification workflows evaluate the exact pull-request head while preserving synthetic-merge validation in ordinary build and test lanes",
   "description": "Make lifecycle verification workflows evaluate the exact pull-request head while preserving synthetic-merge validation in ordinary build and test lanes",
   "kind": "operations",
-  "state": "implementing",
+  "state": "verifying",
   "base_commit": "03aa191badb0049986d39aaebc7dec4855ce850f",
   "created_at": 1784102567,
-  "updated_at": 1784102672,
+  "updated_at": 1784104701,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/ci.yml",

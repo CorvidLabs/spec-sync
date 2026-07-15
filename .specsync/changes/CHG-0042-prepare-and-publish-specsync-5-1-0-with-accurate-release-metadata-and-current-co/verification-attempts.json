@@ -120,6 +120,21 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1784105235,
+      "commit": "39404bf042ce7829f04bf7cb3d58845ad7670843",
+      "contract_digest": "99ec482ef920dec58348d788b3d134726f7475d4a01517adf8a155be6ff1a611",
+      "workspace_digest": "5f83bde8b510808f2ccd49d613a579feb5b29f3d6aabab076709216b8e760c08",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

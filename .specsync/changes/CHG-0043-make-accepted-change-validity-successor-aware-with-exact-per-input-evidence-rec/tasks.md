@@ -75,36 +75,36 @@ artifact: tasks
 - [x] Resolve and fingerprint the environment-aware effective index and actual split dependency.
 - [x] Reject unresolved stages only for selected candidates while validating global index framing.
 - [x] Add injected command failure, alternate-index mutation, overflow, and scoped-stage regressions.
-- [ ] Distinguish an affirmative plain non-repository from operational `rev-parse` failures before selecting non-Git evidence.
-- [ ] Fail closed with bounded diagnostics when Git markers or permission, configuration, corruption, ownership, or dubious-repository errors make detection inconclusive.
-- [ ] Add plain-directory and broken-repository detection regressions and pass focused plus full relevant local gates.
-- [ ] Bind Git and non-Git path discovery to the same bounded retry generation as payload capture.
-- [ ] Compare pre/post inventories and immutable candidate snapshots so tracked or untracked additions and removals cannot escape evidence.
-- [ ] Add deterministic discovery/capture mutation regressions for tracked, untracked, Git, and non-Git governed paths.
-- [ ] Add a justified test-injectable wall-clock deadline to bounded Git subprocess execution.
-- [ ] Guarantee child kill/wait and pipe-thread cleanup across timeout, overflow, pipe acquisition, polling, and panic/error exits.
-- [ ] Add silent-hang timeout/reap and injected cleanup-failure regressions.
-- [ ] Encode every exact Git candidate as a top-level literal pathspec and every discovery scope with explicit literal recursion semantics.
-- [ ] Apply literal pathspec handling consistently to discovery, dirty-state, visibility, fsmonitor, and attribute commands.
-- [ ] Add tracked, dirty, untracked, and scoped regressions for glob metacharacters and leading-colon filenames without unrelated over-selection.
-- [ ] Query stage/object metadata only in bounded literal exact-candidate batches and aggregate caps across batches.
-- [ ] Require exactly one stage-zero entry for each tracked candidate, reject relevant unresolved stages, and never parse unrelated index entries.
-- [ ] Add a huge-unrelated-index narrow-candidate regression proving unrelated index scale cannot block scoped evidence.
-- [ ] Enumerate definition delta artifacts fail-closed with bounded errors for unreadable directories, entry failures, invalid names, and racing entries.
-- [ ] Bind definition inventory enumeration to the same immutable candidate capture and add platform-feasible failure regressions.
-- [ ] Prune volatile Git results and filesystem subtrees during streaming discovery before descent and inventory bounds.
-- [ ] Preserve explicitly governed exact delivery paths while proving huge or unreadable volatile trees cannot block nonvolatile evidence.
-- [ ] Detect repository mode once per digest operation and carry an explicit repository identity token through discovery and capture.
-- [ ] Revalidate the same repository/worktree linkage before return and fail closed on Git-to-non-Git or worktree-link mutation.
-- [ ] Add deterministic repository-mode and worktree-identity mutation regressions.
-- [ ] Fingerprint effective and shared index dependencies with metadata-first bounded streaming rather than unbounded reads.
-- [ ] Reject symlink and non-regular index dependencies, enforce the cumulative cap before allocation, and compare pre/post file identity.
-- [ ] Add oversized, symlinked, non-regular, and racing index dependency regressions.
-- [ ] Validate `check-attr -z` output as the exact requested path/attribute Cartesian set with complete NUL framing.
-- [ ] Reject malformed, empty, duplicate, missing, extra, wrong-path, and wrong-attribute records and add injected parser regressions.
-- [ ] Include `corrections.json` in regular-file immutable evidence before parsing and use its captured generated-file mode.
-- [ ] Reject correction-ledger symlink, gitlink, missing/non-file, and external-target topology and add regressions.
-- [ ] Discover archive-subtree paths through scoped literal generation-bound inventory rather than full-project discovery.
-- [ ] Prove huge or nonportable unrelated inventory cannot block an archive-subtree snapshot.
-- [ ] Resolve, normalize, and explicitly replay only the checkout/diff allowlist `core.autocrlf`, `core.eol`, `core.symlinks`, and `core.filemode`.
-- [ ] Add text/eol, materialized-symlink, executable-mode, boolean-spelling, and platform-safe checkout-semantics regressions while retaining all redirection/hook scrubbing.
+- [x] Distinguish an affirmative plain non-repository from operational `rev-parse` failures before selecting non-Git evidence.
+- [x] Fail closed with bounded diagnostics when Git markers or permission, configuration, corruption, ownership, or dubious-repository errors make detection inconclusive.
+- [x] Add plain-directory and broken-repository detection regressions and pass focused plus full relevant local gates.
+- [x] Bind Git and non-Git path discovery to the same bounded retry generation as payload capture.
+- [x] Compare pre/post inventories and immutable candidate snapshots so tracked or untracked additions and removals cannot escape evidence.
+- [x] Add deterministic discovery/capture mutation regressions for tracked, untracked, Git, and non-Git governed paths.
+- [x] Add a justified test-injectable wall-clock deadline to bounded Git subprocess execution.
+- [x] Guarantee child kill/wait and pipe-thread cleanup across timeout, overflow, pipe acquisition, polling, and panic/error exits.
+- [x] Add silent-hang timeout/reap and injected cleanup-failure regressions.
+- [x] Encode every exact Git candidate as a top-level literal pathspec and every discovery scope with explicit literal recursion semantics.
+- [x] Apply literal pathspec handling consistently to discovery, dirty-state, visibility, fsmonitor, and attribute commands.
+- [x] Add tracked, dirty, untracked, and scoped regressions for glob metacharacters and leading-colon filenames without unrelated over-selection.
+- [x] Query stage/object metadata only in bounded literal exact-candidate batches and aggregate caps across batches.
+- [x] Require exactly one stage-zero entry for each tracked candidate, reject relevant unresolved stages, and never parse unrelated index entries.
+- [x] Add a huge-unrelated-index narrow-candidate regression proving unrelated index scale cannot block scoped evidence.
+- [x] Enumerate definition delta artifacts fail-closed with bounded errors for unreadable directories, entry failures, invalid names, and racing entries.
+- [x] Bind definition inventory enumeration to the same immutable candidate capture and add platform-feasible failure regressions.
+- [x] Prune volatile Git results and filesystem subtrees during streaming discovery before descent and inventory bounds.
+- [x] Preserve explicitly governed exact delivery paths while proving huge or unreadable volatile trees cannot block nonvolatile evidence.
+- [x] Detect repository mode once per digest operation and carry an explicit repository identity token through discovery and capture.
+- [x] Revalidate the same repository/worktree linkage before return and fail closed on Git-to-non-Git or worktree-link mutation.
+- [x] Add deterministic repository-mode and worktree-identity mutation regressions.
+- [x] Fingerprint effective and shared index dependencies with metadata-first bounded streaming rather than unbounded reads.
+- [x] Reject symlink and non-regular index dependencies, enforce the cumulative cap before allocation, and compare pre/post file identity.
+- [x] Add oversized, symlinked, non-regular, and racing index dependency regressions.
+- [x] Validate `check-attr -z` output as the exact requested path/attribute Cartesian set with complete NUL framing.
+- [x] Reject malformed, empty, duplicate, missing, extra, wrong-path, and wrong-attribute records and add injected parser regressions.
+- [x] Include `corrections.json` in regular-file immutable evidence before parsing and use its captured generated-file mode.
+- [x] Reject correction-ledger symlink, gitlink, missing/non-file, and external-target topology and add regressions.
+- [x] Discover archive-subtree paths through scoped literal generation-bound inventory rather than full-project discovery.
+- [x] Prove huge or nonportable unrelated inventory cannot block an archive-subtree snapshot.
+- [x] Resolve, normalize, and explicitly replay only the checkout/diff allowlist `core.autocrlf`, `core.eol`, `core.symlinks`, and `core.filemode`.
+- [x] Add text/eol, materialized-symlink, executable-mode, boolean-spelling, and platform-safe checkout-semantics regressions while retaining all redirection/hook scrubbing.

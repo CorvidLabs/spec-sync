@@ -146,7 +146,34 @@
       "timestamp": 1784117749,
       "digest": "801f8b57af036096c4a7c8a05f942f522bef53f07a54c83c5f678c34e58c91d3",
       "note": "Approve the definitive Talon audit scope: repository identity, generation-bound discovery, bounded subprocess and index handling, literal exact pathspecs, strict attribute responses, correction topology, archive scoping, volatile pruning, and the exact checkout-semantics allowlist."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784122581,
+      "digest": "ca20269a7891ba00176f1b676fb341062f68acb57baca697b36bf773e1ce274a",
+      "note": "Reapprove completed final Git evidence audit fixes after exact local gates."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784122676,
+      "digest": "f794516dc9dec085ec5e1807822671875f7864f2d1dbbd5a8317d27e0ce36ffc",
+      "note": "Record portable SpecSync 5.0.1 definition approval after final Git evidence audit gates."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784122785,
+      "digest": "ca20269a7891ba00176f1b676fb341062f68acb57baca697b36bf773e1ce274a",
+      "note": "Record current SpecSync definition approval while preserving the portable 5.0.1 approval."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784122864,
+      "digest": "f794516dc9dec085ec5e1807822671875f7864f2d1dbbd5a8317d27e0ce36ffc",
+      "note": "Finalize portable SpecSync 5.0.1 definition approval after the current-engine approval."
     }
-  ],
-  "reopenings": []
+  ]
 }

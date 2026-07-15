@@ -358,6 +358,47 @@
       },
       "stale_acceptance_input_digest": "731b8dedc7361a42d912c6dae617a4d7f7c2d1f99d4bb73b89109f948998eae6",
       "current_acceptance_input_digest": "9b6c55554878ca83d22a85166c9f3ebdf3fe0ee33b4cb893a3fb7200177c38a5"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+      "actor": "0xLeif",
+      "reason": "Merged main legitimately updates its accepted delivery inputs.",
+      "timestamp": 1784077708,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784069837,
+        "digest": "7a38e02ec5800f95e55ac216879223dcc79f6b9e629e5d6bdf4ebecce149a363",
+        "note": "Closing approval after the reviewed allocation correction passed 1,589 unit tests, 214 integration tests, the complete cross-platform hosted matrix, CodeQL, and Trust."
+      },
+      "prior_verification": {
+        "timestamp": 1784069827,
+        "commit": "d5da7f059cc7699e020af7be0ce1141d3b1026a2",
+        "contract_digest": "2c99f36762570d09587e407bbe56e755365bc0cd2c965529ef904370daec19e1",
+        "workspace_digest": "a4f6cb68be450e60d49fd99fb22f4e7ce8841998db1c7130282509c031759be7",
+        "acceptance_input_digest": "9b6c55554878ca83d22a85166c9f3ebdf3fe0ee33b4cb893a3fb7200177c38a5",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-commands-002",
+          "REQ-comment-002",
+          "REQ-config-004",
+          "REQ-output-002",
+          "REQ-types-003",
+          "REQ-validator-007"
+        ]
+      },
+      "stale_acceptance_input_digest": "9b6c55554878ca83d22a85166c9f3ebdf3fe0ee33b4cb893a3fb7200177c38a5",
+      "current_acceptance_input_digest": "e873d1326461ca39ab8a66eeb69d6fc000531e3845bbb01fa6e431647379c788"
     }
   ]
 }

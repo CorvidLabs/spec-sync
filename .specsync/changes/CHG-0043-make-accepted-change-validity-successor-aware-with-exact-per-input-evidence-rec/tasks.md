@@ -46,17 +46,17 @@ artifact: tasks
 - [x] Enforce definition artifact limits on authoritative signed bytes with safe dirty/untracked pre-checks.
 - [x] Add deterministic regressions for every audited index, attribute, topology, and size boundary.
 - [x] Audit attribute inspection for bidirectional pipe-capacity deadlock on large tracked inventories.
-- [ ] Audit fsmonitor-valid visibility, candidate scoping, index-generation stability, subprocess cleanup, ident transformation, and sparse archive boundaries.
-- [ ] Process NUL-delimited attribute checks in bounded deterministic batches with fail-closed child-process handling.
-- [ ] Scope all visibility and attribute decisions to exact evidence-relevant candidate paths.
-- [ ] Scope content-conversion attribute rejection to candidate regular-file topology without blocking symlink or gitlink evidence.
-- [ ] Reject materialized fsmonitor-valid paths and active ident transformations before canonical index substitution.
-- [ ] Bind centralized Git evidence to one stable index and split-index generation with bounded retry.
-- [ ] Bound candidate count, aggregate path bytes, attribute batches, and NUL output parsing before payload and owner work.
-- [ ] Include sparse-absent tracked entries in legacy archive and baseline evidence and classify dirty archived symlinks from current topology.
-- [ ] Reject dirty or untracked authority-baseline absence without retaining a stale definition binding.
-- [ ] Require selected definition artifacts to be regular files and reject symlinks before payload or size reads.
-- [ ] Add a regression inventory exceeding pipe capacity and prove deterministic completion plus late-path rejection.
-- [ ] Add excluded-path, fsmonitor-valid, ident-expansion, subprocess-failure, index-mutation, oversized-input/output, sparse archive, and deleted-baseline regressions.
-- [ ] Add clean, dirty, untracked, external-target, and oversized-referent definition-artifact symlink regressions.
-- [ ] Pass focused, format, lint, type-check, and full local test gates for the batching correction.
+- [x] Audit fsmonitor-valid visibility, candidate scoping, index-generation stability, subprocess cleanup, ident transformation, and sparse archive boundaries.
+- [x] Process NUL-delimited attribute checks in bounded deterministic batches with fail-closed child-process handling.
+- [x] Scope all visibility and attribute decisions to exact evidence-relevant candidate paths.
+- [x] Scope content-conversion attribute rejection to candidate regular-file topology without blocking symlink or gitlink evidence.
+- [x] Reject materialized fsmonitor-valid paths and active ident transformations before canonical index substitution.
+- [x] Bind centralized Git evidence to one stable index and split-index generation with bounded retry.
+- [x] Bound candidate count, aggregate path bytes, attribute batches, and NUL output parsing before payload and owner work.
+- [x] Include sparse-absent tracked entries in legacy archive and baseline evidence and classify dirty archived symlinks from current topology.
+- [x] Reject dirty or untracked authority-baseline absence without retaining a stale definition binding.
+- [x] Require selected definition artifacts to be regular files and reject symlinks before payload or size reads.
+- [x] Add a regression inventory exceeding pipe capacity and prove deterministic completion plus late-path rejection.
+- [x] Add excluded-path, fsmonitor-valid, ident-expansion, subprocess-failure, index-mutation, oversized-input/output, sparse archive, and deleted-baseline regressions.
+- [x] Add clean, dirty, untracked, external-target, and oversized-referent definition-artifact symlink regressions.
+- [x] Pass focused, format, lint, type-check, and full local test gates for the batching correction.

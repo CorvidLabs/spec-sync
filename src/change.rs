@@ -19,6 +19,10 @@ const SEQUENCE_PATH: &str = ".specsync/change-sequence.json";
 const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
 const CORRECTIONS_FILE: &str = "corrections.json";
 const MAX_CHANGE_ARTIFACT_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_GIT_EVIDENCE_PATHS: usize = 100_000;
+const MAX_GIT_EVIDENCE_PATH_BYTES: usize = 64 * 1024 * 1024;
+const GIT_ATTRIBUTE_BATCH_PATHS: usize = 256;
+const MAX_GIT_ATTRIBUTE_OUTPUT_BYTES: usize = 4 * 1024 * 1024;
 const CANONICAL_SPEC_COMPANIONS: [&str; 5] = [
     "requirements.md",
     "tasks.md",
@@ -30,9 +34,17 @@ static EFFECTIVE_CONTRACT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static TRUSTED_CORRECTION_HISTORY_CACHE: OnceLock<Mutex<BTreeSet<String>>> = OnceLock::new();
 static GIT_BLOB_CACHE: OnceLock<Mutex<BTreeMap<String, Vec<u8>>>> = OnceLock::new();
 
+#[derive(Debug)]
 struct GitWorktreeState {
     modified: BTreeSet<String>,
     sparse_absent: BTreeSet<String>,
+}
+
+#[derive(Debug)]
+struct GitEvidence {
+    modes: BTreeMap<String, u32>,
+    objects: BTreeMap<String, String>,
+    worktree: Option<GitWorktreeState>,
 }
 
 const DEFINITION_DIGEST_DOMAIN: &[u8] = b"specsync.definition-digest.v2";
@@ -1387,15 +1399,28 @@ fn bind_legacy_archive_baseline_authority(
     record: &mut ChangeRecord,
 ) -> Result<(), String> {
     let path = root.join(LEGACY_BASELINE_PATH);
-    if !path.exists() {
+    let candidates = BTreeSet::from([LEGACY_BASELINE_PATH.to_string()]);
+    let evidence = git_evidence(root, &candidates)?;
+    let modified = evidence.worktree.as_ref().map(|state| &state.modified);
+    let clean_tracked = evidence.objects.contains_key(LEGACY_BASELINE_PATH)
+        && modified.is_some_and(|paths| !paths.contains(LEGACY_BASELINE_PATH));
+    if !path.exists() && !clean_tracked {
+        if record.legacy_archive_baseline_digest.is_some() {
+            return Err(
+                "legacy archive baseline is missing or dirty; stale binding cannot be retained"
+                    .into(),
+            );
+        }
         return Ok(());
     }
-    let git_objects = git_index_objects(root)?;
-    let worktree = git_worktree_state(root)?;
-    let modified = worktree.as_ref().map(|state| &state.modified);
-    let baseline_bytes =
-        portable_file_bytes(root, LEGACY_BASELINE_PATH, &path, &git_objects, modified)
-            .map_err(|error| format!("failed to read legacy archive baseline: {error}"))?;
+    let baseline_bytes = portable_file_bytes(
+        root,
+        LEGACY_BASELINE_PATH,
+        &path,
+        &evidence.objects,
+        modified,
+    )
+    .map_err(|error| format!("failed to read legacy archive baseline: {error}"))?;
     let (baseline, digest) = validate_legacy_archive_baseline_bytes(&baseline_bytes)?;
     if baseline.authority_change_id == record.id {
         if !record
@@ -4757,15 +4782,25 @@ fn definition_digest_from_record_bytes(
         files.push((strict_portable_project_path(root, &path)?, path));
     }
     files.sort_by(|left, right| left.0.cmp(&right.0));
-    let git_modes = git_index_modes(root)?;
-    let git_objects = git_index_objects(root)?;
-    let worktree = git_worktree_state(root)?;
-    let modified = worktree.as_ref().map(|state| &state.modified);
+    let candidates = files.iter().map(|(path, _)| path.clone()).collect();
+    let evidence = git_evidence(root, &candidates)?;
+    let modified = evidence.worktree.as_ref().map(|state| &state.modified);
     for (relative, path) in files {
-        let clean_tracked = git_objects.contains_key(&relative)
+        let clean_tracked = evidence.objects.contains_key(&relative)
             && modified.is_some_and(|modified| !modified.contains(&relative));
+        if (clean_tracked && evidence.modes.get(&relative) != Some(&0o100644))
+            || (!clean_tracked
+                && fs::symlink_metadata(&path)
+                    .map(|metadata| !metadata.is_file())
+                    .unwrap_or(true))
+        {
+            return Err(format!(
+                "selected definition artifact is not a regular file: {}",
+                path.display()
+            ));
+        }
         if !clean_tracked {
-            let metadata = fs::metadata(&path)
+            let metadata = fs::symlink_metadata(&path)
                 .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
             if metadata.len() > MAX_CHANGE_ARTIFACT_BYTES {
                 return Err(format!(
@@ -4775,7 +4810,7 @@ fn definition_digest_from_record_bytes(
                 ));
             }
         }
-        let content = portable_file_bytes(root, &relative, &path, &git_objects, modified)
+        let content = portable_file_bytes(root, &relative, &path, &evidence.objects, modified)
             .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
         if content.len() as u64 > MAX_CHANGE_ARTIFACT_BYTES {
             return Err(format!(
@@ -4785,15 +4820,12 @@ fn definition_digest_from_record_bytes(
             ));
         }
         let (kind, mode) = if clean_tracked {
-            let mode = git_modes.get(&relative).copied().unwrap_or(0o100644);
-            let kind: &[u8] = match mode {
-                0o120000 => b"symlink",
-                0o160000 => b"gitlink",
-                _ => b"file",
-            };
-            (kind, mode)
+            (
+                b"file" as &[u8],
+                evidence.modes.get(&relative).copied().unwrap_or(0o100644),
+            )
         } else {
-            digest_file_kind_and_mode(&relative, &path, &git_modes)?
+            digest_file_kind_and_mode(&relative, &path, &evidence.modes)?
         };
         digest.entry(&relative, kind, mode, &content);
     }
@@ -4804,7 +4836,7 @@ fn definition_digest_from_record_bytes(
             corrections: corrections.to_vec(),
         };
         let content = json_content(&ledger)?;
-        let mode = git_modes.get(&relative).copied().unwrap_or(0o100644);
+        let mode = evidence.modes.get(&relative).copied().unwrap_or(0o100644);
         digest.entry(&relative, b"file", mode, content.as_bytes());
     }
     Ok(digest.finish())
@@ -4817,9 +4849,15 @@ fn project_input_digest(root: &Path) -> Result<String, String> {
     };
     paths.sort();
     paths.dedup();
-    let git_modes = git_index_modes(root)?;
-    let git_objects = git_index_objects(root)?;
-    let worktree = git_worktree_state(root)?;
+    let candidates = paths
+        .iter()
+        .filter(|path| !project_input_is_volatile(path))
+        .cloned()
+        .collect();
+    let evidence = git_evidence(root, &candidates)?;
+    let git_modes = evidence.modes;
+    let git_objects = evidence.objects;
+    let worktree = evidence.worktree;
     let modified = worktree.as_ref().map(|state| &state.modified);
     let sparse_absent = worktree
         .as_ref()
@@ -5167,9 +5205,11 @@ fn acceptance_manifest_internal(
     }
     paths.sort();
     paths.dedup();
-    let git_modes = git_index_modes(root)?;
-    let git_objects = git_index_objects(root)?;
-    let worktree = git_worktree_state(root)?;
+    let candidates = paths.iter().cloned().collect();
+    let evidence = git_evidence(root, &candidates)?;
+    let git_modes = evidence.modes;
+    let git_objects = evidence.objects;
+    let worktree = evidence.worktree;
     let modified = worktree.as_ref().map(|state| &state.modified);
     let sparse_absent = worktree
         .as_ref()
@@ -5915,7 +5955,116 @@ fn git_index_objects(root: &Path) -> Result<BTreeMap<String, String>, String> {
     Ok(objects)
 }
 
+fn git_evidence(root: &Path, candidates: &BTreeSet<String>) -> Result<GitEvidence, String> {
+    git_evidence_with_hook(root, candidates, |_, _| {})
+}
+
+fn git_evidence_with_hook<Hook>(
+    root: &Path,
+    candidates: &BTreeSet<String>,
+    mut after_inspection: Hook,
+) -> Result<GitEvidence, String>
+where
+    Hook: FnMut(usize, &Path),
+{
+    if candidates.len() > MAX_GIT_EVIDENCE_PATHS
+        || candidates.iter().map(String::len).sum::<usize>() > MAX_GIT_EVIDENCE_PATH_BYTES
+        || candidates.iter().any(|path| path.len() > 4096)
+    {
+        return Err("Git evidence candidate inventory exceeds deterministic bounds".into());
+    }
+    for attempt in 0..2 {
+        let Some(before) = git_index_fingerprint(root)? else {
+            return Ok(GitEvidence {
+                modes: BTreeMap::new(),
+                objects: BTreeMap::new(),
+                worktree: None,
+            });
+        };
+        let modes = git_index_modes(root)?;
+        let objects = git_index_objects(root)?;
+        let regular = candidates
+            .iter()
+            .filter(|path| {
+                let current = fs::symlink_metadata(root.join(path)).ok();
+                current.as_ref().is_some_and(fs::Metadata::is_file)
+                    || (current.is_none() && matches!(modes.get(*path), Some(0o100644 | 0o100755)))
+            })
+            .cloned()
+            .collect();
+        let worktree = git_worktree_state_for(root, candidates, &regular)?;
+        after_inspection(attempt, root);
+        let after = git_index_fingerprint(root)?
+            .ok_or_else(|| "Git index disappeared during evidence inspection".to_string())?;
+        if before == after {
+            return Ok(GitEvidence {
+                modes,
+                objects,
+                worktree,
+            });
+        }
+        if attempt == 1 {
+            return Err("Git index changed during evidence inspection".into());
+        }
+    }
+    unreachable!()
+}
+
+fn git_index_fingerprint(root: &Path) -> Result<Option<String>, String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--git-dir"])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to locate Git index: {error}"))?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let git_dir = std::str::from_utf8(&output.stdout)
+        .map_err(|_| "non-UTF-8 Git directory".to_string())?
+        .trim();
+    let git_dir = if Path::new(git_dir).is_absolute() {
+        PathBuf::from(git_dir)
+    } else {
+        root.join(git_dir)
+    };
+    let mut paths = vec![git_dir.join("index")];
+    if let Ok(entries) = fs::read_dir(&git_dir) {
+        paths.extend(entries.flatten().filter_map(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .filter(|name| name.starts_with("sharedindex."))
+                .map(|_| entry.path())
+        }));
+    }
+    paths.sort();
+    let mut digest = FramedDigest::new(b"specsync.git-index-generation.v1");
+    for path in paths {
+        match fs::read(&path) {
+            Ok(bytes) => {
+                digest.frame(b"path", path.to_string_lossy().as_bytes());
+                digest.frame(b"bytes", &bytes);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("failed to fingerprint {}: {error}", path.display())),
+        }
+    }
+    Ok(Some(digest.finish()))
+}
+
+#[cfg(test)]
 fn git_worktree_state(root: &Path) -> Result<Option<GitWorktreeState>, String> {
+    let candidates = git_project_paths(root)?.unwrap_or_default();
+    let candidates = candidates.into_iter().collect::<BTreeSet<_>>();
+    let evidence = git_evidence(root, &candidates)?;
+    Ok(evidence.worktree)
+}
+
+fn git_worktree_state_for(
+    root: &Path,
+    candidates: &BTreeSet<String>,
+    regular_candidates: &BTreeSet<String>,
+) -> Result<Option<GitWorktreeState>, String> {
     let output = Command::new("git")
         .args(["diff-files", "--name-only", "-z", "--"])
         .current_dir(root)
@@ -5933,16 +6082,10 @@ fn git_worktree_state(root: &Path) -> Result<Option<GitWorktreeState>, String> {
                 .map_err(|_| "non-UTF-8 Git path cannot be hashed portably".to_string())?;
             strict_portable_relative_path(path)
         })
-        .collect::<Result<BTreeSet<_>, _>>()?;
-
-    let unmerged = Command::new("git")
-        .args(["ls-files", "--unmerged", "-z"])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to inspect unmerged Git index stages: {error}"))?;
-    if !unmerged.status.success() || !unmerged.stdout.is_empty() {
-        return Err("cannot hash a project with unresolved Git index stages".into());
-    }
+        .collect::<Result<BTreeSet<_>, _>>()?
+        .intersection(candidates)
+        .cloned()
+        .collect();
 
     let flags = Command::new("git")
         .args(["ls-files", "-v", "-z"])
@@ -5965,6 +6108,9 @@ fn git_worktree_state(root: &Path) -> Result<Option<GitWorktreeState>, String> {
         let path = std::str::from_utf8(&entry[2..])
             .map_err(|_| "non-UTF-8 Git path cannot be hashed portably".to_string())?;
         let path = strict_portable_relative_path(path)?;
+        if !candidates.contains(&path) {
+            continue;
+        }
         if tag.is_ascii_lowercase() {
             return Err(format!(
                 "Git assume-unchanged hides working-tree evidence for `{path}`"
@@ -5987,63 +6133,127 @@ fn git_worktree_state(root: &Path) -> Result<Option<GitWorktreeState>, String> {
         }
     }
 
-    validate_canonical_git_attributes(root)?;
+    let fsmonitor_config = Command::new("git")
+        .args(["config", "--get", "core.fsmonitor"])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to inspect Git fsmonitor configuration: {error}"))?;
+    if fsmonitor_config.status.success()
+        && !fsmonitor_config.stdout.is_empty()
+        && candidates
+            .iter()
+            .any(|path| fs::symlink_metadata(root.join(path)).is_ok())
+    {
+        return Err("Git core.fsmonitor cannot supply canonical working-tree evidence".into());
+    }
+    let fsmonitor = Command::new("git")
+        .args(["ls-files", "-f", "-z"])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to inspect Git fsmonitor flags: {error}"))?;
+    if !fsmonitor.status.success() {
+        return Err(format!(
+            "failed to inspect Git fsmonitor flags: {}",
+            String::from_utf8_lossy(&fsmonitor.stderr).trim()
+        ));
+    }
+    for entry in fsmonitor
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|entry| !entry.is_empty())
+    {
+        if entry.len() < 3 || entry[1] != b' ' {
+            return Err("invalid `git ls-files -f` output".into());
+        }
+        let path = std::str::from_utf8(&entry[2..])
+            .map_err(|_| "non-UTF-8 Git path cannot be hashed portably".to_string())?;
+        let path = strict_portable_relative_path(path)?;
+        if candidates.contains(&path)
+            && entry[0].is_ascii_lowercase()
+            && fs::symlink_metadata(root.join(&path)).is_ok()
+        {
+            return Err(format!(
+                "Git fsmonitor-valid hides working-tree evidence for `{path}`"
+            ));
+        }
+    }
+
+    validate_canonical_git_attributes(root, regular_candidates)?;
     Ok(Some(GitWorktreeState {
         modified,
         sparse_absent,
     }))
 }
 
-fn validate_canonical_git_attributes(root: &Path) -> Result<(), String> {
-    let paths = Command::new("git")
-        .args(["ls-files", "--cached", "-z"])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to enumerate Git paths for attribute checks: {error}"))?;
-    if !paths.status.success() || paths.stdout.is_empty() {
+fn validate_canonical_git_attributes(root: &Path, paths: &BTreeSet<String>) -> Result<(), String> {
+    if paths.is_empty() {
         return Ok(());
     }
-    let mut child = Command::new("git")
-        .args([
-            "check-attr",
-            "-z",
-            "--stdin",
-            "filter",
-            "working-tree-encoding",
-        ])
-        .current_dir(root)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .map_err(|error| format!("failed to inspect Git content attributes: {error}"))?;
-    child
-        .stdin
-        .take()
-        .ok_or_else(|| "failed to open Git attribute input".to_string())?
-        .write_all(&paths.stdout)
-        .map_err(|error| format!("failed to provide Git attribute paths: {error}"))?;
-    let output = child
-        .wait_with_output()
-        .map_err(|error| format!("failed to read Git content attributes: {error}"))?;
-    if !output.status.success() {
-        return Err("failed to inspect Git content attributes".into());
-    }
-    let fields: Vec<&[u8]> = output.stdout.split(|byte| *byte == 0).collect();
-    let fields = fields.strip_suffix(&[&[][..]]).unwrap_or(&fields);
-    if fields.len() % 3 != 0 {
-        return Err("invalid NUL-delimited `git check-attr` output".into());
-    }
-    for triple in fields.chunks_exact(3) {
-        let path = std::str::from_utf8(triple[0])
-            .map_err(|_| "non-UTF-8 Git attribute path".to_string())?;
-        let attribute = std::str::from_utf8(triple[1])
-            .map_err(|_| "non-UTF-8 Git attribute name".to_string())?;
-        let value = std::str::from_utf8(triple[2])
-            .map_err(|_| "non-UTF-8 Git attribute value".to_string())?;
-        if value != "unspecified" && value != "unset" {
+    let paths = paths.iter().collect::<Vec<_>>();
+    for batch in paths.chunks(GIT_ATTRIBUTE_BATCH_PATHS) {
+        let mut input = Vec::new();
+        for path in batch {
+            input.extend_from_slice(path.as_bytes());
+            input.push(0);
+        }
+        let mut child = Command::new("git")
+            .args([
+                "check-attr",
+                "-z",
+                "--stdin",
+                "filter",
+                "working-tree-encoding",
+                "ident",
+            ])
+            .current_dir(root)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|error| format!("failed to inspect Git content attributes: {error}"))?;
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| "failed to open Git attribute input".to_string())?;
+        let writer = std::thread::spawn(move || stdin.write_all(&input));
+        let output = child
+            .wait_with_output()
+            .map_err(|error| format!("failed to read Git content attributes: {error}"))?;
+        let write_result = writer
+            .join()
+            .map_err(|_| "Git attribute input writer panicked".to_string())?;
+        if !output.status.success() {
             return Err(format!(
-                "Git `{attribute}` attribute is not supported for canonical evidence: `{path}`"
+                "failed to inspect Git content attributes: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
             ));
+        }
+        write_result.map_err(|error| format!("failed to provide Git attribute paths: {error}"))?;
+        if output.stdout.len() > MAX_GIT_ATTRIBUTE_OUTPUT_BYTES {
+            return Err("Git attribute output exceeds deterministic bounds".into());
+        }
+        let mut fields = output
+            .stdout
+            .split(|byte| *byte == 0)
+            .filter(|field| !field.is_empty());
+        while let Some(path) = fields.next() {
+            let attribute = fields
+                .next()
+                .ok_or_else(|| "invalid NUL-delimited `git check-attr` output".to_string())?;
+            let value = fields
+                .next()
+                .ok_or_else(|| "invalid NUL-delimited `git check-attr` output".to_string())?;
+            let path = std::str::from_utf8(path)
+                .map_err(|_| "non-UTF-8 Git attribute path".to_string())?;
+            let attribute = std::str::from_utf8(attribute)
+                .map_err(|_| "non-UTF-8 Git attribute name".to_string())?;
+            let value = std::str::from_utf8(value)
+                .map_err(|_| "non-UTF-8 Git attribute value".to_string())?;
+            if value != "unspecified" && value != "unset" {
+                return Err(format!(
+                    "Git `{attribute}` attribute is not supported for canonical evidence: `{path}`"
+                ));
+            }
         }
     }
     Ok(())
@@ -6419,8 +6629,13 @@ fn authenticated_accepted_transition(
     let workspace_relative = strict_portable_project_path(root, &workspace)?;
     let current_verification_path = format!("{workspace_relative}/verification.json");
     let current_approvals_path = format!("{workspace_relative}/approvals.json");
-    let git_objects = git_index_objects(root)?;
-    let worktree = git_worktree_state(root)?;
+    let candidates = BTreeSet::from([
+        current_verification_path.clone(),
+        current_approvals_path.clone(),
+    ]);
+    let evidence = git_evidence(root, &candidates)?;
+    let git_objects = evidence.objects;
+    let worktree = evidence.worktree;
     let modified = worktree.as_ref().map(|state| &state.modified);
     let current_verification = portable_file_bytes(
         root,
@@ -6665,9 +6880,11 @@ fn acceptance_input_digest(
     paths.extend(override_content.keys().cloned());
     paths.sort();
     paths.dedup();
-    let git_modes = git_index_modes(root)?;
-    let git_objects = git_index_objects(root)?;
-    let worktree = git_worktree_state(root)?;
+    let candidates = paths.iter().cloned().collect();
+    let evidence = git_evidence(root, &candidates)?;
+    let git_modes = evidence.modes;
+    let git_objects = evidence.objects;
+    let worktree = evidence.worktree;
     let modified = worktree.as_ref().map(|state| &state.modified);
     let sparse_absent = worktree
         .as_ref()
@@ -7335,33 +7552,78 @@ fn archive_workspace_snapshot(
     workspace: &Path,
     project_subtree: &str,
 ) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
-    let git_modes = git_index_modes(root)?;
-    let git_objects = git_index_objects(root)?;
-    let worktree = git_worktree_state(root)?;
-    let modified = worktree.as_ref().map(|state| &state.modified);
-    let mut snapshot = BTreeMap::new();
+    let prefix = format!("{project_subtree}/");
+    let mut project_paths = git_project_paths(root)?
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|path| path.starts_with(&prefix))
+        .collect::<BTreeSet<_>>();
     for entry in walkdir::WalkDir::new(workspace).follow_links(false) {
         let entry = entry.map_err(|error| format!("failed to inspect legacy archive: {error}"))?;
-        if entry.path() == workspace {
-            continue;
-        }
-        let file_type = entry.file_type();
-        if file_type.is_dir() {
-            continue;
-        }
-        if !file_type.is_file() && !file_type.is_symlink() {
-            return Err(format!(
-                "legacy archive contains unsupported non-file entry {}",
-                entry.path().display()
+        if entry.path() != workspace && !entry.file_type().is_dir() {
+            project_paths.insert(format!(
+                "{project_subtree}/{}",
+                strict_portable_project_path(workspace, entry.path())?
             ));
         }
-        let relative = strict_portable_project_path(workspace, entry.path())?;
-        let project_path = format!("{project_subtree}/{relative}");
-        let (_, mode) = digest_file_kind_and_mode(&project_path, entry.path(), &git_modes)?;
+    }
+    let evidence = git_evidence(root, &project_paths)?;
+    let git_modes = evidence.modes;
+    let git_objects = evidence.objects;
+    let worktree = evidence.worktree;
+    let modified = worktree.as_ref().map(|state| &state.modified);
+    let sparse_absent = worktree
+        .as_ref()
+        .map(|state| &state.sparse_absent)
+        .cloned()
+        .unwrap_or_default();
+    let mut snapshot = BTreeMap::new();
+    for project_path in project_paths {
+        let relative = project_path
+            .strip_prefix(&prefix)
+            .ok_or_else(|| "legacy archive path escaped its subtree".to_string())?
+            .to_string();
+        let path = root.join(&project_path);
+        if sparse_absent.contains(&project_path) {
+            let object = git_objects
+                .get(&project_path)
+                .ok_or_else(|| format!("sparse archive path `{project_path}` has no object"))?;
+            let mode = git_modes.get(&project_path).copied().unwrap_or(0o100644);
+            snapshot.insert(relative, (mode, git_blob_bytes(root, object)?));
+            continue;
+        }
+        if git_modes.get(&project_path) == Some(&0o120000) {
+            let (kind, mode, bytes) =
+                tracked_symlink_input(root, &project_path, &path, &git_objects, modified)?;
+            match kind {
+                AcceptanceInputKind::File | AcceptanceInputKind::Symlink => {
+                    snapshot.insert(relative, (mode, bytes));
+                }
+                AcceptanceInputKind::Missing => {}
+                _ => {
+                    return Err(format!(
+                        "legacy archive contains unsupported non-file entry {project_path}"
+                    ));
+                }
+            }
+            continue;
+        }
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(format!("failed to inspect {}: {error}", path.display())),
+        };
+        if !metadata.is_file() && !metadata.file_type().is_symlink() {
+            return Err(format!(
+                "legacy archive contains unsupported non-file entry {}",
+                path.display()
+            ));
+        }
+        let (_, mode) = digest_file_kind_and_mode(&project_path, &path, &git_modes)?;
         let bytes = if mode == 0o120000 {
-            portable_symlink_payload(root, &project_path, entry.path(), &git_objects, modified)?
+            portable_symlink_payload(root, &project_path, &path, &git_objects, modified)?
         } else {
-            portable_file_bytes(root, &project_path, entry.path(), &git_objects, modified)
+            portable_file_bytes(root, &project_path, &path, &git_objects, modified)
                 .map_err(|error| format!("failed to read legacy archive entry: {error}"))?
         };
         snapshot.insert(relative, (mode, bytes));
@@ -10044,6 +10306,220 @@ mod tests {
             let error = project_input_digest(root).unwrap_err();
             assert!(error.contains(expected), "{error}");
         }
+    }
+
+    #[test]
+    fn large_attribute_inventory_completes_and_rejects_late_path() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        fs::write(root.join(".gitattributes"), "late-* filter=demo\n").unwrap();
+        let mut paths = (0..4_000)
+            .map(|index| format!("ordinary-{index:05}-{}.txt", "x".repeat(48)))
+            .collect::<BTreeSet<_>>();
+        paths.insert("late-attributed-path.txt".into());
+        let error = validate_canonical_git_attributes(root, &paths).unwrap_err();
+        assert!(
+            error.contains("filter") && error.contains("late-attributed-path"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn excluded_attributes_and_flags_do_not_block_definition_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let record = completed_no_spec_record(root);
+        fs::write(root.join(".gitattributes"), "unrelated.txt filter=demo\n").unwrap();
+        fs::write(root.join("unrelated.txt"), "unrelated\n").unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(
+            root,
+            &["commit", "-m", "track definition and unrelated input"],
+        );
+        quiet_git(
+            root,
+            &["update-index", "--assume-unchanged", "unrelated.txt"],
+        );
+        assert!(definition_digest(root, &record).is_ok());
+    }
+
+    #[test]
+    fn fsmonitor_valid_and_ident_conversion_fail_closed() {
+        let monitored = TempDir::new().unwrap();
+        let root = monitored.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("tracked.txt"), "base\n").unwrap();
+        quiet_git(root, &["add", "tracked.txt"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+        quiet_git(root, &["config", "core.fsmonitor", "true"]);
+        quiet_git(root, &["update-index", "--fsmonitor-valid", "tracked.txt"]);
+        let error = project_input_digest(root).unwrap_err();
+        assert!(error.contains("fsmonitor"), "{error}");
+
+        let identified = TempDir::new().unwrap();
+        let root = identified.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join(".gitattributes"), "tracked.txt ident\n").unwrap();
+        fs::write(root.join("tracked.txt"), "$Id$\n").unwrap();
+        quiet_git(root, &["add", ".gitattributes", "tracked.txt"]);
+        quiet_git(root, &["commit", "-m", "track ident input"]);
+        fs::remove_file(root.join("tracked.txt")).unwrap();
+        quiet_git(root, &["checkout", "HEAD", "--", "tracked.txt"]);
+        assert!(
+            fs::read_to_string(root.join("tracked.txt"))
+                .unwrap()
+                .contains("$Id:")
+        );
+        let error = project_input_digest(root).unwrap_err();
+        assert!(error.contains("ident"), "{error}");
+    }
+
+    #[test]
+    fn index_generation_mutation_retries_then_fails_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("tracked.txt"), "base\n").unwrap();
+        quiet_git(root, &["add", "tracked.txt"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+        let candidates = BTreeSet::from(["tracked.txt".to_string()]);
+        let error = git_evidence_with_hook(root, &candidates, |attempt, root| {
+            let path = format!("mutation-{attempt}.txt");
+            fs::write(root.join(&path), format!("{attempt}\n")).unwrap();
+            quiet_git(root, &["add", &path]);
+        })
+        .unwrap_err();
+        assert!(error.contains("index changed"), "{error}");
+    }
+
+    #[test]
+    fn oversized_git_evidence_inventory_fails_before_subprocess_work() {
+        let candidates = (0..=MAX_GIT_EVIDENCE_PATHS)
+            .map(|index| format!("path-{index}"))
+            .collect();
+        let error = git_evidence(Path::new("."), &candidates).unwrap_err();
+        assert!(error.contains("inventory exceeds"), "{error}");
+    }
+
+    #[test]
+    fn sparse_archive_entries_and_dirty_symlink_topology_are_preserved() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::create_dir_all(root.join("archive")).unwrap();
+        fs::write(root.join("archive/sparse.txt"), "canonical sparse\n").unwrap();
+        let target = root.join("target");
+        fs::write(&target, "../shared/tool").unwrap();
+        let output = Command::new("git")
+            .args(["hash-object", "-w", "target"])
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let object = String::from_utf8(output.stdout).unwrap().trim().to_string();
+        fs::remove_file(target).unwrap();
+        quiet_git(root, &["add", "archive/sparse.txt"]);
+        let cache_info = format!("120000,{object},archive/link");
+        quiet_git(root, &["update-index", "--add", "--cacheinfo", &cache_info]);
+        quiet_git(root, &["commit", "-m", "track archive topology"]);
+        quiet_git(
+            root,
+            &["update-index", "--skip-worktree", "archive/sparse.txt"],
+        );
+        fs::remove_file(root.join("archive/sparse.txt")).unwrap();
+        fs::write(root.join("archive/link"), "regular replacement\n").unwrap();
+
+        let snapshot = archive_workspace_snapshot(root, &root.join("archive"), "archive").unwrap();
+        assert_eq!(snapshot.get("sparse.txt").unwrap().1, b"canonical sparse\n");
+        assert_eq!(snapshot.get("link").unwrap().0, 0o100644);
+        assert_eq!(snapshot.get("link").unwrap().1, b"regular replacement\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn definition_artifact_symlinks_fail_before_referent_reads() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_no_spec_record(root);
+        let context = change_dir(root, &record.id).join("context.md");
+        let external = temp.path().join("external-large.md");
+        fs::write(
+            &external,
+            vec![b'x'; MAX_CHANGE_ARTIFACT_BYTES as usize + 1],
+        )
+        .unwrap();
+        fs::remove_file(&context).unwrap();
+        symlink(&external, &context).unwrap();
+        let error = definition_digest(root, &record).unwrap_err();
+        assert!(error.contains("not a regular file"), "{error}");
+
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "track symlinked definition"]);
+        let error = definition_digest(root, &record).unwrap_err();
+        assert!(error.contains("not a regular file"), "{error}");
+        fs::remove_file(&context).unwrap();
+        symlink("another-external-target", &context).unwrap();
+        let error = definition_digest(root, &record).unwrap_err();
+        assert!(error.contains("not a regular file"), "{error}");
+    }
+
+    #[test]
+    fn attribute_subprocess_failure_is_reaped_and_reported() {
+        let temp = TempDir::new().unwrap();
+        let paths = BTreeSet::from(["tracked.txt".to_string()]);
+        let error = validate_canonical_git_attributes(temp.path(), &paths).unwrap_err();
+        assert!(
+            error.contains("failed to inspect Git content attributes"),
+            "{error}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn conversion_attributes_do_not_block_canonical_symlink_payloads() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join(".gitattributes"), "link filter=demo ident\n").unwrap();
+        fs::write(root.join("target"), "target\n").unwrap();
+        symlink("target", root.join("link")).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "track attributed symlink"]);
+        assert!(project_input_digest(root).is_ok());
+    }
+
+    #[test]
+    fn missing_bound_baseline_cannot_retain_stale_definition_digest() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        record.legacy_archive_baseline_digest = Some("a".repeat(64));
+        let error = bind_legacy_archive_baseline_authority(root, &mut record).unwrap_err();
+        assert!(
+            error.contains("stale binding cannot be retained"),
+            "{error}"
+        );
     }
 
     #[test]

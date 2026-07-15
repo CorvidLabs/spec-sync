@@ -83,6 +83,13 @@
       "timestamp": 1784108512,
       "digest": "cf46ae52bd35025e3c05e69b08b51faccfe5ff3134aaa5a9ba67886955924834",
       "note": "Reapprove regular-file-only definition artifact topology and pre-read symlink rejection."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784109459,
+      "digest": "a4b895ab54caae6fec6eb1ea0fd9c41595036e8787f9b6dd885f75ae103c27e0",
+      "note": "Reapprove completed stable candidate-scoped Git evidence implementation after focused and full local regression gates."
     }
   ],
   "reopenings": []

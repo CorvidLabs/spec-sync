@@ -55,6 +55,13 @@
       "timestamp": 1784081135,
       "digest": "e261f8783d73a6d25d1c9205b6aeab0a1487958a342b7e2ab95335c3ba68b6c0",
       "note": "Definition approval for PR #383 review corrections covering verified remote refs and NUL-safe historical path parsing"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784081228,
+      "digest": "f6497221e85289612bef4697f02cadbdb9eef3917a16a05e3329fe6096dd59ec",
+      "note": "Closing approval after PR #383 review corrections passed 1,604 unit and 215 integration tests at c7a50a3a70801238f13f285b06364ac3aaaf0fff"
     }
   ],
   "reopenings": [

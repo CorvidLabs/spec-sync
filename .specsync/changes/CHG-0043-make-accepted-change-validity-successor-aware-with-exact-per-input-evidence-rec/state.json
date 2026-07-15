@@ -5,10 +5,10 @@
   "title": "Make accepted-change validity successor-aware with exact per-input evidence, recursive cycle-safe validation, fail-closed legacy compatibility, and safe archived successors",
   "description": "Make accepted-change validity successor-aware with exact per-input evidence, recursive cycle-safe validation, fail-closed legacy compatibility, and safe archived successors",
   "kind": "bug_fix",
-  "state": "implementing",
+  "state": "verifying",
   "base_commit": "fc5f9ac2695a4416b1e99e590b35bd47de00347c",
   "created_at": 1784097967,
-  "updated_at": 1784098721,
+  "updated_at": 1784099667,
   "affected_specs": [
     "change",
     "cmd_change",

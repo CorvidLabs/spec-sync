@@ -1,7 +1,7 @@
 {
-  "timestamp": 1784099876,
+  "timestamp": 1784099775,
   "commit": "da9393f7690914e0d1c07ef28e0db0ab17182b4a",
-  "contract_digest": "99ec482ef920dec58348d788b3d134726f7475d4a01517adf8a155be6ff1a611",
+  "contract_digest": "7ba2ed926fb2c01b78177c3ae8128b12ec57810137a81e4677d0efb695d25536",
   "workspace_digest": "479f59cdb4c18dba6fea53044fa9693c1566d7e7d5d16344d15f0047667a50b2",
   "passed": true,
   "commands": [
@@ -11,5 +11,7 @@
       "exit_code": 0
     }
   ],
-  "requirement_ids": []
+  "requirement_ids": [
+    "REQ-change-026"
+  ]
 }

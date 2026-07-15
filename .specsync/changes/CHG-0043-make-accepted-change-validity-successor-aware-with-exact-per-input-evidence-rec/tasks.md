@@ -33,3 +33,7 @@ artifact: tasks
 - [x] Pass all eight exact Windows regressions with forced `core.autocrlf=true` without platform ignores.
 - [x] Pass the configured format, lint, type-check, and normal full test gates locally.
 - [x] Prepare the correction for combined-head hosted Windows and full CI validation without claiming those results early.
+- [x] Audit the tracked-symlink deletion path after the Windows byte-portability correction.
+- [ ] Classify an absent dirty tracked symlink as missing before canonical clean-symlink payload selection.
+- [ ] Add deterministic project, manifest, and legacy acceptance regressions for tracked-symlink deletion.
+- [ ] Pass focused normal and forced-CRLF regressions plus the configured local gates.

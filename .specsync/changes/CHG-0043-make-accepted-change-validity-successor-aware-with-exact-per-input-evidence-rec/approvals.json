@@ -20,6 +20,13 @@
       "timestamp": 1784103925,
       "digest": "87d3814800cceee94ac1381b049d0c71fd3628625004b46c7509e54fb8913850",
       "note": "Approve completed portable byte/path implementation scope for combined-head verification"
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784106292,
+      "digest": "62b60101543af24ff5ef35e48150c0ca90ca3f066be953696f88e9dfd0845b69",
+      "note": "Approve tracked-symlink deletion topology correction after independent audit"
     }
   ],
   "reopenings": []

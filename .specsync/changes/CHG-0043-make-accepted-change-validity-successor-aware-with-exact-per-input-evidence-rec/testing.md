@@ -20,6 +20,7 @@ Focused unit and integration regressions will prove:
 - deletion, file/executable mode, symlink target, gitlink, missing, and non-file changes remain distinct;
 - clean tracked inputs hash canonical index blob bytes across LF and CRLF-smudged checkouts, while dirty tracked and untracked inputs continue to hash their current working-tree bytes;
 - tracked symlinks hash their canonical Git target payload even when the host materializes them as ordinary files;
+- deleting a tracked symlink yields a deterministic missing/mode-zero entry in project freshness, manifest acceptance, and legacy acceptance instead of reading the historical target or failing on the absent path;
 - portable path and symlink-target validation returns the same result on every host for POSIX absolute, drive-prefixed, backslash, UNC/device, control-character, dot-component, empty, and valid relative forms;
 - same-payload mode and kind transitions produce different `specsync.acceptance-entry.v1` full-entry digests and require exact succession tuples;
 - CHG43's governed integration test path is classified exact-only, accepts without invented module ownership, and requires reopen after later modification;

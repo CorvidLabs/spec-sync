@@ -1349,8 +1349,8 @@ struct CorrectionDigestPayload<'a> {
 
 fn canonical_correction_value(value: &str) -> Result<String, String> {
     match value.trim().to_ascii_lowercase().as_str() {
-        "yes" => Ok("yes".into()),
-        "no" => Ok("no".into()),
+        "yes" | "y" | "true" | "1" => Ok("yes".into()),
+        "no" | "n" | "false" | "0" => Ok("no".into()),
         _ => Err(format!(
             "unsupported correction value `{value}` (expected yes or no)"
         )),
@@ -1448,6 +1448,8 @@ fn validate_correction_records(
         if correction.superseded_definition_approval.gate != "definition"
             || correction.superseded_closing_approval.gate != "acceptance"
             || !correction.prior_verification.passed
+            || correction.superseded_definition_approval.digest
+                != correction.prior_verification.contract_digest
         {
             return Err(format!(
                 "correction sequence {expected_sequence} contains invalid prior gate evidence"
@@ -1732,22 +1734,27 @@ fn ensure_reopened_definition_unchanged(root: &Path, record: &ChangeRecord) -> R
         approval_position(&reopening.superseded_approval).map(|position| (position, reopening))
     });
 
-    if let Some((position, correction)) = correction_recovery
-        && reopen_recovery
-            .as_ref()
-            .is_none_or(|(reopen_position, _)| position > *reopen_position)
-    {
-        let prior_count = correction.sequence.saturating_sub(1);
-        let expected = &correction.prior_verification.contract_digest;
-        if definition_digest_for_correction_count(root, record, prior_count, false)? == *expected
-            || definition_digest_for_correction_count(root, record, prior_count, true)? == *expected
+    match correction_recovery {
+        Some((position, correction))
+            if reopen_recovery
+                .as_ref()
+                .is_none_or(|(reopen_position, _)| position > *reopen_position) =>
         {
-            return Ok(());
+            let prior_count = correction.sequence.saturating_sub(1);
+            let expected = &correction.prior_verification.contract_digest;
+            if definition_digest_for_correction_count(root, record, prior_count, false)?
+                == *expected
+                || definition_digest_for_correction_count(root, record, prior_count, true)?
+                    == *expected
+            {
+                return Ok(());
+            }
+            return Err(
+                "cannot accept a correction after the previously accepted definition changed; restore prior artifacts and deltas or use a successor change"
+                    .into(),
+            );
         }
-        return Err(
-            "cannot accept a correction after the previously accepted definition changed; restore prior artifacts and deltas or use a successor change"
-                .into(),
-        );
+        _ => {}
     }
 
     if let Some((_, reopening)) = reopen_recovery {
@@ -7331,6 +7338,17 @@ mod tests {
     }
 
     #[test]
+    fn correction_values_preserve_supported_boolean_aliases() {
+        for value in ["yes", "y", "true", "1", " YES "] {
+            assert_eq!(canonical_correction_value(value).unwrap(), "yes");
+        }
+        for value in ["no", "n", "false", "0", " NO "] {
+            assert_eq!(canonical_correction_value(value).unwrap(), "no");
+        }
+        assert!(canonical_correction_value("maybe").is_err());
+    }
+
+    #[test]
     fn corrected_acceptance_requires_fresh_gates_and_never_replays_canonical_deltas() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
@@ -7440,6 +7458,15 @@ mod tests {
         write_json(&ledger_path, &unsupported).unwrap();
         let error = effective_change_definition(root, &record).unwrap_err();
         assert!(error.contains("invalid correction ledger"), "{error}");
+        fs::write(&ledger_path, &valid_ledger).unwrap();
+
+        let mut tampered_definition: serde_json::Value =
+            serde_json::from_str(&valid_ledger).unwrap();
+        tampered_definition["corrections"][0]["superseded_definition_approval"]["digest"] =
+            serde_json::json!("forged-definition-digest");
+        write_json(&ledger_path, &tampered_definition).unwrap();
+        let error = effective_change_definition(root, &record).unwrap_err();
+        assert!(error.contains("invalid prior gate evidence"), "{error}");
         fs::write(&ledger_path, &valid_ledger).unwrap();
 
         let second = TempDir::new().unwrap();

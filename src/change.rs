@@ -27,6 +27,7 @@ const CANONICAL_SPEC_COMPANIONS: [&str; 5] = [
 ];
 static EFFECTIVE_CONTRACT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static TRUSTED_CORRECTION_HISTORY_CACHE: OnceLock<Mutex<BTreeSet<String>>> = OnceLock::new();
+static GIT_BLOB_CACHE: OnceLock<Mutex<BTreeMap<String, Vec<u8>>>> = OnceLock::new();
 
 const DEFINITION_DIGEST_DOMAIN: &[u8] = b"specsync.definition-digest.v2";
 const PROJECT_DIGEST_DOMAIN: &[u8] = b"specsync.project-input-digest.v2";
@@ -1380,11 +1381,19 @@ fn bind_legacy_archive_baseline_authority(
     record: &mut ChangeRecord,
 ) -> Result<(), String> {
     let path = root.join(LEGACY_BASELINE_PATH);
-    let baseline_bytes = match fs::read(&path) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(format!("failed to read legacy archive baseline: {error}")),
-    };
+    if !path.exists() {
+        return Ok(());
+    }
+    let git_objects = git_index_objects(root)?;
+    let modified = git_worktree_modified_paths(root)?;
+    let baseline_bytes = portable_file_bytes(
+        root,
+        LEGACY_BASELINE_PATH,
+        &path,
+        &git_objects,
+        modified.as_ref(),
+    )
+    .map_err(|error| format!("failed to read legacy archive baseline: {error}"))?;
     let (baseline, digest) = validate_legacy_archive_baseline_bytes(&baseline_bytes)?;
     if baseline.authority_change_id == record.id {
         if !record
@@ -4747,6 +4756,8 @@ fn definition_digest_from_record_bytes(
     }
     files.sort_by(|left, right| left.0.cmp(&right.0));
     let git_modes = git_index_modes(root)?;
+    let git_objects = git_index_objects(root)?;
+    let modified = git_worktree_modified_paths(root)?;
     for (relative, path) in files {
         let metadata = fs::metadata(&path)
             .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
@@ -4757,7 +4768,7 @@ fn definition_digest_from_record_bytes(
                 path.display()
             ));
         }
-        let content = fs::read(&path)
+        let content = portable_file_bytes(root, &relative, &path, &git_objects, modified.as_ref())
             .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
         let (kind, mode) = digest_file_kind_and_mode(&relative, &path, &git_modes)?;
         digest.entry(&relative, kind, mode, &content);
@@ -4783,12 +4794,27 @@ fn project_input_digest(root: &Path) -> Result<String, String> {
     paths.sort();
     paths.dedup();
     let git_modes = git_index_modes(root)?;
+    let git_objects = git_index_objects(root)?;
+    let modified = git_worktree_modified_paths(root)?;
     let mut digest = FramedDigest::new(PROJECT_DIGEST_DOMAIN);
     for relative in paths {
         if project_input_is_volatile(&relative) {
             continue;
         }
         let path = root.join(&relative);
+        if git_modes.get(&relative) == Some(&0o160000) {
+            let object = git_objects.get(&relative).ok_or_else(|| {
+                format!("gitlink `{relative}` is missing its exact index object ID")
+            })?;
+            digest.entry(&relative, b"gitlink", 0o160000, object.as_bytes());
+            continue;
+        }
+        if git_modes.get(&relative) == Some(&0o120000) {
+            let target =
+                portable_symlink_payload(root, &relative, &path, &git_objects, modified.as_ref())?;
+            digest.entry(&relative, b"symlink", 0o120000, &target);
+            continue;
+        }
         match fs::symlink_metadata(&path) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
                 let target = fs::read_link(&path).map_err(|error| {
@@ -4803,8 +4829,9 @@ fn project_input_digest(root: &Path) -> Result<String, String> {
                 digest.entry(&relative, b"symlink", 0o120000, target.as_bytes());
             }
             Ok(metadata) if metadata.is_file() => {
-                let content = fs::read(&path)
-                    .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
+                let content =
+                    portable_file_bytes(root, &relative, &path, &git_objects, modified.as_ref())
+                        .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
                 let (kind, mode) = digest_file_kind_and_mode(&relative, &path, &git_modes)?;
                 digest.entry(&relative, kind, mode, &content);
             }
@@ -4885,31 +4912,28 @@ fn project_input_is_volatile(path: &str) -> bool {
 }
 
 fn strict_portable_relative_path(path: &str) -> Result<String, String> {
-    if path.contains('\\') {
-        return Err(format!(
-            "project path is not portable because it contains a backslash: `{path}`"
-        ));
-    }
-    let path = Path::new(path);
-    if path.is_absolute()
+    if path.is_empty()
+        || path.starts_with('/')
+        || path.ends_with('/')
+        || path.contains('\\')
+        || path.chars().any(char::is_control)
         || path
-            .components()
-            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+            .as_bytes()
+            .get(1)
+            .is_some_and(|byte| *byte == b':' && path.as_bytes()[0].is_ascii_alphabetic())
     {
         return Err(format!(
-            "project path is not a portable relative path: `{}`",
-            path.display()
+            "project path is not a portable relative path: `{path}`"
         ));
     }
-    let mut components = Vec::new();
-    for component in path.components() {
-        let component = component.as_os_str().to_str().ok_or_else(|| {
-            format!(
-                "non-UTF-8 project path cannot be hashed portably: {}",
-                path.display()
-            )
-        })?;
-        components.push(component);
+    let components: Vec<&str> = path.split('/').collect();
+    if components
+        .iter()
+        .any(|component| component.is_empty() || *component == "." || *component == "..")
+    {
+        return Err(format!(
+            "project path is not a portable relative path: `{path}`"
+        ));
     }
     Ok(components.join("/"))
 }
@@ -5107,6 +5131,7 @@ fn acceptance_manifest_internal(
     paths.dedup();
     let git_modes = git_index_modes(root)?;
     let git_objects = git_index_objects(root)?;
+    let modified = git_worktree_modified_paths(root)?;
     let historical_sequence_ledger = if record_covers_project_path(root, record, SEQUENCE_PATH) {
         historical_sequence_ledger_acceptance_content(root, record)?
     } else {
@@ -5140,6 +5165,18 @@ fn acceptance_manifest_internal(
                 0o160000,
                 object.as_bytes().to_vec(),
             )
+        } else if git_modes.get(&relative) == Some(&0o120000) {
+            (
+                AcceptanceInputKind::Symlink,
+                0o120000,
+                portable_symlink_payload(
+                    root,
+                    &relative,
+                    &root.join(&relative),
+                    &git_objects,
+                    modified.as_ref(),
+                )?,
+            )
         } else {
             let path = root.join(&relative);
             match fs::symlink_metadata(&path) {
@@ -5161,8 +5198,14 @@ fn acceptance_manifest_internal(
                     )
                 }
                 Ok(metadata) if metadata.is_file() => {
-                    let content = fs::read(&path)
-                        .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
+                    let content = portable_file_bytes(
+                        root,
+                        &relative,
+                        &path,
+                        &git_objects,
+                        modified.as_ref(),
+                    )
+                    .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
                     let (_, mode) = digest_file_kind_and_mode(&relative, &path, &git_modes)?;
                     (AcceptanceInputKind::File, mode, content)
                 }
@@ -5184,7 +5227,14 @@ fn acceptance_manifest_internal(
                 .map(|entry| entry.owners.clone())
                 .unwrap_or_else(|| vec![EXACT_DELIVERY_OWNER.to_string()])
         } else {
-            acceptance_input_owners(root, record, &relative, overrides)?
+            acceptance_input_owners(
+                root,
+                record,
+                &relative,
+                overrides,
+                &git_objects,
+                modified.as_ref(),
+            )?
         };
         let entry_digest = acceptance_entry_digest(&relative, &kind, mode, &payload_digest);
         entries.push(AcceptanceInputEntryV1 {
@@ -5206,13 +5256,17 @@ fn acceptance_manifest_internal(
 
 fn validate_portable_symlink_target(target: &str) -> Result<(), String> {
     if target.is_empty()
+        || target.starts_with('/')
+        || target.ends_with('/')
         || target.contains('\\')
         || target.chars().any(char::is_control)
-        || Path::new(target).is_absolute()
         || target
             .as_bytes()
             .get(1)
             .is_some_and(|byte| *byte == b':' && target.as_bytes()[0].is_ascii_alphabetic())
+        || target
+            .split('/')
+            .any(|component| component.is_empty() || component == ".")
     {
         return Err(format!(
             "symlink target is not portable project-relative UTF-8: `{}`",
@@ -5678,6 +5732,8 @@ fn acceptance_input_owners(
     record: &ChangeRecord,
     relative: &str,
     overrides: &[(PathBuf, String)],
+    git_objects: &BTreeMap<String, String>,
+    modified: Option<&BTreeSet<String>>,
 ) -> Result<Vec<String>, String> {
     if path_is_governed_test_or_fixture(relative) {
         return Ok(vec![EXACT_TEST_OWNER.to_string()]);
@@ -5711,7 +5767,9 @@ fn acceptance_input_owners(
                 let content = if let Some(content) = override_content.get(&spec_relative) {
                     Some((*content).to_string())
                 } else {
-                    fs::read_to_string(&spec_path).ok()
+                    portable_file_bytes(root, &spec_relative, &spec_path, git_objects, modified)
+                        .ok()
+                        .and_then(|bytes| String::from_utf8(bytes).ok())
                 };
                 content
                     .as_deref()
@@ -5825,6 +5883,106 @@ fn git_index_objects(root: &Path) -> Result<BTreeMap<String, String>, String> {
         objects.insert(strict_portable_relative_path(path)?, object.to_string());
     }
     Ok(objects)
+}
+
+fn git_worktree_modified_paths(root: &Path) -> Result<Option<BTreeSet<String>>, String> {
+    let output = Command::new("git")
+        .args(["diff-files", "--name-only", "-z", "--"])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to inspect Git working-tree changes: {error}"))?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|path| !path.is_empty())
+        .map(|path| {
+            let path = std::str::from_utf8(path)
+                .map_err(|_| "non-UTF-8 Git path cannot be hashed portably".to_string())?;
+            strict_portable_relative_path(path)
+        })
+        .collect::<Result<BTreeSet<_>, _>>()
+        .map(Some)
+}
+
+fn git_blob_bytes(root: &Path, object: &str) -> Result<Vec<u8>, String> {
+    if let Some(bytes) = GIT_BLOB_CACHE
+        .get_or_init(|| Mutex::new(BTreeMap::new()))
+        .lock()
+        .map_err(|_| "Git blob cache lock is poisoned".to_string())?
+        .get(object)
+        .cloned()
+    {
+        return Ok(bytes);
+    }
+    let output = Command::new("git")
+        .args(["cat-file", "blob", object])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to read Git blob `{object}`: {error}"))?;
+    if !output.status.success() {
+        return Err(format!("failed to read Git blob `{object}`"));
+    }
+    if output.stdout.len() <= MAX_CHANGE_ARTIFACT_BYTES as usize {
+        let mut cache = GIT_BLOB_CACHE
+            .get_or_init(|| Mutex::new(BTreeMap::new()))
+            .lock()
+            .map_err(|_| "Git blob cache lock is poisoned".to_string())?;
+        if cache.len() >= 4_096 {
+            cache.clear();
+        }
+        cache.insert(object.to_string(), output.stdout.clone());
+    }
+    Ok(output.stdout)
+}
+
+fn portable_file_bytes(
+    root: &Path,
+    relative: &str,
+    path: &Path,
+    git_objects: &BTreeMap<String, String>,
+    modified: Option<&BTreeSet<String>>,
+) -> Result<Vec<u8>, String> {
+    if let (Some(object), Some(modified)) = (git_objects.get(relative), modified)
+        && !modified.contains(relative)
+    {
+        return git_blob_bytes(root, object);
+    }
+    fs::read(path).map_err(|error| error.to_string())
+}
+
+fn portable_symlink_payload(
+    root: &Path,
+    relative: &str,
+    path: &Path,
+    git_objects: &BTreeMap<String, String>,
+    modified: Option<&BTreeSet<String>>,
+) -> Result<Vec<u8>, String> {
+    let payload = if let (Some(object), Some(modified)) = (git_objects.get(relative), modified)
+        && !modified.contains(relative)
+    {
+        git_blob_bytes(root, object)?
+    } else if fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+        fs::read_link(path)
+            .map_err(|error| format!("failed to read symlink {}: {error}", path.display()))?
+            .to_str()
+            .ok_or_else(|| {
+                format!(
+                    "non-UTF-8 symlink target cannot be hashed portably: {}",
+                    path.display()
+                )
+            })?
+            .as_bytes()
+            .to_vec()
+    } else {
+        fs::read(path).map_err(|error| format!("failed to read {}: {error}", path.display()))?
+    };
+    let target = std::str::from_utf8(&payload)
+        .map_err(|_| format!("symlink target is not UTF-8: `{relative}`"))?;
+    validate_portable_symlink_target(target)?;
+    Ok(payload)
 }
 
 fn resolved_acceptance_manifest(
@@ -6054,10 +6212,27 @@ fn authenticated_accepted_transition(
     record: &ChangeRecord,
 ) -> Result<(String, Vec<u8>, ChangeRecord), String> {
     let workspace = find_change_dir(root, &record.id)?;
-    let current_verification = fs::read(workspace.join("verification.json"))
-        .map_err(|error| format!("failed to read current verification evidence: {error}"))?;
-    let current_approvals = fs::read(workspace.join("approvals.json"))
-        .map_err(|error| format!("failed to read current approval evidence: {error}"))?;
+    let workspace_relative = strict_portable_project_path(root, &workspace)?;
+    let current_verification_path = format!("{workspace_relative}/verification.json");
+    let current_approvals_path = format!("{workspace_relative}/approvals.json");
+    let git_objects = git_index_objects(root)?;
+    let modified = git_worktree_modified_paths(root)?;
+    let current_verification = portable_file_bytes(
+        root,
+        &current_verification_path,
+        &workspace.join("verification.json"),
+        &git_objects,
+        modified.as_ref(),
+    )
+    .map_err(|error| format!("failed to read current verification evidence: {error}"))?;
+    let current_approvals = portable_file_bytes(
+        root,
+        &current_approvals_path,
+        &workspace.join("approvals.json"),
+        &git_objects,
+        modified.as_ref(),
+    )
+    .map_err(|error| format!("failed to read current approval evidence: {error}"))?;
     let active = format!("{CHANGES_PATH}/{}", record.id);
     let state_path = git_repo_relative_path(root, &format!("{active}/state.json"))?;
     let verification_path = git_repo_relative_path(root, &format!("{active}/verification.json"))?;
@@ -6286,6 +6461,8 @@ fn acceptance_input_digest(
     paths.sort();
     paths.dedup();
     let git_modes = git_index_modes(root)?;
+    let git_objects = git_index_objects(root)?;
+    let modified = git_worktree_modified_paths(root)?;
     let historical_sequence_ledger = if record_covers_project_path(root, record, SEQUENCE_PATH) {
         historical_sequence_ledger_acceptance_content(root, record)?
     } else {
@@ -6311,6 +6488,16 @@ fn acceptance_input_digest(
         {
             let mode = git_modes.get(&relative).copied().unwrap_or(0o100644);
             digest.entry(&relative, b"file", mode, content);
+        } else if git_modes.get(&relative) == Some(&0o160000) {
+            let object = git_objects.get(&relative).ok_or_else(|| {
+                format!("gitlink `{relative}` is missing its exact index object ID")
+            })?;
+            digest.entry(&relative, b"gitlink", 0o160000, object.as_bytes());
+        } else if git_modes.get(&relative) == Some(&0o120000) {
+            let path = root.join(&relative);
+            let target =
+                portable_symlink_payload(root, &relative, &path, &git_objects, modified.as_ref())?;
+            digest.entry(&relative, b"symlink", 0o120000, &target);
         } else {
             let path = root.join(&relative);
             match fs::symlink_metadata(&path) {
@@ -6327,8 +6514,14 @@ fn acceptance_input_digest(
                     digest.entry(&relative, b"symlink", 0o120000, target.as_bytes());
                 }
                 Ok(metadata) if metadata.is_file() => {
-                    let content = fs::read(&path)
-                        .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
+                    let content = portable_file_bytes(
+                        root,
+                        &relative,
+                        &path,
+                        &git_objects,
+                        modified.as_ref(),
+                    )
+                    .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
                     let (kind, mode) = digest_file_kind_and_mode(&relative, &path, &git_modes)?;
                     digest.entry(&relative, kind, mode, &content);
                 }
@@ -6929,6 +7122,8 @@ fn archive_workspace_snapshot(
     project_subtree: &str,
 ) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
     let git_modes = git_index_modes(root)?;
+    let git_objects = git_index_objects(root)?;
+    let modified = git_worktree_modified_paths(root)?;
     let mut snapshot = BTreeMap::new();
     for entry in walkdir::WalkDir::new(workspace).follow_links(false) {
         let entry = entry.map_err(|error| format!("failed to inspect legacy archive: {error}"))?;
@@ -6948,17 +7143,23 @@ fn archive_workspace_snapshot(
         let relative = strict_portable_project_path(workspace, entry.path())?;
         let project_path = format!("{project_subtree}/{relative}");
         let (_, mode) = digest_file_kind_and_mode(&project_path, entry.path(), &git_modes)?;
-        let bytes = if file_type.is_symlink() {
-            let target = fs::read_link(entry.path())
-                .map_err(|error| format!("failed to read legacy archive symlink: {error}"))?;
-            let target = target
-                .to_str()
-                .ok_or_else(|| "legacy archive symlink target is not UTF-8".to_string())?;
-            validate_portable_symlink_target(target)?;
-            target.as_bytes().to_vec()
+        let bytes = if mode == 0o120000 {
+            portable_symlink_payload(
+                root,
+                &project_path,
+                entry.path(),
+                &git_objects,
+                modified.as_ref(),
+            )?
         } else {
-            fs::read(entry.path())
-                .map_err(|error| format!("failed to read legacy archive entry: {error}"))?
+            portable_file_bytes(
+                root,
+                &project_path,
+                entry.path(),
+                &git_objects,
+                modified.as_ref(),
+            )
+            .map_err(|error| format!("failed to read legacy archive entry: {error}"))?
         };
         snapshot.insert(relative, (mode, bytes));
     }
@@ -9259,12 +9460,124 @@ mod tests {
     #[test]
     fn portable_symlink_targets_reject_host_specific_or_ambiguous_forms() {
         assert!(validate_portable_symlink_target("../shared/file").is_ok());
-        for target in ["", "/etc/passwd", "C:/secret", "dir\\file", "line\nfeed"] {
+        assert!(validate_portable_symlink_target("shared/file").is_ok());
+        for target in [
+            "",
+            "/etc/passwd",
+            "C:/secret",
+            "C:secret",
+            "dir\\file",
+            "\\\\server\\share",
+            "\\\\?\\C:\\secret",
+            "./file",
+            "dir/./file",
+            "dir//file",
+            "dir/",
+            "line\nfeed",
+        ] {
             assert!(
                 validate_portable_symlink_target(target).is_err(),
                 "{target:?}"
             );
         }
+    }
+
+    #[test]
+    fn portable_project_paths_reject_host_specific_or_ambiguous_forms() {
+        assert_eq!(
+            strict_portable_relative_path("src/change.rs").unwrap(),
+            "src/change.rs"
+        );
+        for path in [
+            "",
+            "/etc/passwd",
+            "C:/secret",
+            "C:secret",
+            "dir\\file",
+            "\\\\server\\share",
+            "\\\\?\\C:\\secret",
+            "./file",
+            "../file",
+            "dir/../file",
+            "dir//file",
+            "dir/",
+            "line\nfeed",
+        ] {
+            assert!(strict_portable_relative_path(path).is_err(), "{path:?}");
+        }
+    }
+
+    #[test]
+    fn clean_tracked_files_use_canonical_index_bytes_but_dirty_files_do_not() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "true"]);
+        let path = root.join("tracked.txt");
+        fs::write(&path, b"canonical\n").unwrap();
+        git(&["add", "tracked.txt"]);
+        git(&["commit", "-m", "track canonical bytes"]);
+        fs::remove_file(&path).unwrap();
+        git(&["checkout", "HEAD", "--", "tracked.txt"]);
+
+        let objects = git_index_objects(root).unwrap();
+        let modified = git_worktree_modified_paths(root).unwrap().unwrap();
+        assert_eq!(
+            portable_file_bytes(root, "tracked.txt", &path, &objects, Some(&modified)).unwrap(),
+            b"canonical\n"
+        );
+
+        fs::write(&path, b"dirty\r\n").unwrap();
+        let modified = git_worktree_modified_paths(root).unwrap().unwrap();
+        assert!(modified.contains("tracked.txt"));
+        assert_eq!(
+            portable_file_bytes(root, "tracked.txt", &path, &objects, Some(&modified)).unwrap(),
+            b"dirty\r\n"
+        );
+    }
+
+    #[test]
+    fn clean_materialized_symlink_uses_canonical_git_target() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        assert!(
+            Command::new("git")
+                .args(["init", "-b", "main"])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let blob_source = root.join("blob-source");
+        fs::write(&blob_source, b"../shared/tool").unwrap();
+        let output = Command::new("git")
+            .args(["hash-object", "-w", "blob-source"])
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let object = String::from_utf8(output.stdout).unwrap().trim().to_string();
+        let materialized = root.join("link");
+        fs::write(&materialized, b"host-working-copy-bytes").unwrap();
+        let objects = BTreeMap::from([("link".to_string(), object)]);
+        let modified = BTreeSet::new();
+        assert_eq!(
+            portable_symlink_payload(root, "link", &materialized, &objects, Some(&modified))
+                .unwrap(),
+            b"../shared/tool"
+        );
     }
 
     #[test]
@@ -9337,8 +9650,18 @@ mod tests {
             root,
             "## MODIFIED\n### SPEC SECTION Invariants\n\nTests remain governed.\n",
         );
+        let git_objects = BTreeMap::new();
+        let modified = BTreeSet::new();
         assert_eq!(
-            acceptance_input_owners(root, &record, "tests/auth.rs", &[]).unwrap(),
+            acceptance_input_owners(
+                root,
+                &record,
+                "tests/auth.rs",
+                &[],
+                &git_objects,
+                Some(&modified),
+            )
+            .unwrap(),
             vec![EXACT_TEST_OWNER.to_string()]
         );
     }
@@ -10255,9 +10578,11 @@ mod tests {
         };
 
         commit_transition("repeat identical legacy acceptance", false);
-        assert!(
-            reconstruct_legacy_acceptance_manifest(root, &record, &signed_legacy_digest).is_ok()
-        );
+        if let Err(error) =
+            reconstruct_legacy_acceptance_manifest(root, &record, &signed_legacy_digest)
+        {
+            panic!("identical legacy reconstruction failed: {error}");
+        }
 
         commit_transition("repeat distinct legacy acceptance", true);
         let error = reconstruct_legacy_acceptance_manifest(root, &record, &signed_legacy_digest)
@@ -10941,7 +11266,9 @@ mod tests {
             ChangeState::Accepted
         );
         fs::remove_dir_all(destination).unwrap();
-        assert!(archive_change(root, &record.id).is_ok());
+        if let Err(error) = archive_change(root, &record.id) {
+            panic!("archive retry failed: {error}");
+        }
     }
 
     #[test]

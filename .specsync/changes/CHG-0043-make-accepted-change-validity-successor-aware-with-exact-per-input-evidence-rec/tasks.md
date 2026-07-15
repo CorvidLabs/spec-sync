@@ -27,7 +27,9 @@ artifact: tasks
 - [x] Pass and record the native unit, integration, format, type-check, lint, and release-build gates on the exact reconciled head.
 - [x] Prepare strict SpecSync and Trust verification for the exact reconciled head without claiming post-verification results early.
 - [x] Reproduce the eight Windows failures with forced `core.autocrlf=true` and isolate host-native path parsing plus checkout-smudged byte reads as the causes.
-- [ ] Use canonical index blobs for clean tracked files and symlinks while preserving current bytes for dirty and untracked paths.
-- [ ] Make portable project-path and symlink-target validation independent of host path semantics.
-- [ ] Add CRLF, clean-index, dirty-working-tree, materialized-symlink, and portable path/target regressions.
-- [ ] Pass the focused Windows regression matrix and the full local verification gates without platform ignores.
+- [x] Use canonical index blobs for clean tracked files and symlinks while preserving current bytes for dirty and untracked paths.
+- [x] Make portable project-path and symlink-target validation independent of host path semantics.
+- [x] Add CRLF, clean-index, dirty-working-tree, materialized-symlink, and portable path/target regressions.
+- [x] Pass all eight exact Windows regressions with forced `core.autocrlf=true` without platform ignores.
+- [x] Pass the configured format, lint, type-check, and normal full test gates locally.
+- [x] Prepare the correction for combined-head hosted Windows and full CI validation without claiming those results early.

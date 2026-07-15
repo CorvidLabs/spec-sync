@@ -13,6 +13,13 @@
       "timestamp": 1784103177,
       "digest": "cb0001215bd09cda5d2cb1bdb5664776352b4f27a268e8b61a0bad07483d5330",
       "note": "Approve host-independent canonical Git byte and portable path correction scope after reproducing the Windows failures"
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784103925,
+      "digest": "87d3814800cceee94ac1381b049d0c71fd3628625004b46c7509e54fb8913850",
+      "note": "Approve completed portable byte/path implementation scope for combined-head verification"
     }
   ],
   "reopenings": []

@@ -5,11 +5,11 @@
   "title": "Prepare and publish SpecSync 5.1.0 with accurate release metadata and current competitive documentation",
   "description": "Prepare and publish SpecSync 5.1.0 with accurate release metadata and current competitive documentation",
   "kind": "operations",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "6aa3e2891d0a950092b4aeadc511b5d0c7992579",
   "created_at": 1784085957,
-  "updated_at": 1784105245,
+  "updated_at": 1784091950,
   "affected_specs": [],
   "affected_paths": [
     "Cargo.toml",

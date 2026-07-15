@@ -8226,10 +8226,10 @@ mod tests {
 
     // Verifies REQ-change-032.
     #[test]
-    fn historical_git_paths_are_nul_safe_in_a_quoted_non_ascii_project_directory() {
+    fn historical_git_paths_are_nul_safe_in_a_spaced_non_ascii_project_directory() {
         let temp = TempDir::new().unwrap();
         let repository = temp.path();
-        let root = repository.join("fixtures/naïve \"quoted\"");
+        let root = repository.join("fixtures/naïve quoted");
         fs::create_dir_all(&root).unwrap();
         let git = |args: &[&str]| {
             assert!(

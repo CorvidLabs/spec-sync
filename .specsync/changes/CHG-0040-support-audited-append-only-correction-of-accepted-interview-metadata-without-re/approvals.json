@@ -261,6 +261,44 @@
       },
       "stale_acceptance_input_digest": "8ba60afe0786c5eeedc0b88b0a304bc2eb821bf22d1b4de6c404195f5f6323d3",
       "current_acceptance_input_digest": "6bbcdbab27eb76f1be8a36523b5be3bcdf4348041b4fcfdce176fed3ad0c2b8a"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re",
+      "actor": "user:0xLeif",
+      "reason": "Make the NUL-safe Unicode path regression portable to Windows by removing an invalid fixture character",
+      "timestamp": 1784082841,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784082177,
+        "digest": "2d99438e30dff14f1c86b04a42473119c9656c845795da679c001febed251b06",
+        "note": "Closing approval after archived-only and TREESAME merge rollback regressions passed 1,606 unit and 215 integration tests at aaed8f8cb637228e9c05268ac68eb7818d7a45c7"
+      },
+      "prior_verification": {
+        "timestamp": 1784082156,
+        "commit": "aaed8f8cb637228e9c05268ac68eb7818d7a45c7",
+        "contract_digest": "e261f8783d73a6d25d1c9205b6aeab0a1487958a342b7e2ab95335c3ba68b6c0",
+        "workspace_digest": "5ba16ce0c12eec8664517cbb5e8054e4fedb217dfe7b4297e766fc151c56881b",
+        "acceptance_input_digest": "6bbcdbab27eb76f1be8a36523b5be3bcdf4348041b4fcfdce176fed3ad0c2b8a",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-032",
+          "REQ-cli-args-004",
+          "REQ-cmd-change-002"
+        ]
+      },
+      "stale_acceptance_input_digest": "6bbcdbab27eb76f1be8a36523b5be3bcdf4348041b4fcfdce176fed3ad0c2b8a",
+      "current_acceptance_input_digest": "b4fa9ce1f2302b88564c4dfb8b3fc10eb500cc54e6c0ae4fb5781bbbf5b35cbe"
     }
   ]
 }

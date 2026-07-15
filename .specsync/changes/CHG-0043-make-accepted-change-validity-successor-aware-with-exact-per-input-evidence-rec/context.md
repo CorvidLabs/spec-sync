@@ -30,3 +30,15 @@ Index stage/object inspection is scoped to the same exact literal candidates in 
 Definition input enumeration is equally strict: a missing delta directory is distinct from an unreadable or mutating directory, every entry and portable UTF-8 name is validated within bounds, and the resulting inventory participates in the same immutable capture generation. Enumeration errors can never silently omit an approved artifact.
 
 Volatile project trees are pruned during streaming discovery, before directory descent and before path/count/byte accounting. This prevents generated `target`, dependency, and active lifecycle workspaces from denying unrelated project evidence, while an exact path explicitly governed by the delivery contract remains evidence-relevant even when it resides beneath an otherwise volatile prefix.
+
+Each digest operation selects repository mode once and carries an authenticated repository/worktree identity through discovery and capture. The identity and mode are revalidated with the final inventory and snapshot, so mutation of `.git`, linked-worktree metadata, the effective Git directory, or worktree association cannot mix Git discovery with non-Git capture or evidence from different repositories.
+
+Effective and shared Git index dependencies are fingerprinted as bounded regular files. Metadata establishes type, identity, and cumulative size before streaming bytes into the digest; post-read metadata must match. Symlinks, non-regular files, oversized dependencies, truncation, replacement, and growth fail closed without an unbounded allocation.
+
+Attribute inspection authenticates its response shape as well as its values. NUL output must contain exactly one `(path, attribute, value)` record for each requested path crossed with `filter`, `working-tree-encoding`, and `ident`; malformed termination, empty fields, wrong or unrequested names, duplicates, omissions, and extras fail closed before any canonical index substitution.
+
+The correction ledger is a signed definition input, not an untyped virtual default. When present, `corrections.json` must be captured as regular-file immutable evidence before parsing; symlink, gitlink, missing/non-file, and external-target topology is rejected, and generated canonical content retains the captured regular-file mode.
+
+Archive snapshot discovery is scoped literally to the dated archive subtree and participates in the same repository identity, inventory, and capture generation. Unrelated repository size or nonportable names cannot block the narrow archive snapshot.
+
+Controlled checkout semantics use an exact allowlist: normalized effective `core.autocrlf`, `core.eol`, `core.symlinks`, and `core.filemode` values are resolved in the governed root and replayed explicitly only for diff/status classification that must interpret an existing checkout consistently. Ambient repository redirection, object stores, executable paths, config injection, hooks, filters, fsmonitor, and all non-allowlisted configuration remain scrubbed or fail closed.

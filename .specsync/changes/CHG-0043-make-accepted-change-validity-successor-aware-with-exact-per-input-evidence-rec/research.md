@@ -32,3 +32,13 @@ The exact-scope audit also found that a single unscoped `ls-files --stage -z` re
 Definition digest construction used `if let Ok(read_dir)` plus flattened and filtered entries, which made unreadable directories, individual entry failures, and non-UTF names indistinguishable from absent optional deltas. Definition inventory must fail closed and be generation-bound so terminal validation cannot authenticate an approval that silently omitted a racing or unreadable artifact.
 
 Volatile filtering occurred after Git discovery bounds and after broad filesystem traversal, allowing huge or unreadable build, dependency, and active lifecycle trees to deny an otherwise narrow nonvolatile digest. Discovery must prune those results and subtrees during streaming, with a narrow exception only for exact paths the approved contract explicitly governs.
+
+Repository mode was also detected independently by discovery and candidate capture. If `.git` or linked-worktree metadata changes between those checks, Git-discovered candidates can be consumed by the non-Git reader or by a different repository. One repository context and identity token must span the entire evidence generation and be revalidated before return.
+
+Index fingerprinting checked the byte cap only after `fs::read` had allocated the entire effective or shared index. Metadata-first regular-file validation, cumulative preflight bounds, bounded streaming, and pre/post identity checks are required to prevent oversized allocation and symlink or replacement races in an evidence dependency.
+
+The `check-attr -z` parser consumed triplets but did not prove that Git returned the exact requested `(path, attribute)` set. Strict Cartesian-set validation is necessary so malformed termination, duplicates, missing attributes, or injected wrong-path/extra records cannot be interpreted as safe transformation state.
+
+The correction ledger was parsed through a filesystem path before topology validation and then emitted with a default mode because it was absent from definition candidates. It must be a captured regular-file input before parsing, including its authoritative mode. Archive snapshots likewise used full-project discovery before filtering, so unrelated inventory could deny a narrow archive; discovery must begin at the literal archive subtree.
+
+Replaying only `core.autocrlf` is insufficient to classify an existing checkout consistently. The controlled allowlist also needs normalized `core.eol`, `core.symlinks`, and `core.filemode` semantics for text checkout, symlink materialization, and executable-bit comparison. This allowlist is narrow and value-validated; it does not reopen ambient config redirection, hooks, filters, object paths, or fsmonitor execution.

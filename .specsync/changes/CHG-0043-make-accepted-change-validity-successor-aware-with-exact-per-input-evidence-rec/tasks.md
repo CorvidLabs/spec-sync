@@ -94,3 +94,17 @@ artifact: tasks
 - [ ] Bind definition inventory enumeration to the same immutable candidate capture and add platform-feasible failure regressions.
 - [ ] Prune volatile Git results and filesystem subtrees during streaming discovery before descent and inventory bounds.
 - [ ] Preserve explicitly governed exact delivery paths while proving huge or unreadable volatile trees cannot block nonvolatile evidence.
+- [ ] Detect repository mode once per digest operation and carry an explicit repository identity token through discovery and capture.
+- [ ] Revalidate the same repository/worktree linkage before return and fail closed on Git-to-non-Git or worktree-link mutation.
+- [ ] Add deterministic repository-mode and worktree-identity mutation regressions.
+- [ ] Fingerprint effective and shared index dependencies with metadata-first bounded streaming rather than unbounded reads.
+- [ ] Reject symlink and non-regular index dependencies, enforce the cumulative cap before allocation, and compare pre/post file identity.
+- [ ] Add oversized, symlinked, non-regular, and racing index dependency regressions.
+- [ ] Validate `check-attr -z` output as the exact requested path/attribute Cartesian set with complete NUL framing.
+- [ ] Reject malformed, empty, duplicate, missing, extra, wrong-path, and wrong-attribute records and add injected parser regressions.
+- [ ] Include `corrections.json` in regular-file immutable evidence before parsing and use its captured generated-file mode.
+- [ ] Reject correction-ledger symlink, gitlink, missing/non-file, and external-target topology and add regressions.
+- [ ] Discover archive-subtree paths through scoped literal generation-bound inventory rather than full-project discovery.
+- [ ] Prove huge or nonportable unrelated inventory cannot block an archive-subtree snapshot.
+- [ ] Resolve, normalize, and explicitly replay only the checkout/diff allowlist `core.autocrlf`, `core.eol`, `core.symlinks`, and `core.filemode`.
+- [ ] Add text/eol, materialized-symlink, executable-mode, boolean-spelling, and platform-safe checkout-semantics regressions while retaining all redirection/hook scrubbing.

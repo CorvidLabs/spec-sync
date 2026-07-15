@@ -139,6 +139,13 @@
       "timestamp": 1784117574,
       "digest": "c695c38abe3da27be499f56577535144d25d1b97f9c472388b1b19beac35665a",
       "note": "Approve complete audit scope including fail-closed definition inventory and streaming volatile pruning."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784117749,
+      "digest": "801f8b57af036096c4a7c8a05f942f522bef53f07a54c83c5f678c34e58c91d3",
+      "note": "Approve the definitive Talon audit scope: repository identity, generation-bound discovery, bounded subprocess and index handling, literal exact pathspecs, strict attribute responses, correction topology, archive scoping, volatile pruning, and the exact checkout-semantics allowlist."
     }
   ],
   "reopenings": []

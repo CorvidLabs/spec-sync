@@ -1591,6 +1591,10 @@ fn validate_trusted_correction_history(
     references.dedup();
     let shallow = git_output(root, &["rev-parse", "--is-shallow-repository"])
         .is_some_and(|value| value == "true");
+    // A correction-free shallow tip is indistinguishable from a correction
+    // that was accepted and rolled back below the shallow boundary. Require
+    // history through the recorded base before trusting either case; only a
+    // demonstrably new change at or after that boundary can safely pass.
     if shallow && !shallow_history_is_complete_for_change(root, record, &references)? {
         return Err(format!(
             "cannot validate append-only correction history for {} from an incomplete shallow Git checkout; fetch through its recorded base commit",
@@ -1635,7 +1639,7 @@ fn validate_trusted_correction_history(
         .flatten();
     let mut correction_probe = Command::new("git");
     correction_probe
-        .args(["rev-list", "--max-count=1"])
+        .args(["rev-list", "--full-history", "--max-count=1"])
         .args(&reference_args);
     if let Some(exclusion) = &history_exclusion {
         correction_probe.arg(exclusion);
@@ -1661,7 +1665,7 @@ fn validate_trusted_correction_history(
         return Ok(());
     }
     let output = Command::new("git")
-        .arg("rev-list")
+        .args(["rev-list", "--full-history"])
         .args(&reference_args)
         .args(history_exclusion)
         .arg("--")
@@ -1851,7 +1855,7 @@ fn closing_authenticated_correction_anchor(
         return Ok(None);
     };
     if state.id != change_id
-        || state.state != ChangeState::Accepted
+        || !matches!(state.state, ChangeState::Accepted | ChangeState::Archived)
         || !state.canonical_applied
         || state.correction_count == 0
     {
@@ -1946,7 +1950,12 @@ fn historical_definition_digest_matches(
         }
         let effective = validate_correction_records(record, &corrections.corrections)?;
         let repo_prefix = git_repo_relative_path(root, "")?;
-        let local_directory = directory.strip_prefix(&repo_prefix).unwrap_or(directory);
+        let active_local_directory = format!("{CHANGES_PATH}/{}", record.id);
+        let local_directory = if record.state == ChangeState::Archived {
+            active_local_directory.as_str()
+        } else {
+            directory.strip_prefix(&repo_prefix).unwrap_or(directory)
+        };
         let mut files = Vec::new();
         for artifact in &effective.selected_artifacts {
             files.push((
@@ -1974,10 +1983,12 @@ fn historical_definition_digest_matches(
             return Ok(false);
         }
         for path in nul_terminated_git_paths(&output.stdout, "historical delta paths")? {
-            files.push((
-                path.clone(),
-                path.strip_prefix(&repo_prefix).unwrap_or(&path).to_string(),
-            ));
+            let local_path = path
+                .strip_prefix(directory)
+                .and_then(|suffix| suffix.strip_prefix('/'))
+                .map(|suffix| format!("{local_directory}/{suffix}"))
+                .unwrap_or_else(|| path.strip_prefix(&repo_prefix).unwrap_or(&path).to_string());
+            files.push((path.clone(), local_path));
         }
         let policy_path = git_repo_relative_path(root, POLICY_PATH)?;
         if let Some(policy_bytes) = git_file_at_commit(root, commit, &policy_path)?
@@ -8098,6 +8109,90 @@ mod tests {
 
     // Verifies REQ-change-032.
     #[test]
+    fn full_history_finds_a_corrected_anchor_hidden_by_a_treesame_merge_result() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git {} failed",
+                args.join(" ")
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        git(&["add", "."]);
+        git(&["commit", "-m", "base definition"]);
+        record = accept_completed_record(root, record);
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept original definition"]);
+        let original = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+
+        git(&["switch", "-c", "corrected-side-branch"]);
+        let correction = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::ArchitectureRisk,
+            "yes".into(),
+            "Reviewer".into(),
+            "The accepted verification path has architectural risk".into(),
+        )
+        .unwrap();
+        for artifact in &correction.correction.added_artifacts {
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                if *artifact == ArtifactKind::Tasks {
+                    "# Tasks\n\n- [x] Review the corrected classification.\n"
+                } else {
+                    "# Complete\n\nThe corrected classification was reviewed.\n"
+                },
+            )
+            .unwrap();
+        }
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept corrected definition"]);
+
+        let workspace = format!("{CHANGES_PATH}/{}", record.id);
+        git(&[
+            "restore",
+            "--source",
+            original.as_str(),
+            "--",
+            workspace.as_str(),
+        ]);
+        git(&["add", "."]);
+        git(&["commit", "-m", "roll back corrected workspace"]);
+        git(&["switch", "main"]);
+        git(&[
+            "merge",
+            "--no-ff",
+            "corrected-side-branch",
+            "-m",
+            "merge side-branch history",
+        ]);
+
+        let rolled_back = load_change(root, &record.id).unwrap();
+        assert_eq!(rolled_back.correction_count, 0);
+        let error = effective_change_definition(root, &rolled_back).unwrap_err();
+        assert!(
+            error.contains("correction history rollback detected"),
+            "{error}"
+        );
+    }
+
+    // Verifies REQ-change-032.
+    #[test]
     fn trusted_history_ignores_a_dangling_remote_default_symbolic_ref() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
@@ -8262,6 +8357,89 @@ mod tests {
         let mut rolled_back = archived;
         rolled_back.correction_count = 0;
         write_json(&archive.join("state.json"), &rolled_back).unwrap();
+        let error = effective_change_definition(root, &rolled_back).unwrap_err();
+        assert!(
+            error.contains("correction history rollback detected"),
+            "{error}"
+        );
+    }
+
+    // Verifies REQ-change-032.
+    #[test]
+    fn archived_only_corrected_snapshot_remains_a_trusted_anchor() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git {} failed",
+                args.join(" ")
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        git(&["add", "."]);
+        git(&["commit", "-m", "base definition"]);
+        record = accept_completed_record(root, record);
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept original definition"]);
+
+        let correction = correct_interview_metadata(
+            root,
+            &record.id,
+            CorrectionField::ArchitectureRisk,
+            "yes".into(),
+            "Reviewer".into(),
+            "The accepted verification path has architectural risk".into(),
+        )
+        .unwrap();
+        for artifact in &correction.correction.added_artifacts {
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                if *artifact == ArtifactKind::Tasks {
+                    "# Tasks\n\n- [x] Review the corrected classification.\n"
+                } else {
+                    "# Complete\n\nThe corrected classification was reviewed.\n"
+                },
+            )
+            .unwrap();
+        }
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        let archive = archive_change(root, &record.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "record only archived corrected snapshot"]);
+        assert!(
+            git_output(
+                root,
+                &[
+                    "log",
+                    "--format=%H",
+                    "--",
+                    &format!("{CHANGES_PATH}/{}/corrections.json", record.id),
+                ],
+            )
+            .is_none()
+        );
+
+        let archived = load_change(root, &record.id).unwrap();
+        assert_eq!(archived.state, ChangeState::Archived);
+        let mut ledger = load_correction_ledger(root, &archived).unwrap();
+        ledger.corrections.clear();
+        write_json(&archive.join(CORRECTIONS_FILE), &ledger).unwrap();
+        let mut rolled_back = archived;
+        rolled_back.correction_count = 0;
+        write_json(&archive.join("state.json"), &rolled_back).unwrap();
+
         let error = effective_change_definition(root, &rolled_back).unwrap_err();
         assert!(
             error.contains("correction history rollback detected"),

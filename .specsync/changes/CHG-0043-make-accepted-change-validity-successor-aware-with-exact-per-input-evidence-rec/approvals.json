@@ -1,217 +1,270 @@
 {
   "approvals": [
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784098711,
       "digest": "42f22c3cf4dd6f8f3b25edafd92b217964d00511f4772ff1bce0549e0303e60f",
-      "gate": "definition",
-      "note": "Definition approved after review of the fresh main-based artifacts, exact fc5f9ac baseline cutoff, 43 uniquely authenticated archive anchors, and the definition-bound canonical baseline bytes.",
-      "timestamp": 1784098711
+      "note": "Definition approved after review of the fresh main-based artifacts, exact fc5f9ac baseline cutoff, 43 uniquely authenticated archive anchors, and the definition-bound canonical baseline bytes."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784103177,
       "digest": "cb0001215bd09cda5d2cb1bdb5664776352b4f27a268e8b61a0bad07483d5330",
-      "gate": "definition",
-      "note": "Approve host-independent canonical Git byte and portable path correction scope after reproducing the Windows failures",
-      "timestamp": 1784103177
+      "note": "Approve host-independent canonical Git byte and portable path correction scope after reproducing the Windows failures"
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784103925,
       "digest": "87d3814800cceee94ac1381b049d0c71fd3628625004b46c7509e54fb8913850",
-      "gate": "definition",
-      "note": "Approve completed portable byte/path implementation scope for combined-head verification",
-      "timestamp": 1784103925
+      "note": "Approve completed portable byte/path implementation scope for combined-head verification"
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784106292,
       "digest": "62b60101543af24ff5ef35e48150c0ca90ca3f066be953696f88e9dfd0845b69",
-      "gate": "definition",
-      "note": "Approve tracked-symlink deletion topology correction after independent audit",
-      "timestamp": 1784106292
+      "note": "Approve tracked-symlink deletion topology correction after independent audit"
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784106457,
       "digest": "4b966682f0f7dd03becf70b4e9e416a08c6c1efb440953b4c98514b2f8c0cd91",
-      "gate": "definition",
-      "note": "Approve exact relative symlink target semantics and deletion correction after independent audit",
-      "timestamp": 1784106457
+      "note": "Approve exact relative symlink target semantics and deletion correction after independent audit"
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784106950,
       "digest": "1683b6863ef38200e9fb39027762e77b6add1b809d9ca558aa17d9f4aac4acdb",
-      "gate": "definition",
-      "note": "Approve fail-closed Git index visibility, attribute, topology, and authoritative-size boundaries after independent audit",
-      "timestamp": 1784106950
+      "note": "Approve fail-closed Git index visibility, attribute, topology, and authoritative-size boundaries after independent audit"
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784107671,
       "digest": "2e56d05705c3c89e82362fe9c66fd01b5dbddeb556a01e331269af98b94c0488",
-      "gate": "definition",
-      "note": "Reapproved after evidence-bound Git index, symlink topology, attribute, and artifact-size corrections passed the complete local regression matrix.",
-      "timestamp": 1784107671
+      "note": "Reapproved after evidence-bound Git index, symlink topology, attribute, and artifact-size corrections passed the complete local regression matrix."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784108277,
       "digest": "767d470417e8dfbd2c5064122e38d835933e2ddefbed0a5f983ae384ebe7c49a",
-      "gate": "definition",
-      "note": "Approve candidate-scoped stable-index evidence, bounded attribute inspection, visibility and conversion boundaries, and sparse legacy topology corrections.",
-      "timestamp": 1784108277
+      "note": "Approve candidate-scoped stable-index evidence, bounded attribute inspection, visibility and conversion boundaries, and sparse legacy topology corrections."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784108367,
       "digest": "5291fd32c99ca520788dd2a28bbdd9d0ece36fc33d48425efd93359870f7e061",
-      "gate": "definition",
-      "note": "Approve deterministic candidate and attribute parsing bounds for the stable Git evidence correction.",
-      "timestamp": 1784108367
+      "note": "Approve deterministic candidate and attribute parsing bounds for the stable Git evidence correction."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784108431,
       "digest": "64aee9f7ac1deecb0205c98b8e63fc755cf60cde74e6450142acf8fb659687ba",
-      "gate": "definition",
-      "note": "Reapprove the complete normative stable-index, bounded candidate, conversion, visibility, and sparse archive evidence contract.",
-      "timestamp": 1784108431
+      "note": "Reapprove the complete normative stable-index, bounded candidate, conversion, visibility, and sparse archive evidence contract."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784108471,
       "digest": "a387c873bbd916fcdb5e0b6071bbb604f7301eaa0eb388246f4421ddacbafe13",
-      "gate": "definition",
-      "note": "Reapprove explicit fail-closed authority-baseline deletion semantics with no stale definition binding.",
-      "timestamp": 1784108471
+      "note": "Reapprove explicit fail-closed authority-baseline deletion semantics with no stale definition binding."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784108512,
       "digest": "cf46ae52bd35025e3c05e69b08b51faccfe5ff3134aaa5a9ba67886955924834",
-      "gate": "definition",
-      "note": "Reapprove regular-file-only definition artifact topology and pre-read symlink rejection.",
-      "timestamp": 1784108512
+      "note": "Reapprove regular-file-only definition artifact topology and pre-read symlink rejection."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784109459,
       "digest": "a4b895ab54caae6fec6eb1ea0fd9c41595036e8787f9b6dd885f75ae103c27e0",
-      "gate": "definition",
-      "note": "Reapprove completed stable candidate-scoped Git evidence implementation after focused and full local regression gates.",
-      "timestamp": 1784109459
+      "note": "Reapprove completed stable candidate-scoped Git evidence implementation after focused and full local regression gates."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784109820,
       "digest": "c7ee8e1f91f1ffb5eb4889f63574f25e1f7bee4ce1c2e5cbaac8f35d6ea0c1c1",
-      "gate": "definition",
-      "note": "Approve exact pre-inspection candidate filtering for volatile project paths and record-scoped acceptance evidence.",
-      "timestamp": 1784109820
+      "note": "Approve exact pre-inspection candidate filtering for volatile project paths and record-scoped acceptance evidence."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784110043,
       "digest": "2557ef9884ead85609b63f94c65ee5c2d619241a07ad7bdaaae96811a87d2b64",
-      "gate": "definition",
-      "note": "Reapprove the coherent bounded Git evidence redesign with captured candidate snapshots, fatal post-detection failures, effective-index support, and scoped stages.",
-      "timestamp": 1784110043
+      "note": "Reapprove the coherent bounded Git evidence redesign with captured candidate snapshots, fatal post-detection failures, effective-index support, and scoped stages."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784112309,
       "digest": "fb6df29ed613e157325cb723b20ff54fa3240b801f540dcaaa80e3366787d942",
-      "gate": "definition",
-      "note": "Reapprove completed bounded immutable Git evidence redesign, effective-index confinement, caller snapshot migration, and deterministic adversarial regressions.",
-      "timestamp": 1784112309
+      "note": "Reapprove completed bounded immutable Git evidence redesign, effective-index confinement, caller snapshot migration, and deterministic adversarial regressions."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784117234,
       "digest": "e8514419ccc0a9dea66038b0b9cd1d30932c21c16c6b406e581cc4f38399aad2",
-      "gate": "definition",
-      "note": "Reapprove completed bounded immutable Git evidence redesign, scoped candidate discovery, controlled autocrlf checkout semantics, and deterministic adversarial regressions after all exact local gates.",
-      "timestamp": 1784117234
+      "note": "Reapprove completed bounded immutable Git evidence redesign, scoped candidate discovery, controlled autocrlf checkout semantics, and deterministic adversarial regressions after all exact local gates."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784117451,
       "digest": "13da14f36f0464b5c64a94cf327a1b065b8a94227f98e45861eb13eb0d898a83",
-      "gate": "definition",
-      "note": "Approve fail-closed repository detection and inventory-capture generation binding for audit finding 1806051 and follow-up TOCTOU review.",
-      "timestamp": 1784117451
+      "note": "Approve fail-closed repository detection and inventory-capture generation binding for audit finding 1806051 and follow-up TOCTOU review."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784117514,
       "digest": "c06772ef4a2c75b8ff3dc9b114d78356e08666c37e5bd91d009a4d08f35dce46",
-      "gate": "definition",
-      "note": "Approve fail-closed repository detection, generation-bound discovery, deadline-safe subprocess cleanup, literal pathspecs, and exact-candidate stage inspection from the completed audit.",
-      "timestamp": 1784117514
+      "note": "Approve fail-closed repository detection, generation-bound discovery, deadline-safe subprocess cleanup, literal pathspecs, and exact-candidate stage inspection from the completed audit."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784117574,
       "digest": "c695c38abe3da27be499f56577535144d25d1b97f9c472388b1b19beac35665a",
-      "gate": "definition",
-      "note": "Approve complete audit scope including fail-closed definition inventory and streaming volatile pruning.",
-      "timestamp": 1784117574
+      "note": "Approve complete audit scope including fail-closed definition inventory and streaming volatile pruning."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784117749,
       "digest": "801f8b57af036096c4a7c8a05f942f522bef53f07a54c83c5f678c34e58c91d3",
-      "gate": "definition",
-      "note": "Approve the definitive Talon audit scope: repository identity, generation-bound discovery, bounded subprocess and index handling, literal exact pathspecs, strict attribute responses, correction topology, archive scoping, volatile pruning, and the exact checkout-semantics allowlist.",
-      "timestamp": 1784117749
+      "note": "Approve the definitive Talon audit scope: repository identity, generation-bound discovery, bounded subprocess and index handling, literal exact pathspecs, strict attribute responses, correction topology, archive scoping, volatile pruning, and the exact checkout-semantics allowlist."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784122581,
       "digest": "ca20269a7891ba00176f1b676fb341062f68acb57baca697b36bf773e1ce274a",
-      "gate": "definition",
-      "note": "Reapprove completed final Git evidence audit fixes after exact local gates.",
-      "timestamp": 1784122581
+      "note": "Reapprove completed final Git evidence audit fixes after exact local gates."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784122676,
       "digest": "f794516dc9dec085ec5e1807822671875f7864f2d1dbbd5a8317d27e0ce36ffc",
-      "gate": "definition",
-      "note": "Record portable SpecSync 5.0.1 definition approval after final Git evidence audit gates.",
-      "timestamp": 1784122676
+      "note": "Record portable SpecSync 5.0.1 definition approval after final Git evidence audit gates."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784122785,
       "digest": "ca20269a7891ba00176f1b676fb341062f68acb57baca697b36bf773e1ce274a",
-      "gate": "definition",
-      "note": "Record current SpecSync definition approval while preserving the portable 5.0.1 approval.",
-      "timestamp": 1784122785
+      "note": "Record current SpecSync definition approval while preserving the portable 5.0.1 approval."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
+      "timestamp": 1784122864,
       "digest": "f794516dc9dec085ec5e1807822671875f7864f2d1dbbd5a8317d27e0ce36ffc",
-      "gate": "definition",
-      "note": "Finalize portable SpecSync 5.0.1 definition approval after the current-engine approval.",
-      "timestamp": 1784122864
+      "note": "Finalize portable SpecSync 5.0.1 definition approval after the current-engine approval."
     },
     {
+      "gate": "definition",
       "actor": "user:0xLeif",
-      "definition_pair": {
-        "change_id": "CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec",
-        "correction_count": 0,
-        "correction_prefix_digest": "88b79b2430a555cd0e3bcb3d2ed28764beb79daad8e307e04585327f892101d0",
-        "current_digest": "b3d1588f3c9904b2de9666567a67a9edf5bcd21d54d8be7e09a637c564f02ecb",
-        "event_index": 25,
-        "legacy_digest": "82b2930cf776d604d0fce80721c45a842bf9fe1e4a10b5a25c62ed3b14876f51",
-        "pair_id": "cd11694f09a92c07f1ed4019cce40f53c2c32e04273a5b82b04fb950393b45a9",
-        "projection": "specsync-5.0.1",
-        "role": "current",
-        "schema_version": 1
-      },
+      "timestamp": 1784125793,
       "digest": "b3d1588f3c9904b2de9666567a67a9edf5bcd21d54d8be7e09a637c564f02ecb",
-      "gate": "definition",
       "note": "Approve the atomic marked SpecSync 5.0.1 portable definition and strict approval parity contract",
-      "timestamp": 1784125793
-    },
-    {
-      "actor": "user:0xLeif",
       "definition_pair": {
+        "schema_version": 1,
+        "projection": "specsync-5.0.1",
+        "pair_id": "cd11694f09a92c07f1ed4019cce40f53c2c32e04273a5b82b04fb950393b45a9",
+        "role": "current",
         "change_id": "CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec",
         "correction_count": 0,
         "correction_prefix_digest": "88b79b2430a555cd0e3bcb3d2ed28764beb79daad8e307e04585327f892101d0",
         "current_digest": "b3d1588f3c9904b2de9666567a67a9edf5bcd21d54d8be7e09a637c564f02ecb",
-        "event_index": 25,
         "legacy_digest": "82b2930cf776d604d0fce80721c45a842bf9fe1e4a10b5a25c62ed3b14876f51",
-        "pair_id": "cd11694f09a92c07f1ed4019cce40f53c2c32e04273a5b82b04fb950393b45a9",
-        "projection": "specsync-5.0.1",
-        "role": "legacy",
-        "schema_version": 1
-      },
-      "digest": "82b2930cf776d604d0fce80721c45a842bf9fe1e4a10b5a25c62ed3b14876f51",
+        "event_index": 25
+      }
+    },
+    {
       "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784125793,
+      "digest": "82b2930cf776d604d0fce80721c45a842bf9fe1e4a10b5a25c62ed3b14876f51",
       "note": "Portable SpecSync 5.0.1 definition projection",
-      "timestamp": 1784125793
+      "definition_pair": {
+        "schema_version": 1,
+        "projection": "specsync-5.0.1",
+        "pair_id": "cd11694f09a92c07f1ed4019cce40f53c2c32e04273a5b82b04fb950393b45a9",
+        "role": "legacy",
+        "change_id": "CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec",
+        "correction_count": 0,
+        "correction_prefix_digest": "88b79b2430a555cd0e3bcb3d2ed28764beb79daad8e307e04585327f892101d0",
+        "current_digest": "b3d1588f3c9904b2de9666567a67a9edf5bcd21d54d8be7e09a637c564f02ecb",
+        "legacy_digest": "82b2930cf776d604d0fce80721c45a842bf9fe1e4a10b5a25c62ed3b14876f51",
+        "event_index": 25
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784132770,
+      "digest": "d949408bfb399c5a6ec90d2c3f520a585f4e9848cdab22d27f41968548215b33",
+      "note": "Reapprove CHG-0043 for final SpecSync 5.1 verification.",
+      "definition_pair": {
+        "schema_version": 1,
+        "projection": "specsync-5.0.1",
+        "pair_id": "516fb73c0418c11daa272b8f70cdd72ca1b95830f25fe48ff3bd017ba2927fc5",
+        "role": "current",
+        "change_id": "CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec",
+        "correction_count": 0,
+        "correction_prefix_digest": "88b79b2430a555cd0e3bcb3d2ed28764beb79daad8e307e04585327f892101d0",
+        "current_digest": "d949408bfb399c5a6ec90d2c3f520a585f4e9848cdab22d27f41968548215b33",
+        "legacy_digest": "49e608a38c66eb1d4b7fdb9d16edd6812bb1f6dee555ba5546d2b53b3a34eee1",
+        "event_index": 27
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784132770,
+      "digest": "49e608a38c66eb1d4b7fdb9d16edd6812bb1f6dee555ba5546d2b53b3a34eee1",
+      "note": "Portable SpecSync 5.0.1 definition projection",
+      "definition_pair": {
+        "schema_version": 1,
+        "projection": "specsync-5.0.1",
+        "pair_id": "516fb73c0418c11daa272b8f70cdd72ca1b95830f25fe48ff3bd017ba2927fc5",
+        "role": "legacy",
+        "change_id": "CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec",
+        "correction_count": 0,
+        "correction_prefix_digest": "88b79b2430a555cd0e3bcb3d2ed28764beb79daad8e307e04585327f892101d0",
+        "current_digest": "d949408bfb399c5a6ec90d2c3f520a585f4e9848cdab22d27f41968548215b33",
+        "legacy_digest": "49e608a38c66eb1d4b7fdb9d16edd6812bb1f6dee555ba5546d2b53b3a34eee1",
+        "event_index": 27
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784139182,
+      "digest": "c7a72ac0797466a3172ce47b9d456540bb493fe5bd7a2f530c28fc0abb9db307",
+      "note": "Reapprove after removing the duplicate REQ-change-032 block already owned by CHG-0040."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784140436,
+      "digest": "413f375e8034b2c88904d03fb23512c766f92f8c97d133a0aaf249f3315b5be2",
+      "note": null
     }
-  ]
+  ],
+  "reopenings": []
 }

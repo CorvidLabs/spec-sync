@@ -77,39 +77,6 @@ Acceptance Criteria
 - Every changed input expands to one obligation per signed canonical owner and every obligation matches one exact predecessor/path/module/old-digest/new-digest tuple from the same successor.
 - Multiple terminal successors may cover disjoint obligations, while cycles fail closed and completed validity results are memoized.
 
-## ADDED
-
-### REQUIREMENT REQ-change-032
-
-Acceptance SHALL persist bounded canonical per-input manifests and explicit semantic succession evidence without changing legacy closing-approval bytes.
-
-Acceptance Criteria
-- Manifest schema, strictly sorted unique portable paths, sorted unique owners, supported kind/mode pairs, lowercase SHA-256 digests, and fixed entry/path/owner bounds validate fail closed.
-- Candidate-scoped Git evidence is bounded to 100,000 paths, 4,096 bytes per path, and 64 MiB aggregate path bytes before payload/owner work; NUL-safe attribute batches reject active regular-file `filter`, `working-tree-encoding`, and `ident` conversion without blocking unrelated, symlink, or gitlink paths.
-- Project freshness removes volatile paths and acceptance evidence removes noncovered paths before Git inspection while preserving every record-covered override, canonical-spec, tracked, and untracked input.
-- Streaming discovery, index/split-index reads, and attribute output are bounded before full buffering; one candidate-filtered index parse and bounded retry return captured candidate topology/content for caller consumption.
-- Positive Git detection makes every later command/parse failure fatal with bounded diagnostics; concurrent capped drains kill/reap overflow, effective-index fingerprinting honors `GIT_INDEX_FILE` plus split dependencies, and unrelated unmerged stages do not block selected candidates.
-- Conversion attributes apply only to clean materialized tracked regular substitution; all false Git booleans disable fsmonitor; first authority binding requires its baseline ledger; definition regular files allow modes `100644` and `100755`.
-- Canonical substitution rejects governed assume-unchanged, materialized fsmonitor-valid, materialized skip-worktree, and unmerged paths, preserves absent sparse index topology, and retries or fails closed when the index or split-index generation changes during inspection.
-- Selected lifecycle definition artifacts are regular files; clean tracked, dirty, and untracked symlinks fail closed before any referent payload or size read.
-- Source owners come only from the immutable post-delta canonical snapshot; unmapped production source paths fail and recognized governed test/fixture paths plus delivery metadata are exact-only.
-- Symlinks hash exact portable target bytes and reject non-portable targets; gitlinks hash the exact index/tree object ID instead of checked-out directory topology.
-- Full-entry topology digests use `specsync.acceptance-entry.v1` over path, kind, mode, and payload digest so same-payload mode/kind transitions remain distinct.
-- New v1 aggregates use `specsync.acceptance-manifest.v1`, reproduce solely from canonical manifest entries, and equal the persisted acceptance input digest; legacy raw-content aggregates retain `specsync.acceptance-input-digest.v2`.
-- Empty supersedes and absent manifest/succession fields are defaulted and omitted so old state JSON, verification JSON, definition digests, and closing digests remain byte-identical.
-- An explicitly requested portable authority approval atomically records a marked adjacent pair from one immutable snapshot: the current full-definition digest followed by the exact 5.0.1-compatible projection digest, with optional backward-readable schema/projection/pair/role/change/correction metadata, the same actor and timestamp, no intervening gate, and fail-closed rejection of malformed, replayed, unsupported, or historical-pair revival.
-- Portable approval requires projected working-tree artifact bytes to equal canonical Git bytes and rejects CRLF-smudged or otherwise divergent checkout bytes with the exact path before ledger mutation, because immutable 5.0.1 cannot validate one digest across those byte representations.
-- Succession evidence uses `specsync.semantic-succession.v1` with bounded unique tuples strictly sorted by numeric sequence then full predecessor ID then path then module, portable paths, canonical modules, lowercase full-entry digests, conflict rejection, and exact one-to-one approved-obligation derivation.
-- Stale legacy reconstruction uses one trusted accepted-transition anchor and deduplicates identical evidence content before deciding ambiguity.
-- Enumerated standalone pre-CHG43 archives may authenticate only through the strictly sorted `.specsync/archive/legacy-baseline.json` ledger bound by CHG43's manifest-backed closing and trusted acceptance/history anchor; each entry binds a trusted cutoff, unique pre-cutoff introduction, canonical path, and exact domain-separated subtree digest, and never supplies accepted-transition, current-input, candidate, preflight, or semantic-succession validity.
-- Before authority acceptance, the exact ledger digest is definition-bound and requires valid definition approval plus a canonical cutoff exactly equal to the authority base commit and ancestral to current history; accepted or archived authority upgrades to mandatory manifest-backed closing/history proof and cannot downgrade to bootstrap.
-- Archive authenticates accepted-state bytes from the unique trusted accepted transition and prior closing evidence, never mints approval, restores byte-identical source artifacts after post-move failure, and fails closed for unverifiable legacy archives.
-- Legacy archive and baseline snapshots union tracked index entries with present working-tree entries so sparse-absent inputs remain signed even beneath explicitly scoped volatile archive paths, dirty tracked symlinks use current topology, and a dirty or untracked missing authority baseline fails closed without preserving a stale binding.
-- Active accepted check/status/reopen/archive eligibility consume one recursive cycle-safe current-input validator; strict archive integrity uses a separate history authenticator and one immutable corpus-wide evidence capture, and reports a shared authority failure once while retaining per-archive path, digest, introduction, and history errors.
-- Active accepted status reports exact, successor-covered, or stale; archived status reports authenticated-history or corrupt-history.
-- Strict checking requires a valid definition approval for Approved, Implementing, and Verifying changes while Draft changes remain exempt until approval.
-
-
 ## MODIFIED
 
 ### SPEC SECTION Contract

@@ -1,0 +1,47 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784136433,
+      "digest": "a9d7187f32e13efa70a897c04f53205e6d785d23d7a66c3eaa5a400d5ccfc0ba",
+      "note": "Approve the recommended audited exact-owner correction definition."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784140444,
+      "digest": "c9188ad5b9ce394a82116b7d37ab970ae528c61922bb31f0150429092e9ba627",
+      "note": "Reapprove after adding the deterministic dependency on CHG-0043."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784144668,
+      "digest": "b50fec29d5b81d11274a7a36daabba326ef55dfebeafee45eb44c803ce71a80f",
+      "note": "Reapprove after rebasing its definition onto accepted CHG-0043 and adding exact legacy baseline ledger manifest coverage."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784148869,
+      "digest": "6a5dde235092ab49db5fa1080710c0315872c9d3dca6b167086245bf36b27dcb",
+      "note": "Reapprove after replacing the circular final task with truthful pre-acceptance verification and post-acceptance strict lifecycle refresh evidence."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784151153,
+      "digest": "069f8a888a4bee7649fc98bb72a9b58cee7773c592cb994ce7c08350abf7b64c",
+      "note": "Reapprove after adding deterministic canonical ownership and semantic deltas for cli_args and cmd_change."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784153232,
+      "digest": "505409c7e6b92dc46b5a916e3d0ed5a6241f895eaf62c848650ad92d2496869c",
+      "note": "Accept CHG-0047 after successful fresh verification of change, cli_args, and cmd_change."
+    }
+  ],
+  "reopenings": []
+}

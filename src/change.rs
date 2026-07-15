@@ -419,9 +419,23 @@ pub struct ChangeRecord {
     pub dependencies: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub supersedes: Vec<SupersedesEdge>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub acceptance_owner_corrections: Vec<AcceptanceOwnerCorrection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legacy_archive_baseline_digest: Option<String>,
     pub answers: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AcceptanceOwnerCorrection {
+    pub schema_version: u32,
+    pub sequence: u64,
+    pub path: String,
+    pub module: String,
+    pub actor: String,
+    pub reason: String,
+    pub timestamp: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -917,6 +931,7 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         selected_artifacts: artifacts,
         dependencies: Vec::new(),
         supersedes: Vec::new(),
+        acceptance_owner_corrections: Vec::new(),
         legacy_archive_baseline_digest: None,
         answers: BTreeMap::new(),
     };
@@ -1783,6 +1798,252 @@ pub fn reopen_change(
         change: record,
         audit,
     })
+}
+
+fn validate_acceptance_owner_correction_records(record: &ChangeRecord) -> Result<(), String> {
+    if record.acceptance_owner_corrections.len() > MAX_ACCEPTANCE_OWNERS {
+        return Err(format!(
+            "acceptance owner corrections exceed {MAX_ACCEPTANCE_OWNERS} entries"
+        ));
+    }
+    let mut exact_pairs = BTreeSet::new();
+    for (index, correction) in record.acceptance_owner_corrections.iter().enumerate() {
+        let expected_sequence = index as u64 + 1;
+        if correction.schema_version != 1 {
+            return Err(format!(
+                "unsupported acceptance owner correction schema {} at sequence {expected_sequence}",
+                correction.schema_version
+            ));
+        }
+        if correction.sequence != expected_sequence {
+            return Err(format!(
+                "acceptance owner correction sequence is not contiguous: expected {expected_sequence}, found {}",
+                correction.sequence
+            ));
+        }
+        if correction.path.len() > MAX_ACCEPTANCE_PATH_BYTES
+            || strict_portable_relative_path(&correction.path)? != correction.path
+        {
+            return Err(format!(
+                "invalid acceptance owner correction path `{}`",
+                correction.path
+            ));
+        }
+        if correction.module.len() > MAX_ACCEPTANCE_OWNER_BYTES
+            || correction.module.starts_with("@exact:")
+        {
+            return Err(format!(
+                "invalid acceptance owner correction module `{}`",
+                correction.module
+            ));
+        }
+        crate::commands::validate_module_name(&correction.module)
+            .map_err(|error| format!("invalid acceptance owner correction module: {error}"))?;
+        if correction.actor.trim().is_empty()
+            || correction.actor.trim() != correction.actor
+            || correction.reason.trim().is_empty()
+            || correction.reason.trim() != correction.reason
+        {
+            return Err(format!(
+                "acceptance owner correction sequence {expected_sequence} has a missing or non-canonical actor/reason"
+            ));
+        }
+        if !record
+            .affected_paths
+            .iter()
+            .any(|scope| path_matches_scope(&correction.path, scope))
+        {
+            return Err(format!(
+                "acceptance owner correction path `{}` is outside the original affected path scope",
+                correction.path
+            ));
+        }
+        if record.affected_specs.contains(&correction.module) {
+            return Err(format!(
+                "acceptance owner `{}` is already represented by the original affected specs",
+                correction.module
+            ));
+        }
+        if !exact_pairs.insert((correction.path.as_str(), correction.module.as_str())) {
+            return Err(format!(
+                "duplicate acceptance owner correction `{}` for `{}`",
+                correction.module, correction.path
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn canonical_module_owns_exact_source_path(
+    root: &Path,
+    module: &str,
+    relative: &str,
+) -> Result<(), String> {
+    if !path_is_production_source(root, relative) {
+        return Err(format!(
+            "acceptance owner correction path `{relative}` is not production source"
+        ));
+    }
+    let source_path = safe_project_path(root, relative)?;
+    let metadata = fs::symlink_metadata(&source_path)
+        .map_err(|_| format!("acceptance owner correction path `{relative}` does not exist"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(format!(
+            "acceptance owner correction path `{relative}` must be a regular file"
+        ));
+    }
+    let config = crate::config::load_config(root);
+    let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)?;
+    let spec_relative = strict_portable_project_path(root, &spec_path)?;
+    let candidates = BTreeSet::from([spec_relative.clone()]);
+    let evidence = git_regular_file_evidence(root, &candidates)?;
+    let entry = evidence.entry(&spec_relative)?;
+    let content = String::from_utf8(entry.payload.clone()).map_err(|_| {
+        format!("canonical spec for `{module}` is not valid UTF-8: {spec_relative}")
+    })?;
+    let parsed = crate::parser::parse_frontmatter(&content)
+        .ok_or_else(|| format!("canonical spec for `{module}` has invalid frontmatter"))?;
+    let owns =
+        parsed.frontmatter.files.iter().any(|path| {
+            normalize_project_path(path).is_ok_and(|normalized| normalized == relative)
+        });
+    if !owns {
+        return Err(format!(
+            "canonical module `{module}` does not own exact source path `{relative}`"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_acceptance_owner_corrections_current(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(), String> {
+    validate_acceptance_owner_correction_records(record)?;
+    for correction in &record.acceptance_owner_corrections {
+        canonical_module_owns_exact_source_path(root, &correction.module, &correction.path)?;
+    }
+    Ok(())
+}
+
+fn latest_reopen_for_owner_correction<'a>(
+    record: &ChangeRecord,
+    approvals: &'a ApprovalLedger,
+    corrections: &CorrectionLedger,
+) -> Result<&'a ReopenRecord, String> {
+    let reopening = approvals.reopenings.last().ok_or_else(|| {
+        "acceptance owner correction requires an audited reopen event".to_string()
+    })?;
+    if reopening.schema_version != 1
+        || reopening.change_id != record.id
+        || reopening.from_state != ChangeState::Accepted
+        || reopening.to_state != ChangeState::Verifying
+    {
+        return Err("latest audited reopen event is invalid for owner correction".into());
+    }
+    let approval_position = |target: &ApprovalRecord| {
+        approvals.approvals.iter().rposition(|approval| {
+            approval.gate == target.gate
+                && approval.actor == target.actor
+                && approval.timestamp == target.timestamp
+                && approval.digest == target.digest
+                && approval.note == target.note
+        })
+    };
+    let reopen_position = approval_position(&reopening.superseded_approval)
+        .ok_or_else(|| "latest reopen does not reference trusted closing evidence".to_string())?;
+    if corrections.corrections.last().is_some_and(|correction| {
+        approval_position(&correction.superseded_closing_approval)
+            .is_some_and(|position| position > reopen_position)
+    }) {
+        return Err(
+            "acceptance owner correction requires delivery reopening after the latest metadata correction"
+                .into(),
+        );
+    }
+    Ok(reopening)
+}
+
+pub fn add_acceptance_owner_correction(
+    root: &Path,
+    id: &str,
+    path: String,
+    module: String,
+    actor: String,
+    reason: String,
+) -> Result<ChangeRecord, String> {
+    let _lock = acquire_project_lock(root)?;
+    let mut record = load_change(root, id)?;
+    require_state(
+        &record,
+        &[ChangeState::Verifying],
+        "correct an acceptance input owner",
+    )?;
+    if !record.canonical_applied {
+        return Err("acceptance owner correction requires an already-applied change".into());
+    }
+    let actor = actor.trim();
+    if actor.is_empty() {
+        return Err(
+            "acceptance owner correction requires a non-empty human actor passed with --actor"
+                .into(),
+        );
+    }
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err(
+            "acceptance owner correction requires a non-empty reason passed with --reason".into(),
+        );
+    }
+    if strict_portable_relative_path(&path)? != path {
+        return Err(format!(
+            "acceptance owner correction path is not canonical: `{path}`"
+        ));
+    }
+    crate::commands::validate_module_name(&module)
+        .map_err(|error| format!("invalid acceptance owner correction module: {error}"))?;
+    if module.starts_with("@exact:") {
+        return Err("reserved exact owners cannot be added through correct-owner".into());
+    }
+
+    validate_acceptance_owner_correction_records(&record)?;
+    let approvals = load_approvals(root, &record)?;
+    let metadata_corrections = load_correction_ledger(root, &record)?;
+    let reopening = latest_reopen_for_owner_correction(&record, &approvals, &metadata_corrections)?;
+    let mut original = record.clone();
+    original.acceptance_owner_corrections.clear();
+    if !definition_digest_matches(
+        root,
+        &original,
+        &reopening.prior_verification.contract_digest,
+    )? {
+        return Err(
+            "cannot correct an owner after the reopened definition changed; restore the accepted definition or use a successor change"
+                .into(),
+        );
+    }
+    record
+        .acceptance_owner_corrections
+        .push(AcceptanceOwnerCorrection {
+            schema_version: 1,
+            sequence: record.acceptance_owner_corrections.len() as u64 + 1,
+            path,
+            module,
+            actor: actor.to_string(),
+            reason: reason.to_string(),
+            timestamp: now(),
+        });
+    validate_acceptance_owner_corrections_current(root, &record)?;
+    record.updated_at = now();
+    let dir = change_dir(root, &record.id);
+    write_prepared_files(
+        root,
+        &[
+            (dir.join("state.json"), json_content(&record)?),
+            (dir.join("change.md"), change_markdown_content(&record)),
+        ],
+    )?;
+    Ok(record)
 }
 
 #[derive(Serialize)]
@@ -2736,6 +2997,7 @@ fn ensure_reopened_definition_unchanged(root: &Path, record: &ChangeRecord) -> R
     if !record.canonical_applied {
         return Ok(());
     }
+    validate_acceptance_owner_correction_records(record)?;
     let approval_ledger = load_approvals(root, record)?;
     let correction_ledger = load_correction_ledger(root, record)?;
     validate_correction_records(record, &correction_ledger.corrections)?;
@@ -2782,6 +3044,18 @@ fn ensure_reopened_definition_unchanged(root: &Path, record: &ChangeRecord) -> R
 
     if let Some((_, reopening)) = reopen_recovery {
         if definition_digest_matches(root, record, &reopening.prior_verification.contract_digest)? {
+            return Ok(());
+        }
+        let mut original = record.clone();
+        original.acceptance_owner_corrections.clear();
+        if !record.acceptance_owner_corrections.is_empty()
+            && definition_digest_matches(
+                root,
+                &original,
+                &reopening.prior_verification.contract_digest,
+            )?
+        {
+            validate_acceptance_owner_corrections_current(root, record)?;
             return Ok(());
         }
         return Err(
@@ -2901,6 +3175,7 @@ fn archive_change_with_finalize_failure(
     list_changes_checked(root)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Accepted], "archive the change")?;
+    validate_acceptance_owner_correction_records(&record)?;
     let destination = root
         .join(ARCHIVE_PATH)
         .join(format!("{}-{}", today(), record.id));
@@ -3642,6 +3917,15 @@ fn add_artifact(record: &mut ChangeRecord, artifact: ArtifactKind) {
 
 fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     let effective = effective_change_definition(root, record)?;
+    validate_acceptance_owner_correction_records(record)?;
+    if !record.acceptance_owner_corrections.is_empty()
+        && matches!(
+            record.state,
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+        )
+    {
+        validate_acceptance_owner_corrections_current(root, record)?;
+    }
     if record.description.trim().is_empty() {
         return Err("description is empty".into());
     }
@@ -5109,7 +5393,11 @@ fn portable_definition_digest_pair_v501(
                 .into(),
         );
     }
-    if record.canonical_applied || record.correction_count != 0 || !record.supersedes.is_empty() {
+    if record.canonical_applied
+        || record.correction_count != 0
+        || !record.supersedes.is_empty()
+        || !record.acceptance_owner_corrections.is_empty()
+    {
         return Err(
             "SpecSync 5.0.1 portable projection rejects unsupported nonempty post-5.0.1 definition fields"
                 .into(),
@@ -5765,7 +6053,8 @@ fn acceptance_manifest_internal(
     let (mut paths, evidence) =
         stable_discovered_evidence(root, Some(&discovery_scopes), &extra_candidates, false)?;
     paths.retain(|path| {
-        !project_input_is_volatile(path) && record_covers_project_path(root, record, path)
+        (!project_input_is_volatile(path) || path == LEGACY_BASELINE_PATH)
+            && record_covers_project_path(root, record, path)
     });
     let historical_sequence_ledger = if record_covers_project_path(root, record, SEQUENCE_PATH) {
         historical_sequence_ledger_acceptance_content(root, record)?
@@ -6349,6 +6638,13 @@ fn acceptance_input_owners(
             owners.push(module.clone());
         }
     }
+    owners.extend(
+        record
+            .acceptance_owner_corrections
+            .iter()
+            .filter(|correction| correction.path == relative)
+            .map(|correction| correction.module.clone()),
+    );
     if owners.is_empty() {
         if path_is_production_source(root, relative) {
             return Err(format!(
@@ -8259,6 +8555,7 @@ fn authenticate_accepted_evidence(
     root: &Path,
     record: &ChangeRecord,
 ) -> Result<VerificationRecord, String> {
+    validate_acceptance_owner_correction_records(record)?;
     if record.state == ChangeState::Archived {
         validate_archived_accepted_snapshot(root, record)?;
     }
@@ -8383,6 +8680,7 @@ fn validate_archived_integrity_with_cache(
     archived: &ChangeRecord,
     cache: &mut ArchivedIntegrityCache,
 ) -> Result<(), String> {
+    validate_acceptance_owner_correction_records(archived)?;
     let workspace = find_change_dir(root, &archived.id)?;
     if !workspace.join("accepted-state.json").exists() {
         return authenticate_legacy_archive_baseline(root, archived, &workspace, cache);
@@ -11166,6 +11464,10 @@ mod tests {
         let record = completed_no_spec_record(temp.path());
         let mut legacy_record = serde_json::to_value(&record).unwrap();
         legacy_record.as_object_mut().unwrap().remove("supersedes");
+        legacy_record
+            .as_object_mut()
+            .unwrap()
+            .remove("acceptance_owner_corrections");
         let decoded: ChangeRecord = serde_json::from_value(legacy_record.clone()).unwrap();
         assert_eq!(serde_json::to_value(decoded).unwrap(), legacy_record);
 
@@ -12193,6 +12495,33 @@ mod tests {
         let error = bind_legacy_archive_baseline_authority(root, &mut record).unwrap_err();
         assert!(error.contains("cannot bind a missing ledger"), "{error}");
         assert!(record.legacy_archive_baseline_digest.is_none());
+    }
+
+    // Verifies REQ-change-014.
+    #[test]
+    fn baseline_authority_manifest_signs_exact_volatile_ledger_path() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        record.state = ChangeState::Implementing;
+        record.affected_paths.push(LEGACY_BASELINE_PATH.to_string());
+        fs::create_dir_all(root.join(".specsync/archive")).unwrap();
+        fs::write(root.join(LEGACY_BASELINE_PATH), b"{\"schema_version\":1}\n").unwrap();
+        fs::write(root.join(".specsync/archive/unrelated.txt"), b"ignored\n").unwrap();
+
+        let manifest = acceptance_manifest(root, &record, &[]).unwrap();
+        let ledger = manifest
+            .entries
+            .iter()
+            .find(|entry| entry.path == LEGACY_BASELINE_PATH)
+            .expect("the protected baseline ledger must be signed");
+        assert_eq!(ledger.owners, vec![EXACT_DELIVERY_OWNER]);
+        assert!(
+            manifest
+                .entries
+                .iter()
+                .all(|entry| entry.path != ".specsync/archive/unrelated.txt")
+        );
     }
 
     #[cfg(unix)]
@@ -15278,6 +15607,172 @@ mod tests {
                 .contract_digest,
             prior_verification.contract_digest
         );
+    }
+
+    // Verifies REQ-change-033.
+    #[test]
+    fn reopened_change_adds_exact_canonical_owner_without_replaying_delivery() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::create_dir_all(root.join("specs/legacy")).unwrap();
+        fs::write(
+            root.join("specs/legacy/legacy.spec.md"),
+            "---\nmodule: legacy\nversion: 1\nstatus: stable\nfiles:\n  - src/lib.rs\n---\n\n# Legacy\n\n## Purpose\n\nLegacy owner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+        let mut record = completed_no_spec_record(root);
+        record.affected_specs = vec!["legacy".into()];
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "The accepted source changed during release review".into(),
+        )
+        .unwrap()
+        .change;
+        record = add_acceptance_owner_correction(
+            root,
+            &record.id,
+            "src/lib.rs".into(),
+            "change".into(),
+            "Release reviewer".into(),
+            "The historical definition omitted the current canonical owner".into(),
+        )
+        .unwrap();
+        assert_eq!(record.acceptance_owner_corrections.len(), 1);
+        assert_eq!(record.acceptance_owner_corrections[0].sequence, 1);
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let corrected_state = fs::read(&state_path).unwrap();
+        let duplicate = add_acceptance_owner_correction(
+            root,
+            &record.id,
+            "src/lib.rs".into(),
+            "change".into(),
+            "Release reviewer".into(),
+            "Duplicate owner".into(),
+        )
+        .unwrap_err();
+        assert!(duplicate.contains("duplicate acceptance owner correction"));
+        assert_eq!(fs::read(&state_path).unwrap(), corrected_state);
+
+        let mut tampered = record.clone();
+        tampered.acceptance_owner_corrections[0].sequence = 2;
+        save_change(root, &tampered).unwrap();
+        let error = validate_definition(root, &tampered).unwrap_err();
+        assert!(error.contains("sequence is not contiguous"), "{error}");
+        save_change(root, &record).unwrap();
+
+        let mut broadened = record.clone();
+        broadened
+            .dependencies
+            .push("CHG-9999-unapproved-scope".into());
+        save_change(root, &broadened).unwrap();
+        let error = ensure_reopened_definition_unchanged(root, &broadened).unwrap_err();
+        assert!(error.contains("modified definition"), "{error}");
+        save_change(root, &record).unwrap();
+
+        let portable = TempDir::new().unwrap();
+        let portable_root = portable.path();
+        let portable_dir = change_dir(portable_root, &record.id);
+        fs::create_dir_all(portable_dir.join("deltas")).unwrap();
+        save_change(portable_root, &record).unwrap();
+        for artifact in &record.selected_artifacts {
+            fs::copy(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                portable_dir.join(artifact.file_name()),
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            definition_digest(root, &record).unwrap(),
+            definition_digest(portable_root, &record).unwrap()
+        );
+        assert!(
+            ensure_definition_approval_valid(root, &record)
+                .unwrap_err()
+                .contains("definition approval is stale")
+        );
+
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        let verification = load_verification(root, &record).unwrap();
+        let source = verification
+            .acceptance_manifest
+            .unwrap()
+            .entries
+            .into_iter()
+            .find(|entry| entry.path == "src/lib.rs")
+            .unwrap();
+        assert_eq!(source.owners, vec!["change", "legacy"]);
+        assert_eq!(
+            fs::read_to_string(root.join("src/lib.rs")).unwrap(),
+            "pub fn ready() -> bool { false }\n"
+        );
+    }
+
+    // Verifies REQ-change-033.
+    #[test]
+    fn owner_correction_rejects_invalid_requests_without_mutation() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let before = fs::read(&state_path).unwrap();
+
+        let wrong_state = add_acceptance_owner_correction(
+            root,
+            &record.id,
+            "src/lib.rs".into(),
+            "change".into(),
+            "Reviewer".into(),
+            "Missing owner".into(),
+        )
+        .unwrap_err();
+        assert!(wrong_state.contains("cannot correct an acceptance input owner"));
+        assert_eq!(fs::read(&state_path).unwrap(), before);
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(root, &record.id, "Reviewer".into(), "Source changed".into())
+            .unwrap()
+            .change;
+        let reopened = fs::read(&state_path).unwrap();
+        let error = add_acceptance_owner_correction(
+            root,
+            &record.id,
+            "outside/file.rs".into(),
+            "change".into(),
+            "Reviewer".into(),
+            "Missing owner".into(),
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("outside the original affected path scope"),
+            "{error}"
+        );
+        assert_eq!(fs::read(&state_path).unwrap(), reopened);
     }
 
     #[test]

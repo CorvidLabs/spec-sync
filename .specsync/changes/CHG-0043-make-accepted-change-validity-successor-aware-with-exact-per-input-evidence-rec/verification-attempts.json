@@ -75,6 +75,55 @@
         "REQ-cli-args-001",
         "REQ-cmd-change-001"
       ]
+    },
+    {
+      "timestamp": 1784137207,
+      "commit": "2223c0b2ba260c43c396c195885ffe727f2d69e8",
+      "contract_digest": "d949408bfb399c5a6ec90d2c3f520a585f4e9848cdab22d27f41968548215b33",
+      "workspace_digest": "b1da3fb4d522b6309e74f37b3a9f913fd54a48a3e4491bea880aac3e096debba",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-012",
+        "REQ-change-014",
+        "REQ-change-017",
+        "REQ-change-018",
+        "REQ-change-020",
+        "REQ-change-024",
+        "REQ-change-032",
+        "REQ-cli-args-001",
+        "REQ-cmd-change-001"
+      ]
+    },
+    {
+      "timestamp": 1784140092,
+      "commit": "2223c0b2ba260c43c396c195885ffe727f2d69e8",
+      "contract_digest": "c7a72ac0797466a3172ce47b9d456540bb493fe5bd7a2f530c28fc0abb9db307",
+      "workspace_digest": "b1da3fb4d522b6309e74f37b3a9f913fd54a48a3e4491bea880aac3e096debba",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-012",
+        "REQ-change-014",
+        "REQ-change-017",
+        "REQ-change-018",
+        "REQ-change-020",
+        "REQ-change-024",
+        "REQ-cli-args-001",
+        "REQ-cmd-change-001"
+      ]
     }
   ]
 }

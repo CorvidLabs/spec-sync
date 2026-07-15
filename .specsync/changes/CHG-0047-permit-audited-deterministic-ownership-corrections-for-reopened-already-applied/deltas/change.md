@@ -1,22 +1,57 @@
----
-module: change
-version: 33
-status: active
-files:
-  - src/change.rs
-db_tables: []
-tracks: []
-depends_on:
-  - specs/hash_cache/hash_cache.spec.md
----
+## ADDED
 
-# Change
+### REQUIREMENT REQ-change-033
 
-## Purpose
+The verified lifecycle SHALL support human-authorized, append-only correction of an exact
+acceptance-input canonical owner for an audited reopened, already-applied change without changing
+semantic scope or replaying canonical deltas.
 
-Provides the spec-sync 5.0 verified spec-driven development lifecycle, including audited recovery and re-verification when governed delivery inputs make accepted evidence stale.
+Acceptance Criteria
 
-## Contract
+- `change correct-owner` requires an exact portable path, canonical module, non-empty actor, and
+  non-empty reason.
+- The target is canonical-applied, verifying through an audited reopen, and unchanged from the
+  reopened definition except for validated ownership-correction entries.
+- The path is already covered by the original affected paths, and the named module's current
+  canonical spec explicitly owns that exact source path.
+- Corrections are immutable, sequenced, definition-bound records; duplicates, removals, malformed
+  values, tampering, and ambiguous ownership fail before mutation.
+- Original affected specs, semantic deltas, approvals, reopen evidence, and prior verification are
+  preserved byte-for-byte.
+- The corrected definition requires explicit reapproval, fresh verification, and closing approval.
+- Acceptance adds the corrected module only to the exact manifest entry's sorted owner set and
+  never reapplies canonical deltas.
+- Records without ownership corrections preserve their existing serialized bytes and digests.
+
+## MODIFIED
+
+### REQUIREMENT REQ-change-014
+
+The lifecycle SHALL preserve evidence, canonical truth, project-root isolation, bootstrap usability,
+and import safety through acceptance and archival.
+
+Acceptance Criteria
+
+- Accepted changes remain valid while every signed input is exact or every changed path/module
+  obligation is governed by explicit closing-valid semantic succession evidence.
+- Archive eligibility is attributable to the specific accepted change and its authenticated
+  accepted snapshot rather than overlapping path coverage.
+- Active and dated-archive workspaces are resolved by authenticated location-aware reads;
+  duplicates and ambiguous locations fail closed.
+- Archive preflights target historical integrity plus every active accepted root and dependent
+  candidate before mutation, ignore unrelated authenticated archive drift, and keep immediate
+  uncommitted check/status consistent.
+- Trusted policy lookup and meaningful changed paths are relative to the requested project root.
+- Canonical specs require lifecycle coverage and adoption covers its protected policy bootstrap.
+- A no-spec declaration cannot accompany a declared public-contract change.
+- OpenSpec and Spec Kit imports reject symlinked files and directories.
+- Rejected foreign imports leave no partial adoption policy, report, or imported content.
+- The exact schema-v1 self-adoption record is the sole migration exception to the
+  no-spec/public-contract rule.
+- A legacy archive baseline authority that covers the baseline ledger signs that exact ledger path
+  in its acceptance manifest even though other dated archive paths remain volatile.
+
+### SPEC SECTION Contract
 
 1. Every meaningful SDD change moves through draft, approved, implementing, verifying, accepted, and archived states without bypasses.
 2. Definition and closing approvals are portable records bound to deterministic SHA-256 digests; an explicitly requested 5.1 authority approval uses one atomically appended marked current/5.0.1-compatible definition pair whose effective full member is resolved centrally without historical approval search.
@@ -35,7 +70,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 15. Supported accepted interview metadata changes only through a portable append-only correction ledger whose effective definition requires fresh gates and never replays canonical deltas.
 16. Audited exact acceptance-owner corrections can repair omitted canonical ownership on an already-scoped input without changing semantic scope or replaying canonical deltas.
 
-## Public API
+### SPEC SECTION Public API
 
 **Exported Constants**
 
@@ -127,7 +162,7 @@ Acceptance Criteria
 - Correction inspection exposes typed portable records without exposing mutable ledger internals.
 - Acceptance-owner corrections expose only immutable audit fields and never mutable internal ledgers.
 
-## Invariants
+### SPEC SECTION Invariants
 
 1. Change IDs are monotonically assigned as `CHG-NNNN-slug` across active and archived workspaces.
 2. No emergency or force transition bypass exists.
@@ -153,39 +188,7 @@ Acceptance Criteria
 22. Local and hosted verification freshness inspect every intervening commit against every parent, permit only the three supported persistence files below canonical active-change IDs, and never infer safety from a net diff or broad volatile-path exclusion.
 23. Exact-owner corrections are additive, restricted to an original affected path and a current canonical source owner, and cannot mutate semantic definition fields or prior evidence.
 
-## Behavioral Examples
-
-### Scenario: Verified feature delivery
-
-- **Given** an approved feature with `REQ-auth-001`, completed artifacts, and configured tests
-- **When** implementation verifies and a human accepts it
-- **Then** canonical requirements/specs update, the spec version increments, and the change becomes accepted
-
-### Scenario: Approved intent changes
-
-- **Given** a valid definition approval
-- **When** a selected design, requirement, or delta is edited
-- **Then** progress is blocked until the new digest is approved
-
-### Scenario: Feature branch rebases onto upstream
-
-- **Given** a change workspace created before new commits landed on the remote default branch
-- **When** the feature branch rebases and unified checking computes meaningful changed paths
-- **Then** upstream-only paths are excluded and only the feature branch diff requires change coverage
-
-### Scenario: Review fixes stale accepted evidence
-
-- **Given** an accepted change whose governed delivery inputs changed after closing approval
-- **When** a human reopens it with an actor and reason
-- **Then** the prior verification and closing approval remain in audit history, strict checking stays red until fresh verification, and reacceptance records a new closing approval without reapplying canonical deltas
-
-### Scenario: Persisted verification evidence
-
-- **Given** a supported verification run passed on the current commit
-- **When** one or more descendant commits persist only its canonical state, verification, and attempt-ledger files
-- **Then** local status, local strict checking, and hosted checking all keep the evidence current while matching contract and project-input digests remain mandatory
-
-## Error Cases
+### SPEC SECTION Error Cases
 
 | Condition | Behavior |
 |-----------|----------|
@@ -198,58 +201,3 @@ Acceptance Criteria
 | Reopen actor or reason is empty | Reopen is rejected before any mutation |
 | Concurrent changes edit the same semantic key | Progress requires dependency ordering or rebase |
 | Ownership correction is not exact, additive, in-scope, and canonically provable | Correction is rejected transactionally |
-
-## Dependencies
-
-### Consumes
-
-| Module | What is used |
-|--------|-------------|
-| hash_cache | Project SHA-256 dependency for content identity |
-
-### Consumed By
-
-| Module | What is used |
-|--------|-------------|
-| cmd_change | Complete lifecycle command surface |
-| cmd_check | Unified SDD gate before canonical validation |
-| cmd_init | New-project policy and version initialization |
-
-## Change Log
-
-| Date | Change |
-|------|--------|
-| 2026-07-10 | v4: normalize imported, evidence, and digest paths across Windows and Unix |
-| 2026-07-10 | v3: make approval digests and detected verification commands portable across CI checkouts |
-| 2026-07-10 | v2: compare meaningful path coverage with the current remote base after rebases |
-| 2026-07-10 | Initial 5.0 verified SDD lifecycle |
-| 2026-07-11 | CHG-0002-harden-specsync-5-0-lifecycle-safety-and-release-validation: Harden SpecSync 5.0 lifecycle safety and release validation |
-| 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
-| 2026-07-11 | CHG-0004-close-final-pr-review-gaps-in-5-0-lifecycle-enforcement: Close final PR review gaps in 5.0 lifecycle enforcement |
-| 2026-07-11 | CHG-0005-close-final-fail-closed-review-gaps-in-5-0-lifecycle-evidence-and-pr-reporting: Close final fail-closed review gaps in 5.0 lifecycle evidence and PR reporting |
-| 2026-07-11 | CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re: Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps |
-| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
-| 2026-07-11 | CHG-0009-make-accepted-evidence-squash-safe-and-harden-the-5-0-release-path: Make accepted evidence squash-safe and harden the 5.0 release path |
-| 2026-07-13 | Add audited reopen and re-verification for stale accepted delivery evidence |
-| 2026-07-13 | CHG-0015-add-audited-stale-accepted-change-reopening: Add audited stale accepted change reopening |
-| 2026-07-13 | Preserve legacy and transitional definition evidence when canonical application state is false |
-| 2026-07-13 | CHG-0016-reject-modified-definitions-when-reaccepting-an-already-applied-change: Reject modified definitions when reaccepting an already-applied change |
-| 2026-07-13 | Normalize compatible transitional definition evidence during explicit acceptance for older contract checkers |
-| 2026-07-13 | CHG-0017-allow-audited-reopen-after-squash-and-canonical-successors: Allow audited reopen after squash and canonical successors |
-| 2026-07-13 | CHG-0018-allow-section-only-semantic-deltas-to-satisfy-verification-evidence: Allow section-only semantic deltas to satisfy verification evidence |
-| 2026-07-13 | CHG-0020-harden-reopened-acceptance-compatibility-and-canonical-governance: Harden reopened acceptance compatibility and canonical governance |
-| 2026-07-13 | CHG-0021-close-reopened-lifecycle-review-gaps: Close reopened lifecycle review gaps |
-| 2026-07-13 | CHG-0022-preserve-canonical-change-log-table-schemas-when-accepting-semantic-deltas: Preserve canonical Change Log table schemas when accepting semantic deltas |
-| 2026-07-13 | CHG-0023-allow-squash-accepted-evidence-on-descendant-branches: Allow squash-accepted evidence on descendant branches |
-| 2026-07-14 | CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2: Stabilize SpecSync 5 lifecycle integrity and strict validation for 5.0.2 |
-| 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |
-| 2026-07-14 | CHG-0026-keep-lifecycle-recursion-detection-private-while-preserving-deterministic-nested: Keep lifecycle recursion detection private while preserving deterministic nested-command failures |
-| 2026-07-14 | CHG-0027-preserve-accepted-evidence-across-valid-later-sequence-claims: Preserve accepted evidence across valid later sequence claims |
-| 2026-07-14 | CHG-0029-address-all-remaining-review-feedback-from-pr-366: Address all remaining review feedback from PR 366 |
-| 2026-07-14 | CHG-0032-address-all-actionable-review-findings-on-pr-370-with-regression-coverage: Address all actionable review findings on PR 370 with regression coverage |
-| 2026-07-14 | CHG-0033-close-final-5-0-2-lifecycle-review-and-intent-preservation-gaps: Close final 5.0.2 lifecycle review and intent-preservation gaps |
-| 2026-07-15 | CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re: Support audited append-only correction of accepted interview metadata without replaying canonical deltas |
-| 2026-07-15 | Harden CHG-0040 trusted-history reference resolution and NUL-delimited Git path parsing during PR review |
-| 2026-07-15 | Keep the CHG-0040 Unicode-path regression valid on Windows without dropping quoted-path coverage on Unix |
-| 2026-07-15 | CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec: Make accepted-change validity successor-aware with exact per-input evidence, recursive cycle-safe validation, fail-closed legacy compatibility, and safe archived successors |
-| 2026-07-15 | CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied: Permit audited deterministic ownership corrections for reopened already-applied changes |

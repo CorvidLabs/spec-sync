@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 46,
-  "id": "CHG-0046-make-lifecycle-verification-workflows-evaluate-the-exact-pull-request-head-while",
+  "sequence": 47,
+  "id": "CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied",
   "acknowledged_collisions": [
     {
       "sequence": 16,

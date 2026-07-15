@@ -418,6 +418,23 @@ pub enum ChangeAction {
         #[arg(long)]
         reason: String,
     },
+    /// Correct one exact canonical owner used by accepted delivery evidence
+    CorrectOwner {
+        /// Reopened already-applied change ID
+        id: String,
+        /// Exact portable input path already covered by the original change
+        #[arg(long)]
+        path: String,
+        /// Canonical module that currently owns the exact path
+        #[arg(long = "spec")]
+        module: String,
+        /// Human actor authorizing the ownership correction
+        #[arg(long)]
+        actor: String,
+        /// Non-empty reason the historical acceptance owner was incomplete
+        #[arg(long)]
+        reason: String,
+    },
     /// Record closing approval and atomically apply semantic deltas
     Accept {
         /// Change ID
@@ -832,6 +849,56 @@ mod tests {
                 "yes",
                 "--actor",
                 "Ada",
+            ])
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn change_correct_owner_requires_exact_scope_and_audit_inputs() {
+        let cli = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "correct-owner",
+            "CHG-0001-passkeys",
+            "--path",
+            "src/auth.rs",
+            "--spec",
+            "auth",
+            "--actor",
+            "Ada Reviewer",
+            "--reason",
+            "The historical manifest omitted the canonical owner",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Some(Command::Change {
+                action: ChangeAction::CorrectOwner {
+                    id,
+                    path,
+                    module,
+                    actor,
+                    reason,
+                }
+            }) if id == "CHG-0001-passkeys"
+                && path == "src/auth.rs"
+                && module == "auth"
+                && actor == "Ada Reviewer"
+                && reason == "The historical manifest omitted the canonical owner"
+        ));
+        assert!(
+            Cli::try_parse_from([
+                "specsync",
+                "change",
+                "correct-owner",
+                "CHG-0001-passkeys",
+                "--path",
+                "src/auth.rs",
+                "--spec",
+                "auth",
+                "--actor",
+                "Ada Reviewer",
             ])
             .is_err()
         );

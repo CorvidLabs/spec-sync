@@ -965,6 +965,161 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
     assert_eq!(ledger["reopenings"].as_array().unwrap().len(), 1);
 }
 
+// Verifies REQ-change-033, REQ-cli-args-001, and REQ-cmd-change-001.
+#[test]
+fn reopened_owner_correction_is_deterministic_through_json_cli() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/legacy")).unwrap();
+    fs::create_dir_all(root.join("specs/current")).unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 1,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": ["src/"],
+  "ignored_paths": [".specsync/", "specs/"],
+  "verification_commands": [],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+    let spec = |module: &str| {
+        format!(
+            "---\nmodule: {module}\nversion: 1\nstatus: stable\nfiles:\n  - src/lib.rs\n---\n\n# {module}\n\n## Purpose\n\nOwner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"
+        )
+    };
+    fs::write(root.join("specs/legacy/legacy.spec.md"), spec("legacy")).unwrap();
+    fs::write(root.join("specs/current/current.spec.md"), spec("current")).unwrap();
+
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Preserve historical input ownership",
+            "--kind",
+            "bug-fix",
+            "--spec",
+            "legacy",
+            "--path",
+            "src/lib.rs",
+            "--no-spec-change",
+            "--rationale",
+            "Internal ownership evidence only",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+    for (question, answer) in [
+        ("acceptance_criteria", "Exact ownership is signed"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let dir = root.join(".specsync/changes").join(id);
+    fs::write(dir.join("context.md"), "# Context\n\nComplete.\n").unwrap();
+    fs::write(dir.join("testing.md"), "# Testing\n\nComplete.\n").unwrap();
+    fs::write(dir.join("tasks.md"), "# Tasks\n\n- [x] Complete.\n").unwrap();
+    for command in ["approve", "start", "verify", "accept"] {
+        let mut args = vec!["--root", root.to_str().unwrap(), "change", command, id];
+        if matches!(command, "approve" | "accept") {
+            args.extend(["--actor", "Lifecycle reviewer"]);
+        }
+        specsync().args(args).assert().success();
+    }
+
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { false }\n",
+    )
+    .unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "reopen",
+            id,
+            "--actor",
+            "Release reviewer",
+            "--reason",
+            "The accepted source changed during release review",
+        ])
+        .assert()
+        .success();
+    let corrected = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "correct-owner",
+            id,
+            "--path",
+            "src/lib.rs",
+            "--spec",
+            "current",
+            "--actor",
+            "Release reviewer",
+            "--reason",
+            "The historical definition omitted the current canonical owner",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let corrected: Value = serde_json::from_slice(&corrected).unwrap();
+    assert_eq!(corrected["state"], "verifying");
+    assert_eq!(corrected["acceptance_owner_corrections"][0]["sequence"], 1);
+    assert_eq!(
+        corrected["acceptance_owner_corrections"][0]["module"],
+        "current"
+    );
+
+    for command in ["approve", "verify", "accept"] {
+        let mut args = vec!["--root", root.to_str().unwrap(), "change", command, id];
+        if matches!(command, "approve" | "accept") {
+            args.extend(["--actor", "Lifecycle reviewer"]);
+        }
+        specsync().args(args).assert().success();
+    }
+    let verification: Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("verification.json")).unwrap()).unwrap();
+    let source = verification["acceptance_manifest"]["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["path"] == "src/lib.rs")
+        .unwrap();
+    assert_eq!(source["owners"], serde_json::json!(["current", "legacy"]));
+}
+
 // Verifies REQ-change-032, REQ-cli-args-004, and REQ-cmd-change-002.
 #[test]
 fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {

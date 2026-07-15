@@ -14,3 +14,4 @@ spec: cli_args.spec.md
 - [x] Remove provider/model flags and add rejection regressions
 - [x] Add required actor/reason grammar for audited accepted-change reopen
 - [x] Add closed field/value grammar and required audit inputs for accepted metadata correction
+- [x] Add exact path/spec grammar and required audit inputs for acceptance-owner correction

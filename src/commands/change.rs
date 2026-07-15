@@ -141,6 +141,30 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                 },
             )
         }),
+        ChangeAction::CorrectOwner {
+            id,
+            path,
+            module,
+            actor,
+            reason,
+        } => change::add_acceptance_owner_correction(root, &id, path, module, actor, reason).map(
+            |record| match format {
+                OutputFormat::Json => print_json(&record),
+                _ => {
+                    if let Some(correction) = record.acceptance_owner_corrections.last() {
+                        println!(
+                            "{} {} corrected owner {} for {} as {}",
+                            "✓".green(),
+                            record.id,
+                            correction.module,
+                            correction.path,
+                            correction.actor
+                        );
+                    }
+                    println!("  Next: approve");
+                }
+            },
+        ),
         ChangeAction::Accept { id, actor, note } => change::accept_change(root, &id, actor, note)
             .map(|record| {
                 print_transition(
@@ -266,6 +290,20 @@ fn print_record(
                         .collect::<Vec<_>>()
                         .join(", ")
                 );
+            }
+            if !record.acceptance_owner_corrections.is_empty() {
+                println!("  Acceptance owner corrections:");
+                for correction in &record.acceptance_owner_corrections {
+                    println!(
+                        "    {}: {} owned by {} by {} at {} — {}",
+                        correction.sequence,
+                        correction.path,
+                        correction.module,
+                        correction.actor,
+                        correction.timestamp,
+                        correction.reason
+                    );
+                }
             }
             if let Some(evidence) = &summary.terminal_evidence {
                 println!("  Evidence: {}", evidence.validity.as_str());

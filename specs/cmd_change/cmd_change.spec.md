@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 5
+version: 7
 status: active
 files:
   - src/commands/change.rs
@@ -22,9 +22,10 @@ Exposes the verified SDD lifecycle through equivalent human-readable and structu
 
 1. Every operation delegates domain policy to the change module.
 2. Errors render consistently and exit non-zero.
-3. Status and interviews provide a concrete next action.
-4. Reopen renders the exact persisted versioned supersession event in deterministic JSON.
-5. Correct, show, and status render the same validated effective definition and ordered correction history used by lifecycle gates.
+3. Status and interviews provide a concrete next action and a state-appropriate active-current or archived-history validity reason.
+4. Supersede records an explicit digest-bound predecessor/path/module obligation before definition approval.
+5. Reopen renders the exact persisted versioned supersession event in deterministic JSON.
+6. Correct-owner renders one persisted exact canonical-owner correction and directs the user to definition reapproval.
 
 ## Public API
 
@@ -59,7 +60,9 @@ Exposes the verified SDD lifecycle through equivalent human-readable and structu
 | Unknown change type | Descriptive error and exit 1 |
 | Invalid transition | Current and expected states plus exit 1 |
 | Missing actor or reason | Clap or domain validation exits non-zero without lifecycle mutation |
-| Current accepted evidence | Reopen reports that only stale delivery inputs are eligible and exits 1 |
+| Current or successor-covered accepted evidence | Reopen reports the shared non-stale reason and exits 1 |
+| Missing or mismatched supersede obligation | Command reports the exact predecessor/path/module/digest mismatch and exits 1 without definition mutation |
+| Invalid exact owner correction | Command reports the domain rejection and exits 1 without lifecycle mutation |
 
 ## Dependencies
 
@@ -82,3 +85,5 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-07-13 | Add text and deterministic JSON dispatch for audited stale-accepted reopen |
 | 2026-07-13 | CHG-0015-add-audited-stale-accepted-change-reopening: Add audited stale accepted change reopening |
 | 2026-07-15 | CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re: Support audited append-only correction of accepted interview metadata without replaying canonical deltas |
+| 2026-07-15 | CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec: Make accepted-change validity successor-aware with exact per-input evidence, recursive cycle-safe validation, fail-closed legacy compatibility, and safe archived successors |
+| 2026-07-15 | CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied: Permit audited deterministic ownership corrections for reopened already-applied changes |

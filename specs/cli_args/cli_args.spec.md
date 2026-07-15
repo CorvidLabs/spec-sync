@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 9
+version: 11
 status: stable
 files:
   - src/cli.rs
@@ -32,7 +32,7 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | `HooksAction` | Sub-subcommand for `Hooks`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, copilot, agents, precommit, claude_code_hook) |
 | `AgentsAction` | Sub-subcommand for `Agents`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, codex, gemini) |
 | `LifecycleAction` | Sub-subcommand for `Lifecycle`: Promote, Demote, Set, Status, History, Guard, AutoPromote, Enforce — manages spec lifecycle transitions |
-| `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, List, Show, Status, Approve, Start, Verify, Reopen, Correct, Accept, Archive, Check, Adopt |
+| `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, Supersede, List, Show, Status, Approve, Start, Verify, Reopen, Correct, CorrectOwner, Accept, Archive, Check, Adopt |
 
 ## Invariants
 
@@ -45,6 +45,7 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 7. Each `AgentsAction::Install` / `Uninstall` variant carries identical boolean flags for symmetric install/uninstall, mirroring `HooksAction`
 8. `Generate` exposes only deterministic uncovered/batch selection; provider and model flags are not accepted
 9. `ChangeAction::Reopen` requires both `--actor` and `--reason`; neither can be omitted from the CLI grammar
+10. `ChangeAction::CorrectOwner` requires exact path, canonical spec module, actor, and reason inputs
 
 ## Behavioral Examples
 
@@ -77,10 +78,11 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | Condition | Behavior |
 |-----------|----------|
 | Unknown subcommand | Clap prints error with usage help and exits non-zero |
-| Missing required argument (e.g., `new` without name) | Clap prints error listing required args |
+| Missing required argument (e.g. `new` without name) | Clap prints error listing required args |
 | Invalid `--enforcement` value | Clap prints accepted values: warn, enforce-new, strict |
 | Invalid `--format` value | Clap prints accepted values: text, json, markdown, github, table, csv |
 | `change reopen` without `--actor` or `--reason` | Clap names the missing required argument and exits non-zero |
+| `change correct-owner` without path, spec, actor, or reason | Clap names the missing required argument and exits non-zero |
 
 ## Dependencies
 
@@ -113,3 +115,5 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | 2026-07-13 | Add required actor/reason grammar for audited stale-accepted reopen |
 | 2026-07-13 | CHG-0015-add-audited-stale-accepted-change-reopening: Add audited stale accepted change reopening |
 | 2026-07-15 | CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re: Support audited append-only correction of accepted interview metadata without replaying canonical deltas |
+| 2026-07-15 | CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec: Make accepted-change validity successor-aware with exact per-input evidence, recursive cycle-safe validation, fail-closed legacy compatibility, and safe archived successors |
+| 2026-07-15 | CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied: Permit audited deterministic ownership corrections for reopened already-applied changes |

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied",
+  "slug": "permit-audited-deterministic-ownership-corrections-for-reopened-already-applied",
+  "title": "Permit audited deterministic ownership corrections for reopened already-applied changes",
+  "description": "Permit audited deterministic ownership corrections for reopened already-applied changes",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "2223c0b2ba260c43c396c195885ffe727f2d69e8",
+  "created_at": 1784135964,
+  "updated_at": 1784153232,
+  "affected_specs": [
+    "change",
+    "cli_args",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/cli.rs",
+    "src/commands/change.rs",
+    "tests/integration/change.rs",
+    "site/src/content/docs/workflow.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A supported change correct-owner transition adds one exact path/module ownership correction only to an audited reopened canonical-applied change; the path is already in scope and the module canonically owns it at the trusted current tree; the transition records a non-empty human actor and reason without changing affected specs, semantic deltas, prior approvals, or reopen evidence; the corrected definition requires explicit reapproval, fresh verification, and closing approval; acceptance includes the corrected owner in its signed manifest without replaying canonical deltas; removals, duplicates, non-owners, out-of-scope paths, un-reopened changes, malformed paths/modules, stale approvals, and tampering fail transactionally; legacy records with no corrections remain byte-compatible",
+    "An accepted legacy archive baseline authority signs the exact protected baseline ledger path in its manifest while unrelated dated archive paths remain excluded"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [
+    "CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec"
+  ],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

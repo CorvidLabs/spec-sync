@@ -34,14 +34,14 @@ artifact: tasks
 - [x] Pass the configured format, lint, type-check, and normal full test gates locally.
 - [x] Prepare the correction for combined-head hosted Windows and full CI validation without claiming those results early.
 - [x] Audit the tracked-symlink deletion path after the Windows byte-portability correction.
-- [ ] Classify an absent dirty tracked symlink as missing before canonical clean-symlink payload selection.
-- [ ] Add deterministic project, manifest, and legacy acceptance regressions for tracked-symlink deletion.
-- [ ] Pass focused normal and forced-CRLF regressions plus the configured local gates.
+- [x] Classify an absent dirty tracked symlink as missing before canonical clean-symlink payload selection.
+- [x] Add deterministic project, manifest, and legacy acceptance regressions for tracked-symlink deletion.
+- [x] Pass focused normal and forced-CRLF regressions plus the configured local gates.
 - [x] Audit portable symlink validation against CHG43's normative relative-target rule.
-- [ ] Preserve exact valid relative target forms while retaining host-independent rejection of absolute, drive, backslash/UNC/device, empty, and control-character targets.
-- [ ] Add exact-byte regressions for valid relative target forms.
-- [ ] Fail closed on hidden/materialized/ambiguous index states while preserving canonical absent sparse-checkout inputs.
-- [ ] Reject custom filters and working-tree encodings through NUL-safe attribute inspection before index substitution.
-- [ ] Classify modified tracked symlinks from current topology rather than historical index mode.
-- [ ] Enforce definition artifact limits on authoritative signed bytes with safe dirty/untracked pre-checks.
-- [ ] Add deterministic regressions for every audited index, attribute, topology, and size boundary.
+- [x] Preserve exact valid relative target forms while retaining host-independent rejection of absolute, drive, backslash/UNC/device, empty, and control-character targets.
+- [x] Add exact-byte regressions for valid relative target forms.
+- [x] Fail closed on hidden/materialized/ambiguous index states while preserving canonical absent sparse-checkout inputs.
+- [x] Reject custom filters and working-tree encodings through NUL-safe attribute inspection before index substitution.
+- [x] Classify modified tracked symlinks from current topology rather than historical index mode.
+- [x] Enforce definition artifact limits on authoritative signed bytes with safe dirty/untracked pre-checks.
+- [x] Add deterministic regressions for every audited index, attribute, topology, and size boundary.

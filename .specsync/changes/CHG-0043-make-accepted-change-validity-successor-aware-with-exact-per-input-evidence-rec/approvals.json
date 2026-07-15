@@ -41,6 +41,13 @@
       "timestamp": 1784106950,
       "digest": "1683b6863ef38200e9fb39027762e77b6add1b809d9ca558aa17d9f4aac4acdb",
       "note": "Approve fail-closed Git index visibility, attribute, topology, and authoritative-size boundaries after independent audit"
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784107671,
+      "digest": "2e56d05705c3c89e82362fe9c66fd01b5dbddeb556a01e331269af98b94c0488",
+      "note": "Reapproved after evidence-bound Git index, symlink topology, attribute, and artifact-size corrections passed the complete local regression matrix."
     }
   ],
   "reopenings": []

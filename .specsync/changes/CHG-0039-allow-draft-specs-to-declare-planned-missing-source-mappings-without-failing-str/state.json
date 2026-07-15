@@ -5,11 +5,11 @@
   "title": "Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts",
   "description": "Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts",
   "kind": "feature",
-  "state": "archived",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "eb91993ba5289e317dcfc22156c6202b85273c98",
   "created_at": 1784061622,
-  "updated_at": 1784072706,
+  "updated_at": 1784078056,
   "affected_specs": [
     "commands",
     "config",

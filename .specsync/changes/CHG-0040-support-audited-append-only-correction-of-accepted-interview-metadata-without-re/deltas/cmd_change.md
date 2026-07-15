@@ -23,3 +23,4 @@ Acceptance Criteria
 3. Status and interviews provide a concrete next action.
 4. Reopen renders the exact persisted versioned supersession event in deterministic JSON.
 5. Correct, show, and status render the same validated effective definition and ordered correction history used by lifecycle gates.
+

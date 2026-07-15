@@ -30,3 +30,4 @@ Acceptance Criteria
 9. `cmd_install` exits with code 1 if any tool installation fails.
 10. Generated create-spec and create-change assets preserve complete arguments using each tool's native placeholder and quote free-text interview answers as one CLI argument.
 11. Repository-owned native create-spec commands are exact installer outputs, strip supported flags before complete-input classification, and cannot silently drift from their shared templates.
+

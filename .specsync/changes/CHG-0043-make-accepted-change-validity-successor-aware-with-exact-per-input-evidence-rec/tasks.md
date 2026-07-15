@@ -108,3 +108,8 @@ artifact: tasks
 - [x] Prove huge or nonportable unrelated inventory cannot block an archive-subtree snapshot.
 - [x] Resolve, normalize, and explicitly replay only the checkout/diff allowlist `core.autocrlf`, `core.eol`, `core.symlinks`, and `core.filemode`.
 - [x] Add text/eol, materialized-symlink, executable-mode, boolean-spelling, and platform-safe checkout-semantics regressions while retaining all redirection/hook scrubbing.
+- [x] Define and implement the fail-closed explicitly marked adjacent current/5.0.1 portable definition approval pair from one immutable snapshot and one atomic ledger replacement.
+- [x] Route every effective definition-approval lookup through one terminal-event resolver that returns the current member and preserves full-digest verification/audit evidence.
+- [x] Make strict lifecycle checking reject invalid required approvals in Approved, Implementing, and Verifying states without blocking Draft interview work.
+- [x] Add deterministic portable-pair and strict-check parity regressions, including actual immutable SpecSync 5.0.1 golden validation and malformed/replayed pair coverage.
+- [x] Prepare the focused, full, format, lint, type-check, and release-build matrix for the final exact approval compatibility candidate.

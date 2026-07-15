@@ -9,6 +9,7 @@ Acceptance Criteria
 - `ChangeAction` declares every lifecycle, inspection, checking, adoption, and semantic-succession operation.
 - `ChangeAction::Supersede` requires change ID, predecessor ID, path, module, and predecessor entry digest.
 - `ChangeAction::Reopen` requires a change ID, explicit human actor, and non-empty reason input.
+- `ChangeAction::Approve` exposes an explicit `--portable-5-0-1` switch for the atomic marked dual-engine definition event.
 
 
 ## MODIFIED

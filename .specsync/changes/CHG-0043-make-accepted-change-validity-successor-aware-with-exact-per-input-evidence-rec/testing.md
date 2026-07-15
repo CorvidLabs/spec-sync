@@ -70,6 +70,10 @@ Focused unit and integration regressions will prove:
 - check and status remain green immediately after an uncommitted archive move through location-aware artifact reads and the authenticated accepted snapshot;
 - duplicate active/archive IDs and ambiguous dated archive locations fail closed;
 - old state and verification JSON plus definition and closing digest bytes remain unchanged when new fields are empty or absent;
+- one explicitly requested supported approval command atomically emits an adjacent marked current/full then 5.0.1-projection definition pair from one snapshot, preserves prior approvals/reopenings, and both the current engine and immutable 5.0.1 engine accept their respective contract;
+- portable-pair validation rejects orphaned members, wrong actors or timestamps, reversed roles/order, wrong current or projection digests, same digests, intervening gates, wrong pair/schema/projection/change/correction metadata, duplicate/replayed members, unsupported nonempty post-5.0.1 fields, and stale/reverted definitions instead of searching historical approvals;
+- golden projection fixtures cover active and archived state, omitted/default and explicit-false representation, and unsupported corrections; the normal LF pair passes the actual immutable 5.0.1 engine, while a forced clean CRLF-smudged artifact is rejected with its exact path before any ledger mutation;
+- strict project checking reports an invalid required definition approval for Approved, Implementing, and Verifying records while Draft records remain exempt;
 - malformed, oversized, unsorted, duplicate, conflicting, unapproved, and non-portable succession tuples fail closed, while exact one-to-one approved tuples pass;
 - unrelated accepted changes cannot satisfy coverage and numeric sequence ordering handles IDs wider than four digits.
 

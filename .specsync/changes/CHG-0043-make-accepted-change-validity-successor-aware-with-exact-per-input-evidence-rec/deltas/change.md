@@ -97,6 +97,8 @@ Acceptance Criteria
 - Full-entry topology digests use `specsync.acceptance-entry.v1` over path, kind, mode, and payload digest so same-payload mode/kind transitions remain distinct.
 - New v1 aggregates use `specsync.acceptance-manifest.v1`, reproduce solely from canonical manifest entries, and equal the persisted acceptance input digest; legacy raw-content aggregates retain `specsync.acceptance-input-digest.v2`.
 - Empty supersedes and absent manifest/succession fields are defaulted and omitted so old state JSON, verification JSON, definition digests, and closing digests remain byte-identical.
+- An explicitly requested portable authority approval atomically records a marked adjacent pair from one immutable snapshot: the current full-definition digest followed by the exact 5.0.1-compatible projection digest, with optional backward-readable schema/projection/pair/role/change/correction metadata, the same actor and timestamp, no intervening gate, and fail-closed rejection of malformed, replayed, unsupported, or historical-pair revival.
+- Portable approval requires projected working-tree artifact bytes to equal canonical Git bytes and rejects CRLF-smudged or otherwise divergent checkout bytes with the exact path before ledger mutation, because immutable 5.0.1 cannot validate one digest across those byte representations.
 - Succession evidence uses `specsync.semantic-succession.v1` with bounded unique tuples strictly sorted by numeric sequence then full predecessor ID then path then module, portable paths, canonical modules, lowercase full-entry digests, conflict rejection, and exact one-to-one approved-obligation derivation.
 - Stale legacy reconstruction uses one trusted accepted-transition anchor and deduplicates identical evidence content before deciding ambiguity.
 - Enumerated standalone pre-CHG43 archives may authenticate only through the strictly sorted `.specsync/archive/legacy-baseline.json` ledger bound by CHG43's manifest-backed closing and trusted acceptance/history anchor; each entry binds a trusted cutoff, unique pre-cutoff introduction, canonical path, and exact domain-separated subtree digest, and never supplies accepted-transition, current-input, candidate, preflight, or semantic-succession validity.
@@ -105,6 +107,7 @@ Acceptance Criteria
 - Legacy archive and baseline snapshots union tracked index entries with present working-tree entries so sparse-absent inputs remain signed, dirty tracked symlinks use current topology, and a dirty or untracked missing authority baseline fails closed without preserving a stale binding.
 - Active accepted check/status/reopen/archive eligibility consume one recursive cycle-safe current-input validator; archive integrity uses a separate history authenticator and separately keyed cache.
 - Active accepted status reports exact, successor-covered, or stale; archived status reports authenticated-history or corrupt-history.
+- Strict checking requires a valid definition approval for Approved, Implementing, and Verifying changes while Draft changes remain exempt until approval.
 
 
 ## MODIFIED
@@ -112,7 +115,7 @@ Acceptance Criteria
 ### SPEC SECTION Contract
 
 1. Every meaningful SDD change moves through draft, approved, implementing, verifying, accepted, and archived states without bypasses.
-2. Definition and closing approvals are portable records bound to deterministic SHA-256 digests.
+2. Definition and closing approvals are portable records bound to deterministic SHA-256 digests; an explicitly requested 5.1 authority approval uses one atomically appended marked current/5.0.1-compatible definition pair whose effective full member is resolved centrally without historical approval search.
 3. Approved semantic deltas form the effective future contract without mutating canonical specs before acceptance.
 4. Requirements use stable `REQ-<module>-<number>` IDs, normative SHALL statements, and acceptance criteria.
 5. Verification executes only project-configured commands without a shell and rejects direct or indirect entry into every lifecycle command surface.
@@ -149,7 +152,9 @@ Acceptance Criteria
 | `LegacyArchiveBaselineV1` | Definition- and closing-bound authority, cutoff, and sorted legacy archive subtree entries |
 | `LegacyArchiveBaselineEntryV1` | Archive ID, canonical dated path, unique introduction commit, and exact subtree digest |
 | `CreateChangeRequest` | Validated creation inputs grouped for CLI, imports, and agent clients |
-| `ApprovalRecord` | Actor, timestamp, gate, digest, and optional note for one approval |
+| `ApprovalRecord` | Actor, timestamp, gate, digest, optional note, and optional backward-readable portable-pair metadata for one approval |
+| `DefinitionApprovalPairRole` | Current/full or legacy/projected role for one marked portable definition member |
+| `DefinitionApprovalPairV1` | Versioned pair identity, projection, role, change/correction coordinates, event index, and both digests |
 | `ReopenRecord` | Immutable audit event preserving superseded closing approval, prior verification, actor, reason, transition, and stale/current input digests |
 | `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
 | `CorrectionField` | Closed supported accepted-metadata field set: public contract and architecture risk |
@@ -184,7 +189,8 @@ Acceptance Criteria
 | `answer_question` | `root, id, question, answer` | `Result<ChangeRecord, String>` | Persist an interview answer and update adaptive artifacts |
 | `add_dependency` | `root, id, dependency` | `Result<ChangeRecord, String>` | Declare ordering between active changes and invalidate stale approval digests |
 | `add_supersedes_obligation` | `root, id, predecessor, path, module, predecessor_entry_digest` | `Result<ChangeRecord, String>` | Add one validated definition-bound semantic succession obligation to a draft |
-| `approve_definition` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Validate and record mandatory definition approval |
+| `approve_definition` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Validate and record an ordinary mandatory definition approval |
+| `approve_definition_portable_v501` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Atomically record the marked current/5.0.1 portable definition pair |
 | `start_implementation` | `root, id` | `Result<ChangeRecord, String>` | Enter implementation after approval and conflict validation |
 | `verify_change` | `root, id` | `Result<VerificationRecord, String>` | Run configured tests and record commit/contract/manifest evidence |
 | `reopen_change` | `root, id, actor, reason` | `Result<ReopenResult, String>` | Move stale accepted evidence to verifying and append an immutable supersession audit event |

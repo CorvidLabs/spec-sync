@@ -11661,6 +11661,7 @@ mod tests {
         quiet_git(root, &["config", "user.name", "Test"]);
         fs::write(root.join("literal*.txt"), "selected\n").unwrap();
         fs::write(root.join("literalX.txt"), "unrelated\n").unwrap();
+        #[cfg(not(windows))]
         fs::write(root.join(":colon"), "colon\n").unwrap();
         quiet_git(root, &["add", "."]);
         quiet_git(root, &["commit", "-m", "track literal names"]);
@@ -11673,7 +11674,13 @@ mod tests {
             evidence.entry("literal*.txt").unwrap().payload,
             b"dirty selected\n"
         );
+        #[cfg(not(windows))]
         assert_eq!(evidence.entry(":colon").unwrap().payload, b"colon\n");
+        #[cfg(windows)]
+        assert_eq!(
+            evidence.entry(":colon").unwrap().kind,
+            AcceptanceInputKind::Missing
+        );
         assert!(!evidence.entries.contains_key("literalX.txt"));
 
         let paths = git_scoped_project_paths(
@@ -11682,7 +11689,10 @@ mod tests {
         )
         .unwrap()
         .unwrap();
+        #[cfg(not(windows))]
         assert_eq!(paths, vec![":colon", "literal*.txt"]);
+        #[cfg(windows)]
+        assert_eq!(paths, vec!["literal*.txt"]);
     }
 
     #[test]

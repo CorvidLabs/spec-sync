@@ -8,7 +8,7 @@
   "state": "implementing",
   "base_commit": "7ea73117168c72086bfc43e020c37904e0b6d7c5",
   "created_at": 1784069938,
-  "updated_at": 1784073076,
+  "updated_at": 1784073972,
   "affected_specs": [
     "change",
     "cli_args",

@@ -317,7 +317,28 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+      - name: Validate lifecycle checkout contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          import yaml
+
+          expected_ref = "$" + "{{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
+          ci = yaml.safe_load(Path(".github/workflows/ci.yml").read_text())
+          trust = yaml.safe_load(Path(".github/workflows/trust.yml").read_text())
+
+          ci_checkout = ci["jobs"]["spec-check"]["steps"][0]
+          trust_checkout = trust["jobs"]["trust"]["steps"][0]
+          assert ci_checkout["with"] == {"ref": expected_ref, "fetch-depth": 0}
+          assert trust_checkout["with"] == {"ref": expected_ref, "fetch-depth": 0}
+
+          for job in ("test", "fmt", "audit", "coverage", "action-consumer"):
+              checkout = ci["jobs"][job]["steps"][0]
+              assert "ref" not in checkout.get("with", {}), job
+          PY
       - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
       - name: Build specsync

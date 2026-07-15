@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 45,
-  "id": "CHG-0045-unify-local-and-ci-verification-freshness-so-descendant-evidence-only-commits-re",
+  "sequence": 46,
+  "id": "CHG-0046-make-lifecycle-verification-workflows-evaluate-the-exact-pull-request-head-while",
   "acknowledged_collisions": [
     {
       "sequence": 16,

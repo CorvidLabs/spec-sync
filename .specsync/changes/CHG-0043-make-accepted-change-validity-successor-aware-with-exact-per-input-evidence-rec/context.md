@@ -1,0 +1,14 @@
+---
+change: CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec
+artifact: context
+---
+
+# Context
+
+Accepted verification currently stores one aggregate delivery-input digest. When a later canonical change legitimately modifies part of that input set, the aggregate proves that something changed but cannot prove which individual paths remain exact. The current successor helpers compensate with record-level affected-path and affected-spec unions. That permits two unsafe outcomes: a non-final successor can mask stale evidence, and one successor can cover a path while a different successor independently names the module (the path/module cross-product problem).
+
+CHG43 replaces that inference with signed per-input evidence, definition-bound explicit predecessor edges, signed semantic succession bindings, and one shared recursive validity decision. Every newly accepted input is represented independently, including topology and ownership derived from the accepted snapshot. Exact inputs remain valid directly. Every changed path/owner obligation is valid only through a terminal semantic successor whose approved edge and closing evidence bind the predecessor ID, path, owner module, old entry digest, and new entry digest to an actual semantic delta and Git-tree transition. ID order, timestamps, and scope overlap are filters only; they are never succession proof. The successor must itself have valid current closing evidence, so validity can recurse without accepting cycles or partially complete lifecycle states.
+
+Legacy accepted records remain byte-compatible when their aggregate is still exact. A stale legacy record receives no synthetic trust: SpecSync must find a unique trusted historical commit containing that accepted record, reconstruct the historical per-input set from that Git tree, reproduce the signed legacy aggregate exactly, and prove any legacy successor through the exact before-and-after tree transition that applied its semantic delta. Missing, ambiguous, uncommitted, or non-reproducible evidence fails closed and requires audited reopen.
+
+Archived successors remain part of the immutable evidence graph. Moving an accepted successor into the archive therefore cannot silently make a predecessor invalid. Check, status, reopen, and archive must consume the same validator and produce the same conclusion.

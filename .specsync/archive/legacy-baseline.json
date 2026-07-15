@@ -1,0 +1,266 @@
+{
+  "schema_version": 1,
+  "domain": "specsync.legacy-archive-baseline.v1",
+  "authority_change_id": "CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec",
+  "cutoff_commit": "fc5f9ac2695a4416b1e99e590b35bd47de00347c",
+  "entries": [
+    {
+      "id": "CHG-0001-bootstrap-and-ship-the-verified-specsync-5-0-full-sdd-lifecycle",
+      "archive_path": ".specsync/archive/changes/2026-07-11-CHG-0001-bootstrap-and-ship-the-verified-specsync-5-0-full-sdd-lifecycle",
+      "introduction_commit": "47c4225738671107d8ff62889fb8c6168ada8f8b",
+      "subtree_digest": "d27905cd5b9e066ea9708bd02f693676b06072793aaf72b017fd809ae35360a9"
+    },
+    {
+      "id": "CHG-0002-harden-specsync-5-0-lifecycle-safety-and-release-validation",
+      "archive_path": ".specsync/archive/changes/2026-07-11-CHG-0002-harden-specsync-5-0-lifecycle-safety-and-release-validation",
+      "introduction_commit": "47c4225738671107d8ff62889fb8c6168ada8f8b",
+      "subtree_digest": "7b16fa6b139baa02d2f606a447f8b874827da0ce781a03de127034100f944ae9"
+    },
+    {
+      "id": "CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation",
+      "archive_path": ".specsync/archive/changes/2026-07-11-CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation",
+      "introduction_commit": "884ad33b2158e9efca2f31d4798c1b6f27db8801",
+      "subtree_digest": "6853a815602e19f49d88190c1eafa108068483d89b9fdb0daf2698a8ce9a54b8"
+    },
+    {
+      "id": "CHG-0004-close-final-pr-review-gaps-in-5-0-lifecycle-enforcement",
+      "archive_path": ".specsync/archive/changes/2026-07-11-CHG-0004-close-final-pr-review-gaps-in-5-0-lifecycle-enforcement",
+      "introduction_commit": "47c4225738671107d8ff62889fb8c6168ada8f8b",
+      "subtree_digest": "27a900f16d720042871b1e89144c783a294e736a66915765aba8b246d97ac168"
+    },
+    {
+      "id": "CHG-0005-close-final-fail-closed-review-gaps-in-5-0-lifecycle-evidence-and-pr-reporting",
+      "archive_path": ".specsync/archive/changes/2026-07-11-CHG-0005-close-final-fail-closed-review-gaps-in-5-0-lifecycle-evidence-and-pr-reporting",
+      "introduction_commit": "884ad33b2158e9efca2f31d4798c1b6f27db8801",
+      "subtree_digest": "8c1f0b29e2b8e9cb40b65b8813601e8304174350bc9ecfcaaa75ffaeefa18374"
+    },
+    {
+      "id": "CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re",
+      "archive_path": ".specsync/archive/changes/2026-07-11-CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re",
+      "introduction_commit": "47c4225738671107d8ff62889fb8c6168ada8f8b",
+      "subtree_digest": "b64bedf0b762e20512fcc428861de292c8b71c0b17206d7e8c3daf50e20bb7b1"
+    },
+    {
+      "id": "CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r",
+      "archive_path": ".specsync/archive/changes/2026-07-11-CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r",
+      "introduction_commit": "47c4225738671107d8ff62889fb8c6168ada8f8b",
+      "subtree_digest": "47ef46d85e1a0df6108d00b142f5751ad575347653e019be1378fbc576559f58"
+    },
+    {
+      "id": "CHG-0008-publish-the-5-0-evaluator-story-artifact-equivalence-adversarial-proof-and-gi",
+      "archive_path": ".specsync/archive/changes/2026-07-11-CHG-0008-publish-the-5-0-evaluator-story-artifact-equivalence-adversarial-proof-and-gi",
+      "introduction_commit": "47c4225738671107d8ff62889fb8c6168ada8f8b",
+      "subtree_digest": "086de5f1af68d0e774233e138e0a97fa405dab30644c0972bdcdb5ac78a9b48f"
+    },
+    {
+      "id": "CHG-0009-make-accepted-evidence-squash-safe-and-harden-the-5-0-release-path",
+      "archive_path": ".specsync/archive/changes/2026-07-11-CHG-0009-make-accepted-evidence-squash-safe-and-harden-the-5-0-release-path",
+      "introduction_commit": "82097ff97c1c1a35c7b93d4048dc21b3a0369ced",
+      "subtree_digest": "20f9ed6ed8e1a2792f91edca7b8fec8a11d05b8b9d99a8fd269ee8111684da02"
+    },
+    {
+      "id": "CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement",
+      "archive_path": ".specsync/archive/changes/2026-07-11-CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement",
+      "introduction_commit": "82097ff97c1c1a35c7b93d4048dc21b3a0369ced",
+      "subtree_digest": "7cc1db96eeef729013f332f9111a1c19e7c9cecd99974942e204ecbcd7704462"
+    },
+    {
+      "id": "CHG-0011-fix-windows-release-checksum-newline-portability",
+      "archive_path": ".specsync/archive/changes/2026-07-11-CHG-0011-fix-windows-release-checksum-newline-portability",
+      "introduction_commit": "23ead68de8719dcf97ff4d87765d7e649f14ac3a",
+      "subtree_digest": "ee8e9f8200fb00475540d8c9097058f5cdc88eb3ba6eae74563b094694638689"
+    },
+    {
+      "id": "CHG-0012-correct-specsync-5-0-documentation-cli-help-and-hub-deep-links",
+      "archive_path": ".specsync/archive/changes/2026-07-11-CHG-0012-correct-specsync-5-0-documentation-cli-help-and-hub-deep-links",
+      "introduction_commit": "58cc99e6c4d585426a3a355843fd672e0f1cd220",
+      "subtree_digest": "b86b90c80095adba41d34031bd12aeaecbb9bdaae5dcd200919e9dc62556c760"
+    },
+    {
+      "id": "CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors",
+      "archive_path": ".specsync/archive/changes/2026-07-11-CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors",
+      "introduction_commit": "58cc99e6c4d585426a3a355843fd672e0f1cd220",
+      "subtree_digest": "881f3747bed1b4687d94d232504a57df31f74a0fa3fc5d63d654a9e77551d200"
+    },
+    {
+      "id": "CHG-0014-route-archive-only-lifecycle-moves-through-a-minimal-specsync-ci-gate-while-pres",
+      "archive_path": ".specsync/archive/changes/2026-07-11-CHG-0014-route-archive-only-lifecycle-moves-through-a-minimal-specsync-ci-gate-while-pres",
+      "introduction_commit": "c6427b4d9f3d4a7114646c0634c3ccdfbaed74a7",
+      "subtree_digest": "80f8e7cc145c89a268690748910091e35f3e8207e037ad4f9f5cb97a077858af"
+    },
+    {
+      "id": "CHG-0015-add-audited-stale-accepted-change-reopening",
+      "archive_path": ".specsync/archive/changes/2026-07-13-CHG-0015-add-audited-stale-accepted-change-reopening",
+      "introduction_commit": "21e44ecf33f4fe876820ef3ef8f19553341da15a",
+      "subtree_digest": "8f6f4062e93f6e882a7bc32d052e4f96e528c612d76748245bb1ba410664ee61"
+    },
+    {
+      "id": "CHG-0016-preserve-c-ast-behavior-under-rust-1-95-clippy",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0016-preserve-c-ast-behavior-under-rust-1-95-clippy",
+      "introduction_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "subtree_digest": "0f558abbea2cbff5bb7960e01a1f4dd20b35c6eb341d4659dbaa3a163ac49c04"
+    },
+    {
+      "id": "CHG-0016-preserve-free-text-arguments-in-generated-agent-commands",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0016-preserve-free-text-arguments-in-generated-agent-commands",
+      "introduction_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "subtree_digest": "a75ccca37339e87278acb560701cbe3132666228a1df82c40c68e6390414afe7"
+    },
+    {
+      "id": "CHG-0016-reject-modified-definitions-when-reaccepting-an-already-applied-change",
+      "archive_path": ".specsync/archive/changes/2026-07-13-CHG-0016-reject-modified-definitions-when-reaccepting-an-already-applied-change",
+      "introduction_commit": "21e44ecf33f4fe876820ef3ef8f19553341da15a",
+      "subtree_digest": "8d4028cf67bfdae77e939c3391663e7dbbb069b1872cdba3f85403f362a4721a"
+    },
+    {
+      "id": "CHG-0017-allow-audited-reopen-after-squash-and-canonical-successors",
+      "archive_path": ".specsync/archive/changes/2026-07-13-CHG-0017-allow-audited-reopen-after-squash-and-canonical-successors",
+      "introduction_commit": "21e44ecf33f4fe876820ef3ef8f19553341da15a",
+      "subtree_digest": "69c828e502503b52174eb2e96bed55a8959c969ca3b89e5bdd74e74601e8cdfb"
+    },
+    {
+      "id": "CHG-0018-allow-section-only-semantic-deltas-to-satisfy-verification-evidence",
+      "archive_path": ".specsync/archive/changes/2026-07-13-CHG-0018-allow-section-only-semantic-deltas-to-satisfy-verification-evidence",
+      "introduction_commit": "21e44ecf33f4fe876820ef3ef8f19553341da15a",
+      "subtree_digest": "d10adbe7e58fff552786a9dcae299bf7e1f0c10b5a74b0303fae75f13636dbb6"
+    },
+    {
+      "id": "CHG-0019-adopt-trust-1-and-specsync-5",
+      "archive_path": ".specsync/archive/changes/2026-07-13-CHG-0019-adopt-trust-1-and-specsync-5",
+      "introduction_commit": "21e44ecf33f4fe876820ef3ef8f19553341da15a",
+      "subtree_digest": "2c8898bfeb1c20bd997c834e5a9e4e3d49233716b3c00df967f32ddd6f2cb4e0"
+    },
+    {
+      "id": "CHG-0020-harden-reopened-acceptance-compatibility-and-canonical-governance",
+      "archive_path": ".specsync/archive/changes/2026-07-13-CHG-0020-harden-reopened-acceptance-compatibility-and-canonical-governance",
+      "introduction_commit": "21e44ecf33f4fe876820ef3ef8f19553341da15a",
+      "subtree_digest": "34452a5ea378461eae3c4ccbe458a6d6df3a8f00bf7a88f9167a1e0831588147"
+    },
+    {
+      "id": "CHG-0021-close-reopened-lifecycle-review-gaps",
+      "archive_path": ".specsync/archive/changes/2026-07-13-CHG-0021-close-reopened-lifecycle-review-gaps",
+      "introduction_commit": "21e44ecf33f4fe876820ef3ef8f19553341da15a",
+      "subtree_digest": "e817af76ad2376bf229839443f83d549a26a49e9de485581d937d808afb0085f"
+    },
+    {
+      "id": "CHG-0022-preserve-canonical-change-log-table-schemas-when-accepting-semantic-deltas",
+      "archive_path": ".specsync/archive/changes/2026-07-13-CHG-0022-preserve-canonical-change-log-table-schemas-when-accepting-semantic-deltas",
+      "introduction_commit": "21e44ecf33f4fe876820ef3ef8f19553341da15a",
+      "subtree_digest": "88dde858b058bd23fe7a8a6966f70bcd036b096e641a9adaf4bec68d870da821"
+    },
+    {
+      "id": "CHG-0023-allow-squash-accepted-evidence-on-descendant-branches",
+      "archive_path": ".specsync/archive/changes/2026-07-13-CHG-0023-allow-squash-accepted-evidence-on-descendant-branches",
+      "introduction_commit": "21e44ecf33f4fe876820ef3ef8f19553341da15a",
+      "subtree_digest": "bd19c66b081313c411b50da59d0648dbee6062e4ba4743c7430ad8f1bc6f6ece"
+    },
+    {
+      "id": "CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2",
+      "introduction_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "subtree_digest": "5a1a0b69a56f540132869284fd7105e4ca41ebfd00efed067a0e03d0b03d448f"
+    },
+    {
+      "id": "CHG-0025-address-all-unresolved-review-feedback-on-pr-366",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0025-address-all-unresolved-review-feedback-on-pr-366",
+      "introduction_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "subtree_digest": "8d09a862578fac290d8a02f901104af1b6139cc18a4160792913b648aff06ac9"
+    },
+    {
+      "id": "CHG-0026-keep-lifecycle-recursion-detection-private-while-preserving-deterministic-nested",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0026-keep-lifecycle-recursion-detection-private-while-preserving-deterministic-nested",
+      "introduction_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "subtree_digest": "19cf840773b82e5d6b2e3d6a5d4afe93a3e3a29d9d7299068303412069c5f065"
+    },
+    {
+      "id": "CHG-0027-preserve-accepted-evidence-across-valid-later-sequence-claims",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0027-preserve-accepted-evidence-across-valid-later-sequence-claims",
+      "introduction_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "subtree_digest": "78e9961cb29f8e0a07b63f4bbd6c8bada2a13d51ba64877c0204f8f32ec781f6"
+    },
+    {
+      "id": "CHG-0028-use-the-release-candidate-specsync-binary-in-the-trust-workflow",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0028-use-the-release-candidate-specsync-binary-in-the-trust-workflow",
+      "introduction_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "subtree_digest": "c3c301bbed1cc1a88043a6fdc9adda6d58621b5631927b6202303759351f587b"
+    },
+    {
+      "id": "CHG-0029-address-all-remaining-review-feedback-from-pr-366",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0029-address-all-remaining-review-feedback-from-pr-366",
+      "introduction_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "subtree_digest": "f8e4aea32e3610f180fac6f215fff821411e2f2507668d9f3b3d5f46ec98c369"
+    },
+    {
+      "id": "CHG-0030-satisfy-rust-1-95-clippy-for-the-cargo-lifecycle-verification-guard",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0030-satisfy-rust-1-95-clippy-for-the-cargo-lifecycle-verification-guard",
+      "introduction_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "subtree_digest": "be8c0184824294a5fa53295824785d976d80e6a31cb1768d5bb2489832341790"
+    },
+    {
+      "id": "CHG-0031-keep-the-rustsec-audit-job-compatible-with-the-rust-1-89-msrv",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0031-keep-the-rustsec-audit-job-compatible-with-the-rust-1-89-msrv",
+      "introduction_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "subtree_digest": "710faa0421b29a9180dc21b9116ba461fabc1e1493440010672f328917792dc0"
+    },
+    {
+      "id": "CHG-0032-address-all-actionable-review-findings-on-pr-370-with-regression-coverage",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0032-address-all-actionable-review-findings-on-pr-370-with-regression-coverage",
+      "introduction_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "subtree_digest": "1eed78c2d8bb125e27c143ed7df42732ae5d91ae4e04d9fe1d6ba341934a33b1"
+    },
+    {
+      "id": "CHG-0033-close-final-5-0-2-lifecycle-review-and-intent-preservation-gaps",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0033-close-final-5-0-2-lifecycle-review-and-intent-preservation-gaps",
+      "introduction_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "subtree_digest": "73968254758c91177d0cb0abc082ce76cda9957beaa96e953d7a0327336e5152"
+    },
+    {
+      "id": "CHG-0034-support-extensionless-source-discovery-through-an-explicit-include-extensionless",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0034-support-extensionless-source-discovery-through-an-explicit-include-extensionless",
+      "introduction_commit": "a9422aedbe12a3c50787c1fcc074749232f25dfe",
+      "subtree_digest": "9008079953609e3d05400d0a4dffb5b9150d35a14c5d1af3ad2d8561b42149f4"
+    },
+    {
+      "id": "CHG-0035-count-mjs-and-cjs-files-as-default-typescript-sources-so-mapped-and-uncovered-mo",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0035-count-mjs-and-cjs-files-as-default-typescript-sources-so-mapped-and-uncovered-mo",
+      "introduction_commit": "015c1fd35f48a5c4f84db852fcd7a968fe1bc364",
+      "subtree_digest": "fe64c663e56956ade26846c3297da8d6e01a24ebb0ba97327da4e89a629c3ead"
+    },
+    {
+      "id": "CHG-0036-support-commonjs-exports-for-newly-discovered-cjs-modules-without-changing-esm",
+      "archive_path": ".specsync/archive/changes/2026-07-15-CHG-0036-support-commonjs-exports-for-newly-discovered-cjs-modules-without-changing-esm",
+      "introduction_commit": "fc5f9ac2695a4416b1e99e590b35bd47de00347c",
+      "subtree_digest": "e7eb67efd2618bd5ca293f3eea2328105f3280bf66c6f46dba086b3b70e49eb7"
+    },
+    {
+      "id": "CHG-0037-resolve-extensionless-mjs-barrel-exports-for-newly-discovered-module-javascript",
+      "archive_path": ".specsync/archive/changes/2026-07-14-CHG-0037-resolve-extensionless-mjs-barrel-exports-for-newly-discovered-module-javascript",
+      "introduction_commit": "717eace16aa5559d97c5ec4fb627e3d3cf3435d4",
+      "subtree_digest": "57ec0248242180c9c4bc2cd2a3cefa23f3e1a838f12fabb5c8327979648ed42c"
+    },
+    {
+      "id": "CHG-0038-harden-commonjs-export-extraction-and-exclude-module-javascript-tests-from-gener",
+      "archive_path": ".specsync/archive/changes/2026-07-15-CHG-0038-harden-commonjs-export-extraction-and-exclude-module-javascript-tests-from-gener",
+      "introduction_commit": "fc5f9ac2695a4416b1e99e590b35bd47de00347c",
+      "subtree_digest": "bb3eaeb2102595290fe0ce93a8e07cc54d495b11c70f0f4533c9f1a1530e1df3"
+    },
+    {
+      "id": "CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+      "archive_path": ".specsync/archive/changes/2026-07-15-CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str",
+      "introduction_commit": "3071326ef56f097ec74e2a9f1c24b38b5184f9d8",
+      "subtree_digest": "50635da544b69479f9d72f6df39a5393f3fa775b9e5c3a62bf2f5c4aaf45dc0c"
+    },
+    {
+      "id": "CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re",
+      "archive_path": ".specsync/archive/changes/2026-07-15-CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re",
+      "introduction_commit": "fc5f9ac2695a4416b1e99e590b35bd47de00347c",
+      "subtree_digest": "0de793b90a199d09998e382ec1e27c28473178ded6ea18069f3eee330a44c99a"
+    },
+    {
+      "id": "CHG-0041-synchronize-generated-create-spec-agent-commands-with-the-corrected-free-text-pa",
+      "archive_path": ".specsync/archive/changes/2026-07-15-CHG-0041-synchronize-generated-create-spec-agent-commands-with-the-corrected-free-text-pa",
+      "introduction_commit": "fc5f9ac2695a4416b1e99e590b35bd47de00347c",
+      "subtree_digest": "01f2db199d96cb2e4771b5f4b533fb601f473152e87608b2577db6ac4cccbeba"
+    }
+  ]
+}

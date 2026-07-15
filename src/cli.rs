@@ -338,6 +338,22 @@ pub enum ChangeAction {
         /// Change ID that must be ordered first
         on: String,
     },
+    /// Adopt one exact predecessor path/module obligation before definition approval
+    Supersede {
+        /// Change that will provide the semantic successor
+        id: String,
+        /// Accepted predecessor change ID
+        predecessor: String,
+        /// Exact portable predecessor input path
+        #[arg(long)]
+        path: String,
+        /// Canonical owner module for this obligation
+        #[arg(long = "spec")]
+        module: String,
+        /// Full `specsync.acceptance-entry.v1` predecessor digest
+        #[arg(long)]
+        digest: String,
+    },
     /// List active changes
     List,
     /// Show one change, its gate health, and next questions

@@ -45,6 +45,14 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
             .and_then(|record| print_record(root, &record, format, true)),
         ChangeAction::Depend { id, on } => change::add_dependency(root, &id, &on)
             .and_then(|record| print_record(root, &record, format, false)),
+        ChangeAction::Supersede {
+            id,
+            predecessor,
+            path,
+            module,
+            digest,
+        } => change::add_supersedes_obligation(root, &id, &predecessor, &path, &module, &digest)
+            .and_then(|record| print_record(root, &record, format, false)),
         ChangeAction::List => {
             print_records(root, &change::list_changes(root), format);
             Ok(())
@@ -144,6 +152,16 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
             match format {
                 OutputFormat::Json => print_json(&report),
                 _ => {
+                    for result in &report.terminal_evidence {
+                        println!(
+                            "{} evidence: {}",
+                            result.id,
+                            result.evidence.validity.as_str()
+                        );
+                        if let Some(reason) = &result.evidence.reason {
+                            println!("  reason: {reason}");
+                        }
+                    }
                     for warning in &report.warnings {
                         println!("{} {warning}", "warning:".yellow().bold());
                     }
@@ -240,6 +258,12 @@ fn print_record(
                         .join(", ")
                 );
             }
+            if let Some(evidence) = &summary.terminal_evidence {
+                println!("  Evidence: {}", evidence.validity.as_str());
+                if let Some(reason) = &evidence.reason {
+                    println!("  Evidence reason: {reason}");
+                }
+            }
             if include_questions && !questions.is_empty() {
                 println!("\nInterview:");
                 for question in questions {
@@ -264,12 +288,18 @@ fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat) {
         _ if summaries.is_empty() => println!("No active SDD changes."),
         _ => {
             for summary in summaries {
+                let evidence = summary
+                    .terminal_evidence
+                    .as_ref()
+                    .map(|evidence| format!("  evidence: {}", evidence.validity.as_str()))
+                    .unwrap_or_default();
                 println!(
-                    "{}  {:<13}  {}  next: {}",
+                    "{}  {:<13}  {}  next: {}{}",
                     summary.id.bold(),
                     summary.state.as_str(),
                     summary.title,
-                    summary.next_action
+                    summary.next_action,
+                    evidence
                 );
             }
         }

@@ -1,0 +1,12 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784098711,
+      "digest": "42f22c3cf4dd6f8f3b25edafd92b217964d00511f4772ff1bce0549e0303e60f",
+      "note": "Definition approved after review of the fresh main-based artifacts, exact fc5f9ac baseline cutoff, 43 uniquely authenticated archive anchors, and the definition-bound canonical baseline bytes."
+    }
+  ],
+  "reopenings": []
+}

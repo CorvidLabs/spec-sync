@@ -12,6 +12,7 @@ pub const SDD_VERSION: &str = "5.0.0";
 const POLICY_PATH: &str = ".specsync/sdd.json";
 const CHANGES_PATH: &str = ".specsync/changes";
 const ARCHIVE_PATH: &str = ".specsync/archive/changes";
+const LEGACY_BASELINE_PATH: &str = ".specsync/archive/legacy-baseline.json";
 const LOCK_PATH: &str = ".specsync/change.lock";
 const SEQUENCE_PATH: &str = ".specsync/change-sequence.json";
 const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
@@ -30,8 +31,19 @@ static TRUSTED_CORRECTION_HISTORY_CACHE: OnceLock<Mutex<BTreeSet<String>>> = Onc
 const DEFINITION_DIGEST_DOMAIN: &[u8] = b"specsync.definition-digest.v2";
 const PROJECT_DIGEST_DOMAIN: &[u8] = b"specsync.project-input-digest.v2";
 const ACCEPTANCE_DIGEST_DOMAIN: &[u8] = b"specsync.acceptance-input-digest.v2";
+const ACCEPTANCE_ENTRY_DOMAIN: &[u8] = b"specsync.acceptance-entry.v1";
+const ACCEPTANCE_MANIFEST_DOMAIN: &[u8] = b"specsync.acceptance-manifest.v1";
+const SEMANTIC_SUCCESSION_DOMAIN: &[u8] = b"specsync.semantic-succession.v1";
+const LEGACY_BASELINE_DOMAIN: &[u8] = b"specsync.legacy-archive-baseline.v1";
+const LEGACY_SUBTREE_DOMAIN: &[u8] = b"specsync.legacy-archive-subtree.v1";
 const CLOSING_DIGEST_DOMAIN: &[u8] = b"specsync.closing-digest.v2";
 const CORRECTION_VIEW_DIGEST_DOMAIN: &[u8] = b"specsync.correction-view-digest.v1";
+const EXACT_TEST_OWNER: &str = "@exact:test";
+const EXACT_DELIVERY_OWNER: &str = "@exact:delivery";
+const MAX_ACCEPTANCE_ENTRIES: usize = 100_000;
+const MAX_ACCEPTANCE_PATH_BYTES: usize = 4_096;
+const MAX_ACCEPTANCE_OWNERS: usize = 1_024;
+const MAX_ACCEPTANCE_OWNER_BYTES: usize = 256;
 
 struct FramedDigest {
     hasher: Sha256,
@@ -289,7 +301,7 @@ impl Default for SddPolicy {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChangeRecord {
     pub schema_version: u32,
     pub id: String,
@@ -312,7 +324,43 @@ pub struct ChangeRecord {
     pub acceptance_criteria: Vec<String>,
     pub selected_artifacts: Vec<ArtifactKind>,
     pub dependencies: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub supersedes: Vec<SupersedesEdge>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legacy_archive_baseline_digest: Option<String>,
     pub answers: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LegacyArchiveBaselineV1 {
+    pub schema_version: u32,
+    pub domain: String,
+    pub authority_change_id: String,
+    pub cutoff_commit: String,
+    pub entries: Vec<LegacyArchiveBaselineEntryV1>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LegacyArchiveBaselineEntryV1 {
+    pub id: String,
+    pub archive_path: String,
+    pub introduction_commit: String,
+    pub subtree_digest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SuccessionObligation {
+    pub path: String,
+    pub module: String,
+    pub predecessor_entry_digest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SupersedesEdge {
+    pub predecessor_id: String,
+    pub obligations: Vec<SuccessionObligation>,
 }
 
 #[derive(Debug, Clone)]
@@ -473,9 +521,54 @@ pub struct VerificationRecord {
     pub workspace_digest: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub acceptance_input_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub acceptance_manifest: Option<AcceptanceManifestV1>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub semantic_succession: Option<SemanticSuccessionEvidenceV1>,
     pub passed: bool,
     pub commands: Vec<CommandEvidence>,
     pub requirement_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AcceptanceInputKind {
+    File,
+    Symlink,
+    Gitlink,
+    Missing,
+    NonFile,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AcceptanceInputEntryV1 {
+    pub path: String,
+    pub kind: AcceptanceInputKind,
+    pub mode: u32,
+    pub payload_digest: String,
+    pub entry_digest: String,
+    pub owners: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AcceptanceManifestV1 {
+    pub schema_version: u32,
+    pub entries: Vec<AcceptanceInputEntryV1>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SemanticSuccessionTupleV1 {
+    pub predecessor_id: String,
+    pub path: String,
+    pub module: String,
+    pub predecessor_entry_digest: String,
+    pub successor_entry_digest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SemanticSuccessionEvidenceV1 {
+    pub schema_version: u32,
+    pub tuples: Vec<SemanticSuccessionTupleV1>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -529,6 +622,37 @@ pub struct ChangeSummary {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub corrected_fields: BTreeMap<String, String>,
     pub next_action: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terminal_evidence: Option<TerminalEvidenceSummary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TerminalEvidenceSummary {
+    pub validity: TerminalEvidenceValidity,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TerminalEvidenceValidity {
+    Exact,
+    SuccessorCovered,
+    Stale,
+    AuthenticatedHistory,
+    CorruptHistory,
+}
+
+impl TerminalEvidenceValidity {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Exact => "exact",
+            Self::SuccessorCovered => "successor-covered",
+            Self::Stale => "stale",
+            Self::AuthenticatedHistory => "authenticated-history",
+            Self::CorruptHistory => "corrupt-history",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -537,6 +661,14 @@ pub struct SddCheckReport {
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
     pub checked_changes: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub terminal_evidence: Vec<TerminalEvidenceResult>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TerminalEvidenceResult {
+    pub id: String,
+    pub evidence: TerminalEvidenceSummary,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -667,6 +799,8 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         acceptance_criteria: Vec::new(),
         selected_artifacts: artifacts,
         dependencies: Vec::new(),
+        supersedes: Vec::new(),
+        legacy_archive_baseline_digest: None,
         answers: BTreeMap::new(),
     };
     let dir = change_dir(root, &record.id);
@@ -815,10 +949,11 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
             let state_path = entry.path().join("state.json");
             let content = match fs::read_to_string(&state_path) {
                 Ok(content) => content,
-                Err(error) if archived && error.kind() == std::io::ErrorKind::NotFound => {
-                    // Legacy archive entries can contain only semantic tombstones.
-                    // Without persisted state they are not lifecycle records and have
-                    // no numeric sequence identity to validate.
+                Err(error)
+                    if archived
+                        && error.kind() == std::io::ErrorKind::NotFound
+                        && is_positive_legacy_tombstone(&entry.path()) =>
+                {
                     continue;
                 }
                 Err(error) => {
@@ -1107,6 +1242,86 @@ pub fn add_dependency(root: &Path, id: &str, dependency: &str) -> Result<ChangeR
     Ok(record)
 }
 
+pub fn add_supersedes_obligation(
+    root: &Path,
+    id: &str,
+    predecessor: &str,
+    path: &str,
+    module: &str,
+    predecessor_entry_digest: &str,
+) -> Result<ChangeRecord, String> {
+    let _lock = acquire_project_lock(root)?;
+    let mut record = load_change(root, id)?;
+    require_state(
+        &record,
+        &[ChangeState::Draft],
+        "adopt a predecessor obligation",
+    )?;
+    if id == predecessor {
+        return Err("a change cannot supersede itself".into());
+    }
+    crate::commands::validate_module_name(module)
+        .map_err(|error| format!("invalid succession module: {error}"))?;
+    let path = normalize_project_path(path)
+        .map_err(|error| format!("invalid succession path: {error}"))?;
+    validate_sha256_digest(predecessor_entry_digest, "predecessor entry digest")?;
+    if !record
+        .affected_specs
+        .iter()
+        .any(|affected| affected == module)
+    {
+        return Err(format!(
+            "successor `{id}` must declare affected module `{module}`"
+        ));
+    }
+    let obligation = SuccessionObligation {
+        path,
+        module: module.to_string(),
+        predecessor_entry_digest: predecessor_entry_digest.to_string(),
+    };
+    let edge = if let Some(edge) = record
+        .supersedes
+        .iter_mut()
+        .find(|edge| edge.predecessor_id == predecessor)
+    {
+        edge
+    } else {
+        record.supersedes.push(SupersedesEdge {
+            predecessor_id: predecessor.to_string(),
+            obligations: Vec::new(),
+        });
+        record
+            .supersedes
+            .last_mut()
+            .ok_or_else(|| "failed to create supersedes edge".to_string())?
+    };
+    if edge
+        .obligations
+        .iter()
+        .any(|existing| existing.path == obligation.path && existing.module == obligation.module)
+    {
+        return Err(format!(
+            "supersedes obligation already exists for `{predecessor}` `{}` `{module}`",
+            obligation.path
+        ));
+    }
+    edge.obligations.push(obligation);
+    edge.obligations.sort_by(|left, right| {
+        left.path
+            .cmp(&right.path)
+            .then_with(|| left.module.cmp(&right.module))
+    });
+    record
+        .supersedes
+        .sort_by_key(|edge| succession_change_key(&edge.predecessor_id));
+    validate_supersedes_edges(&record)?;
+    validate_supersedes_semantics(root, &record)?;
+    record.updated_at = now();
+    save_change(root, &record)?;
+    write_change_markdown(root, &record)?;
+    Ok(record)
+}
+
 pub fn approve_definition(
     root: &Path,
     id: &str,
@@ -1126,6 +1341,7 @@ pub fn approve_definition(
         "approve the definition",
     )?;
     list_changes_checked(root)?;
+    bind_legacy_archive_baseline_authority(root, &mut record)?;
     let prior_state = record.state;
     validate_definition(root, &record)?;
     validate_delta_files(root, &record)?;
@@ -1141,6 +1357,54 @@ pub fn approve_definition(
     save_change(root, &record)?;
     write_change_markdown(root, &record)?;
     Ok(record)
+}
+
+fn bind_legacy_archive_baseline_authority(
+    root: &Path,
+    record: &mut ChangeRecord,
+) -> Result<(), String> {
+    let path = root.join(LEGACY_BASELINE_PATH);
+    let baseline_bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(format!("failed to read legacy archive baseline: {error}")),
+    };
+    let (baseline, digest) = validate_legacy_archive_baseline_bytes(&baseline_bytes)?;
+    if baseline.authority_change_id == record.id {
+        if !record
+            .affected_paths
+            .iter()
+            .any(|path| path == LEGACY_BASELINE_PATH)
+        {
+            return Err(format!(
+                "legacy archive baseline authority must cover `{LEGACY_BASELINE_PATH}`"
+            ));
+        }
+        validate_legacy_baseline_authority_cutoff(root, record, &baseline.cutoff_commit)?;
+        record.legacy_archive_baseline_digest = Some(digest);
+    }
+    Ok(())
+}
+
+fn validate_legacy_baseline_authority_cutoff(
+    root: &Path,
+    authority: &ChangeRecord,
+    cutoff: &str,
+) -> Result<(), String> {
+    let resolved = git_output(
+        root,
+        &["rev-parse", "--verify", &format!("{cutoff}^{{commit}}")],
+    )
+    .ok_or_else(|| "legacy archive baseline cutoff is unavailable".to_string())?;
+    if resolved != cutoff {
+        return Err("legacy archive baseline cutoff must be a canonical commit ID".into());
+    }
+    if authority.base_commit.as_deref() != Some(cutoff) {
+        return Err(
+            "legacy archive baseline cutoff must equal the authority definition base commit".into(),
+        );
+    }
+    ensure_git_ancestor(root, cutoff, "HEAD", "current authority history")
 }
 
 pub fn start_implementation(root: &Path, id: &str) -> Result<ChangeRecord, String> {
@@ -1205,6 +1469,8 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
         contract_digest: definition_digest(root, &record)?,
         workspace_digest: project_input_digest(root)?,
         acceptance_input_digest: None,
+        acceptance_manifest: None,
+        semantic_succession: None,
         passed,
         commands,
         requirement_ids,
@@ -1277,17 +1543,27 @@ pub fn reopen_change(
     if superseded_approval.digest != expected_closing_digest {
         return Err("accepted change closing approval does not match verification evidence".into());
     }
-    if !verification_commit_is_accepted_current(root, &prior_verification)
-        && !accepted_workspace_is_integrated(root, &record)
-        && !accepted_change_is_recorded_in_current_history(root, &record)
-        && !accepted_change_has_current_canonical_successors(root, &record)
-    {
-        return Err("accepted change verification commit is not in current history, its canonical acceptance is not recorded in current history, and no current canonical successor governs its affected contract".into());
-    }
-    let current_acceptance_input_digest = acceptance_input_digest(root, &record, &[])?;
+    let current_acceptance_input_digest =
+        if let Some(manifest) = &prior_verification.acceptance_manifest {
+            let current = acceptance_manifest_with_signed_owners(root, &record, &[], manifest)?;
+            acceptance_manifest_digest(&current)?
+        } else {
+            acceptance_input_digest(root, &record, &[])?
+        };
     if current_acceptance_input_digest == stale_acceptance_input_digest {
         return Err(
-            "accepted change delivery inputs are current; reopen is allowed only when delivery evidence is stale"
+            "accepted change delivery inputs are current (exact or successor-covered); reopen is allowed only when delivery evidence is stale"
+                .into(),
+        );
+    }
+    authenticate_accepted_evidence(root, &record)?;
+    let records = list_all_changes_checked(root)?;
+    let mut visiting = BTreeSet::new();
+    let mut memo = BTreeMap::new();
+    if validate_accepted_inputs_recursive(root, &record, &records, &mut visiting, &mut memo).is_ok()
+    {
+        return Err(
+            "accepted change delivery inputs are current (exact or successor-covered); reopen is allowed only when delivery evidence is stale"
                 .into(),
         );
     }
@@ -2369,7 +2645,11 @@ pub fn accept_change(
     } else {
         prepare_delta_application(root, &record)?
     };
-    verification.acceptance_input_digest = Some(acceptance_input_digest(root, &record, &prepared)?);
+    let manifest = acceptance_manifest(root, &record, &prepared)?;
+    let succession = build_semantic_succession_evidence(root, &record, &manifest)?;
+    verification.acceptance_input_digest = Some(acceptance_manifest_digest(&manifest)?);
+    verification.acceptance_manifest = Some(manifest);
+    verification.semantic_succession = (!succession.tuples.is_empty()).then_some(succession);
     let closing_digest = closing_digest(&record, &verification);
     let mut ledger = load_approvals(root, &record)?;
     let actor = resolve_actor(root, actor)?;
@@ -2420,10 +2700,27 @@ pub fn accept_change(
 }
 
 pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
+    archive_change_with_finalize_failure(root, id, false)
+}
+
+fn archive_change_with_finalize_failure(
+    root: &Path,
+    id: &str,
+    force_finalize_failure: bool,
+) -> Result<PathBuf, String> {
     let _lock = acquire_project_lock(root)?;
     list_changes_checked(root)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Accepted], "archive the change")?;
+    let destination = root
+        .join(ARCHIVE_PATH)
+        .join(format!("{}-{}", today(), record.id));
+    if destination.exists() {
+        return Err(format!(
+            "archive destination already exists: {}",
+            destination.display()
+        ));
+    }
     ensure_closing_approval_valid(root, &record)?;
     if let Some(policy) = load_policy_checked(root)?
         && policy.enabled
@@ -2441,42 +2738,81 @@ pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
         }
     }
     let source = change_dir(root, &record.id);
-    let destination = root
-        .join(ARCHIVE_PATH)
-        .join(format!("{}-{}", today(), record.id));
-    if destination.exists() {
-        return Err(format!(
-            "archive destination already exists: {}",
-            destination.display()
-        ));
-    }
+    let original_state_bytes = fs::read(source.join("state.json"))
+        .map_err(|error| format!("failed to preserve accepted state before archive: {error}"))?;
+    let original_markdown_bytes = fs::read(source.join("change.md"))
+        .map_err(|error| format!("failed to preserve accepted change before archive: {error}"))?;
     if let Some(parent) = destination.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
-    fs::rename(&source, &destination).map_err(|error| {
-        format!(
+    let accepted_snapshot = source.join("accepted-state.json");
+    let accepted_state_bytes = authenticated_accepted_transition(root, &record)
+        .map(|(_, bytes, _)| bytes)
+        .unwrap_or_else(|_| original_state_bytes.clone());
+    fs::write(&accepted_snapshot, &accepted_state_bytes)
+        .map_err(|error| format!("failed to stage authenticated accepted state: {error}"))?;
+    let mut simulated = list_all_changes_checked(root)?;
+    let mut archived_projection = record.clone();
+    archived_projection.state = ChangeState::Archived;
+    if let Err(error) = validate_archived_integrity(root, &archived_projection) {
+        let _ = fs::remove_file(&accepted_snapshot);
+        return Err(format!(
+            "archive target historical-integrity preflight failed: {error}"
+        ));
+    }
+    simulated.insert(record.id.clone(), archived_projection);
+    for candidate in simulated
+        .values()
+        .filter(|candidate| candidate.state == ChangeState::Accepted)
+    {
+        let mut visiting = BTreeSet::new();
+        let mut memo = BTreeMap::new();
+        if let Err(error) = validate_accepted_inputs_recursive(
+            root,
+            candidate,
+            &simulated,
+            &mut visiting,
+            &mut memo,
+        ) {
+            let _ = fs::remove_file(&accepted_snapshot);
+            return Err(format!(
+                "archive post-move preflight would invalidate `{}`: {error}",
+                candidate.id
+            ));
+        }
+    }
+    if let Err(error) = fs::rename(&source, &destination) {
+        let _ = fs::remove_file(&accepted_snapshot);
+        return Err(format!(
             "failed to archive {} to {}: {error}",
             source.display(),
             destination.display()
-        )
-    })?;
+        ));
+    }
     let mut archived = record.clone();
     archived.state = ChangeState::Archived;
     archived.updated_at = now();
-    if let Err(error) = write_json(&destination.join("state.json"), &archived).and_then(|()| {
-        fs::write(
-            destination.join("change.md"),
-            change_markdown_content(&archived),
-        )
-        .map_err(|error| error.to_string())
-    }) {
-        let restore = write_json(&destination.join("state.json"), &record)
+    let finalize = if force_finalize_failure {
+        Err("forced post-move archive finalization failure".to_string())
+    } else {
+        write_json(&destination.join("state.json"), &archived).and_then(|()| {
+            fs::write(
+                destination.join("change.md"),
+                change_markdown_content(&archived),
+            )
+            .map_err(|error| error.to_string())
+        })
+    };
+    if let Err(error) = finalize {
+        let restore = fs::write(destination.join("state.json"), &original_state_bytes)
+            .map_err(|error| error.to_string())
             .and_then(|()| {
-                fs::write(
-                    destination.join("change.md"),
-                    change_markdown_content(&record),
-                )
-                .map_err(|error| error.to_string())
+                fs::write(destination.join("change.md"), &original_markdown_bytes)
+                    .map_err(|error| error.to_string())
+            })
+            .and_then(|()| {
+                fs::remove_file(destination.join("accepted-state.json"))
+                    .map_err(|error| error.to_string())
             })
             .and_then(|()| fs::rename(&destination, &source).map_err(|error| error.to_string()));
         return match restore {
@@ -2485,6 +2821,27 @@ pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
             )),
             Err(restore_error) => Err(format!(
                 "failed to finalize archive ({error}) and restore source ({restore_error})"
+            )),
+        };
+    }
+    if let Err(error) = validate_archived_integrity(root, &archived) {
+        let restore = fs::write(destination.join("state.json"), &original_state_bytes)
+            .map_err(|error| error.to_string())
+            .and_then(|()| {
+                fs::write(destination.join("change.md"), &original_markdown_bytes)
+                    .map_err(|error| error.to_string())
+            })
+            .and_then(|()| {
+                fs::remove_file(destination.join("accepted-state.json"))
+                    .map_err(|error| error.to_string())
+            })
+            .and_then(|()| fs::rename(&destination, &source).map_err(|error| error.to_string()));
+        return match restore {
+            Ok(()) => Err(format!(
+                "archived evidence failed post-move validation; source restored: {error}"
+            )),
+            Err(restore_error) => Err(format!(
+                "archived evidence failed validation ({error}) and restore ({restore_error})"
             )),
         };
     }
@@ -2518,6 +2875,8 @@ pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
             && project_input_digest(root)
                 .is_ok_and(|digest| verification.workspace_digest == digest)
     };
+    let terminal_evidence = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
+        .then(|| terminal_evidence_summary(root, record));
     let next_action = match record.state {
         ChangeState::Draft if next_questions(record).is_empty() => "approve".into(),
         ChangeState::Draft => "answer interview".into(),
@@ -2533,7 +2892,21 @@ pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
         ChangeState::Accepted if ensure_closing_approval_valid(root, record).is_err() => {
             "reopen".into()
         }
+        ChangeState::Accepted
+            if terminal_evidence
+                .as_ref()
+                .is_some_and(|evidence| evidence.validity == TerminalEvidenceValidity::Stale) =>
+        {
+            "reopen".into()
+        }
         ChangeState::Accepted => "archive".into(),
+        ChangeState::Archived
+            if terminal_evidence.as_ref().is_some_and(|evidence| {
+                evidence.validity == TerminalEvidenceValidity::CorruptHistory
+            }) =>
+        {
+            "invalid archived evidence".into()
+        }
         ChangeState::Archived => "none".into(),
     };
     ChangeSummary {
@@ -2546,6 +2919,7 @@ pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
         correction_count: record.correction_count as usize,
         corrected_fields,
         next_action,
+        terminal_evidence,
     }
 }
 
@@ -2649,9 +3023,27 @@ fn check_project_with_command_output(
             };
         }
     };
+    let all_records = match list_all_changes_checked(root) {
+        Ok(records) => records,
+        Err(error) => {
+            return SddCheckReport {
+                enabled: true,
+                errors: vec![error],
+                ..SddCheckReport::default()
+            };
+        }
+    };
     let mut report = SddCheckReport {
         enabled: true,
-        checked_changes: records.len(),
+        checked_changes: all_records.len(),
+        terminal_evidence: all_records
+            .values()
+            .filter(|record| matches!(record.state, ChangeState::Accepted | ChangeState::Archived))
+            .map(|record| TerminalEvidenceResult {
+                id: record.id.clone(),
+                evidence: terminal_evidence_summary_with_records(root, record, &all_records),
+            })
+            .collect(),
         ..SddCheckReport::default()
     };
     let policy = if let Some(base) = base_policy.filter(|policy| policy.enabled)
@@ -2711,10 +3103,11 @@ fn check_project_with_command_output(
         }
         if record.state == ChangeState::Accepted
             && let Err(error) = ensure_closing_approval_valid(root, record)
-            && (error != "accepted change verification is stale for current delivery inputs"
-                || !canonical_successor_governs_stale_predecessor(root, record, &records))
         {
-            report.errors.push(format!("{}: {error}", record.id));
+            report.errors.push(format!(
+                "{}: accepted change verification is stale for current delivery inputs: {error}",
+                record.id
+            ));
         }
         if record.canonical_applied
             && matches!(
@@ -2732,6 +3125,17 @@ fn check_project_with_command_output(
                     record.id
                 ));
             }
+        }
+    }
+    for record in all_records
+        .values()
+        .filter(|record| record.state == ChangeState::Archived)
+    {
+        if let Err(error) = validate_archived_integrity(root, record) {
+            report.errors.push(format!(
+                "{}: archived change historical integrity is invalid: {error}",
+                record.id
+            ));
         }
     }
     if let Err(errors) = validate_effective_contracts(root, &records) {
@@ -3030,6 +3434,8 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
         crate::commands::validate_module_name(module)
             .map_err(|error| format!("invalid affected spec: {error}"))?;
     }
+    validate_supersedes_edges(record)?;
+    validate_supersedes_semantics(root, record)?;
     if record.no_spec_change
         && record
             .no_spec_change_rationale
@@ -3071,6 +3477,174 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
     validate_artifacts(root, record)
 }
 
+fn validate_supersedes_edges(record: &ChangeRecord) -> Result<(), String> {
+    const MAX_SUCCESSION_TUPLES: usize = 100_000;
+    let mut count = 0_usize;
+    let mut previous_edge: Option<(u64, &str)> = None;
+    for edge in &record.supersedes {
+        let key = succession_change_key(&edge.predecessor_id);
+        if previous_edge.is_some_and(|previous| previous >= (key.0, key.1.as_str())) {
+            return Err("supersedes edges must be strictly sorted by numeric sequence and full predecessor ID".into());
+        }
+        previous_edge = Some((key.0, edge.predecessor_id.as_str()));
+        if edge.predecessor_id.len() > 256 || edge.obligations.is_empty() {
+            return Err(format!("invalid supersedes edge `{}`", edge.predecessor_id));
+        }
+        let mut previous_obligation: Option<(&str, &str)> = None;
+        for obligation in &edge.obligations {
+            count += 1;
+            if count > MAX_SUCCESSION_TUPLES {
+                return Err(format!(
+                    "supersedes obligations exceed {MAX_SUCCESSION_TUPLES}"
+                ));
+            }
+            if obligation.path.len() > 4096 || obligation.module.len() > 256 {
+                return Err("supersedes obligation field exceeds its size limit".into());
+            }
+            let normalized = normalize_project_path(&obligation.path)
+                .map_err(|error| format!("invalid succession path: {error}"))?;
+            if normalized != obligation.path {
+                return Err(format!(
+                    "succession path is not canonical: {}",
+                    obligation.path
+                ));
+            }
+            crate::commands::validate_module_name(&obligation.module)
+                .map_err(|error| format!("invalid succession module: {error}"))?;
+            validate_sha256_digest(
+                &obligation.predecessor_entry_digest,
+                "predecessor entry digest",
+            )?;
+            if previous_obligation.is_some_and(|previous| {
+                previous >= (obligation.path.as_str(), obligation.module.as_str())
+            }) {
+                return Err(format!(
+                    "supersedes obligations for `{}` must be strictly sorted and unique",
+                    edge.predecessor_id
+                ));
+            }
+            previous_obligation = Some((&obligation.path, &obligation.module));
+        }
+    }
+    Ok(())
+}
+
+fn validate_supersedes_semantics(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    for edge in &record.supersedes {
+        let predecessor = load_change(root, &edge.predecessor_id)?;
+        if !matches!(
+            predecessor.state,
+            ChangeState::Accepted | ChangeState::Archived
+        ) {
+            return Err(format!(
+                "superseded change `{}` must be accepted or archived",
+                edge.predecessor_id
+            ));
+        }
+        if succession_change_key(&edge.predecessor_id) >= succession_change_key(&record.id) {
+            return Err(format!(
+                "superseded change `{}` must sort before successor `{}`",
+                edge.predecessor_id, record.id
+            ));
+        }
+        if supersedes_reaches(root, &edge.predecessor_id, &record.id, &mut BTreeSet::new()) {
+            return Err(format!(
+                "supersedes edge `{}` -> `{}` creates a succession cycle",
+                record.id, edge.predecessor_id
+            ));
+        }
+        let manifest = resolved_acceptance_manifest(root, &predecessor)?;
+        for obligation in &edge.obligations {
+            if !record.affected_specs.contains(&obligation.module) {
+                return Err(format!(
+                    "successor `{}` does not declare affected module `{}`",
+                    record.id, obligation.module
+                ));
+            }
+            if !record
+                .affected_paths
+                .iter()
+                .any(|scope| path_matches_scope(&obligation.path, scope))
+            {
+                return Err(format!(
+                    "successor `{}` does not declare affected path `{}`",
+                    record.id, obligation.path
+                ));
+            }
+            let mut entries = manifest
+                .entries
+                .iter()
+                .filter(|entry| entry.path == obligation.path);
+            let entry = entries.next().ok_or_else(|| {
+                format!(
+                    "predecessor `{}` has no signed acceptance entry for `{}`",
+                    edge.predecessor_id, obligation.path
+                )
+            })?;
+            if entries.next().is_some() {
+                return Err(format!(
+                    "predecessor `{}` has ambiguous acceptance entries for `{}`",
+                    edge.predecessor_id, obligation.path
+                ));
+            }
+            if entry.entry_digest != obligation.predecessor_entry_digest {
+                return Err(format!(
+                    "predecessor entry digest mismatch for `{}` `{}`",
+                    edge.predecessor_id, obligation.path
+                ));
+            }
+            if obligation.module.starts_with("@exact:")
+                || !entry.owners.contains(&obligation.module)
+            {
+                return Err(format!(
+                    "module `{}` is not a successor-eligible signed owner of predecessor path `{}`",
+                    obligation.module, obligation.path
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn supersedes_reaches(
+    root: &Path,
+    from: &str,
+    target: &str,
+    visited: &mut BTreeSet<String>,
+) -> bool {
+    if from == target {
+        return true;
+    }
+    if !visited.insert(from.to_string()) {
+        return false;
+    }
+    load_change(root, from)
+        .map(|record| {
+            record.supersedes.iter().any(|edge| {
+                edge.predecessor_id == target
+                    || supersedes_reaches(root, &edge.predecessor_id, target, visited)
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn validate_sha256_digest(value: &str, label: &str) -> Result<(), String> {
+    if value.len() != 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(format!(
+            "{label} must be 64 lowercase hexadecimal characters"
+        ));
+    }
+    Ok(())
+}
+
+fn succession_change_key(id: &str) -> (u64, String) {
+    (change_sequence(id).unwrap_or(u64::MAX), id.to_string())
+}
+
 fn is_legacy_self_adoption_record(record: &ChangeRecord) -> bool {
     record.schema_version == 1
         && record.id == "CHG-0001-bootstrap-and-ship-the-verified-specsync-5-0-full-sdd-lifecycle"
@@ -3082,7 +3656,7 @@ fn is_legacy_self_adoption_record(record: &ChangeRecord) -> bool {
 }
 
 fn validate_artifacts(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    let dir = change_dir(root, &record.id);
+    let dir = find_change_dir(root, &record.id)?;
     let effective = effective_change_definition(root, record)?;
     for artifact in &effective.selected_artifacts {
         let path = dir.join(artifact.file_name());
@@ -3139,7 +3713,7 @@ fn semantic_acceptance_item_exists(root: &Path, record: &ChangeRecord) -> Result
     }
     for module in &record.affected_specs {
         let content =
-            read_bounded_change_text(&delta_path(root, record, module), "semantic delta")?;
+            read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
         if parse_delta(&content)?.iter().any(|item| {
             matches!(
                 item.target,
@@ -3238,7 +3812,8 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
             if record.canonical_applied || !record.affected_specs.contains(&module) {
                 continue;
             }
-            let delta_path = delta_path(root, record, &module);
+            let delta_path =
+                delta_path_checked(root, record, &module).map_err(|error| vec![error])?;
             let delta = match read_bounded_change_text(&delta_path, "semantic delta") {
                 Ok(delta) => delta,
                 Err(error) => {
@@ -3402,7 +3977,7 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
     }
     let tombstones = removed_requirement_ids(root)?;
     for module in &record.affected_specs {
-        let path = delta_path(root, record, module);
+        let path = delta_path_checked(root, record, module)?;
         let content = read_bounded_change_text(&path, "semantic delta")
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
         let items = parse_delta(&content)?;
@@ -3521,7 +4096,7 @@ fn collect_requirement_ids(root: &Path, record: &ChangeRecord) -> Result<Vec<Str
     }
     let mut ids = BTreeSet::new();
     for module in &record.affected_specs {
-        let path = delta_path(root, record, module);
+        let path = delta_path_checked(root, record, module)?;
         let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
         for item in parse_delta(&content)? {
             if item.target == DeltaTarget::Requirement && item.operation != DeltaOperation::Removed
@@ -3643,7 +4218,8 @@ fn prepare_delta_application(
     let specs_dir = crate::config::load_config(root).specs_dir;
     let mut prepared = Vec::new();
     for module in &record.affected_specs {
-        let delta = read_bounded_change_text(&delta_path(root, record, module), "semantic delta")?;
+        let delta =
+            read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
         let items = parse_delta(&delta)?;
         let (spec_path, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
         let mut spec = fs::read_to_string(&spec_path)
@@ -4060,7 +4636,7 @@ fn delta_keys(root: &Path, record: &ChangeRecord) -> Result<BTreeSet<String>, St
         return Ok(keys);
     }
     for module in &record.affected_specs {
-        let path = delta_path(root, record, module);
+        let path = delta_path_checked(root, record, module)?;
         let content = match fs::read_to_string(path) {
             Ok(content) => content,
             Err(_) if record.state == ChangeState::Draft => continue,
@@ -4142,25 +4718,35 @@ fn definition_digest_from_record_bytes(
     record_bytes: &[u8],
     corrections: &[CorrectionRecord],
 ) -> Result<String, String> {
-    let dir = change_dir(root, &record.id);
+    let dir = find_change_dir(root, &record.id)?;
     let mut digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
     digest.frame(b"record", record_bytes);
     let effective = validate_correction_records_for_prefix(record, corrections)?;
-    let mut files = Vec::new();
+    let mut files: Vec<(String, PathBuf)> = Vec::new();
     for artifact in &effective.selected_artifacts {
-        files.push(dir.join(artifact.file_name()));
+        files.push((
+            format!("{CHANGES_PATH}/{}/{}", record.id, artifact.file_name()),
+            dir.join(artifact.file_name()),
+        ));
     }
     if let Ok(entries) = fs::read_dir(dir.join("deltas")) {
-        files.extend(entries.flatten().map(|entry| entry.path()));
+        files.extend(entries.flatten().filter_map(|entry| {
+            let name = entry.file_name().to_str()?.to_string();
+            Some((
+                format!("{CHANGES_PATH}/{}/deltas/{name}", record.id),
+                entry.path(),
+            ))
+        }));
     }
     if let Some(policy) = load_policy(root)
         && let Some(principles) = policy.principles_file
     {
-        files.push(safe_project_path(root, &principles)?);
+        let path = safe_project_path(root, &principles)?;
+        files.push((strict_portable_project_path(root, &path)?, path));
     }
-    files.sort();
+    files.sort_by(|left, right| left.0.cmp(&right.0));
     let git_modes = git_index_modes(root)?;
-    for path in files {
+    for (relative, path) in files {
         let metadata = fs::metadata(&path)
             .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
         if metadata.len() > MAX_CHANGE_ARTIFACT_BYTES {
@@ -4170,15 +4756,13 @@ fn definition_digest_from_record_bytes(
                 path.display()
             ));
         }
-        let relative = strict_portable_project_path(root, &path)?;
         let content = fs::read(&path)
             .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
         let (kind, mode) = digest_file_kind_and_mode(&relative, &path, &git_modes)?;
         digest.entry(&relative, kind, mode, &content);
     }
     if !corrections.is_empty() {
-        let path = dir.join(CORRECTIONS_FILE);
-        let relative = strict_portable_project_path(root, &path)?;
+        let relative = format!("{CHANGES_PATH}/{}/{CORRECTIONS_FILE}", record.id);
         let ledger = CorrectionLedger {
             schema_version: 1,
             corrections: corrections.to_vec(),
@@ -4456,7 +5040,1227 @@ fn closing_digest(record: &ChangeRecord, verification: &VerificationRecord) -> S
     } else {
         digest.frame(b"acceptance", &[0]);
     }
+    if let Some(manifest) = &verification.acceptance_manifest {
+        let value = serde_json::to_vec(manifest).unwrap_or_default();
+        digest.frame(b"acceptance-input-manifest-v1", &value);
+    }
+    if let Some(succession) = &verification.semantic_succession {
+        let value = semantic_succession_digest(succession).unwrap_or_else(|_| "invalid".into());
+        digest.frame(b"semantic-succession-v1", value.as_bytes());
+    }
     digest.finish()
+}
+
+fn acceptance_manifest(
+    root: &Path,
+    record: &ChangeRecord,
+    overrides: &[(PathBuf, String)],
+) -> Result<AcceptanceManifestV1, String> {
+    acceptance_manifest_internal(root, record, overrides, None)
+}
+
+fn acceptance_manifest_with_signed_owners(
+    root: &Path,
+    record: &ChangeRecord,
+    overrides: &[(PathBuf, String)],
+    signed: &AcceptanceManifestV1,
+) -> Result<AcceptanceManifestV1, String> {
+    acceptance_manifest_internal(root, record, overrides, Some(signed))
+}
+
+fn acceptance_manifest_internal(
+    root: &Path,
+    record: &ChangeRecord,
+    overrides: &[(PathBuf, String)],
+    signed: Option<&AcceptanceManifestV1>,
+) -> Result<AcceptanceManifestV1, String> {
+    let mut paths = match git_project_paths(root)? {
+        Some(paths) => paths,
+        None => strict_walk_project_paths(root)?,
+    };
+    let override_content: BTreeMap<String, &[u8]> = overrides
+        .iter()
+        .map(|(path, content)| {
+            Ok((
+                strict_portable_project_path(root, path)?,
+                content.as_bytes(),
+            ))
+        })
+        .collect::<Result<_, String>>()?;
+    paths.extend(override_content.keys().cloned());
+    paths.extend(
+        record
+            .affected_paths
+            .iter()
+            .filter_map(|scope| (!scope.ends_with('/')).then_some(scope.clone())),
+    );
+    paths.extend(record.supersedes.iter().flat_map(|edge| {
+        edge.obligations
+            .iter()
+            .map(|obligation| obligation.path.clone())
+    }));
+    if let Some(signed) = signed {
+        paths.extend(signed.entries.iter().map(|entry| entry.path.clone()));
+    }
+    paths.sort();
+    paths.dedup();
+    let git_modes = git_index_modes(root)?;
+    let git_objects = git_index_objects(root)?;
+    let historical_sequence_ledger = if record_covers_project_path(root, record, SEQUENCE_PATH) {
+        historical_sequence_ledger_acceptance_content(root, record)?
+    } else {
+        None
+    };
+    let mut entries = Vec::new();
+    for relative in paths {
+        if project_input_is_volatile(&relative)
+            || !record_covers_project_path(root, record, &relative)
+        {
+            continue;
+        }
+        let (kind, mode, payload) = if let Some(content) = override_content.get(&relative) {
+            let mode = git_modes.get(&relative).copied().unwrap_or(0o100644);
+            let kind = acceptance_kind_for_mode(mode);
+            (kind, mode, content.to_vec())
+        } else if relative == SEQUENCE_PATH
+            && let Some(content) = &historical_sequence_ledger
+        {
+            (
+                AcceptanceInputKind::File,
+                git_modes.get(&relative).copied().unwrap_or(0o100644),
+                content.clone(),
+            )
+        } else if git_modes.get(&relative) == Some(&0o160000) {
+            let object = git_objects.get(&relative).ok_or_else(|| {
+                format!("gitlink `{relative}` is missing its exact index object ID")
+            })?;
+            (
+                AcceptanceInputKind::Gitlink,
+                0o160000,
+                object.as_bytes().to_vec(),
+            )
+        } else {
+            let path = root.join(&relative);
+            match fs::symlink_metadata(&path) {
+                Ok(metadata) if metadata.file_type().is_symlink() => {
+                    let target = fs::read_link(&path).map_err(|error| {
+                        format!("failed to read symlink {}: {error}", path.display())
+                    })?;
+                    let target = target.to_str().ok_or_else(|| {
+                        format!(
+                            "non-UTF-8 symlink target cannot be hashed portably: {}",
+                            path.display()
+                        )
+                    })?;
+                    validate_portable_symlink_target(target)?;
+                    (
+                        AcceptanceInputKind::Symlink,
+                        0o120000,
+                        target.as_bytes().to_vec(),
+                    )
+                }
+                Ok(metadata) if metadata.is_file() => {
+                    let content = fs::read(&path)
+                        .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
+                    let (_, mode) = digest_file_kind_and_mode(&relative, &path, &git_modes)?;
+                    (AcceptanceInputKind::File, mode, content)
+                }
+                Ok(_) => (AcceptanceInputKind::NonFile, 0, Vec::new()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    (AcceptanceInputKind::Missing, 0, Vec::new())
+                }
+                Err(error) => {
+                    return Err(format!("failed to inspect {}: {error}", path.display()));
+                }
+            }
+        };
+        let payload_digest = sha256_hex(&payload);
+        let owners = if let Some(signed) = signed {
+            signed
+                .entries
+                .iter()
+                .find(|entry| entry.path == relative)
+                .map(|entry| entry.owners.clone())
+                .unwrap_or_else(|| vec![EXACT_DELIVERY_OWNER.to_string()])
+        } else {
+            acceptance_input_owners(root, record, &relative, overrides)?
+        };
+        let entry_digest = acceptance_entry_digest(&relative, &kind, mode, &payload_digest);
+        entries.push(AcceptanceInputEntryV1 {
+            path: relative,
+            kind,
+            mode,
+            payload_digest,
+            entry_digest,
+            owners,
+        });
+    }
+    let manifest = AcceptanceManifestV1 {
+        schema_version: 1,
+        entries,
+    };
+    validate_acceptance_manifest(&manifest)?;
+    Ok(manifest)
+}
+
+fn validate_portable_symlink_target(target: &str) -> Result<(), String> {
+    if target.is_empty()
+        || target.contains('\\')
+        || target.chars().any(char::is_control)
+        || Path::new(target).is_absolute()
+        || target
+            .as_bytes()
+            .get(1)
+            .is_some_and(|byte| *byte == b':' && target.as_bytes()[0].is_ascii_alphabetic())
+    {
+        return Err(format!(
+            "symlink target is not portable project-relative UTF-8: `{}`",
+            target.escape_default()
+        ));
+    }
+    Ok(())
+}
+
+fn acceptance_kind_for_mode(mode: u32) -> AcceptanceInputKind {
+    match mode {
+        0o120000 => AcceptanceInputKind::Symlink,
+        0o160000 => AcceptanceInputKind::Gitlink,
+        _ => AcceptanceInputKind::File,
+    }
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
+fn acceptance_entry_digest(
+    path: &str,
+    kind: &AcceptanceInputKind,
+    mode: u32,
+    payload_digest: &str,
+) -> String {
+    let mut digest = FramedDigest::new(ACCEPTANCE_ENTRY_DOMAIN);
+    digest.frame(b"path", path.as_bytes());
+    digest.frame(b"kind", acceptance_kind_bytes(kind));
+    digest.frame(b"mode", &mode.to_be_bytes());
+    digest.frame(b"payload-digest", payload_digest.as_bytes());
+    digest.finish()
+}
+
+fn acceptance_kind_bytes(kind: &AcceptanceInputKind) -> &'static [u8] {
+    match kind {
+        AcceptanceInputKind::File => b"file",
+        AcceptanceInputKind::Symlink => b"symlink",
+        AcceptanceInputKind::Gitlink => b"gitlink",
+        AcceptanceInputKind::Missing => b"missing",
+        AcceptanceInputKind::NonFile => b"non-file",
+    }
+}
+
+fn acceptance_manifest_digest(manifest: &AcceptanceManifestV1) -> Result<String, String> {
+    validate_acceptance_manifest(manifest)?;
+    let mut digest = FramedDigest::new(ACCEPTANCE_MANIFEST_DOMAIN);
+    digest.frame(b"schema-version", &manifest.schema_version.to_be_bytes());
+    for entry in &manifest.entries {
+        digest.frame(b"entry", b"");
+        digest.frame(b"path", entry.path.as_bytes());
+        digest.frame(b"kind", acceptance_kind_bytes(&entry.kind));
+        digest.frame(b"mode", &entry.mode.to_be_bytes());
+        digest.frame(b"payload-digest", entry.payload_digest.as_bytes());
+        digest.frame(b"entry-digest", entry.entry_digest.as_bytes());
+        for owner in &entry.owners {
+            digest.frame(b"owner", owner.as_bytes());
+        }
+    }
+    Ok(digest.finish())
+}
+
+fn validate_acceptance_manifest(manifest: &AcceptanceManifestV1) -> Result<(), String> {
+    if manifest.schema_version != 1 {
+        return Err(format!(
+            "unsupported acceptance manifest schema {}",
+            manifest.schema_version
+        ));
+    }
+    if manifest.entries.len() > MAX_ACCEPTANCE_ENTRIES {
+        return Err(format!(
+            "acceptance manifest exceeds {MAX_ACCEPTANCE_ENTRIES} entries"
+        ));
+    }
+    let mut previous: Option<&str> = None;
+    for entry in &manifest.entries {
+        if previous.is_some_and(|path| path >= entry.path.as_str()) {
+            return Err("acceptance manifest paths must be strictly sorted and unique".into());
+        }
+        previous = Some(&entry.path);
+        if entry.path.len() > MAX_ACCEPTANCE_PATH_BYTES
+            || strict_portable_relative_path(&entry.path)? != entry.path
+        {
+            return Err(format!("invalid acceptance manifest path `{}`", entry.path));
+        }
+        let valid_mode = matches!(
+            (&entry.kind, entry.mode),
+            (AcceptanceInputKind::File, 0o100644 | 0o100755)
+                | (AcceptanceInputKind::Symlink, 0o120000)
+                | (AcceptanceInputKind::Gitlink, 0o160000)
+                | (
+                    AcceptanceInputKind::Missing | AcceptanceInputKind::NonFile,
+                    0
+                )
+        );
+        if !valid_mode {
+            return Err(format!("invalid acceptance kind/mode for `{}`", entry.path));
+        }
+        validate_sha256_digest(&entry.payload_digest, "acceptance payload digest")?;
+        validate_sha256_digest(&entry.entry_digest, "acceptance entry digest")?;
+        if acceptance_entry_digest(&entry.path, &entry.kind, entry.mode, &entry.payload_digest)
+            != entry.entry_digest
+        {
+            return Err(format!(
+                "acceptance entry digest mismatch for `{}`",
+                entry.path
+            ));
+        }
+        if matches!(
+            entry.kind,
+            AcceptanceInputKind::Missing | AcceptanceInputKind::NonFile
+        ) && entry.payload_digest != sha256_hex(b"")
+        {
+            return Err(format!(
+                "acceptance {:?} entry `{}` must use the empty payload digest",
+                entry.kind, entry.path
+            ));
+        }
+        if entry.owners.is_empty() || entry.owners.len() > MAX_ACCEPTANCE_OWNERS {
+            return Err(format!("invalid acceptance owners for `{}`", entry.path));
+        }
+        let mut previous_owner: Option<&str> = None;
+        for owner in &entry.owners {
+            if owner.len() > MAX_ACCEPTANCE_OWNER_BYTES
+                || previous_owner.is_some_and(|previous| previous >= owner.as_str())
+            {
+                return Err(format!(
+                    "acceptance owners for `{}` must be bounded, sorted, and unique",
+                    entry.path
+                ));
+            }
+            if owner.starts_with("@exact:")
+                && owner != EXACT_TEST_OWNER
+                && owner != EXACT_DELIVERY_OWNER
+            {
+                return Err(format!("unknown reserved acceptance owner `{owner}`"));
+            }
+            if !owner.starts_with("@exact:") {
+                crate::commands::validate_module_name(owner)
+                    .map_err(|error| format!("invalid acceptance owner: {error}"))?;
+            }
+            previous_owner = Some(owner);
+        }
+    }
+    Ok(())
+}
+
+fn build_semantic_succession_evidence(
+    root: &Path,
+    record: &ChangeRecord,
+    successor_manifest: &AcceptanceManifestV1,
+) -> Result<SemanticSuccessionEvidenceV1, String> {
+    validate_supersedes_semantics(root, record)?;
+    if record.supersedes.is_empty() {
+        return Ok(SemanticSuccessionEvidenceV1 {
+            schema_version: 1,
+            tuples: Vec::new(),
+        });
+    }
+    let base = record.base_commit.as_deref().ok_or_else(|| {
+        "semantic succession requires a definition-signed base commit".to_string()
+    })?;
+    let ancestor = Command::new("git")
+        .args(["merge-base", "--is-ancestor", base, "HEAD"])
+        .current_dir(root)
+        .status()
+        .map_err(|error| format!("failed to validate succession base ancestry: {error}"))?;
+    if !ancestor.success() {
+        return Err(format!(
+            "semantic succession base commit `{base}` is not an ancestor of HEAD"
+        ));
+    }
+    let mut tuples = Vec::new();
+    for edge in &record.supersedes {
+        for obligation in &edge.obligations {
+            let base_digest = acceptance_entry_digest_at_commit(
+                root,
+                base,
+                &edge.predecessor_id,
+                &obligation.path,
+            )?;
+            if base_digest != obligation.predecessor_entry_digest {
+                return Err(format!(
+                    "definition-signed base tree does not contain adopted predecessor entry `{}` `{}`",
+                    edge.predecessor_id, obligation.path
+                ));
+            }
+            let successor = successor_manifest
+                .entries
+                .iter()
+                .find(|entry| entry.path == obligation.path)
+                .ok_or_else(|| {
+                    format!(
+                        "successor acceptance manifest has no entry for `{}`",
+                        obligation.path
+                    )
+                })?;
+            if !successor.owners.contains(&obligation.module) {
+                return Err(format!(
+                    "successor acceptance entry `{}` is not owned by obligation module `{}`",
+                    obligation.path, obligation.module
+                ));
+            }
+            if successor.entry_digest == obligation.predecessor_entry_digest {
+                return Err(format!(
+                    "semantic succession obligation `{}` `{}` does not change the predecessor entry",
+                    obligation.path, obligation.module
+                ));
+            }
+            if !semantic_acceptance_item_exists_for_module(root, record, &obligation.module)? {
+                return Err(format!(
+                    "semantic succession module `{}` has no non-removed semantic delta",
+                    obligation.module
+                ));
+            }
+            tuples.push(SemanticSuccessionTupleV1 {
+                predecessor_id: edge.predecessor_id.clone(),
+                path: obligation.path.clone(),
+                module: obligation.module.clone(),
+                predecessor_entry_digest: obligation.predecessor_entry_digest.clone(),
+                successor_entry_digest: successor.entry_digest.clone(),
+            });
+        }
+    }
+    tuples.sort_by(|left, right| {
+        succession_change_key(&left.predecessor_id)
+            .cmp(&succession_change_key(&right.predecessor_id))
+            .then_with(|| left.path.cmp(&right.path))
+            .then_with(|| left.module.cmp(&right.module))
+    });
+    let evidence = SemanticSuccessionEvidenceV1 {
+        schema_version: 1,
+        tuples,
+    };
+    validate_semantic_succession(record, &evidence)?;
+    Ok(evidence)
+}
+
+fn validate_semantic_succession(
+    record: &ChangeRecord,
+    evidence: &SemanticSuccessionEvidenceV1,
+) -> Result<(), String> {
+    if evidence.schema_version != 1 {
+        return Err(format!(
+            "unsupported semantic succession schema {}",
+            evidence.schema_version
+        ));
+    }
+    if evidence.tuples.len() > MAX_ACCEPTANCE_ENTRIES {
+        return Err(format!(
+            "semantic succession exceeds {MAX_ACCEPTANCE_ENTRIES} tuples"
+        ));
+    }
+    let expected: BTreeSet<_> = record
+        .supersedes
+        .iter()
+        .flat_map(|edge| {
+            edge.obligations.iter().map(|obligation| {
+                (
+                    edge.predecessor_id.clone(),
+                    obligation.path.clone(),
+                    obligation.module.clone(),
+                    obligation.predecessor_entry_digest.clone(),
+                )
+            })
+        })
+        .collect();
+    let mut actual = BTreeSet::new();
+    let mut previous: Option<(u64, &str, &str, &str)> = None;
+    for tuple in &evidence.tuples {
+        if tuple.predecessor_id.len() > 256
+            || tuple.path.len() > MAX_ACCEPTANCE_PATH_BYTES
+            || tuple.module.len() > MAX_ACCEPTANCE_OWNER_BYTES
+        {
+            return Err("semantic succession tuple exceeds a field limit".into());
+        }
+        if strict_portable_relative_path(&tuple.path)? != tuple.path {
+            return Err(format!("invalid semantic succession path `{}`", tuple.path));
+        }
+        crate::commands::validate_module_name(&tuple.module)
+            .map_err(|error| format!("invalid semantic succession module: {error}"))?;
+        validate_sha256_digest(
+            &tuple.predecessor_entry_digest,
+            "semantic predecessor entry digest",
+        )?;
+        validate_sha256_digest(
+            &tuple.successor_entry_digest,
+            "semantic successor entry digest",
+        )?;
+        let sequence = change_sequence(&tuple.predecessor_id)
+            .ok_or_else(|| format!("invalid semantic predecessor ID `{}`", tuple.predecessor_id))?;
+        let key = (
+            sequence,
+            tuple.predecessor_id.as_str(),
+            tuple.path.as_str(),
+            tuple.module.as_str(),
+        );
+        if previous.is_some_and(|previous| previous >= key) {
+            return Err("semantic succession tuples must be strictly sorted and unique".into());
+        }
+        previous = Some(key);
+        let obligation = (
+            tuple.predecessor_id.clone(),
+            tuple.path.clone(),
+            tuple.module.clone(),
+            tuple.predecessor_entry_digest.clone(),
+        );
+        if !actual.insert(obligation) {
+            return Err("semantic succession contains a duplicate obligation".into());
+        }
+    }
+    if actual != expected {
+        return Err(
+            "semantic succession is not one-to-one with approved supersedes obligations".into(),
+        );
+    }
+    Ok(())
+}
+
+fn semantic_succession_digest(evidence: &SemanticSuccessionEvidenceV1) -> Result<String, String> {
+    let mut digest = FramedDigest::new(SEMANTIC_SUCCESSION_DOMAIN);
+    digest.frame(b"schema-version", &evidence.schema_version.to_be_bytes());
+    let mut previous: Option<(u64, &str, &str, &str)> = None;
+    for tuple in &evidence.tuples {
+        let sequence = change_sequence(&tuple.predecessor_id)
+            .ok_or_else(|| format!("invalid semantic predecessor ID `{}`", tuple.predecessor_id))?;
+        let key = (
+            sequence,
+            tuple.predecessor_id.as_str(),
+            tuple.path.as_str(),
+            tuple.module.as_str(),
+        );
+        if previous.is_some_and(|previous| previous >= key) {
+            return Err("semantic succession tuples must be strictly sorted and unique".into());
+        }
+        previous = Some(key);
+        digest.frame(b"tuple", b"");
+        digest.frame(b"predecessor-id", tuple.predecessor_id.as_bytes());
+        digest.frame(b"path", tuple.path.as_bytes());
+        digest.frame(b"module", tuple.module.as_bytes());
+        digest.frame(
+            b"predecessor-entry-digest",
+            tuple.predecessor_entry_digest.as_bytes(),
+        );
+        digest.frame(
+            b"successor-entry-digest",
+            tuple.successor_entry_digest.as_bytes(),
+        );
+    }
+    Ok(digest.finish())
+}
+
+fn semantic_acceptance_item_exists_for_module(
+    root: &Path,
+    record: &ChangeRecord,
+    module: &str,
+) -> Result<bool, String> {
+    let content =
+        read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
+    Ok(parse_delta(&content)?.iter().any(|item| {
+        matches!(
+            item.target,
+            DeltaTarget::Requirement | DeltaTarget::SpecSection
+        ) && item.operation != DeltaOperation::Removed
+            && !item.content.trim().is_empty()
+    }))
+}
+
+fn acceptance_entry_digest_at_commit(
+    root: &Path,
+    commit: &str,
+    predecessor_id: &str,
+    path: &str,
+) -> Result<String, String> {
+    let temporary = create_effective_contract_workspace()?;
+    let tree = temporary.join("tree");
+    let added = Command::new("git")
+        .args([
+            "worktree",
+            "add",
+            "--detach",
+            tree.to_string_lossy().as_ref(),
+            commit,
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to inspect succession base tree: {error}"))?;
+    if !added.status.success() {
+        let _ = fs::remove_dir_all(&temporary);
+        return Err(format!(
+            "failed to inspect succession base tree: {}",
+            String::from_utf8_lossy(&added.stderr).trim()
+        ));
+    }
+    let result = (|| {
+        let mut predecessor = load_change(&tree, predecessor_id)?;
+        predecessor.state = ChangeState::Accepted;
+        predecessor.affected_paths = vec![path.to_string()];
+        let manifest = acceptance_manifest(&tree, &predecessor, &[])?;
+        manifest
+            .entries
+            .iter()
+            .find(|entry| entry.path == path)
+            .map(|entry| entry.entry_digest.clone())
+            .ok_or_else(|| {
+                format!(
+                    "succession base tree predecessor `{predecessor_id}` has no entry for `{path}`"
+                )
+            })
+    })();
+    let removed = Command::new("git")
+        .args([
+            "worktree",
+            "remove",
+            "--force",
+            tree.to_string_lossy().as_ref(),
+        ])
+        .current_dir(root)
+        .output();
+    let _ = fs::remove_dir_all(&temporary);
+    if !removed.is_ok_and(|output| output.status.success()) {
+        return Err("failed to remove succession base workspace".into());
+    }
+    result
+}
+
+fn semantic_tuple_transition_is_valid(
+    root: &Path,
+    successor: &ChangeRecord,
+    tuple: &SemanticSuccessionTupleV1,
+) -> Result<bool, String> {
+    let Some(base) = successor.base_commit.as_deref() else {
+        return Ok(false);
+    };
+    let base_old =
+        acceptance_entry_digest_at_commit(root, base, &tuple.predecessor_id, &tuple.path)?;
+    if base_old != tuple.predecessor_entry_digest {
+        return Ok(false);
+    }
+    let (anchor, _, _) = match authenticated_accepted_transition(root, successor) {
+        Ok(transition) => transition,
+        Err(_) => return Ok(false),
+    };
+    let ancestor = Command::new("git")
+        .args(["merge-base", "--is-ancestor", base, &anchor])
+        .current_dir(root)
+        .status()
+        .map_err(|error| format!("failed to validate accepted transition ancestry: {error}"))?;
+    if !ancestor.success() {
+        return Ok(false);
+    }
+    Ok(
+        acceptance_entry_digest_at_commit(root, &anchor, &successor.id, &tuple.path)
+            .is_ok_and(|digest| digest == tuple.successor_entry_digest),
+    )
+}
+
+fn acceptance_input_owners(
+    root: &Path,
+    record: &ChangeRecord,
+    relative: &str,
+    overrides: &[(PathBuf, String)],
+) -> Result<Vec<String>, String> {
+    if path_is_governed_test_or_fixture(relative) {
+        return Ok(vec![EXACT_TEST_OWNER.to_string()]);
+    }
+    if path_is_recognized_delivery_metadata(relative) {
+        return Ok(vec![EXACT_DELIVERY_OWNER.to_string()]);
+    }
+    let config = crate::config::load_config(root);
+    let override_content: BTreeMap<String, &str> = overrides
+        .iter()
+        .map(|(path, content)| Ok((strict_portable_project_path(root, path)?, content.as_str())))
+        .collect::<Result<_, String>>()?;
+    let mut owners = Vec::new();
+    for module in &record.affected_specs {
+        let (spec_path, requirements_path) =
+            canonical_module_paths(root, &config.specs_dir, module)?;
+        let spec_relative = strict_portable_project_path(root, &spec_path)?;
+        let parent = spec_path
+            .parent()
+            .ok_or_else(|| format!("canonical spec path has no parent: {}", spec_path.display()))?;
+        let canonical_owned = relative == spec_relative
+            || relative == strict_portable_project_path(root, &requirements_path)?
+            || CANONICAL_SPEC_COMPANIONS.iter().any(|name| {
+                strict_portable_project_path(root, &parent.join(name))
+                    .is_ok_and(|path| path == relative)
+            });
+        let source_owned =
+            if canonical_owned {
+                false
+            } else {
+                let content = if let Some(content) = override_content.get(&spec_relative) {
+                    Some((*content).to_string())
+                } else {
+                    fs::read_to_string(&spec_path).ok()
+                };
+                content
+                    .as_deref()
+                    .and_then(crate::parser::parse_frontmatter)
+                    .is_some_and(|parsed| {
+                        parsed.frontmatter.files.iter().any(|path| {
+                            normalize_project_path(path).is_ok_and(|path| path == relative)
+                        })
+                    })
+            };
+        if canonical_owned || source_owned {
+            owners.push(module.clone());
+        }
+    }
+    if owners.is_empty() {
+        if path_is_production_source(root, relative) {
+            return Err(format!(
+                "acceptance input `{relative}` is production source without deterministic canonical ownership"
+            ));
+        } else {
+            owners.push(EXACT_DELIVERY_OWNER.to_string());
+        }
+    }
+    owners.sort();
+    owners.dedup();
+    Ok(owners)
+}
+
+fn path_is_recognized_delivery_metadata(path: &str) -> bool {
+    if path.starts_with(".github/") || path.starts_with(".specsync/") || path.starts_with("docs/") {
+        return true;
+    }
+    is_protected_sdd_path(path)
+        || (!path.contains('/')
+            && matches!(
+                path,
+                "fledge.toml"
+                    | ".trust.toml"
+                    | "README.md"
+                    | "LICENSE"
+                    | "AGENTS.md"
+                    | "Cargo.toml"
+                    | "Cargo.lock"
+                    | "package.json"
+                    | "package-lock.json"
+                    | "bun.lock"
+                    | "bun.lockb"
+                    | "pnpm-lock.yaml"
+                    | "yarn.lock"
+                    | "pyproject.toml"
+                    | "uv.lock"
+                    | "requirements.txt"
+                    | "go.mod"
+                    | "go.sum"
+                    | "Package.swift"
+                    | "Package.resolved"
+                    | "action.yml"
+                    | "action.yaml"
+            ))
+}
+
+fn path_is_governed_test_or_fixture(path: &str) -> bool {
+    path.starts_with("tests/")
+        || path.starts_with("test/")
+        || path.starts_with("Tests/")
+        || path.contains("/tests/")
+        || path.contains("/test/")
+        || path.contains("/fixtures/")
+        || path.contains("/__fixtures__/")
+}
+
+fn path_is_production_source(root: &Path, path: &str) -> bool {
+    crate::exports::is_source_file(Path::new(path))
+        && crate::config::load_config(root)
+            .source_dirs
+            .iter()
+            .any(|source| {
+                let normalized = source.trim_matches('/');
+                normalized == "."
+                    || path == normalized
+                    || path.starts_with(&format!("{normalized}/"))
+            })
+        && !path_is_governed_test_or_fixture(path)
+}
+
+fn git_index_objects(root: &Path) -> Result<BTreeMap<String, String>, String> {
+    let output = Command::new("git")
+        .args(["ls-files", "--stage", "-z"])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to inspect Git index objects: {error}"))?;
+    if !output.status.success() {
+        return Ok(BTreeMap::new());
+    }
+    let mut objects = BTreeMap::new();
+    for entry in output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|entry| !entry.is_empty())
+    {
+        let entry = std::str::from_utf8(entry)
+            .map_err(|_| "non-UTF-8 Git index entry cannot be hashed portably".to_string())?;
+        let (metadata, path) = entry
+            .split_once('\t')
+            .ok_or_else(|| format!("invalid Git index entry `{entry}`"))?;
+        let mut fields = metadata.split_whitespace();
+        let _mode = fields.next();
+        let object = fields
+            .next()
+            .ok_or_else(|| format!("Git index entry has no object ID: `{entry}`"))?;
+        objects.insert(strict_portable_relative_path(path)?, object.to_string());
+    }
+    Ok(objects)
+}
+
+fn resolved_acceptance_manifest(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<AcceptanceManifestV1, String> {
+    let verification = load_verification(root, record)?;
+    let signed = verification
+        .acceptance_input_digest
+        .clone()
+        .ok_or_else(|| {
+            format!(
+                "accepted change `{}` has no acceptance input digest",
+                record.id
+            )
+        })?;
+    if let Some(manifest) = &verification.acceptance_manifest {
+        if !verification.passed {
+            return Err(format!(
+                "accepted change `{}` has failed verification",
+                record.id
+            ));
+        }
+        ensure_definition_approval_valid(root, record)?;
+        if !definition_digest_matches(root, record, &verification.contract_digest)? {
+            return Err(format!(
+                "accepted change `{}` verification contract is stale",
+                record.id
+            ));
+        }
+        validate_acceptance_manifest(manifest)?;
+        if acceptance_manifest_digest(manifest)? != signed {
+            return Err(format!(
+                "accepted change `{}` manifest does not reproduce its signed aggregate",
+                record.id
+            ));
+        }
+        if let Some(evidence) = &verification.semantic_succession {
+            validate_semantic_succession(record, evidence)?;
+        } else if !record.supersedes.is_empty() {
+            return Err(format!(
+                "accepted change `{}` is missing semantic succession evidence",
+                record.id
+            ));
+        }
+        let ledger = load_approvals(root, record)?;
+        let approval = ledger
+            .approvals
+            .iter()
+            .rev()
+            .find(|approval| approval.gate == "acceptance")
+            .ok_or_else(|| format!("accepted change `{}` has no closing approval", record.id))?;
+        if approval.digest != closing_digest(record, &verification) {
+            return Err(format!(
+                "accepted change `{}` closing approval does not authenticate its manifest",
+                record.id
+            ));
+        }
+        return Ok(manifest.clone());
+    }
+    reconstruct_legacy_acceptance_manifest(root, record, &signed)
+}
+
+fn reconstruct_legacy_acceptance_manifest(
+    root: &Path,
+    record: &ChangeRecord,
+    signed_legacy_digest: &str,
+) -> Result<AcceptanceManifestV1, String> {
+    let anchors = accepted_transition_anchors(root, record)?;
+    let mut reconstructions: BTreeMap<Vec<u8>, AcceptanceManifestV1> = BTreeMap::new();
+    for anchor in anchors {
+        if let Ok((key, manifest)) =
+            reconstruct_legacy_at_anchor(root, record, signed_legacy_digest, &anchor)
+        {
+            reconstructions.entry(key).or_insert(manifest);
+        }
+    }
+    if reconstructions.len() != 1 {
+        return Err(format!(
+            "legacy accepted change `{}` requires exactly one distinct valid historical reconstruction, found {}",
+            record.id,
+            reconstructions.len()
+        ));
+    }
+    reconstructions
+        .into_values()
+        .next()
+        .ok_or_else(|| "legacy reconstruction disappeared unexpectedly".to_string())
+}
+
+fn reconstruct_legacy_at_anchor(
+    root: &Path,
+    record: &ChangeRecord,
+    signed_legacy_digest: &str,
+    anchor: &str,
+) -> Result<(Vec<u8>, AcceptanceManifestV1), String> {
+    let temporary = create_effective_contract_workspace()?;
+    let tree = temporary.join("tree");
+    let added = Command::new("git")
+        .args([
+            "worktree",
+            "add",
+            "--detach",
+            tree.to_string_lossy().as_ref(),
+            anchor,
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to reconstruct legacy acceptance tree: {error}"))?;
+    if !added.status.success() {
+        let _ = fs::remove_dir_all(&temporary);
+        return Err(format!(
+            "failed to reconstruct legacy acceptance tree: {}",
+            String::from_utf8_lossy(&added.stderr).trim()
+        ));
+    }
+    let result = (|| {
+        let historical = load_change(&tree, &record.id)?;
+        if historical.state != ChangeState::Accepted {
+            return Err(format!(
+                "trusted transition `{anchor}` does not contain accepted state for `{}`",
+                record.id
+            ));
+        }
+        ensure_definition_approval_valid(&tree, &historical)?;
+        let verification = load_verification(&tree, &historical)?;
+        if !verification.passed {
+            return Err("historical accepted verification did not pass".into());
+        }
+        let ledger = load_approvals(&tree, &historical)?;
+        let closing = ledger
+            .approvals
+            .iter()
+            .rev()
+            .find(|approval| approval.gate == "acceptance")
+            .ok_or_else(|| "historical accepted state has no closing approval".to_string())?;
+        if closing.digest != closing_digest(&historical, &verification) {
+            return Err("historical accepted closing approval is invalid".into());
+        }
+        let aggregate = acceptance_input_digest(&tree, &historical, &[])?;
+        if aggregate != signed_legacy_digest {
+            return Err(format!(
+                "legacy accepted change `{}` cannot reproduce its signed raw-content aggregate",
+                record.id
+            ));
+        }
+        let manifest = acceptance_manifest(&tree, &historical, &[])?;
+        let key = serde_json::to_vec(&serde_json::json!({
+            "manifest": manifest,
+            "verification": verification,
+            "closing": closing,
+        }))
+        .map_err(|error| format!("failed to canonicalize historical evidence: {error}"))?;
+        Ok((key, manifest))
+    })();
+    let removed = Command::new("git")
+        .args([
+            "worktree",
+            "remove",
+            "--force",
+            tree.to_string_lossy().as_ref(),
+        ])
+        .current_dir(root)
+        .output();
+    if !removed.is_ok_and(|output| output.status.success()) {
+        let _ = fs::remove_dir_all(&temporary);
+        return Err("failed to remove legacy reconstruction workspace".into());
+    }
+    let _ = fs::remove_dir_all(&temporary);
+    result
+}
+
+fn accepted_transition_anchors(root: &Path, record: &ChangeRecord) -> Result<Vec<String>, String> {
+    let state = format!("{CHANGES_PATH}/{}/state.json", record.id);
+    let state = git_repo_relative_path(root, &state)?;
+    let mut references = vec!["HEAD".to_string()];
+    if let Some(remote_default) = remote_default_ref(root)
+        && !references.contains(&remote_default)
+    {
+        references.push(remote_default);
+    }
+    let mut anchors = Vec::new();
+    for reference in references {
+        let state_pathspec = format!(":(top,literal){state}");
+        let output = Command::new("git")
+            .args([
+                "log",
+                "--format=%H",
+                &reference,
+                "--",
+                state_pathspec.as_str(),
+            ])
+            .current_dir(root)
+            .output()
+            .map_err(|error| format!("failed to inspect accepted history: {error}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "failed to inspect accepted history at `{reference}`"
+            ));
+        }
+        for commit in String::from_utf8_lossy(&output.stdout).lines() {
+            let current = git_change_record_at(root, commit, &state);
+            if !current.is_some_and(|current| {
+                current.id == record.id && current.state == ChangeState::Accepted
+            }) {
+                continue;
+            }
+            let parents =
+                git_output(root, &["rev-list", "--parents", "-n", "1", commit]).unwrap_or_default();
+            let parent_accepted = parents.split_whitespace().skip(1).any(|parent| {
+                git_change_record_at(root, parent, &state).is_some_and(|parent| {
+                    parent.id == record.id && parent.state == ChangeState::Accepted
+                })
+            });
+            if !parent_accepted {
+                anchors.push(commit.to_string());
+            }
+        }
+    }
+    anchors.sort();
+    anchors.dedup();
+    Ok(anchors)
+}
+
+fn authenticated_accepted_transition(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(String, Vec<u8>, ChangeRecord), String> {
+    let workspace = find_change_dir(root, &record.id)?;
+    let current_verification = fs::read(workspace.join("verification.json"))
+        .map_err(|error| format!("failed to read current verification evidence: {error}"))?;
+    let current_approvals = fs::read(workspace.join("approvals.json"))
+        .map_err(|error| format!("failed to read current approval evidence: {error}"))?;
+    let active = format!("{CHANGES_PATH}/{}", record.id);
+    let state_path = git_repo_relative_path(root, &format!("{active}/state.json"))?;
+    let verification_path = git_repo_relative_path(root, &format!("{active}/verification.json"))?;
+    let approvals_path = git_repo_relative_path(root, &format!("{active}/approvals.json"))?;
+    let mut eligible = BTreeMap::new();
+    for anchor in accepted_transition_anchors(root, record)? {
+        let Some(state_bytes) = git_object_bytes(root, &anchor, &state_path) else {
+            continue;
+        };
+        let Some(verification_bytes) = git_object_bytes(root, &anchor, &verification_path) else {
+            continue;
+        };
+        let Some(approval_bytes) = git_object_bytes(root, &anchor, &approvals_path) else {
+            continue;
+        };
+        if verification_bytes != current_verification || approval_bytes != current_approvals {
+            continue;
+        }
+        let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes) else {
+            continue;
+        };
+        if accepted.id != record.id || accepted.state != ChangeState::Accepted {
+            continue;
+        }
+        let mut projection = record.clone();
+        if record.state == ChangeState::Archived {
+            projection.state = ChangeState::Accepted;
+            projection.updated_at = accepted.updated_at;
+        }
+        if projection == accepted {
+            let key = accepted_evidence_key(&state_bytes, &verification_bytes, &approval_bytes);
+            eligible
+                .entry(key)
+                .or_insert((anchor, state_bytes, accepted));
+        }
+    }
+    if record.state == ChangeState::Archived {
+        let project_directory = strict_portable_project_path(root, &workspace)?;
+        let repository_directory = git_repo_relative_path(root, &project_directory)?;
+        let accepted_state_path = format!("{repository_directory}/accepted-state.json");
+        let verification_path = format!("{repository_directory}/verification.json");
+        let approvals_path = format!("{repository_directory}/approvals.json");
+        let accepted_state_pathspec = format!(":(top,literal){accepted_state_path}");
+        let mut references = vec!["HEAD".to_string()];
+        if let Some(remote_default) = remote_default_ref(root)
+            && !references.contains(&remote_default)
+        {
+            references.push(remote_default);
+        }
+        let mut command = Command::new("git");
+        command.args(["log", "--format=%H", "--diff-filter=A"]);
+        command.args(&references);
+        let output = command
+            .arg("--")
+            .arg(&accepted_state_pathspec)
+            .current_dir(root)
+            .output()
+            .map_err(|error| format!("failed to inspect archived acceptance history: {error}"))?;
+        if !output.status.success() {
+            return Err("failed to inspect archived acceptance history".into());
+        }
+        for anchor in String::from_utf8_lossy(&output.stdout).lines() {
+            let Some(state_bytes) = git_object_bytes(root, anchor, &accepted_state_path) else {
+                continue;
+            };
+            let Some(verification_bytes) = git_object_bytes(root, anchor, &verification_path)
+            else {
+                continue;
+            };
+            let Some(approval_bytes) = git_object_bytes(root, anchor, &approvals_path) else {
+                continue;
+            };
+            if verification_bytes != current_verification || approval_bytes != current_approvals {
+                continue;
+            }
+            let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes) else {
+                continue;
+            };
+            if accepted.id != record.id || accepted.state != ChangeState::Accepted {
+                continue;
+            }
+            let mut projection = record.clone();
+            projection.state = ChangeState::Accepted;
+            projection.updated_at = accepted.updated_at;
+            if projection == accepted {
+                let key = accepted_evidence_key(&state_bytes, &verification_bytes, &approval_bytes);
+                eligible
+                    .entry(key)
+                    .or_insert((anchor.to_string(), state_bytes, accepted));
+            }
+        }
+    }
+    if eligible.is_empty()
+        && let Ok(state_bytes) = fs::read(workspace.join("accepted-state.json"))
+        && let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes)
+    {
+        let mut projection = record.clone();
+        if record.state == ChangeState::Archived {
+            projection.state = ChangeState::Accepted;
+            projection.updated_at = accepted.updated_at;
+        }
+        if projection == accepted
+            && accepted.state == ChangeState::Accepted
+            && staged_accepted_snapshot_is_closing_authenticated(
+                root,
+                &accepted,
+                &current_verification,
+                &current_approvals,
+            )?
+        {
+            let key =
+                accepted_evidence_key(&state_bytes, &current_verification, &current_approvals);
+            eligible.insert(
+                key,
+                (
+                    "working-tree-closing-evidence".into(),
+                    state_bytes,
+                    accepted,
+                ),
+            );
+        }
+    }
+    if eligible.len() != 1 {
+        return Err(format!(
+            "accepted change `{}` requires exactly one trusted transition matching its state, verification, and closing evidence; found {}",
+            record.id,
+            eligible.len()
+        ));
+    }
+    eligible
+        .into_values()
+        .next()
+        .ok_or_else(|| "authenticated accepted transition disappeared".to_string())
+}
+
+fn staged_accepted_snapshot_is_closing_authenticated(
+    root: &Path,
+    accepted: &ChangeRecord,
+    verification_bytes: &[u8],
+    approval_bytes: &[u8],
+) -> Result<bool, String> {
+    let verification: VerificationRecord = serde_json::from_slice(verification_bytes)
+        .map_err(|error| format!("invalid staged accepted verification: {error}"))?;
+    let approvals: ApprovalLedger = serde_json::from_slice(approval_bytes)
+        .map_err(|error| format!("invalid staged accepted approvals: {error}"))?;
+    if !verification.passed
+        || !definition_digest_matches(root, accepted, &verification.contract_digest)?
+    {
+        return Ok(false);
+    }
+    let Some(signed_inputs) = verification.acceptance_input_digest.as_ref() else {
+        return Ok(false);
+    };
+    if let Some(manifest) = &verification.acceptance_manifest {
+        if acceptance_manifest_digest(manifest)? != *signed_inputs {
+            return Ok(false);
+        }
+        match (&accepted.supersedes[..], &verification.semantic_succession) {
+            ([], None) => {}
+            (_, Some(evidence)) => validate_semantic_succession(accepted, evidence)?,
+            _ => return Ok(false),
+        }
+    } else if verification.semantic_succession.is_some() {
+        return Ok(false);
+    }
+    let closing_matches = approvals
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "acceptance")
+        .is_some_and(|approval| approval.digest == closing_digest(accepted, &verification));
+    Ok(closing_matches && verification_commit_is_accepted_current(root, &verification))
+}
+
+fn accepted_evidence_key(state: &[u8], verification: &[u8], approvals: &[u8]) -> String {
+    let mut digest = FramedDigest::new(b"specsync.accepted-evidence-key.v1");
+    digest.frame(b"state", state);
+    digest.frame(b"verification", verification);
+    digest.frame(b"approvals", approvals);
+    digest.finish()
+}
+
+fn git_object_bytes(root: &Path, commit: &str, path: &str) -> Option<Vec<u8>> {
+    let object = format!("{commit}:{path}");
+    let output = Command::new("git")
+        .args(["show", object.as_str()])
+        .current_dir(root)
+        .output()
+        .ok()?;
+    output.status.success().then_some(output.stdout)
+}
+
+fn git_change_record_at(root: &Path, commit: &str, path: &str) -> Option<ChangeRecord> {
+    let object = format!("{commit}:{path}");
+    let output = Command::new("git")
+        .args(["show", object.as_str()])
+        .current_dir(root)
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| serde_json::from_slice(&output.stdout).ok())
+        .flatten()
 }
 
 fn acceptance_input_digest(
@@ -4582,11 +6386,86 @@ fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Resul
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AcceptedInputValidity {
+    Exact,
+    SuccessorCovered,
+}
+
+fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvidenceSummary {
+    let result = list_all_changes_checked(root)
+        .map(|records| terminal_evidence_summary_with_records(root, record, &records));
+    match result {
+        Ok(summary) => summary,
+        Err(reason) => TerminalEvidenceSummary {
+            validity: if record.state == ChangeState::Archived {
+                TerminalEvidenceValidity::CorruptHistory
+            } else {
+                TerminalEvidenceValidity::Stale
+            },
+            reason: Some(reason),
+        },
+    }
+}
+
+fn terminal_evidence_summary_with_records(
+    root: &Path,
+    record: &ChangeRecord,
+    records: &BTreeMap<String, ChangeRecord>,
+) -> TerminalEvidenceSummary {
+    if record.state == ChangeState::Archived {
+        return match validate_archived_integrity(root, record) {
+            Ok(()) => TerminalEvidenceSummary {
+                validity: TerminalEvidenceValidity::AuthenticatedHistory,
+                reason: None,
+            },
+            Err(reason) => TerminalEvidenceSummary {
+                validity: TerminalEvidenceValidity::CorruptHistory,
+                reason: Some(reason),
+            },
+        };
+    }
+    match validate_accepted_inputs_recursive(
+        root,
+        record,
+        records,
+        &mut BTreeSet::new(),
+        &mut BTreeMap::new(),
+    ) {
+        Ok(AcceptedInputValidity::Exact) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::Exact,
+            reason: None,
+        },
+        Ok(AcceptedInputValidity::SuccessorCovered) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::SuccessorCovered,
+            reason: None,
+        },
+        Err(reason) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::Stale,
+            reason: Some(reason),
+        },
+    }
+}
+
 fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    let records = list_all_changes_checked(root)?;
+    let mut visiting = BTreeSet::new();
+    let mut memo = BTreeMap::new();
+    validate_accepted_inputs_recursive(root, record, &records, &mut visiting, &mut memo).map(|_| ())
+}
+
+fn authenticate_accepted_evidence(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<VerificationRecord, String> {
+    if record.state == ChangeState::Archived {
+        validate_archived_accepted_snapshot(root, record)?;
+    }
     let verification = load_verification(root, record)?;
     if !verification.passed {
         return Err("accepted change has failed verification evidence".into());
     }
+    ensure_definition_approval_valid(root, record)?;
     if !definition_digest_matches(root, record, &verification.contract_digest)? {
         return Err("accepted change verification contract is stale".into());
     }
@@ -4594,9 +6473,25 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
         .acceptance_input_digest
         .as_ref()
         .ok_or_else(|| "accepted change is missing current delivery-input evidence".to_string())?;
-    let current_inputs = acceptance_input_digest(root, record, &[])?;
-    if current_inputs != *expected_inputs {
-        return Err("accepted change verification is stale for current delivery inputs".into());
+    if let Some(manifest) = &verification.acceptance_manifest {
+        validate_acceptance_manifest(manifest)?;
+        if acceptance_manifest_digest(manifest)? != *expected_inputs {
+            return Err(
+                "accepted change manifest does not reproduce signed delivery inputs".into(),
+            );
+        }
+        match (&record.supersedes[..], &verification.semantic_succession) {
+            ([], None) => {}
+            (_, Some(evidence)) => validate_semantic_succession(record, evidence)?,
+            _ => {
+                return Err(
+                    "accepted change is missing semantic succession evidence for approved obligations"
+                        .into(),
+                );
+            }
+        }
+    } else if verification.semantic_succession.is_some() {
+        return Err("legacy acceptance cannot carry succession evidence without a manifest".into());
     }
     let expected = closing_digest(record, &verification);
     let ledger = load_approvals(root, record)?;
@@ -4615,7 +6510,828 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
     {
         return Err("accepted change verification commit is not in current history and canonical acceptance is not recorded on the remote default branch".into());
     }
+    Ok(verification)
+}
+
+fn validate_archived_accepted_snapshot(root: &Path, archived: &ChangeRecord) -> Result<(), String> {
+    let workspace = find_change_dir(root, &archived.id)?;
+    let path = workspace.join("accepted-state.json");
+    let (_, historical_bytes, historical) = authenticated_accepted_transition(root, archived)?;
+    let accepted = match fs::read(&path) {
+        Ok(content) => {
+            if content != historical_bytes {
+                return Err(format!(
+                    "archived change `{}` accepted-state snapshot does not match its trusted transition",
+                    archived.id
+                ));
+            }
+            serde_json::from_slice(&content).map_err(|error| {
+                format!(
+                    "invalid accepted-state snapshot {}: {error}",
+                    path.display()
+                )
+            })?
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let verification = load_verification(root, archived)?;
+            if verification.acceptance_manifest.is_some() {
+                return Err(format!(
+                    "archived change `{}` is missing its authenticated accepted-state snapshot",
+                    archived.id
+                ));
+            }
+            historical
+        }
+        Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
+    };
+    if accepted.id != archived.id || accepted.state != ChangeState::Accepted {
+        return Err(format!(
+            "archived change `{}` has an invalid accepted-state snapshot identity",
+            archived.id
+        ));
+    }
+    let mut projection = archived.clone();
+    projection.state = ChangeState::Accepted;
+    projection.updated_at = accepted.updated_at;
+    if projection != accepted {
+        return Err(format!(
+            "archived change `{}` does not match its authenticated accepted-state snapshot",
+            archived.id
+        ));
+    }
     Ok(())
+}
+
+fn validate_archived_integrity(root: &Path, archived: &ChangeRecord) -> Result<(), String> {
+    let workspace = find_change_dir(root, &archived.id)?;
+    if !workspace.join("accepted-state.json").exists() {
+        return authenticate_legacy_archive_baseline(root, archived, &workspace);
+    }
+    validate_archived_accepted_snapshot(root, archived)?;
+    let verification = load_verification(root, archived)?;
+    if !verification.passed {
+        return Err("archived change has failed verification evidence".into());
+    }
+    ensure_definition_approval_valid(root, archived)?;
+    if !definition_digest_matches(root, archived, &verification.contract_digest)? {
+        return Err("archived change verification contract is stale".into());
+    }
+    let expected_inputs = verification
+        .acceptance_input_digest
+        .as_ref()
+        .ok_or_else(|| "archived change is missing delivery-input evidence".to_string())?;
+    if let Some(manifest) = &verification.acceptance_manifest {
+        validate_acceptance_manifest(manifest)?;
+        if acceptance_manifest_digest(manifest)? != *expected_inputs {
+            return Err(
+                "archived change manifest does not reproduce signed delivery inputs".into(),
+            );
+        }
+        match (&archived.supersedes[..], &verification.semantic_succession) {
+            ([], None) => {}
+            (_, Some(evidence)) => validate_semantic_succession(archived, evidence)?,
+            _ => {
+                return Err(
+                    "archived change is missing semantic succession evidence for approved obligations"
+                        .into(),
+                );
+            }
+        }
+    } else {
+        if verification.semantic_succession.is_some() {
+            return Err(
+                "legacy archive cannot carry succession evidence without a manifest".into(),
+            );
+        }
+        reconstruct_legacy_acceptance_manifest(root, archived, expected_inputs)?;
+    }
+    let ledger = load_approvals(root, archived)?;
+    let approval = ledger
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "acceptance")
+        .ok_or_else(|| "archived change is missing closing approval".to_string())?;
+    if approval.digest != closing_digest(archived, &verification) {
+        return Err("archived change closing approval does not match verification evidence".into());
+    }
+    Ok(())
+}
+
+fn authenticate_legacy_archive_baseline(
+    root: &Path,
+    archived: &ChangeRecord,
+    workspace: &Path,
+) -> Result<(), String> {
+    let verification = load_verification(root, archived)?;
+    if verification.acceptance_manifest.is_some() || verification.semantic_succession.is_some() {
+        return Err(format!(
+            "archived change `{}` is missing its authenticated accepted-state snapshot",
+            archived.id
+        ));
+    }
+    if !verification.passed {
+        return Err("legacy archive has no passed verification evidence".into());
+    }
+    let ledger = load_approvals(root, archived)?;
+    if !ledger
+        .approvals
+        .iter()
+        .any(|approval| approval.gate == "definition")
+    {
+        return Err("legacy archive is missing stored definition approval".into());
+    }
+    ledger
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "acceptance")
+        .ok_or_else(|| "legacy archive is missing stored closing approval".to_string())?;
+
+    let baseline_path = root.join(LEGACY_BASELINE_PATH);
+    let baseline_bytes = fs::read(&baseline_path)
+        .map_err(|error| format!("failed to read legacy archive baseline: {error}"))?;
+    let (baseline, baseline_digest) = validate_legacy_archive_baseline_bytes(&baseline_bytes)?;
+
+    let records = list_all_changes_checked(root)?;
+    let authority = records.get(&baseline.authority_change_id).ok_or_else(|| {
+        format!(
+            "legacy archive baseline authority `{}` is unavailable",
+            baseline.authority_change_id
+        )
+    })?;
+    if authority.legacy_archive_baseline_digest.as_deref() != Some(&baseline_digest) {
+        return Err(
+            "legacy archive baseline bytes do not match its definition-bound authority".into(),
+        );
+    }
+    ensure_definition_approval_valid(root, authority)
+        .map_err(|error| format!("legacy archive baseline authority is not approved: {error}"))?;
+
+    validate_legacy_baseline_authority_cutoff(root, authority, &baseline.cutoff_commit)?;
+    let cutoff = baseline.cutoff_commit.clone();
+    match authority.state {
+        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying => {}
+        ChangeState::Accepted | ChangeState::Archived => {
+            let authority_verification =
+                authenticate_accepted_evidence(root, authority).map_err(|error| {
+                    format!("legacy archive baseline authority is not closing-valid: {error}")
+                })?;
+            let manifest = authority_verification
+                .acceptance_manifest
+                .as_ref()
+                .ok_or_else(|| {
+                    "accepted legacy archive baseline authority must be manifest-backed".to_string()
+                })?;
+            let ledger_entry = manifest
+                .entries
+                .iter()
+                .find(|entry| entry.path == LEGACY_BASELINE_PATH)
+                .ok_or_else(|| {
+                    "accepted legacy archive baseline authority did not sign the ledger path"
+                        .to_string()
+                })?;
+            if ledger_entry.kind != AcceptanceInputKind::File
+                || !ledger_entry
+                    .owners
+                    .iter()
+                    .any(|owner| owner == EXACT_DELIVERY_OWNER)
+                || ledger_entry.payload_digest != sha256_hex(&baseline_bytes)
+                || ledger_entry.entry_digest
+                    != acceptance_entry_digest(
+                        LEGACY_BASELINE_PATH,
+                        &AcceptanceInputKind::File,
+                        ledger_entry.mode,
+                        &ledger_entry.payload_digest,
+                    )
+            {
+                return Err(
+                    "accepted legacy archive baseline authority has invalid exact ledger evidence"
+                        .into(),
+                );
+            }
+            let (anchor, _, _) = authenticated_accepted_transition(root, authority)?;
+            ensure_git_ancestor(root, &cutoff, &anchor, "authority acceptance anchor")?;
+        }
+        ChangeState::Draft => {
+            return Err("legacy archive baseline authority is still draft".into());
+        }
+    }
+
+    let archive_root = root.join(ARCHIVE_PATH);
+    let relative_workspace = workspace.strip_prefix(&archive_root).map_err(|_| {
+        format!(
+            "legacy archive workspace is outside {}",
+            archive_root.display()
+        )
+    })?;
+    let project_subtree = format!(
+        "{}/{}",
+        ARCHIVE_PATH,
+        strict_portable_relative_path(
+            relative_workspace
+                .to_str()
+                .ok_or_else(|| "legacy archive path is not UTF-8".to_string())?
+        )?
+    );
+    let baseline_entry = legacy_baseline_entry(&baseline, &archived.id)?;
+    if baseline_entry.archive_path != project_subtree {
+        return Err(format!(
+            "legacy archive `{}` baseline path does not match its unique workspace",
+            archived.id
+        ));
+    }
+    let repo_subtree = git_repo_relative_path(root, &project_subtree)?;
+    let current = archive_workspace_snapshot(root, workspace, &project_subtree)?;
+    if legacy_archive_subtree_digest(&current)? != baseline_entry.subtree_digest {
+        return Err(format!(
+            "legacy archive `{}` subtree does not match its baseline digest",
+            archived.id
+        ));
+    }
+    let introduction = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            &format!("{}^{{commit}}", baseline_entry.introduction_commit),
+        ],
+    )
+    .ok_or_else(|| {
+        format!(
+            "legacy archive `{}` introduction is unavailable",
+            archived.id
+        )
+    })?;
+    if introduction != baseline_entry.introduction_commit {
+        return Err(format!(
+            "legacy archive `{}` introduction must be a canonical commit ID",
+            archived.id
+        ));
+    }
+    ensure_git_ancestor(root, &introduction, &cutoff, "legacy archive cutoff")?;
+    let pathspec = format!(":(top,literal){repo_subtree}");
+    let output = Command::new("git")
+        .args([
+            "log",
+            "--format=%H",
+            "--diff-filter=A",
+            &cutoff,
+            "--",
+            &pathspec,
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to inspect legacy archive introductions: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "failed to inspect legacy archive introductions at cutoff `{cutoff}`"
+        ));
+    }
+    let mut anchors = BTreeSet::new();
+    for commit in String::from_utf8_lossy(&output.stdout).lines() {
+        let parents =
+            git_output(root, &["rev-list", "--parents", "-n", "1", commit]).unwrap_or_default();
+        let parent_has_subtree = parents.split_whitespace().skip(1).any(|parent| {
+            !git_tree_snapshot(root, parent, &repo_subtree)
+                .unwrap_or_default()
+                .is_empty()
+        });
+        if parent_has_subtree {
+            continue;
+        }
+        if git_tree_snapshot(root, commit, &repo_subtree).is_ok_and(|tree| tree == current) {
+            anchors.insert(commit.to_string());
+        }
+    }
+    if anchors.len() != 1 || !anchors.contains(&introduction) {
+        return Err(format!(
+            "legacy archive `{}` requires its one baseline-bound pre-cutoff introduction anchor, found {}",
+            archived.id,
+            anchors.len()
+        ));
+    }
+    Ok(())
+}
+
+fn legacy_baseline_entry<'a>(
+    baseline: &'a LegacyArchiveBaselineV1,
+    archived_id: &str,
+) -> Result<&'a LegacyArchiveBaselineEntryV1, String> {
+    baseline
+        .entries
+        .iter()
+        .find(|entry| entry.id == archived_id)
+        .ok_or_else(|| format!("legacy archive `{archived_id}` is not enumerated by the baseline"))
+}
+
+fn validate_legacy_archive_baseline_bytes(
+    baseline_bytes: &[u8],
+) -> Result<(LegacyArchiveBaselineV1, String), String> {
+    if baseline_bytes.len() as u64 > MAX_CHANGE_ARTIFACT_BYTES {
+        return Err("legacy archive baseline exceeds the change artifact byte limit".into());
+    }
+    let baseline: LegacyArchiveBaselineV1 = serde_json::from_slice(baseline_bytes)
+        .map_err(|error| format!("invalid legacy archive baseline: {error}"))?;
+    if baseline.schema_version != 1 || baseline.domain != "specsync.legacy-archive-baseline.v1" {
+        return Err("unsupported legacy archive baseline schema or domain".into());
+    }
+    if baseline.entries.len() > MAX_ACCEPTANCE_ENTRIES {
+        return Err("legacy archive baseline exceeds the entry limit".into());
+    }
+    if json_content(&baseline)?.as_bytes() != baseline_bytes {
+        return Err("legacy archive baseline must use canonical persisted JSON bytes".into());
+    }
+    let mut previous: Option<(&str, &str)> = None;
+    let mut ids = BTreeSet::new();
+    let mut paths = BTreeSet::new();
+    for entry in &baseline.entries {
+        let key = (entry.id.as_str(), entry.archive_path.as_str());
+        if previous.is_some_and(|prior| prior >= key) {
+            return Err(
+                "legacy archive baseline entries must be strictly sorted and unique".into(),
+            );
+        }
+        previous = Some(key);
+        if !ids.insert(entry.id.as_str()) || !paths.insert(entry.archive_path.as_str()) {
+            return Err("legacy archive baseline IDs and archive paths must each be unique".into());
+        }
+        validate_sha256_digest(&entry.subtree_digest, "legacy archive subtree digest")?;
+        let portable = strict_portable_relative_path(&entry.archive_path)?;
+        if portable != entry.archive_path || !portable.starts_with(&format!("{ARCHIVE_PATH}/")) {
+            return Err(format!(
+                "legacy archive baseline path is not canonical: `{}`",
+                entry.archive_path
+            ));
+        }
+    }
+    let mut digest = FramedDigest::new(LEGACY_BASELINE_DOMAIN);
+    digest.frame(b"ledger", baseline_bytes);
+    let baseline_digest = digest.finish();
+    Ok((baseline, baseline_digest))
+}
+
+fn ensure_git_ancestor(
+    root: &Path,
+    ancestor: &str,
+    descendant: &str,
+    label: &str,
+) -> Result<(), String> {
+    let status = Command::new("git")
+        .args(["merge-base", "--is-ancestor", ancestor, descendant])
+        .current_dir(root)
+        .status()
+        .map_err(|error| format!("failed to inspect {label} ancestry: {error}"))?;
+    if !status.success() {
+        return Err(format!(
+            "`{ancestor}` is not an ancestor of {label} `{descendant}`"
+        ));
+    }
+    Ok(())
+}
+
+fn legacy_archive_subtree_digest(
+    snapshot: &BTreeMap<String, (u32, Vec<u8>)>,
+) -> Result<String, String> {
+    if snapshot.is_empty() {
+        return Err("legacy archive baseline subtree must not be empty".into());
+    }
+    let mut digest = FramedDigest::new(LEGACY_SUBTREE_DOMAIN);
+    digest.frame(b"schema-version", &1_u32.to_be_bytes());
+    for (path, (mode, payload)) in snapshot {
+        let kind: &[u8] = match mode {
+            0o100644 | 0o100755 => b"file",
+            0o120000 => {
+                let target = std::str::from_utf8(payload)
+                    .map_err(|_| format!("legacy archive symlink `{path}` is not UTF-8"))?;
+                validate_portable_symlink_target(target)?;
+                b"symlink"
+            }
+            _ => {
+                return Err(format!(
+                    "legacy archive subtree contains unsupported mode `{mode:o}` at `{path}`"
+                ));
+            }
+        };
+        digest.frame(b"entry", b"");
+        digest.frame(b"path", path.as_bytes());
+        digest.frame(b"kind", kind);
+        digest.frame(b"mode", &mode.to_be_bytes());
+        digest.frame(b"payload", payload);
+    }
+    Ok(digest.finish())
+}
+
+fn archive_workspace_snapshot(
+    root: &Path,
+    workspace: &Path,
+    project_subtree: &str,
+) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
+    let git_modes = git_index_modes(root)?;
+    let mut snapshot = BTreeMap::new();
+    for entry in walkdir::WalkDir::new(workspace).follow_links(false) {
+        let entry = entry.map_err(|error| format!("failed to inspect legacy archive: {error}"))?;
+        if entry.path() == workspace {
+            continue;
+        }
+        let file_type = entry.file_type();
+        if file_type.is_dir() {
+            continue;
+        }
+        if !file_type.is_file() && !file_type.is_symlink() {
+            return Err(format!(
+                "legacy archive contains unsupported non-file entry {}",
+                entry.path().display()
+            ));
+        }
+        let relative = strict_portable_project_path(workspace, entry.path())?;
+        let project_path = format!("{project_subtree}/{relative}");
+        let (_, mode) = digest_file_kind_and_mode(&project_path, entry.path(), &git_modes)?;
+        let bytes = if file_type.is_symlink() {
+            let target = fs::read_link(entry.path())
+                .map_err(|error| format!("failed to read legacy archive symlink: {error}"))?;
+            let target = target
+                .to_str()
+                .ok_or_else(|| "legacy archive symlink target is not UTF-8".to_string())?;
+            validate_portable_symlink_target(target)?;
+            target.as_bytes().to_vec()
+        } else {
+            fs::read(entry.path())
+                .map_err(|error| format!("failed to read legacy archive entry: {error}"))?
+        };
+        snapshot.insert(relative, (mode, bytes));
+    }
+    Ok(snapshot)
+}
+
+fn git_tree_snapshot(
+    root: &Path,
+    commit: &str,
+    repo_subtree: &str,
+) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
+    let pathspec = format!(":(top,literal){repo_subtree}");
+    let output = Command::new("git")
+        .args([
+            "ls-tree",
+            "-r",
+            "-z",
+            "--full-name",
+            commit,
+            "--",
+            &pathspec,
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to inspect legacy archive tree: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "failed to inspect legacy archive tree at `{commit}`"
+        ));
+    }
+    let prefix = format!("{repo_subtree}/");
+    let mut snapshot = BTreeMap::new();
+    for raw in output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|raw| !raw.is_empty())
+    {
+        let raw = std::str::from_utf8(raw)
+            .map_err(|_| "legacy archive tree contains non-UTF-8 metadata".to_string())?;
+        let (metadata, path) = raw
+            .split_once('\t')
+            .ok_or_else(|| format!("invalid legacy archive tree entry `{raw}`"))?;
+        let mut fields = metadata.split_whitespace();
+        let mode = fields
+            .next()
+            .ok_or_else(|| "legacy archive tree entry has no mode".to_string())?;
+        let kind = fields
+            .next()
+            .ok_or_else(|| "legacy archive tree entry has no kind".to_string())?;
+        let object = fields
+            .next()
+            .ok_or_else(|| "legacy archive tree entry has no object".to_string())?;
+        let mode = u32::from_str_radix(mode, 8)
+            .map_err(|_| "legacy archive tree entry has invalid mode".to_string())?;
+        if kind != "blob" || !matches!(mode, 0o100644 | 0o100755 | 0o120000) {
+            return Err(format!(
+                "legacy archive tree contains unsupported `{kind}` mode `{mode:o}`"
+            ));
+        }
+        let relative = path
+            .strip_prefix(&prefix)
+            .ok_or_else(|| format!("legacy archive tree path `{path}` escaped its subtree"))?;
+        let bytes = Command::new("git")
+            .args(["cat-file", "blob", object])
+            .current_dir(root)
+            .output()
+            .map_err(|error| format!("failed to read legacy archive blob: {error}"))?;
+        if !bytes.status.success() {
+            return Err(format!("failed to read legacy archive blob `{object}`"));
+        }
+        snapshot.insert(
+            strict_portable_relative_path(relative)?,
+            (mode, bytes.stdout),
+        );
+    }
+    Ok(snapshot)
+}
+
+fn validate_accepted_inputs_recursive(
+    root: &Path,
+    record: &ChangeRecord,
+    records: &BTreeMap<String, ChangeRecord>,
+    visiting: &mut BTreeSet<String>,
+    memo: &mut BTreeMap<String, Result<AcceptedInputValidity, String>>,
+) -> Result<AcceptedInputValidity, String> {
+    if let Some(result) = memo.get(&record.id) {
+        return result.clone();
+    }
+    if !matches!(record.state, ChangeState::Accepted | ChangeState::Archived) {
+        return Err(format!(
+            "successor `{}` is not accepted or archived",
+            record.id
+        ));
+    }
+    if !visiting.insert(record.id.clone()) {
+        return Err(format!(
+            "semantic succession cycle detected at `{}`",
+            record.id
+        ));
+    }
+    let result = (|| {
+        let verification = authenticate_accepted_evidence(root, record)?;
+        let expected_digest = verification
+            .acceptance_input_digest
+            .as_deref()
+            .ok_or_else(|| {
+                "accepted change is missing current delivery-input evidence".to_string()
+            })?;
+        let signed = if let Some(manifest) = &verification.acceptance_manifest {
+            manifest.clone()
+        } else {
+            let legacy_current =
+                acceptance_input_digest(root, &terminal_delivery_projection(record), &[])?;
+            if legacy_current == expected_digest {
+                return Ok(AcceptedInputValidity::Exact);
+            }
+            reconstruct_legacy_acceptance_manifest(root, record, expected_digest)?
+        };
+        let current = acceptance_manifest_with_signed_owners(
+            root,
+            &terminal_delivery_projection(record),
+            &[],
+            &signed,
+        )?;
+        let current_by_path: BTreeMap<_, _> = current
+            .entries
+            .iter()
+            .map(|entry| (entry.path.as_str(), entry))
+            .collect();
+        let mut successor_covered = false;
+        for expected in &signed.entries {
+            let current = current_by_path.get(expected.path.as_str()).ok_or_else(|| {
+                format!(
+                    "accepted input `{}` disappeared from current inventory",
+                    expected.path
+                )
+            })?;
+            if expected.kind == current.kind
+                && expected.mode == current.mode
+                && expected.payload_digest == current.payload_digest
+                && expected.entry_digest == current.entry_digest
+            {
+                continue;
+            }
+            if expected
+                .owners
+                .iter()
+                .any(|owner| owner.starts_with("@exact:"))
+            {
+                return Err(format!(
+                    "accepted exact-only input `{}` changed and requires audited reopen",
+                    expected.path
+                ));
+            }
+            for owner in &expected.owners {
+                let mut covered = false;
+                for candidate in records.values() {
+                    if candidate.id == record.id
+                        || !matches!(
+                            candidate.state,
+                            ChangeState::Accepted | ChangeState::Archived
+                        )
+                        || candidate.no_spec_change
+                        || succession_change_key(&candidate.id) <= succession_change_key(&record.id)
+                    {
+                        continue;
+                    }
+                    let candidate_verification =
+                        match authenticate_accepted_evidence(root, candidate) {
+                            Ok(verification) => verification,
+                            Err(_) => continue,
+                        };
+                    let candidate_manifest = if let Some(manifest) =
+                        candidate_verification.acceptance_manifest.as_ref()
+                    {
+                        manifest.clone()
+                    } else {
+                        match resolved_acceptance_manifest(root, candidate) {
+                            Ok(manifest) => manifest,
+                            Err(_) => continue,
+                        }
+                    };
+                    let tuple = if let Some(evidence) =
+                        candidate_verification.semantic_succession.as_ref()
+                    {
+                        evidence
+                            .tuples
+                            .iter()
+                            .find(|tuple| {
+                                semantic_tuple_matches_obligation(
+                                    tuple, &record.id, expected, owner,
+                                )
+                            })
+                            .cloned()
+                    } else if candidate_verification.acceptance_manifest.is_none() {
+                        legacy_semantic_successor_tuple(root, record, expected, owner, candidate)
+                            .ok()
+                            .flatten()
+                    } else {
+                        None
+                    };
+                    let Some(tuple) = tuple else {
+                        continue;
+                    };
+                    if !candidate_manifest.entries.iter().any(|entry| {
+                        entry.path == expected.path
+                            && entry.entry_digest == tuple.successor_entry_digest
+                            && entry.owners.contains(owner)
+                    }) || !semantic_acceptance_item_exists_for_module(root, candidate, owner)
+                        .unwrap_or(false)
+                        || !semantic_tuple_transition_is_valid(root, candidate, &tuple)
+                            .unwrap_or(false)
+                    {
+                        continue;
+                    }
+                    if validate_accepted_inputs_recursive(root, candidate, records, visiting, memo)
+                        .is_ok()
+                    {
+                        covered = true;
+                        successor_covered = true;
+                        break;
+                    }
+                }
+                if !covered {
+                    return Err(format!(
+                        "accepted input obligation `{}` owner `{owner}` has no closing-valid terminal semantic successor",
+                        expected.path
+                    ));
+                }
+            }
+        }
+        Ok(if successor_covered {
+            AcceptedInputValidity::SuccessorCovered
+        } else {
+            AcceptedInputValidity::Exact
+        })
+    })();
+    visiting.remove(&record.id);
+    memo.insert(record.id.clone(), result.clone());
+    result
+}
+
+fn semantic_tuple_matches_obligation(
+    tuple: &SemanticSuccessionTupleV1,
+    predecessor_id: &str,
+    predecessor_entry: &AcceptanceInputEntryV1,
+    owner: &str,
+) -> bool {
+    tuple.predecessor_id == predecessor_id
+        && tuple.path == predecessor_entry.path
+        && tuple.module == owner
+        && tuple.predecessor_entry_digest == predecessor_entry.entry_digest
+}
+
+fn legacy_semantic_successor_tuple(
+    root: &Path,
+    predecessor: &ChangeRecord,
+    predecessor_entry: &AcceptanceInputEntryV1,
+    owner: &str,
+    candidate: &ChangeRecord,
+) -> Result<Option<SemanticSuccessionTupleV1>, String> {
+    let obligation_exists = candidate.supersedes.iter().any(|edge| {
+        edge.predecessor_id == predecessor.id
+            && edge.obligations.iter().any(|obligation| {
+                obligation.path == predecessor_entry.path
+                    && obligation.module == owner
+                    && obligation.predecessor_entry_digest == predecessor_entry.entry_digest
+            })
+    });
+    if !obligation_exists || !semantic_acceptance_item_exists_for_module(root, candidate, owner)? {
+        return Ok(None);
+    }
+    let manifest = resolved_acceptance_manifest(root, candidate)?;
+    let Some(successor_entry) = manifest.entries.iter().find(|entry| {
+        entry.path == predecessor_entry.path
+            && entry.owners.iter().any(|entry_owner| entry_owner == owner)
+    }) else {
+        return Ok(None);
+    };
+    Ok(Some(SemanticSuccessionTupleV1 {
+        predecessor_id: predecessor.id.clone(),
+        path: predecessor_entry.path.clone(),
+        module: owner.to_string(),
+        predecessor_entry_digest: predecessor_entry.entry_digest.clone(),
+        successor_entry_digest: successor_entry.entry_digest.clone(),
+    }))
+}
+
+fn terminal_delivery_projection(record: &ChangeRecord) -> ChangeRecord {
+    let mut projection = record.clone();
+    if projection.state == ChangeState::Archived {
+        projection.state = ChangeState::Accepted;
+    }
+    projection
+}
+
+fn list_all_changes_checked(root: &Path) -> Result<BTreeMap<String, ChangeRecord>, String> {
+    let mut records = BTreeMap::new();
+    for record in list_changes_checked(root)? {
+        records.insert(record.id.clone(), record);
+    }
+    let archive = root.join(ARCHIVE_PATH);
+    let entries = match fs::read_dir(&archive) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(records),
+        Err(error) => return Err(format!("failed to read archived changes: {error}")),
+    };
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("failed to read archive entry: {error}"))?;
+        if !entry
+            .file_type()
+            .map_err(|error| format!("failed to inspect archive entry: {error}"))?
+            .is_dir()
+        {
+            continue;
+        }
+        let path = entry.path().join("state.json");
+        let content = match fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(error)
+                if error.kind() == std::io::ErrorKind::NotFound
+                    && is_positive_legacy_tombstone(&entry.path()) =>
+            {
+                continue;
+            }
+            Err(error) => {
+                return Err(format!(
+                    "failed to read archived state {}: {error}",
+                    path.display()
+                ));
+            }
+        };
+        let record: ChangeRecord = serde_json::from_str(&content)
+            .map_err(|error| format!("invalid archived state {}: {error}", path.display()))?;
+        validate_loaded_change(&record, &record.id, &path)?;
+        if records.insert(record.id.clone(), record.clone()).is_some() {
+            return Err(format!(
+                "change `{}` exists in multiple active/archive locations",
+                record.id
+            ));
+        }
+    }
+    Ok(records)
+}
+
+fn is_positive_legacy_tombstone(path: &Path) -> bool {
+    let dated_lifecycle_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.contains("-CHG-"));
+    if dated_lifecycle_name
+        || [
+            "change.md",
+            "approvals.json",
+            "verification.json",
+            "accepted-state.json",
+        ]
+        .iter()
+        .any(|name| path.join(name).exists())
+    {
+        return false;
+    }
+    let deltas = path.join("deltas");
+    let Ok(entries) = fs::read_dir(deltas) else {
+        return false;
+    };
+    entries.flatten().any(|entry| {
+        entry.file_type().is_ok_and(|file_type| file_type.is_file())
+            && entry
+                .path()
+                .extension()
+                .and_then(|extension| extension.to_str())
+                == Some("md")
+    })
 }
 
 fn append_approval(
@@ -4650,13 +7366,13 @@ fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
 }
 
 fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, String> {
-    let path = change_dir(root, &record.id).join("approvals.json");
+    let path = find_change_dir(root, &record.id)?.join("approvals.json");
     let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
     serde_json::from_str(&content).map_err(|error| error.to_string())
 }
 
 fn load_verification(root: &Path, record: &ChangeRecord) -> Result<VerificationRecord, String> {
-    let path = change_dir(root, &record.id).join("verification.json");
+    let path = find_change_dir(root, &record.id)?.join("verification.json");
     let content =
         fs::read_to_string(&path).map_err(|_| "verification evidence is missing".to_string())?;
     serde_json::from_str(&content)
@@ -5616,6 +8332,13 @@ fn artifact_template(root: &Path, artifact: &ArtifactKind, record: &ChangeRecord
     )
 }
 
+fn delta_path_checked(root: &Path, record: &ChangeRecord, module: &str) -> Result<PathBuf, String> {
+    Ok(find_change_dir(root, &record.id)?
+        .join("deltas")
+        .join(format!("{module}.md")))
+}
+
+#[cfg(test)]
 fn delta_path(root: &Path, record: &ChangeRecord, module: &str) -> PathBuf {
     change_dir(root, &record.id)
         .join("deltas")
@@ -5629,18 +8352,38 @@ fn change_dir(root: &Path, id: &str) -> PathBuf {
 fn find_change_dir(root: &Path, id: &str) -> Result<PathBuf, String> {
     validate_change_id(id)?;
     let active = change_dir(root, id);
+    let mut matches = Vec::new();
     if active.is_dir() {
-        return Ok(active);
+        matches.push(active);
     }
     let archive = root.join(ARCHIVE_PATH);
     if let Ok(entries) = fs::read_dir(archive) {
         for entry in entries.flatten() {
-            if entry.file_name().to_string_lossy().ends_with(id) {
-                return Ok(entry.path());
+            if !entry.path().is_dir() {
+                continue;
+            }
+            let state = entry.path().join("state.json");
+            let matches_id = fs::read(&state)
+                .ok()
+                .and_then(|content| serde_json::from_slice::<ChangeRecord>(&content).ok())
+                .is_some_and(|record| record.id == id);
+            if matches_id {
+                matches.push(entry.path());
             }
         }
     }
-    Err(format!("change `{id}` was not found"))
+    match matches.len() {
+        0 => Err(format!("change `{id}` was not found")),
+        1 => Ok(matches.remove(0)),
+        _ => Err(format!(
+            "change `{id}` has ambiguous active/archive workspace locations: {}",
+            matches
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+    }
 }
 
 fn validate_change_id(id: &str) -> Result<(), String> {
@@ -5750,6 +8493,7 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
         return false;
     };
     let remote_state = format!("{remote_default}:{repo_state}");
+    let repo_workspace_pathspec = format!(":(top,literal){repo_workspace}");
     let state_exists = Command::new("git")
         .args(["cat-file", "-e", remote_state.as_str()])
         .current_dir(root)
@@ -5762,13 +8506,14 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
                 "--quiet",
                 remote_default.as_str(),
                 "--",
-                repo_workspace.as_str(),
+                repo_workspace_pathspec.as_str(),
             ])
             .current_dir(root)
             .status()
             .is_ok_and(|status| status.success())
 }
 
+#[cfg(test)]
 fn accepted_change_is_recorded_in_current_history(root: &Path, record: &ChangeRecord) -> bool {
     accepted_change_is_recorded_in_ref(root, record, "HEAD")
 }
@@ -5784,7 +8529,7 @@ fn accepted_change_is_recorded_in_ref(root: &Path, record: &ChangeRecord, refere
     let Ok(repo_state) = git_repo_relative_path(root, &state) else {
         return false;
     };
-    let top_state = format!(":(top){repo_state}");
+    let top_state = format!(":(top,literal){repo_state}");
     let history = Command::new("git")
         .args(["log", "--format=%H", reference, "--", top_state.as_str()])
         .current_dir(root)
@@ -5815,6 +8560,7 @@ fn accepted_change_is_recorded_in_ref(root: &Path, record: &ChangeRecord, refere
         })
 }
 
+#[cfg(test)]
 fn accepted_change_has_current_canonical_successors(root: &Path, record: &ChangeRecord) -> bool {
     let Ok(records) = list_changes_checked(root) else {
         return false;
@@ -5844,55 +8590,6 @@ fn accepted_change_has_current_canonical_successors(root: &Path, record: &Change
             .any(|candidate| record_covers_project_path(root, candidate, path))
     });
     specs_governed && paths_governed
-}
-
-fn canonical_successor_governs_stale_predecessor(
-    root: &Path,
-    predecessor: &ChangeRecord,
-    records: &[ChangeRecord],
-) -> bool {
-    let current_project_digest = project_input_digest(root).ok();
-    records.iter().any(|candidate| {
-        if candidate.id == predecessor.id
-            || candidate.no_spec_change
-            || change_sequence(&candidate.id) <= change_sequence(&predecessor.id)
-            || !matches!(
-                candidate.state,
-                ChangeState::Implementing | ChangeState::Verifying | ChangeState::Accepted
-            )
-            || validate_definition(root, candidate).is_err()
-            || ensure_definition_approval_valid(root, candidate).is_err()
-            || validate_delta_files(root, candidate).is_err()
-            || !semantic_acceptance_item_exists(root, candidate).unwrap_or(false)
-        {
-            return false;
-        }
-        let scopes_match = predecessor
-            .affected_specs
-            .iter()
-            .all(|module| candidate.affected_specs.contains(module))
-            && predecessor
-                .affected_paths
-                .iter()
-                .all(|path| record_covers_project_path(root, candidate, path));
-        if !scopes_match {
-            return false;
-        }
-        match candidate.state {
-            ChangeState::Implementing => true,
-            ChangeState::Verifying => load_verification(root, candidate).is_ok_and(|evidence| {
-                evidence.passed
-                    && verification_commit_is_current(root, &evidence, is_ci_project(root))
-                    && definition_digest_matches(root, candidate, &evidence.contract_digest)
-                        .unwrap_or(false)
-                    && current_project_digest
-                        .as_ref()
-                        .is_some_and(|digest| digest == &evidence.workspace_digest)
-            }),
-            ChangeState::Accepted => ensure_closing_approval_valid(root, candidate).is_ok(),
-            _ => false,
-        }
-    })
 }
 
 fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
@@ -6192,7 +8889,13 @@ mod tests {
 
     fn completed_no_spec_record(root: &Path) -> ChangeRecord {
         fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("specs/change")).unwrap();
         fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+        fs::write(
+            root.join("specs/change/change.spec.md"),
+            "---\nmodule: change\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/lib.rs\n---\n\n# Change\n\n## Purpose\n\nLifecycle fixture.\n\n## Public API\n\nNone.\n\n## Invariants\n\nVerification is deterministic.\n\n## Behavioral Examples\n\nChecks pass.\n\n## Error Cases\n\nInvalid evidence fails.\n\n## Dependencies\n\nNone.\n\n## Legacy Notes\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
         let mut record = create_change(
             root,
             CreateChangeRequest {
@@ -6260,6 +8963,1085 @@ mod tests {
         record = start_implementation(root, &record.id).unwrap();
         verify_change(root, &record.id).unwrap();
         accept_change(root, &record.id, Some("Closing reviewer".into()), None).unwrap()
+    }
+
+    #[test]
+    fn successor_evidence_fields_are_byte_compatible_when_absent() {
+        let temp = TempDir::new().unwrap();
+        let record = completed_no_spec_record(temp.path());
+        let mut legacy_record = serde_json::to_value(&record).unwrap();
+        legacy_record.as_object_mut().unwrap().remove("supersedes");
+        let decoded: ChangeRecord = serde_json::from_value(legacy_record.clone()).unwrap();
+        assert_eq!(serde_json::to_value(decoded).unwrap(), legacy_record);
+
+        let verification = VerificationRecord {
+            timestamp: 1,
+            commit: None,
+            contract_digest: "contract".into(),
+            workspace_digest: "workspace".into(),
+            acceptance_input_digest: None,
+            acceptance_manifest: None,
+            semantic_succession: None,
+            passed: true,
+            commands: Vec::new(),
+            requirement_ids: Vec::new(),
+        };
+        let mut legacy_verification = serde_json::to_value(&verification).unwrap();
+        let object = legacy_verification.as_object_mut().unwrap();
+        object.remove("acceptance_manifest");
+        object.remove("semantic_succession");
+        let decoded: VerificationRecord =
+            serde_json::from_value(legacy_verification.clone()).unwrap();
+        assert_eq!(serde_json::to_value(decoded).unwrap(), legacy_verification);
+    }
+
+    #[test]
+    fn acceptance_manifest_validation_rejects_topology_and_digest_aliases() {
+        let payload = sha256_hex(b"content");
+        let entry = AcceptanceInputEntryV1 {
+            path: "src/lib.rs".into(),
+            kind: AcceptanceInputKind::File,
+            mode: 0o100644,
+            entry_digest: acceptance_entry_digest(
+                "src/lib.rs",
+                &AcceptanceInputKind::File,
+                0o100644,
+                &payload,
+            ),
+            payload_digest: payload,
+            owners: vec!["change".into()],
+        };
+        let manifest = AcceptanceManifestV1 {
+            schema_version: 1,
+            entries: vec![entry.clone()],
+        };
+        assert!(validate_acceptance_manifest(&manifest).is_ok());
+
+        let mut duplicate = manifest.clone();
+        duplicate.entries.push(entry.clone());
+        assert!(validate_acceptance_manifest(&duplicate).is_err());
+        let mut wrong_mode = manifest.clone();
+        wrong_mode.entries[0].mode = 0o100755;
+        assert!(validate_acceptance_manifest(&wrong_mode).is_err());
+        let mut missing = manifest;
+        missing.entries[0].kind = AcceptanceInputKind::Missing;
+        missing.entries[0].mode = 0;
+        missing.entries[0].entry_digest = acceptance_entry_digest(
+            "src/lib.rs",
+            &AcceptanceInputKind::Missing,
+            0,
+            &missing.entries[0].payload_digest,
+        );
+        assert!(validate_acceptance_manifest(&missing).is_err());
+    }
+
+    #[test]
+    fn portable_symlink_targets_reject_host_specific_or_ambiguous_forms() {
+        assert!(validate_portable_symlink_target("../shared/file").is_ok());
+        for target in ["", "/etc/passwd", "C:/secret", "dir\\file", "line\nfeed"] {
+            assert!(
+                validate_portable_symlink_target(target).is_err(),
+                "{target:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn root_source_files_are_not_misclassified_as_delivery_metadata() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::write(root.join("main.py"), "print('ok')\n").unwrap();
+        fs::write(root.join("main.go"), "package main\n").unwrap();
+        assert!(path_is_production_source(root, "main.py"));
+        assert!(path_is_production_source(root, "main.go"));
+        assert!(!path_is_recognized_delivery_metadata("main.py"));
+        assert!(!path_is_recognized_delivery_metadata("main.go"));
+        for path in [
+            "pyproject.toml",
+            "go.mod",
+            "package.json",
+            "pnpm-lock.yaml",
+            "action.yml",
+        ] {
+            assert!(path_is_recognized_delivery_metadata(path), "{path}");
+        }
+    }
+
+    #[test]
+    fn invalid_supersedes_mutation_is_transactional() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let predecessor = completed_section_only_record(
+            root,
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nPredecessor.\n",
+        );
+        let successor = create_change(
+            root,
+            CreateChangeRequest {
+                description: "Successor".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["auth".into()],
+                affected_paths: vec!["src/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: false,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        let state_path = change_dir(root, &successor.id).join("state.json");
+        let markdown_path = change_dir(root, &successor.id).join("change.md");
+        let before_state = fs::read(&state_path).unwrap();
+        let before_markdown = fs::read(&markdown_path).unwrap();
+        let oversized = format!("src/{}.rs", "x".repeat(MAX_ACCEPTANCE_PATH_BYTES + 1));
+        assert!(
+            add_supersedes_obligation(
+                root,
+                &successor.id,
+                &predecessor.id,
+                &oversized,
+                "auth",
+                &sha256_hex(b"entry"),
+            )
+            .is_err()
+        );
+        assert_eq!(fs::read(state_path).unwrap(), before_state);
+        assert_eq!(fs::read(markdown_path).unwrap(), before_markdown);
+    }
+
+    #[test]
+    fn mapped_tests_remain_exact_only() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_section_only_record(
+            root,
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nTests remain governed.\n",
+        );
+        assert_eq!(
+            acceptance_input_owners(root, &record, "tests/auth.rs", &[]).unwrap(),
+            vec![EXACT_TEST_OWNER.to_string()]
+        );
+    }
+
+    #[test]
+    fn signed_directory_deletion_remains_a_missing_manifest_entry() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        record.affected_paths = vec!["src/".into()];
+        record.state = ChangeState::Accepted;
+        let payload = sha256_hex(b"old");
+        let signed = AcceptanceManifestV1 {
+            schema_version: 1,
+            entries: vec![AcceptanceInputEntryV1 {
+                path: "src/deleted.rs".into(),
+                kind: AcceptanceInputKind::File,
+                mode: 0o100644,
+                entry_digest: acceptance_entry_digest(
+                    "src/deleted.rs",
+                    &AcceptanceInputKind::File,
+                    0o100644,
+                    &payload,
+                ),
+                payload_digest: payload,
+                owners: vec!["change".into()],
+            }],
+        };
+        let current = acceptance_manifest_with_signed_owners(root, &record, &[], &signed).unwrap();
+        let deleted = current
+            .entries
+            .iter()
+            .find(|entry| entry.path == "src/deleted.rs")
+            .unwrap();
+        assert_eq!(deleted.kind, AcceptanceInputKind::Missing);
+        assert_eq!(deleted.payload_digest, sha256_hex(b""));
+    }
+
+    #[test]
+    fn duplicate_active_and_archived_locations_fail_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_no_spec_record(root);
+        let archived = root
+            .join(ARCHIVE_PATH)
+            .join(format!("2026-07-14-{}", record.id));
+        fs::create_dir_all(&archived).unwrap();
+        let mut archived_record = record.clone();
+        archived_record.state = ChangeState::Archived;
+        write_json(&archived.join("state.json"), &archived_record).unwrap();
+        assert!(
+            find_change_dir(root, &record.id)
+                .unwrap_err()
+                .contains("ambiguous")
+        );
+        assert!(
+            list_all_changes_checked(root)
+                .unwrap_err()
+                .contains("multiple")
+        );
+        assert_eq!(
+            terminal_evidence_summary(root, &archived_record).validity,
+            TerminalEvidenceValidity::CorruptHistory
+        );
+    }
+
+    #[test]
+    fn legacy_archive_tombstones_without_lifecycle_state_are_skipped() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(ARCHIVE_PATH).join("legacy/deltas")).unwrap();
+        fs::write(
+            root.join(ARCHIVE_PATH).join("legacy/deltas/auth.md"),
+            "## REMOVED\n### REQUIREMENT REQ-auth-001\nRetired.\n",
+        )
+        .unwrap();
+        assert!(list_all_changes_checked(root).unwrap().is_empty());
+    }
+
+    #[test]
+    fn legacy_archive_baseline_bytes_are_canonical_sorted_and_definition_digestible() {
+        let entry = |id: &str, path: &str| LegacyArchiveBaselineEntryV1 {
+            id: id.into(),
+            archive_path: path.into(),
+            introduction_commit: "1111111111111111111111111111111111111111".into(),
+            subtree_digest: "a".repeat(64),
+        };
+        let baseline = LegacyArchiveBaselineV1 {
+            schema_version: 1,
+            domain: "specsync.legacy-archive-baseline.v1".into(),
+            authority_change_id: "CHG-0042-authority".into(),
+            cutoff_commit: "2222222222222222222222222222222222222222".into(),
+            entries: vec![
+                entry(
+                    "CHG-0001-first",
+                    ".specsync/archive/changes/2026-07-11-CHG-0001-first",
+                ),
+                entry(
+                    "CHG-0002-second",
+                    ".specsync/archive/changes/2026-07-11-CHG-0002-second",
+                ),
+            ],
+        };
+        let bytes = json_content(&baseline).unwrap();
+        let (_, digest) = validate_legacy_archive_baseline_bytes(bytes.as_bytes()).unwrap();
+        validate_sha256_digest(&digest, "baseline digest").unwrap();
+
+        let compact = serde_json::to_vec(&baseline).unwrap();
+        assert!(
+            validate_legacy_archive_baseline_bytes(&compact)
+                .unwrap_err()
+                .contains("canonical persisted JSON")
+        );
+
+        let mut unsorted = baseline.clone();
+        unsorted.entries.reverse();
+        let unsorted = json_content(&unsorted).unwrap();
+        assert!(
+            validate_legacy_archive_baseline_bytes(unsorted.as_bytes())
+                .unwrap_err()
+                .contains("strictly sorted")
+        );
+
+        let mut duplicate = baseline;
+        duplicate.entries[1].id = duplicate.entries[0].id.clone();
+        let duplicate = json_content(&duplicate).unwrap();
+        assert!(
+            validate_legacy_archive_baseline_bytes(duplicate.as_bytes())
+                .unwrap_err()
+                .contains("must each be unique")
+        );
+    }
+
+    #[test]
+    fn definition_approval_binds_the_exact_legacy_baseline_bytes() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("seed"), "seed\n").unwrap();
+        git(&["add", "seed"]);
+        git(&["commit", "-m", "baseline cutoff"]);
+        let cutoff = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        let mut authority = completed_no_spec_record(root);
+        authority.base_commit = Some(cutoff.clone());
+        authority
+            .affected_paths
+            .push(LEGACY_BASELINE_PATH.to_string());
+        save_change(root, &authority).unwrap();
+        write_change_markdown(root, &authority).unwrap();
+        fs::create_dir_all(root.join(".specsync/archive")).unwrap();
+        let baseline = LegacyArchiveBaselineV1 {
+            schema_version: 1,
+            domain: "specsync.legacy-archive-baseline.v1".into(),
+            authority_change_id: authority.id.clone(),
+            cutoff_commit: cutoff,
+            entries: Vec::new(),
+        };
+        let bytes = json_content(&baseline).unwrap();
+        fs::write(root.join(LEGACY_BASELINE_PATH), &bytes).unwrap();
+        let (_, expected) = validate_legacy_archive_baseline_bytes(bytes.as_bytes()).unwrap();
+
+        let approved =
+            approve_definition(root, &authority.id, Some("Reviewer".into()), None).unwrap();
+
+        assert_eq!(
+            approved.legacy_archive_baseline_digest.as_deref(),
+            Some(expected.as_str())
+        );
+        assert!(ensure_definition_approval_valid(root, &approved).is_ok());
+
+        let mut changed = baseline;
+        fs::write(root.join("later"), "later\n").unwrap();
+        git(&["add", "later"]);
+        git(&["commit", "-m", "descendant cutoff"]);
+        changed.cutoff_commit = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        write_json(&root.join(LEGACY_BASELINE_PATH), &changed).unwrap();
+        let changed_bytes = fs::read(root.join(LEGACY_BASELINE_PATH)).unwrap();
+        let (_, changed_digest) = validate_legacy_archive_baseline_bytes(&changed_bytes).unwrap();
+        assert_ne!(
+            approved.legacy_archive_baseline_digest.as_deref(),
+            Some(changed_digest.as_str())
+        );
+        let error = bind_legacy_archive_baseline_authority(root, &mut authority).unwrap_err();
+        assert!(error.contains("must equal the authority definition base commit"));
+    }
+
+    #[test]
+    fn legacy_baseline_cutoff_accepts_only_the_exact_definition_base_in_current_history() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("history"), "root\n").unwrap();
+        git(&["add", "history"]);
+        git(&["commit", "-m", "root"]);
+        let ancestor = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        fs::write(root.join("history"), "base\n").unwrap();
+        git(&["commit", "-am", "definition base"]);
+        let base = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        let mut authority = completed_no_spec_record(root);
+        authority.base_commit = Some(base.clone());
+
+        assert!(validate_legacy_baseline_authority_cutoff(root, &authority, &base).is_ok());
+        let earlier =
+            validate_legacy_baseline_authority_cutoff(root, &authority, &ancestor).unwrap_err();
+        assert!(earlier.contains("must equal the authority definition base commit"));
+
+        fs::write(root.join("history"), "descendant\n").unwrap();
+        git(&["commit", "-am", "descendant"]);
+        let descendant = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        let later =
+            validate_legacy_baseline_authority_cutoff(root, &authority, &descendant).unwrap_err();
+        assert!(later.contains("must equal the authority definition base commit"));
+
+        git(&["switch", "-c", "divergent", &ancestor]);
+        fs::write(root.join("divergent"), "divergent\n").unwrap();
+        git(&["add", "divergent"]);
+        git(&["commit", "-m", "divergent"]);
+        let divergent = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        git(&["switch", "main"]);
+        authority.base_commit = Some(divergent.clone());
+        let unrelated =
+            validate_legacy_baseline_authority_cutoff(root, &authority, &divergent).unwrap_err();
+        assert!(unrelated.contains("not an ancestor of current authority history"));
+    }
+
+    #[test]
+    fn legacy_baseline_rejects_post_cutoff_archive_additions() {
+        let baseline = LegacyArchiveBaselineV1 {
+            schema_version: 1,
+            domain: "specsync.legacy-archive-baseline.v1".into(),
+            authority_change_id: "CHG-0043-authority".into(),
+            cutoff_commit: "2222222222222222222222222222222222222222".into(),
+            entries: vec![LegacyArchiveBaselineEntryV1 {
+                id: "CHG-0001-pre-cutoff".into(),
+                archive_path: ".specsync/archive/changes/2026-07-11-CHG-0001-pre-cutoff".into(),
+                introduction_commit: "1111111111111111111111111111111111111111".into(),
+                subtree_digest: "a".repeat(64),
+            }],
+        };
+
+        assert!(legacy_baseline_entry(&baseline, "CHG-0001-pre-cutoff").is_ok());
+        let error = legacy_baseline_entry(&baseline, "CHG-0044-post-cutoff").unwrap_err();
+        assert!(error.contains("not enumerated by the baseline"));
+    }
+
+    #[test]
+    fn legacy_archive_subtree_digest_binds_path_mode_kind_and_payload() {
+        let snapshot = BTreeMap::from([
+            ("approvals.json".into(), (0o100644, b"approval".to_vec())),
+            ("tool".into(), (0o100755, b"binary".to_vec())),
+            ("link".into(), (0o120000, b"tool".to_vec())),
+        ]);
+        let expected = legacy_archive_subtree_digest(&snapshot).unwrap();
+        for changed in [
+            BTreeMap::from([
+                ("approvals.json".into(), (0o100644, b"tampered".to_vec())),
+                ("tool".into(), (0o100755, b"binary".to_vec())),
+                ("link".into(), (0o120000, b"tool".to_vec())),
+            ]),
+            BTreeMap::from([
+                ("approvals.json".into(), (0o100644, b"approval".to_vec())),
+                ("tool".into(), (0o100644, b"binary".to_vec())),
+                ("link".into(), (0o120000, b"tool".to_vec())),
+            ]),
+            BTreeMap::from([
+                ("renamed.json".into(), (0o100644, b"approval".to_vec())),
+                ("tool".into(), (0o100755, b"binary".to_vec())),
+                ("link".into(), (0o120000, b"tool".to_vec())),
+            ]),
+        ] {
+            assert_ne!(legacy_archive_subtree_digest(&changed).unwrap(), expected);
+        }
+        let escaped = BTreeMap::from([("link".into(), (0o120000, b"/tool".to_vec()))]);
+        assert!(legacy_archive_subtree_digest(&escaped).is_err());
+        let gitlink = BTreeMap::from([("nested".into(), (0o160000, vec![0; 20]))]);
+        assert!(legacy_archive_subtree_digest(&gitlink).is_err());
+    }
+
+    #[test]
+    fn dated_lifecycle_archive_missing_state_fails_global_enumeration() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let archived = root
+            .join(ARCHIVE_PATH)
+            .join("2026-07-15-CHG-0001-missing-state");
+        fs::create_dir_all(archived.join("deltas")).unwrap();
+        fs::write(
+            archived.join("deltas/change.md"),
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nTampered.\n",
+        )
+        .unwrap();
+        fs::write(archived.join("approvals.json"), "{}\n").unwrap();
+
+        let all_error = list_all_changes_checked(root).unwrap_err();
+        assert!(
+            all_error.contains("failed to read archived state"),
+            "{all_error}"
+        );
+        let sequence_error = located_change_sequences(root).unwrap_err();
+        assert!(
+            sequence_error.contains("failed to read archived change state"),
+            "{sequence_error}"
+        );
+    }
+
+    #[test]
+    fn status_and_check_share_exact_and_stale_terminal_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        let exact = summarize_change(root, &record).terminal_evidence.unwrap();
+        assert_eq!(exact.validity, TerminalEvidenceValidity::Exact);
+        assert!(exact.reason.is_none());
+        assert_eq!(check_project(root).terminal_evidence[0].evidence, exact);
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        let stale = summarize_change(root, &record).terminal_evidence.unwrap();
+        assert_eq!(stale.validity, TerminalEvidenceValidity::Stale);
+        assert!(
+            stale
+                .reason
+                .as_deref()
+                .is_some_and(|reason| !reason.is_empty())
+        );
+        assert_eq!(check_project(root).terminal_evidence[0].evidence, stale);
+    }
+
+    #[test]
+    fn strict_check_reports_standalone_unprovable_archived_history() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        let source = change_dir(root, &record.id);
+        let archived_dir = root
+            .join(ARCHIVE_PATH)
+            .join(format!("2026-07-14-{}", record.id));
+        fs::create_dir_all(archived_dir.parent().unwrap()).unwrap();
+        fs::rename(&source, &archived_dir).unwrap();
+        record.state = ChangeState::Archived;
+        write_json(&archived_dir.join("state.json"), &record).unwrap();
+
+        let report = check_project(root);
+        assert!(report.errors.iter().any(|error| {
+            error.contains(&record.id) && error.contains("archived change historical integrity")
+        }));
+        assert_eq!(report.terminal_evidence.len(), 1);
+        assert_eq!(
+            report.terminal_evidence[0].evidence.validity,
+            TerminalEvidenceValidity::CorruptHistory
+        );
+        assert_eq!(
+            summarize_change(root, &record).next_action,
+            "invalid archived evidence"
+        );
+    }
+
+    #[test]
+    fn normal_merge_does_not_create_a_duplicate_accepted_transition() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["switch", "-c", "feature"]);
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept feature"]);
+        git(&["switch", "main"]);
+        git(&["merge", "--no-ff", "feature", "-m", "merge feature"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        let (anchor, _, accepted) = authenticated_accepted_transition(root, &record).unwrap();
+        assert_eq!(accepted.id, record.id);
+        assert_ne!(anchor, git_output(root, &["rev-parse", "HEAD"]).unwrap());
+        assert!(ensure_closing_approval_valid(root, &record).is_ok());
+    }
+
+    #[test]
+    fn archive_post_move_failure_restores_exact_source_bytes_without_residue() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept change"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        let source = change_dir(root, &record.id);
+        let original_state = fs::read(source.join("state.json")).unwrap();
+        let original_markdown = fs::read(source.join("change.md")).unwrap();
+        let error = archive_change_with_finalize_failure(root, &record.id, true).unwrap_err();
+        assert!(error.contains("source restored"), "{error}");
+        assert_eq!(fs::read(source.join("state.json")).unwrap(), original_state);
+        assert_eq!(
+            fs::read(source.join("change.md")).unwrap(),
+            original_markdown
+        );
+        assert!(!source.join("accepted-state.json").exists());
+        assert!(
+            !root
+                .join(ARCHIVE_PATH)
+                .join(format!("{}-{}", today(), record.id))
+                .exists()
+        );
+    }
+
+    #[test]
+    fn authenticated_archive_ignores_later_input_drift_but_rejects_snapshot_tampering() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept change"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let archived_dir = archive_change(root, &record.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "archive change"]);
+
+        let snapshot = fs::read(archived_dir.join("accepted-state.json")).unwrap();
+        fs::remove_file(archived_dir.join("accepted-state.json")).unwrap();
+        let missing_snapshot =
+            validate_archived_integrity(root, &load_change(root, &record.id).unwrap()).unwrap_err();
+        assert!(missing_snapshot.contains("missing its authenticated accepted-state snapshot"));
+        fs::write(archived_dir.join("accepted-state.json"), &snapshot).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "evolve archived input"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let report = check_project(root);
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+        assert_eq!(
+            report.terminal_evidence[0].evidence.validity,
+            TerminalEvidenceValidity::AuthenticatedHistory
+        );
+
+        fs::write(archived_dir.join("accepted-state.json"), b"{}\n").unwrap();
+        let report = check_project(root);
+        assert!(
+            report.errors.iter().any(|error| {
+                error.contains(&record.id) && error.contains("historical integrity")
+            })
+        );
+        assert_eq!(
+            report.terminal_evidence[0].evidence.validity,
+            TerminalEvidenceValidity::CorruptHistory
+        );
+    }
+
+    #[test]
+    fn gitlink_manifest_hashes_the_exact_index_object_id() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("seed"), "seed\n").unwrap();
+        git(&["add", "seed"]);
+        git(&["commit", "-m", "seed"]);
+        let object = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        git(&[
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            &format!("160000,{object},vendor/library"),
+        ]);
+        let mut record = completed_no_spec_record(root);
+        record.state = ChangeState::Accepted;
+        record.affected_paths = vec!["vendor/library".into()];
+        let manifest = acceptance_manifest(root, &record, &[]).unwrap();
+        let entry = manifest
+            .entries
+            .iter()
+            .find(|entry| entry.path == "vendor/library")
+            .unwrap();
+        assert_eq!(entry.kind, AcceptanceInputKind::Gitlink);
+        assert_eq!(entry.mode, 0o160000);
+        assert_eq!(entry.payload_digest, sha256_hex(object.as_bytes()));
+    }
+
+    #[test]
+    fn persisted_supersedes_cycle_fails_before_predecessor_manifest_use() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut first = completed_section_only_record(
+            root,
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nFirst.\n",
+        );
+        let mut second = create_change(
+            root,
+            CreateChangeRequest {
+                description: "Second successor".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["auth".into()],
+                affected_paths: vec!["src/auth.rs".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: false,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        let obligation = SuccessionObligation {
+            path: "src/auth.rs".into(),
+            module: "auth".into(),
+            predecessor_entry_digest: sha256_hex(b"entry"),
+        };
+        first.state = ChangeState::Accepted;
+        first.supersedes = vec![SupersedesEdge {
+            predecessor_id: second.id.clone(),
+            obligations: vec![obligation.clone()],
+        }];
+        save_change(root, &first).unwrap();
+        second.supersedes = vec![SupersedesEdge {
+            predecessor_id: first.id.clone(),
+            obligations: vec![obligation],
+        }];
+        let error = validate_supersedes_semantics(root, &second).unwrap_err();
+        assert!(error.contains("succession cycle"), "{error}");
+    }
+
+    #[test]
+    fn explicit_semantic_successor_covers_changed_entry_but_rejects_unchanged_entry() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+
+        let delta =
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nAuthentication remains governed.\n";
+        let mut predecessor = completed_section_only_record(root, delta);
+        predecessor =
+            approve_definition(root, &predecessor.id, Some("Reviewer".into()), None).unwrap();
+        predecessor = start_implementation(root, &predecessor.id).unwrap();
+        verify_change(root, &predecessor.id).unwrap();
+        predecessor = accept_change(root, &predecessor.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept predecessor"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let predecessor_manifest = load_verification(root, &predecessor)
+            .unwrap()
+            .acceptance_manifest
+            .unwrap();
+        let mut successor = completed_section_only_record(root, delta);
+        successor.affected_paths.extend(
+            predecessor_manifest
+                .entries
+                .iter()
+                .filter(|entry| {
+                    entry.owners.iter().any(|owner| owner == "auth")
+                        && entry.path != "specs/auth/requirements.md"
+                })
+                .map(|entry| entry.path.clone()),
+        );
+        successor.affected_paths.sort();
+        successor.affected_paths.dedup();
+        save_change(root, &successor).unwrap();
+        write_change_markdown(root, &successor).unwrap();
+        for entry in predecessor_manifest.entries.iter().filter(|entry| {
+            entry.owners.iter().any(|owner| owner == "auth")
+                && entry.path != "specs/auth/requirements.md"
+        }) {
+            successor = add_supersedes_obligation(
+                root,
+                &successor.id,
+                &predecessor.id,
+                &entry.path,
+                "auth",
+                &entry.entry_digest,
+            )
+            .unwrap();
+        }
+        successor = approve_definition(root, &successor.id, Some("Reviewer".into()), None).unwrap();
+        successor = start_implementation(root, &successor.id).unwrap();
+        fs::write(root.join("src/auth.rs"), "// Authentication module v2.\n").unwrap();
+        verify_change(root, &successor.id).unwrap();
+        successor = accept_change(root, &successor.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept semantic successor"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let predecessor_evidence = summarize_change(root, &predecessor)
+            .terminal_evidence
+            .unwrap();
+        assert_eq!(
+            predecessor_evidence.validity,
+            TerminalEvidenceValidity::SuccessorCovered,
+            "{:?}",
+            predecessor_evidence.reason
+        );
+        let archived_successor = archive_change(root, &successor.id).unwrap();
+        assert!(archived_successor.is_dir());
+        let recursive_evidence = summarize_change(root, &predecessor)
+            .terminal_evidence
+            .unwrap();
+        assert_eq!(
+            recursive_evidence.validity,
+            TerminalEvidenceValidity::SuccessorCovered,
+            "{:?}",
+            recursive_evidence.reason
+        );
+        let post_move = check_project(root);
+        assert!(post_move.errors.is_empty(), "{:?}", post_move.errors);
+        assert!(post_move.terminal_evidence.iter().any(|result| {
+            result.id == successor.id
+                && result.evidence.validity == TerminalEvidenceValidity::AuthenticatedHistory
+        }));
+
+        let successor_manifest = load_verification(root, &successor)
+            .unwrap()
+            .acceptance_manifest
+            .unwrap();
+        let current_source = fs::read(root.join("src/auth.rs")).unwrap();
+        let current_spec = fs::read(root.join("specs/auth/auth.spec.md")).unwrap();
+        let mut unchanged = completed_section_only_record(root, delta);
+        fs::write(root.join("src/auth.rs"), current_source).unwrap();
+        fs::write(root.join("specs/auth/auth.spec.md"), current_spec).unwrap();
+        unchanged.affected_paths.extend(
+            successor_manifest
+                .entries
+                .iter()
+                .filter(|entry| {
+                    entry.owners.iter().any(|owner| owner == "auth")
+                        && entry.path != "specs/auth/requirements.md"
+                })
+                .map(|entry| entry.path.clone()),
+        );
+        unchanged.affected_paths.sort();
+        unchanged.affected_paths.dedup();
+        save_change(root, &unchanged).unwrap();
+        write_change_markdown(root, &unchanged).unwrap();
+        for entry in successor_manifest.entries.iter().filter(|entry| {
+            entry.owners.iter().any(|owner| owner == "auth")
+                && entry.path != "specs/auth/requirements.md"
+        }) {
+            unchanged = add_supersedes_obligation(
+                root,
+                &unchanged.id,
+                &successor.id,
+                &entry.path,
+                "auth",
+                &entry.entry_digest,
+            )
+            .unwrap();
+        }
+        unchanged = approve_definition(root, &unchanged.id, Some("Reviewer".into()), None).unwrap();
+        start_implementation(root, &unchanged.id).unwrap();
+        verify_change(root, &unchanged.id).unwrap();
+        let error = accept_change(root, &unchanged.id, Some("Closer".into()), None).unwrap_err();
+        assert!(
+            error.contains("does not change the predecessor entry"),
+            "{error}"
+        );
+        fs::write(root.join("src/auth.rs"), "// Authentication module v3.\n").unwrap();
+        verify_change(root, &unchanged.id).unwrap();
+        let recursive_successor =
+            accept_change(root, &unchanged.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept recursive semantic successor"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        assert_eq!(recursive_successor.state, ChangeState::Accepted);
+        let intermediate_evidence = summarize_change(root, &successor)
+            .terminal_evidence
+            .unwrap();
+        assert_eq!(
+            intermediate_evidence.validity,
+            TerminalEvidenceValidity::SuccessorCovered,
+            "{:?}",
+            intermediate_evidence.reason
+        );
+        let final_evidence = summarize_change(root, &predecessor)
+            .terminal_evidence
+            .unwrap();
+        assert_eq!(
+            final_evidence.validity,
+            TerminalEvidenceValidity::SuccessorCovered,
+            "{:?}",
+            final_evidence.reason
+        );
+        let recursive_report = check_project(root);
+        assert!(
+            recursive_report.errors.is_empty(),
+            "{:?}",
+            recursive_report.errors
+        );
+    }
+
+    #[test]
+    fn legacy_reconstruction_deduplicates_identical_transitions_but_rejects_distinct_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+
+        let delta =
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nLegacy evidence remains governed.\n";
+        let mut record = completed_section_only_record(root, delta);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+
+        let signed_legacy_digest = acceptance_input_digest(root, &record, &[]).unwrap();
+        let mut verification = load_verification(root, &record).unwrap();
+        verification.acceptance_input_digest = Some(signed_legacy_digest.clone());
+        verification.acceptance_manifest = None;
+        verification.semantic_succession = None;
+        write_json(
+            &change_dir(root, &record.id).join("verification.json"),
+            &verification,
+        )
+        .unwrap();
+        let mut ledger = load_approvals(root, &record).unwrap();
+        ledger
+            .approvals
+            .iter_mut()
+            .rev()
+            .find(|approval| approval.gate == "acceptance")
+            .unwrap()
+            .digest = closing_digest(&record, &verification);
+        write_json(
+            &change_dir(root, &record.id).join("approvals.json"),
+            &ledger,
+        )
+        .unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "record legacy acceptance"]);
+
+        let lifecycle_dir = change_dir(root, &record.id);
+        let accepted_state = fs::read(lifecycle_dir.join("state.json")).unwrap();
+        let accepted_markdown = fs::read(lifecycle_dir.join("change.md")).unwrap();
+        let accepted_verification = fs::read(lifecycle_dir.join("verification.json")).unwrap();
+        let accepted_approvals = fs::read(lifecycle_dir.join("approvals.json")).unwrap();
+        let commit_transition = |message: &str, distinct_evidence: bool| {
+            let mut verifying = record.clone();
+            verifying.state = ChangeState::Verifying;
+            save_change(root, &verifying).unwrap();
+            write_change_markdown(root, &verifying).unwrap();
+            git(&["add", "."]);
+            git(&["commit", "-m", &format!("prepare {message}")]);
+            fs::write(lifecycle_dir.join("state.json"), &accepted_state).unwrap();
+            fs::write(lifecycle_dir.join("change.md"), &accepted_markdown).unwrap();
+            if distinct_evidence {
+                let mut distinct_verification = verification.clone();
+                distinct_verification.timestamp += 1;
+                write_json(
+                    &lifecycle_dir.join("verification.json"),
+                    &distinct_verification,
+                )
+                .unwrap();
+                let mut distinct_ledger = ledger.clone();
+                distinct_ledger
+                    .approvals
+                    .iter_mut()
+                    .rev()
+                    .find(|approval| approval.gate == "acceptance")
+                    .unwrap()
+                    .digest = closing_digest(&record, &distinct_verification);
+                write_json(&lifecycle_dir.join("approvals.json"), &distinct_ledger).unwrap();
+            } else {
+                fs::write(
+                    lifecycle_dir.join("verification.json"),
+                    &accepted_verification,
+                )
+                .unwrap();
+                fs::write(lifecycle_dir.join("approvals.json"), &accepted_approvals).unwrap();
+            }
+            git(&["add", "."]);
+            git(&["commit", "-m", message]);
+        };
+
+        commit_transition("repeat identical legacy acceptance", false);
+        assert!(
+            reconstruct_legacy_acceptance_manifest(root, &record, &signed_legacy_digest).is_ok()
+        );
+
+        commit_transition("repeat distinct legacy acceptance", true);
+        let error = reconstruct_legacy_acceptance_manifest(root, &record, &signed_legacy_digest)
+            .unwrap_err();
+        assert!(error.contains("found 2"), "{error}");
     }
 
     #[test]
@@ -6511,7 +10293,7 @@ mod tests {
         git(&["add", "."]);
         git(&["commit", "-m", "record accepted lifecycle evidence"]);
         git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
-        assert!(archive_change(root, &record.id).is_ok());
+        archive_change(root, &record.id).unwrap();
     }
 
     // Verifies REQ-change-018.
@@ -6576,7 +10358,7 @@ mod tests {
         assert!(ensure_closing_approval_valid(root, &record).is_ok());
 
         git(&["switch", "main"]);
-        assert!(archive_change(root, &record.id).is_ok());
+        archive_change(root, &record.id).unwrap();
     }
 
     #[test]
@@ -6679,6 +10461,12 @@ mod tests {
         fs::write(
             root.join("src/auth.rs"),
             "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::write(
+            root.join("specs/auth/auth.spec.md"),
+            "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuthentication.\n\n## Public API\n\nNone.\n\n## Invariants\n\nAuthentication remains governed.\n\n## Behavioral Examples\n\nChecks pass.\n\n## Error Cases\n\nInvalid evidence fails.\n\n## Dependencies\n\nNone.\n\n## Legacy Notes\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
         )
         .unwrap();
         original.affected_specs = vec!["auth".into()];
@@ -6832,7 +10620,11 @@ mod tests {
         )
         .unwrap();
         let error = ensure_closing_approval_valid(root, &record).unwrap_err();
-        assert!(error.contains("delivery inputs"));
+        assert!(
+            error.contains("delivery inputs")
+                || error.contains("no closing-valid terminal semantic successor"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -6840,6 +10632,15 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
         let mut record = completed_no_spec_record(root);
+        append_approval(
+            root,
+            &record,
+            "definition",
+            Some("Reviewer".into()),
+            definition_digest(root, &record).unwrap(),
+            None,
+        )
+        .unwrap();
         record.state = ChangeState::Accepted;
         save_change(root, &record).unwrap();
         write_change_markdown(root, &record).unwrap();
@@ -6849,6 +10650,8 @@ mod tests {
             contract_digest: definition_digest(root, &record).unwrap(),
             workspace_digest: project_input_digest(root).unwrap(),
             acceptance_input_digest: Some(acceptance_input_digest(root, &record, &[]).unwrap()),
+            acceptance_manifest: None,
+            semantic_succession: None,
             passed: true,
             commands: Vec::new(),
             requirement_ids: Vec::new(),
@@ -6867,13 +10670,32 @@ mod tests {
             None,
         )
         .unwrap();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["add", "."]);
+        git(&["commit", "-m", "record accepted evidence"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
         let destination = root
             .join(ARCHIVE_PATH)
             .join(format!("{}-{}", today(), record.id));
         fs::create_dir_all(&destination).unwrap();
 
         let error = archive_change(root, &record.id).unwrap_err();
-        assert!(error.contains("archive destination already exists"));
+        assert!(
+            error.contains("archive destination already exists"),
+            "{error}"
+        );
         assert_eq!(
             load_change(root, &record.id).unwrap().state,
             ChangeState::Accepted
@@ -7439,6 +11261,15 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
         let mut record = completed_no_spec_record(root);
+        append_approval(
+            root,
+            &record,
+            "definition",
+            Some("Reviewer".into()),
+            definition_digest(root, &record).unwrap(),
+            None,
+        )
+        .unwrap();
         record.state = ChangeState::Accepted;
         save_change(root, &record).unwrap();
         let verification = VerificationRecord {
@@ -7447,6 +11278,8 @@ mod tests {
             contract_digest: definition_digest(root, &record).unwrap(),
             workspace_digest: "workspace".into(),
             acceptance_input_digest: None,
+            acceptance_manifest: None,
+            semantic_succession: None,
             passed: true,
             commands: Vec::new(),
             requirement_ids: Vec::new(),
@@ -7582,7 +11415,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_canonical_successor_can_replace_stale_frontmatter_without_deadlock() {
+    fn broad_successor_without_explicit_obligations_cannot_suppress_stale_predecessor() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
         write_default_policy(root, Vec::new()).unwrap();
@@ -7671,7 +11504,7 @@ mod tests {
         }));
 
         successor = start_implementation(root, &successor.id).unwrap();
-        assert!(!check_project(root).errors.iter().any(|error| {
+        assert!(check_project(root).errors.iter().any(|error| {
             error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
         }));
 
@@ -7687,12 +11520,14 @@ mod tests {
         policy.verification_commands.clear();
         write_json(&root.join(POLICY_PATH), &policy).unwrap();
         verify_change(root, &successor.id).unwrap();
-        assert!(!check_project(root).errors.iter().any(|error| {
+        assert!(check_project(root).errors.iter().any(|error| {
             error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
         }));
         successor = accept_change(root, &successor.id, Some("Closer".into()), None).unwrap();
         assert_eq!(successor.state, ChangeState::Accepted);
-        assert!(check_project(root).errors.is_empty());
+        assert!(check_project(root).errors.iter().any(|error| {
+            error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
+        }));
     }
 
     #[test]
@@ -8944,6 +12779,21 @@ mod tests {
             "// Verifies REQ-auth-001\n#[test]\nfn passkey_authentication() {}\n",
         )
         .unwrap();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
         let mut record = completed_record(root);
         for artifact in &record.selected_artifacts {
             let content = if *artifact == ArtifactKind::Tasks {
@@ -8994,6 +12844,9 @@ mod tests {
         assert!(spec.contains(&format!("| 2026-01-01 | Initial |\n| {} |", today())));
         let requirements = fs::read_to_string(root.join("specs/auth/requirements.md")).unwrap();
         assert!(requirements.contains("### REQ-auth-001"));
+        git(&["add", "."]);
+        git(&["commit", "-m", "record accepted lifecycle evidence"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
         let archived = archive_change(root, &record.id).unwrap();
         assert!(archived.is_dir());
         assert!(!change_dir(root, &record.id).exists());
@@ -10633,6 +14486,8 @@ mod tests {
             contract_digest: "contract".into(),
             workspace_digest: "workspace".into(),
             acceptance_input_digest: None,
+            acceptance_manifest: None,
+            semantic_succession: None,
             passed: true,
             commands: Vec::new(),
             requirement_ids: Vec::new(),
@@ -10873,6 +14728,15 @@ mod tests {
             completed_no_spec_record(root),
         ];
         for record in &mut records {
+            append_approval(
+                root,
+                record,
+                "definition",
+                Some("Reviewer".into()),
+                definition_digest(root, record).unwrap(),
+                None,
+            )
+            .unwrap();
             record.state = ChangeState::Accepted;
             save_change(root, record).unwrap();
             let verification = VerificationRecord {
@@ -10881,6 +14745,8 @@ mod tests {
                 contract_digest: definition_digest(root, record).unwrap(),
                 workspace_digest: project_input_digest(root).unwrap(),
                 acceptance_input_digest: None,
+                acceptance_manifest: None,
+                semantic_succession: None,
                 passed: true,
                 commands: Vec::new(),
                 requirement_ids: Vec::new(),
@@ -10927,7 +14793,7 @@ mod tests {
         git(&["add", "."]);
         git(&["commit", "-m", "record accepted lifecycle evidence"]);
         git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
-        assert!(archive_change(root, &records[0].id).is_ok());
+        archive_change(root, &records[0].id).unwrap();
     }
 
     #[cfg(unix)]

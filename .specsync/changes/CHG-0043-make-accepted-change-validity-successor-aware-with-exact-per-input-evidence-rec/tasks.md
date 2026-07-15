@@ -37,3 +37,6 @@ artifact: tasks
 - [ ] Classify an absent dirty tracked symlink as missing before canonical clean-symlink payload selection.
 - [ ] Add deterministic project, manifest, and legacy acceptance regressions for tracked-symlink deletion.
 - [ ] Pass focused normal and forced-CRLF regressions plus the configured local gates.
+- [x] Audit portable symlink validation against CHG43's normative relative-target rule.
+- [ ] Preserve exact valid relative target forms while retaining host-independent rejection of absolute, drive, backslash/UNC/device, empty, and control-character targets.
+- [ ] Add exact-byte regressions for valid relative target forms.

@@ -27,6 +27,13 @@
       "timestamp": 1784106292,
       "digest": "62b60101543af24ff5ef35e48150c0ca90ca3f066be953696f88e9dfd0845b69",
       "note": "Approve tracked-symlink deletion topology correction after independent audit"
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784106457,
+      "digest": "4b966682f0f7dd03becf70b4e9e416a08c6c1efb440953b4c98514b2f8c0cd91",
+      "note": "Approve exact relative symlink target semantics and deletion correction after independent audit"
     }
   ],
   "reopenings": []

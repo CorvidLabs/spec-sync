@@ -63,6 +63,40 @@
       },
       "stale_acceptance_input_digest": "fc978d939a1f3c3761894fdfff4ad4a3ac066c42da29fa0b3c166e024e035b01",
       "current_acceptance_input_digest": "b70a81639f606e8a269982759991c7d9ec8d3d6398140801cae313eaeca2a215"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0042-prepare-and-publish-specsync-5-1-0-with-accurate-release-metadata-and-current-co",
+      "actor": "user:0xLeif",
+      "reason": "Fresh main-ancestry CHG-0043 through CHG-0045 expand and harden release-delivery inputs, including the exact-only Trust workflow input, so CHG-0042 requires fresh native and hosted verification while preserving its merged approval history.",
+      "timestamp": 1784099167,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784091010,
+        "digest": "c5d558c327f4e8ca0d5cac13eaad8ac0cbdfa56bf6768a20153b83d0a41ca9da",
+        "note": "Reaccepted by 0xLeif after the late comparison review correction, exact-HEAD lifecycle verification, complete tests, hosted cross-platform CI, CodeQL, documentation build, strict specs, Trust, provenance verification, and resolution of the addressed PR #385 thread."
+      },
+      "prior_verification": {
+        "timestamp": 1784091001,
+        "commit": "7739ea17b067ef636c106ceca6bcf59eee8e6213",
+        "contract_digest": "99ec482ef920dec58348d788b3d134726f7475d4a01517adf8a155be6ff1a611",
+        "workspace_digest": "b52a072889bfad2e97fe2dae51c0bcf0465b70bf227b04b164bebcb9d3612cec",
+        "acceptance_input_digest": "b70a81639f606e8a269982759991c7d9ec8d3d6398140801cae313eaeca2a215",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "b70a81639f606e8a269982759991c7d9ec8d3d6398140801cae313eaeca2a215",
+      "current_acceptance_input_digest": "9254f7a2a7682e83fb2cfb2ac15776e30249aa53e40363d56775ef8ad5758766"
     }
   ]
 }

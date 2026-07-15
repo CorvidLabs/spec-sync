@@ -41,6 +41,13 @@
       "timestamp": 1784076563,
       "digest": "6d69f3bc95d6bb7ce922bdd8e0f4ccfbf73baab75dc145d457e175fcd37e61ca",
       "note": "Fresh evidence-only closing approval after 1,597 unit and 214 integration tests passed at 407a197 following canonical EOF normalization; no semantic delivery changes."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "user:0xLeif",
+      "timestamp": 1784079131,
+      "digest": "2732fd1c9bd73f29045e7b791cbf3ea91d61454170182fbf66009e74437fab3f",
+      "note": "Closing approval after trusted-history monotonicity and shallow completeness review at dbd5034eb36308f42ebada841471e9b0e3892226; 1,602 unit and 214 integration tests passed with no semantic delta replay."
     }
   ],
   "reopenings": [

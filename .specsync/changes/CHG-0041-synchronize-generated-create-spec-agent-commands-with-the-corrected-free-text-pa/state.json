@@ -5,11 +5,11 @@
   "title": "Synchronize generated create-spec agent commands with the corrected free-text parser guidance and prevent checked-in asset drift",
   "description": "Synchronize generated create-spec agent commands with the corrected free-text parser guidance and prevent checked-in asset drift",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "44aab88697a141e65b0a16d4bc4fd8704972d435",
   "created_at": 1784070762,
-  "updated_at": 1784076467,
+  "updated_at": 1784076565,
   "affected_specs": [
     "agents"
   ],

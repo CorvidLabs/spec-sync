@@ -36,3 +36,16 @@ Acceptance Criteria
 - `add-spec` help describes the required companion set and optional design artifact.
 - `new --full` help lists the required companion files and identifies `design.md` as optional.
 - Help-only corrections do not change argument parsing or command behavior.
+
+### REQ-cli-args-004
+
+The shared CLI grammar SHALL expose a complete explicit command for supported accepted interview
+metadata correction.
+
+Acceptance Criteria
+
+- `change correct` requires a change ID, supported field, `yes` or `no` value, human actor, and
+  non-empty reason input.
+- Help distinguishes accepted metadata correction from delivery-only `change reopen`.
+- Missing audit arguments and invalid field/value choices fail through deterministic Clap errors.
+

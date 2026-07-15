@@ -1,6 +1,6 @@
 ---
 module: change
-version: 28
+version: 29
 status: active
 files:
   - src/change.rs
@@ -32,6 +32,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 12. Stale accepted delivery evidence can return only to verifying through an explicit human actor and reason, while prior verification and closing evidence remain inspectable.
 13. Historical collision acknowledgements are exact immutable accepted-or-archived evidence and numeric sequence width has no four-digit upper bound.
 14. A fully valid later sequence claim supersedes only the sequence-ledger bytes in historical acceptance inputs; the current owner and every other covered input remain exact evidence.
+15. Supported accepted interview metadata changes only through a portable append-only correction ledger whose effective definition requires fresh gates and never replays canonical deltas.
 
 ## Public API
 
@@ -49,16 +50,20 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `ChangeKind` | Deterministic policy classification for feature, bug fix, refactor, migration, documentation, and operations work |
 | `ArtifactKind` | Built-in or custom adaptive companion artifact selection |
 | `SddPolicy` | Versioned enforcement, path, verification-command, template, and principles configuration |
-| `ChangeRecord` | Durable machine state for one change workspace |
+| `ChangeRecord` | Durable machine state preserving the originally accepted interview metadata for one change workspace |
 | `CreateChangeRequest` | Validated creation inputs grouped for CLI, imports, and agent clients |
 | `ApprovalRecord` | Actor, timestamp, gate, digest, and optional note for one approval |
 | `ReopenRecord` | Immutable audit event preserving superseded closing approval, prior verification, actor, reason, transition, and stale/current input digests |
 | `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
+| `CorrectionField` | Closed supported accepted-metadata field set: public contract and architecture risk |
+| `CorrectionRecord` | Immutable sequenced metadata correction with original/effective values, actor, reason, artifacts, prior evidence, and portable digest chain |
+| `EffectiveChangeDefinition` | Validated projection of original answers/artifacts plus ordered corrections |
+| `CorrectionResult` | Deterministic corrected change, event, effective definition, history, and gate-summary projection |
 | `ApprovalLedger` | Ordered portable approval and reopen history |
 | `CommandEvidence` | Exit evidence for one configured verification command |
 | `VerificationRecord` | Commit-bound verification result, contract digest, command results, and requirement coverage |
 | `InterviewQuestion` | Stable deterministic question with choices and recommendation |
-| `ChangeSummary` | Human/agent status projection with gate health and next action |
+| `ChangeSummary` | Human/agent status projection with gate health, correction health, and next action |
 | `SddCheckReport` | Unified lifecycle validation errors, warnings, and checked-change count |
 
 **Exported Functions**
@@ -77,10 +82,13 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `start_implementation` | `root, id` | `Result<ChangeRecord, String>` | Enter implementation after approval and conflict validation |
 | `verify_change` | `root, id` | `Result<VerificationRecord, String>` | Run configured tests and record commit/contract evidence |
 | `reopen_change` | `root, id, actor, reason` | `Result<ReopenResult, String>` | Move stale accepted evidence to verifying and append an immutable supersession audit event |
-| `accept_change` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Record closing approval and atomically apply semantic deltas |
+| `correct_interview_metadata` | `root, id, field, value, actor, reason` | `Result<CorrectionResult, String>` | Append a supported accepted-metadata correction and return the effective audited view |
+| `effective_change_definition` | `root, record` | `Result<EffectiveChangeDefinition, String>` | Validate and project original metadata through its ordered correction history |
+| `correction_history` | `root, record` | `Result<Vec<CorrectionRecord>, String>` | Load validated append-only correction records for inspection clients |
+| `accept_change` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Record closing approval and atomically apply semantic deltas only when not already canonical |
 | `archive_change` | `root, id` | `Result<PathBuf, String>` | Move an accepted workspace into the dated archive |
-| `summarize_change` | `root, record` | `ChangeSummary` | Project gate health and next action for clients |
-| `check_project` | `root: &Path` | `SddCheckReport` | Validate lifecycle state, approvals, conflicts, deltas, and path coverage |
+| `summarize_change` | `root, record` | `ChangeSummary` | Project gate health, correction health, and next action for clients |
+| `check_project` | `root: &Path` | `SddCheckReport` | Validate lifecycle state, approvals, corrections, conflicts, deltas, and path coverage |
 | `check_project_quiet` | `root: &Path` | `SddCheckReport` | Run the same fail-closed lifecycle check while suppressing configured command output for machine-consumable report protocols |
 | `adopt` | `root, dry_run, source` | `Result<Vec<String>, String>` | Preview or enable SDD and import OpenSpec or Spec Kit artifacts |
 | `detect_verification_commands` | `root: &Path` | `Vec<String>` | Detect explicit fledge, Cargo, Bun, or Swift test commands |
@@ -89,15 +97,15 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 
 | Method | Description |
 |--------|-------------|
-| `as_str` | Return the stable serialized name for a change state or kind |
-| `parse` | Parse user-facing change-kind or artifact names into typed values |
+| `as_str` | Return the stable serialized name for a change state, kind, or correction field |
+| `parse` | Parse user-facing change-kind, artifact, or supported correction-field names into typed values |
 | `file_name` | Resolve an adaptive artifact to its safe Markdown filename |
 
 Acceptance Criteria
 
 - Nested lifecycle commands still fail once with the established deterministic contextual error.
 - The process marker and diagnostic helper remain private binary implementation details.
-- The canonical exported-function table contains no recursion helper.
+- Correction inspection exposes typed portable records without exposing mutable ledger internals.
 
 ## Invariants
 
@@ -209,3 +217,4 @@ Acceptance Criteria
 | 2026-07-14 | CHG-0029-address-all-remaining-review-feedback-from-pr-366: Address all remaining review feedback from PR 366 |
 | 2026-07-14 | CHG-0032-address-all-actionable-review-findings-on-pr-370-with-regression-coverage: Address all actionable review findings on PR 370 with regression coverage |
 | 2026-07-14 | CHG-0033-close-final-5-0-2-lifecycle-review-and-intent-preservation-gaps: Close final 5.0.2 lifecycle review and intent-preservation gaps |
+| 2026-07-15 | CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re: Support audited append-only correction of accepted interview metadata without replaying canonical deltas |

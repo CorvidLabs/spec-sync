@@ -5,10 +5,11 @@
   "title": "Support audited append-only correction of accepted interview metadata without replaying canonical deltas",
   "description": "Support audited append-only correction of accepted interview metadata without replaying canonical deltas",
   "kind": "feature",
-  "state": "implementing",
+  "state": "accepted",
+  "canonical_applied": true,
   "base_commit": "7ea73117168c72086bfc43e020c37904e0b6d7c5",
   "created_at": 1784069938,
-  "updated_at": 1784073972,
+  "updated_at": 1784074092,
   "affected_specs": [
     "change",
     "cli_args",

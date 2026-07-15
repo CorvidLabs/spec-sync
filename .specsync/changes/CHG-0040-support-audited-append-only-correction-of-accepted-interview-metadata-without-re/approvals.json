@@ -76,6 +76,13 @@
       "timestamp": 1784082924,
       "digest": "d04e13a6f638c5e498523fc8abe0cc2033842442667696e4ed180a1451e4b4da",
       "note": "Closing approval after the Windows-safe Unicode and space path regression passed 1,606 unit and 215 integration tests at 99e46e3f4377769dd4e30673b54058ab8dae7b37"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784083942,
+      "digest": "24fdca09491e3f89d429b4d353dd73811870cf627efd1ec543fbef610fecd937",
+      "note": "Reaccepted after verified Windows portability correction."
     }
   ],
   "reopenings": [
@@ -306,6 +313,44 @@
       },
       "stale_acceptance_input_digest": "6bbcdbab27eb76f1be8a36523b5be3bcdf4348041b4fcfdce176fed3ad0c2b8a",
       "current_acceptance_input_digest": "b4fa9ce1f2302b88564c4dfb8b3fc10eb500cc54e6c0ae4fb5781bbbf5b35cbe"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re",
+      "actor": "0xLeif",
+      "reason": "the Windows portability correction legitimately updates its accepted src/change.rs input",
+      "timestamp": 1784083842,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "user:0xLeif",
+        "timestamp": 1784082924,
+        "digest": "d04e13a6f638c5e498523fc8abe0cc2033842442667696e4ed180a1451e4b4da",
+        "note": "Closing approval after the Windows-safe Unicode and space path regression passed 1,606 unit and 215 integration tests at 99e46e3f4377769dd4e30673b54058ab8dae7b37"
+      },
+      "prior_verification": {
+        "timestamp": 1784082907,
+        "commit": "99e46e3f4377769dd4e30673b54058ab8dae7b37",
+        "contract_digest": "e261f8783d73a6d25d1c9205b6aeab0a1487958a342b7e2ab95335c3ba68b6c0",
+        "workspace_digest": "a544447d6d424af28658e208f8b008eeda81cf6ec2c77e78fd786f0241e2f4b1",
+        "acceptance_input_digest": "b4fa9ce1f2302b88564c4dfb8b3fc10eb500cc54e6c0ae4fb5781bbbf5b35cbe",
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-032",
+          "REQ-cli-args-004",
+          "REQ-cmd-change-002"
+        ]
+      },
+      "stale_acceptance_input_digest": "b4fa9ce1f2302b88564c4dfb8b3fc10eb500cc54e6c0ae4fb5781bbbf5b35cbe",
+      "current_acceptance_input_digest": "e0b0323a58a44333a4d0a8f332921a6cd42ef1bb5a11761e70f25449923304dc"
     }
   ]
 }

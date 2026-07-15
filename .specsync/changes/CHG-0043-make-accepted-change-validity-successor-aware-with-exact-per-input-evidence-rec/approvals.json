@@ -55,6 +55,27 @@
       "timestamp": 1784108277,
       "digest": "767d470417e8dfbd2c5064122e38d835933e2ddefbed0a5f983ae384ebe7c49a",
       "note": "Approve candidate-scoped stable-index evidence, bounded attribute inspection, visibility and conversion boundaries, and sparse legacy topology corrections."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784108367,
+      "digest": "5291fd32c99ca520788dd2a28bbdd9d0ece36fc33d48425efd93359870f7e061",
+      "note": "Approve deterministic candidate and attribute parsing bounds for the stable Git evidence correction."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784108431,
+      "digest": "64aee9f7ac1deecb0205c98b8e63fc755cf60cde74e6450142acf8fb659687ba",
+      "note": "Reapprove the complete normative stable-index, bounded candidate, conversion, visibility, and sparse archive evidence contract."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784108471,
+      "digest": "a387c873bbd916fcdb5e0b6071bbb604f7301eaa0eb388246f4421ddacbafe13",
+      "note": "Reapprove explicit fail-closed authority-baseline deletion semantics with no stale definition binding."
     }
   ],
   "reopenings": []

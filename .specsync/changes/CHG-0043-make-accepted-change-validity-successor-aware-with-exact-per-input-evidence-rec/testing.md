@@ -30,7 +30,9 @@ Focused unit and integration regressions will prove:
 - broad content-conversion attributes still reject candidate regular files but do not falsely block canonical symlink targets or gitlink object IDs;
 - an attribute inventory whose combined NUL-delimited input and output exceed operating-system pipe capacity completes deterministically through bounded batches and still rejects an attributed path near the end of the inventory;
 - an index mutation between evidence reads causes a bounded retry or deterministic fail-closed result instead of mixing index generations;
+- oversized candidate counts, aggregate path bytes, or attribute output fail before unbounded payload/owner work, while NUL parsing remains deterministic at the accepted boundary;
 - sparse-absent tracked legacy archive and baseline files remain present through canonical index bytes, while dirty archived symlink replacements use current file/missing/non-file topology;
+- deleting a previously bound authority baseline makes definition reapproval fail closed instead of retaining the stale baseline digest;
 - a modified tracked symlink replaced by a regular file signs file topology/current bytes, while deletion signs missing and a clean materialized symlink retains canonical symlink topology;
 - definition artifact caps bind canonical clean bytes and current dirty/untracked bytes rather than host-smudged metadata length;
 - same-payload mode and kind transitions produce different `specsync.acceptance-entry.v1` full-entry digests and require exact succession tuples;

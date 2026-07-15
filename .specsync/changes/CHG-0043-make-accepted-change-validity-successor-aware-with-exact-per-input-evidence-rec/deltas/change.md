@@ -85,6 +85,8 @@ Acceptance SHALL persist bounded canonical per-input manifests and explicit sema
 
 Acceptance Criteria
 - Manifest schema, strictly sorted unique portable paths, sorted unique owners, supported kind/mode pairs, lowercase SHA-256 digests, and fixed entry/path/owner bounds validate fail closed.
+- Candidate-scoped Git evidence is bounded to 100,000 paths, 4,096 bytes per path, and 64 MiB aggregate path bytes before payload/owner work; NUL-safe attribute batches reject active regular-file `filter`, `working-tree-encoding`, and `ident` conversion without blocking unrelated, symlink, or gitlink paths.
+- Canonical substitution rejects governed assume-unchanged, materialized fsmonitor-valid, materialized skip-worktree, and unmerged paths, preserves absent sparse index topology, and retries or fails closed when the index or split-index generation changes during inspection.
 - Source owners come only from the immutable post-delta canonical snapshot; unmapped production source paths fail and recognized governed test/fixture paths plus delivery metadata are exact-only.
 - Symlinks hash exact portable target bytes and reject non-portable targets; gitlinks hash the exact index/tree object ID instead of checked-out directory topology.
 - Full-entry topology digests use `specsync.acceptance-entry.v1` over path, kind, mode, and payload digest so same-payload mode/kind transitions remain distinct.
@@ -95,6 +97,7 @@ Acceptance Criteria
 - Enumerated standalone pre-CHG43 archives may authenticate only through the strictly sorted `.specsync/archive/legacy-baseline.json` ledger bound by CHG43's manifest-backed closing and trusted acceptance/history anchor; each entry binds a trusted cutoff, unique pre-cutoff introduction, canonical path, and exact domain-separated subtree digest, and never supplies accepted-transition, current-input, candidate, preflight, or semantic-succession validity.
 - Before authority acceptance, the exact ledger digest is definition-bound and requires valid definition approval plus a canonical cutoff exactly equal to the authority base commit and ancestral to current history; accepted or archived authority upgrades to mandatory manifest-backed closing/history proof and cannot downgrade to bootstrap.
 - Archive authenticates accepted-state bytes from the unique trusted accepted transition and prior closing evidence, never mints approval, restores byte-identical source artifacts after post-move failure, and fails closed for unverifiable legacy archives.
+- Legacy archive and baseline snapshots union tracked index entries with present working-tree entries so sparse-absent inputs remain signed, dirty tracked symlinks use current topology, and a dirty or untracked missing authority baseline fails closed without preserving a stale binding.
 - Active accepted check/status/reopen/archive eligibility consume one recursive cycle-safe current-input validator; archive integrity uses a separate history authenticator and separately keyed cache.
 - Active accepted status reports exact, successor-covered, or stale; archived status reports authenticated-history or corrupt-history.
 

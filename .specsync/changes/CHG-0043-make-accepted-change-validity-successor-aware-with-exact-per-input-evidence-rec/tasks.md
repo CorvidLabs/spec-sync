@@ -52,7 +52,9 @@ artifact: tasks
 - [ ] Scope content-conversion attribute rejection to candidate regular-file topology without blocking symlink or gitlink evidence.
 - [ ] Reject materialized fsmonitor-valid paths and active ident transformations before canonical index substitution.
 - [ ] Bind centralized Git evidence to one stable index and split-index generation with bounded retry.
+- [ ] Bound candidate count, aggregate path bytes, attribute batches, and NUL output parsing before payload and owner work.
 - [ ] Include sparse-absent tracked entries in legacy archive and baseline evidence and classify dirty archived symlinks from current topology.
+- [ ] Reject dirty or untracked authority-baseline absence without retaining a stale definition binding.
 - [ ] Add a regression inventory exceeding pipe capacity and prove deterministic completion plus late-path rejection.
-- [ ] Add excluded-path, fsmonitor-valid, ident-expansion, subprocess-failure, index-mutation, and sparse archive regressions.
+- [ ] Add excluded-path, fsmonitor-valid, ident-expansion, subprocess-failure, index-mutation, oversized-input/output, sparse archive, and deleted-baseline regressions.
 - [ ] Pass focused, format, lint, type-check, and full local test gates for the batching correction.

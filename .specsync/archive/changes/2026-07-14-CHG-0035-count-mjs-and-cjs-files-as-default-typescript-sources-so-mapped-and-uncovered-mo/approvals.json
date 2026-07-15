@@ -37,10 +37,10 @@
     },
     {
       "gate": "acceptance",
-      "actor": "0xLeif",
-      "timestamp": 1784073701,
-      "digest": "57ea25b1d3de05c2ac0d32a29075f0cc6da559e0b310934a482ef3b03d3772cd",
-      "note": null
+      "actor": "user:0xLeif",
+      "timestamp": 1784072863,
+      "digest": "fd6e156dd0bfe50f0dd7f56f437de029f84250f210ab4639825bf639d33bef92",
+      "note": "Evidence-only closing approval after the complete native gate passed at 2ba6db4db98f40c69e9f8ae87653213f70412259; no semantic delivery changes were made."
     }
   ],
   "reopenings": [
@@ -158,9 +158,9 @@
     {
       "schema_version": 1,
       "change_id": "CHG-0035-count-mjs-and-cjs-files-as-default-typescript-sources-so-mapped-and-uncovered-mo",
-      "actor": "0xLeif",
-      "reason": "Approved CHG-0040 and CHG-0041 legitimately update this change's accepted delivery inputs.",
-      "timestamp": 1784073500,
+      "actor": "user:0xLeif",
+      "reason": "Accepted verification became stale because current delivery inputs changed after the recorded evidence; reopening solely to rerun the complete native verification gate without semantic changes.",
+      "timestamp": 1784072715,
       "from_state": "accepted",
       "to_state": "verifying",
       "superseded_approval": {
@@ -190,7 +190,7 @@
         ]
       },
       "stale_acceptance_input_digest": "fadaf1ac863471aeb803768a28358fee55456f58bf748c5b9b98971f89e675e9",
-      "current_acceptance_input_digest": "4dfc5b3f67d05322f5699d886a4df4d55a64e710eb8b8f4fdb54b42057148daa"
+      "current_acceptance_input_digest": "b74227558f89a80eb6c55ddde6088d8158098949c2017e23cc5170945ec9702c"
     }
   ]
 }

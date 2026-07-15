@@ -76,6 +76,13 @@
       "timestamp": 1784082924,
       "digest": "d04e13a6f638c5e498523fc8abe0cc2033842442667696e4ed180a1451e4b4da",
       "note": "Closing approval after the Windows-safe Unicode and space path regression passed 1,606 unit and 215 integration tests at 99e46e3f4377769dd4e30673b54058ab8dae7b37"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784083942,
+      "digest": "24fdca09491e3f89d429b4d353dd73811870cf627efd1ec543fbef610fecd937",
+      "note": "Reaccepted after verified Windows portability correction."
     }
   ],
   "reopenings": [

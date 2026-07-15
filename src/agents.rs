@@ -780,27 +780,37 @@ mod tests {
     #[test]
     fn checked_in_create_spec_commands_match_generated_assets() {
         let tmp = setup();
+        let manifest_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        if !manifest_root.join(".git").exists()
+            && !manifest_root
+                .join(".claude/commands/specsync/create-spec.md")
+                .exists()
+        {
+            // Published crate archives intentionally omit repository-only agent fixtures.
+            return;
+        }
         let fixtures = [
             (
                 AgentTool::Claude,
-                include_str!("../.claude/commands/specsync/create-spec.md"),
+                ".claude/commands/specsync/create-spec.md",
             ),
             (
                 AgentTool::Cursor,
-                include_str!("../.cursor/commands/specsync-create-spec.md"),
+                ".cursor/commands/specsync-create-spec.md",
             ),
             (
                 AgentTool::Gemini,
-                include_str!("../.gemini/commands/specsync/create-spec.toml"),
+                ".gemini/commands/specsync/create-spec.toml",
             ),
         ];
 
-        for (tool, checked_in) in fixtures {
+        for (tool, relative_path) in fixtures {
+            let checked_in = fs::read_to_string(manifest_root.join(relative_path)).unwrap();
             assert!(install_agent(tmp.path(), tool).unwrap());
             let generated = fs::read_to_string(tool.command_path(tmp.path()).unwrap()).unwrap();
             assert_eq!(
                 generated,
-                normalize_checkout_line_endings(checked_in),
+                normalize_checkout_line_endings(&checked_in),
                 "{} command drifted",
                 tool.name()
             );

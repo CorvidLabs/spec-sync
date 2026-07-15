@@ -10,17 +10,7 @@ homepage = "https://github.com/CorvidLabs/spec-sync"
 repository = "https://github.com/CorvidLabs/spec-sync"
 keywords = ["spec", "documentation", "validation", "coverage", "code-quality"]
 categories = ["development-tools", "command-line-utilities"]
-include = [
-    "/src/**",
-    "/.claude/commands/specsync/create-spec.md",
-    "/.cursor/commands/specsync-create-spec.md",
-    "/.gemini/commands/specsync/create-spec.toml",
-    "/Cargo.toml",
-    "/Cargo.lock",
-    "/README.md",
-    "/CHANGELOG.md",
-    "/LICENSE",
-]
+include = ["/src/**", "/Cargo.toml", "/Cargo.lock", "/README.md", "/CHANGELOG.md", "/LICENSE"]
 
 [[bin]]
 name = "specsync"

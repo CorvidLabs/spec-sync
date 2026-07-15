@@ -60,3 +60,7 @@ artifact: tasks
 - [x] Add excluded-path, fsmonitor-valid, ident-expansion, subprocess-failure, index-mutation, oversized-input/output, sparse archive, and deleted-baseline regressions.
 - [x] Add clean, dirty, untracked, external-target, and oversized-referent definition-artifact symlink regressions.
 - [x] Pass focused, format, lint, type-check, and full local test gates for the batching correction.
+- [x] Audit candidate construction order against volatile and record-coverage filtering.
+- [ ] Filter exact project and acceptance candidates before Git evidence inspection.
+- [ ] Add volatile, unrelated scoped-acceptance, and relevant-path fail-closed regressions.
+- [ ] Pass focused, format, lint, type-check, and full local gates for candidate-scope ordering.

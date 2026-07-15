@@ -27,6 +27,7 @@ Focused unit and integration regressions will prove:
 - a changed path explicitly marked fsmonitor-valid cannot be silently canonicalized from the index, including when a custom fsmonitor hook is configured;
 - real ident checkout expansion is rejected before canonical substitution, while ordinary text/eol normalization remains supported;
 - visibility flags and attributes on unrelated excluded paths do not block evidence for the exact governed candidate set;
+- volatile paths do not block project freshness, and unrelated repository paths do not block scoped manifest or legacy acceptance input evidence, while the same flag or attribute on a relevant path still fails closed;
 - broad content-conversion attributes still reject candidate regular files but do not falsely block canonical symlink targets or gitlink object IDs;
 - an attribute inventory whose combined NUL-delimited input and output exceed operating-system pipe capacity completes deterministically through bounded batches and still rejects an attributed path near the end of the inventory;
 - an index mutation between evidence reads causes a bounded retry or deterministic fail-closed result instead of mixing index generations;

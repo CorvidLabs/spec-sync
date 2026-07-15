@@ -15,6 +15,7 @@ Acceptance criteria:
 - Missing, regular-file, executable-file, symlink, gitlink, and non-file topology remain distinguishable.
 - Manifest schema, ordering, uniqueness, kind/mode combinations, digest syntax, entry/path/owner bounds, portable symlink bytes, exact gitlink object IDs, and aggregate reproduction are validated fail closed.
 - Candidate-scoped Git evidence accepts at most 100,000 paths, 4,096 bytes per path, and 64 MiB of aggregate path bytes before payload, owner, or attribute work; bounded NUL-safe attribute batches reject active regular-file `filter`, `working-tree-encoding`, or `ident` conversion without blocking unrelated, symlink, or gitlink paths.
+- Project evidence excludes volatile paths and acceptance evidence excludes noncovered paths before visibility and attribute checks; all nonvolatile record-covered override, canonical-spec, tracked, and untracked inputs remain candidates.
 - Canonical index substitution rejects evidence-relevant assume-unchanged, materialized fsmonitor-valid, materialized skip-worktree, and unmerged paths; absent sparse paths use canonical index topology, and the complete read retries or fails closed if the index or split-index generation changes.
 - Selected definition artifacts must be regular files; clean tracked, dirty, or untracked symlinks fail before any referent payload or size read.
 - Recognized governed test/fixture paths and delivery metadata receive reserved exact-only owners; unmapped production source inputs fail acceptance instead of inheriting every affected module.

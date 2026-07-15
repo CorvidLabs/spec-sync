@@ -104,6 +104,20 @@
       "timestamp": 1784110043,
       "digest": "2557ef9884ead85609b63f94c65ee5c2d619241a07ad7bdaaae96811a87d2b64",
       "note": "Reapprove the coherent bounded Git evidence redesign with captured candidate snapshots, fatal post-detection failures, effective-index support, and scoped stages."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784112309,
+      "digest": "fb6df29ed613e157325cb723b20ff54fa3240b801f540dcaaa80e3366787d942",
+      "note": "Reapprove completed bounded immutable Git evidence redesign, effective-index confinement, caller snapshot migration, and deterministic adversarial regressions."
+    },
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1784117234,
+      "digest": "e8514419ccc0a9dea66038b0b9cd1d30932c21c16c6b406e581cc4f38399aad2",
+      "note": "Reapprove completed bounded immutable Git evidence redesign, scoped candidate discovery, controlled autocrlf checkout semantics, and deterministic adversarial regressions after all exact local gates."
     }
   ],
   "reopenings": []

@@ -61,17 +61,17 @@ artifact: tasks
 - [x] Add clean, dirty, untracked, external-target, and oversized-referent definition-artifact symlink regressions.
 - [x] Pass focused, format, lint, type-check, and full local test gates for the batching correction.
 - [x] Audit candidate construction order against volatile and record-coverage filtering.
-- [ ] Filter exact project and acceptance candidates before Git evidence inspection.
-- [ ] Add volatile, unrelated scoped-acceptance, and relevant-path fail-closed regressions.
-- [ ] Pass focused, format, lint, type-check, and full local gates for candidate-scope ordering.
-- [ ] Capture candidate topology/content inside bounded retry and make callers consume the snapshot.
-- [ ] Stream and cap discovery, use one candidate-filtered index parse, and cap index/split-index dependency reads.
-- [ ] Scope transforming attributes to clean materialized tracked regular index substitution.
-- [ ] Parse every Git false boolean spelling while preserving active pathname hooks.
-- [ ] Require a baseline ledger on first authority binding and accept clean executable definition artifacts.
-- [ ] Add worktree mutation, hostile discovery/index, output-bound, transform-scope, fsmonitor-spelling, first-binding, and executable-artifact regressions.
-- [ ] Centralize capped concurrent Git subprocess execution with overflow kill/reap and bounded diagnostics.
-- [ ] Treat every Git failure after positive repository detection as fatal without non-Git fallback.
-- [ ] Resolve and fingerprint the environment-aware effective index and actual split dependency.
-- [ ] Reject unresolved stages only for selected candidates while validating global index framing.
-- [ ] Add injected command failure, alternate-index mutation, overflow, and scoped-stage regressions.
+- [x] Filter exact project and acceptance candidates before Git evidence inspection.
+- [x] Add volatile, unrelated scoped-acceptance, and relevant-path fail-closed regressions.
+- [x] Pass focused, format, lint, type-check, and full local gates for candidate-scope ordering.
+- [x] Capture candidate topology/content inside bounded retry and make callers consume the snapshot.
+- [x] Stream and cap discovery, use one candidate-filtered index parse, and cap index/split-index dependency reads.
+- [x] Scope transforming attributes to clean materialized tracked regular index substitution.
+- [x] Parse every Git false boolean spelling while preserving active pathname hooks.
+- [x] Require a baseline ledger on first authority binding and accept clean executable definition artifacts.
+- [x] Add worktree mutation, hostile discovery/index, output-bound, transform-scope, fsmonitor-spelling, first-binding, and executable-artifact regressions.
+- [x] Centralize capped concurrent Git subprocess execution with overflow kill/reap and bounded diagnostics.
+- [x] Treat every Git failure after positive repository detection as fatal without non-Git fallback.
+- [x] Resolve and fingerprint the environment-aware effective index and actual split dependency.
+- [x] Reject unresolved stages only for selected candidates while validating global index framing.
+- [x] Add injected command failure, alternate-index mutation, overflow, and scoped-stage regressions.

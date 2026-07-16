@@ -12001,7 +12001,10 @@ mod tests {
         }
         created.unwrap();
         let error = definition_digest(root, &record).unwrap_err();
-        assert!(error.contains("portable UTF-8"), "{error}");
+        assert!(
+            error.contains("portable UTF-8"),
+            "non-UTF-8 definition artifact names must be rejected"
+        );
     }
 
     #[test]
@@ -13003,7 +13006,10 @@ mod tests {
         fs::remove_file(&context).unwrap();
         symlink(&external, &context).unwrap();
         let error = definition_digest(root, &record).unwrap_err();
-        assert!(error.contains("not a regular file"), "{error}");
+        assert!(
+            error.contains("not a regular file"),
+            "symlinked definition artifacts must be rejected"
+        );
 
         quiet_git(root, &["init", "-b", "main"]);
         quiet_git(root, &["config", "user.email", "test@example.com"]);
@@ -13011,11 +13017,17 @@ mod tests {
         quiet_git(root, &["add", "."]);
         quiet_git(root, &["commit", "-m", "track symlinked definition"]);
         let error = definition_digest(root, &record).unwrap_err();
-        assert!(error.contains("not a regular file"), "{error}");
+        assert!(
+            error.contains("not a regular file"),
+            "tracked symlinked definition artifacts must be rejected"
+        );
         fs::remove_file(&context).unwrap();
         symlink("another-external-target", &context).unwrap();
         let error = definition_digest(root, &record).unwrap_err();
-        assert!(error.contains("not a regular file"), "{error}");
+        assert!(
+            error.contains("not a regular file"),
+            "retargeted definition artifact symlinks must be rejected"
+        );
     }
 
     #[test]
@@ -14089,16 +14101,20 @@ mod tests {
         };
 
         commit_transition("repeat identical legacy acceptance", false);
-        if let Err(error) =
-            reconstruct_legacy_acceptance_manifest(root, &record, &signed_legacy_digest)
-        {
-            panic!("identical legacy reconstruction failed: {error}");
-        }
+        let identical_result =
+            reconstruct_legacy_acceptance_manifest(root, &record, &signed_legacy_digest);
+        assert!(
+            identical_result.is_ok(),
+            "identical legacy reconstruction must succeed"
+        );
 
         commit_transition("repeat distinct legacy acceptance", true);
         let error = reconstruct_legacy_acceptance_manifest(root, &record, &signed_legacy_digest)
             .unwrap_err();
-        assert!(error.contains("found 2"), "{error}");
+        assert!(
+            error.contains("found 2"),
+            "distinct legacy reconstructions must remain ambiguous"
+        );
     }
 
     #[test]

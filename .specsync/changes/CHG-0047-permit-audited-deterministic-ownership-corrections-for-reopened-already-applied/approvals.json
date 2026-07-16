@@ -83,6 +83,13 @@
       "timestamp": 1784224726,
       "digest": "fbea70365b6f48ce2bb0063eedacfe9af9e6a343724d5499f0331fe49ce9707d",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784229940,
+      "digest": "52dc52fdace622848f1ae85ca1100d676d324c9bff6b478a983caa57c2f4d0d9",
+      "note": null
     }
   ],
   "reopenings": [

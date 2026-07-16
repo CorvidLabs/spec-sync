@@ -5,11 +5,11 @@
   "title": "Permit audited deterministic ownership corrections for reopened already-applied changes",
   "description": "Permit audited deterministic ownership corrections for reopened already-applied changes",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "2223c0b2ba260c43c396c195885ffe727f2d69e8",
   "created_at": 1784135964,
-  "updated_at": 1784227725,
+  "updated_at": 1784229940,
   "affected_specs": [
     "change",
     "cli_args",

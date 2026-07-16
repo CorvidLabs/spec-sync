@@ -1,9 +1,9 @@
 {
-  "timestamp": 1784176612,
-  "commit": "94171de1f5c308c702fd1b4de65ddec4ff9e51e6",
+  "timestamp": 1784213740,
+  "commit": "57d45973757b3082180506971def4b325869ba70",
   "contract_digest": "5a972836334a2b449f3c8f1406a4ee4cdb854555f1222f0d99e1c6f904b56526",
-  "workspace_digest": "cae157df55736f6659e8a6f2fb530e5f87d64e1ba044d87ea628c56be3e1f3e3",
-  "acceptance_input_digest": "6ad3b2f2b8591f5d74764c1b0633d4f71b6c16f3c896b5228ac34ddea0ff7d52",
+  "workspace_digest": "14564de29ee7778216315a683b982229cb3139072440650a2c83242517fafe12",
+  "acceptance_input_digest": "632d16ca6ad5040a9b33f25ea1305fa07b18759e9bd273303ffced3740cee554",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -71,8 +71,8 @@
         "path": "src/change.rs",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "f2fc6aace3b0e3c9029e4759b7ad04adee622dc02fce4b290a1b65c8b7a34653",
-        "entry_digest": "70f66429038a12dde0d9bcda1e62194e68f31761e7715d1ce10636bc58d29339",
+        "payload_digest": "ea233fa1568250ba2dddb2752906533b2a60fa1151160c0206312dd275ce4053",
+        "entry_digest": "3460049a3b13ebf4f9059c152c89a4d80794a0fec3111e942b51607b7eefdb1d",
         "owners": [
           "change"
         ]

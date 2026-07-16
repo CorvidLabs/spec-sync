@@ -1,6 +1,6 @@
 ---
 id: CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 2223c0b2ba260c43c396c195885ffe727f2d69e8
 ---

@@ -1,6 +1,6 @@
 ---
 id: CHG-0046-make-lifecycle-verification-workflows-evaluate-the-exact-pull-request-head-while
-state: accepted
+state: archived
 type: operations
 base_commit: 03aa191badb0049986d39aaebc7dec4855ce850f
 ---

@@ -1,6 +1,6 @@
 ---
 id: CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec
-state: accepted
+state: archived
 type: bug_fix
 base_commit: fc6e70bccd5af61043183e247f37b1f9a9b92247
 ---

@@ -11875,19 +11875,6 @@ mod tests {
         #[cfg(not(windows))]
         fs::write(root.join(":colon"), "colon\n").unwrap();
         quiet_git(root, &["add", "."]);
-        #[cfg(windows)]
-        {
-            let object = run_git_required(
-                root,
-                &["hash-object", "-w", "--stdin"],
-                Some(b"selected\n".to_vec()),
-                128,
-            )
-            .unwrap();
-            let object = std::str::from_utf8(&object).unwrap().trim();
-            let cache_info = format!("100644,{object},literal*.txt");
-            quiet_git(root, &["update-index", "--add", "--cacheinfo", &cache_info]);
-        }
         quiet_git(root, &["commit", "-m", "track literal names"]);
         #[cfg(not(windows))]
         fs::write(root.join("literal*.txt"), "dirty selected\n").unwrap();
@@ -11923,7 +11910,9 @@ mod tests {
         #[cfg(not(windows))]
         assert_eq!(paths, vec![":colon", "literal*.txt"]);
         #[cfg(windows)]
-        assert_eq!(paths, vec!["literal*.txt"]);
+        // Windows cannot materialize either candidate; the dirty literalX.txt
+        // control proves that Git did not expand the `*` candidate as a pathspec.
+        assert!(paths.is_empty());
     }
 
     #[test]

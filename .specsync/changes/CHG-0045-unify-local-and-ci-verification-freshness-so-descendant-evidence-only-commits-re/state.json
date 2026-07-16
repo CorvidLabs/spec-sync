@@ -5,11 +5,11 @@
   "title": "Unify local and CI verification freshness so descendant evidence-only commits remain current while source, test, configuration, contract, or nonancestor changes fail closed",
   "description": "Unify local and CI verification freshness so descendant evidence-only commits remain current while source, test, configuration, contract, or nonancestor changes fail closed",
   "kind": "bug_fix",
-  "state": "accepted",
+  "state": "verifying",
   "canonical_applied": true,
   "base_commit": "b4a90aa2871cb77cd824df759e3e90a31ab3e971",
   "created_at": 1784098964,
-  "updated_at": 1784222341,
+  "updated_at": 1784227720,
   "affected_specs": [
     "change"
   ],

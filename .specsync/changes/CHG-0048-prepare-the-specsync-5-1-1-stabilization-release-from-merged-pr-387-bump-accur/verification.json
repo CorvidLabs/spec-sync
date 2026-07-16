@@ -1,0 +1,18 @@
+{
+  "timestamp": 1784244754,
+  "commit": "8710561102beb206d438802eacb0ef6f10ed9e8b",
+  "contract_digest": "3cc4e02b1a6302ab58971df13d681dc454a248c357bf0da02470c20c74e8db52",
+  "workspace_digest": "76cc6a8a3095f374716232d7fadc5e5f3363897d17b9b7ea953d85d566b27720",
+  "passed": true,
+  "commands": [
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-github-002",
+    "REQ-github-003"
+  ]
+}

@@ -20,6 +20,13 @@
       "timestamp": 1784242830,
       "digest": "6c67833bd74c19000879be0311de64cfc8028782c887965c77174773fd1c2e30",
       "note": "Reapproved CHG-0048 as 0xLeif after adding the complete Bun CI repair and validation paths to its deterministic scope."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784244335,
+      "digest": "3cc4e02b1a6302ab58971df13d681dc454a248c357bf0da02470c20c74e8db52",
+      "note": "Reapproved after replacing its circular post-acceptance tasks with the truthful pre-verification task boundary."
     }
   ],
   "reopenings": []

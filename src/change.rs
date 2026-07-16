@@ -11869,20 +11869,41 @@ mod tests {
         quiet_git(root, &["init", "-b", "main"]);
         quiet_git(root, &["config", "user.email", "test@example.com"]);
         quiet_git(root, &["config", "user.name", "Test"]);
+        #[cfg(not(windows))]
         fs::write(root.join("literal*.txt"), "selected\n").unwrap();
         fs::write(root.join("literalX.txt"), "unrelated\n").unwrap();
         #[cfg(not(windows))]
         fs::write(root.join(":colon"), "colon\n").unwrap();
         quiet_git(root, &["add", "."]);
+        #[cfg(windows)]
+        {
+            let object = run_git_required(
+                root,
+                &["hash-object", "-w", "--stdin"],
+                Some(b"selected\n".to_vec()),
+                128,
+            )
+            .unwrap();
+            let object = std::str::from_utf8(&object).unwrap().trim();
+            let cache_info = format!("100644,{object},literal*.txt");
+            quiet_git(root, &["update-index", "--add", "--cacheinfo", &cache_info]);
+        }
         quiet_git(root, &["commit", "-m", "track literal names"]);
+        #[cfg(not(windows))]
         fs::write(root.join("literal*.txt"), "dirty selected\n").unwrap();
         fs::write(root.join("literalX.txt"), "dirty unrelated\n").unwrap();
 
         let candidates = BTreeSet::from(["literal*.txt".into(), ":colon".into()]);
         let evidence = git_evidence(root, &candidates).unwrap();
+        #[cfg(not(windows))]
         assert_eq!(
             evidence.entry("literal*.txt").unwrap().payload,
             b"dirty selected\n"
+        );
+        #[cfg(windows)]
+        assert_eq!(
+            evidence.entry("literal*.txt").unwrap().kind,
+            AcceptanceInputKind::Missing
         );
         #[cfg(not(windows))]
         assert_eq!(evidence.entry(":colon").unwrap().payload, b"colon\n");

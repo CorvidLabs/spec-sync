@@ -120,7 +120,6 @@ Acceptance Criteria
 The lifecycle SHALL reject untrusted or corrupt persisted workspace identity, scope, approval, history, and verification evidence before using it, with one environment-independent verification-freshness decision.
 
 Acceptance Criteria
-
 - Loaded change IDs match their requested workspace and remain a single validated component.
 - Persisted affected spec names are validated before delta paths are constructed.
 - Unreadable or malformed historical tombstone deltas and approval ledgers fail closed.
@@ -168,14 +167,18 @@ Acceptance Criteria
 The lifecycle SHALL preserve accepted closing evidence and supported verifying evidence across repository-integrated commits without accepting unintegrated, altered, or historically tainted evidence.
 
 Acceptance Criteria
-
 - Normal verification-commit ancestry remains mandatory proof and uses identical local and CI semantics.
 - Every intervening commit is inspected against every parent with NUL-delimited portable paths; a net tree diff cannot hide a governed change and later revert.
 - Only supported verification persistence beneath canonical active-change IDs may follow verification without invalidating it; archive, approvals, tasks, definitions, sequence, hashes, locks, configuration, policy, specs, source, tests, build, and cache paths are rejected.
 - Matching effective contract and project-input digests plus consistent state, verification, and latest-attempt evidence remain mandatory.
-- A squash fallback for accepted closing evidence still requires matching scoped inputs and an unchanged accepted workspace integrated on the remote default branch.
+- A squash fallback requires matching scoped inputs and an unchanged accepted workspace already integrated on the
+  remote default branch.
 - Unintegrated heads, changed scoped inputs, stale contracts, mismatched closing approvals, nonancestor evidence, and ambiguous merges fail closed.
-- Digest fields remain versioned, domain-separated, and length-framed; binary bytes, topology, and executable modes remain exact.
+- Squash-integrated accepted workspaces remain archivable.
+- Digest fields are versioned, domain-separated, and length-framed so file boundaries cannot be forged with embedded
+  NUL bytes.
+- Binary bytes remain exact, while stable file kind and executable-mode evidence invalidate relevant delivery changes.
+- Cross-platform topology verification is independent of a runner's global line-ending checkout policy.
 
 ### REQ-change-017
 
@@ -282,13 +285,11 @@ Acceptance Criteria
 
 ### REQ-change-026
 
-The lifecycle SHALL treat canonical numeric sequence claims and historical collision acknowledgements as protected exact repository evidence across arbitrarily wide numeric sequences.
+The lifecycle SHALL treat sequence claims and historical collision acknowledgements as protected exact repository evidence across arbitrarily wide numeric sequences.
 
 Acceptance Criteria
 
-- Numeric change sequences contain at least four ASCII digits, use exactly four zero-padded digits below 10000, and use unpadded decimal digits at or above 10000.
-- Successor identity ordering compares parsed numeric sequence first and full canonical ID second, so `CHG-10000-*` follows `CHG-9999-*` while acknowledged same-sequence collisions remain deterministic.
-- Malformed, noncanonical-width, and numerically unrepresentable IDs fail closed instead of participating in successor ordering.
+- Numeric change sequences contain at least four ASCII digits and support values beyond 9999.
 - The committed sequence ledger always requires lifecycle coverage even when `.specsync/` is ignored.
 - Every newly allocated change automatically includes its generated sequence-ledger claim in its affected path scope.
 - An acknowledgement matches the exact currently located ID set and remains valid only when every member is accepted or archived.

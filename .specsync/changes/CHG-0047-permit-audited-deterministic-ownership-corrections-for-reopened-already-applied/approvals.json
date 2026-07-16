@@ -55,6 +55,13 @@
       "timestamp": 1784174653,
       "digest": "34749aab40ce7c7dc54fd1fcd41b1b25a1312643d084ddde005fae6c8deed017",
       "note": "Reaccepted after the verified strict-check performance correction."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784208510,
+      "digest": "4b82b673bcf191282f9a7f172e2b7a88aad1df8836f604b5105f6747c38477da",
+      "note": null
     }
   ],
   "reopenings": [

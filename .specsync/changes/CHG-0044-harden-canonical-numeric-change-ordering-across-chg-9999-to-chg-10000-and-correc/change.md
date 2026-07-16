@@ -1,6 +1,6 @@
 ---
 id: CHG-0044-harden-canonical-numeric-change-ordering-across-chg-9999-to-chg-10000-and-correc
-state: accepted
+state: verifying
 type: bug_fix
 base_commit: 2646fc3495bb4f5125e6f4f463f59e58f9f93110
 ---

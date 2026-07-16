@@ -3490,17 +3490,12 @@ fn check_project_with_command_output(
             };
         }
     };
+    let (terminal_evidence, mut archived_integrity_cache) =
+        terminal_evidence_results_with_records(root, &all_records);
     let mut report = SddCheckReport {
         enabled: true,
         checked_changes: all_records.len(),
-        terminal_evidence: all_records
-            .values()
-            .filter(|record| matches!(record.state, ChangeState::Accepted | ChangeState::Archived))
-            .map(|record| TerminalEvidenceResult {
-                id: record.id.clone(),
-                evidence: terminal_evidence_summary_with_records(root, record, &all_records),
-            })
-            .collect(),
+        terminal_evidence,
         ..SddCheckReport::default()
     };
     let policy = if let Some(base) = base_policy.filter(|policy| policy.enabled)
@@ -3561,11 +3556,20 @@ fn check_project_with_command_output(
             report.errors.push(format!("{}: {error}", record.id));
         }
         if record.state == ChangeState::Accepted
-            && let Err(error) = ensure_closing_approval_valid(root, record)
+            && let Some(evidence) = report
+                .terminal_evidence
+                .iter()
+                .find(|evidence| evidence.id == record.id)
+            && evidence.evidence.validity == TerminalEvidenceValidity::Stale
         {
             report.errors.push(format!(
-                "{}: accepted change verification is stale for current delivery inputs: {error}",
-                record.id
+                "{}: accepted change verification is stale for current delivery inputs: {}",
+                record.id,
+                evidence
+                    .evidence
+                    .reason
+                    .as_deref()
+                    .unwrap_or("unknown reason")
             ));
         }
         if record.canonical_applied
@@ -3586,7 +3590,6 @@ fn check_project_with_command_output(
             }
         }
     }
-    let mut archived_integrity_cache = ArchivedIntegrityCache::default();
     let mut shared_legacy_error_reported = false;
     for record in all_records
         .values()
@@ -5555,9 +5558,10 @@ fn git_scoped_project_paths(
     let mut paths = Vec::new();
     let mut total = 0_usize;
     let preserve_volatile = scopes.iter().any(|scope| project_input_is_volatile(scope));
+    let repo_prefix = git_repo_prefix(root)?;
     for batch in candidate_argument_batches(scopes) {
         let args = literal_candidate_git_args(
-            root,
+            &repo_prefix,
             &[
                 "ls-files",
                 "--cached",
@@ -5566,7 +5570,7 @@ fn git_scoped_project_paths(
                 "-z",
             ],
             &batch,
-        )?;
+        );
         let args = borrowed_git_args(&args);
         let output = run_git_required(
             root,
@@ -7299,21 +7303,14 @@ fn candidate_argument_batches(candidates: &BTreeSet<String>) -> Vec<Vec<&str>> {
     batches
 }
 
-fn literal_candidate_git_args(
-    root: &Path,
-    prefix: &[&str],
-    batch: &[&str],
-) -> Result<Vec<String>, String> {
+fn literal_candidate_git_args(repo_prefix: &str, prefix: &[&str], batch: &[&str]) -> Vec<String> {
     let mut args = Vec::with_capacity(prefix.len() + batch.len() + 1);
     args.extend(prefix.iter().map(|value| (*value).to_string()));
     args.push("--".into());
     for path in batch {
-        args.push(format!(
-            ":(top,literal){}",
-            git_repo_relative_path(root, path)?
-        ));
+        args.push(format!(":(top,literal){repo_prefix}{path}"));
     }
-    Ok(args)
+    args
 }
 
 fn borrowed_git_args(args: &[String]) -> Vec<&str> {
@@ -7328,9 +7325,10 @@ fn inspect_git_candidates(
     let mut modes = BTreeMap::new();
     let mut objects = BTreeMap::new();
     let batches = candidate_argument_batches(candidates);
+    let repo_prefix = git_repo_prefix(root)?;
     let mut stage_output_bytes = 0_usize;
     for batch in &batches {
-        let args = literal_candidate_git_args(root, &["ls-files", "--stage", "-z"], batch)?;
+        let args = literal_candidate_git_args(&repo_prefix, &["ls-files", "--stage", "-z"], batch);
         let args = borrowed_git_args(&args);
         let output = run_git_required(root, &args, None, MAX_GIT_INDEX_BYTES)?;
         stage_output_bytes = stage_output_bytes
@@ -7430,7 +7428,7 @@ fn inspect_git_candidates(
                 .map(|value| (*value).to_string()),
         );
         let prefix = borrowed_git_args(&prefix);
-        let args = literal_candidate_git_args(root, &prefix, batch)?;
+        let args = literal_candidate_git_args(&repo_prefix, &prefix, batch);
         let args = borrowed_git_args(&args);
         let output = run_git_required(root, &args, None, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
         for path in output
@@ -7451,7 +7449,7 @@ fn inspect_git_candidates(
 
     let mut sparse_absent = BTreeSet::new();
     for batch in &batches {
-        let args = literal_candidate_git_args(root, &["ls-files", "-v", "-z"], batch)?;
+        let args = literal_candidate_git_args(&repo_prefix, &["ls-files", "-v", "-z"], batch);
         let args = borrowed_git_args(&args);
         let output = run_git_required(root, &args, None, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
         for record in output
@@ -7494,7 +7492,7 @@ fn inspect_git_candidates(
     }
 
     for batch in &batches {
-        let args = literal_candidate_git_args(root, &["ls-files", "-f", "-z"], batch)?;
+        let args = literal_candidate_git_args(&repo_prefix, &["ls-files", "-f", "-z"], batch);
         let args = borrowed_git_args(&args);
         let output = run_git_required(root, &args, None, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
         for record in output
@@ -7536,6 +7534,22 @@ fn inspect_git_candidates(
         modified,
         sparse_absent,
     };
+    let clean_objects: BTreeSet<_> = candidates
+        .iter()
+        .filter_map(|path| {
+            let mode = modes.get(path)?;
+            let object = objects.get(path)?;
+            (!worktree.modified.contains(path) && matches!(mode, 0o100644 | 0o100755 | 0o120000))
+                .then_some(object.as_str())
+        })
+        .collect();
+    let clean_object_refs: Vec<_> = clean_objects.iter().copied().collect();
+    let clean_payloads = git_blob_bytes_batch(root, &clean_object_refs)?;
+    let prefetched_blobs: BTreeMap<_, _> = clean_objects
+        .into_iter()
+        .map(str::to_string)
+        .zip(clean_payloads)
+        .collect();
     let mut entries = BTreeMap::new();
     let mut payload_bytes = 0_usize;
     for path in candidates {
@@ -7555,6 +7569,7 @@ fn inspect_git_candidates(
             modes.get(path).copied(),
             objects.get(path),
             &worktree,
+            Some(&prefetched_blobs),
         )?;
         payload_bytes = payload_bytes
             .checked_add(entry.payload.len())
@@ -7578,6 +7593,7 @@ fn capture_git_candidate(
     index_mode: Option<u32>,
     object: Option<&String>,
     worktree: &GitWorktreeState,
+    prefetched_blobs: Option<&BTreeMap<String, Vec<u8>>>,
 ) -> Result<GitCapturedEntry, String> {
     if index_mode == Some(0o160000) {
         let object = object
@@ -7597,7 +7613,10 @@ fn capture_git_candidate(
             || matches!(mode, 0o100644 | 0o100755 | 0o120000)
         {
             let object = object.expect("clean tracked object").clone();
-            let payload = git_blob_bytes(root, &object)?;
+            let payload = match prefetched_blobs.and_then(|blobs| blobs.get(&object)) {
+                Some(payload) => payload.clone(),
+                None => git_blob_bytes(root, &object)?,
+            };
             if mode == 0o120000 {
                 let target = std::str::from_utf8(&payload)
                     .map_err(|_| format!("symlink target is not UTF-8: `{relative}`"))?;
@@ -8510,8 +8529,51 @@ fn terminal_evidence_summary_with_records(
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
 ) -> TerminalEvidenceSummary {
+    terminal_evidence_summary_with_validation_state(
+        root,
+        record,
+        records,
+        &mut BTreeSet::new(),
+        &mut BTreeMap::new(),
+        &mut ArchivedIntegrityCache::default(),
+    )
+}
+
+fn terminal_evidence_results_with_records(
+    root: &Path,
+    records: &BTreeMap<String, ChangeRecord>,
+) -> (Vec<TerminalEvidenceResult>, ArchivedIntegrityCache) {
+    let mut visiting = BTreeSet::new();
+    let mut memo = BTreeMap::new();
+    let mut archived_cache = ArchivedIntegrityCache::default();
+    let results = records
+        .values()
+        .filter(|record| matches!(record.state, ChangeState::Accepted | ChangeState::Archived))
+        .map(|record| TerminalEvidenceResult {
+            id: record.id.clone(),
+            evidence: terminal_evidence_summary_with_validation_state(
+                root,
+                record,
+                records,
+                &mut visiting,
+                &mut memo,
+                &mut archived_cache,
+            ),
+        })
+        .collect();
+    (results, archived_cache)
+}
+
+fn terminal_evidence_summary_with_validation_state(
+    root: &Path,
+    record: &ChangeRecord,
+    records: &BTreeMap<String, ChangeRecord>,
+    visiting: &mut BTreeSet<String>,
+    memo: &mut BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    archived_cache: &mut ArchivedIntegrityCache,
+) -> TerminalEvidenceSummary {
     if record.state == ChangeState::Archived {
-        return match validate_archived_integrity(root, record) {
+        return match validate_archived_integrity_with_cache(root, record, archived_cache) {
             Ok(()) => TerminalEvidenceSummary {
                 validity: TerminalEvidenceValidity::AuthenticatedHistory,
                 reason: None,
@@ -8522,13 +8584,7 @@ fn terminal_evidence_summary_with_records(
             },
         };
     }
-    match validate_accepted_inputs_recursive(
-        root,
-        record,
-        records,
-        &mut BTreeSet::new(),
-        &mut BTreeMap::new(),
-    ) {
+    match validate_accepted_inputs_recursive(root, record, records, visiting, memo) {
         Ok(AcceptedInputValidity::Exact) => TerminalEvidenceSummary {
             validity: TerminalEvidenceValidity::Exact,
             reason: None,
@@ -8777,8 +8833,6 @@ fn authenticate_legacy_archive_baseline(
         .as_ref()
         .map_err(Clone::clone)?;
     let baseline = &context.baseline;
-    let cutoff = baseline.cutoff_commit.clone();
-
     let archive_root = root.join(ARCHIVE_PATH);
     let relative_workspace = workspace.strip_prefix(&archive_root).map_err(|_| {
         format!(
@@ -8802,7 +8856,6 @@ fn authenticate_legacy_archive_baseline(
             archived.id
         ));
     }
-    let repo_subtree = git_repo_relative_path(root, &project_subtree)?;
     let current = context.snapshots.get(&archived.id).ok_or_else(|| {
         format!(
             "legacy archive `{}` has no captured baseline subtree",
@@ -8813,68 +8866,6 @@ fn authenticate_legacy_archive_baseline(
         return Err(format!(
             "legacy archive `{}` subtree does not match its baseline digest",
             archived.id
-        ));
-    }
-    let introduction = git_output(
-        root,
-        &[
-            "rev-parse",
-            "--verify",
-            &format!("{}^{{commit}}", baseline_entry.introduction_commit),
-        ],
-    )
-    .ok_or_else(|| {
-        format!(
-            "legacy archive `{}` introduction is unavailable",
-            archived.id
-        )
-    })?;
-    if introduction != baseline_entry.introduction_commit {
-        return Err(format!(
-            "legacy archive `{}` introduction must be a canonical commit ID",
-            archived.id
-        ));
-    }
-    ensure_git_ancestor(root, &introduction, &cutoff, "legacy archive cutoff")?;
-    let pathspec = format!(":(top,literal){repo_subtree}");
-    let output = Command::new("git")
-        .args([
-            "log",
-            "--format=%H",
-            "--diff-filter=A",
-            &cutoff,
-            "--",
-            &pathspec,
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to inspect legacy archive introductions: {error}"))?;
-    if !output.status.success() {
-        return Err(format!(
-            "failed to inspect legacy archive introductions at cutoff `{cutoff}`"
-        ));
-    }
-    let mut anchors = BTreeSet::new();
-    for commit in String::from_utf8_lossy(&output.stdout).lines() {
-        let parents =
-            git_output(root, &["rev-list", "--parents", "-n", "1", commit]).unwrap_or_default();
-        let parent_has_subtree = parents.split_whitespace().skip(1).any(|parent| {
-            !git_tree_snapshot(root, parent, &repo_subtree)
-                .unwrap_or_default()
-                .is_empty()
-        });
-        if parent_has_subtree {
-            continue;
-        }
-        if git_tree_snapshot(root, commit, &repo_subtree).is_ok_and(|tree| &tree == current) {
-            anchors.insert(commit.to_string());
-        }
-    }
-    if anchors.len() != 1 || !anchors.contains(&introduction) {
-        return Err(format!(
-            "legacy archive `{}` requires its one baseline-bound pre-cutoff introduction anchor, found {}",
-            archived.id,
-            anchors.len()
         ));
     }
     Ok(())
@@ -8968,11 +8959,156 @@ fn load_legacy_archive_baseline_context(
                 .map(|snapshot| (entry.id.clone(), snapshot))
         })
         .collect::<Result<_, _>>()?;
+    validate_legacy_archive_introductions(root, &baseline, &snapshots)?;
 
     Ok(LegacyArchiveBaselineContext {
         baseline,
         snapshots,
     })
+}
+
+fn validate_legacy_archive_introductions(
+    root: &Path,
+    baseline: &LegacyArchiveBaselineV1,
+    snapshots: &BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>,
+) -> Result<(), String> {
+    let cutoff = baseline.cutoff_commit.as_str();
+    let mut repo_subtrees = BTreeMap::new();
+    let mut introductions = BTreeSet::new();
+    let repo_prefix = git_repo_prefix(root)?;
+    for entry in &baseline.entries {
+        let repo_subtree = format!("{repo_prefix}{}", entry.archive_path);
+        repo_subtrees.insert(entry.id.clone(), repo_subtree);
+        introductions.insert(entry.introduction_commit.as_str());
+    }
+    let archive_root = format!("{repo_prefix}{ARCHIVE_PATH}");
+    let history_pathspec = format!(":(top,literal){archive_root}");
+    for introduction in introductions {
+        let resolved = git_output(
+            root,
+            &[
+                "rev-parse",
+                "--verify",
+                &format!("{introduction}^{{commit}}"),
+            ],
+        )
+        .ok_or_else(|| format!("legacy archive introduction `{introduction}` is unavailable"))?;
+        if resolved != introduction {
+            return Err(format!(
+                "legacy archive introduction `{introduction}` must be a canonical commit ID"
+            ));
+        }
+        ensure_git_ancestor(root, introduction, cutoff, "legacy archive cutoff")?;
+    }
+
+    let mut log = Command::new("git");
+    log.args(["log", "--format=%H", "--diff-filter=A", cutoff, "--"])
+        .arg(&history_pathspec)
+        .current_dir(root);
+    let output = log
+        .output()
+        .map_err(|error| format!("failed to inspect legacy archive introductions: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "failed to inspect legacy archive introductions at cutoff `{cutoff}`"
+        ));
+    }
+    let commits: BTreeSet<_> = String::from_utf8(output.stdout)
+        .map_err(|_| "legacy archive introduction history is not UTF-8".to_string())?
+        .lines()
+        .map(str::to_string)
+        .collect();
+    let mut candidates: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut parents = BTreeMap::new();
+    for commit in commits {
+        let mut diff = Command::new("git");
+        diff.args([
+            "diff-tree",
+            "--root",
+            "-m",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            "-z",
+            "--diff-filter=A",
+            &commit,
+            "--",
+        ])
+        .arg(&history_pathspec)
+        .current_dir(root);
+        let output = diff.output().map_err(|error| {
+            format!("failed to inspect legacy archive introduction `{commit}`: {error}")
+        })?;
+        if !output.status.success() {
+            return Err(format!(
+                "failed to inspect legacy archive introduction `{commit}`"
+            ));
+        }
+        let added = output
+            .stdout
+            .split(|byte| *byte == 0)
+            .filter(|raw| !raw.is_empty())
+            .map(|raw| {
+                std::str::from_utf8(raw)
+                    .map(str::to_string)
+                    .map_err(|_| "legacy archive introduction path is not UTF-8".to_string())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        for (id, subtree) in &repo_subtrees {
+            let prefix = format!("{subtree}/");
+            if added
+                .iter()
+                .any(|path| path == subtree || path.starts_with(&prefix))
+            {
+                candidates
+                    .entry(id.clone())
+                    .or_default()
+                    .insert(commit.clone());
+            }
+        }
+        let commit_parents: Vec<String> =
+            git_output(root, &["rev-list", "--parents", "-n", "1", &commit])
+                .unwrap_or_default()
+                .split_whitespace()
+                .skip(1)
+                .map(str::to_string)
+                .collect();
+        parents.insert(commit, commit_parents);
+    }
+
+    for entry in &baseline.entries {
+        let current = snapshots.get(&entry.id).ok_or_else(|| {
+            format!(
+                "legacy archive `{}` has no captured baseline subtree",
+                entry.id
+            )
+        })?;
+        let repo_subtree = repo_subtrees
+            .get(&entry.id)
+            .ok_or_else(|| format!("legacy archive `{}` has no repository subtree", entry.id))?;
+        let mut anchors = BTreeSet::new();
+        for commit in candidates.get(&entry.id).into_iter().flatten() {
+            let parent_has_subtree = parents.get(commit).into_iter().flatten().any(|parent| {
+                !git_tree_snapshot(root, parent, repo_subtree)
+                    .unwrap_or_default()
+                    .is_empty()
+            });
+            if parent_has_subtree {
+                continue;
+            }
+            if git_tree_snapshot(root, commit, repo_subtree).is_ok_and(|tree| &tree == current) {
+                anchors.insert(commit.clone());
+            }
+        }
+        if anchors.len() != 1 || !anchors.contains(&entry.introduction_commit) {
+            return Err(format!(
+                "legacy archive `{}` requires its one baseline-bound pre-cutoff introduction anchor, found {}",
+                entry.id,
+                anchors.len()
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn legacy_baseline_entry<'a>(
@@ -9157,7 +9293,7 @@ fn git_tree_snapshot(
         ));
     }
     let prefix = format!("{repo_subtree}/");
-    let mut snapshot = BTreeMap::new();
+    let mut entries = Vec::new();
     for raw in output
         .stdout
         .split(|byte| *byte == 0)
@@ -9188,20 +9324,85 @@ fn git_tree_snapshot(
         let relative = path
             .strip_prefix(&prefix)
             .ok_or_else(|| format!("legacy archive tree path `{path}` escaped its subtree"))?;
-        let bytes = Command::new("git")
-            .args(["cat-file", "blob", object])
-            .current_dir(root)
-            .output()
-            .map_err(|error| format!("failed to read legacy archive blob: {error}"))?;
-        if !bytes.status.success() {
-            return Err(format!("failed to read legacy archive blob `{object}`"));
-        }
-        snapshot.insert(
+        entries.push((
             strict_portable_relative_path(relative)?,
-            (mode, bytes.stdout),
-        );
+            mode,
+            object.to_string(),
+        ));
+    }
+    let objects: Vec<_> = entries
+        .iter()
+        .map(|(_, _, object)| object.as_str())
+        .collect();
+    let blobs = git_blob_bytes_batch(root, &objects)?;
+    let mut snapshot = BTreeMap::new();
+    for ((relative, mode, _object), bytes) in entries.into_iter().zip(blobs) {
+        snapshot.insert(relative, (mode, bytes));
     }
     Ok(snapshot)
+}
+
+fn git_blob_bytes_batch(root: &Path, objects: &[&str]) -> Result<Vec<Vec<u8>>, String> {
+    if objects.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut input = Vec::new();
+    for object in objects {
+        if object.is_empty() || object.bytes().any(|byte| byte.is_ascii_whitespace()) {
+            return Err(format!("invalid legacy archive blob object `{object}`"));
+        }
+        input.extend_from_slice(object.as_bytes());
+        input.push(b'\n');
+    }
+    let output = run_git_required(
+        root,
+        &["cat-file", "--batch"],
+        Some(input),
+        MAX_GIT_EVIDENCE_PAYLOAD_BYTES + MAX_GIT_EVIDENCE_PATH_BYTES,
+    )?;
+    let mut cursor = 0;
+    let mut blobs = Vec::with_capacity(objects.len());
+    for expected in objects {
+        let header_end = output[cursor..]
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .map(|offset| cursor + offset)
+            .ok_or_else(|| "legacy archive batch output has no header terminator".to_string())?;
+        let header = std::str::from_utf8(&output[cursor..header_end])
+            .map_err(|_| "legacy archive batch output has non-UTF-8 metadata".to_string())?;
+        let mut fields = header.split_whitespace();
+        let object = fields
+            .next()
+            .ok_or_else(|| "legacy archive batch output has no object".to_string())?;
+        let kind = fields
+            .next()
+            .ok_or_else(|| "legacy archive batch output has no kind".to_string())?;
+        let size = fields
+            .next()
+            .ok_or_else(|| "legacy archive batch output has no size".to_string())?
+            .parse::<usize>()
+            .map_err(|_| "legacy archive batch output has an invalid size".to_string())?;
+        if fields.next().is_some() || object != *expected || kind != "blob" {
+            return Err(format!(
+                "unexpected legacy archive batch header `{header}` for `{expected}`"
+            ));
+        }
+        let payload_start = header_end + 1;
+        let payload_end = payload_start
+            .checked_add(size)
+            .ok_or_else(|| "legacy archive blob size overflowed".to_string())?;
+        if payload_end >= output.len() || output[payload_end] != b'\n' {
+            return Err(format!(
+                "legacy archive batch output is truncated for blob `{expected}`"
+            ));
+        }
+        blobs.push(output[payload_start..payload_end].to_vec());
+        cursor = payload_end + 1;
+    }
+    if cursor != output.len() {
+        return Err("legacy archive batch output has unexpected trailing bytes".into());
+    }
+    Ok(blobs)
 }
 
 fn validate_accepted_inputs_recursive(
@@ -11227,10 +11428,14 @@ fn git_output_allow_empty(root: &Path, args: &[&str]) -> Option<String> {
 }
 
 fn git_repo_relative_path(root: &Path, project_path: &str) -> Result<String, String> {
+    Ok(format!("{}{project_path}", git_repo_prefix(root)?))
+}
+
+fn git_repo_prefix(root: &Path) -> Result<String, String> {
     let prefix = git_output_allow_empty(root, &["rev-parse", "--show-prefix"])
         .ok_or_else(|| "unable to determine project path within Git repository".to_string())?
         .replace('\\', "/");
-    Ok(format!("{prefix}{project_path}"))
+    Ok(prefix)
 }
 
 fn write_json<Value: Serialize>(path: &Path, value: &Value) -> Result<(), String> {
@@ -11895,7 +12100,7 @@ mod tests {
             sparse_absent: BTreeSet::new(),
         };
         assert_eq!(
-            capture_git_candidate(root, "link", Some(0o120000), Some(&object), &worktree)
+            capture_git_candidate(root, "link", Some(0o120000), Some(&object), &worktree, None,)
                 .unwrap()
                 .payload,
             b"../shared/tool"
@@ -11937,7 +12142,14 @@ mod tests {
             let object = String::from_utf8(output.stdout).unwrap().trim().to_string();
             fs::write(&materialized, b"host-working-copy-bytes").unwrap();
             assert_eq!(
-                capture_git_candidate(root, "link", Some(0o120000), Some(&object), &worktree)
+                capture_git_candidate(
+                    root,
+                    "link",
+                    Some(0o120000),
+                    Some(&object),
+                    &worktree,
+                    None,
+                )
                     .unwrap(),
                 GitCapturedEntry {
                     kind: AcceptanceInputKind::Symlink,
@@ -12572,6 +12784,34 @@ mod tests {
             "{error}"
         );
         assert!(run_git_required(root, &["rev-parse", "--git-dir"], None, 1024).is_ok());
+    }
+
+    #[test]
+    fn batched_git_blob_reads_preserve_binary_payloads_and_order() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        let payloads = [
+            b"first\nline\0tail".to_vec(),
+            Vec::new(),
+            b"third\r\nline\n".to_vec(),
+        ];
+        let objects: Vec<_> = payloads
+            .iter()
+            .map(|payload| {
+                run_git_required(
+                    root,
+                    &["hash-object", "-w", "--stdin"],
+                    Some(payload.clone()),
+                    128,
+                )
+                .unwrap()
+            })
+            .map(|object| String::from_utf8(object).unwrap().trim().to_string())
+            .collect();
+        let object_refs: Vec<_> = objects.iter().map(String::as_str).collect();
+
+        assert_eq!(git_blob_bytes_batch(root, &object_refs).unwrap(), payloads);
     }
 
     #[cfg(unix)]

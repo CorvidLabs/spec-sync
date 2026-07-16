@@ -85,6 +85,40 @@
       "requirement_ids": [
         "REQ-change-026"
       ]
+    },
+    {
+      "timestamp": 1784175152,
+      "commit": "94171de1f5c308c702fd1b4de65ddec4ff9e51e6",
+      "contract_digest": "7ba2ed926fb2c01b78177c3ae8128b12ec57810137a81e4677d0efb695d25536",
+      "workspace_digest": "200889605b69b0b39665b1b21b46e2d550f769c20a29ddeec83f22f969e566ee",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-026"
+      ]
+    },
+    {
+      "timestamp": 1784180151,
+      "commit": "94171de1f5c308c702fd1b4de65ddec4ff9e51e6",
+      "contract_digest": "7ba2ed926fb2c01b78177c3ae8128b12ec57810137a81e4677d0efb695d25536",
+      "workspace_digest": "df040cde65f74d85d724aea4088c73ae98b53aaabd124aab9478f4d06ec1b11b",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-026"
+      ]
     }
   ]
 }

@@ -6,6 +6,13 @@
       "timestamp": 1784099070,
       "digest": "5a972836334a2b449f3c8f1406a4ee4cdb854555f1222f0d99e1c6f904b56526",
       "note": "Definition approved after review of the fresh main-descendant artifacts, canonical REQ-change-013 and REQ-change-016 updates, shared freshness predicate, fail-closed boundaries, and environment-parity regressions."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784176624,
+      "digest": "504a452f27770b8f79777d80beb3a5caead30b19fd8f09779d8c4112cb7936de",
+      "note": null
     }
   ],
   "reopenings": []

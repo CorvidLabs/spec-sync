@@ -278,6 +278,13 @@
       "timestamp": 1784174062,
       "digest": "f401cdf1a1f6c8188c0439546651096475996d78e5f4961a6c43d6041a8d4493",
       "note": "Reaccepted after the verified strict-check performance correction."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784208045,
+      "digest": "5c93632789bc89210a08ee39400535dab32e85c83404ae2ff9ec6b7c731c8781",
+      "note": null
     }
   ],
   "reopenings": [

@@ -140,9 +140,9 @@ brew install CorvidLabs/tap/spec-sync
 `@v5` follows compatible 5.x Action updates. Pin both the Action and binary for an immutable install:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v5.0.0
+- uses: CorvidLabs/spec-sync@v5.1.1
   with:
-    version: '5.0.0'
+    version: '5.1.1'
 ```
 
 ### Pre-built binaries

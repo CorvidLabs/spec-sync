@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784242463,
+      "digest": "16357c89c0ef836dbec895cc70073b87b689aeed60da2b0857e5bbd14b7ccd1a",
+      "note": "Approved CHG-0048 as 0xLeif."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784242543,
+      "digest": "be3313ecafffe940155787eb252a6944f953cf1f0ca7a479dfc417a715dcc002",
+      "note": "Reapproved CHG-0048 as 0xLeif after adding the deterministic Bun runtime requirement semantic delta."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784242830,
+      "digest": "6c67833bd74c19000879be0311de64cfc8028782c887965c77174773fd1c2e30",
+      "note": "Reapproved CHG-0048 as 0xLeif after adding the complete Bun CI repair and validation paths to its deterministic scope."
+    }
+  ],
+  "reopenings": []
+}

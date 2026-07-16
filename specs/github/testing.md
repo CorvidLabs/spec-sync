@@ -7,6 +7,8 @@ spec: github.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/github.rs` | cargo test github:: | `test_parse_repo_from_url_https`, `test_parse_repo_from_url_ssh`, `test_parse_repo_from_url_unknown` |
+| Release version surfaces | `python3 .github/scripts/validate-release-version.py` | Cargo, lockfile, Action default, README/docs, packaged consumer, Trust candidate, and changelog agree |
+| Hosted Bun runtime | `python3 .github/scripts/validate-workflow-runtime-pins.py` | Pages, site CI, and VS Code extension CI all pin the supported exact Bun version |
 
 ## Coverage Gaps
 
@@ -31,6 +33,8 @@ spec: github.spec.md
 | Issue does not exist (404) | `fetch_issue_api` returns `Err("Issue not found")` | Keep or add a focused assertion before changing this behavior |
 | Network timeout | `fetch_issue_api` returns `Err` after 10 seconds | Keep or add a focused assertion before changing this behavior |
 | `gh` CLI not authenticated | `gh_is_available` returns `false` | Keep or add a focused assertion before changing this behavior |
+| GitHub Bun tag API unavailable | Maintained JS jobs do not perform latest-tag discovery | Keep exact `bun-version` pins in all three `setup-bun` jobs and run their frozen install/build commands |
+| Exact Action release fails a platform smoke test | Floating `v5` remains unchanged | Compare refs before and after the failed promotion attempt |
 
 ## Reviewer Checklist
 
@@ -38,3 +42,5 @@ spec: github.spec.md
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.
+- Before promoting an Action release, run pinned `@v<major>.<minor>.<patch>` consumers on Linux,
+  macOS, and Windows; advance `v<major>` only after all pass.

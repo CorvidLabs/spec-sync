@@ -7666,7 +7666,12 @@ fn capture_working_candidate(
                 .map_err(|error| format!("failed to read {}: {error}", path.display()))?,
         ),
         Ok(_) => (AcceptanceInputKind::NonFile, 0, Vec::new()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::InvalidFilename
+            ) =>
+        {
             (AcceptanceInputKind::Missing, 0, Vec::new())
         }
         Err(error) => return Err(format!("failed to inspect {}: {error}", path.display())),

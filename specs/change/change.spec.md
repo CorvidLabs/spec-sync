@@ -1,6 +1,6 @@
 ---
 module: change
-version: 31
+version: 35
 status: active
 files:
   - src/change.rs
@@ -19,11 +19,11 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 ## Contract
 
 1. Every meaningful SDD change moves through draft, approved, implementing, verifying, accepted, and archived states without bypasses.
-2. Definition and closing approvals are portable records bound to deterministic SHA-256 digests.
+2. Definition and closing approvals are portable records bound to deterministic SHA-256 digests; an explicitly requested 5.1 authority approval uses one atomically appended marked current/5.0.1-compatible definition pair whose effective full member is resolved centrally without historical approval search.
 3. Approved semantic deltas form the effective future contract without mutating canonical specs before acceptance.
 4. Requirements use stable `REQ-<module>-<number>` IDs, normative SHALL statements, and acceptance criteria.
 5. Verification executes only project-configured commands without a shell and rejects direct or indirect entry into every lifecycle command surface.
-6. Verification evidence is bound to the tested commit and working-tree inputs, and registry-resolved effective contracts must validate before acceptance.
+6. Verification evidence is bound to the tested commit and working-tree inputs; descendant freshness is environment-independent and permits only internally consistent supported verification-persistence commits after inspecting every commit and parent edge.
 7. Invalid policy, unavailable coverage comparison, failed evidence, stale ordering gates, and protected sequence-ledger edits without lifecycle coverage fail closed.
 8. Concurrent deltas follow declared dependency order and canonical Markdown application preserves unrelated sections.
 9. Approval validates complete module-scoped deltas, corrupt state fails closed, and archival failures remain retryable.
@@ -33,6 +33,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 13. Historical collision acknowledgements are exact immutable accepted-or-archived evidence and numeric sequence width has no four-digit upper bound.
 14. A fully valid later sequence claim supersedes only the sequence-ledger bytes in historical acceptance inputs; the current owner and every other covered input remain exact evidence.
 15. Supported accepted interview metadata changes only through a portable append-only correction ledger whose effective definition requires fresh gates and never replays canonical deltas.
+16. Audited exact acceptance-owner corrections can repair omitted canonical ownership on an already-scoped input without changing semantic scope or replaying canonical deltas.
 
 ## Public API
 
@@ -50,9 +51,16 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `ChangeKind` | Deterministic policy classification for feature, bug fix, refactor, migration, documentation, and operations work |
 | `ArtifactKind` | Built-in or custom adaptive companion artifact selection |
 | `SddPolicy` | Versioned enforcement, path, verification-command, template, and principles configuration |
-| `ChangeRecord` | Durable machine state preserving the originally accepted interview metadata for one change workspace |
+| `SuccessionObligation` | Definition-bound predecessor path, canonical owner module, and full predecessor entry digest |
+| `SupersedesEdge` | Durable predecessor ID and its sorted semantic succession obligations |
+| `AcceptanceOwnerCorrection` | Sequenced human-authored exact path/module ownership correction for acceptance evidence |
+| `ChangeRecord` | Durable machine state for one change workspace, including omitted-when-empty supersedes edges and acceptance-owner corrections |
+| `LegacyArchiveBaselineV1` | Definition- and closing-bound authority, cutoff, and sorted legacy archive subtree entries |
+| `LegacyArchiveBaselineEntryV1` | Archive ID, canonical dated path, unique introduction commit, and exact subtree digest |
 | `CreateChangeRequest` | Validated creation inputs grouped for CLI, imports, and agent clients |
-| `ApprovalRecord` | Actor, timestamp, gate, digest, and optional note for one approval |
+| `ApprovalRecord` | Actor, timestamp, gate, digest, optional note, and optional backward-readable portable-pair metadata for one approval |
+| `DefinitionApprovalPairRole` | Current/full or legacy/projected role for one marked portable definition member |
+| `DefinitionApprovalPairV1` | Versioned pair identity, projection, role, change/correction coordinates, event index, and both digests |
 | `ReopenRecord` | Immutable audit event preserving superseded closing approval, prior verification, actor, reason, transition, and stale/current input digests |
 | `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
 | `CorrectionField` | Closed supported accepted-metadata field set: public contract and architecture risk |
@@ -61,10 +69,18 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `CorrectionResult` | Deterministic corrected change, event, effective definition, history, and gate-summary projection |
 | `ApprovalLedger` | Ordered portable approval and reopen history |
 | `CommandEvidence` | Exit evidence for one configured verification command |
-| `VerificationRecord` | Commit-bound verification result, contract digest, command results, and requirement coverage |
+| `AcceptanceInputKind` | Canonical file, symlink, gitlink, missing, or non-file topology kind |
+| `AcceptanceInputEntryV1` | Bounded path, kind, mode, payload digest, full-entry digest, and sorted owners for one accepted input |
+| `AcceptanceManifestV1` | Versioned sorted per-input acceptance manifest |
+| `SemanticSuccessionTupleV1` | Exact predecessor, path, module, old-entry digest, and new-entry digest transition |
+| `SemanticSuccessionEvidenceV1` | Versioned sorted one-to-one closing evidence for approved supersedes obligations |
+| `VerificationRecord` | Commit-bound verification result, contract digest, commands, requirement coverage, and optional acceptance manifest/succession evidence |
 | `InterviewQuestion` | Stable deterministic question with choices and recommendation |
-| `ChangeSummary` | Human/agent status projection with gate health, correction health, and next action |
-| `SddCheckReport` | Unified lifecycle validation errors, warnings, and checked-change count |
+| `TerminalEvidenceValidity` | State-aware exact, successor-covered, stale, authenticated-history, or corrupt-history evidence conclusion |
+| `TerminalEvidenceSummary` | Shared terminal validity plus optional fail-closed reason |
+| `TerminalEvidenceResult` | Change ID paired with its shared terminal-evidence summary |
+| `ChangeSummary` | Human/agent status projection with gate health, next action, and optional terminal-evidence summary |
+| `SddCheckReport` | Unified lifecycle errors, warnings, checked-change count, and terminal-evidence results |
 
 **Exported Functions**
 
@@ -78,7 +94,10 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Return deterministic unanswered interview questions |
 | `answer_question` | `root, id, question, answer` | `Result<ChangeRecord, String>` | Persist an interview answer and update adaptive artifacts |
 | `add_dependency` | `root, id, dependency` | `Result<ChangeRecord, String>` | Declare ordering between active changes and invalidate stale approval digests |
-| `approve_definition` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Validate and record mandatory definition approval |
+| `add_supersedes_obligation` | `root, id, predecessor, path, module, predecessor_entry_digest` | `Result<ChangeRecord, String>` | Add one validated definition-bound semantic succession obligation to a draft |
+| `add_acceptance_owner_correction` | `root, id, path, module, actor, reason` | `Result<ChangeRecord, String>` | Append one audited exact canonical owner correction to a reopened already-applied change |
+| `approve_definition` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Validate and record an ordinary mandatory definition approval |
+| `approve_definition_portable_v501` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Atomically record the marked current/5.0.1 portable definition pair |
 | `start_implementation` | `root, id` | `Result<ChangeRecord, String>` | Enter implementation after approval and conflict validation |
 | `verify_change` | `root, id` | `Result<VerificationRecord, String>` | Run configured tests and record commit/contract evidence |
 | `reopen_change` | `root, id, actor, reason` | `Result<ReopenResult, String>` | Move stale accepted evidence to verifying and append an immutable supersession audit event |
@@ -87,8 +106,8 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `correction_history` | `root, record` | `Result<Vec<CorrectionRecord>, String>` | Load validated append-only correction records for inspection clients |
 | `accept_change` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Record closing approval and atomically apply semantic deltas only when not already canonical |
 | `archive_change` | `root, id` | `Result<PathBuf, String>` | Move an accepted workspace into the dated archive |
-| `summarize_change` | `root, record` | `ChangeSummary` | Project gate health, correction health, and next action for clients |
-| `check_project` | `root: &Path` | `SddCheckReport` | Validate lifecycle state, approvals, corrections, conflicts, deltas, and path coverage |
+| `summarize_change` | `root, record` | `ChangeSummary` | Project gate health, correction health, and next action using the shared verification-freshness predicate |
+| `check_project` | `root: &Path` | `SddCheckReport` | Validate lifecycle state, approvals, corrections, conflicts, deltas, path coverage, and shared verification freshness |
 | `check_project_quiet` | `root: &Path` | `SddCheckReport` | Run the same fail-closed lifecycle check while suppressing configured command output for machine-consumable report protocols |
 | `adopt` | `root, dry_run, source` | `Result<Vec<String>, String>` | Preview or enable SDD and import OpenSpec or Spec Kit artifacts |
 | `detect_verification_commands` | `root: &Path` | `Vec<String>` | Detect explicit fledge, Cargo, Bun, or Swift test commands |
@@ -106,6 +125,7 @@ Acceptance Criteria
 - Nested lifecycle commands still fail once with the established deterministic contextual error.
 - The process marker and diagnostic helper remain private binary implementation details.
 - Correction inspection exposes typed portable records without exposing mutable ledger internals.
+- Acceptance-owner corrections expose only immutable audit fields and never mutable internal ledgers.
 
 ## Invariants
 
@@ -124,12 +144,14 @@ Acceptance Criteria
 13. Persisted and hashed project paths use forward slashes on every operating system.
 14. Quiet reporting executes every configured command and preserves failures while suppressing only child stdout and stderr; normal checking and verification continue streaming diagnostics.
 15. Reopening current accepted evidence is rejected, and reopening stale evidence never reapplies an already canonical semantic delta.
-16. Reacceptance of an already-applied change requires the definition digest captured by the latest audited reopen event; further definition changes require a new change workspace.
+16. Reacceptance of an already-applied change requires the definition digest captured by the latest audited reopen event unless every difference is a validated additive exact-owner correction.
 17. False default lifecycle fields remain absent from new persisted state, while definition validation recognizes both omitted and transitional explicit-false encodings so upgrades preserve existing approvals and verification; explicit acceptance appends stable definition evidence when the latest compatible approval uses the transitional encoding.
 18. Audited reopen accepts unreachable verification commits only when canonical acceptance is recorded in current history or later recorded canonical changes govern every affected contract surface.
 19. Acceptance appends a Change Log row matching the canonical table's existing column schema and uses the post-bump version when the schema includes `Version`.
 20. Generated bookkeeping never replaces explicit delivery scope; registry authority, policy enablement, and native command identity are evaluated consistently before lifecycle enforcement.
 21. Trusted correction-history discovery ignores unresolved remote-default references and parses Git tree paths without quoting ambiguity; regression fixtures preserve quoted-path coverage where supported while remaining valid on Windows.
+22. Local and hosted verification freshness inspect every intervening commit against every parent, permit only the three supported persistence files below canonical active-change IDs, and never infer safety from a net diff or broad volatile-path exclusion.
+23. Exact-owner corrections are additive, restricted to an original affected path and a current canonical source owner, and cannot mutate semantic definition fields or prior evidence.
 
 ## Behavioral Examples
 
@@ -157,6 +179,12 @@ Acceptance Criteria
 - **When** a human reopens it with an actor and reason
 - **Then** the prior verification and closing approval remain in audit history, strict checking stays red until fresh verification, and reacceptance records a new closing approval without reapplying canonical deltas
 
+### Scenario: Persisted verification evidence
+
+- **Given** a supported verification run passed on the current commit
+- **When** one or more descendant commits persist only its canonical state, verification, and attempt-ledger files
+- **Then** local status, local strict checking, and hosted checking all keep the evidence current while matching contract and project-input digests remain mandatory
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -165,9 +193,11 @@ Acceptance Criteria
 | Missing or invalid semantic delta | Approval, verification, and unified check fail |
 | Verification command contains shell operators | Command is rejected without execution |
 | HEAD changes after verification | Acceptance requires re-verification |
+| Any intervening commit changes a disallowed path, even if later reverted | Status and strict checking require re-verification in every environment |
 | Accepted delivery evidence is still current | Reopen is rejected without changing lifecycle or audit state |
 | Reopen actor or reason is empty | Reopen is rejected before any mutation |
 | Concurrent changes edit the same semantic key | Progress requires dependency ordering or rebase |
+| Ownership correction is not exact, additive, in-scope, and canonically provable | Correction is rejected transactionally |
 
 ## Dependencies
 
@@ -221,3 +251,7 @@ Acceptance Criteria
 | 2026-07-15 | CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re: Support audited append-only correction of accepted interview metadata without replaying canonical deltas |
 | 2026-07-15 | Harden CHG-0040 trusted-history reference resolution and NUL-delimited Git path parsing during PR review |
 | 2026-07-15 | Keep the CHG-0040 Unicode-path regression valid on Windows without dropping quoted-path coverage on Unix |
+| 2026-07-15 | CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec: Make accepted-change validity successor-aware with exact per-input evidence, recursive cycle-safe validation, fail-closed legacy compatibility, and safe archived successors |
+| 2026-07-15 | CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied: Permit audited deterministic ownership corrections for reopened already-applied changes |
+| 2026-07-16 | CHG-0044-harden-canonical-numeric-change-ordering-across-chg-9999-to-chg-10000-and-correc: Harden canonical numeric change ordering across CHG-9999 to CHG-10000 and correct 5.1 release documentation |
+| 2026-07-16 | CHG-0045-unify-local-and-ci-verification-freshness-so-descendant-evidence-only-commits-re: Unify local and CI verification freshness so descendant evidence-only commits remain current while source, test, configuration, contract, or nonancestor changes fail closed |

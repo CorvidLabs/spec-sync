@@ -338,6 +338,22 @@ pub enum ChangeAction {
         /// Change ID that must be ordered first
         on: String,
     },
+    /// Adopt one exact predecessor path/module obligation before definition approval
+    Supersede {
+        /// Change that will provide the semantic successor
+        id: String,
+        /// Accepted predecessor change ID
+        predecessor: String,
+        /// Exact portable predecessor input path
+        #[arg(long)]
+        path: String,
+        /// Canonical owner module for this obligation
+        #[arg(long = "spec")]
+        module: String,
+        /// Full `specsync.acceptance-entry.v1` predecessor digest
+        #[arg(long)]
+        digest: String,
+    },
     /// List active changes
     List,
     /// Show one change, its gate health, and next questions
@@ -360,6 +376,9 @@ pub enum ChangeAction {
         /// Optional approval note
         #[arg(long)]
         note: Option<String>,
+        /// Atomically append a marked current/SpecSync-5.0.1 portable definition pair
+        #[arg(long)]
+        portable_5_0_1: bool,
     },
     /// Transition an approved change into implementation
     Start {
@@ -396,6 +415,23 @@ pub enum ChangeAction {
         #[arg(long)]
         actor: String,
         /// Non-empty reason the accepted metadata is inaccurate
+        #[arg(long)]
+        reason: String,
+    },
+    /// Correct one exact canonical owner used by accepted delivery evidence
+    CorrectOwner {
+        /// Reopened already-applied change ID
+        id: String,
+        /// Exact portable input path already covered by the original change
+        #[arg(long)]
+        path: String,
+        /// Canonical module that currently owns the exact path
+        #[arg(long = "spec")]
+        module: String,
+        /// Human actor authorizing the ownership correction
+        #[arg(long)]
+        actor: String,
+        /// Non-empty reason the historical acceptance owner was incomplete
         #[arg(long)]
         reason: String,
     },
@@ -813,6 +849,56 @@ mod tests {
                 "yes",
                 "--actor",
                 "Ada",
+            ])
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn change_correct_owner_requires_exact_scope_and_audit_inputs() {
+        let cli = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "correct-owner",
+            "CHG-0001-passkeys",
+            "--path",
+            "src/auth.rs",
+            "--spec",
+            "auth",
+            "--actor",
+            "Ada Reviewer",
+            "--reason",
+            "The historical manifest omitted the canonical owner",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Some(Command::Change {
+                action: ChangeAction::CorrectOwner {
+                    id,
+                    path,
+                    module,
+                    actor,
+                    reason,
+                }
+            }) if id == "CHG-0001-passkeys"
+                && path == "src/auth.rs"
+                && module == "auth"
+                && actor == "Ada Reviewer"
+                && reason == "The historical manifest omitted the canonical owner"
+        ));
+        assert!(
+            Cli::try_parse_from([
+                "specsync",
+                "change",
+                "correct-owner",
+                "CHG-0001-passkeys",
+                "--path",
+                "src/auth.rs",
+                "--spec",
+                "auth",
+                "--actor",
+                "Ada Reviewer",
             ])
             .is_err()
         );

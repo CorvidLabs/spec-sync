@@ -16,3 +16,5 @@ spec: cli_args.spec.md
 | `change reopen` missing actor/reason | Clap rejects the incomplete command |
 | `change correct <id> <field> <value> --actor <human> --reason <text>` | Parses only the supported audited correction grammar (`REQ-cli-args-004`) |
 | `change correct` with an unsupported field/value or missing actor/reason | Clap rejects the command before domain mutation |
+| `change correct-owner <id> --path <path> --spec <module> --actor <human> --reason <text>` | Parses the complete audited exact-owner correction grammar (`REQ-cli-args-005`) |
+| `change correct-owner` missing path/spec/actor/reason | Clap rejects the command before domain mutation |

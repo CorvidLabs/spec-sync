@@ -106,38 +106,53 @@ Acceptance Criteria
 
 ### REQ-change-012
 
-The lifecycle SHALL fail closed across coverage, persisted closing evidence, semantic-delta validation, dependency ordering, and supported canonical version formats.
+The lifecycle SHALL fail closed across coverage, canonical persisted closing evidence, semantic-delta validation, dependency ordering, and supported canonical version formats.
 
 Acceptance Criteria
-- Only implementing, verifying, or accepted changes cover meaningful delivery paths.
+- Only implementing, verifying, or terminal changes cover their own meaningful delivery paths; only closing-valid accepted or authenticated archived changes can satisfy successor evidence.
 - Local coverage includes committed, staged, unstaged, and untracked meaningful paths.
-- Accepted workspaces require fresh successful verification and matching closing approval evidence.
+- Active accepted workspaces require successful verification, matching closing approval, and recursive exact-or-successor-covered current-input validity; archives require authenticated historical integrity and enter current-input recursion only when selected as successors.
 - Delta modules, operation headings, tombstones at acceptance, and transitive dependency order are validated deterministically.
 - Integer and semantic spec versions advance without losing their format.
 
 ### REQ-change-013
 
-The lifecycle SHALL reject untrusted or corrupt persisted workspace identity, scope, approval, history, and verification evidence before using it.
+The lifecycle SHALL reject untrusted or corrupt persisted workspace identity, scope, approval, history, and verification evidence before using it, with one environment-independent verification-freshness decision.
 
 Acceptance Criteria
+
 - Loaded change IDs match their requested workspace and remain a single validated component.
 - Persisted affected spec names are validated before delta paths are constructed.
 - Unreadable or malformed historical tombstone deltas and approval ledgers fail closed.
-- Verifying workspaces require passed, fresh verification evidence in CI and local checks.
+- Verifying workspaces require passed evidence, a matching effective contract digest, and a matching project-input digest in local and hosted checks.
+- A descendant verification commit remains current only when every intervening commit and every parent edge changes exactly `state.json`, `verification.json`, or `verification-attempts.json` under a canonical active-change ID and the persisted state/evidence remains consistent.
+- Source-change-then-revert history, ambiguous merges, nonancestor history, malformed paths, and any broader volatile or lifecycle path fail closed.
 
 ### REQ-change-014
 
-The lifecycle SHALL preserve evidence, canonical truth, project-root isolation, bootstrap usability, and import safety through acceptance and archival.
+The lifecycle SHALL preserve evidence, canonical truth, project-root isolation, bootstrap usability,
+and import safety through acceptance and archival.
 
 Acceptance Criteria
-- Accepted changes remain valid only while verification matches current delivery inputs, and archive revalidates the same evidence.
-- Archive eligibility is attributable to the specific accepted change rather than overlapping path coverage from another change.
+
+- Accepted changes remain valid while every signed input is exact or every changed path/module
+  obligation is governed by explicit closing-valid semantic succession evidence.
+- Archive eligibility is attributable to the specific accepted change and its authenticated
+  accepted snapshot rather than overlapping path coverage.
+- Active and dated-archive workspaces are resolved by authenticated location-aware reads;
+  duplicates and ambiguous locations fail closed.
+- Archive preflights target historical integrity plus every active accepted root and dependent
+  candidate before mutation, ignore unrelated authenticated archive drift, and keep immediate
+  uncommitted check/status consistent.
 - Trusted policy lookup and meaningful changed paths are relative to the requested project root.
 - Canonical specs require lifecycle coverage and adoption covers its protected policy bootstrap.
 - A no-spec declaration cannot accompany a declared public-contract change.
 - OpenSpec and Spec Kit imports reject symlinked files and directories.
 - Rejected foreign imports leave no partial adoption policy, report, or imported content.
-- The exact schema-v1 self-adoption record is the sole migration exception to the no-spec/public-contract rule.
+- The exact schema-v1 self-adoption record is the sole migration exception to the
+  no-spec/public-contract rule.
+- A legacy archive baseline authority that covers the baseline ledger signs that exact ledger path
+  in its acceptance manifest even though other dated archive paths remain volatile.
 
 ### REQ-change-015
 
@@ -150,41 +165,40 @@ Acceptance Criteria
 
 ### REQ-change-016
 
-The lifecycle SHALL preserve accepted closing evidence across repository-integrated squash merges without accepting
-unintegrated or altered evidence.
+The lifecycle SHALL preserve accepted closing evidence and supported verifying evidence across repository-integrated commits without accepting unintegrated, altered, or historically tainted evidence.
 
 Acceptance Criteria
-- Normal verification-commit ancestry remains the primary proof.
-- A squash fallback requires matching scoped inputs and an unchanged accepted workspace already integrated on the
-  remote default branch.
-- Unintegrated heads, changed scoped inputs, stale contracts, and mismatched closing approvals fail closed.
-- Squash-integrated accepted workspaces remain archivable.
-- Digest fields are versioned, domain-separated, and length-framed so file boundaries cannot be forged with embedded
-  NUL bytes.
-- Binary bytes remain exact, while stable file kind and executable-mode evidence invalidate relevant delivery changes.
-- Cross-platform topology verification is independent of a runner's global line-ending checkout policy.
+
+- Normal verification-commit ancestry remains mandatory proof and uses identical local and CI semantics.
+- Every intervening commit is inspected against every parent with NUL-delimited portable paths; a net tree diff cannot hide a governed change and later revert.
+- Only supported verification persistence beneath canonical active-change IDs may follow verification without invalidating it; archive, approvals, tasks, definitions, sequence, hashes, locks, configuration, policy, specs, source, tests, build, and cache paths are rejected.
+- Matching effective contract and project-input digests plus consistent state, verification, and latest-attempt evidence remain mandatory.
+- A squash fallback for accepted closing evidence still requires matching scoped inputs and an unchanged accepted workspace integrated on the remote default branch.
+- Unintegrated heads, changed scoped inputs, stale contracts, mismatched closing approvals, nonancestor evidence, and ambiguous merges fail closed.
+- Digest fields remain versioned, domain-separated, and length-framed; binary bytes, topology, and executable modes remain exact.
 
 ### REQ-change-017
 
-The lifecycle SHALL provide an audited recovery transition when accepted verification becomes stale because governed delivery inputs changed.
+The lifecycle SHALL provide an audited recovery transition when accepted verification is genuinely stale after exact and semantic-successor validation.
 
 Acceptance Criteria
-- Reopen requires an explicit non-empty human actor and reason and rejects non-stale accepted evidence.
-- Reopen moves accepted evidence to verifying so strict checks remain red until a fresh verification run succeeds.
-- Prior definition approval, verification, and closing approval evidence remain inspectable in append-only audit history.
+- Reopen requires an explicit non-empty human actor and reason and rejects exact or successor-covered accepted evidence using the shared validity reason.
+- Reopen moves stale accepted evidence to verifying so strict checks remain red until a fresh verification run succeeds.
+- Prior definition approval, verification, closing approval, manifests, successor evidence, and accepted snapshot remain inspectable in append-only audit history.
 - Reacceptance requires a new closing approval and does not reapply canonical deltas already accepted.
 - Reacceptance rejects a definition digest that differs from the latest pre-reopen verification contract and directs further spec work to a new change workspace.
 - A verifying already-applied change without audited reopen history fails closed.
 
 ### REQ-change-018
 
-Audited reopening SHALL recognize canonical acceptance recorded in current Git history after squash integration or complete later canonical governance.
+Audited reopening SHALL recognize only provable canonical acceptance and deterministic semantic succession recorded in trusted Git history.
 
 Acceptance Criteria
-
 - Definition digest, passed evidence, closing approval, stale delivery inputs, actor, and reason remain mandatory.
-- An unreachable verification commit is allowed only when current history records acceptance or later recorded canonical changes govern every affected spec and path.
-- A descendant feature branch preserves squash-accepted evidence when the remote default branch records the accepted state and the definition, delivery inputs, and closing approval remain current.
+- An unreachable verification commit is allowed only when the exact accepted-transition anchor or explicit predecessor/path/module/digest successor evidence is provable from trusted history.
+- ID order, timestamps, lexicographic ordering, and independent path/spec scope overlap are never succession evidence.
+- Repeated trusted commits yielding identical canonical reconstructed evidence are deduplicated; distinct reconstructions fail as ambiguous.
+- A descendant feature branch preserves squash-accepted evidence only when the remote default branch records the same accepted state, definition, delivery inputs, and closing approval.
 - Arbitrary off-history evidence remains rejected.
 
 ### REQ-change-019
@@ -199,17 +213,19 @@ Acceptance Criteria
 
 ### REQ-change-020
 
-Audited reacceptance SHALL preserve compatible legacy definition evidence while enforcing immutable reopened definitions, fresh evidence, semantic successor governance, and validation of every current canonical contract it reapproves.
+Audited reacceptance SHALL preserve compatible legacy definition evidence while enforcing immutable reopened definitions, fresh evidence, explicit semantic succession, and validation of every current canonical contract it reapproves.
 
 Acceptance Criteria
 - A prior verification digest using the transitional explicit-false lifecycle encoding remains compatible with the stable omitted-false encoding during reopened reacceptance.
-- An accepted no-spec change cannot satisfy the canonical-successor fallback, even when its affected paths and specs overlap.
-- A later recorded semantic canonical change can satisfy successor governance for every overlapping affected spec and path.
+- An accepted no-spec change cannot satisfy successor governance even when its paths and specs overlap.
+- A supported pre-approval supersede transition records a durable definition-bound predecessor edge with explicit path/module/predecessor-digest obligations.
+- Closing evidence binds each adopted obligation only when the same successor has the module's semantic delta and an exact old/new transition from its trusted definition-signed base tree to its descendant unique accepted-transition tree; the acceptance commit's immediate parent is not the before tree.
+- Every owner of a changed input requires its own same-successor path/module obligation; owner intersection and cross-record path/spec unions fail closed.
 - A reopened canonical-applied change validates its current canonical modules without replaying its already-applied semantic delta.
 - Strict project checks reject a reopened definition that reacceptance would reject.
-- Definition reapproval keeps a canonical-applied reopened record in the verifying state so fresh evidence remains mandatory.
+- Definition reapproval keeps a canonical-applied reopened record in verifying so fresh evidence remains mandatory.
 - Nested project history lookup anchors repository-relative workspace state paths at the Git repository top.
-- Reopen rejects a request when current delivery inputs match accepted evidence, regardless of another closing-validity failure.
+- Reopen rejects a request when the shared validator reports exact or successor-covered evidence.
 
 ### REQ-change-021
 
@@ -246,14 +262,13 @@ Acceptance Criteria
 
 ### REQ-change-024
 
-Strict lifecycle checking SHALL permit an exact current canonical successor to replace a stale accepted predecessor without hiding unrelated stale evidence.
+Strict lifecycle checking SHALL permit only explicit closing-valid terminal semantic successors to govern changed inputs of an accepted predecessor without hiding unrelated stale evidence.
 
 Acceptance Criteria
-
-- An implementing successor with current approved definition evidence can govern every affected module and path while reaching verification.
-- A verifying successor requires current passed evidence.
-- Draft, no-spec, partial, failed, abandoned, and stale-definition successors never suppress predecessor errors.
-- Accepted successors leave strict validation clean while preserving predecessor history.
+- Draft, approved, implementing, verifying, failed, stale, tampered, no-spec, semantically empty, and partial successors never suppress predecessor errors.
+- Accepted or authenticated archived successors selected as candidates require valid definition, verification, closing approval, history integration, and recursive exact-or-successor-covered current inputs; standalone archives require historical integrity without equality to today's inputs.
+- Every changed input expands to one obligation per signed canonical owner and every obligation matches one exact predecessor/path/module/old-digest/new-digest tuple from the same successor.
+- Multiple terminal successors may cover disjoint obligations, while cycles fail closed and completed validity results are memoized.
 
 ### REQ-change-025
 
@@ -267,11 +282,13 @@ Acceptance Criteria
 
 ### REQ-change-026
 
-The lifecycle SHALL treat sequence claims and historical collision acknowledgements as protected exact repository evidence across arbitrarily wide numeric sequences.
+The lifecycle SHALL treat canonical numeric sequence claims and historical collision acknowledgements as protected exact repository evidence across arbitrarily wide numeric sequences.
 
 Acceptance Criteria
 
-- Numeric change sequences contain at least four ASCII digits and support values beyond 9999.
+- Numeric change sequences contain at least four ASCII digits, use exactly four zero-padded digits below 10000, and use unpadded decimal digits at or above 10000.
+- Successor identity ordering compares parsed numeric sequence first and full canonical ID second, so `CHG-10000-*` follows `CHG-9999-*` while acknowledged same-sequence collisions remain deterministic.
+- Malformed, noncanonical-width, and numerically unrepresentable IDs fail closed instead of participating in successor ordering.
 - The committed sequence ledger always requires lifecycle coverage even when `.specsync/` is ignored.
 - Every newly allocated change automatically includes its generated sequence-ledger claim in its affected path scope.
 - An acknowledgement matches the exact currently located ID set and remains valid only when every member is accepted or archived.
@@ -356,4 +373,27 @@ Acceptance Criteria
   definition approval, verification, and closing approval.
 - Corrected acceptance prepares no canonical semantic-delta application, and repeated corrections
   preserve all earlier evidence across portable checkouts and squash integration.
+
+### REQ-change-033
+
+The verified lifecycle SHALL support human-authorized, append-only correction of an exact
+acceptance-input canonical owner for an audited reopened, already-applied change without changing
+semantic scope or replaying canonical deltas.
+
+Acceptance Criteria
+
+- `change correct-owner` requires an exact portable path, canonical module, non-empty actor, and
+  non-empty reason.
+- The target is canonical-applied, verifying through an audited reopen, and unchanged from the
+  reopened definition except for validated ownership-correction entries.
+- The path is already covered by the original affected paths, and the named module's current
+  canonical spec explicitly owns that exact source path.
+- Corrections are immutable, sequenced, definition-bound records; duplicates, removals, malformed
+  values, tampering, and ambiguous ownership fail before mutation.
+- Original affected specs, semantic deltas, approvals, reopen evidence, and prior verification are
+  preserved byte-for-byte.
+- The corrected definition requires explicit reapproval, fresh verification, and closing approval.
+- Acceptance adds the corrected module only to the exact manifest entry's sorted owner set and
+  never reapplies canonical deltas.
+- Records without ownership corrections preserve their existing serialized bytes and digests.
 

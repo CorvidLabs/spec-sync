@@ -2,7 +2,211 @@ use super::helpers::specsync;
 use predicates::prelude::*;
 use serde_json::Value;
 use std::fs;
+use std::process::Command;
 use tempfile::TempDir;
+
+#[test]
+fn verification_freshness_status_and_check_are_environment_independent() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::write(root.join("seed.txt"), "seed\n").unwrap();
+    git(&["add", "seed.txt"]);
+    git(&["commit", "-m", "seed"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "version": 1,
+            "enabled": true,
+            "require_change_for_meaningful_files": false,
+            "meaningful_paths": ["src/", ".specsync/sdd.json"],
+            "ignored_paths": [".specsync/"],
+            "verification_commands": [],
+            "custom_artifacts": {},
+            "principles_file": null
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Harden verification freshness",
+            "--kind",
+            "bug-fix",
+            "--path",
+            "src/lib.rs",
+            "--no-spec-change",
+            "--rationale",
+            "Internal lifecycle behavior only",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+    for (question, answer) in [
+        ("acceptance_criteria", "Verification freshness is portable"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let shown = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "show",
+            id,
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let shown: Value = serde_json::from_slice(&shown).unwrap();
+    for artifact in shown["change"]["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let content = if name == "tasks" {
+            "# Tasks\n\n- [x] Complete verification preparation.\n"
+        } else {
+            "# Complete\n\nReviewed lifecycle evidence.\n"
+        };
+        fs::write(
+            root.join(format!(".specsync/changes/{id}/{name}.md")),
+            content,
+        )
+        .unwrap();
+    }
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "Reviewer",
+        ])
+        .assert()
+        .success();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "start", id])
+        .assert()
+        .success();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "implement"]);
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "verify", id])
+        .assert()
+        .success();
+    for name in [
+        "state.json",
+        "verification.json",
+        "verification-attempts.json",
+    ] {
+        git(&["add", &format!(".specsync/changes/{id}/{name}")]);
+    }
+    git(&["commit", "-m", "persist verification"]);
+
+    let assert_surfaces = |expected_action: &str, check_succeeds: bool, environment: &str| {
+        let configure = |command: &mut assert_cmd::Command| {
+            command
+                .env_remove("CI")
+                .env_remove("GITHUB_ACTIONS")
+                .env_remove("GITHUB_WORKSPACE");
+            match environment {
+                "ci" => {
+                    command.env("CI", "true");
+                }
+                "github" => {
+                    command
+                        .env("GITHUB_ACTIONS", "true")
+                        .env("GITHUB_WORKSPACE", root);
+                }
+                _ => {}
+            }
+        };
+        let mut status = specsync();
+        configure(&mut status);
+        let output = status
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "--json",
+                "change",
+                "status",
+                id,
+            ])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let value: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(value["summary"]["next_action"], expected_action);
+        let mut check = specsync();
+        configure(&mut check);
+        let assertion = check
+            .args(["--root", root.to_str().unwrap(), "change", "check"])
+            .assert();
+        if check_succeeds {
+            assertion.success();
+        } else {
+            assertion.failure();
+        }
+    };
+    for environment in ["local", "ci", "github"] {
+        assert_surfaces("accept", true, environment);
+    }
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { false }\n",
+    )
+    .unwrap();
+    git(&["add", "src/lib.rs"]);
+    git(&["commit", "-m", "change governed input"]);
+    for environment in ["local", "ci", "github"] {
+        assert_surfaces("verify", false, environment);
+    }
+}
 
 #[test]
 fn change_new_json_returns_state_and_interview() {
@@ -218,6 +422,20 @@ fn init_enables_sdd_for_new_projects() {
 fn no_spec_change_completes_full_cli_lifecycle() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["commit", "--allow-empty", "-m", "base"]);
     specsync()
         .args([
             "--root",
@@ -274,6 +492,9 @@ fn no_spec_change_completes_full_cli_lifecycle() {
             .assert()
             .success();
     }
+    git(&["add", "."]);
+    git(&["commit", "-m", "record accepted lifecycle evidence"]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
     fs::write(
         root.join(".specsync/sdd.json"),
         r#"{
@@ -324,6 +545,198 @@ fn no_spec_change_completes_full_cli_lifecycle() {
             .read_dir()
             .unwrap()
             .any(|entry| entry.unwrap().file_name().to_string_lossy().ends_with(id))
+    );
+}
+
+#[test]
+fn change_supersede_persists_an_exact_predecessor_obligation_through_the_cli() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 1,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [],
+  "verification_commands": [],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("src/auth.rs"),
+        "pub fn authenticate() -> bool { true }\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuthentication.\n\n## Public API\n\n| Name | Description |\n|------|-------------|\n| `authenticate` | Return whether authentication succeeds |\n\n## Invariants\n\nAuthentication is available.\n\n## Behavioral Examples\n\nValid users authenticate.\n\n## Error Cases\n\nInvalid users fail.\n\n## Dependencies\n\nNone.\n\n## Legacy Notes\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/auth/requirements.md"),
+        "---\nspec: auth.spec.md\n---\n\n# Requirements\n\n### REQ-auth-001\n\nAuthentication SHALL remain available.\n",
+    )
+    .unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "new",
+            "Govern authentication",
+            "--kind",
+            "bug-fix",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success();
+    let predecessor = "CHG-0001-govern-authentication";
+    for (question, answer) in [
+        ("acceptance_criteria", "Authentication remains governed"),
+        ("public_contract", "yes"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                predecessor,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let predecessor_dir = root.join(".specsync/changes").join(predecessor);
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(predecessor_dir.join("state.json")).unwrap())
+            .unwrap();
+    for artifact in state["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let content = if name == "tasks" {
+            "# Tasks\n\n- [x] Complete predecessor preparation.\n"
+        } else {
+            "# Complete\n\nReviewed predecessor evidence.\n"
+        };
+        fs::write(predecessor_dir.join(format!("{name}.md")), content).unwrap();
+    }
+    fs::write(
+        predecessor_dir.join("deltas/auth.md"),
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nAuthentication remains governed.\n",
+    )
+    .unwrap();
+    for command in ["approve", "start", "verify", "accept"] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                command,
+                predecessor,
+            ])
+            .assert()
+            .success();
+    }
+    git(&["add", "."]);
+    git(&["commit", "-m", "accept predecessor"]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    let verification: Value = serde_json::from_str(
+        &fs::read_to_string(predecessor_dir.join("verification.json")).unwrap(),
+    )
+    .unwrap();
+    let digest = verification["acceptance_manifest"]["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["path"] == "src/auth.rs")
+        .unwrap()["entry_digest"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "new",
+            "Evolve authentication",
+            "--kind",
+            "bug-fix",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success();
+    let successor = "CHG-0002-evolve-authentication";
+    let output = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "supersede",
+            successor,
+            predecessor,
+            "--path",
+            "src/auth.rs",
+            "--spec",
+            "auth",
+            "--digest",
+            &digest,
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let persisted: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(
+        persisted["change"]["supersedes"][0]["predecessor_id"],
+        predecessor
+    );
+    assert_eq!(
+        persisted["change"]["supersedes"][0]["obligations"][0]["path"],
+        "src/auth.rs"
+    );
+    assert_eq!(
+        persisted["change"]["supersedes"][0]["obligations"][0]["module"],
+        "auth"
+    );
+    assert_eq!(
+        persisted["change"]["supersedes"][0]["obligations"][0]["predecessor_entry_digest"],
+        digest
     );
 }
 
@@ -550,6 +963,161 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
         serde_json::from_str(&fs::read_to_string(dir.join("approvals.json")).unwrap()).unwrap();
     assert_eq!(ledger["approvals"].as_array().unwrap().len(), 5);
     assert_eq!(ledger["reopenings"].as_array().unwrap().len(), 1);
+}
+
+// Verifies REQ-change-033, REQ-cli-args-001, and REQ-cmd-change-001.
+#[test]
+fn reopened_owner_correction_is_deterministic_through_json_cli() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/legacy")).unwrap();
+    fs::create_dir_all(root.join("specs/current")).unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 1,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": ["src/"],
+  "ignored_paths": [".specsync/", "specs/"],
+  "verification_commands": [],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+    let spec = |module: &str| {
+        format!(
+            "---\nmodule: {module}\nversion: 1\nstatus: stable\nfiles:\n  - src/lib.rs\n---\n\n# {module}\n\n## Purpose\n\nOwner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"
+        )
+    };
+    fs::write(root.join("specs/legacy/legacy.spec.md"), spec("legacy")).unwrap();
+    fs::write(root.join("specs/current/current.spec.md"), spec("current")).unwrap();
+
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Preserve historical input ownership",
+            "--kind",
+            "bug-fix",
+            "--spec",
+            "legacy",
+            "--path",
+            "src/lib.rs",
+            "--no-spec-change",
+            "--rationale",
+            "Internal ownership evidence only",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+    for (question, answer) in [
+        ("acceptance_criteria", "Exact ownership is signed"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let dir = root.join(".specsync/changes").join(id);
+    fs::write(dir.join("context.md"), "# Context\n\nComplete.\n").unwrap();
+    fs::write(dir.join("testing.md"), "# Testing\n\nComplete.\n").unwrap();
+    fs::write(dir.join("tasks.md"), "# Tasks\n\n- [x] Complete.\n").unwrap();
+    for command in ["approve", "start", "verify", "accept"] {
+        let mut args = vec!["--root", root.to_str().unwrap(), "change", command, id];
+        if matches!(command, "approve" | "accept") {
+            args.extend(["--actor", "Lifecycle reviewer"]);
+        }
+        specsync().args(args).assert().success();
+    }
+
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { false }\n",
+    )
+    .unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "reopen",
+            id,
+            "--actor",
+            "Release reviewer",
+            "--reason",
+            "The accepted source changed during release review",
+        ])
+        .assert()
+        .success();
+    let corrected = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "correct-owner",
+            id,
+            "--path",
+            "src/lib.rs",
+            "--spec",
+            "current",
+            "--actor",
+            "Release reviewer",
+            "--reason",
+            "The historical definition omitted the current canonical owner",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let corrected: Value = serde_json::from_slice(&corrected).unwrap();
+    assert_eq!(corrected["state"], "verifying");
+    assert_eq!(corrected["acceptance_owner_corrections"][0]["sequence"], 1);
+    assert_eq!(
+        corrected["acceptance_owner_corrections"][0]["module"],
+        "current"
+    );
+
+    for command in ["approve", "verify", "accept"] {
+        let mut args = vec!["--root", root.to_str().unwrap(), "change", command, id];
+        if matches!(command, "approve" | "accept") {
+            args.extend(["--actor", "Lifecycle reviewer"]);
+        }
+        specsync().args(args).assert().success();
+    }
+    let verification: Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("verification.json")).unwrap()).unwrap();
+    let source = verification["acceptance_manifest"]["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["path"] == "src/lib.rs")
+        .unwrap();
+    assert_eq!(source["owners"], serde_json::json!(["current", "legacy"]));
 }
 
 // Verifies REQ-change-032, REQ-cli-args-004, and REQ-cmd-change-002.

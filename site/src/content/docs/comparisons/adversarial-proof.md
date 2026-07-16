@@ -11,7 +11,7 @@ An SDD tool can preserve excellent knowledge without deterministically proving t
 
 ## Knowledge preservation
 
-| Adversarial question | SpecSync 5.0 | Spec Kit core | OpenSpec core |
+| Adversarial question | SpecSync 5.1 | Spec Kit core | OpenSpec core |
 |---|---|---|---|
 | Why was the behavior requested? | **Record** — requirements/change artifacts | **Record** — `spec.md` | **Record** — proposal and delta requirements |
 | What architecture was chosen and why? | **Record** — context/design | **Record** — plan/research/data model | **Record** — design/proposal |
@@ -22,7 +22,7 @@ An SDD tool can preserve excellent knowledge without deterministically proving t
 
 ## Implementation drift
 
-| Mutation introduced after the spec is written | SpecSync 5.0 | Spec Kit core | OpenSpec core |
+| Mutation introduced after the spec is written | SpecSync 5.1 | Spec Kit core | OpenSpec core |
 |---|---|---|---|
 | Add an undocumented public export | **Block** in strict mode | **Agent** / extension | **Agent** |
 | Delete or rename a documented export | **Block** | **Agent** / extension | **Agent** |

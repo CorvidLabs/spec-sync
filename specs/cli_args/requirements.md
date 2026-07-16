@@ -14,8 +14,10 @@ The system SHALL declare the complete verified SDD change command grammar in the
 
 Acceptance Criteria
 - `Command` includes the `Change` namespace.
-- `ChangeAction` declares every lifecycle, inspection, checking, and adoption operation.
+- `ChangeAction` declares every lifecycle, inspection, checking, adoption, and semantic-succession operation.
+- `ChangeAction::Supersede` requires change ID, predecessor ID, path, module, and predecessor entry digest.
 - `ChangeAction::Reopen` requires a change ID, explicit human actor, and non-empty reason input.
+- `ChangeAction::Approve` exposes an explicit `--portable-5-0-1` switch for the atomic marked dual-engine definition event.
 
 ### REQ-cli-args-002
 
@@ -48,3 +50,17 @@ Acceptance Criteria
   non-empty reason input.
 - Help distinguishes accepted metadata correction from delivery-only `change reopen`.
 - Missing audit arguments and invalid field/value choices fail through deterministic Clap errors.
+
+### REQ-cli-args-005
+
+The shared CLI grammar SHALL expose one explicit audited command for correcting an exact canonical
+owner used by reopened acceptance evidence.
+
+Acceptance Criteria
+
+- `change correct-owner` requires a change ID, exact portable path, canonical spec module, human
+  actor, and non-empty reason.
+- The canonical module is provided through `--spec` and remains distinct from semantic rescoping.
+- Missing path, module, actor, or reason inputs fail through deterministic Clap errors before any
+  domain mutation.
+

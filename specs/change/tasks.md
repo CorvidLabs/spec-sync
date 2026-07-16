@@ -30,3 +30,4 @@ spec: change.spec.md
 - [x] Preserve prose acceptance criteria with question-aware list parsing
 - [x] Add audited append-only correction for supported accepted interview metadata
 - [x] Harden trusted correction-history scans for unresolved remote refs and platform-valid quoted or Unicode Git paths
+- [x] Add audited exact acceptance-owner corrections for reopened already-applied changes

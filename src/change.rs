@@ -3,20 +3,35 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 pub const SDD_VERSION: &str = "5.0.0";
 const POLICY_PATH: &str = ".specsync/sdd.json";
 const CHANGES_PATH: &str = ".specsync/changes";
 const ARCHIVE_PATH: &str = ".specsync/archive/changes";
+const LEGACY_BASELINE_PATH: &str = ".specsync/archive/legacy-baseline.json";
 const LOCK_PATH: &str = ".specsync/change.lock";
 const SEQUENCE_PATH: &str = ".specsync/change-sequence.json";
 const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
 const CORRECTIONS_FILE: &str = "corrections.json";
+const PORTABLE_DEFINITION_PROJECTION_V501: &str = "specsync-5.0.1";
+const DEFINITION_APPROVAL_PAIR_DOMAIN: &[u8] = b"specsync.definition-approval-pair.v1";
+const CORRECTION_PREFIX_DOMAIN: &[u8] = b"specsync.correction-prefix.v1";
 const MAX_CHANGE_ARTIFACT_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_GIT_EVIDENCE_PATHS: usize = 100_000;
+const MAX_GIT_EVIDENCE_PATH_BYTES: usize = 64 * 1024 * 1024;
+const GIT_ATTRIBUTE_BATCH_PATHS: usize = 256;
+const MAX_GIT_ATTRIBUTE_OUTPUT_BYTES: usize = 4 * 1024 * 1024;
+const MAX_GIT_COMMAND_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
+const MAX_GIT_DIAGNOSTIC_BYTES: usize = 64 * 1024;
+const MAX_GIT_INDEX_BYTES: usize = 256 * 1024 * 1024;
+const MAX_GIT_EVIDENCE_PAYLOAD_BYTES: usize = 256 * 1024 * 1024;
+const GIT_COMMAND_DEADLINE: Duration = Duration::from_secs(120);
 const CANONICAL_SPEC_COMPANIONS: [&str; 5] = [
     "requirements.md",
     "tasks.md",
@@ -26,12 +41,76 @@ const CANONICAL_SPEC_COMPANIONS: [&str; 5] = [
 ];
 static EFFECTIVE_CONTRACT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static TRUSTED_CORRECTION_HISTORY_CACHE: OnceLock<Mutex<BTreeSet<String>>> = OnceLock::new();
+static GIT_BLOB_CACHE: OnceLock<Mutex<BTreeMap<String, Vec<u8>>>> = OnceLock::new();
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct GitWorktreeState {
+    modified: BTreeSet<String>,
+    sparse_absent: BTreeSet<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct GitCapturedEntry {
+    kind: AcceptanceInputKind,
+    mode: u32,
+    object: Option<String>,
+    payload: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct GitEvidence {
+    modes: BTreeMap<String, u32>,
+    entries: BTreeMap<String, GitCapturedEntry>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct RepositoryContext {
+    git: bool,
+    identity: String,
+}
+
+#[derive(Debug)]
+struct BoundedCommandOutput {
+    status: std::process::ExitStatus,
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+}
+
+impl GitEvidence {
+    fn entry(&self, path: &str) -> Result<&GitCapturedEntry, String> {
+        self.entries
+            .get(path)
+            .ok_or_else(|| format!("captured evidence is missing candidate `{path}`"))
+    }
+
+    fn generated_file_mode(&self, path: &str) -> Result<u32, String> {
+        let entry = self.entry(path)?;
+        match (&entry.kind, entry.mode) {
+            (AcceptanceInputKind::File, mode @ (0o100644 | 0o100755)) => Ok(mode),
+            (AcceptanceInputKind::Missing, 0) => Ok(0o100644),
+            _ => Err(format!(
+                "generated canonical file would replace unsupported topology at `{path}`"
+            )),
+        }
+    }
+}
 
 const DEFINITION_DIGEST_DOMAIN: &[u8] = b"specsync.definition-digest.v2";
 const PROJECT_DIGEST_DOMAIN: &[u8] = b"specsync.project-input-digest.v2";
 const ACCEPTANCE_DIGEST_DOMAIN: &[u8] = b"specsync.acceptance-input-digest.v2";
+const ACCEPTANCE_ENTRY_DOMAIN: &[u8] = b"specsync.acceptance-entry.v1";
+const ACCEPTANCE_MANIFEST_DOMAIN: &[u8] = b"specsync.acceptance-manifest.v1";
+const SEMANTIC_SUCCESSION_DOMAIN: &[u8] = b"specsync.semantic-succession.v1";
+const LEGACY_BASELINE_DOMAIN: &[u8] = b"specsync.legacy-archive-baseline.v1";
+const LEGACY_SUBTREE_DOMAIN: &[u8] = b"specsync.legacy-archive-subtree.v1";
 const CLOSING_DIGEST_DOMAIN: &[u8] = b"specsync.closing-digest.v2";
 const CORRECTION_VIEW_DIGEST_DOMAIN: &[u8] = b"specsync.correction-view-digest.v1";
+const EXACT_TEST_OWNER: &str = "@exact:test";
+const EXACT_DELIVERY_OWNER: &str = "@exact:delivery";
+const MAX_ACCEPTANCE_ENTRIES: usize = 100_000;
+const MAX_ACCEPTANCE_PATH_BYTES: usize = 4_096;
+const MAX_ACCEPTANCE_OWNERS: usize = 1_024;
+const MAX_ACCEPTANCE_OWNER_BYTES: usize = 256;
 
 struct FramedDigest {
     hasher: Sha256,
@@ -51,6 +130,32 @@ impl FramedDigest {
         self.hasher.update(tag);
         self.hasher.update((value.len() as u64).to_be_bytes());
         self.hasher.update(value);
+    }
+
+    fn frame_reader<Reader: Read>(
+        &mut self,
+        tag: &[u8],
+        length: u64,
+        reader: &mut Reader,
+    ) -> Result<(), String> {
+        self.hasher.update((tag.len() as u64).to_be_bytes());
+        self.hasher.update(tag);
+        self.hasher.update(length.to_be_bytes());
+        let mut remaining = length;
+        let mut buffer = [0_u8; 64 * 1024];
+        while remaining > 0 {
+            let requested = usize::try_from(remaining.min(buffer.len() as u64))
+                .map_err(|_| "framed input length is not representable".to_string())?;
+            let read = reader
+                .read(&mut buffer[..requested])
+                .map_err(|error| format!("failed to stream framed input: {error}"))?;
+            if read == 0 {
+                return Err("framed input was truncated during hashing".into());
+            }
+            self.hasher.update(&buffer[..read]);
+            remaining -= read as u64;
+        }
+        Ok(())
     }
 
     fn entry(&mut self, path: &str, kind: &[u8], mode: u32, content: &[u8]) {
@@ -289,7 +394,7 @@ impl Default for SddPolicy {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChangeRecord {
     pub schema_version: u32,
     pub id: String,
@@ -312,7 +417,57 @@ pub struct ChangeRecord {
     pub acceptance_criteria: Vec<String>,
     pub selected_artifacts: Vec<ArtifactKind>,
     pub dependencies: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub supersedes: Vec<SupersedesEdge>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub acceptance_owner_corrections: Vec<AcceptanceOwnerCorrection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legacy_archive_baseline_digest: Option<String>,
     pub answers: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AcceptanceOwnerCorrection {
+    pub schema_version: u32,
+    pub sequence: u64,
+    pub path: String,
+    pub module: String,
+    pub actor: String,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LegacyArchiveBaselineV1 {
+    pub schema_version: u32,
+    pub domain: String,
+    pub authority_change_id: String,
+    pub cutoff_commit: String,
+    pub entries: Vec<LegacyArchiveBaselineEntryV1>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LegacyArchiveBaselineEntryV1 {
+    pub id: String,
+    pub archive_path: String,
+    pub introduction_commit: String,
+    pub subtree_digest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SuccessionObligation {
+    pub path: String,
+    pub module: String,
+    pub predecessor_entry_digest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SupersedesEdge {
+    pub predecessor_id: String,
+    pub obligations: Vec<SuccessionObligation>,
 }
 
 #[derive(Debug, Clone)]
@@ -333,6 +488,30 @@ pub struct ApprovalRecord {
     pub timestamp: u64,
     pub digest: String,
     pub note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub definition_pair: Option<DefinitionApprovalPairV1>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DefinitionApprovalPairRole {
+    Current,
+    Legacy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DefinitionApprovalPairV1 {
+    pub schema_version: u32,
+    pub projection: String,
+    pub pair_id: String,
+    pub role: DefinitionApprovalPairRole,
+    pub change_id: String,
+    pub correction_count: u64,
+    pub correction_prefix_digest: String,
+    pub current_digest: String,
+    pub legacy_digest: String,
+    pub event_index: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -457,14 +636,14 @@ pub struct ApprovalLedger {
     pub reopenings: Vec<ReopenRecord>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommandEvidence {
     pub command: String,
     pub success: bool,
     pub exit_code: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerificationRecord {
     pub timestamp: u64,
     pub commit: Option<String>,
@@ -473,9 +652,54 @@ pub struct VerificationRecord {
     pub workspace_digest: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub acceptance_input_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub acceptance_manifest: Option<AcceptanceManifestV1>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub semantic_succession: Option<SemanticSuccessionEvidenceV1>,
     pub passed: bool,
     pub commands: Vec<CommandEvidence>,
     pub requirement_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AcceptanceInputKind {
+    File,
+    Symlink,
+    Gitlink,
+    Missing,
+    NonFile,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AcceptanceInputEntryV1 {
+    pub path: String,
+    pub kind: AcceptanceInputKind,
+    pub mode: u32,
+    pub payload_digest: String,
+    pub entry_digest: String,
+    pub owners: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AcceptanceManifestV1 {
+    pub schema_version: u32,
+    pub entries: Vec<AcceptanceInputEntryV1>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SemanticSuccessionTupleV1 {
+    pub predecessor_id: String,
+    pub path: String,
+    pub module: String,
+    pub predecessor_entry_digest: String,
+    pub successor_entry_digest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SemanticSuccessionEvidenceV1 {
+    pub schema_version: u32,
+    pub tuples: Vec<SemanticSuccessionTupleV1>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -529,6 +753,37 @@ pub struct ChangeSummary {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub corrected_fields: BTreeMap<String, String>,
     pub next_action: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terminal_evidence: Option<TerminalEvidenceSummary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TerminalEvidenceSummary {
+    pub validity: TerminalEvidenceValidity,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TerminalEvidenceValidity {
+    Exact,
+    SuccessorCovered,
+    Stale,
+    AuthenticatedHistory,
+    CorruptHistory,
+}
+
+impl TerminalEvidenceValidity {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Exact => "exact",
+            Self::SuccessorCovered => "successor-covered",
+            Self::Stale => "stale",
+            Self::AuthenticatedHistory => "authenticated-history",
+            Self::CorruptHistory => "corrupt-history",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -537,6 +792,14 @@ pub struct SddCheckReport {
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
     pub checked_changes: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub terminal_evidence: Vec<TerminalEvidenceResult>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TerminalEvidenceResult {
+    pub id: String,
+    pub evidence: TerminalEvidenceSummary,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -667,6 +930,9 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         acceptance_criteria: Vec::new(),
         selected_artifacts: artifacts,
         dependencies: Vec::new(),
+        supersedes: Vec::new(),
+        acceptance_owner_corrections: Vec::new(),
+        legacy_archive_baseline_digest: None,
         answers: BTreeMap::new(),
     };
     let dir = change_dir(root, &record.id);
@@ -744,7 +1010,23 @@ fn change_sequence(id: &str) -> Option<u64> {
     if digits.len() < 4 || !digits.chars().all(|character| character.is_ascii_digit()) {
         return None;
     }
-    digits.parse().ok()
+    let sequence: u64 = digits.parse().ok()?;
+    let canonical = if sequence < 10_000 {
+        format!("{sequence:04}")
+    } else {
+        sequence.to_string()
+    };
+    (digits == canonical).then_some(sequence)
+}
+
+#[cfg(test)]
+fn change_id_sorts_after(candidate: &str, predecessor: &str) -> bool {
+    match (change_sequence(candidate), change_sequence(predecessor)) {
+        (Some(candidate_sequence), Some(predecessor_sequence)) => {
+            (candidate_sequence, candidate) > (predecessor_sequence, predecessor)
+        }
+        _ => false,
+    }
 }
 
 fn load_change_sequence_ledger(root: &Path) -> Result<Option<ChangeSequenceLedger>, String> {
@@ -815,10 +1097,11 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
             let state_path = entry.path().join("state.json");
             let content = match fs::read_to_string(&state_path) {
                 Ok(content) => content,
-                Err(error) if archived && error.kind() == std::io::ErrorKind::NotFound => {
-                    // Legacy archive entries can contain only semantic tombstones.
-                    // Without persisted state they are not lifecycle records and have
-                    // no numeric sequence identity to validate.
+                Err(error)
+                    if archived
+                        && error.kind() == std::io::ErrorKind::NotFound
+                        && is_positive_legacy_tombstone(&entry.path()) =>
+                {
                     continue;
                 }
                 Err(error) => {
@@ -1107,11 +1390,110 @@ pub fn add_dependency(root: &Path, id: &str, dependency: &str) -> Result<ChangeR
     Ok(record)
 }
 
+pub fn add_supersedes_obligation(
+    root: &Path,
+    id: &str,
+    predecessor: &str,
+    path: &str,
+    module: &str,
+    predecessor_entry_digest: &str,
+) -> Result<ChangeRecord, String> {
+    let _lock = acquire_project_lock(root)?;
+    let mut record = load_change(root, id)?;
+    require_state(
+        &record,
+        &[ChangeState::Draft],
+        "adopt a predecessor obligation",
+    )?;
+    if id == predecessor {
+        return Err("a change cannot supersede itself".into());
+    }
+    crate::commands::validate_module_name(module)
+        .map_err(|error| format!("invalid succession module: {error}"))?;
+    let path = normalize_project_path(path)
+        .map_err(|error| format!("invalid succession path: {error}"))?;
+    validate_sha256_digest(predecessor_entry_digest, "predecessor entry digest")?;
+    if !record
+        .affected_specs
+        .iter()
+        .any(|affected| affected == module)
+    {
+        return Err(format!(
+            "successor `{id}` must declare affected module `{module}`"
+        ));
+    }
+    let obligation = SuccessionObligation {
+        path,
+        module: module.to_string(),
+        predecessor_entry_digest: predecessor_entry_digest.to_string(),
+    };
+    let edge = if let Some(edge) = record
+        .supersedes
+        .iter_mut()
+        .find(|edge| edge.predecessor_id == predecessor)
+    {
+        edge
+    } else {
+        record.supersedes.push(SupersedesEdge {
+            predecessor_id: predecessor.to_string(),
+            obligations: Vec::new(),
+        });
+        record
+            .supersedes
+            .last_mut()
+            .ok_or_else(|| "failed to create supersedes edge".to_string())?
+    };
+    if edge
+        .obligations
+        .iter()
+        .any(|existing| existing.path == obligation.path && existing.module == obligation.module)
+    {
+        return Err(format!(
+            "supersedes obligation already exists for `{predecessor}` `{}` `{module}`",
+            obligation.path
+        ));
+    }
+    edge.obligations.push(obligation);
+    edge.obligations.sort_by(|left, right| {
+        left.path
+            .cmp(&right.path)
+            .then_with(|| left.module.cmp(&right.module))
+    });
+    record
+        .supersedes
+        .sort_by_key(|edge| succession_change_key(&edge.predecessor_id));
+    validate_supersedes_edges(&record)?;
+    validate_supersedes_semantics(root, &record)?;
+    record.updated_at = now();
+    save_change(root, &record)?;
+    write_change_markdown(root, &record)?;
+    Ok(record)
+}
+
 pub fn approve_definition(
     root: &Path,
     id: &str,
     actor: Option<String>,
     note: Option<String>,
+) -> Result<ChangeRecord, String> {
+    approve_definition_with_projection(root, id, actor, note, false)
+}
+
+pub fn approve_definition_portable_v501(
+    root: &Path,
+    id: &str,
+    actor: Option<String>,
+    note: Option<String>,
+) -> Result<ChangeRecord, String> {
+    approve_definition_with_projection(root, id, actor, note, true)
+}
+
+fn approve_definition_with_projection(
+    root: &Path,
+    id: &str,
+    actor: Option<String>,
+    note: Option<String>,
+    portable_v501: bool,
 ) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
@@ -1126,11 +1508,16 @@ pub fn approve_definition(
         "approve the definition",
     )?;
     list_changes_checked(root)?;
+    bind_legacy_archive_baseline_authority(root, &mut record)?;
     let prior_state = record.state;
     validate_definition(root, &record)?;
     validate_delta_files(root, &record)?;
-    let digest = definition_digest(root, &record)?;
-    append_approval(root, &record, "definition", actor, digest, note)?;
+    if portable_v501 {
+        append_portable_definition_approval_v501(root, &record, actor, note)?;
+    } else {
+        let digest = definition_digest(root, &record)?;
+        append_approval(root, &record, "definition", actor, digest, note)?;
+    }
     record.state = match prior_state {
         ChangeState::Draft | ChangeState::Approved => ChangeState::Approved,
         ChangeState::Verifying if record.canonical_applied => ChangeState::Verifying,
@@ -1141,6 +1528,77 @@ pub fn approve_definition(
     save_change(root, &record)?;
     write_change_markdown(root, &record)?;
     Ok(record)
+}
+
+fn bind_legacy_archive_baseline_authority(
+    root: &Path,
+    record: &mut ChangeRecord,
+) -> Result<(), String> {
+    let path = root.join(LEGACY_BASELINE_PATH);
+    let candidates = BTreeSet::from([LEGACY_BASELINE_PATH.to_string()]);
+    let evidence = git_regular_file_evidence(root, &candidates)?;
+    let baseline_entry = evidence.entry(LEGACY_BASELINE_PATH)?;
+    if baseline_entry.kind == AcceptanceInputKind::Missing {
+        if record.legacy_archive_baseline_digest.is_some() {
+            return Err(
+                "legacy archive baseline is missing or dirty; stale binding cannot be retained"
+                    .into(),
+            );
+        }
+        if record
+            .affected_paths
+            .iter()
+            .any(|affected| affected == LEGACY_BASELINE_PATH)
+        {
+            return Err("legacy archive baseline authority cannot bind a missing ledger".into());
+        }
+        return Ok(());
+    }
+    if baseline_entry.kind != AcceptanceInputKind::File
+        || !matches!(baseline_entry.mode, 0o100644 | 0o100755)
+    {
+        return Err(format!(
+            "legacy archive baseline is not a regular file: {}",
+            path.display()
+        ));
+    }
+    let baseline_bytes = baseline_entry.payload.clone();
+    let (baseline, digest) = validate_legacy_archive_baseline_bytes(&baseline_bytes)?;
+    if baseline.authority_change_id == record.id {
+        if !record
+            .affected_paths
+            .iter()
+            .any(|path| path == LEGACY_BASELINE_PATH)
+        {
+            return Err(format!(
+                "legacy archive baseline authority must cover `{LEGACY_BASELINE_PATH}`"
+            ));
+        }
+        validate_legacy_baseline_authority_cutoff(root, record, &baseline.cutoff_commit)?;
+        record.legacy_archive_baseline_digest = Some(digest);
+    }
+    Ok(())
+}
+
+fn validate_legacy_baseline_authority_cutoff(
+    root: &Path,
+    authority: &ChangeRecord,
+    cutoff: &str,
+) -> Result<(), String> {
+    let resolved = git_output(
+        root,
+        &["rev-parse", "--verify", &format!("{cutoff}^{{commit}}")],
+    )
+    .ok_or_else(|| "legacy archive baseline cutoff is unavailable".to_string())?;
+    if resolved != cutoff {
+        return Err("legacy archive baseline cutoff must be a canonical commit ID".into());
+    }
+    if authority.base_commit.as_deref() != Some(cutoff) {
+        return Err(
+            "legacy archive baseline cutoff must equal the authority definition base commit".into(),
+        );
+    }
+    ensure_git_ancestor(root, cutoff, "HEAD", "current authority history")
 }
 
 pub fn start_implementation(root: &Path, id: &str) -> Result<ChangeRecord, String> {
@@ -1205,6 +1663,8 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
         contract_digest: definition_digest(root, &record)?,
         workspace_digest: project_input_digest(root)?,
         acceptance_input_digest: None,
+        acceptance_manifest: None,
+        semantic_succession: None,
         passed,
         commands,
         requirement_ids,
@@ -1213,7 +1673,6 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
     record.state = ChangeState::Verifying;
     record.updated_at = now();
     save_change(root, &record)?;
-    write_change_markdown(root, &record)?;
     if !verification.passed {
         let detail = if !commands_passed {
             "configured verification command failed".to_string()
@@ -1277,17 +1736,27 @@ pub fn reopen_change(
     if superseded_approval.digest != expected_closing_digest {
         return Err("accepted change closing approval does not match verification evidence".into());
     }
-    if !verification_commit_is_accepted_current(root, &prior_verification)
-        && !accepted_workspace_is_integrated(root, &record)
-        && !accepted_change_is_recorded_in_current_history(root, &record)
-        && !accepted_change_has_current_canonical_successors(root, &record)
-    {
-        return Err("accepted change verification commit is not in current history, its canonical acceptance is not recorded in current history, and no current canonical successor governs its affected contract".into());
-    }
-    let current_acceptance_input_digest = acceptance_input_digest(root, &record, &[])?;
+    let current_acceptance_input_digest =
+        if let Some(manifest) = &prior_verification.acceptance_manifest {
+            let current = acceptance_manifest_with_signed_owners(root, &record, &[], manifest)?;
+            acceptance_manifest_digest(&current)?
+        } else {
+            acceptance_input_digest(root, &record, &[])?
+        };
     if current_acceptance_input_digest == stale_acceptance_input_digest {
         return Err(
-            "accepted change delivery inputs are current; reopen is allowed only when delivery evidence is stale"
+            "accepted change delivery inputs are current (exact or successor-covered); reopen is allowed only when delivery evidence is stale"
+                .into(),
+        );
+    }
+    authenticate_accepted_evidence(root, &record)?;
+    let records = list_all_changes_checked(root)?;
+    let mut visiting = BTreeSet::new();
+    let mut memo = BTreeMap::new();
+    if validate_accepted_inputs_recursive(root, &record, &records, &mut visiting, &mut memo).is_ok()
+    {
+        return Err(
+            "accepted change delivery inputs are current (exact or successor-covered); reopen is allowed only when delivery evidence is stale"
                 .into(),
         );
     }
@@ -1329,6 +1798,252 @@ pub fn reopen_change(
         change: record,
         audit,
     })
+}
+
+fn validate_acceptance_owner_correction_records(record: &ChangeRecord) -> Result<(), String> {
+    if record.acceptance_owner_corrections.len() > MAX_ACCEPTANCE_OWNERS {
+        return Err(format!(
+            "acceptance owner corrections exceed {MAX_ACCEPTANCE_OWNERS} entries"
+        ));
+    }
+    let mut exact_pairs = BTreeSet::new();
+    for (index, correction) in record.acceptance_owner_corrections.iter().enumerate() {
+        let expected_sequence = index as u64 + 1;
+        if correction.schema_version != 1 {
+            return Err(format!(
+                "unsupported acceptance owner correction schema {} at sequence {expected_sequence}",
+                correction.schema_version
+            ));
+        }
+        if correction.sequence != expected_sequence {
+            return Err(format!(
+                "acceptance owner correction sequence is not contiguous: expected {expected_sequence}, found {}",
+                correction.sequence
+            ));
+        }
+        if correction.path.len() > MAX_ACCEPTANCE_PATH_BYTES
+            || strict_portable_relative_path(&correction.path)? != correction.path
+        {
+            return Err(format!(
+                "invalid acceptance owner correction path `{}`",
+                correction.path
+            ));
+        }
+        if correction.module.len() > MAX_ACCEPTANCE_OWNER_BYTES
+            || correction.module.starts_with("@exact:")
+        {
+            return Err(format!(
+                "invalid acceptance owner correction module `{}`",
+                correction.module
+            ));
+        }
+        crate::commands::validate_module_name(&correction.module)
+            .map_err(|error| format!("invalid acceptance owner correction module: {error}"))?;
+        if correction.actor.trim().is_empty()
+            || correction.actor.trim() != correction.actor
+            || correction.reason.trim().is_empty()
+            || correction.reason.trim() != correction.reason
+        {
+            return Err(format!(
+                "acceptance owner correction sequence {expected_sequence} has a missing or non-canonical actor/reason"
+            ));
+        }
+        if !record
+            .affected_paths
+            .iter()
+            .any(|scope| path_matches_scope(&correction.path, scope))
+        {
+            return Err(format!(
+                "acceptance owner correction path `{}` is outside the original affected path scope",
+                correction.path
+            ));
+        }
+        if record.affected_specs.contains(&correction.module) {
+            return Err(format!(
+                "acceptance owner `{}` is already represented by the original affected specs",
+                correction.module
+            ));
+        }
+        if !exact_pairs.insert((correction.path.as_str(), correction.module.as_str())) {
+            return Err(format!(
+                "duplicate acceptance owner correction `{}` for `{}`",
+                correction.module, correction.path
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn canonical_module_owns_exact_source_path(
+    root: &Path,
+    module: &str,
+    relative: &str,
+) -> Result<(), String> {
+    if !path_is_production_source(root, relative) {
+        return Err(format!(
+            "acceptance owner correction path `{relative}` is not production source"
+        ));
+    }
+    let source_path = safe_project_path(root, relative)?;
+    let metadata = fs::symlink_metadata(&source_path)
+        .map_err(|_| format!("acceptance owner correction path `{relative}` does not exist"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(format!(
+            "acceptance owner correction path `{relative}` must be a regular file"
+        ));
+    }
+    let config = crate::config::load_config(root);
+    let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)?;
+    let spec_relative = strict_portable_project_path(root, &spec_path)?;
+    let candidates = BTreeSet::from([spec_relative.clone()]);
+    let evidence = git_regular_file_evidence(root, &candidates)?;
+    let entry = evidence.entry(&spec_relative)?;
+    let content = String::from_utf8(entry.payload.clone()).map_err(|_| {
+        format!("canonical spec for `{module}` is not valid UTF-8: {spec_relative}")
+    })?;
+    let parsed = crate::parser::parse_frontmatter(&content)
+        .ok_or_else(|| format!("canonical spec for `{module}` has invalid frontmatter"))?;
+    let owns =
+        parsed.frontmatter.files.iter().any(|path| {
+            normalize_project_path(path).is_ok_and(|normalized| normalized == relative)
+        });
+    if !owns {
+        return Err(format!(
+            "canonical module `{module}` does not own exact source path `{relative}`"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_acceptance_owner_corrections_current(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(), String> {
+    validate_acceptance_owner_correction_records(record)?;
+    for correction in &record.acceptance_owner_corrections {
+        canonical_module_owns_exact_source_path(root, &correction.module, &correction.path)?;
+    }
+    Ok(())
+}
+
+fn latest_reopen_for_owner_correction<'a>(
+    record: &ChangeRecord,
+    approvals: &'a ApprovalLedger,
+    corrections: &CorrectionLedger,
+) -> Result<&'a ReopenRecord, String> {
+    let reopening = approvals.reopenings.last().ok_or_else(|| {
+        "acceptance owner correction requires an audited reopen event".to_string()
+    })?;
+    if reopening.schema_version != 1
+        || reopening.change_id != record.id
+        || reopening.from_state != ChangeState::Accepted
+        || reopening.to_state != ChangeState::Verifying
+    {
+        return Err("latest audited reopen event is invalid for owner correction".into());
+    }
+    let approval_position = |target: &ApprovalRecord| {
+        approvals.approvals.iter().rposition(|approval| {
+            approval.gate == target.gate
+                && approval.actor == target.actor
+                && approval.timestamp == target.timestamp
+                && approval.digest == target.digest
+                && approval.note == target.note
+        })
+    };
+    let reopen_position = approval_position(&reopening.superseded_approval)
+        .ok_or_else(|| "latest reopen does not reference trusted closing evidence".to_string())?;
+    if corrections.corrections.last().is_some_and(|correction| {
+        approval_position(&correction.superseded_closing_approval)
+            .is_some_and(|position| position > reopen_position)
+    }) {
+        return Err(
+            "acceptance owner correction requires delivery reopening after the latest metadata correction"
+                .into(),
+        );
+    }
+    Ok(reopening)
+}
+
+pub fn add_acceptance_owner_correction(
+    root: &Path,
+    id: &str,
+    path: String,
+    module: String,
+    actor: String,
+    reason: String,
+) -> Result<ChangeRecord, String> {
+    let _lock = acquire_project_lock(root)?;
+    let mut record = load_change(root, id)?;
+    require_state(
+        &record,
+        &[ChangeState::Verifying],
+        "correct an acceptance input owner",
+    )?;
+    if !record.canonical_applied {
+        return Err("acceptance owner correction requires an already-applied change".into());
+    }
+    let actor = actor.trim();
+    if actor.is_empty() {
+        return Err(
+            "acceptance owner correction requires a non-empty human actor passed with --actor"
+                .into(),
+        );
+    }
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err(
+            "acceptance owner correction requires a non-empty reason passed with --reason".into(),
+        );
+    }
+    if strict_portable_relative_path(&path)? != path {
+        return Err(format!(
+            "acceptance owner correction path is not canonical: `{path}`"
+        ));
+    }
+    crate::commands::validate_module_name(&module)
+        .map_err(|error| format!("invalid acceptance owner correction module: {error}"))?;
+    if module.starts_with("@exact:") {
+        return Err("reserved exact owners cannot be added through correct-owner".into());
+    }
+
+    validate_acceptance_owner_correction_records(&record)?;
+    let approvals = load_approvals(root, &record)?;
+    let metadata_corrections = load_correction_ledger(root, &record)?;
+    let reopening = latest_reopen_for_owner_correction(&record, &approvals, &metadata_corrections)?;
+    let mut original = record.clone();
+    original.acceptance_owner_corrections.clear();
+    if !definition_digest_matches(
+        root,
+        &original,
+        &reopening.prior_verification.contract_digest,
+    )? {
+        return Err(
+            "cannot correct an owner after the reopened definition changed; restore the accepted definition or use a successor change"
+                .into(),
+        );
+    }
+    record
+        .acceptance_owner_corrections
+        .push(AcceptanceOwnerCorrection {
+            schema_version: 1,
+            sequence: record.acceptance_owner_corrections.len() as u64 + 1,
+            path,
+            module,
+            actor: actor.to_string(),
+            reason: reason.to_string(),
+            timestamp: now(),
+        });
+    validate_acceptance_owner_corrections_current(root, &record)?;
+    record.updated_at = now();
+    let dir = change_dir(root, &record.id);
+    write_prepared_files(
+        root,
+        &[
+            (dir.join("state.json"), json_content(&record)?),
+            (dir.join("change.md"), change_markdown_content(&record)),
+        ],
+    )?;
+    Ok(record)
 }
 
 #[derive(Serialize)]
@@ -1543,12 +2258,27 @@ fn validate_correction_records_for_prefix(
 
 fn load_correction_ledger(root: &Path, record: &ChangeRecord) -> Result<CorrectionLedger, String> {
     let path = find_change_dir(root, &record.id)?.join(CORRECTIONS_FILE);
-    let ledger = if path.exists() {
-        let content = read_bounded_change_text(&path, "correction ledger")?;
-        serde_json::from_str(&content)
-            .map_err(|error| format!("invalid correction ledger {}: {error}", path.display()))?
-    } else {
-        CorrectionLedger::default()
+    let ledger = match fs::symlink_metadata(&path) {
+        Ok(_) => {
+            let relative = strict_portable_project_path(root, &path)?;
+            let evidence = git_regular_file_evidence(root, &BTreeSet::from([relative.clone()]))?;
+            let entry = evidence.entry(&relative)?;
+            if entry.payload.len() as u64 > MAX_CHANGE_ARTIFACT_BYTES {
+                return Err(format!(
+                    "correction ledger exceeds byte limit: {}",
+                    path.display()
+                ));
+            }
+            serde_json::from_slice(&entry.payload)
+                .map_err(|error| format!("invalid correction ledger {}: {error}", path.display()))?
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => CorrectionLedger::default(),
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect correction ledger {}: {error}",
+                path.display()
+            ));
+        }
     };
     if ledger.schema_version != 1 {
         return Err(format!(
@@ -1894,12 +2624,15 @@ fn closing_authenticated_correction_anchor(
     if !verification.passed || verification.acceptance_input_digest.is_none() {
         return Ok(None);
     }
-    let definition_matches = approvals
-        .approvals
-        .iter()
-        .rev()
-        .find(|approval| approval.gate == "definition")
-        .is_some_and(|approval| approval.digest == verification.contract_digest);
+    let correction_prefix = correction_prefix_digest(&state, &corrections.corrections)?;
+    let definition_matches = resolve_definition_approval_event(
+        &state,
+        &approvals,
+        &verification.contract_digest,
+        None,
+        &correction_prefix,
+    )
+    .is_ok();
     let closing_matches = approvals
         .approvals
         .iter()
@@ -2170,13 +2903,8 @@ pub fn correct_interview_metadata(
     ensure_closing_approval_valid(root, &record)?;
     let prior_verification = load_verification(root, &record)?;
     let approvals = load_approvals(root, &record)?;
-    let superseded_definition_approval = approvals
-        .approvals
-        .iter()
-        .rev()
-        .find(|approval| approval.gate == "definition")
-        .cloned()
-        .ok_or_else(|| "accepted change is missing definition approval".to_string())?;
+    let superseded_definition_approval =
+        effective_definition_approval(root, &record, &approvals)?.clone();
     let superseded_closing_approval = approvals
         .approvals
         .iter()
@@ -2269,6 +2997,7 @@ fn ensure_reopened_definition_unchanged(root: &Path, record: &ChangeRecord) -> R
     if !record.canonical_applied {
         return Ok(());
     }
+    validate_acceptance_owner_correction_records(record)?;
     let approval_ledger = load_approvals(root, record)?;
     let correction_ledger = load_correction_ledger(root, record)?;
     validate_correction_records(record, &correction_ledger.corrections)?;
@@ -2315,6 +3044,18 @@ fn ensure_reopened_definition_unchanged(root: &Path, record: &ChangeRecord) -> R
 
     if let Some((_, reopening)) = reopen_recovery {
         if definition_digest_matches(root, record, &reopening.prior_verification.contract_digest)? {
+            return Ok(());
+        }
+        let mut original = record.clone();
+        original.acceptance_owner_corrections.clear();
+        if !record.acceptance_owner_corrections.is_empty()
+            && definition_digest_matches(
+                root,
+                &original,
+                &reopening.prior_verification.contract_digest,
+            )?
+        {
+            validate_acceptance_owner_corrections_current(root, record)?;
             return Ok(());
         }
         return Err(
@@ -2369,18 +3110,18 @@ pub fn accept_change(
     } else {
         prepare_delta_application(root, &record)?
     };
-    verification.acceptance_input_digest = Some(acceptance_input_digest(root, &record, &prepared)?);
+    let manifest = acceptance_manifest(root, &record, &prepared)?;
+    let succession = build_semantic_succession_evidence(root, &record, &manifest)?;
+    verification.acceptance_input_digest = Some(acceptance_manifest_digest(&manifest)?);
+    verification.acceptance_manifest = Some(manifest);
+    verification.semantic_succession = (!succession.tuples.is_empty()).then_some(succession);
     let closing_digest = closing_digest(&record, &verification);
     let mut ledger = load_approvals(root, &record)?;
     let actor = resolve_actor(root, actor)?;
     let stable_definition_digest = definition_digest(root, &record)?;
-    let latest_definition_digest = ledger
-        .approvals
-        .iter()
-        .rev()
-        .find(|approval| approval.gate == "definition")
-        .map(|approval| approval.digest.as_str());
-    if latest_definition_digest != Some(stable_definition_digest.as_str()) {
+    let definition_is_stable =
+        effective_definition_approval(root, &record, &ledger)?.digest == stable_definition_digest;
+    if !definition_is_stable {
         ledger.approvals.push(ApprovalRecord {
             gate: "definition".into(),
             actor: actor.clone(),
@@ -2389,6 +3130,7 @@ pub fn accept_change(
             note: Some(
                 "Normalized compatible definition evidence during explicit acceptance".into(),
             ),
+            definition_pair: None,
         });
     }
     ledger.approvals.push(ApprovalRecord {
@@ -2397,6 +3139,7 @@ pub fn accept_change(
         timestamp: now(),
         digest: closing_digest,
         note,
+        definition_pair: None,
     });
     let approvals_path = change_dir(root, &record.id).join("approvals.json");
     prepared.push((approvals_path, json_content(&ledger)?));
@@ -2420,10 +3163,28 @@ pub fn accept_change(
 }
 
 pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
+    archive_change_with_finalize_failure(root, id, false)
+}
+
+fn archive_change_with_finalize_failure(
+    root: &Path,
+    id: &str,
+    force_finalize_failure: bool,
+) -> Result<PathBuf, String> {
     let _lock = acquire_project_lock(root)?;
     list_changes_checked(root)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Accepted], "archive the change")?;
+    validate_acceptance_owner_correction_records(&record)?;
+    let destination = root
+        .join(ARCHIVE_PATH)
+        .join(format!("{}-{}", today(), record.id));
+    if destination.exists() {
+        return Err(format!(
+            "archive destination already exists: {}",
+            destination.display()
+        ));
+    }
     ensure_closing_approval_valid(root, &record)?;
     if let Some(policy) = load_policy_checked(root)?
         && policy.enabled
@@ -2441,42 +3202,81 @@ pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
         }
     }
     let source = change_dir(root, &record.id);
-    let destination = root
-        .join(ARCHIVE_PATH)
-        .join(format!("{}-{}", today(), record.id));
-    if destination.exists() {
-        return Err(format!(
-            "archive destination already exists: {}",
-            destination.display()
-        ));
-    }
+    let original_state_bytes = fs::read(source.join("state.json"))
+        .map_err(|error| format!("failed to preserve accepted state before archive: {error}"))?;
+    let original_markdown_bytes = fs::read(source.join("change.md"))
+        .map_err(|error| format!("failed to preserve accepted change before archive: {error}"))?;
     if let Some(parent) = destination.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
-    fs::rename(&source, &destination).map_err(|error| {
-        format!(
+    let accepted_snapshot = source.join("accepted-state.json");
+    let accepted_state_bytes = authenticated_accepted_transition(root, &record)
+        .map(|(_, bytes, _)| bytes)
+        .unwrap_or_else(|_| original_state_bytes.clone());
+    fs::write(&accepted_snapshot, &accepted_state_bytes)
+        .map_err(|error| format!("failed to stage authenticated accepted state: {error}"))?;
+    let mut simulated = list_all_changes_checked(root)?;
+    let mut archived_projection = record.clone();
+    archived_projection.state = ChangeState::Archived;
+    if let Err(error) = validate_archived_integrity(root, &archived_projection) {
+        let _ = fs::remove_file(&accepted_snapshot);
+        return Err(format!(
+            "archive target historical-integrity preflight failed: {error}"
+        ));
+    }
+    simulated.insert(record.id.clone(), archived_projection);
+    for candidate in simulated
+        .values()
+        .filter(|candidate| candidate.state == ChangeState::Accepted)
+    {
+        let mut visiting = BTreeSet::new();
+        let mut memo = BTreeMap::new();
+        if let Err(error) = validate_accepted_inputs_recursive(
+            root,
+            candidate,
+            &simulated,
+            &mut visiting,
+            &mut memo,
+        ) {
+            let _ = fs::remove_file(&accepted_snapshot);
+            return Err(format!(
+                "archive post-move preflight would invalidate `{}`: {error}",
+                candidate.id
+            ));
+        }
+    }
+    if let Err(error) = fs::rename(&source, &destination) {
+        let _ = fs::remove_file(&accepted_snapshot);
+        return Err(format!(
             "failed to archive {} to {}: {error}",
             source.display(),
             destination.display()
-        )
-    })?;
+        ));
+    }
     let mut archived = record.clone();
     archived.state = ChangeState::Archived;
     archived.updated_at = now();
-    if let Err(error) = write_json(&destination.join("state.json"), &archived).and_then(|()| {
-        fs::write(
-            destination.join("change.md"),
-            change_markdown_content(&archived),
-        )
-        .map_err(|error| error.to_string())
-    }) {
-        let restore = write_json(&destination.join("state.json"), &record)
+    let finalize = if force_finalize_failure {
+        Err("forced post-move archive finalization failure".to_string())
+    } else {
+        write_json(&destination.join("state.json"), &archived).and_then(|()| {
+            fs::write(
+                destination.join("change.md"),
+                change_markdown_content(&archived),
+            )
+            .map_err(|error| error.to_string())
+        })
+    };
+    if let Err(error) = finalize {
+        let restore = fs::write(destination.join("state.json"), &original_state_bytes)
+            .map_err(|error| error.to_string())
             .and_then(|()| {
-                fs::write(
-                    destination.join("change.md"),
-                    change_markdown_content(&record),
-                )
-                .map_err(|error| error.to_string())
+                fs::write(destination.join("change.md"), &original_markdown_bytes)
+                    .map_err(|error| error.to_string())
+            })
+            .and_then(|()| {
+                fs::remove_file(destination.join("accepted-state.json"))
+                    .map_err(|error| error.to_string())
             })
             .and_then(|()| fs::rename(&destination, &source).map_err(|error| error.to_string()));
         return match restore {
@@ -2485,6 +3285,27 @@ pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
             )),
             Err(restore_error) => Err(format!(
                 "failed to finalize archive ({error}) and restore source ({restore_error})"
+            )),
+        };
+    }
+    if let Err(error) = validate_archived_integrity(root, &archived) {
+        let restore = fs::write(destination.join("state.json"), &original_state_bytes)
+            .map_err(|error| error.to_string())
+            .and_then(|()| {
+                fs::write(destination.join("change.md"), &original_markdown_bytes)
+                    .map_err(|error| error.to_string())
+            })
+            .and_then(|()| {
+                fs::remove_file(destination.join("accepted-state.json"))
+                    .map_err(|error| error.to_string())
+            })
+            .and_then(|()| fs::rename(&destination, &source).map_err(|error| error.to_string()));
+        return match restore {
+            Ok(()) => Err(format!(
+                "archived evidence failed post-move validation; source restored: {error}"
+            )),
+            Err(restore_error) => Err(format!(
+                "archived evidence failed validation ({error}) and restore ({restore_error})"
             )),
         };
     }
@@ -2508,16 +3329,11 @@ pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
     let approval_valid = ensure_definition_approval_valid(root, record).is_ok();
     let artifacts_complete = validate_artifacts(root, record).is_ok();
     let verification_current = || {
-        let Ok(verification) = load_verification(root, record) else {
-            return false;
-        };
-        verification.passed
-            && definition_digest_matches(root, record, &verification.contract_digest)
-                .unwrap_or(false)
-            && verification.commit == git_output(root, &["rev-parse", "HEAD"])
-            && project_input_digest(root)
-                .is_ok_and(|digest| verification.workspace_digest == digest)
+        load_verification(root, record)
+            .is_ok_and(|verification| verification_is_current(root, record, &verification))
     };
+    let terminal_evidence = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
+        .then(|| terminal_evidence_summary(root, record));
     let next_action = match record.state {
         ChangeState::Draft if next_questions(record).is_empty() => "approve".into(),
         ChangeState::Draft => "answer interview".into(),
@@ -2533,7 +3349,21 @@ pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
         ChangeState::Accepted if ensure_closing_approval_valid(root, record).is_err() => {
             "reopen".into()
         }
+        ChangeState::Accepted
+            if terminal_evidence
+                .as_ref()
+                .is_some_and(|evidence| evidence.validity == TerminalEvidenceValidity::Stale) =>
+        {
+            "reopen".into()
+        }
         ChangeState::Accepted => "archive".into(),
+        ChangeState::Archived
+            if terminal_evidence.as_ref().is_some_and(|evidence| {
+                evidence.validity == TerminalEvidenceValidity::CorruptHistory
+            }) =>
+        {
+            "invalid archived evidence".into()
+        }
         ChangeState::Archived => "none".into(),
     };
     ChangeSummary {
@@ -2546,6 +3376,7 @@ pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
         correction_count: record.correction_count as usize,
         corrected_fields,
         next_action,
+        terminal_evidence,
     }
 }
 
@@ -2649,9 +3480,22 @@ fn check_project_with_command_output(
             };
         }
     };
+    let all_records = match list_all_changes_checked(root) {
+        Ok(records) => records,
+        Err(error) => {
+            return SddCheckReport {
+                enabled: true,
+                errors: vec![error],
+                ..SddCheckReport::default()
+            };
+        }
+    };
+    let (terminal_evidence, mut archived_integrity_cache) =
+        terminal_evidence_results_with_records(root, &all_records);
     let mut report = SddCheckReport {
         enabled: true,
-        checked_changes: records.len(),
+        checked_changes: all_records.len(),
+        terminal_evidence,
         ..SddCheckReport::default()
     };
     let policy = if let Some(base) = base_policy.filter(|policy| policy.enabled)
@@ -2687,8 +3531,10 @@ fn check_project_with_command_output(
         if let Err(error) = validate_definition(root, record) {
             report.errors.push(format!("{}: {error}", record.id));
         }
-        if !matches!(record.state, ChangeState::Draft)
-            && let Err(error) = ensure_definition_approval_valid(root, record)
+        if matches!(
+            record.state,
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+        ) && let Err(error) = ensure_definition_approval_valid(root, record)
         {
             report.errors.push(format!("{}: {error}", record.id));
         }
@@ -2710,11 +3556,21 @@ fn check_project_with_command_output(
             report.errors.push(format!("{}: {error}", record.id));
         }
         if record.state == ChangeState::Accepted
-            && let Err(error) = ensure_closing_approval_valid(root, record)
-            && (error != "accepted change verification is stale for current delivery inputs"
-                || !canonical_successor_governs_stale_predecessor(root, record, &records))
+            && let Some(evidence) = report
+                .terminal_evidence
+                .iter()
+                .find(|evidence| evidence.id == record.id)
+            && evidence.evidence.validity == TerminalEvidenceValidity::Stale
         {
-            report.errors.push(format!("{}: {error}", record.id));
+            report.errors.push(format!(
+                "{}: accepted change verification is stale for current delivery inputs: {}",
+                record.id,
+                evidence
+                    .evidence
+                    .reason
+                    .as_deref()
+                    .unwrap_or("unknown reason")
+            ));
         }
         if record.canonical_applied
             && matches!(
@@ -2734,9 +3590,46 @@ fn check_project_with_command_output(
             }
         }
     }
+    let mut shared_legacy_error_reported = false;
+    for record in all_records
+        .values()
+        .filter(|record| record.state == ChangeState::Archived)
+    {
+        if let Err(error) =
+            validate_archived_integrity_with_cache(root, record, &mut archived_integrity_cache)
+        {
+            let is_shared_legacy_error = archived_integrity_cache
+                .legacy
+                .as_ref()
+                .and_then(|result| result.as_ref().err())
+                == Some(&error);
+            if is_shared_legacy_error {
+                if !shared_legacy_error_reported {
+                    report.errors.push(format!(
+                        "legacy archive baseline historical integrity is invalid: {error}"
+                    ));
+                    shared_legacy_error_reported = true;
+                }
+            } else {
+                report.errors.push(format!(
+                    "{}: archived change historical integrity is invalid: {error}",
+                    record.id
+                ));
+            }
+        }
+    }
     if let Err(errors) = validate_effective_contracts(root, &records) {
         report.errors.extend(errors);
     }
+    let verifying_project_digest = if records
+        .iter()
+        .any(|record| record.state == ChangeState::Verifying)
+    {
+        Some(project_input_digest(root))
+    } else {
+        None
+    };
+    let mut project_digest_error_reported = false;
     for record in &records {
         if matches!(
             record.state,
@@ -2764,18 +3657,31 @@ fn check_project_with_command_output(
                             "{}: latest verification evidence failed",
                             record.id
                         ));
-                    } else if !verification_commit_is_current(root, &evidence, is_ci_project(root))
-                        || definition_digest_matches(root, record, &evidence.contract_digest)
-                            .map(|matches| !matches)
-                            .unwrap_or(true)
-                        || project_input_digest(root)
-                            .map(|digest| digest != evidence.workspace_digest)
-                            .unwrap_or(true)
-                    {
-                        report.errors.push(format!(
-                            "{}: verification evidence is stale for the current commit or contract",
-                            record.id
-                        ));
+                    } else if let Some(result) = &verifying_project_digest {
+                        match result {
+                            Ok(project_digest) => {
+                                if verification_is_current_checked_with_project_digest(
+                                    root,
+                                    record,
+                                    &evidence,
+                                    project_digest,
+                                )
+                                .is_err()
+                                {
+                                    report.errors.push(format!(
+                                        "{}: verification evidence is stale for the current commit or contract",
+                                        record.id
+                                    ));
+                                }
+                            }
+                            Err(error) if !project_digest_error_reported => {
+                                report.errors.push(format!(
+                                    "failed to capture shared verification project inputs: {error}"
+                                ));
+                                project_digest_error_reported = true;
+                            }
+                            Err(_) => {}
+                        }
                     }
                 }
                 Err(error) => report.errors.push(format!("{}: {error}", record.id)),
@@ -3014,6 +3920,15 @@ fn add_artifact(record: &mut ChangeRecord, artifact: ArtifactKind) {
 
 fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     let effective = effective_change_definition(root, record)?;
+    validate_acceptance_owner_correction_records(record)?;
+    if !record.acceptance_owner_corrections.is_empty()
+        && matches!(
+            record.state,
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+        )
+    {
+        validate_acceptance_owner_corrections_current(root, record)?;
+    }
     if record.description.trim().is_empty() {
         return Err("description is empty".into());
     }
@@ -3030,6 +3945,8 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
         crate::commands::validate_module_name(module)
             .map_err(|error| format!("invalid affected spec: {error}"))?;
     }
+    validate_supersedes_edges(record)?;
+    validate_supersedes_semantics(root, record)?;
     if record.no_spec_change
         && record
             .no_spec_change_rationale
@@ -3071,6 +3988,174 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
     validate_artifacts(root, record)
 }
 
+fn validate_supersedes_edges(record: &ChangeRecord) -> Result<(), String> {
+    const MAX_SUCCESSION_TUPLES: usize = 100_000;
+    let mut count = 0_usize;
+    let mut previous_edge: Option<(u64, &str)> = None;
+    for edge in &record.supersedes {
+        let key = succession_change_key(&edge.predecessor_id);
+        if previous_edge.is_some_and(|previous| previous >= (key.0, key.1.as_str())) {
+            return Err("supersedes edges must be strictly sorted by numeric sequence and full predecessor ID".into());
+        }
+        previous_edge = Some((key.0, edge.predecessor_id.as_str()));
+        if edge.predecessor_id.len() > 256 || edge.obligations.is_empty() {
+            return Err(format!("invalid supersedes edge `{}`", edge.predecessor_id));
+        }
+        let mut previous_obligation: Option<(&str, &str)> = None;
+        for obligation in &edge.obligations {
+            count += 1;
+            if count > MAX_SUCCESSION_TUPLES {
+                return Err(format!(
+                    "supersedes obligations exceed {MAX_SUCCESSION_TUPLES}"
+                ));
+            }
+            if obligation.path.len() > 4096 || obligation.module.len() > 256 {
+                return Err("supersedes obligation field exceeds its size limit".into());
+            }
+            let normalized = normalize_project_path(&obligation.path)
+                .map_err(|error| format!("invalid succession path: {error}"))?;
+            if normalized != obligation.path {
+                return Err(format!(
+                    "succession path is not canonical: {}",
+                    obligation.path
+                ));
+            }
+            crate::commands::validate_module_name(&obligation.module)
+                .map_err(|error| format!("invalid succession module: {error}"))?;
+            validate_sha256_digest(
+                &obligation.predecessor_entry_digest,
+                "predecessor entry digest",
+            )?;
+            if previous_obligation.is_some_and(|previous| {
+                previous >= (obligation.path.as_str(), obligation.module.as_str())
+            }) {
+                return Err(format!(
+                    "supersedes obligations for `{}` must be strictly sorted and unique",
+                    edge.predecessor_id
+                ));
+            }
+            previous_obligation = Some((&obligation.path, &obligation.module));
+        }
+    }
+    Ok(())
+}
+
+fn validate_supersedes_semantics(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    for edge in &record.supersedes {
+        let predecessor = load_change(root, &edge.predecessor_id)?;
+        if !matches!(
+            predecessor.state,
+            ChangeState::Accepted | ChangeState::Archived
+        ) {
+            return Err(format!(
+                "superseded change `{}` must be accepted or archived",
+                edge.predecessor_id
+            ));
+        }
+        if succession_change_key(&edge.predecessor_id) >= succession_change_key(&record.id) {
+            return Err(format!(
+                "superseded change `{}` must sort before successor `{}`",
+                edge.predecessor_id, record.id
+            ));
+        }
+        if supersedes_reaches(root, &edge.predecessor_id, &record.id, &mut BTreeSet::new()) {
+            return Err(format!(
+                "supersedes edge `{}` -> `{}` creates a succession cycle",
+                record.id, edge.predecessor_id
+            ));
+        }
+        let manifest = resolved_acceptance_manifest(root, &predecessor)?;
+        for obligation in &edge.obligations {
+            if !record.affected_specs.contains(&obligation.module) {
+                return Err(format!(
+                    "successor `{}` does not declare affected module `{}`",
+                    record.id, obligation.module
+                ));
+            }
+            if !record
+                .affected_paths
+                .iter()
+                .any(|scope| path_matches_scope(&obligation.path, scope))
+            {
+                return Err(format!(
+                    "successor `{}` does not declare affected path `{}`",
+                    record.id, obligation.path
+                ));
+            }
+            let mut entries = manifest
+                .entries
+                .iter()
+                .filter(|entry| entry.path == obligation.path);
+            let entry = entries.next().ok_or_else(|| {
+                format!(
+                    "predecessor `{}` has no signed acceptance entry for `{}`",
+                    edge.predecessor_id, obligation.path
+                )
+            })?;
+            if entries.next().is_some() {
+                return Err(format!(
+                    "predecessor `{}` has ambiguous acceptance entries for `{}`",
+                    edge.predecessor_id, obligation.path
+                ));
+            }
+            if entry.entry_digest != obligation.predecessor_entry_digest {
+                return Err(format!(
+                    "predecessor entry digest mismatch for `{}` `{}`",
+                    edge.predecessor_id, obligation.path
+                ));
+            }
+            if obligation.module.starts_with("@exact:")
+                || !entry.owners.contains(&obligation.module)
+            {
+                return Err(format!(
+                    "module `{}` is not a successor-eligible signed owner of predecessor path `{}`",
+                    obligation.module, obligation.path
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn supersedes_reaches(
+    root: &Path,
+    from: &str,
+    target: &str,
+    visited: &mut BTreeSet<String>,
+) -> bool {
+    if from == target {
+        return true;
+    }
+    if !visited.insert(from.to_string()) {
+        return false;
+    }
+    load_change(root, from)
+        .map(|record| {
+            record.supersedes.iter().any(|edge| {
+                edge.predecessor_id == target
+                    || supersedes_reaches(root, &edge.predecessor_id, target, visited)
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn validate_sha256_digest(value: &str, label: &str) -> Result<(), String> {
+    if value.len() != 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(format!(
+            "{label} must be 64 lowercase hexadecimal characters"
+        ));
+    }
+    Ok(())
+}
+
+fn succession_change_key(id: &str) -> (u64, String) {
+    (change_sequence(id).unwrap_or(u64::MAX), id.to_string())
+}
+
 fn is_legacy_self_adoption_record(record: &ChangeRecord) -> bool {
     record.schema_version == 1
         && record.id == "CHG-0001-bootstrap-and-ship-the-verified-specsync-5-0-full-sdd-lifecycle"
@@ -3082,7 +4167,7 @@ fn is_legacy_self_adoption_record(record: &ChangeRecord) -> bool {
 }
 
 fn validate_artifacts(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    let dir = change_dir(root, &record.id);
+    let dir = find_change_dir(root, &record.id)?;
     let effective = effective_change_definition(root, record)?;
     for artifact in &effective.selected_artifacts {
         let path = dir.join(artifact.file_name());
@@ -3139,7 +4224,7 @@ fn semantic_acceptance_item_exists(root: &Path, record: &ChangeRecord) -> Result
     }
     for module in &record.affected_specs {
         let content =
-            read_bounded_change_text(&delta_path(root, record, module), "semantic delta")?;
+            read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
         if parse_delta(&content)?.iter().any(|item| {
             matches!(
                 item.target,
@@ -3238,7 +4323,8 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
             if record.canonical_applied || !record.affected_specs.contains(&module) {
                 continue;
             }
-            let delta_path = delta_path(root, record, &module);
+            let delta_path =
+                delta_path_checked(root, record, &module).map_err(|error| vec![error])?;
             let delta = match read_bounded_change_text(&delta_path, "semantic delta") {
                 Ok(delta) => delta,
                 Err(error) => {
@@ -3402,7 +4488,7 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
     }
     let tombstones = removed_requirement_ids(root)?;
     for module in &record.affected_specs {
-        let path = delta_path(root, record, module);
+        let path = delta_path_checked(root, record, module)?;
         let content = read_bounded_change_text(&path, "semantic delta")
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
         let items = parse_delta(&content)?;
@@ -3521,7 +4607,7 @@ fn collect_requirement_ids(root: &Path, record: &ChangeRecord) -> Result<Vec<Str
     }
     let mut ids = BTreeSet::new();
     for module in &record.affected_specs {
-        let path = delta_path(root, record, module);
+        let path = delta_path_checked(root, record, module)?;
         let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
         for item in parse_delta(&content)? {
             if item.target == DeltaTarget::Requirement && item.operation != DeltaOperation::Removed
@@ -3643,7 +4729,8 @@ fn prepare_delta_application(
     let specs_dir = crate::config::load_config(root).specs_dir;
     let mut prepared = Vec::new();
     for module in &record.affected_specs {
-        let delta = read_bounded_change_text(&delta_path(root, record, module), "semantic delta")?;
+        let delta =
+            read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
         let items = parse_delta(&delta)?;
         let (spec_path, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
         let mut spec = fs::read_to_string(&spec_path)
@@ -4060,7 +5147,7 @@ fn delta_keys(root: &Path, record: &ChangeRecord) -> Result<BTreeSet<String>, St
         return Ok(keys);
     }
     for module in &record.affected_specs {
-        let path = delta_path(root, record, module);
+        let path = delta_path_checked(root, record, module)?;
         let content = match fs::read_to_string(path) {
             Ok(content) => content,
             Err(_) if record.state == ChangeState::Draft => continue,
@@ -4142,143 +5229,676 @@ fn definition_digest_from_record_bytes(
     record_bytes: &[u8],
     corrections: &[CorrectionRecord],
 ) -> Result<String, String> {
-    let dir = change_dir(root, &record.id);
-    let mut digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
-    digest.frame(b"record", record_bytes);
+    let snapshot = definition_artifact_snapshot(root, record, corrections)?;
+    definition_digest_from_snapshot(record, record_bytes, corrections, &snapshot)
+}
+
+#[derive(Debug, Clone)]
+struct DefinitionArtifactSnapshot {
+    entries: Vec<(String, u32, Vec<u8>, Option<String>)>,
+    correction_mode: Option<u32>,
+}
+
+fn definition_artifact_snapshot(
+    root: &Path,
+    record: &ChangeRecord,
+    corrections: &[CorrectionRecord],
+) -> Result<DefinitionArtifactSnapshot, String> {
+    let dir = find_change_dir(root, &record.id)?;
     let effective = validate_correction_records_for_prefix(record, corrections)?;
-    let mut files = Vec::new();
+    let mut files: Vec<(String, PathBuf)> = Vec::new();
     for artifact in &effective.selected_artifacts {
-        files.push(dir.join(artifact.file_name()));
+        files.push((
+            format!("{CHANGES_PATH}/{}/{}", record.id, artifact.file_name()),
+            dir.join(artifact.file_name()),
+        ));
     }
-    if let Ok(entries) = fs::read_dir(dir.join("deltas")) {
-        files.extend(entries.flatten().map(|entry| entry.path()));
+    let deltas = dir.join("deltas");
+    match fs::read_dir(&deltas) {
+        Ok(entries) => {
+            for entry in entries {
+                let entry = entry.map_err(|error| {
+                    format!(
+                        "failed to enumerate definition deltas {}: {error}",
+                        deltas.display()
+                    )
+                })?;
+                let name = entry
+                    .file_name()
+                    .into_string()
+                    .map_err(|_| "definition delta name is not portable UTF-8".to_string())?;
+                if name.len() > MAX_ACCEPTANCE_PATH_BYTES || files.len() >= MAX_ACCEPTANCE_ENTRIES {
+                    return Err("definition delta inventory exceeds deterministic bounds".into());
+                }
+                strict_portable_relative_path(&name)?;
+                files.push((
+                    format!("{CHANGES_PATH}/{}/deltas/{name}", record.id),
+                    entry.path(),
+                ));
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(format!(
+                "failed to enumerate definition deltas {}: {error}",
+                deltas.display()
+            ));
+        }
     }
     if let Some(policy) = load_policy(root)
         && let Some(principles) = policy.principles_file
     {
-        files.push(safe_project_path(root, &principles)?);
+        let path = safe_project_path(root, &principles)?;
+        files.push((strict_portable_project_path(root, &path)?, path));
     }
-    files.sort();
-    let git_modes = git_index_modes(root)?;
-    for path in files {
-        let metadata = fs::metadata(&path)
-            .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
-        if metadata.len() > MAX_CHANGE_ARTIFACT_BYTES {
+    if !corrections.is_empty() {
+        files.push((
+            format!("{CHANGES_PATH}/{}/{CORRECTIONS_FILE}", record.id),
+            dir.join(CORRECTIONS_FILE),
+        ));
+    }
+    files.sort_by(|left, right| left.0.cmp(&right.0));
+    let candidate_paths = files
+        .iter()
+        .map(|(_, path)| strict_portable_project_path(root, path))
+        .collect::<Result<Vec<_>, _>>()?;
+    let candidates = candidate_paths.iter().cloned().collect();
+    let evidence = git_regular_file_evidence(root, &candidates)?;
+    let mut correction_mode = None;
+    let mut captured = Vec::new();
+    for ((relative, path), candidate) in files.into_iter().zip(candidate_paths) {
+        let entry = evidence.entry(&candidate)?;
+        if entry.kind != AcceptanceInputKind::File || !matches!(entry.mode, 0o100644 | 0o100755) {
+            return Err(format!(
+                "selected definition artifact is not a regular file: {}",
+                path.display()
+            ));
+        }
+        if entry.payload.len() as u64 > MAX_CHANGE_ARTIFACT_BYTES {
             return Err(format!(
                 "approval input exceeds {} byte limit: {}",
                 MAX_CHANGE_ARTIFACT_BYTES,
                 path.display()
             ));
         }
-        let relative = strict_portable_project_path(root, &path)?;
-        let content = fs::read(&path)
-            .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
-        let (kind, mode) = digest_file_kind_and_mode(&relative, &path, &git_modes)?;
-        digest.entry(&relative, kind, mode, &content);
+        if relative.ends_with(&format!("/{CORRECTIONS_FILE}")) {
+            correction_mode = Some(entry.mode);
+        } else {
+            captured.push((
+                relative,
+                entry.mode,
+                entry.payload.clone(),
+                entry.object.clone(),
+            ));
+        }
+    }
+    Ok(DefinitionArtifactSnapshot {
+        entries: captured,
+        correction_mode,
+    })
+}
+
+fn definition_digest_from_snapshot(
+    record: &ChangeRecord,
+    record_bytes: &[u8],
+    corrections: &[CorrectionRecord],
+    snapshot: &DefinitionArtifactSnapshot,
+) -> Result<String, String> {
+    let mut digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
+    digest.frame(b"record", record_bytes);
+    for (relative, mode, payload, _) in &snapshot.entries {
+        digest.entry(relative, b"file", *mode, payload);
     }
     if !corrections.is_empty() {
-        let path = dir.join(CORRECTIONS_FILE);
-        let relative = strict_portable_project_path(root, &path)?;
+        let relative = format!("{CHANGES_PATH}/{}/{CORRECTIONS_FILE}", record.id);
         let ledger = CorrectionLedger {
             schema_version: 1,
             corrections: corrections.to_vec(),
         };
         let content = json_content(&ledger)?;
-        let mode = git_modes.get(&relative).copied().unwrap_or(0o100644);
+        let mode = snapshot
+            .correction_mode
+            .ok_or_else(|| "captured correction ledger mode is missing".to_string())?;
         digest.entry(&relative, b"file", mode, content.as_bytes());
     }
     Ok(digest.finish())
 }
 
-fn project_input_digest(root: &Path) -> Result<String, String> {
-    let mut paths = match git_project_paths(root)? {
-        Some(paths) => paths,
-        None => strict_walk_project_paths(root)?,
+#[derive(Serialize)]
+struct DefinitionProjectionV501<'a> {
+    schema_version: u32,
+    id: &'a str,
+    slug: &'a str,
+    title: &'a str,
+    description: &'a str,
+    kind: ChangeKind,
+    state: ChangeState,
+    base_commit: &'a Option<String>,
+    created_at: u64,
+    updated_at: u64,
+    affected_specs: &'a [String],
+    affected_paths: &'a [String],
+    no_spec_change: bool,
+    no_spec_change_rationale: &'a Option<String>,
+    acceptance_criteria: &'a [String],
+    selected_artifacts: &'a [ArtifactKind],
+    dependencies: &'a [String],
+    answers: &'a BTreeMap<String, String>,
+}
+
+fn portable_definition_digest_pair_v501(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(String, String, String), String> {
+    if record.legacy_archive_baseline_digest.is_none() {
+        return Err(
+            "SpecSync 5.0.1 portable approval requires a versioned legacy archive baseline binding"
+                .into(),
+        );
+    }
+    if record.canonical_applied
+        || record.correction_count != 0
+        || !record.supersedes.is_empty()
+        || !record.acceptance_owner_corrections.is_empty()
+    {
+        return Err(
+            "SpecSync 5.0.1 portable projection rejects unsupported nonempty post-5.0.1 definition fields"
+                .into(),
+        );
+    }
+    let correction_ledger = load_correction_ledger(root, record)?;
+    if correction_ledger.schema_version != 1 || !correction_ledger.corrections.is_empty() {
+        return Err(
+            "SpecSync 5.0.1 portable projection rejects unsupported correction history".into(),
+        );
+    }
+    let mut canonical = record.clone();
+    canonical.state = ChangeState::Draft;
+    canonical.canonical_applied = false;
+    canonical.correction_count = 0;
+    canonical.updated_at = 0;
+    let current_bytes = serde_json::to_vec(&canonical)
+        .map_err(|error| format!("failed to hash current change state: {error}"))?;
+    let legacy_bytes = definition_projection_bytes_v501(record)?;
+    let snapshot = definition_artifact_snapshot(root, record, &[])?;
+    for (relative, _, captured_payload, object) in &snapshot.entries {
+        let working_payload = fs::read(root.join(relative)).map_err(|error| {
+            format!(
+                "SpecSync 5.0.1 portable projection cannot read working-tree definition artifact `{relative}`: {error}"
+            )
+        })?;
+        let canonical_payload = match object {
+            Some(object) => git_blob_bytes(root, object)?,
+            None => captured_payload.clone(),
+        };
+        if working_payload != canonical_payload {
+            return Err(format!(
+                "SpecSync 5.0.1 portable projection requires canonical working-tree bytes for `{relative}`; use a canonical LF release checkout"
+            ));
+        }
+    }
+    let current = definition_digest_from_snapshot(record, &current_bytes, &[], &snapshot)?;
+    let projected = definition_digest_from_snapshot(record, &legacy_bytes, &[], &snapshot)?;
+    if current == projected {
+        return Err("portable definition pair digests must be distinct".into());
+    }
+    let correction_prefix = correction_prefix_digest(record, &[])?;
+    Ok((current, projected, correction_prefix))
+}
+
+fn definition_projection_bytes_v501(record: &ChangeRecord) -> Result<Vec<u8>, String> {
+    let mut canonical = record.clone();
+    canonical.state = ChangeState::Draft;
+    canonical.updated_at = 0;
+    let legacy = DefinitionProjectionV501 {
+        schema_version: canonical.schema_version,
+        id: &canonical.id,
+        slug: &canonical.slug,
+        title: &canonical.title,
+        description: &canonical.description,
+        kind: canonical.kind,
+        state: canonical.state,
+        base_commit: &canonical.base_commit,
+        created_at: canonical.created_at,
+        updated_at: canonical.updated_at,
+        affected_specs: &canonical.affected_specs,
+        affected_paths: &canonical.affected_paths,
+        no_spec_change: canonical.no_spec_change,
+        no_spec_change_rationale: &canonical.no_spec_change_rationale,
+        acceptance_criteria: &canonical.acceptance_criteria,
+        selected_artifacts: &canonical.selected_artifacts,
+        dependencies: &canonical.dependencies,
+        answers: &canonical.answers,
     };
-    paths.sort();
-    paths.dedup();
-    let git_modes = git_index_modes(root)?;
+    serde_json::to_vec(&legacy)
+        .map_err(|error| format!("failed to hash SpecSync 5.0.1 projection: {error}"))
+}
+
+fn correction_prefix_digest(
+    record: &ChangeRecord,
+    corrections: &[CorrectionRecord],
+) -> Result<String, String> {
+    let mut digest = FramedDigest::new(CORRECTION_PREFIX_DOMAIN);
+    digest.frame(b"change-id", record.id.as_bytes());
+    digest.frame(b"count", corrections.len().to_string().as_bytes());
+    for correction in corrections {
+        let bytes = serde_json::to_vec(correction)
+            .map_err(|error| format!("failed to hash correction prefix: {error}"))?;
+        digest.frame(b"correction", &bytes);
+    }
+    Ok(digest.finish())
+}
+
+fn project_input_digest(root: &Path) -> Result<String, String> {
+    let (paths, evidence) = stable_discovered_evidence(root, None, &BTreeSet::new(), false)?;
     let mut digest = FramedDigest::new(PROJECT_DIGEST_DOMAIN);
     for relative in paths {
         if project_input_is_volatile(&relative) {
             continue;
         }
-        let path = root.join(&relative);
-        match fs::symlink_metadata(&path) {
-            Ok(metadata) if metadata.file_type().is_symlink() => {
-                let target = fs::read_link(&path).map_err(|error| {
-                    format!("failed to read symlink {}: {error}", path.display())
-                })?;
-                let target = target.to_str().ok_or_else(|| {
-                    format!(
-                        "non-UTF-8 symlink target cannot be hashed portably: {}",
-                        path.display()
-                    )
-                })?;
-                digest.entry(&relative, b"symlink", 0o120000, target.as_bytes());
-            }
-            Ok(metadata) if metadata.is_file() => {
-                let content = fs::read(&path)
-                    .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
-                let (kind, mode) = digest_file_kind_and_mode(&relative, &path, &git_modes)?;
-                digest.entry(&relative, kind, mode, &content);
-            }
-            Ok(_) => digest.entry(&relative, b"non-file", 0, b""),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                digest.entry(&relative, b"missing", 0, b"")
-            }
-            Err(error) => {
-                return Err(format!("failed to inspect {}: {error}", path.display()));
-            }
-        }
+        let entry = evidence.entry(&relative)?;
+        digest.entry(
+            &relative,
+            acceptance_kind_bytes(&entry.kind),
+            entry.mode,
+            &entry.payload,
+        );
     }
     Ok(digest.finish())
 }
 
 fn git_project_paths(root: &Path) -> Result<Option<Vec<String>>, String> {
-    let output = Command::new("git")
-        .args([
+    if !git_repository_present(root)? {
+        return Ok(None);
+    }
+    let output = run_git_required(
+        root,
+        &[
             "ls-files",
             "--cached",
             "--others",
             "--exclude-standard",
             "-z",
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to enumerate Git project paths: {error}"))?;
-    if !output.status.success() {
-        return Ok(None);
-    }
-    output
-        .stdout
+        ],
+        None,
+        MAX_GIT_EVIDENCE_PATH_BYTES + MAX_GIT_EVIDENCE_PATHS,
+    )?;
+    let mut paths = Vec::new();
+    let mut total = 0_usize;
+    for path in output
         .split(|byte| *byte == 0)
         .filter(|path| !path.is_empty())
-        .map(|path| {
+    {
+        if git_path_bytes_are_volatile(path) {
+            continue;
+        }
+        if paths.len() >= MAX_GIT_EVIDENCE_PATHS || path.len() > 4096 {
+            return Err("Git project path inventory exceeds deterministic bounds".into());
+        }
+        total = total
+            .checked_add(path.len())
+            .ok_or_else(|| "Git project path inventory exceeds deterministic bounds".to_string())?;
+        if total > MAX_GIT_EVIDENCE_PATH_BYTES {
+            return Err("Git project path inventory exceeds deterministic bounds".into());
+        }
+        let path = std::str::from_utf8(path)
+            .map_err(|_| "non-UTF-8 Git path cannot be hashed portably".to_string())?;
+        paths.push(strict_portable_relative_path(path)?);
+    }
+    Ok(Some(paths))
+}
+
+fn git_scoped_project_paths(
+    root: &Path,
+    scopes: &BTreeSet<String>,
+) -> Result<Option<Vec<String>>, String> {
+    if !git_repository_present(root)? {
+        return Ok(None);
+    }
+    let mut paths = Vec::new();
+    let mut total = 0_usize;
+    let preserve_volatile = scopes.iter().any(|scope| project_input_is_volatile(scope));
+    let repo_prefix = git_repo_prefix(root)?;
+    for batch in candidate_argument_batches(scopes) {
+        let args = literal_candidate_git_args(
+            &repo_prefix,
+            &[
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "-z",
+            ],
+            &batch,
+        );
+        let args = borrowed_git_args(&args);
+        let output = run_git_required(
+            root,
+            &args,
+            None,
+            MAX_GIT_EVIDENCE_PATH_BYTES + MAX_GIT_EVIDENCE_PATHS,
+        )?;
+        for path in output
+            .split(|byte| *byte == 0)
+            .filter(|path| !path.is_empty())
+        {
+            if !preserve_volatile && git_path_bytes_are_volatile(path) {
+                continue;
+            }
+            if paths.len() >= MAX_GIT_EVIDENCE_PATHS || path.len() > 4096 {
+                return Err("scoped Git path inventory exceeds deterministic bounds".into());
+            }
+            total = total.checked_add(path.len()).ok_or_else(|| {
+                "scoped Git path inventory exceeds deterministic bounds".to_string()
+            })?;
+            if total > MAX_GIT_EVIDENCE_PATH_BYTES {
+                return Err("scoped Git path inventory exceeds deterministic bounds".into());
+            }
             let path = std::str::from_utf8(path)
-                .map_err(|_| "non-UTF-8 Git path cannot be hashed portably".to_string())?;
-            strict_portable_relative_path(path)
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .map(Some)
+                .map_err(|_| "non-UTF-8 governed Git path cannot be hashed portably".to_string())?;
+            paths.push(strict_portable_relative_path(path)?);
+        }
+    }
+    paths.sort();
+    paths.dedup();
+    Ok(Some(paths))
+}
+
+fn git_path_bytes_are_volatile(path: &[u8]) -> bool {
+    [
+        b".git/".as_slice(),
+        b"target/".as_slice(),
+        b"node_modules/".as_slice(),
+        b"site/node_modules/".as_slice(),
+        b"site/dist/".as_slice(),
+        b"site/.astro/".as_slice(),
+        b".specsync/changes/".as_slice(),
+        b".specsync/archive/".as_slice(),
+    ]
+    .iter()
+    .any(|prefix| path.starts_with(prefix))
+}
+
+fn acceptance_discovery_scopes(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<BTreeSet<String>, String> {
+    let mut scopes = BTreeSet::new();
+    for affected in &record.affected_paths {
+        let scope = affected.trim_end_matches('/');
+        if !scope.is_empty() {
+            scopes.insert(if scope == "." {
+                scope.to_string()
+            } else {
+                strict_portable_relative_path(scope)?
+            });
+        }
+    }
+    let config = crate::config::load_config(root);
+    for module in &record.affected_specs {
+        let (spec, _) = canonical_module_paths(root, &config.specs_dir, module)?;
+        let parent = spec
+            .parent()
+            .ok_or_else(|| format!("canonical spec path has no parent: {}", spec.display()))?;
+        scopes.insert(strict_portable_project_path(root, parent)?);
+    }
+    for obligation in record
+        .supersedes
+        .iter()
+        .flat_map(|edge| edge.obligations.iter())
+    {
+        scopes.insert(obligation.path.clone());
+    }
+    Ok(scopes)
 }
 
 fn strict_walk_project_paths(root: &Path) -> Result<Vec<String>, String> {
-    walkdir::WalkDir::new(root)
-        .follow_links(false)
-        .into_iter()
-        .filter_entry(|entry| {
-            let path = portable_project_path(root, entry.path());
-            path.is_empty() || !project_input_is_volatile(&format!("{path}/"))
+    let mut prior = None;
+    for attempt in 0..2 {
+        let mut paths = Vec::new();
+        let mut total = 0_usize;
+        let entries = walkdir::WalkDir::new(root)
+            .follow_links(false)
+            .into_iter()
+            .filter_entry(|entry| {
+                let relative = portable_project_path(root, entry.path());
+                relative.is_empty() || !project_input_is_volatile(&relative)
+            });
+        for entry in entries {
+            let entry =
+                entry.map_err(|error| format!("failed to enumerate project tree: {error}"))?;
+            let relative = strict_portable_project_path(root, entry.path())?;
+            if !relative.is_empty() && project_input_is_volatile(&relative) {
+                continue;
+            }
+            if !entry.file_type().is_file() && !entry.file_type().is_symlink() {
+                continue;
+            }
+            if relative.len() > 4096 || paths.len() >= MAX_GIT_EVIDENCE_PATHS {
+                return Err(
+                    "filesystem project path inventory exceeds deterministic bounds".into(),
+                );
+            }
+            total = total.checked_add(relative.len()).ok_or_else(|| {
+                "filesystem project path inventory exceeds deterministic bounds".to_string()
+            })?;
+            if total > MAX_GIT_EVIDENCE_PATH_BYTES {
+                return Err(
+                    "filesystem project path inventory exceeds deterministic bounds".into(),
+                );
+            }
+            paths.push(relative);
+        }
+        paths.sort();
+        paths.dedup();
+        if prior.as_ref().is_some_and(|prior| prior == &paths) || attempt == 1 && prior.is_none() {
+            return Ok(paths);
+        }
+        prior = Some(paths);
+    }
+    Err("filesystem project inventory changed during evidence inspection".into())
+}
+
+fn strict_walk_scoped_project_paths(
+    root: &Path,
+    scopes: &BTreeSet<String>,
+) -> Result<Vec<String>, String> {
+    let mut prior = None;
+    for attempt in 0..2 {
+        let mut paths = Vec::new();
+        let mut total = 0_usize;
+        for scope in scopes {
+            let scoped_root = root.join(scope);
+            match fs::symlink_metadata(&scoped_root) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => {
+                    return Err(format!(
+                        "failed to inspect scoped project path `{scope}`: {error}"
+                    ));
+                }
+                Ok(metadata) if metadata.is_file() || metadata.file_type().is_symlink() => {
+                    paths.push(scope.clone());
+                    total = total.saturating_add(scope.len());
+                }
+                Ok(metadata) if metadata.is_dir() => {
+                    let preserve_volatile = project_input_is_volatile(scope);
+                    let entries = walkdir::WalkDir::new(&scoped_root)
+                        .follow_links(false)
+                        .into_iter()
+                        .filter_entry(|entry| {
+                            preserve_volatile
+                                || entry.path() == scoped_root
+                                || strict_portable_project_path(root, entry.path())
+                                    .is_ok_and(|path| !project_input_is_volatile(&path))
+                        });
+                    for entry in entries {
+                        let entry = entry.map_err(|error| {
+                            format!("failed to enumerate scoped project tree `{scope}`: {error}")
+                        })?;
+                        if entry.path() == scoped_root
+                            || (!entry.file_type().is_file() && !entry.file_type().is_symlink())
+                        {
+                            continue;
+                        }
+                        let path = strict_portable_project_path(root, entry.path())?;
+                        total = total.checked_add(path.len()).ok_or_else(|| {
+                            "scoped filesystem inventory exceeds deterministic bounds".to_string()
+                        })?;
+                        paths.push(path);
+                    }
+                }
+                Ok(_) => {
+                    return Err(format!(
+                        "scoped project path is not a file or directory: `{scope}`"
+                    ));
+                }
+            }
+            if paths.len() > MAX_GIT_EVIDENCE_PATHS || total > MAX_GIT_EVIDENCE_PATH_BYTES {
+                return Err("scoped filesystem inventory exceeds deterministic bounds".into());
+            }
+        }
+        paths.sort();
+        paths.dedup();
+        if prior.as_ref().is_some_and(|prior| prior == &paths) || attempt == 1 && prior.is_none() {
+            return Ok(paths);
+        }
+        prior = Some(paths);
+    }
+    Err("scoped filesystem inventory changed during evidence inspection".into())
+}
+
+fn stable_discovered_evidence(
+    root: &Path,
+    scopes: Option<&BTreeSet<String>>,
+    extra_candidates: &BTreeSet<String>,
+    regular_files_only: bool,
+) -> Result<(Vec<String>, GitEvidence), String> {
+    stable_discovered_evidence_with_hook_internal(
+        root,
+        scopes,
+        extra_candidates,
+        regular_files_only,
+        |_, _| {},
+    )
+}
+
+#[cfg(test)]
+fn stable_discovered_evidence_with_hook<Hook>(
+    root: &Path,
+    scopes: Option<&BTreeSet<String>>,
+    extra_candidates: &BTreeSet<String>,
+    regular_files_only: bool,
+    hook: Hook,
+) -> Result<(Vec<String>, GitEvidence), String>
+where
+    Hook: FnMut(usize, &Path),
+{
+    stable_discovered_evidence_with_hook_internal(
+        root,
+        scopes,
+        extra_candidates,
+        regular_files_only,
+        hook,
+    )
+}
+
+fn stable_discovered_evidence_with_hook_internal<Hook>(
+    root: &Path,
+    scopes: Option<&BTreeSet<String>>,
+    extra_candidates: &BTreeSet<String>,
+    regular_files_only: bool,
+    mut hook: Hook,
+) -> Result<(Vec<String>, GitEvidence), String>
+where
+    Hook: FnMut(usize, &Path),
+{
+    let initial_context = repository_context(root)?;
+    for attempt in 0..2 {
+        let capture =
+            |candidates: &BTreeSet<String>| -> Result<(Option<String>, GitEvidence), String> {
+                if initial_context.git {
+                    let index = git_index_fingerprint(root)?;
+                    let inspected = inspect_git_candidates(root, candidates, regular_files_only)?;
+                    Ok((
+                        Some(index),
+                        GitEvidence {
+                            modes: inspected.modes,
+                            entries: inspected.entries,
+                        },
+                    ))
+                } else {
+                    Ok((
+                        None,
+                        GitEvidence {
+                            modes: BTreeMap::new(),
+                            entries: capture_non_git_candidates(
+                                root,
+                                candidates,
+                                regular_files_only,
+                            )?,
+                        },
+                    ))
+                }
+            };
+        let discover = || -> Result<Vec<String>, String> {
+            match scopes {
+                Some(scopes) => match git_scoped_project_paths(root, scopes)? {
+                    Some(paths) => Ok(paths),
+                    None => strict_walk_scoped_project_paths(root, scopes),
+                },
+                None => match git_project_paths(root)? {
+                    Some(paths) => Ok(paths),
+                    None => strict_walk_project_paths(root),
+                },
+            }
+        };
+        let mut before_paths = discover()?;
+        before_paths.retain(|path| {
+            !project_input_is_volatile(path) || explicitly_scoped_path(scopes, path)
+        });
+        before_paths.extend(extra_candidates.iter().cloned());
+        before_paths.sort();
+        before_paths.dedup();
+        let before_candidates = before_paths.iter().cloned().collect();
+        let (before_index, before) = capture(&before_candidates)?;
+        hook(attempt, root);
+
+        let mut after_paths = discover()?;
+        after_paths.retain(|path| {
+            !project_input_is_volatile(path) || explicitly_scoped_path(scopes, path)
+        });
+        after_paths.extend(extra_candidates.iter().cloned());
+        after_paths.sort();
+        after_paths.dedup();
+        let after_candidates = after_paths.iter().cloned().collect();
+        let (after_index, after) = capture(&after_candidates)?;
+        let after_context = repository_context(root)?;
+        if initial_context == after_context
+            && before_index == after_index
+            && before_paths == after_paths
+            && before == after
+        {
+            return Ok((before_paths, before));
+        }
+        if attempt == 1 {
+            return Err(
+                "repository identity, discovered inventory, or captured evidence changed during inspection"
+                    .into(),
+            );
+        }
+    }
+    unreachable!()
+}
+
+fn explicitly_scoped_path(scopes: Option<&BTreeSet<String>>, path: &str) -> bool {
+    scopes.is_some_and(|scopes| {
+        scopes.iter().any(|scope| {
+            path == scope
+                || path
+                    .strip_prefix(scope)
+                    .is_some_and(|suffix| suffix.starts_with('/'))
         })
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_file() || entry.file_type().is_symlink())
-        .map(|entry| strict_portable_project_path(root, entry.path()))
-        .filter(|path| {
-            path.as_ref()
-                .map_or(true, |path| !project_input_is_volatile(path))
-        })
-        .collect()
+    })
 }
 
 fn project_input_is_volatile(path: &str) -> bool {
@@ -4300,31 +5920,28 @@ fn project_input_is_volatile(path: &str) -> bool {
 }
 
 fn strict_portable_relative_path(path: &str) -> Result<String, String> {
-    if path.contains('\\') {
-        return Err(format!(
-            "project path is not portable because it contains a backslash: `{path}`"
-        ));
-    }
-    let path = Path::new(path);
-    if path.is_absolute()
+    if path.is_empty()
+        || path.starts_with('/')
+        || path.ends_with('/')
+        || path.contains('\\')
+        || path.chars().any(char::is_control)
         || path
-            .components()
-            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+            .as_bytes()
+            .get(1)
+            .is_some_and(|byte| *byte == b':' && path.as_bytes()[0].is_ascii_alphabetic())
     {
         return Err(format!(
-            "project path is not a portable relative path: `{}`",
-            path.display()
+            "project path is not a portable relative path: `{path}`"
         ));
     }
-    let mut components = Vec::new();
-    for component in path.components() {
-        let component = component.as_os_str().to_str().ok_or_else(|| {
-            format!(
-                "non-UTF-8 project path cannot be hashed portably: {}",
-                path.display()
-            )
-        })?;
-        components.push(component);
+    let components: Vec<&str> = path.split('/').collect();
+    if components
+        .iter()
+        .any(|component| component.is_empty() || *component == "." || *component == "..")
+    {
+        return Err(format!(
+            "project path is not a portable relative path: `{path}`"
+        ));
     }
     Ok(components.join("/"))
 }
@@ -4360,84 +5977,6 @@ fn strict_portable_project_path(root: &Path, path: &Path) -> Result<String, Stri
     Ok(components.join("/"))
 }
 
-fn git_index_modes(root: &Path) -> Result<BTreeMap<String, u32>, String> {
-    let output = Command::new("git")
-        .args(["ls-files", "--stage", "-z"])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to inspect Git file modes: {error}"))?;
-    if !output.status.success() {
-        return Ok(BTreeMap::new());
-    }
-    let mut modes = BTreeMap::new();
-    for entry in output
-        .stdout
-        .split(|byte| *byte == 0)
-        .filter(|entry| !entry.is_empty())
-    {
-        let Some(tab) = entry.iter().position(|byte| *byte == b'\t') else {
-            return Err("invalid `git ls-files --stage` output".into());
-        };
-        let metadata = std::str::from_utf8(&entry[..tab])
-            .map_err(|_| "non-UTF-8 Git index metadata".to_string())?;
-        let mut fields = metadata.split_whitespace();
-        let mode = fields
-            .next()
-            .ok_or_else(|| "Git index entry is missing a mode".to_string())?;
-        let _object = fields
-            .next()
-            .ok_or_else(|| "Git index entry is missing an object ID".to_string())?;
-        let stage = fields
-            .next()
-            .ok_or_else(|| "Git index entry is missing a stage".to_string())?;
-        if stage != "0" {
-            return Err("cannot hash a project with unresolved Git index stages".into());
-        }
-        let mode =
-            u32::from_str_radix(mode, 8).map_err(|_| format!("invalid Git file mode `{mode}`"))?;
-        let path = std::str::from_utf8(&entry[tab + 1..])
-            .map_err(|_| "non-UTF-8 Git path cannot be hashed portably".to_string())?;
-        modes.insert(strict_portable_relative_path(path)?, mode);
-    }
-    Ok(modes)
-}
-
-fn digest_file_kind_and_mode(
-    relative: &str,
-    path: &Path,
-    git_modes: &BTreeMap<String, u32>,
-) -> Result<(&'static [u8], u32), String> {
-    if let Some(mode) = git_modes.get(relative).copied() {
-        if mode == 0o120000 {
-            return Ok((b"symlink", mode));
-        }
-        if mode == 0o160000 {
-            return Ok((b"gitlink", mode));
-        }
-        #[cfg(not(unix))]
-        return Ok((b"file", mode));
-    }
-    let metadata = fs::symlink_metadata(path)
-        .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
-    if metadata.file_type().is_symlink() {
-        return Ok((b"symlink", 0o120000));
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mode = if metadata.permissions().mode() & 0o111 == 0 {
-            0o100644
-        } else {
-            0o100755
-        };
-        Ok((b"file", mode))
-    }
-    #[cfg(not(unix))]
-    {
-        Ok((b"file", 0o100644))
-    }
-}
-
 fn closing_digest(record: &ChangeRecord, verification: &VerificationRecord) -> String {
     let mut digest = FramedDigest::new(CLOSING_DIGEST_DOMAIN);
     digest.frame(b"record-id", record.id.as_bytes());
@@ -4456,18 +5995,41 @@ fn closing_digest(record: &ChangeRecord, verification: &VerificationRecord) -> S
     } else {
         digest.frame(b"acceptance", &[0]);
     }
+    if let Some(manifest) = &verification.acceptance_manifest {
+        let value = serde_json::to_vec(manifest).unwrap_or_default();
+        digest.frame(b"acceptance-input-manifest-v1", &value);
+    }
+    if let Some(succession) = &verification.semantic_succession {
+        let value = semantic_succession_digest(succession).unwrap_or_else(|_| "invalid".into());
+        digest.frame(b"semantic-succession-v1", value.as_bytes());
+    }
     digest.finish()
 }
 
-fn acceptance_input_digest(
+fn acceptance_manifest(
     root: &Path,
     record: &ChangeRecord,
     overrides: &[(PathBuf, String)],
-) -> Result<String, String> {
-    let mut paths = match git_project_paths(root)? {
-        Some(paths) => paths,
-        None => strict_walk_project_paths(root)?,
-    };
+) -> Result<AcceptanceManifestV1, String> {
+    acceptance_manifest_internal(root, record, overrides, None)
+}
+
+fn acceptance_manifest_with_signed_owners(
+    root: &Path,
+    record: &ChangeRecord,
+    overrides: &[(PathBuf, String)],
+    signed: &AcceptanceManifestV1,
+) -> Result<AcceptanceManifestV1, String> {
+    acceptance_manifest_internal(root, record, overrides, Some(signed))
+}
+
+fn acceptance_manifest_internal(
+    root: &Path,
+    record: &ChangeRecord,
+    overrides: &[(PathBuf, String)],
+    signed: Option<&AcceptanceManifestV1>,
+) -> Result<AcceptanceManifestV1, String> {
+    let discovery_scopes = acceptance_discovery_scopes(root, record)?;
     let override_content: BTreeMap<String, &[u8]> = overrides
         .iter()
         .map(|(path, content)| {
@@ -4477,10 +6039,2292 @@ fn acceptance_input_digest(
             ))
         })
         .collect::<Result<_, String>>()?;
-    paths.extend(override_content.keys().cloned());
+    let mut extra_candidates = override_content.keys().cloned().collect::<BTreeSet<_>>();
+    extra_candidates.extend(
+        record
+            .affected_paths
+            .iter()
+            .filter_map(|scope| (!scope.ends_with('/')).then_some(scope.clone())),
+    );
+    extra_candidates.extend(record.supersedes.iter().flat_map(|edge| {
+        edge.obligations
+            .iter()
+            .map(|obligation| obligation.path.clone())
+    }));
+    if let Some(signed) = signed {
+        extra_candidates.extend(signed.entries.iter().map(|entry| entry.path.clone()));
+    }
+    let (mut paths, evidence) =
+        stable_discovered_evidence(root, Some(&discovery_scopes), &extra_candidates, false)?;
+    paths.retain(|path| {
+        (!project_input_is_volatile(path) || path == LEGACY_BASELINE_PATH)
+            && record_covers_project_path(root, record, path)
+    });
+    let historical_sequence_ledger = if record_covers_project_path(root, record, SEQUENCE_PATH) {
+        historical_sequence_ledger_acceptance_content(root, record)?
+    } else {
+        None
+    };
+    let mut entries = Vec::new();
+    for relative in paths {
+        let (kind, mode, payload) = if let Some(content) = override_content.get(&relative) {
+            let mode = evidence.generated_file_mode(&relative)?;
+            let kind = acceptance_kind_for_mode(mode);
+            (kind, mode, content.to_vec())
+        } else if relative == SEQUENCE_PATH
+            && let Some(content) = &historical_sequence_ledger
+        {
+            (
+                AcceptanceInputKind::File,
+                evidence.generated_file_mode(&relative)?,
+                content.clone(),
+            )
+        } else {
+            let captured = evidence.entry(&relative)?;
+            (
+                captured.kind.clone(),
+                captured.mode,
+                captured.payload.clone(),
+            )
+        };
+        let payload_digest = sha256_hex(&payload);
+        let owners = if let Some(signed) = signed {
+            signed
+                .entries
+                .iter()
+                .find(|entry| entry.path == relative)
+                .map(|entry| entry.owners.clone())
+                .unwrap_or_else(|| vec![EXACT_DELIVERY_OWNER.to_string()])
+        } else {
+            acceptance_input_owners(root, record, &relative, overrides, &evidence)?
+        };
+        let entry_digest = acceptance_entry_digest(&relative, &kind, mode, &payload_digest);
+        entries.push(AcceptanceInputEntryV1 {
+            path: relative,
+            kind,
+            mode,
+            payload_digest,
+            entry_digest,
+            owners,
+        });
+    }
+    let manifest = AcceptanceManifestV1 {
+        schema_version: 1,
+        entries,
+    };
+    validate_acceptance_manifest(&manifest)?;
+    Ok(manifest)
+}
+
+fn validate_portable_symlink_target(target: &str) -> Result<(), String> {
+    if target.is_empty()
+        || target.starts_with('/')
+        || target.contains('\\')
+        || target.chars().any(char::is_control)
+        || target
+            .as_bytes()
+            .get(1)
+            .is_some_and(|byte| *byte == b':' && target.as_bytes()[0].is_ascii_alphabetic())
+    {
+        return Err(format!(
+            "symlink target is not portable project-relative UTF-8: `{}`",
+            target.escape_default()
+        ));
+    }
+    Ok(())
+}
+
+fn acceptance_kind_for_mode(mode: u32) -> AcceptanceInputKind {
+    match mode {
+        0o120000 => AcceptanceInputKind::Symlink,
+        0o160000 => AcceptanceInputKind::Gitlink,
+        _ => AcceptanceInputKind::File,
+    }
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
+fn acceptance_entry_digest(
+    path: &str,
+    kind: &AcceptanceInputKind,
+    mode: u32,
+    payload_digest: &str,
+) -> String {
+    let mut digest = FramedDigest::new(ACCEPTANCE_ENTRY_DOMAIN);
+    digest.frame(b"path", path.as_bytes());
+    digest.frame(b"kind", acceptance_kind_bytes(kind));
+    digest.frame(b"mode", &mode.to_be_bytes());
+    digest.frame(b"payload-digest", payload_digest.as_bytes());
+    digest.finish()
+}
+
+fn acceptance_kind_bytes(kind: &AcceptanceInputKind) -> &'static [u8] {
+    match kind {
+        AcceptanceInputKind::File => b"file",
+        AcceptanceInputKind::Symlink => b"symlink",
+        AcceptanceInputKind::Gitlink => b"gitlink",
+        AcceptanceInputKind::Missing => b"missing",
+        AcceptanceInputKind::NonFile => b"non-file",
+    }
+}
+
+fn acceptance_manifest_digest(manifest: &AcceptanceManifestV1) -> Result<String, String> {
+    validate_acceptance_manifest(manifest)?;
+    let mut digest = FramedDigest::new(ACCEPTANCE_MANIFEST_DOMAIN);
+    digest.frame(b"schema-version", &manifest.schema_version.to_be_bytes());
+    for entry in &manifest.entries {
+        digest.frame(b"entry", b"");
+        digest.frame(b"path", entry.path.as_bytes());
+        digest.frame(b"kind", acceptance_kind_bytes(&entry.kind));
+        digest.frame(b"mode", &entry.mode.to_be_bytes());
+        digest.frame(b"payload-digest", entry.payload_digest.as_bytes());
+        digest.frame(b"entry-digest", entry.entry_digest.as_bytes());
+        for owner in &entry.owners {
+            digest.frame(b"owner", owner.as_bytes());
+        }
+    }
+    Ok(digest.finish())
+}
+
+fn validate_acceptance_manifest(manifest: &AcceptanceManifestV1) -> Result<(), String> {
+    if manifest.schema_version != 1 {
+        return Err(format!(
+            "unsupported acceptance manifest schema {}",
+            manifest.schema_version
+        ));
+    }
+    if manifest.entries.len() > MAX_ACCEPTANCE_ENTRIES {
+        return Err(format!(
+            "acceptance manifest exceeds {MAX_ACCEPTANCE_ENTRIES} entries"
+        ));
+    }
+    let mut previous: Option<&str> = None;
+    for entry in &manifest.entries {
+        if previous.is_some_and(|path| path >= entry.path.as_str()) {
+            return Err("acceptance manifest paths must be strictly sorted and unique".into());
+        }
+        previous = Some(&entry.path);
+        if entry.path.len() > MAX_ACCEPTANCE_PATH_BYTES
+            || strict_portable_relative_path(&entry.path)? != entry.path
+        {
+            return Err(format!("invalid acceptance manifest path `{}`", entry.path));
+        }
+        let valid_mode = matches!(
+            (&entry.kind, entry.mode),
+            (AcceptanceInputKind::File, 0o100644 | 0o100755)
+                | (AcceptanceInputKind::Symlink, 0o120000)
+                | (AcceptanceInputKind::Gitlink, 0o160000)
+                | (
+                    AcceptanceInputKind::Missing | AcceptanceInputKind::NonFile,
+                    0
+                )
+        );
+        if !valid_mode {
+            return Err(format!("invalid acceptance kind/mode for `{}`", entry.path));
+        }
+        validate_sha256_digest(&entry.payload_digest, "acceptance payload digest")?;
+        validate_sha256_digest(&entry.entry_digest, "acceptance entry digest")?;
+        if acceptance_entry_digest(&entry.path, &entry.kind, entry.mode, &entry.payload_digest)
+            != entry.entry_digest
+        {
+            return Err(format!(
+                "acceptance entry digest mismatch for `{}`",
+                entry.path
+            ));
+        }
+        if matches!(
+            entry.kind,
+            AcceptanceInputKind::Missing | AcceptanceInputKind::NonFile
+        ) && entry.payload_digest != sha256_hex(b"")
+        {
+            return Err(format!(
+                "acceptance {:?} entry `{}` must use the empty payload digest",
+                entry.kind, entry.path
+            ));
+        }
+        if entry.owners.is_empty() || entry.owners.len() > MAX_ACCEPTANCE_OWNERS {
+            return Err(format!("invalid acceptance owners for `{}`", entry.path));
+        }
+        let mut previous_owner: Option<&str> = None;
+        for owner in &entry.owners {
+            if owner.len() > MAX_ACCEPTANCE_OWNER_BYTES
+                || previous_owner.is_some_and(|previous| previous >= owner.as_str())
+            {
+                return Err(format!(
+                    "acceptance owners for `{}` must be bounded, sorted, and unique",
+                    entry.path
+                ));
+            }
+            if owner.starts_with("@exact:")
+                && owner != EXACT_TEST_OWNER
+                && owner != EXACT_DELIVERY_OWNER
+            {
+                return Err(format!("unknown reserved acceptance owner `{owner}`"));
+            }
+            if !owner.starts_with("@exact:") {
+                crate::commands::validate_module_name(owner)
+                    .map_err(|error| format!("invalid acceptance owner: {error}"))?;
+            }
+            previous_owner = Some(owner);
+        }
+    }
+    Ok(())
+}
+
+fn build_semantic_succession_evidence(
+    root: &Path,
+    record: &ChangeRecord,
+    successor_manifest: &AcceptanceManifestV1,
+) -> Result<SemanticSuccessionEvidenceV1, String> {
+    validate_supersedes_semantics(root, record)?;
+    if record.supersedes.is_empty() {
+        return Ok(SemanticSuccessionEvidenceV1 {
+            schema_version: 1,
+            tuples: Vec::new(),
+        });
+    }
+    let base = record.base_commit.as_deref().ok_or_else(|| {
+        "semantic succession requires a definition-signed base commit".to_string()
+    })?;
+    let ancestor = Command::new("git")
+        .args(["merge-base", "--is-ancestor", base, "HEAD"])
+        .current_dir(root)
+        .status()
+        .map_err(|error| format!("failed to validate succession base ancestry: {error}"))?;
+    if !ancestor.success() {
+        return Err(format!(
+            "semantic succession base commit `{base}` is not an ancestor of HEAD"
+        ));
+    }
+    let mut tuples = Vec::new();
+    for edge in &record.supersedes {
+        for obligation in &edge.obligations {
+            let base_digest = acceptance_entry_digest_at_commit(
+                root,
+                base,
+                &edge.predecessor_id,
+                &obligation.path,
+            )?;
+            if base_digest != obligation.predecessor_entry_digest {
+                return Err(format!(
+                    "definition-signed base tree does not contain adopted predecessor entry `{}` `{}`",
+                    edge.predecessor_id, obligation.path
+                ));
+            }
+            let successor = successor_manifest
+                .entries
+                .iter()
+                .find(|entry| entry.path == obligation.path)
+                .ok_or_else(|| {
+                    format!(
+                        "successor acceptance manifest has no entry for `{}`",
+                        obligation.path
+                    )
+                })?;
+            if !successor.owners.contains(&obligation.module) {
+                return Err(format!(
+                    "successor acceptance entry `{}` is not owned by obligation module `{}`",
+                    obligation.path, obligation.module
+                ));
+            }
+            if successor.entry_digest == obligation.predecessor_entry_digest {
+                return Err(format!(
+                    "semantic succession obligation `{}` `{}` does not change the predecessor entry",
+                    obligation.path, obligation.module
+                ));
+            }
+            if !semantic_acceptance_item_exists_for_module(root, record, &obligation.module)? {
+                return Err(format!(
+                    "semantic succession module `{}` has no non-removed semantic delta",
+                    obligation.module
+                ));
+            }
+            tuples.push(SemanticSuccessionTupleV1 {
+                predecessor_id: edge.predecessor_id.clone(),
+                path: obligation.path.clone(),
+                module: obligation.module.clone(),
+                predecessor_entry_digest: obligation.predecessor_entry_digest.clone(),
+                successor_entry_digest: successor.entry_digest.clone(),
+            });
+        }
+    }
+    tuples.sort_by(|left, right| {
+        succession_change_key(&left.predecessor_id)
+            .cmp(&succession_change_key(&right.predecessor_id))
+            .then_with(|| left.path.cmp(&right.path))
+            .then_with(|| left.module.cmp(&right.module))
+    });
+    let evidence = SemanticSuccessionEvidenceV1 {
+        schema_version: 1,
+        tuples,
+    };
+    validate_semantic_succession(record, &evidence)?;
+    Ok(evidence)
+}
+
+fn validate_semantic_succession(
+    record: &ChangeRecord,
+    evidence: &SemanticSuccessionEvidenceV1,
+) -> Result<(), String> {
+    if evidence.schema_version != 1 {
+        return Err(format!(
+            "unsupported semantic succession schema {}",
+            evidence.schema_version
+        ));
+    }
+    if evidence.tuples.len() > MAX_ACCEPTANCE_ENTRIES {
+        return Err(format!(
+            "semantic succession exceeds {MAX_ACCEPTANCE_ENTRIES} tuples"
+        ));
+    }
+    let expected: BTreeSet<_> = record
+        .supersedes
+        .iter()
+        .flat_map(|edge| {
+            edge.obligations.iter().map(|obligation| {
+                (
+                    edge.predecessor_id.clone(),
+                    obligation.path.clone(),
+                    obligation.module.clone(),
+                    obligation.predecessor_entry_digest.clone(),
+                )
+            })
+        })
+        .collect();
+    let mut actual = BTreeSet::new();
+    let mut previous: Option<(u64, &str, &str, &str)> = None;
+    for tuple in &evidence.tuples {
+        if tuple.predecessor_id.len() > 256
+            || tuple.path.len() > MAX_ACCEPTANCE_PATH_BYTES
+            || tuple.module.len() > MAX_ACCEPTANCE_OWNER_BYTES
+        {
+            return Err("semantic succession tuple exceeds a field limit".into());
+        }
+        if strict_portable_relative_path(&tuple.path)? != tuple.path {
+            return Err(format!("invalid semantic succession path `{}`", tuple.path));
+        }
+        crate::commands::validate_module_name(&tuple.module)
+            .map_err(|error| format!("invalid semantic succession module: {error}"))?;
+        validate_sha256_digest(
+            &tuple.predecessor_entry_digest,
+            "semantic predecessor entry digest",
+        )?;
+        validate_sha256_digest(
+            &tuple.successor_entry_digest,
+            "semantic successor entry digest",
+        )?;
+        let sequence = change_sequence(&tuple.predecessor_id)
+            .ok_or_else(|| format!("invalid semantic predecessor ID `{}`", tuple.predecessor_id))?;
+        let key = (
+            sequence,
+            tuple.predecessor_id.as_str(),
+            tuple.path.as_str(),
+            tuple.module.as_str(),
+        );
+        if previous.is_some_and(|previous| previous >= key) {
+            return Err("semantic succession tuples must be strictly sorted and unique".into());
+        }
+        previous = Some(key);
+        let obligation = (
+            tuple.predecessor_id.clone(),
+            tuple.path.clone(),
+            tuple.module.clone(),
+            tuple.predecessor_entry_digest.clone(),
+        );
+        if !actual.insert(obligation) {
+            return Err("semantic succession contains a duplicate obligation".into());
+        }
+    }
+    if actual != expected {
+        return Err(
+            "semantic succession is not one-to-one with approved supersedes obligations".into(),
+        );
+    }
+    Ok(())
+}
+
+fn semantic_succession_digest(evidence: &SemanticSuccessionEvidenceV1) -> Result<String, String> {
+    let mut digest = FramedDigest::new(SEMANTIC_SUCCESSION_DOMAIN);
+    digest.frame(b"schema-version", &evidence.schema_version.to_be_bytes());
+    let mut previous: Option<(u64, &str, &str, &str)> = None;
+    for tuple in &evidence.tuples {
+        let sequence = change_sequence(&tuple.predecessor_id)
+            .ok_or_else(|| format!("invalid semantic predecessor ID `{}`", tuple.predecessor_id))?;
+        let key = (
+            sequence,
+            tuple.predecessor_id.as_str(),
+            tuple.path.as_str(),
+            tuple.module.as_str(),
+        );
+        if previous.is_some_and(|previous| previous >= key) {
+            return Err("semantic succession tuples must be strictly sorted and unique".into());
+        }
+        previous = Some(key);
+        digest.frame(b"tuple", b"");
+        digest.frame(b"predecessor-id", tuple.predecessor_id.as_bytes());
+        digest.frame(b"path", tuple.path.as_bytes());
+        digest.frame(b"module", tuple.module.as_bytes());
+        digest.frame(
+            b"predecessor-entry-digest",
+            tuple.predecessor_entry_digest.as_bytes(),
+        );
+        digest.frame(
+            b"successor-entry-digest",
+            tuple.successor_entry_digest.as_bytes(),
+        );
+    }
+    Ok(digest.finish())
+}
+
+fn semantic_acceptance_item_exists_for_module(
+    root: &Path,
+    record: &ChangeRecord,
+    module: &str,
+) -> Result<bool, String> {
+    let content =
+        read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
+    Ok(parse_delta(&content)?.iter().any(|item| {
+        matches!(
+            item.target,
+            DeltaTarget::Requirement | DeltaTarget::SpecSection
+        ) && item.operation != DeltaOperation::Removed
+            && !item.content.trim().is_empty()
+    }))
+}
+
+fn acceptance_entry_digest_at_commit(
+    root: &Path,
+    commit: &str,
+    predecessor_id: &str,
+    path: &str,
+) -> Result<String, String> {
+    let temporary = create_effective_contract_workspace()?;
+    let tree = temporary.join("tree");
+    let added = Command::new("git")
+        .args([
+            "worktree",
+            "add",
+            "--detach",
+            tree.to_string_lossy().as_ref(),
+            commit,
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to inspect succession base tree: {error}"))?;
+    if !added.status.success() {
+        let _ = fs::remove_dir_all(&temporary);
+        return Err(format!(
+            "failed to inspect succession base tree: {}",
+            String::from_utf8_lossy(&added.stderr).trim()
+        ));
+    }
+    let result = (|| {
+        let mut predecessor = load_change(&tree, predecessor_id)?;
+        predecessor.state = ChangeState::Accepted;
+        predecessor.affected_paths = vec![path.to_string()];
+        let manifest = acceptance_manifest(&tree, &predecessor, &[])?;
+        manifest
+            .entries
+            .iter()
+            .find(|entry| entry.path == path)
+            .map(|entry| entry.entry_digest.clone())
+            .ok_or_else(|| {
+                format!(
+                    "succession base tree predecessor `{predecessor_id}` has no entry for `{path}`"
+                )
+            })
+    })();
+    let removed = Command::new("git")
+        .args([
+            "worktree",
+            "remove",
+            "--force",
+            tree.to_string_lossy().as_ref(),
+        ])
+        .current_dir(root)
+        .output();
+    let _ = fs::remove_dir_all(&temporary);
+    if !removed.is_ok_and(|output| output.status.success()) {
+        return Err("failed to remove succession base workspace".into());
+    }
+    result
+}
+
+fn semantic_tuple_transition_is_valid(
+    root: &Path,
+    successor: &ChangeRecord,
+    tuple: &SemanticSuccessionTupleV1,
+) -> Result<bool, String> {
+    let Some(base) = successor.base_commit.as_deref() else {
+        return Ok(false);
+    };
+    let base_old =
+        acceptance_entry_digest_at_commit(root, base, &tuple.predecessor_id, &tuple.path)?;
+    if base_old != tuple.predecessor_entry_digest {
+        return Ok(false);
+    }
+    let (anchor, _, _) = match authenticated_accepted_transition(root, successor) {
+        Ok(transition) => transition,
+        Err(_) => return Ok(false),
+    };
+    let ancestor = Command::new("git")
+        .args(["merge-base", "--is-ancestor", base, &anchor])
+        .current_dir(root)
+        .status()
+        .map_err(|error| format!("failed to validate accepted transition ancestry: {error}"))?;
+    if !ancestor.success() {
+        return Ok(false);
+    }
+    Ok(
+        acceptance_entry_digest_at_commit(root, &anchor, &successor.id, &tuple.path)
+            .is_ok_and(|digest| digest == tuple.successor_entry_digest),
+    )
+}
+
+fn acceptance_input_owners(
+    root: &Path,
+    record: &ChangeRecord,
+    relative: &str,
+    overrides: &[(PathBuf, String)],
+    evidence: &GitEvidence,
+) -> Result<Vec<String>, String> {
+    if path_is_governed_test_or_fixture(relative) {
+        return Ok(vec![EXACT_TEST_OWNER.to_string()]);
+    }
+    if path_is_recognized_delivery_metadata(relative) {
+        return Ok(vec![EXACT_DELIVERY_OWNER.to_string()]);
+    }
+    let config = crate::config::load_config(root);
+    let override_content: BTreeMap<String, &str> = overrides
+        .iter()
+        .map(|(path, content)| Ok((strict_portable_project_path(root, path)?, content.as_str())))
+        .collect::<Result<_, String>>()?;
+    let mut owners = Vec::new();
+    for module in &record.affected_specs {
+        let (spec_path, requirements_path) =
+            canonical_module_paths(root, &config.specs_dir, module)?;
+        let spec_relative = strict_portable_project_path(root, &spec_path)?;
+        let parent = spec_path
+            .parent()
+            .ok_or_else(|| format!("canonical spec path has no parent: {}", spec_path.display()))?;
+        let canonical_owned = relative == spec_relative
+            || relative == strict_portable_project_path(root, &requirements_path)?
+            || CANONICAL_SPEC_COMPANIONS.iter().any(|name| {
+                strict_portable_project_path(root, &parent.join(name))
+                    .is_ok_and(|path| path == relative)
+            });
+        let source_owned =
+            if canonical_owned {
+                false
+            } else {
+                let content = if let Some(content) = override_content.get(&spec_relative) {
+                    Some((*content).to_string())
+                } else {
+                    evidence
+                        .entry(&spec_relative)
+                        .ok()
+                        .and_then(|entry| String::from_utf8(entry.payload.clone()).ok())
+                };
+                content
+                    .as_deref()
+                    .and_then(crate::parser::parse_frontmatter)
+                    .is_some_and(|parsed| {
+                        parsed.frontmatter.files.iter().any(|path| {
+                            normalize_project_path(path).is_ok_and(|path| path == relative)
+                        })
+                    })
+            };
+        if canonical_owned || source_owned {
+            owners.push(module.clone());
+        }
+    }
+    owners.extend(
+        record
+            .acceptance_owner_corrections
+            .iter()
+            .filter(|correction| correction.path == relative)
+            .map(|correction| correction.module.clone()),
+    );
+    if owners.is_empty() {
+        if path_is_production_source(root, relative) {
+            return Err(format!(
+                "acceptance input `{relative}` is production source without deterministic canonical ownership"
+            ));
+        } else {
+            owners.push(EXACT_DELIVERY_OWNER.to_string());
+        }
+    }
+    owners.sort();
+    owners.dedup();
+    Ok(owners)
+}
+
+fn path_is_recognized_delivery_metadata(path: &str) -> bool {
+    if path.starts_with(".github/") || path.starts_with(".specsync/") || path.starts_with("docs/") {
+        return true;
+    }
+    is_protected_sdd_path(path)
+        || (!path.contains('/')
+            && matches!(
+                path,
+                "fledge.toml"
+                    | ".trust.toml"
+                    | "README.md"
+                    | "LICENSE"
+                    | "AGENTS.md"
+                    | "Cargo.toml"
+                    | "Cargo.lock"
+                    | "package.json"
+                    | "package-lock.json"
+                    | "bun.lock"
+                    | "bun.lockb"
+                    | "pnpm-lock.yaml"
+                    | "yarn.lock"
+                    | "pyproject.toml"
+                    | "uv.lock"
+                    | "requirements.txt"
+                    | "go.mod"
+                    | "go.sum"
+                    | "Package.swift"
+                    | "Package.resolved"
+                    | "action.yml"
+                    | "action.yaml"
+            ))
+}
+
+fn path_is_governed_test_or_fixture(path: &str) -> bool {
+    path.starts_with("tests/")
+        || path.starts_with("test/")
+        || path.starts_with("Tests/")
+        || path.contains("/tests/")
+        || path.contains("/test/")
+        || path.contains("/fixtures/")
+        || path.contains("/__fixtures__/")
+}
+
+fn path_is_production_source(root: &Path, path: &str) -> bool {
+    crate::exports::is_source_file(Path::new(path))
+        && crate::config::load_config(root)
+            .source_dirs
+            .iter()
+            .any(|source| {
+                let normalized = source.trim_matches('/');
+                normalized == "."
+                    || path == normalized
+                    || path.starts_with(&format!("{normalized}/"))
+            })
+        && !path_is_governed_test_or_fixture(path)
+}
+
+fn rooted_git_command(root: &Path) -> Command {
+    let mut command = Command::new("git");
+    command.current_dir(root);
+    for key in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_PREFIX",
+        "GIT_CEILING_DIRECTORIES",
+        "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+        "GIT_EXEC_PATH",
+        "GIT_NAMESPACE",
+        "GIT_SHALLOW_FILE",
+        "GIT_GRAFT_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    ] {
+        command.env_remove(key);
+    }
+    command
+}
+
+fn configured_git_command(root: &Path) -> Command {
+    let mut command = rooted_git_command(root);
+    command.env_remove("GIT_CONFIG");
+    command.env_remove("GIT_CONFIG_PARAMETERS");
+    for (key, _) in std::env::vars_os() {
+        if key.to_string_lossy().starts_with("GIT_CONFIG_KEY_")
+            || key.to_string_lossy().starts_with("GIT_CONFIG_VALUE_")
+        {
+            command.env_remove(key);
+        }
+    }
+    command.env_remove("GIT_CONFIG_COUNT");
+    command.env("GIT_CONFIG_NOSYSTEM", "1");
+    command.env(
+        "GIT_CONFIG_GLOBAL",
+        if cfg!(windows) { "NUL" } else { "/dev/null" },
+    );
+    if let Some(index) = std::env::var_os("GIT_INDEX_FILE") {
+        let index = PathBuf::from(index);
+        let effective = if index.is_absolute() {
+            index
+        } else {
+            root.join(index)
+        };
+        command.env("GIT_INDEX_FILE", effective);
+    } else {
+        command.env_remove("GIT_INDEX_FILE");
+    }
+    command
+}
+
+fn read_bounded_pipe<Reader: Read>(
+    mut reader: Reader,
+    cap: usize,
+    overflow: Arc<AtomicBool>,
+) -> std::io::Result<Vec<u8>> {
+    let mut retained = Vec::with_capacity(cap.min(64 * 1024));
+    let mut buffer = [0_u8; 16 * 1024];
+    loop {
+        let read = reader.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        let remaining = cap.saturating_sub(retained.len());
+        let keep = remaining.min(read);
+        retained.extend_from_slice(&buffer[..keep]);
+        if keep != read {
+            overflow.store(true, Ordering::Release);
+        }
+    }
+    Ok(retained)
+}
+
+fn run_git_bounded(
+    root: &Path,
+    args: &[&str],
+    input: Option<Vec<u8>>,
+    stdout_cap: usize,
+) -> Result<BoundedCommandOutput, String> {
+    let mut command = configured_git_command(root);
+    run_git_command_bounded(&mut command, args, input, stdout_cap)
+}
+
+fn run_git_command_bounded(
+    command: &mut Command,
+    args: &[&str],
+    input: Option<Vec<u8>>,
+    stdout_cap: usize,
+) -> Result<BoundedCommandOutput, String> {
+    run_git_command_bounded_with_deadline(command, args, input, stdout_cap, GIT_COMMAND_DEADLINE)
+}
+
+fn run_git_command_bounded_with_deadline(
+    command: &mut Command,
+    args: &[&str],
+    input: Option<Vec<u8>>,
+    stdout_cap: usize,
+    deadline: Duration,
+) -> Result<BoundedCommandOutput, String> {
+    command
+        .args(args)
+        .stdin(if input.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("failed to run `git {}`: {error}", args.join(" ")))?;
+    let stdout = match child.stdout.take() {
+        Some(stdout) => stdout,
+        None => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("failed to capture Git stdout".to_string());
+        }
+    };
+    let stderr = match child.stderr.take() {
+        Some(stderr) => stderr,
+        None => {
+            drop(stdout);
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("failed to capture Git stderr".to_string());
+        }
+    };
+    let overflow = Arc::new(AtomicBool::new(false));
+    let stdout_overflow = Arc::clone(&overflow);
+    let stderr_overflow = Arc::clone(&overflow);
+    let stdout_reader =
+        std::thread::spawn(move || read_bounded_pipe(stdout, stdout_cap, stdout_overflow));
+    let stderr_reader = std::thread::spawn(move || {
+        read_bounded_pipe(stderr, MAX_GIT_DIAGNOSTIC_BYTES, stderr_overflow)
+    });
+    let writer = input.map(|input| {
+        let mut stdin = child.stdin.take();
+        std::thread::spawn(move || -> std::io::Result<()> {
+            if let Some(stdin) = stdin.as_mut() {
+                stdin.write_all(&input)?;
+            }
+            Ok(())
+        })
+    });
+    let started = Instant::now();
+    let mut command_error = None;
+    let status = loop {
+        if overflow.load(Ordering::Acquire) {
+            let _ = child.kill();
+            break child
+                .wait()
+                .map_err(|error| format!("failed to reap Git subprocess: {error}"));
+        }
+        if started.elapsed() >= deadline {
+            command_error = Some(format!(
+                "`git {}` exceeded its {:?} wall-clock deadline",
+                args.join(" "),
+                deadline
+            ));
+            let _ = child.kill();
+            break child
+                .wait()
+                .map_err(|error| format!("failed to reap timed-out Git subprocess: {error}"));
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => break Ok(status),
+            Ok(None) => {}
+            Err(error) => {
+                command_error = Some(format!("failed to inspect Git subprocess: {error}"));
+                let _ = child.kill();
+                break child
+                    .wait()
+                    .map_err(|wait_error| format!("failed to reap Git subprocess: {wait_error}"));
+            }
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    };
+    let stdout = stdout_reader
+        .join()
+        .map_err(|_| "Git stdout reader panicked".to_string())
+        .and_then(|result| result.map_err(|error| format!("failed to read Git stdout: {error}")));
+    let stderr = stderr_reader
+        .join()
+        .map_err(|_| "Git stderr reader panicked".to_string())
+        .and_then(|result| result.map_err(|error| format!("failed to read Git stderr: {error}")));
+    let write_result = writer.map(|writer| {
+        writer
+            .join()
+            .map_err(|_| "Git stdin writer panicked".to_string())
+            .and_then(|result| {
+                result.map_err(|error| format!("failed to write Git stdin: {error}"))
+            })
+    });
+    let status = status?;
+    let stdout = stdout?;
+    let stderr = stderr?;
+    if !overflow.load(Ordering::Acquire)
+        && command_error.is_none()
+        && let Some(write_result) = write_result
+    {
+        write_result?;
+    }
+    if overflow.load(Ordering::Acquire) {
+        return Err(format!(
+            "`git {}` output exceeds deterministic bounds",
+            args.join(" ")
+        ));
+    }
+    if let Some(error) = command_error {
+        return Err(error);
+    }
+    Ok(BoundedCommandOutput {
+        status,
+        stdout,
+        stderr,
+    })
+}
+
+fn run_git_required(
+    root: &Path,
+    args: &[&str],
+    input: Option<Vec<u8>>,
+    stdout_cap: usize,
+) -> Result<Vec<u8>, String> {
+    let output = run_git_bounded(root, args, input, stdout_cap)?;
+    if !output.status.success() {
+        return Err(format!(
+            "`git {}` failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(output.stdout)
+}
+
+fn effective_checkout_autocrlf(root: &Path) -> Result<Option<String>, String> {
+    let mut command = rooted_git_command(root);
+    checkout_autocrlf_from_command(&mut command)
+}
+
+fn checkout_autocrlf_from_command(command: &mut Command) -> Result<Option<String>, String> {
+    command.env("GIT_PAGER", "cat");
+    let output =
+        run_git_command_bounded(command, &["config", "--get", "core.autocrlf"], None, 128)?;
+    if !output.status.success() {
+        if output.stdout.is_empty() && output.stderr.is_empty() {
+            return Ok(None);
+        }
+        return Err(format!(
+            "failed to inspect effective Git core.autocrlf: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let value = std::str::from_utf8(&output.stdout)
+        .map_err(|_| "effective Git core.autocrlf is not UTF-8".to_string())?
+        .trim()
+        .to_ascii_lowercase();
+    let normalized = match value.as_str() {
+        "" | "true" | "yes" | "on" | "1" => "true",
+        "false" | "no" | "off" | "0" => "false",
+        "input" => "input",
+        _ => {
+            return Err(format!(
+                "effective Git core.autocrlf has unsupported value `{value}`"
+            ));
+        }
+    };
+    Ok(Some(normalized.to_string()))
+}
+
+fn effective_checkout_overrides(root: &Path) -> Result<Vec<String>, String> {
+    let mut overrides = Vec::new();
+    if let Some(value) = effective_checkout_autocrlf(root)? {
+        overrides.push(format!("core.autocrlf={value}"));
+    }
+    for (key, kind) in [
+        ("core.eol", "eol"),
+        ("core.symlinks", "boolean"),
+        ("core.filemode", "boolean"),
+    ] {
+        let mut command = rooted_git_command(root);
+        command.env("GIT_PAGER", "cat");
+        let output = run_git_command_bounded(&mut command, &["config", "--get", key], None, 128)?;
+        if !output.status.success() {
+            if output.stdout.is_empty() && output.stderr.is_empty() {
+                continue;
+            }
+            return Err(format!(
+                "failed to inspect effective Git {key}: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+        let value = std::str::from_utf8(&output.stdout)
+            .map_err(|_| format!("effective Git {key} is not UTF-8"))?
+            .trim()
+            .to_ascii_lowercase();
+        let normalized = match (kind, value.as_str()) {
+            ("eol", "lf" | "crlf" | "native") => value.as_str(),
+            ("boolean", "" | "true" | "yes" | "on" | "1") => "true",
+            ("boolean", "false" | "no" | "off" | "0") => "false",
+            _ => {
+                return Err(format!(
+                    "effective Git {key} has unsupported value `{value}`"
+                ));
+            }
+        };
+        overrides.push(format!("{key}={normalized}"));
+    }
+    Ok(overrides)
+}
+
+fn git_repository_present(root: &Path) -> Result<bool, String> {
+    let output = run_git_bounded(root, &["rev-parse", "--is-inside-work-tree"], None, 32)?;
+    let stdout = std::str::from_utf8(&output.stdout)
+        .map_err(|_| "Git repository detection output is not UTF-8".to_string())?
+        .trim();
+    if output.status.success() {
+        return match stdout {
+            "true" => Ok(true),
+            "false" => Err(
+                "Git metadata was detected, but the governed root is not inside a work tree".into(),
+            ),
+            _ => Err(format!(
+                "Git repository detection returned an invalid response `{stdout}`"
+            )),
+        };
+    }
+    let markers = git_metadata_markers_present(root)?;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let ordinary_non_repository = stderr.to_ascii_lowercase().contains("not a git repository");
+    if !markers && stdout.is_empty() && ordinary_non_repository {
+        return Ok(false);
+    }
+    let diagnostic = stderr.trim();
+    Err(if diagnostic.is_empty() {
+        "Git repository detection failed without a diagnostic".into()
+    } else {
+        format!("Git repository detection failed: {diagnostic}")
+    })
+}
+
+fn git_metadata_markers_present(root: &Path) -> Result<bool, String> {
+    for ancestor in root.ancestors() {
+        match fs::symlink_metadata(ancestor.join(".git")) {
+            Ok(_) => return Ok(true),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "failed to inspect Git metadata marker at {}: {error}",
+                    ancestor.display()
+                ));
+            }
+        }
+    }
+    let head = root.join("HEAD");
+    let objects = root.join("objects");
+    Ok(fs::symlink_metadata(head).is_ok() && fs::symlink_metadata(objects).is_ok())
+}
+
+fn repository_context(root: &Path) -> Result<RepositoryContext, String> {
+    if !git_repository_present(root)? {
+        let canonical = root
+            .canonicalize()
+            .map_err(|error| format!("failed to resolve governed root identity: {error}"))?;
+        return Ok(RepositoryContext {
+            git: false,
+            identity: canonical.to_string_lossy().into_owned(),
+        });
+    }
+    let mut digest = FramedDigest::new(b"specsync.repository-context.v1");
+    for (tag, args) in [
+        (b"git-dir".as_slice(), ["rev-parse", "--absolute-git-dir"]),
+        (b"common-dir".as_slice(), ["rev-parse", "--git-common-dir"]),
+        (b"worktree".as_slice(), ["rev-parse", "--show-toplevel"]),
+    ] {
+        let output = run_git_required(root, &args, None, 16 * 1024)?;
+        digest.frame(tag, &output);
+    }
+    Ok(RepositoryContext {
+        git: true,
+        identity: digest.finish(),
+    })
+}
+
+fn git_evidence(root: &Path, candidates: &BTreeSet<String>) -> Result<GitEvidence, String> {
+    git_evidence_with_policy(root, candidates, false, |_, _| {})
+}
+
+fn git_regular_file_evidence(
+    root: &Path,
+    candidates: &BTreeSet<String>,
+) -> Result<GitEvidence, String> {
+    git_evidence_with_policy(root, candidates, true, |_, _| {})
+}
+
+#[cfg(test)]
+fn git_evidence_with_hook<Hook>(
+    root: &Path,
+    candidates: &BTreeSet<String>,
+    after_inspection: Hook,
+) -> Result<GitEvidence, String>
+where
+    Hook: FnMut(usize, &Path),
+{
+    git_evidence_with_policy(root, candidates, false, after_inspection)
+}
+
+fn git_evidence_with_policy<Hook>(
+    root: &Path,
+    candidates: &BTreeSet<String>,
+    regular_files_only: bool,
+    mut after_inspection: Hook,
+) -> Result<GitEvidence, String>
+where
+    Hook: FnMut(usize, &Path),
+{
+    if candidates.len() > MAX_GIT_EVIDENCE_PATHS
+        || candidates.iter().map(String::len).sum::<usize>() > MAX_GIT_EVIDENCE_PATH_BYTES
+        || candidates.iter().any(|path| path.len() > 4096)
+    {
+        return Err("Git evidence candidate inventory exceeds deterministic bounds".into());
+    }
+    if !git_repository_present(root)? {
+        let entries = capture_non_git_candidates(root, candidates, regular_files_only)?;
+        return Ok(GitEvidence {
+            modes: BTreeMap::new(),
+            entries,
+        });
+    }
+    for attempt in 0..2 {
+        let before_index = git_index_fingerprint(root)?;
+        let before = inspect_git_candidates(root, candidates, regular_files_only)?;
+        after_inspection(attempt, root);
+        let after = inspect_git_candidates(root, candidates, regular_files_only)?;
+        let after_index = git_index_fingerprint(root)?;
+        if before_index == after_index && before == after {
+            return Ok(GitEvidence {
+                modes: before.modes,
+                entries: before.entries,
+            });
+        }
+        if attempt == 1 {
+            return Err(
+                "Git index changed or candidate state changed during evidence inspection".into(),
+            );
+        }
+    }
+    unreachable!()
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct InspectedGitCandidates {
+    modes: BTreeMap<String, u32>,
+    objects: BTreeMap<String, String>,
+    worktree: GitWorktreeState,
+    entries: BTreeMap<String, GitCapturedEntry>,
+}
+
+fn git_index_fingerprint(root: &Path) -> Result<String, String> {
+    let index = run_git_required(root, &["rev-parse", "--git-path", "index"], None, 16 * 1024)?;
+    let index = parse_git_path(root, &index, "effective Git index")?;
+    let shared = run_git_required(root, &["rev-parse", "--shared-index-path"], None, 16 * 1024)?;
+    let mut paths = vec![index];
+    if !shared.iter().all(u8::is_ascii_whitespace) {
+        paths.push(parse_git_path(root, &shared, "split Git index")?);
+    }
     paths.sort();
     paths.dedup();
-    let git_modes = git_index_modes(root)?;
+    fingerprint_git_index_paths(paths)
+}
+
+fn fingerprint_git_index_paths(paths: Vec<PathBuf>) -> Result<String, String> {
+    let mut digest = FramedDigest::new(b"specsync.git-index-generation.v1");
+    let mut total = 0_usize;
+    for path in paths {
+        match fs::symlink_metadata(&path) {
+            Ok(before) => {
+                if !before.is_file() || before.file_type().is_symlink() {
+                    return Err(format!(
+                        "Git index dependency is not a regular file: {}",
+                        path.display()
+                    ));
+                }
+                let length = usize::try_from(before.len()).map_err(|_| {
+                    "Git index dependencies exceed deterministic bounds".to_string()
+                })?;
+                total = total.checked_add(length).ok_or_else(|| {
+                    "Git index dependencies exceed deterministic bounds".to_string()
+                })?;
+                if total > MAX_GIT_INDEX_BYTES {
+                    return Err("Git index dependencies exceed deterministic bounds".into());
+                }
+                let mut file = OpenOptions::new()
+                    .read(true)
+                    .open(&path)
+                    .map_err(|error| format!("failed to open {}: {error}", path.display()))?;
+                let opened = file
+                    .metadata()
+                    .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
+                if !same_file_metadata(&before, &opened) {
+                    return Err(format!(
+                        "Git index dependency changed before hashing: {}",
+                        path.display()
+                    ));
+                }
+                digest.frame(b"path", path.to_string_lossy().as_bytes());
+                digest.frame_reader(b"bytes", before.len(), &mut file)?;
+                let after = fs::symlink_metadata(&path)
+                    .map_err(|error| format!("failed to re-inspect {}: {error}", path.display()))?;
+                if !same_file_metadata(&before, &after) {
+                    return Err(format!(
+                        "Git index dependency changed during hashing: {}",
+                        path.display()
+                    ));
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound && total == 0 => {
+                digest.frame(b"missing-index", path.to_string_lossy().as_bytes());
+            }
+            Err(error) => return Err(format!("failed to fingerprint {}: {error}", path.display())),
+        }
+    }
+    Ok(digest.finish())
+}
+
+fn same_file_metadata(left: &fs::Metadata, right: &fs::Metadata) -> bool {
+    if left.len() != right.len()
+        || left.file_type() != right.file_type()
+        || left.modified().ok() != right.modified().ok()
+    {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        left.dev() == right.dev() && left.ino() == right.ino()
+    }
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
+fn parse_git_path(root: &Path, output: &[u8], description: &str) -> Result<PathBuf, String> {
+    let value = std::str::from_utf8(output)
+        .map_err(|_| format!("{description} path is not UTF-8"))?
+        .trim();
+    if value.is_empty() || value.as_bytes().contains(&0) {
+        return Err(format!("{description} path is invalid"));
+    }
+    let path = PathBuf::from(value);
+    Ok(if path.is_absolute() {
+        path
+    } else {
+        root.join(path)
+    })
+}
+
+fn candidate_argument_batches(candidates: &BTreeSet<String>) -> Vec<Vec<&str>> {
+    let mut batches = Vec::new();
+    let mut batch = Vec::new();
+    let mut bytes = 0_usize;
+    for candidate in candidates {
+        if !batch.is_empty()
+            && (batch.len() >= GIT_ATTRIBUTE_BATCH_PATHS
+                || bytes.saturating_add(candidate.len()) > 64 * 1024)
+        {
+            batches.push(batch);
+            batch = Vec::new();
+            bytes = 0;
+        }
+        batch.push(candidate.as_str());
+        bytes = bytes.saturating_add(candidate.len() + 1);
+    }
+    if !batch.is_empty() {
+        batches.push(batch);
+    }
+    batches
+}
+
+fn literal_candidate_git_args(repo_prefix: &str, prefix: &[&str], batch: &[&str]) -> Vec<String> {
+    let mut args = Vec::with_capacity(prefix.len() + batch.len() + 1);
+    args.extend(prefix.iter().map(|value| (*value).to_string()));
+    args.push("--".into());
+    for path in batch {
+        args.push(format!(":(top,literal){repo_prefix}{path}"));
+    }
+    args
+}
+
+fn borrowed_git_args(args: &[String]) -> Vec<&str> {
+    args.iter().map(String::as_str).collect()
+}
+
+fn inspect_git_candidates(
+    root: &Path,
+    candidates: &BTreeSet<String>,
+    regular_files_only: bool,
+) -> Result<InspectedGitCandidates, String> {
+    let mut modes = BTreeMap::new();
+    let mut objects = BTreeMap::new();
+    let batches = candidate_argument_batches(candidates);
+    let repo_prefix = git_repo_prefix(root)?;
+    let mut stage_output_bytes = 0_usize;
+    for batch in &batches {
+        let args = literal_candidate_git_args(&repo_prefix, &["ls-files", "--stage", "-z"], batch);
+        let args = borrowed_git_args(&args);
+        let output = run_git_required(root, &args, None, MAX_GIT_INDEX_BYTES)?;
+        stage_output_bytes = stage_output_bytes
+            .checked_add(output.len())
+            .ok_or_else(|| "scoped Git index output exceeds deterministic bounds".to_string())?;
+        if stage_output_bytes > MAX_GIT_INDEX_BYTES {
+            return Err("scoped Git index output exceeds deterministic bounds".into());
+        }
+        for record in output
+            .split(|byte| *byte == 0)
+            .filter(|entry| !entry.is_empty())
+        {
+            let tab = record
+                .iter()
+                .position(|byte| *byte == b'\t')
+                .ok_or_else(|| "invalid `git ls-files --stage` record".to_string())?;
+            let metadata = std::str::from_utf8(&record[..tab])
+                .map_err(|_| "non-UTF-8 Git index metadata".to_string())?;
+            let mut fields = metadata.split_whitespace();
+            let mode_text = fields
+                .next()
+                .ok_or_else(|| "Git index entry is missing a mode".to_string())?;
+            let object = fields
+                .next()
+                .ok_or_else(|| "Git index entry is missing an object ID".to_string())?;
+            let stage = fields
+                .next()
+                .ok_or_else(|| "Git index entry is missing a stage".to_string())?;
+            if fields.next().is_some()
+                || object.is_empty()
+                || !object.bytes().all(|byte| byte.is_ascii_hexdigit())
+                || !matches!(stage, "0" | "1" | "2" | "3")
+            {
+                return Err("invalid Git index metadata".into());
+            }
+            let mode = u32::from_str_radix(mode_text, 8)
+                .map_err(|_| format!("invalid Git file mode `{mode_text}`"))?;
+            let path = std::str::from_utf8(&record[tab + 1..])
+                .map_err(|_| "non-UTF-8 scoped Git index path".to_string())?;
+            let path = strict_portable_relative_path(path)?;
+            if !candidates.contains(&path) {
+                return Err(format!("Git returned an out-of-scope index path `{path}`"));
+            }
+            if stage != "0" {
+                return Err(format!(
+                    "cannot hash relevant path `{path}` with unresolved Git index stages"
+                ));
+            }
+            if modes.insert(path.clone(), mode).is_some()
+                || objects.insert(path, object.to_ascii_lowercase()).is_some()
+            {
+                return Err("duplicate Git index stage-zero entry".into());
+            }
+        }
+    }
+
+    let fsmonitor = run_git_bounded(
+        root,
+        &["config", "--get", "core.fsmonitor"],
+        None,
+        16 * 1024,
+    )?;
+    let fsmonitor_value = std::str::from_utf8(&fsmonitor.stdout)
+        .map_err(|_| "Git core.fsmonitor value is not UTF-8".to_string())?
+        .trim();
+    if !fsmonitor.status.success() && (!fsmonitor.stdout.is_empty() || !fsmonitor.stderr.is_empty())
+    {
+        return Err(format!(
+            "failed to inspect Git fsmonitor configuration: {}",
+            String::from_utf8_lossy(&fsmonitor.stderr).trim()
+        ));
+    }
+    let fsmonitor_active = !fsmonitor_value.is_empty()
+        && !matches!(
+            fsmonitor_value.to_ascii_lowercase().as_str(),
+            "false" | "no" | "off" | "0"
+        );
+    if fsmonitor_active
+        && candidates
+            .iter()
+            .any(|path| fs::symlink_metadata(root.join(path)).is_ok())
+    {
+        return Err("Git core.fsmonitor cannot supply canonical working-tree evidence".into());
+    }
+
+    let checkout_overrides = effective_checkout_overrides(root)?;
+    let mut modified = BTreeSet::new();
+    for batch in &batches {
+        let mut prefix = Vec::new();
+        for setting in &checkout_overrides {
+            prefix.push("-c".to_string());
+            prefix.push(setting.clone());
+        }
+        prefix.extend(
+            ["diff-files", "--name-only", "-z"]
+                .iter()
+                .map(|value| (*value).to_string()),
+        );
+        let prefix = borrowed_git_args(&prefix);
+        let args = literal_candidate_git_args(&repo_prefix, &prefix, batch);
+        let args = borrowed_git_args(&args);
+        let output = run_git_required(root, &args, None, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
+        for path in output
+            .split(|byte| *byte == 0)
+            .filter(|path| !path.is_empty())
+        {
+            let path =
+                std::str::from_utf8(path).map_err(|_| "non-UTF-8 Git diff path".to_string())?;
+            let path = strict_portable_relative_path(path)?;
+            if !candidates.contains(&path) {
+                return Err(format!(
+                    "Git returned an out-of-scope modified path `{path}`"
+                ));
+            }
+            modified.insert(path);
+        }
+    }
+
+    let mut sparse_absent = BTreeSet::new();
+    for batch in &batches {
+        let args = literal_candidate_git_args(&repo_prefix, &["ls-files", "-v", "-z"], batch);
+        let args = borrowed_git_args(&args);
+        let output = run_git_required(root, &args, None, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
+        for record in output
+            .split(|byte| *byte == 0)
+            .filter(|entry| !entry.is_empty())
+        {
+            if record.len() < 3 || record[1] != b' ' {
+                return Err("invalid `git ls-files -v` output".into());
+            }
+            let tag = record[0];
+            let path = std::str::from_utf8(&record[2..])
+                .map_err(|_| "non-UTF-8 Git visibility path".to_string())?;
+            let path = strict_portable_relative_path(path)?;
+            if !candidates.contains(&path) {
+                return Err(format!(
+                    "Git returned an out-of-scope visibility path `{path}`"
+                ));
+            }
+            if tag.is_ascii_lowercase() {
+                return Err(format!(
+                    "Git assume-unchanged hides working-tree evidence for `{path}`"
+                ));
+            }
+            if tag == b'S' {
+                match fs::symlink_metadata(root.join(&path)) {
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                        sparse_absent.insert(path);
+                    }
+                    Ok(_) => {
+                        return Err(format!(
+                            "materialized skip-worktree path cannot use canonical index evidence: `{path}`"
+                        ));
+                    }
+                    Err(error) => {
+                        return Err(format!("failed to inspect sparse path `{path}`: {error}"));
+                    }
+                }
+            }
+        }
+    }
+
+    for batch in &batches {
+        let args = literal_candidate_git_args(&repo_prefix, &["ls-files", "-f", "-z"], batch);
+        let args = borrowed_git_args(&args);
+        let output = run_git_required(root, &args, None, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
+        for record in output
+            .split(|byte| *byte == 0)
+            .filter(|entry| !entry.is_empty())
+        {
+            if record.len() < 3 || record[1] != b' ' {
+                return Err("invalid `git ls-files -f` output".into());
+            }
+            let path = std::str::from_utf8(&record[2..])
+                .map_err(|_| "non-UTF-8 Git fsmonitor path".to_string())?;
+            let path = strict_portable_relative_path(path)?;
+            if !candidates.contains(&path) {
+                return Err(format!(
+                    "Git returned an out-of-scope fsmonitor path `{path}`"
+                ));
+            }
+            if record[0].is_ascii_lowercase() && fs::symlink_metadata(root.join(&path)).is_ok() {
+                return Err(format!(
+                    "Git fsmonitor-valid hides working-tree evidence for `{path}`"
+                ));
+            }
+        }
+    }
+
+    let regular_for_attributes = candidates
+        .iter()
+        .filter(|path| {
+            matches!(modes.get(*path), Some(0o100644 | 0o100755))
+                && !modified.contains(*path)
+                && !sparse_absent.contains(*path)
+                && fs::symlink_metadata(root.join(*path)).is_ok_and(|metadata| metadata.is_file())
+        })
+        .cloned()
+        .collect();
+    validate_canonical_git_attributes(root, &regular_for_attributes)?;
+
+    let worktree = GitWorktreeState {
+        modified,
+        sparse_absent,
+    };
+    let clean_objects: BTreeSet<_> = candidates
+        .iter()
+        .filter_map(|path| {
+            let mode = modes.get(path)?;
+            let object = objects.get(path)?;
+            (!worktree.modified.contains(path) && matches!(mode, 0o100644 | 0o100755 | 0o120000))
+                .then_some(object.as_str())
+        })
+        .collect();
+    let clean_object_refs: Vec<_> = clean_objects.iter().copied().collect();
+    let clean_payloads = git_blob_bytes_batch(root, &clean_object_refs)?;
+    let prefetched_blobs: BTreeMap<_, _> = clean_objects
+        .into_iter()
+        .map(str::to_string)
+        .zip(clean_payloads)
+        .collect();
+    let mut entries = BTreeMap::new();
+    let mut payload_bytes = 0_usize;
+    for path in candidates {
+        if regular_files_only {
+            let working = fs::symlink_metadata(root.join(path));
+            let non_regular = matches!(modes.get(path), Some(0o120000 | 0o160000))
+                || working.as_ref().is_ok_and(|metadata| !metadata.is_file());
+            if non_regular {
+                return Err(format!(
+                    "selected definition artifact is not a regular file: {path}"
+                ));
+            }
+        }
+        let entry = capture_git_candidate(
+            root,
+            path,
+            modes.get(path).copied(),
+            objects.get(path),
+            &worktree,
+            Some(&prefetched_blobs),
+        )?;
+        payload_bytes = payload_bytes
+            .checked_add(entry.payload.len())
+            .ok_or_else(|| "Git evidence payload exceeds deterministic bounds".to_string())?;
+        if payload_bytes > MAX_GIT_EVIDENCE_PAYLOAD_BYTES {
+            return Err("Git evidence payload exceeds deterministic bounds".into());
+        }
+        entries.insert(path.clone(), entry);
+    }
+    Ok(InspectedGitCandidates {
+        modes,
+        objects,
+        worktree,
+        entries,
+    })
+}
+
+fn capture_git_candidate(
+    root: &Path,
+    relative: &str,
+    index_mode: Option<u32>,
+    object: Option<&String>,
+    worktree: &GitWorktreeState,
+    prefetched_blobs: Option<&BTreeMap<String, Vec<u8>>>,
+) -> Result<GitCapturedEntry, String> {
+    if index_mode == Some(0o160000) {
+        let object = object
+            .ok_or_else(|| format!("gitlink `{relative}` has no exact index object ID"))?
+            .clone();
+        return Ok(GitCapturedEntry {
+            kind: AcceptanceInputKind::Gitlink,
+            mode: 0o160000,
+            payload: object.as_bytes().to_vec(),
+            object: Some(object),
+        });
+    }
+    let clean = object.is_some() && !worktree.modified.contains(relative);
+    if clean {
+        let mode = index_mode.ok_or_else(|| format!("tracked path `{relative}` has no mode"))?;
+        if worktree.sparse_absent.contains(relative)
+            || matches!(mode, 0o100644 | 0o100755 | 0o120000)
+        {
+            let object = object.expect("clean tracked object").clone();
+            let payload = match prefetched_blobs.and_then(|blobs| blobs.get(&object)) {
+                Some(payload) => payload.clone(),
+                None => git_blob_bytes(root, &object)?,
+            };
+            if mode == 0o120000 {
+                let target = std::str::from_utf8(&payload)
+                    .map_err(|_| format!("symlink target is not UTF-8: `{relative}`"))?;
+                validate_portable_symlink_target(target)?;
+            }
+            return Ok(GitCapturedEntry {
+                kind: acceptance_kind_for_mode(mode),
+                mode,
+                object: Some(object),
+                payload,
+            });
+        }
+        return Err(format!(
+            "unsupported Git index mode `{mode:o}` for `{relative}`"
+        ));
+    }
+    capture_working_candidate(root, relative, object.cloned())
+}
+
+fn capture_working_candidate(
+    root: &Path,
+    relative: &str,
+    object: Option<String>,
+) -> Result<GitCapturedEntry, String> {
+    let path = root.join(relative);
+    let (kind, mode, payload) = match fs::symlink_metadata(&path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            let target = fs::read_link(&path)
+                .map_err(|error| format!("failed to read symlink {}: {error}", path.display()))?;
+            let target = target.to_str().ok_or_else(|| {
+                format!(
+                    "non-UTF-8 symlink target cannot be hashed portably: {}",
+                    path.display()
+                )
+            })?;
+            validate_portable_symlink_target(target)?;
+            (
+                AcceptanceInputKind::Symlink,
+                0o120000,
+                target.as_bytes().to_vec(),
+            )
+        }
+        Ok(metadata) if metadata.is_file() => (
+            AcceptanceInputKind::File,
+            working_file_mode(&metadata),
+            fs::read(&path)
+                .map_err(|error| format!("failed to read {}: {error}", path.display()))?,
+        ),
+        Ok(_) => (AcceptanceInputKind::NonFile, 0, Vec::new()),
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::InvalidFilename
+            ) =>
+        {
+            (AcceptanceInputKind::Missing, 0, Vec::new())
+        }
+        Err(error) => return Err(format!("failed to inspect {}: {error}", path.display())),
+    };
+    Ok(GitCapturedEntry {
+        kind,
+        mode,
+        object,
+        payload,
+    })
+}
+
+fn capture_non_git_candidates(
+    root: &Path,
+    candidates: &BTreeSet<String>,
+    regular_files_only: bool,
+) -> Result<BTreeMap<String, GitCapturedEntry>, String> {
+    let mut entries = BTreeMap::new();
+    let mut payload_bytes = 0_usize;
+    for path in candidates {
+        if regular_files_only
+            && fs::symlink_metadata(root.join(path)).is_ok_and(|metadata| !metadata.is_file())
+        {
+            return Err(format!(
+                "selected definition artifact is not a regular file: {path}"
+            ));
+        }
+        let entry = capture_working_candidate(root, path, None)?;
+        payload_bytes = payload_bytes
+            .checked_add(entry.payload.len())
+            .ok_or_else(|| {
+                "filesystem evidence payload exceeds deterministic bounds".to_string()
+            })?;
+        if payload_bytes > MAX_GIT_EVIDENCE_PAYLOAD_BYTES {
+            return Err("filesystem evidence payload exceeds deterministic bounds".into());
+        }
+        entries.insert(path.clone(), entry);
+    }
+    Ok(entries)
+}
+
+#[cfg(test)]
+fn git_worktree_state(root: &Path) -> Result<Option<GitWorktreeState>, String> {
+    let candidates = git_project_paths(root)?.unwrap_or_default();
+    let candidates = candidates.into_iter().collect::<BTreeSet<_>>();
+    if !git_repository_present(root)? {
+        return Ok(None);
+    }
+    Ok(Some(
+        inspect_git_candidates(root, &candidates, false)?.worktree,
+    ))
+}
+
+fn validate_canonical_git_attributes(root: &Path, paths: &BTreeSet<String>) -> Result<(), String> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+    let paths = paths.iter().collect::<Vec<_>>();
+    for batch in paths.chunks(GIT_ATTRIBUTE_BATCH_PATHS) {
+        let mut input = Vec::new();
+        for path in batch {
+            input.extend_from_slice(path.as_bytes());
+            input.push(0);
+        }
+        let output = run_git_required(
+            root,
+            &[
+                "check-attr",
+                "-z",
+                "--stdin",
+                "filter",
+                "working-tree-encoding",
+                "ident",
+            ],
+            Some(input),
+            MAX_GIT_ATTRIBUTE_OUTPUT_BYTES,
+        )
+        .map_err(|error| format!("failed to inspect Git content attributes: {error}"))?;
+        validate_git_attribute_output(batch, &output)?;
+    }
+    Ok(())
+}
+
+fn validate_git_attribute_output(paths: &[&String], output: &[u8]) -> Result<(), String> {
+    if !output.ends_with(&[0]) {
+        return Err("invalid unterminated NUL-delimited `git check-attr` output".into());
+    }
+    let fields = output[..output.len() - 1]
+        .split(|byte| *byte == 0)
+        .collect::<Vec<_>>();
+    if fields.iter().any(|field| field.is_empty()) || fields.len() % 3 != 0 {
+        return Err("invalid NUL-delimited `git check-attr` output".into());
+    }
+    let attributes = ["filter", "working-tree-encoding", "ident"];
+    let expected = paths
+        .iter()
+        .flat_map(|path| {
+            attributes
+                .iter()
+                .map(move |attribute| (path.as_str(), *attribute))
+        })
+        .collect::<BTreeSet<_>>();
+    let mut seen = BTreeSet::new();
+    for record in fields.chunks_exact(3) {
+        let path = record[0];
+        let attribute = record[1];
+        let value = record[2];
+        let path =
+            std::str::from_utf8(path).map_err(|_| "non-UTF-8 Git attribute path".to_string())?;
+        let attribute = std::str::from_utf8(attribute)
+            .map_err(|_| "non-UTF-8 Git attribute name".to_string())?;
+        let value =
+            std::str::from_utf8(value).map_err(|_| "non-UTF-8 Git attribute value".to_string())?;
+        if !expected.contains(&(path, attribute)) {
+            return Err(format!(
+                "Git returned an unrequested attribute pair `{path}` / `{attribute}`"
+            ));
+        }
+        if !seen.insert((path, attribute)) {
+            return Err(format!(
+                "Git returned a duplicate attribute pair `{path}` / `{attribute}`"
+            ));
+        }
+        if value != "unspecified" && value != "unset" {
+            return Err(format!(
+                "Git `{attribute}` attribute is not supported for canonical evidence: `{path}`"
+            ));
+        }
+    }
+    if seen != expected {
+        return Err("Git attribute output is missing a requested path/attribute pair".into());
+    }
+    Ok(())
+}
+
+fn git_blob_bytes(root: &Path, object: &str) -> Result<Vec<u8>, String> {
+    if let Some(bytes) = GIT_BLOB_CACHE
+        .get_or_init(|| Mutex::new(BTreeMap::new()))
+        .lock()
+        .map_err(|_| "Git blob cache lock is poisoned".to_string())?
+        .get(object)
+        .cloned()
+    {
+        return Ok(bytes);
+    }
+    let stdout = run_git_required(
+        root,
+        &["cat-file", "blob", object],
+        None,
+        MAX_GIT_EVIDENCE_PAYLOAD_BYTES,
+    )?;
+    if stdout.len() <= MAX_CHANGE_ARTIFACT_BYTES as usize {
+        let mut cache = GIT_BLOB_CACHE
+            .get_or_init(|| Mutex::new(BTreeMap::new()))
+            .lock()
+            .map_err(|_| "Git blob cache lock is poisoned".to_string())?;
+        if cache.len() >= 4_096 {
+            cache.clear();
+        }
+        cache.insert(object.to_string(), stdout.clone());
+    }
+    Ok(stdout)
+}
+
+fn working_file_mode(metadata: &fs::Metadata) -> u32 {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o111 == 0 {
+            0o100644
+        } else {
+            0o100755
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+        0o100644
+    }
+}
+
+fn resolved_acceptance_manifest(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<AcceptanceManifestV1, String> {
+    let verification = load_verification(root, record)?;
+    let signed = verification
+        .acceptance_input_digest
+        .clone()
+        .ok_or_else(|| {
+            format!(
+                "accepted change `{}` has no acceptance input digest",
+                record.id
+            )
+        })?;
+    if let Some(manifest) = &verification.acceptance_manifest {
+        if !verification.passed {
+            return Err(format!(
+                "accepted change `{}` has failed verification",
+                record.id
+            ));
+        }
+        ensure_definition_approval_valid(root, record)?;
+        if !definition_digest_matches(root, record, &verification.contract_digest)? {
+            return Err(format!(
+                "accepted change `{}` verification contract is stale",
+                record.id
+            ));
+        }
+        validate_acceptance_manifest(manifest)?;
+        if acceptance_manifest_digest(manifest)? != signed {
+            return Err(format!(
+                "accepted change `{}` manifest does not reproduce its signed aggregate",
+                record.id
+            ));
+        }
+        if let Some(evidence) = &verification.semantic_succession {
+            validate_semantic_succession(record, evidence)?;
+        } else if !record.supersedes.is_empty() {
+            return Err(format!(
+                "accepted change `{}` is missing semantic succession evidence",
+                record.id
+            ));
+        }
+        let ledger = load_approvals(root, record)?;
+        let approval = ledger
+            .approvals
+            .iter()
+            .rev()
+            .find(|approval| approval.gate == "acceptance")
+            .ok_or_else(|| format!("accepted change `{}` has no closing approval", record.id))?;
+        if approval.digest != closing_digest(record, &verification) {
+            return Err(format!(
+                "accepted change `{}` closing approval does not authenticate its manifest",
+                record.id
+            ));
+        }
+        return Ok(manifest.clone());
+    }
+    reconstruct_legacy_acceptance_manifest(root, record, &signed)
+}
+
+fn reconstruct_legacy_acceptance_manifest(
+    root: &Path,
+    record: &ChangeRecord,
+    signed_legacy_digest: &str,
+) -> Result<AcceptanceManifestV1, String> {
+    let anchors = accepted_transition_anchors(root, record)?;
+    let mut reconstructions: BTreeMap<Vec<u8>, AcceptanceManifestV1> = BTreeMap::new();
+    let mut first_failure = None;
+    for anchor in anchors {
+        match reconstruct_legacy_at_anchor(root, record, signed_legacy_digest, &anchor) {
+            Ok((key, manifest)) => {
+                reconstructions.entry(key).or_insert(manifest);
+            }
+            Err(error) => {
+                first_failure.get_or_insert(error);
+            }
+        }
+    }
+    if reconstructions.len() != 1 {
+        let mut error = format!(
+            "legacy accepted change `{}` requires exactly one distinct valid historical reconstruction, found {}",
+            record.id,
+            reconstructions.len()
+        );
+        if let Some(first_failure) = first_failure {
+            error.push_str(&format!("; first reconstruction failure: {first_failure}"));
+        }
+        return Err(error);
+    }
+    reconstructions
+        .into_values()
+        .next()
+        .ok_or_else(|| "legacy reconstruction disappeared unexpectedly".to_string())
+}
+
+fn reconstruct_legacy_at_anchor(
+    root: &Path,
+    record: &ChangeRecord,
+    signed_legacy_digest: &str,
+    anchor: &str,
+) -> Result<(Vec<u8>, AcceptanceManifestV1), String> {
+    let temporary = create_effective_contract_workspace()?;
+    let tree = temporary.join("tree");
+    let added = Command::new("git")
+        .args([
+            "worktree",
+            "add",
+            "--detach",
+            tree.to_string_lossy().as_ref(),
+            anchor,
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to reconstruct legacy acceptance tree: {error}"))?;
+    if !added.status.success() {
+        let _ = fs::remove_dir_all(&temporary);
+        return Err(format!(
+            "failed to reconstruct legacy acceptance tree: {}",
+            String::from_utf8_lossy(&added.stderr).trim()
+        ));
+    }
+    let result = (|| {
+        let historical = load_change(&tree, &record.id)?;
+        if historical.state != ChangeState::Accepted {
+            return Err(format!(
+                "trusted transition `{anchor}` does not contain accepted state for `{}`",
+                record.id
+            ));
+        }
+        ensure_definition_approval_valid(&tree, &historical)?;
+        let verification = load_verification(&tree, &historical)?;
+        if !verification.passed {
+            return Err("historical accepted verification did not pass".into());
+        }
+        let ledger = load_approvals(&tree, &historical)?;
+        let closing = ledger
+            .approvals
+            .iter()
+            .rev()
+            .find(|approval| approval.gate == "acceptance")
+            .ok_or_else(|| "historical accepted state has no closing approval".to_string())?;
+        if closing.digest != closing_digest(&historical, &verification) {
+            return Err("historical accepted closing approval is invalid".into());
+        }
+        let aggregate = acceptance_input_digest(&tree, &historical, &[])?;
+        if aggregate != signed_legacy_digest {
+            return Err(format!(
+                "legacy accepted change `{}` cannot reproduce its signed raw-content aggregate",
+                record.id
+            ));
+        }
+        let manifest = acceptance_manifest(&tree, &historical, &[])?;
+        let key = serde_json::to_vec(&serde_json::json!({
+            "manifest": manifest,
+            "verification": verification,
+            "closing": closing,
+        }))
+        .map_err(|error| format!("failed to canonicalize historical evidence: {error}"))?;
+        Ok((key, manifest))
+    })();
+    let removed = Command::new("git")
+        .args([
+            "worktree",
+            "remove",
+            "--force",
+            tree.to_string_lossy().as_ref(),
+        ])
+        .current_dir(root)
+        .output();
+    if !removed.is_ok_and(|output| output.status.success()) {
+        let _ = fs::remove_dir_all(&temporary);
+        return Err("failed to remove legacy reconstruction workspace".into());
+    }
+    let _ = fs::remove_dir_all(&temporary);
+    result
+}
+
+fn accepted_transition_anchors(root: &Path, record: &ChangeRecord) -> Result<Vec<String>, String> {
+    let state = format!("{CHANGES_PATH}/{}/state.json", record.id);
+    let state = git_repo_relative_path(root, &state)?;
+    let mut references = vec!["HEAD".to_string()];
+    if let Some(remote_default) = remote_default_ref(root)
+        && !references.contains(&remote_default)
+    {
+        references.push(remote_default);
+    }
+    let mut anchors = Vec::new();
+    for reference in references {
+        let state_pathspec = format!(":(top,literal){state}");
+        let output = Command::new("git")
+            .args([
+                "log",
+                "--format=%H",
+                &reference,
+                "--",
+                state_pathspec.as_str(),
+            ])
+            .current_dir(root)
+            .output()
+            .map_err(|error| format!("failed to inspect accepted history: {error}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "failed to inspect accepted history at `{reference}`"
+            ));
+        }
+        for commit in String::from_utf8_lossy(&output.stdout).lines() {
+            let current = git_change_record_at(root, commit, &state);
+            if !current.is_some_and(|current| {
+                current.id == record.id && current.state == ChangeState::Accepted
+            }) {
+                continue;
+            }
+            let parents =
+                git_output(root, &["rev-list", "--parents", "-n", "1", commit]).unwrap_or_default();
+            let parent_accepted = parents.split_whitespace().skip(1).any(|parent| {
+                git_change_record_at(root, parent, &state).is_some_and(|parent| {
+                    parent.id == record.id && parent.state == ChangeState::Accepted
+                })
+            });
+            if !parent_accepted {
+                anchors.push(commit.to_string());
+            }
+        }
+    }
+    anchors.sort();
+    anchors.dedup();
+    Ok(anchors)
+}
+
+fn authenticated_accepted_transition(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(String, Vec<u8>, ChangeRecord), String> {
+    let workspace = find_change_dir(root, &record.id)?;
+    let workspace_relative = strict_portable_project_path(root, &workspace)?;
+    let current_verification_path = format!("{workspace_relative}/verification.json");
+    let current_approvals_path = format!("{workspace_relative}/approvals.json");
+    let candidates = BTreeSet::from([
+        current_verification_path.clone(),
+        current_approvals_path.clone(),
+    ]);
+    let evidence = git_evidence(root, &candidates)?;
+    let current_verification = evidence.entry(&current_verification_path)?.payload.clone();
+    let current_approvals = evidence.entry(&current_approvals_path)?.payload.clone();
+    let active = format!("{CHANGES_PATH}/{}", record.id);
+    let state_path = git_repo_relative_path(root, &format!("{active}/state.json"))?;
+    let verification_path = git_repo_relative_path(root, &format!("{active}/verification.json"))?;
+    let approvals_path = git_repo_relative_path(root, &format!("{active}/approvals.json"))?;
+    let mut eligible = BTreeMap::new();
+    for anchor in accepted_transition_anchors(root, record)? {
+        let Some(state_bytes) = git_object_bytes(root, &anchor, &state_path) else {
+            continue;
+        };
+        let Some(verification_bytes) = git_object_bytes(root, &anchor, &verification_path) else {
+            continue;
+        };
+        let Some(approval_bytes) = git_object_bytes(root, &anchor, &approvals_path) else {
+            continue;
+        };
+        if verification_bytes != current_verification || approval_bytes != current_approvals {
+            continue;
+        }
+        let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes) else {
+            continue;
+        };
+        if accepted.id != record.id || accepted.state != ChangeState::Accepted {
+            continue;
+        }
+        let mut projection = record.clone();
+        if record.state == ChangeState::Archived {
+            projection.state = ChangeState::Accepted;
+            projection.updated_at = accepted.updated_at;
+        }
+        if projection == accepted {
+            let key = accepted_evidence_key(&state_bytes, &verification_bytes, &approval_bytes);
+            eligible
+                .entry(key)
+                .or_insert((anchor, state_bytes, accepted));
+        }
+    }
+    if record.state == ChangeState::Archived {
+        let project_directory = strict_portable_project_path(root, &workspace)?;
+        let repository_directory = git_repo_relative_path(root, &project_directory)?;
+        let accepted_state_path = format!("{repository_directory}/accepted-state.json");
+        let verification_path = format!("{repository_directory}/verification.json");
+        let approvals_path = format!("{repository_directory}/approvals.json");
+        let accepted_state_pathspec = format!(":(top,literal){accepted_state_path}");
+        let mut references = vec!["HEAD".to_string()];
+        if let Some(remote_default) = remote_default_ref(root)
+            && !references.contains(&remote_default)
+        {
+            references.push(remote_default);
+        }
+        let mut command = Command::new("git");
+        command.args(["log", "--format=%H", "--diff-filter=A"]);
+        command.args(&references);
+        let output = command
+            .arg("--")
+            .arg(&accepted_state_pathspec)
+            .current_dir(root)
+            .output()
+            .map_err(|error| format!("failed to inspect archived acceptance history: {error}"))?;
+        if !output.status.success() {
+            return Err("failed to inspect archived acceptance history".into());
+        }
+        for anchor in String::from_utf8_lossy(&output.stdout).lines() {
+            let Some(state_bytes) = git_object_bytes(root, anchor, &accepted_state_path) else {
+                continue;
+            };
+            let Some(verification_bytes) = git_object_bytes(root, anchor, &verification_path)
+            else {
+                continue;
+            };
+            let Some(approval_bytes) = git_object_bytes(root, anchor, &approvals_path) else {
+                continue;
+            };
+            if verification_bytes != current_verification || approval_bytes != current_approvals {
+                continue;
+            }
+            let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes) else {
+                continue;
+            };
+            if accepted.id != record.id || accepted.state != ChangeState::Accepted {
+                continue;
+            }
+            let mut projection = record.clone();
+            projection.state = ChangeState::Accepted;
+            projection.updated_at = accepted.updated_at;
+            if projection == accepted {
+                let key = accepted_evidence_key(&state_bytes, &verification_bytes, &approval_bytes);
+                eligible
+                    .entry(key)
+                    .or_insert((anchor.to_string(), state_bytes, accepted));
+            }
+        }
+    }
+    if eligible.is_empty()
+        && let Ok(state_bytes) = fs::read(workspace.join("accepted-state.json"))
+        && let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes)
+    {
+        let mut projection = record.clone();
+        if record.state == ChangeState::Archived {
+            projection.state = ChangeState::Accepted;
+            projection.updated_at = accepted.updated_at;
+        }
+        if projection == accepted
+            && accepted.state == ChangeState::Accepted
+            && staged_accepted_snapshot_is_closing_authenticated(
+                root,
+                &accepted,
+                &current_verification,
+                &current_approvals,
+            )?
+        {
+            let key =
+                accepted_evidence_key(&state_bytes, &current_verification, &current_approvals);
+            eligible.insert(
+                key,
+                (
+                    "working-tree-closing-evidence".into(),
+                    state_bytes,
+                    accepted,
+                ),
+            );
+        }
+    }
+    if eligible.len() != 1 {
+        return Err(format!(
+            "accepted change `{}` requires exactly one trusted transition matching its state, verification, and closing evidence; found {}",
+            record.id,
+            eligible.len()
+        ));
+    }
+    eligible
+        .into_values()
+        .next()
+        .ok_or_else(|| "authenticated accepted transition disappeared".to_string())
+}
+
+fn staged_accepted_snapshot_is_closing_authenticated(
+    root: &Path,
+    accepted: &ChangeRecord,
+    verification_bytes: &[u8],
+    approval_bytes: &[u8],
+) -> Result<bool, String> {
+    let verification: VerificationRecord = serde_json::from_slice(verification_bytes)
+        .map_err(|error| format!("invalid staged accepted verification: {error}"))?;
+    let approvals: ApprovalLedger = serde_json::from_slice(approval_bytes)
+        .map_err(|error| format!("invalid staged accepted approvals: {error}"))?;
+    if !verification.passed
+        || !definition_digest_matches(root, accepted, &verification.contract_digest)?
+    {
+        return Ok(false);
+    }
+    let Some(signed_inputs) = verification.acceptance_input_digest.as_ref() else {
+        return Ok(false);
+    };
+    if let Some(manifest) = &verification.acceptance_manifest {
+        if acceptance_manifest_digest(manifest)? != *signed_inputs {
+            return Ok(false);
+        }
+        match (&accepted.supersedes[..], &verification.semantic_succession) {
+            ([], None) => {}
+            (_, Some(evidence)) => validate_semantic_succession(accepted, evidence)?,
+            _ => return Ok(false),
+        }
+    } else if verification.semantic_succession.is_some() {
+        return Ok(false);
+    }
+    let closing_matches = approvals
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "acceptance")
+        .is_some_and(|approval| approval.digest == closing_digest(accepted, &verification));
+    Ok(closing_matches && verification_commit_is_accepted_current(root, &verification))
+}
+
+fn accepted_evidence_key(state: &[u8], verification: &[u8], approvals: &[u8]) -> String {
+    let mut digest = FramedDigest::new(b"specsync.accepted-evidence-key.v1");
+    digest.frame(b"state", state);
+    digest.frame(b"verification", verification);
+    digest.frame(b"approvals", approvals);
+    digest.finish()
+}
+
+fn git_object_bytes(root: &Path, commit: &str, path: &str) -> Option<Vec<u8>> {
+    let object = format!("{commit}:{path}");
+    let output = Command::new("git")
+        .args(["show", object.as_str()])
+        .current_dir(root)
+        .output()
+        .ok()?;
+    output.status.success().then_some(output.stdout)
+}
+
+fn git_change_record_at(root: &Path, commit: &str, path: &str) -> Option<ChangeRecord> {
+    let object = format!("{commit}:{path}");
+    let output = Command::new("git")
+        .args(["show", object.as_str()])
+        .current_dir(root)
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| serde_json::from_slice(&output.stdout).ok())
+        .flatten()
+}
+
+fn acceptance_input_digest(
+    root: &Path,
+    record: &ChangeRecord,
+    overrides: &[(PathBuf, String)],
+) -> Result<String, String> {
+    let discovery_scopes = acceptance_discovery_scopes(root, record)?;
+    let override_content: BTreeMap<String, &[u8]> = overrides
+        .iter()
+        .map(|(path, content)| {
+            Ok((
+                strict_portable_project_path(root, path)?,
+                content.as_bytes(),
+            ))
+        })
+        .collect::<Result<_, String>>()?;
+    let extra_candidates = override_content.keys().cloned().collect();
+    let (mut paths, evidence) =
+        stable_discovered_evidence(root, Some(&discovery_scopes), &extra_candidates, false)?;
+    paths.retain(|path| {
+        !project_input_is_volatile(path) && record_covers_project_path(root, record, path)
+    });
     let historical_sequence_ledger = if record_covers_project_path(root, record, SEQUENCE_PATH) {
         historical_sequence_ledger_acceptance_content(root, record)?
     } else {
@@ -4488,13 +8332,8 @@ fn acceptance_input_digest(
     };
     let mut digest = FramedDigest::new(ACCEPTANCE_DIGEST_DOMAIN);
     for relative in paths {
-        if project_input_is_volatile(&relative)
-            || !record_covers_project_path(root, record, &relative)
-        {
-            continue;
-        }
         if let Some(content) = override_content.get(&relative) {
-            let mode = git_modes.get(&relative).copied().unwrap_or(0o100644);
+            let mode = evidence.generated_file_mode(&relative)?;
             let kind: &[u8] = match mode {
                 0o120000 => b"symlink",
                 0o160000 => b"gitlink",
@@ -4504,37 +8343,16 @@ fn acceptance_input_digest(
         } else if relative == SEQUENCE_PATH
             && let Some(content) = &historical_sequence_ledger
         {
-            let mode = git_modes.get(&relative).copied().unwrap_or(0o100644);
+            let mode = evidence.generated_file_mode(&relative)?;
             digest.entry(&relative, b"file", mode, content);
         } else {
-            let path = root.join(&relative);
-            match fs::symlink_metadata(&path) {
-                Ok(metadata) if metadata.file_type().is_symlink() => {
-                    let target = fs::read_link(&path).map_err(|error| {
-                        format!("failed to read symlink {}: {error}", path.display())
-                    })?;
-                    let target = target.to_str().ok_or_else(|| {
-                        format!(
-                            "non-UTF-8 symlink target cannot be hashed portably: {}",
-                            path.display()
-                        )
-                    })?;
-                    digest.entry(&relative, b"symlink", 0o120000, target.as_bytes());
-                }
-                Ok(metadata) if metadata.is_file() => {
-                    let content = fs::read(&path)
-                        .map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
-                    let (kind, mode) = digest_file_kind_and_mode(&relative, &path, &git_modes)?;
-                    digest.entry(&relative, kind, mode, &content);
-                }
-                Ok(_) => digest.entry(&relative, b"non-file", 0, b""),
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                    digest.entry(&relative, b"missing", 0, b"")
-                }
-                Err(error) => {
-                    return Err(format!("failed to inspect {}: {error}", path.display()));
-                }
-            }
+            let entry = evidence.entry(&relative)?;
+            digest.entry(
+                &relative,
+                acceptance_kind_bytes(&entry.kind),
+                entry.mode,
+                &entry.payload,
+            );
         }
     }
     Ok(digest.finish())
@@ -4566,27 +8384,247 @@ fn historical_sequence_ledger_acceptance_content(
     Ok(Some(json_content(&historical)?.into_bytes()))
 }
 
-fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    let ledger = load_approvals(root, record)?;
-    let approval = ledger
+fn resolve_definition_approval_event<'a>(
+    record: &ChangeRecord,
+    ledger: &'a ApprovalLedger,
+    expected_current_digest: &str,
+    expected_legacy_digest: Option<&str>,
+    expected_correction_prefix: &str,
+) -> Result<&'a ApprovalRecord, String> {
+    let index = ledger
         .approvals
         .iter()
-        .rev()
-        .find(|approval| approval.gate == "definition")
+        .rposition(|approval| approval.gate == "definition")
         .ok_or_else(|| "definition approval is missing".to_string())?;
-    if !definition_digest_matches(root, record, &approval.digest)? {
-        return Err(
-            "definition approval is stale; approve the current artifact digest again".into(),
-        );
+    let terminal = &ledger.approvals[index];
+    let Some(legacy_metadata) = terminal.definition_pair.as_ref() else {
+        if terminal.digest != expected_current_digest {
+            return Err(
+                "definition approval is stale; approve the current artifact digest again".into(),
+            );
+        }
+        return Ok(terminal);
+    };
+    if legacy_metadata.schema_version != 1
+        || legacy_metadata.projection != PORTABLE_DEFINITION_PROJECTION_V501
+        || legacy_metadata.role != DefinitionApprovalPairRole::Legacy
+        || legacy_metadata.change_id != record.id
+        || legacy_metadata.correction_count != record.correction_count
+        || legacy_metadata.correction_prefix_digest != expected_correction_prefix
+        || legacy_metadata.event_index.checked_add(1) != Some(index as u64)
+    {
+        return Err("portable definition approval has invalid terminal metadata".into());
     }
-    Ok(())
+    let current_index = index
+        .checked_sub(1)
+        .ok_or_else(|| "portable definition approval is missing its current member".to_string())?;
+    let current = &ledger.approvals[current_index];
+    let current_metadata = current
+        .definition_pair
+        .as_ref()
+        .ok_or_else(|| "portable definition approval current member is unmarked".to_string())?;
+    if current.gate != "definition"
+        || current_metadata.schema_version != legacy_metadata.schema_version
+        || current_metadata.projection != legacy_metadata.projection
+        || current_metadata.pair_id != legacy_metadata.pair_id
+        || current_metadata.role != DefinitionApprovalPairRole::Current
+        || current_metadata.change_id != legacy_metadata.change_id
+        || current_metadata.correction_count != legacy_metadata.correction_count
+        || current_metadata.correction_prefix_digest != legacy_metadata.correction_prefix_digest
+        || current_metadata.current_digest != legacy_metadata.current_digest
+        || current_metadata.legacy_digest != legacy_metadata.legacy_digest
+        || current_metadata.event_index != legacy_metadata.event_index
+        || current_metadata.event_index != current_index as u64
+        || current.actor != terminal.actor
+        || current.timestamp != terminal.timestamp
+        || current.digest == terminal.digest
+        || current.digest != expected_current_digest
+        || current.digest != current_metadata.current_digest
+        || terminal.digest != legacy_metadata.legacy_digest
+        || expected_legacy_digest.is_some_and(|expected| terminal.digest != expected)
+    {
+        return Err("portable definition approval pair is malformed or stale".into());
+    }
+    let expected_pair_id = definition_approval_pair_id(
+        record,
+        current_index as u64,
+        &current.actor,
+        current.timestamp,
+        expected_correction_prefix,
+        &current.digest,
+        &terminal.digest,
+    );
+    if legacy_metadata.pair_id != expected_pair_id
+        || ledger
+            .approvals
+            .iter()
+            .filter(|approval| {
+                approval
+                    .definition_pair
+                    .as_ref()
+                    .is_some_and(|metadata| metadata.pair_id == legacy_metadata.pair_id)
+            })
+            .count()
+            != 2
+    {
+        return Err("portable definition approval pair is duplicated or replayed".into());
+    }
+    Ok(current)
+}
+
+fn effective_definition_approval<'a>(
+    root: &Path,
+    record: &ChangeRecord,
+    ledger: &'a ApprovalLedger,
+) -> Result<&'a ApprovalRecord, String> {
+    let latest = ledger
+        .approvals
+        .iter()
+        .rfind(|approval| approval.gate == "definition")
+        .ok_or_else(|| "definition approval is missing".to_string())?;
+    let corrections = load_correction_ledger(root, record)?;
+    let prefix = correction_prefix_digest(record, &corrections.corrections)?;
+    if latest.definition_pair.is_some() {
+        let (current, legacy, portable_prefix) =
+            portable_definition_digest_pair_v501(root, record)?;
+        if prefix != portable_prefix {
+            return Err("portable definition approval correction prefix is stale".into());
+        }
+        return resolve_definition_approval_event(record, ledger, &current, Some(&legacy), &prefix);
+    }
+    let current = definition_digest(root, record)?;
+    match resolve_definition_approval_event(record, ledger, &current, None, &prefix) {
+        Ok(approval) => Ok(approval),
+        Err(_) => {
+            let transitional = definition_digest_with_explicit_false(root, record)?;
+            resolve_definition_approval_event(record, ledger, &transitional, None, &prefix)
+        }
+    }
+}
+
+fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    let ledger = load_approvals(root, record)?;
+    effective_definition_approval(root, record, &ledger).map(|_| ())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AcceptedInputValidity {
+    Exact,
+    SuccessorCovered,
+}
+
+fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvidenceSummary {
+    let result = list_all_changes_checked(root)
+        .map(|records| terminal_evidence_summary_with_records(root, record, &records));
+    match result {
+        Ok(summary) => summary,
+        Err(reason) => TerminalEvidenceSummary {
+            validity: if record.state == ChangeState::Archived {
+                TerminalEvidenceValidity::CorruptHistory
+            } else {
+                TerminalEvidenceValidity::Stale
+            },
+            reason: Some(reason),
+        },
+    }
+}
+
+fn terminal_evidence_summary_with_records(
+    root: &Path,
+    record: &ChangeRecord,
+    records: &BTreeMap<String, ChangeRecord>,
+) -> TerminalEvidenceSummary {
+    terminal_evidence_summary_with_validation_state(
+        root,
+        record,
+        records,
+        &mut BTreeSet::new(),
+        &mut BTreeMap::new(),
+        &mut ArchivedIntegrityCache::default(),
+    )
+}
+
+fn terminal_evidence_results_with_records(
+    root: &Path,
+    records: &BTreeMap<String, ChangeRecord>,
+) -> (Vec<TerminalEvidenceResult>, ArchivedIntegrityCache) {
+    let mut visiting = BTreeSet::new();
+    let mut memo = BTreeMap::new();
+    let mut archived_cache = ArchivedIntegrityCache::default();
+    let results = records
+        .values()
+        .filter(|record| matches!(record.state, ChangeState::Accepted | ChangeState::Archived))
+        .map(|record| TerminalEvidenceResult {
+            id: record.id.clone(),
+            evidence: terminal_evidence_summary_with_validation_state(
+                root,
+                record,
+                records,
+                &mut visiting,
+                &mut memo,
+                &mut archived_cache,
+            ),
+        })
+        .collect();
+    (results, archived_cache)
+}
+
+fn terminal_evidence_summary_with_validation_state(
+    root: &Path,
+    record: &ChangeRecord,
+    records: &BTreeMap<String, ChangeRecord>,
+    visiting: &mut BTreeSet<String>,
+    memo: &mut BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    archived_cache: &mut ArchivedIntegrityCache,
+) -> TerminalEvidenceSummary {
+    if record.state == ChangeState::Archived {
+        return match validate_archived_integrity_with_cache(root, record, archived_cache) {
+            Ok(()) => TerminalEvidenceSummary {
+                validity: TerminalEvidenceValidity::AuthenticatedHistory,
+                reason: None,
+            },
+            Err(reason) => TerminalEvidenceSummary {
+                validity: TerminalEvidenceValidity::CorruptHistory,
+                reason: Some(reason),
+            },
+        };
+    }
+    match validate_accepted_inputs_recursive(root, record, records, visiting, memo) {
+        Ok(AcceptedInputValidity::Exact) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::Exact,
+            reason: None,
+        },
+        Ok(AcceptedInputValidity::SuccessorCovered) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::SuccessorCovered,
+            reason: None,
+        },
+        Err(reason) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::Stale,
+            reason: Some(reason),
+        },
+    }
 }
 
 fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    let records = list_all_changes_checked(root)?;
+    let mut visiting = BTreeSet::new();
+    let mut memo = BTreeMap::new();
+    validate_accepted_inputs_recursive(root, record, &records, &mut visiting, &mut memo).map(|_| ())
+}
+
+fn authenticate_accepted_evidence(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<VerificationRecord, String> {
+    validate_acceptance_owner_correction_records(record)?;
+    if record.state == ChangeState::Archived {
+        validate_archived_accepted_snapshot(root, record)?;
+    }
     let verification = load_verification(root, record)?;
     if !verification.passed {
         return Err("accepted change has failed verification evidence".into());
     }
+    ensure_definition_approval_valid(root, record)?;
     if !definition_digest_matches(root, record, &verification.contract_digest)? {
         return Err("accepted change verification contract is stale".into());
     }
@@ -4594,9 +8632,25 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
         .acceptance_input_digest
         .as_ref()
         .ok_or_else(|| "accepted change is missing current delivery-input evidence".to_string())?;
-    let current_inputs = acceptance_input_digest(root, record, &[])?;
-    if current_inputs != *expected_inputs {
-        return Err("accepted change verification is stale for current delivery inputs".into());
+    if let Some(manifest) = &verification.acceptance_manifest {
+        validate_acceptance_manifest(manifest)?;
+        if acceptance_manifest_digest(manifest)? != *expected_inputs {
+            return Err(
+                "accepted change manifest does not reproduce signed delivery inputs".into(),
+            );
+        }
+        match (&record.supersedes[..], &verification.semantic_succession) {
+            ([], None) => {}
+            (_, Some(evidence)) => validate_semantic_succession(record, evidence)?,
+            _ => {
+                return Err(
+                    "accepted change is missing semantic succession evidence for approved obligations"
+                        .into(),
+                );
+            }
+        }
+    } else if verification.semantic_succession.is_some() {
+        return Err("legacy acceptance cannot carry succession evidence without a manifest".into());
     }
     let expected = closing_digest(record, &verification);
     let ledger = load_approvals(root, record)?;
@@ -4615,7 +8669,1043 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
     {
         return Err("accepted change verification commit is not in current history and canonical acceptance is not recorded on the remote default branch".into());
     }
+    Ok(verification)
+}
+
+fn validate_archived_accepted_snapshot(root: &Path, archived: &ChangeRecord) -> Result<(), String> {
+    let workspace = find_change_dir(root, &archived.id)?;
+    let path = workspace.join("accepted-state.json");
+    let (_, historical_bytes, historical) = authenticated_accepted_transition(root, archived)?;
+    let accepted = match fs::read(&path) {
+        Ok(content) => {
+            if content != historical_bytes {
+                return Err(format!(
+                    "archived change `{}` accepted-state snapshot does not match its trusted transition",
+                    archived.id
+                ));
+            }
+            serde_json::from_slice(&content).map_err(|error| {
+                format!(
+                    "invalid accepted-state snapshot {}: {error}",
+                    path.display()
+                )
+            })?
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let verification = load_verification(root, archived)?;
+            if verification.acceptance_manifest.is_some() {
+                return Err(format!(
+                    "archived change `{}` is missing its authenticated accepted-state snapshot",
+                    archived.id
+                ));
+            }
+            historical
+        }
+        Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
+    };
+    if accepted.id != archived.id || accepted.state != ChangeState::Accepted {
+        return Err(format!(
+            "archived change `{}` has an invalid accepted-state snapshot identity",
+            archived.id
+        ));
+    }
+    let mut projection = archived.clone();
+    projection.state = ChangeState::Accepted;
+    projection.updated_at = accepted.updated_at;
+    if projection != accepted {
+        return Err(format!(
+            "archived change `{}` does not match its authenticated accepted-state snapshot",
+            archived.id
+        ));
+    }
     Ok(())
+}
+
+#[derive(Debug)]
+struct LegacyArchiveBaselineContext {
+    baseline: LegacyArchiveBaselineV1,
+    snapshots: BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>,
+}
+
+#[derive(Debug, Default)]
+struct ArchivedIntegrityCache {
+    legacy: Option<Result<LegacyArchiveBaselineContext, String>>,
+}
+
+fn validate_archived_integrity(root: &Path, archived: &ChangeRecord) -> Result<(), String> {
+    validate_archived_integrity_with_cache(root, archived, &mut ArchivedIntegrityCache::default())
+}
+
+fn validate_archived_integrity_with_cache(
+    root: &Path,
+    archived: &ChangeRecord,
+    cache: &mut ArchivedIntegrityCache,
+) -> Result<(), String> {
+    validate_acceptance_owner_correction_records(archived)?;
+    let workspace = find_change_dir(root, &archived.id)?;
+    if !workspace.join("accepted-state.json").exists() {
+        return authenticate_legacy_archive_baseline(root, archived, &workspace, cache);
+    }
+    validate_archived_accepted_snapshot(root, archived)?;
+    let verification = load_verification(root, archived)?;
+    if !verification.passed {
+        return Err("archived change has failed verification evidence".into());
+    }
+    ensure_definition_approval_valid(root, archived)?;
+    if !definition_digest_matches(root, archived, &verification.contract_digest)? {
+        return Err("archived change verification contract is stale".into());
+    }
+    let expected_inputs = verification
+        .acceptance_input_digest
+        .as_ref()
+        .ok_or_else(|| "archived change is missing delivery-input evidence".to_string())?;
+    if let Some(manifest) = &verification.acceptance_manifest {
+        validate_acceptance_manifest(manifest)?;
+        if acceptance_manifest_digest(manifest)? != *expected_inputs {
+            return Err(
+                "archived change manifest does not reproduce signed delivery inputs".into(),
+            );
+        }
+        match (&archived.supersedes[..], &verification.semantic_succession) {
+            ([], None) => {}
+            (_, Some(evidence)) => validate_semantic_succession(archived, evidence)?,
+            _ => {
+                return Err(
+                    "archived change is missing semantic succession evidence for approved obligations"
+                        .into(),
+                );
+            }
+        }
+    } else {
+        if verification.semantic_succession.is_some() {
+            return Err(
+                "legacy archive cannot carry succession evidence without a manifest".into(),
+            );
+        }
+        reconstruct_legacy_acceptance_manifest(root, archived, expected_inputs)?;
+    }
+    let ledger = load_approvals(root, archived)?;
+    let approval = ledger
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "acceptance")
+        .ok_or_else(|| "archived change is missing closing approval".to_string())?;
+    if approval.digest != closing_digest(archived, &verification) {
+        return Err("archived change closing approval does not match verification evidence".into());
+    }
+    Ok(())
+}
+
+fn authenticate_legacy_archive_baseline(
+    root: &Path,
+    archived: &ChangeRecord,
+    workspace: &Path,
+    cache: &mut ArchivedIntegrityCache,
+) -> Result<(), String> {
+    let verification = load_verification(root, archived)?;
+    if verification.acceptance_manifest.is_some() || verification.semantic_succession.is_some() {
+        return Err(format!(
+            "archived change `{}` is missing its authenticated accepted-state snapshot",
+            archived.id
+        ));
+    }
+    if !verification.passed {
+        return Err("legacy archive has no passed verification evidence".into());
+    }
+    let ledger = load_approvals(root, archived)?;
+    if !ledger
+        .approvals
+        .iter()
+        .any(|approval| approval.gate == "definition")
+    {
+        return Err("legacy archive is missing stored definition approval".into());
+    }
+    ledger
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "acceptance")
+        .ok_or_else(|| "legacy archive is missing stored closing approval".to_string())?;
+
+    if cache.legacy.is_none() {
+        cache.legacy = Some(load_legacy_archive_baseline_context(root));
+    }
+    let context = cache
+        .legacy
+        .as_ref()
+        .expect("legacy archive cache was initialized")
+        .as_ref()
+        .map_err(Clone::clone)?;
+    let baseline = &context.baseline;
+    let archive_root = root.join(ARCHIVE_PATH);
+    let relative_workspace = workspace.strip_prefix(&archive_root).map_err(|_| {
+        format!(
+            "legacy archive workspace is outside {}",
+            archive_root.display()
+        )
+    })?;
+    let project_subtree = format!(
+        "{}/{}",
+        ARCHIVE_PATH,
+        strict_portable_relative_path(
+            relative_workspace
+                .to_str()
+                .ok_or_else(|| "legacy archive path is not UTF-8".to_string())?
+        )?
+    );
+    let baseline_entry = legacy_baseline_entry(baseline, &archived.id)?;
+    if baseline_entry.archive_path != project_subtree {
+        return Err(format!(
+            "legacy archive `{}` baseline path does not match its unique workspace",
+            archived.id
+        ));
+    }
+    let current = context.snapshots.get(&archived.id).ok_or_else(|| {
+        format!(
+            "legacy archive `{}` has no captured baseline subtree",
+            archived.id
+        )
+    })?;
+    if legacy_archive_subtree_digest(current)? != baseline_entry.subtree_digest {
+        return Err(format!(
+            "legacy archive `{}` subtree does not match its baseline digest",
+            archived.id
+        ));
+    }
+    Ok(())
+}
+
+fn load_legacy_archive_baseline_context(
+    root: &Path,
+) -> Result<LegacyArchiveBaselineContext, String> {
+    let baseline_path = root.join(LEGACY_BASELINE_PATH);
+    let baseline_bytes = fs::read(&baseline_path)
+        .map_err(|error| format!("failed to read legacy archive baseline: {error}"))?;
+    let (baseline, baseline_digest) = validate_legacy_archive_baseline_bytes(&baseline_bytes)?;
+
+    let records = list_all_changes_checked(root)?;
+    let authority = records.get(&baseline.authority_change_id).ok_or_else(|| {
+        format!(
+            "legacy archive baseline authority `{}` is unavailable",
+            baseline.authority_change_id
+        )
+    })?;
+    if authority.legacy_archive_baseline_digest.as_deref() != Some(&baseline_digest) {
+        return Err(
+            "legacy archive baseline bytes do not match its definition-bound authority".into(),
+        );
+    }
+    ensure_definition_approval_valid(root, authority)
+        .map_err(|error| format!("legacy archive baseline authority is not approved: {error}"))?;
+
+    validate_legacy_baseline_authority_cutoff(root, authority, &baseline.cutoff_commit)?;
+    let cutoff = baseline.cutoff_commit.clone();
+    match authority.state {
+        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying => {}
+        ChangeState::Accepted | ChangeState::Archived => {
+            let authority_verification =
+                authenticate_accepted_evidence(root, authority).map_err(|error| {
+                    format!("legacy archive baseline authority is not closing-valid: {error}")
+                })?;
+            let manifest = authority_verification
+                .acceptance_manifest
+                .as_ref()
+                .ok_or_else(|| {
+                    "accepted legacy archive baseline authority must be manifest-backed".to_string()
+                })?;
+            let ledger_entry = manifest
+                .entries
+                .iter()
+                .find(|entry| entry.path == LEGACY_BASELINE_PATH)
+                .ok_or_else(|| {
+                    "accepted legacy archive baseline authority did not sign the ledger path"
+                        .to_string()
+                })?;
+            if ledger_entry.kind != AcceptanceInputKind::File
+                || !ledger_entry
+                    .owners
+                    .iter()
+                    .any(|owner| owner == EXACT_DELIVERY_OWNER)
+                || ledger_entry.payload_digest != sha256_hex(&baseline_bytes)
+                || ledger_entry.entry_digest
+                    != acceptance_entry_digest(
+                        LEGACY_BASELINE_PATH,
+                        &AcceptanceInputKind::File,
+                        ledger_entry.mode,
+                        &ledger_entry.payload_digest,
+                    )
+            {
+                return Err(
+                    "accepted legacy archive baseline authority has invalid exact ledger evidence"
+                        .into(),
+                );
+            }
+            let (anchor, _, _) = authenticated_accepted_transition(root, authority)?;
+            ensure_git_ancestor(root, &cutoff, &anchor, "authority acceptance anchor")?;
+        }
+        ChangeState::Draft => {
+            return Err("legacy archive baseline authority is still draft".into());
+        }
+    }
+
+    let scopes = baseline
+        .entries
+        .iter()
+        .map(|entry| entry.archive_path.clone())
+        .collect();
+    let (project_paths, evidence) =
+        stable_discovered_evidence(root, Some(&scopes), &BTreeSet::new(), false)?;
+    let snapshots = baseline
+        .entries
+        .iter()
+        .map(|entry| {
+            archive_snapshot_from_evidence(&project_paths, &evidence, &entry.archive_path)
+                .map(|snapshot| (entry.id.clone(), snapshot))
+        })
+        .collect::<Result<_, _>>()?;
+    validate_legacy_archive_introductions(root, &baseline, &snapshots)?;
+
+    Ok(LegacyArchiveBaselineContext {
+        baseline,
+        snapshots,
+    })
+}
+
+fn validate_legacy_archive_introductions(
+    root: &Path,
+    baseline: &LegacyArchiveBaselineV1,
+    snapshots: &BTreeMap<String, BTreeMap<String, (u32, Vec<u8>)>>,
+) -> Result<(), String> {
+    let cutoff = baseline.cutoff_commit.as_str();
+    let mut repo_subtrees = BTreeMap::new();
+    let mut introductions = BTreeSet::new();
+    let repo_prefix = git_repo_prefix(root)?;
+    for entry in &baseline.entries {
+        let repo_subtree = format!("{repo_prefix}{}", entry.archive_path);
+        repo_subtrees.insert(entry.id.clone(), repo_subtree);
+        introductions.insert(entry.introduction_commit.as_str());
+    }
+    let archive_root = format!("{repo_prefix}{ARCHIVE_PATH}");
+    let history_pathspec = format!(":(top,literal){archive_root}");
+    for introduction in introductions {
+        let resolved = git_output(
+            root,
+            &[
+                "rev-parse",
+                "--verify",
+                &format!("{introduction}^{{commit}}"),
+            ],
+        )
+        .ok_or_else(|| format!("legacy archive introduction `{introduction}` is unavailable"))?;
+        if resolved != introduction {
+            return Err(format!(
+                "legacy archive introduction `{introduction}` must be a canonical commit ID"
+            ));
+        }
+        ensure_git_ancestor(root, introduction, cutoff, "legacy archive cutoff")?;
+    }
+
+    let mut log = Command::new("git");
+    log.args(["log", "--format=%H", "--diff-filter=A", cutoff, "--"])
+        .arg(&history_pathspec)
+        .current_dir(root);
+    let output = log
+        .output()
+        .map_err(|error| format!("failed to inspect legacy archive introductions: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "failed to inspect legacy archive introductions at cutoff `{cutoff}`"
+        ));
+    }
+    let commits: BTreeSet<_> = String::from_utf8(output.stdout)
+        .map_err(|_| "legacy archive introduction history is not UTF-8".to_string())?
+        .lines()
+        .map(str::to_string)
+        .collect();
+    let mut candidates: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut parents = BTreeMap::new();
+    for commit in commits {
+        let mut diff = Command::new("git");
+        diff.args([
+            "diff-tree",
+            "--root",
+            "-m",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            "-z",
+            "--diff-filter=A",
+            &commit,
+            "--",
+        ])
+        .arg(&history_pathspec)
+        .current_dir(root);
+        let output = diff.output().map_err(|error| {
+            format!("failed to inspect legacy archive introduction `{commit}`: {error}")
+        })?;
+        if !output.status.success() {
+            return Err(format!(
+                "failed to inspect legacy archive introduction `{commit}`"
+            ));
+        }
+        let added = output
+            .stdout
+            .split(|byte| *byte == 0)
+            .filter(|raw| !raw.is_empty())
+            .map(|raw| {
+                std::str::from_utf8(raw)
+                    .map(str::to_string)
+                    .map_err(|_| "legacy archive introduction path is not UTF-8".to_string())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        for (id, subtree) in &repo_subtrees {
+            let prefix = format!("{subtree}/");
+            if added
+                .iter()
+                .any(|path| path == subtree || path.starts_with(&prefix))
+            {
+                candidates
+                    .entry(id.clone())
+                    .or_default()
+                    .insert(commit.clone());
+            }
+        }
+        let commit_parents: Vec<String> =
+            git_output(root, &["rev-list", "--parents", "-n", "1", &commit])
+                .unwrap_or_default()
+                .split_whitespace()
+                .skip(1)
+                .map(str::to_string)
+                .collect();
+        parents.insert(commit, commit_parents);
+    }
+
+    for entry in &baseline.entries {
+        let current = snapshots.get(&entry.id).ok_or_else(|| {
+            format!(
+                "legacy archive `{}` has no captured baseline subtree",
+                entry.id
+            )
+        })?;
+        let repo_subtree = repo_subtrees
+            .get(&entry.id)
+            .ok_or_else(|| format!("legacy archive `{}` has no repository subtree", entry.id))?;
+        let mut anchors = BTreeSet::new();
+        for commit in candidates.get(&entry.id).into_iter().flatten() {
+            let parent_has_subtree = parents.get(commit).into_iter().flatten().any(|parent| {
+                !git_tree_snapshot(root, parent, repo_subtree)
+                    .unwrap_or_default()
+                    .is_empty()
+            });
+            if parent_has_subtree {
+                continue;
+            }
+            if git_tree_snapshot(root, commit, repo_subtree).is_ok_and(|tree| &tree == current) {
+                anchors.insert(commit.clone());
+            }
+        }
+        if anchors.len() != 1 || !anchors.contains(&entry.introduction_commit) {
+            return Err(format!(
+                "legacy archive `{}` requires its one baseline-bound pre-cutoff introduction anchor, found {}",
+                entry.id,
+                anchors.len()
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn legacy_baseline_entry<'a>(
+    baseline: &'a LegacyArchiveBaselineV1,
+    archived_id: &str,
+) -> Result<&'a LegacyArchiveBaselineEntryV1, String> {
+    baseline
+        .entries
+        .iter()
+        .find(|entry| entry.id == archived_id)
+        .ok_or_else(|| format!("legacy archive `{archived_id}` is not enumerated by the baseline"))
+}
+
+fn validate_legacy_archive_baseline_bytes(
+    baseline_bytes: &[u8],
+) -> Result<(LegacyArchiveBaselineV1, String), String> {
+    if baseline_bytes.len() as u64 > MAX_CHANGE_ARTIFACT_BYTES {
+        return Err("legacy archive baseline exceeds the change artifact byte limit".into());
+    }
+    let baseline: LegacyArchiveBaselineV1 = serde_json::from_slice(baseline_bytes)
+        .map_err(|error| format!("invalid legacy archive baseline: {error}"))?;
+    if baseline.schema_version != 1 || baseline.domain != "specsync.legacy-archive-baseline.v1" {
+        return Err("unsupported legacy archive baseline schema or domain".into());
+    }
+    if baseline.entries.len() > MAX_ACCEPTANCE_ENTRIES {
+        return Err("legacy archive baseline exceeds the entry limit".into());
+    }
+    if json_content(&baseline)?.as_bytes() != baseline_bytes {
+        return Err("legacy archive baseline must use canonical persisted JSON bytes".into());
+    }
+    let mut previous: Option<(&str, &str)> = None;
+    let mut ids = BTreeSet::new();
+    let mut paths = BTreeSet::new();
+    for entry in &baseline.entries {
+        let key = (entry.id.as_str(), entry.archive_path.as_str());
+        if previous.is_some_and(|prior| prior >= key) {
+            return Err(
+                "legacy archive baseline entries must be strictly sorted and unique".into(),
+            );
+        }
+        previous = Some(key);
+        if !ids.insert(entry.id.as_str()) || !paths.insert(entry.archive_path.as_str()) {
+            return Err("legacy archive baseline IDs and archive paths must each be unique".into());
+        }
+        validate_sha256_digest(&entry.subtree_digest, "legacy archive subtree digest")?;
+        let portable = strict_portable_relative_path(&entry.archive_path)?;
+        if portable != entry.archive_path || !portable.starts_with(&format!("{ARCHIVE_PATH}/")) {
+            return Err(format!(
+                "legacy archive baseline path is not canonical: `{}`",
+                entry.archive_path
+            ));
+        }
+    }
+    let mut digest = FramedDigest::new(LEGACY_BASELINE_DOMAIN);
+    digest.frame(b"ledger", baseline_bytes);
+    let baseline_digest = digest.finish();
+    Ok((baseline, baseline_digest))
+}
+
+fn ensure_git_ancestor(
+    root: &Path,
+    ancestor: &str,
+    descendant: &str,
+    label: &str,
+) -> Result<(), String> {
+    let status = Command::new("git")
+        .args(["merge-base", "--is-ancestor", ancestor, descendant])
+        .current_dir(root)
+        .status()
+        .map_err(|error| format!("failed to inspect {label} ancestry: {error}"))?;
+    if !status.success() {
+        return Err(format!(
+            "`{ancestor}` is not an ancestor of {label} `{descendant}`"
+        ));
+    }
+    Ok(())
+}
+
+fn legacy_archive_subtree_digest(
+    snapshot: &BTreeMap<String, (u32, Vec<u8>)>,
+) -> Result<String, String> {
+    if snapshot.is_empty() {
+        return Err("legacy archive baseline subtree must not be empty".into());
+    }
+    let mut digest = FramedDigest::new(LEGACY_SUBTREE_DOMAIN);
+    digest.frame(b"schema-version", &1_u32.to_be_bytes());
+    for (path, (mode, payload)) in snapshot {
+        let kind: &[u8] = match mode {
+            0o100644 | 0o100755 => b"file",
+            0o120000 => {
+                let target = std::str::from_utf8(payload)
+                    .map_err(|_| format!("legacy archive symlink `{path}` is not UTF-8"))?;
+                validate_portable_symlink_target(target)?;
+                b"symlink"
+            }
+            _ => {
+                return Err(format!(
+                    "legacy archive subtree contains unsupported mode `{mode:o}` at `{path}`"
+                ));
+            }
+        };
+        digest.frame(b"entry", b"");
+        digest.frame(b"path", path.as_bytes());
+        digest.frame(b"kind", kind);
+        digest.frame(b"mode", &mode.to_be_bytes());
+        digest.frame(b"payload", payload);
+    }
+    Ok(digest.finish())
+}
+
+#[cfg(test)]
+fn archive_workspace_snapshot(
+    root: &Path,
+    workspace: &Path,
+    project_subtree: &str,
+) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
+    let mut workspace_paths = BTreeSet::new();
+    for entry in walkdir::WalkDir::new(workspace).follow_links(false) {
+        let entry = entry.map_err(|error| format!("failed to inspect legacy archive: {error}"))?;
+        if entry.path() != workspace && !entry.file_type().is_dir() {
+            workspace_paths.insert(format!(
+                "{project_subtree}/{}",
+                strict_portable_project_path(workspace, entry.path())?
+            ));
+        }
+    }
+    let scopes = BTreeSet::from([project_subtree.to_string()]);
+    let (project_paths, evidence) =
+        stable_discovered_evidence(root, Some(&scopes), &workspace_paths, false)?;
+    archive_snapshot_from_evidence(&project_paths, &evidence, project_subtree)
+}
+
+fn archive_snapshot_from_evidence(
+    project_paths: &[String],
+    evidence: &GitEvidence,
+    project_subtree: &str,
+) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
+    let prefix = format!("{project_subtree}/");
+    let mut snapshot = BTreeMap::new();
+    for project_path in project_paths {
+        let Some(relative) = project_path.strip_prefix(&prefix) else {
+            continue;
+        };
+        let entry = evidence.entry(project_path)?;
+        match entry.kind {
+            AcceptanceInputKind::File | AcceptanceInputKind::Symlink => {
+                snapshot.insert(relative.to_string(), (entry.mode, entry.payload.clone()));
+            }
+            AcceptanceInputKind::Missing => {}
+            AcceptanceInputKind::Gitlink | AcceptanceInputKind::NonFile => {
+                return Err(format!(
+                    "legacy archive contains unsupported non-file entry {project_path}"
+                ));
+            }
+        }
+    }
+    Ok(snapshot)
+}
+
+fn git_tree_snapshot(
+    root: &Path,
+    commit: &str,
+    repo_subtree: &str,
+) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
+    let pathspec = format!(":(top,literal){repo_subtree}");
+    let output = Command::new("git")
+        .args([
+            "ls-tree",
+            "-r",
+            "-z",
+            "--full-name",
+            commit,
+            "--",
+            &pathspec,
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to inspect legacy archive tree: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "failed to inspect legacy archive tree at `{commit}`"
+        ));
+    }
+    let prefix = format!("{repo_subtree}/");
+    let mut entries = Vec::new();
+    for raw in output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|raw| !raw.is_empty())
+    {
+        let raw = std::str::from_utf8(raw)
+            .map_err(|_| "legacy archive tree contains non-UTF-8 metadata".to_string())?;
+        let (metadata, path) = raw
+            .split_once('\t')
+            .ok_or_else(|| format!("invalid legacy archive tree entry `{raw}`"))?;
+        let mut fields = metadata.split_whitespace();
+        let mode = fields
+            .next()
+            .ok_or_else(|| "legacy archive tree entry has no mode".to_string())?;
+        let kind = fields
+            .next()
+            .ok_or_else(|| "legacy archive tree entry has no kind".to_string())?;
+        let object = fields
+            .next()
+            .ok_or_else(|| "legacy archive tree entry has no object".to_string())?;
+        let mode = u32::from_str_radix(mode, 8)
+            .map_err(|_| "legacy archive tree entry has invalid mode".to_string())?;
+        if kind != "blob" || !matches!(mode, 0o100644 | 0o100755 | 0o120000) {
+            return Err(format!(
+                "legacy archive tree contains unsupported `{kind}` mode `{mode:o}`"
+            ));
+        }
+        let relative = path
+            .strip_prefix(&prefix)
+            .ok_or_else(|| format!("legacy archive tree path `{path}` escaped its subtree"))?;
+        entries.push((
+            strict_portable_relative_path(relative)?,
+            mode,
+            object.to_string(),
+        ));
+    }
+    let objects: Vec<_> = entries
+        .iter()
+        .map(|(_, _, object)| object.as_str())
+        .collect();
+    let blobs = git_blob_bytes_batch(root, &objects)?;
+    let mut snapshot = BTreeMap::new();
+    for ((relative, mode, _object), bytes) in entries.into_iter().zip(blobs) {
+        snapshot.insert(relative, (mode, bytes));
+    }
+    Ok(snapshot)
+}
+
+fn git_blob_bytes_batch(root: &Path, objects: &[&str]) -> Result<Vec<Vec<u8>>, String> {
+    if objects.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut input = Vec::new();
+    for object in objects {
+        if object.is_empty() || object.bytes().any(|byte| byte.is_ascii_whitespace()) {
+            return Err(format!("invalid legacy archive blob object `{object}`"));
+        }
+        input.extend_from_slice(object.as_bytes());
+        input.push(b'\n');
+    }
+    let output = run_git_required(
+        root,
+        &["cat-file", "--batch"],
+        Some(input),
+        MAX_GIT_EVIDENCE_PAYLOAD_BYTES + MAX_GIT_EVIDENCE_PATH_BYTES,
+    )?;
+    let mut cursor = 0;
+    let mut blobs = Vec::with_capacity(objects.len());
+    for expected in objects {
+        let header_end = output[cursor..]
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .map(|offset| cursor + offset)
+            .ok_or_else(|| "legacy archive batch output has no header terminator".to_string())?;
+        let header = std::str::from_utf8(&output[cursor..header_end])
+            .map_err(|_| "legacy archive batch output has non-UTF-8 metadata".to_string())?;
+        let mut fields = header.split_whitespace();
+        let object = fields
+            .next()
+            .ok_or_else(|| "legacy archive batch output has no object".to_string())?;
+        let kind = fields
+            .next()
+            .ok_or_else(|| "legacy archive batch output has no kind".to_string())?;
+        let size = fields
+            .next()
+            .ok_or_else(|| "legacy archive batch output has no size".to_string())?
+            .parse::<usize>()
+            .map_err(|_| "legacy archive batch output has an invalid size".to_string())?;
+        if fields.next().is_some() || object != *expected || kind != "blob" {
+            return Err(format!(
+                "unexpected legacy archive batch header `{header}` for `{expected}`"
+            ));
+        }
+        let payload_start = header_end + 1;
+        let payload_end = payload_start
+            .checked_add(size)
+            .ok_or_else(|| "legacy archive blob size overflowed".to_string())?;
+        if payload_end >= output.len() || output[payload_end] != b'\n' {
+            return Err(format!(
+                "legacy archive batch output is truncated for blob `{expected}`"
+            ));
+        }
+        blobs.push(output[payload_start..payload_end].to_vec());
+        cursor = payload_end + 1;
+    }
+    if cursor != output.len() {
+        return Err("legacy archive batch output has unexpected trailing bytes".into());
+    }
+    Ok(blobs)
+}
+
+fn validate_accepted_inputs_recursive(
+    root: &Path,
+    record: &ChangeRecord,
+    records: &BTreeMap<String, ChangeRecord>,
+    visiting: &mut BTreeSet<String>,
+    memo: &mut BTreeMap<String, Result<AcceptedInputValidity, String>>,
+) -> Result<AcceptedInputValidity, String> {
+    if let Some(result) = memo.get(&record.id) {
+        return result.clone();
+    }
+    if !matches!(record.state, ChangeState::Accepted | ChangeState::Archived) {
+        return Err(format!(
+            "successor `{}` is not accepted or archived",
+            record.id
+        ));
+    }
+    if !visiting.insert(record.id.clone()) {
+        return Err(format!(
+            "semantic succession cycle detected at `{}`",
+            record.id
+        ));
+    }
+    let result = (|| {
+        let verification = authenticate_accepted_evidence(root, record)?;
+        let expected_digest = verification
+            .acceptance_input_digest
+            .as_deref()
+            .ok_or_else(|| {
+                "accepted change is missing current delivery-input evidence".to_string()
+            })?;
+        let signed = if let Some(manifest) = &verification.acceptance_manifest {
+            manifest.clone()
+        } else {
+            let legacy_current =
+                acceptance_input_digest(root, &terminal_delivery_projection(record), &[])?;
+            if legacy_current == expected_digest {
+                return Ok(AcceptedInputValidity::Exact);
+            }
+            reconstruct_legacy_acceptance_manifest(root, record, expected_digest)?
+        };
+        let current = acceptance_manifest_with_signed_owners(
+            root,
+            &terminal_delivery_projection(record),
+            &[],
+            &signed,
+        )?;
+        let current_by_path: BTreeMap<_, _> = current
+            .entries
+            .iter()
+            .map(|entry| (entry.path.as_str(), entry))
+            .collect();
+        let mut successor_covered = false;
+        for expected in &signed.entries {
+            let current = current_by_path.get(expected.path.as_str()).ok_or_else(|| {
+                format!(
+                    "accepted input `{}` disappeared from current inventory",
+                    expected.path
+                )
+            })?;
+            if expected.kind == current.kind
+                && expected.mode == current.mode
+                && expected.payload_digest == current.payload_digest
+                && expected.entry_digest == current.entry_digest
+            {
+                continue;
+            }
+            if expected
+                .owners
+                .iter()
+                .any(|owner| owner.starts_with("@exact:"))
+            {
+                return Err(format!(
+                    "accepted exact-only input `{}` changed and requires audited reopen",
+                    expected.path
+                ));
+            }
+            for owner in &expected.owners {
+                let mut covered = false;
+                for candidate in records.values() {
+                    if candidate.id == record.id
+                        || !matches!(
+                            candidate.state,
+                            ChangeState::Accepted | ChangeState::Archived
+                        )
+                        || candidate.no_spec_change
+                        || succession_change_key(&candidate.id) <= succession_change_key(&record.id)
+                    {
+                        continue;
+                    }
+                    let candidate_verification =
+                        match authenticate_accepted_evidence(root, candidate) {
+                            Ok(verification) => verification,
+                            Err(_) => continue,
+                        };
+                    let candidate_manifest = if let Some(manifest) =
+                        candidate_verification.acceptance_manifest.as_ref()
+                    {
+                        manifest.clone()
+                    } else {
+                        match resolved_acceptance_manifest(root, candidate) {
+                            Ok(manifest) => manifest,
+                            Err(_) => continue,
+                        }
+                    };
+                    let tuple = if let Some(evidence) =
+                        candidate_verification.semantic_succession.as_ref()
+                    {
+                        evidence
+                            .tuples
+                            .iter()
+                            .find(|tuple| {
+                                semantic_tuple_matches_obligation(
+                                    tuple, &record.id, expected, owner,
+                                )
+                            })
+                            .cloned()
+                    } else if candidate_verification.acceptance_manifest.is_none() {
+                        legacy_semantic_successor_tuple(root, record, expected, owner, candidate)
+                            .ok()
+                            .flatten()
+                    } else {
+                        None
+                    };
+                    let Some(tuple) = tuple else {
+                        continue;
+                    };
+                    if !candidate_manifest.entries.iter().any(|entry| {
+                        entry.path == expected.path
+                            && entry.entry_digest == tuple.successor_entry_digest
+                            && entry.owners.contains(owner)
+                    }) || !semantic_acceptance_item_exists_for_module(root, candidate, owner)
+                        .unwrap_or(false)
+                        || !semantic_tuple_transition_is_valid(root, candidate, &tuple)
+                            .unwrap_or(false)
+                    {
+                        continue;
+                    }
+                    if validate_accepted_inputs_recursive(root, candidate, records, visiting, memo)
+                        .is_ok()
+                    {
+                        covered = true;
+                        successor_covered = true;
+                        break;
+                    }
+                }
+                if !covered {
+                    return Err(format!(
+                        "accepted input obligation `{}` owner `{owner}` has no closing-valid terminal semantic successor",
+                        expected.path
+                    ));
+                }
+            }
+        }
+        Ok(if successor_covered {
+            AcceptedInputValidity::SuccessorCovered
+        } else {
+            AcceptedInputValidity::Exact
+        })
+    })();
+    visiting.remove(&record.id);
+    memo.insert(record.id.clone(), result.clone());
+    result
+}
+
+fn semantic_tuple_matches_obligation(
+    tuple: &SemanticSuccessionTupleV1,
+    predecessor_id: &str,
+    predecessor_entry: &AcceptanceInputEntryV1,
+    owner: &str,
+) -> bool {
+    tuple.predecessor_id == predecessor_id
+        && tuple.path == predecessor_entry.path
+        && tuple.module == owner
+        && tuple.predecessor_entry_digest == predecessor_entry.entry_digest
+}
+
+fn legacy_semantic_successor_tuple(
+    root: &Path,
+    predecessor: &ChangeRecord,
+    predecessor_entry: &AcceptanceInputEntryV1,
+    owner: &str,
+    candidate: &ChangeRecord,
+) -> Result<Option<SemanticSuccessionTupleV1>, String> {
+    let obligation_exists = candidate.supersedes.iter().any(|edge| {
+        edge.predecessor_id == predecessor.id
+            && edge.obligations.iter().any(|obligation| {
+                obligation.path == predecessor_entry.path
+                    && obligation.module == owner
+                    && obligation.predecessor_entry_digest == predecessor_entry.entry_digest
+            })
+    });
+    if !obligation_exists || !semantic_acceptance_item_exists_for_module(root, candidate, owner)? {
+        return Ok(None);
+    }
+    let manifest = resolved_acceptance_manifest(root, candidate)?;
+    let Some(successor_entry) = manifest.entries.iter().find(|entry| {
+        entry.path == predecessor_entry.path
+            && entry.owners.iter().any(|entry_owner| entry_owner == owner)
+    }) else {
+        return Ok(None);
+    };
+    Ok(Some(SemanticSuccessionTupleV1 {
+        predecessor_id: predecessor.id.clone(),
+        path: predecessor_entry.path.clone(),
+        module: owner.to_string(),
+        predecessor_entry_digest: predecessor_entry.entry_digest.clone(),
+        successor_entry_digest: successor_entry.entry_digest.clone(),
+    }))
+}
+
+fn terminal_delivery_projection(record: &ChangeRecord) -> ChangeRecord {
+    let mut projection = record.clone();
+    if projection.state == ChangeState::Archived {
+        projection.state = ChangeState::Accepted;
+    }
+    projection
+}
+
+fn list_all_changes_checked(root: &Path) -> Result<BTreeMap<String, ChangeRecord>, String> {
+    let mut records = BTreeMap::new();
+    for record in list_changes_checked(root)? {
+        records.insert(record.id.clone(), record);
+    }
+    let archive = root.join(ARCHIVE_PATH);
+    let entries = match fs::read_dir(&archive) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(records),
+        Err(error) => return Err(format!("failed to read archived changes: {error}")),
+    };
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("failed to read archive entry: {error}"))?;
+        if !entry
+            .file_type()
+            .map_err(|error| format!("failed to inspect archive entry: {error}"))?
+            .is_dir()
+        {
+            continue;
+        }
+        let path = entry.path().join("state.json");
+        let content = match fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(error)
+                if error.kind() == std::io::ErrorKind::NotFound
+                    && is_positive_legacy_tombstone(&entry.path()) =>
+            {
+                continue;
+            }
+            Err(error) => {
+                return Err(format!(
+                    "failed to read archived state {}: {error}",
+                    path.display()
+                ));
+            }
+        };
+        let record: ChangeRecord = serde_json::from_str(&content)
+            .map_err(|error| format!("invalid archived state {}: {error}", path.display()))?;
+        validate_loaded_change(&record, &record.id, &path)?;
+        if records.insert(record.id.clone(), record.clone()).is_some() {
+            return Err(format!(
+                "change `{}` exists in multiple active/archive locations",
+                record.id
+            ));
+        }
+    }
+    Ok(records)
+}
+
+fn is_positive_legacy_tombstone(path: &Path) -> bool {
+    let dated_lifecycle_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.contains("-CHG-"));
+    if dated_lifecycle_name
+        || [
+            "change.md",
+            "approvals.json",
+            "verification.json",
+            "accepted-state.json",
+        ]
+        .iter()
+        .any(|name| path.join(name).exists())
+    {
+        return false;
+    }
+    let deltas = path.join("deltas");
+    let Ok(entries) = fs::read_dir(deltas) else {
+        return false;
+    };
+    entries.flatten().any(|entry| {
+        entry.file_type().is_ok_and(|file_type| file_type.is_file())
+            && entry
+                .path()
+                .extension()
+                .and_then(|extension| extension.to_str())
+                == Some("md")
+    })
 }
 
 fn append_approval(
@@ -4633,11 +9723,100 @@ fn append_approval(
         timestamp: now(),
         digest,
         note,
+        definition_pair: None,
     });
     write_json(
         &change_dir(root, &record.id).join("approvals.json"),
         &ledger,
     )
+}
+
+fn append_portable_definition_approval_v501(
+    root: &Path,
+    record: &ChangeRecord,
+    actor: Option<String>,
+    note: Option<String>,
+) -> Result<(), String> {
+    let (current_digest, legacy_digest, correction_prefix_digest) =
+        portable_definition_digest_pair_v501(root, record)?;
+    let actor = resolve_actor(root, actor)?;
+    let timestamp = now();
+    let path = change_dir(root, &record.id).join("approvals.json");
+    let content = fs::read_to_string(&path)
+        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+    let mut document: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|error| format!("invalid approval ledger {}: {error}", path.display()))?;
+    let ledger: ApprovalLedger = serde_json::from_value(document.clone())
+        .map_err(|error| format!("invalid approval ledger {}: {error}", path.display()))?;
+    let event_index = ledger.approvals.len() as u64;
+    let pair_id = definition_approval_pair_id(
+        record,
+        event_index,
+        &actor,
+        timestamp,
+        &correction_prefix_digest,
+        &current_digest,
+        &legacy_digest,
+    );
+    let metadata = |role| DefinitionApprovalPairV1 {
+        schema_version: 1,
+        projection: PORTABLE_DEFINITION_PROJECTION_V501.into(),
+        pair_id: pair_id.clone(),
+        role,
+        change_id: record.id.clone(),
+        correction_count: record.correction_count,
+        correction_prefix_digest: correction_prefix_digest.clone(),
+        current_digest: current_digest.clone(),
+        legacy_digest: legacy_digest.clone(),
+        event_index,
+    };
+    let current = ApprovalRecord {
+        gate: "definition".into(),
+        actor: actor.clone(),
+        timestamp,
+        digest: current_digest.clone(),
+        note,
+        definition_pair: Some(metadata(DefinitionApprovalPairRole::Current)),
+    };
+    let legacy = ApprovalRecord {
+        gate: "definition".into(),
+        actor,
+        timestamp,
+        digest: legacy_digest.clone(),
+        note: Some("Portable SpecSync 5.0.1 definition projection".into()),
+        definition_pair: Some(metadata(DefinitionApprovalPairRole::Legacy)),
+    };
+    let approvals = document
+        .get_mut("approvals")
+        .and_then(serde_json::Value::as_array_mut)
+        .ok_or_else(|| "approval ledger approvals must be an array".to_string())?;
+    approvals.push(serde_json::to_value(current).map_err(|error| error.to_string())?);
+    approvals.push(serde_json::to_value(legacy).map_err(|error| error.to_string())?);
+    write_prepared_files(root, &[(path, json_content(&document)?)])
+}
+
+fn definition_approval_pair_id(
+    record: &ChangeRecord,
+    event_index: u64,
+    actor: &str,
+    timestamp: u64,
+    correction_prefix_digest: &str,
+    current_digest: &str,
+    legacy_digest: &str,
+) -> String {
+    let mut digest = FramedDigest::new(DEFINITION_APPROVAL_PAIR_DOMAIN);
+    digest.frame(b"change-id", record.id.as_bytes());
+    digest.frame(b"event-index", event_index.to_string().as_bytes());
+    digest.frame(
+        b"correction-count",
+        record.correction_count.to_string().as_bytes(),
+    );
+    digest.frame(b"correction-prefix", correction_prefix_digest.as_bytes());
+    digest.frame(b"actor", actor.as_bytes());
+    digest.frame(b"timestamp", timestamp.to_string().as_bytes());
+    digest.frame(b"current", current_digest.as_bytes());
+    digest.frame(b"legacy", legacy_digest.as_bytes());
+    digest.finish()
 }
 
 fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
@@ -4650,13 +9829,13 @@ fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
 }
 
 fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, String> {
-    let path = change_dir(root, &record.id).join("approvals.json");
+    let path = find_change_dir(root, &record.id)?.join("approvals.json");
     let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
     serde_json::from_str(&content).map_err(|error| error.to_string())
 }
 
 fn load_verification(root: &Path, record: &ChangeRecord) -> Result<VerificationRecord, String> {
-    let path = change_dir(root, &record.id).join("verification.json");
+    let path = find_change_dir(root, &record.id)?.join("verification.json");
     let content =
         fs::read_to_string(&path).map_err(|_| "verification evidence is missing".to_string())?;
     serde_json::from_str(&content)
@@ -5616,6 +10795,13 @@ fn artifact_template(root: &Path, artifact: &ArtifactKind, record: &ChangeRecord
     )
 }
 
+fn delta_path_checked(root: &Path, record: &ChangeRecord, module: &str) -> Result<PathBuf, String> {
+    Ok(find_change_dir(root, &record.id)?
+        .join("deltas")
+        .join(format!("{module}.md")))
+}
+
+#[cfg(test)]
 fn delta_path(root: &Path, record: &ChangeRecord, module: &str) -> PathBuf {
     change_dir(root, &record.id)
         .join("deltas")
@@ -5629,18 +10815,38 @@ fn change_dir(root: &Path, id: &str) -> PathBuf {
 fn find_change_dir(root: &Path, id: &str) -> Result<PathBuf, String> {
     validate_change_id(id)?;
     let active = change_dir(root, id);
+    let mut matches = Vec::new();
     if active.is_dir() {
-        return Ok(active);
+        matches.push(active);
     }
     let archive = root.join(ARCHIVE_PATH);
     if let Ok(entries) = fs::read_dir(archive) {
         for entry in entries.flatten() {
-            if entry.file_name().to_string_lossy().ends_with(id) {
-                return Ok(entry.path());
+            if !entry.path().is_dir() {
+                continue;
+            }
+            let state = entry.path().join("state.json");
+            let matches_id = fs::read(&state)
+                .ok()
+                .and_then(|content| serde_json::from_slice::<ChangeRecord>(&content).ok())
+                .is_some_and(|record| record.id == id);
+            if matches_id {
+                matches.push(entry.path());
             }
         }
     }
-    Err(format!("change `{id}` was not found"))
+    match matches.len() {
+        0 => Err(format!("change `{id}` was not found")),
+        1 => Ok(matches.remove(0)),
+        _ => Err(format!(
+            "change `{id}` has ambiguous active/archive workspace locations: {}",
+            matches
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+    }
 }
 
 fn validate_change_id(id: &str) -> Result<(), String> {
@@ -5695,22 +10901,258 @@ fn validate_loaded_change(
     Ok(())
 }
 
-fn verification_commit_is_current(
+fn verification_is_current(
+    root: &Path,
+    record: &ChangeRecord,
+    evidence: &VerificationRecord,
+) -> bool {
+    verification_is_current_checked(root, record, evidence).is_ok()
+}
+
+fn verification_is_current_checked(
+    root: &Path,
+    record: &ChangeRecord,
+    evidence: &VerificationRecord,
+) -> Result<(), String> {
+    let project_digest = project_input_digest(root)?;
+    verification_is_current_checked_with_project_digest(root, record, evidence, &project_digest)
+}
+
+fn verification_is_current_checked_with_project_digest(
+    root: &Path,
+    record: &ChangeRecord,
+    evidence: &VerificationRecord,
+    project_digest: &str,
+) -> Result<(), String> {
+    if !evidence.passed {
+        return Err("latest verification evidence failed".into());
+    }
+    if !definition_digest_matches(root, record, &evidence.contract_digest)? {
+        return Err("verification contract digest is stale".into());
+    }
+    if project_digest != evidence.workspace_digest {
+        return Err("verification project-input digest is stale".into());
+    }
+    ensure_verification_persistence_consistent(
+        root,
+        &record.id,
+        Some((record, evidence)),
+        project_digest,
+    )?;
+    let persisted_ids = verification_persistence_descendants(root, evidence)?;
+    for id in persisted_ids {
+        ensure_verification_persistence_consistent(root, &id, None, project_digest)?;
+    }
+    Ok(())
+}
+
+fn verification_persistence_descendants(
     root: &Path,
     evidence: &VerificationRecord,
-    allow_ancestor: bool,
-) -> bool {
-    let Some(commit) = evidence.commit.as_deref() else {
-        return false;
-    };
-    if !allow_ancestor {
-        return git_output(root, &["rev-parse", "HEAD"]).as_deref() == Some(commit);
+) -> Result<BTreeSet<String>, String> {
+    let stored_commit = evidence
+        .commit
+        .as_deref()
+        .ok_or_else(|| "verification commit is missing".to_string())?;
+    if stored_commit.len() != 40
+        || !stored_commit
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err("verification commit is not a canonical full object ID".into());
     }
-    Command::new("git")
-        .args(["merge-base", "--is-ancestor", commit, "HEAD"])
+    let commit_expression = format!("{stored_commit}^{{commit}}");
+    let commit = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &commit_expression,
+        ],
+    )
+    .ok_or_else(|| "verification commit does not resolve to a commit".to_string())?;
+    if commit != stored_commit {
+        return Err("verification commit is not a canonical full object ID".into());
+    }
+    let head = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"])
+        .ok_or_else(|| "HEAD does not resolve to a commit".to_string())?;
+    if head.len() != 40
+        || !head
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err("HEAD is not a canonical full object ID".into());
+    }
+    let ancestor = Command::new("git")
+        .args(["merge-base", "--is-ancestor", &commit, &head])
         .current_dir(root)
         .status()
-        .is_ok_and(|status| status.success())
+        .map_err(|error| format!("failed to validate verification ancestry: {error}"))?;
+    if !ancestor.success() {
+        return Err("verification commit is not an ancestor of HEAD".into());
+    }
+    let range = format!("{commit}..{head}");
+    let output = Command::new("git")
+        .args(["rev-list", "--reverse", &range])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to enumerate verification descendants: {error}"))?;
+    if !output.status.success() {
+        return Err("failed to enumerate verification descendants".into());
+    }
+    let commits = std::str::from_utf8(&output.stdout)
+        .map_err(|_| "verification descendant history is not valid UTF-8".to_string())?;
+    let raw_project_prefix = git_output_allow_empty(root, &["rev-parse", "--show-prefix"])
+        .ok_or_else(|| {
+            "failed to resolve the project path within its Git repository".to_string()
+        })?;
+    let project_prefix = if raw_project_prefix.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "{}/",
+            strict_portable_relative_path(raw_project_prefix.trim_end_matches('/'))?
+        )
+    };
+    let mut persisted_ids = BTreeSet::new();
+    for descendant in commits.lines().filter(|line| !line.is_empty()) {
+        let parents = git_output(root, &["rev-list", "--parents", "-n", "1", descendant])
+            .ok_or_else(|| {
+                format!("failed to load parents for verification descendant {descendant}")
+            })?;
+        let fields: Vec<&str> = parents.split_whitespace().collect();
+        if fields.first().copied() != Some(descendant) || fields.len() < 2 {
+            return Err(format!(
+                "verification descendant {descendant} has ambiguous parent history"
+            ));
+        }
+        for parent in &fields[1..] {
+            let output = Command::new("git")
+                .args([
+                    "diff-tree",
+                    "--no-commit-id",
+                    "--name-only",
+                    "--no-renames",
+                    "-z",
+                    "-r",
+                    parent,
+                    descendant,
+                ])
+                .current_dir(root)
+                .output()
+                .map_err(|error| {
+                    format!(
+                        "failed to inspect verification descendant {descendant} against parent {parent}: {error}"
+                    )
+                })?;
+            if !output.status.success() {
+                return Err(format!(
+                    "failed to inspect verification descendant {descendant} against parent {parent}"
+                ));
+            }
+            for raw_path in output
+                .stdout
+                .split(|byte| *byte == 0)
+                .filter(|path| !path.is_empty())
+            {
+                let path = std::str::from_utf8(raw_path)
+                    .map_err(|_| "verification descendant contains a non-UTF-8 path".to_string())?;
+                let repository_path = strict_portable_relative_path(path)?;
+                let path = if project_prefix.is_empty() {
+                    repository_path
+                } else {
+                    repository_path
+                        .strip_prefix(&project_prefix)
+                        .filter(|path| !path.is_empty())
+                        .ok_or_else(|| {
+                            format!(
+                                "verification descendant changed path outside project root `{repository_path}`"
+                            )
+                        })?
+                        .to_string()
+                };
+                let path = strict_portable_relative_path(&path)?;
+                persisted_ids.insert(supported_verification_persistence_id(&path)?);
+            }
+        }
+    }
+    Ok(persisted_ids)
+}
+
+fn supported_verification_persistence_id(path: &str) -> Result<String, String> {
+    let parts: Vec<&str> = path.split('/').collect();
+    if parts.len() != 4 || parts[0] != ".specsync" || parts[1] != "changes" {
+        return Err(format!(
+            "verification descendant changed disallowed path `{path}`"
+        ));
+    }
+    let id = parts[2];
+    validate_change_id(id)?;
+    if change_sequence(id).is_none() {
+        return Err(format!(
+            "verification descendant uses noncanonical change ID `{id}`"
+        ));
+    }
+    if !matches!(
+        parts[3],
+        "state.json" | "verification.json" | "verification-attempts.json"
+    ) {
+        return Err(format!(
+            "verification descendant changed disallowed path `{path}`"
+        ));
+    }
+    Ok(id.to_string())
+}
+
+fn ensure_verification_persistence_consistent(
+    root: &Path,
+    id: &str,
+    expected: Option<(&ChangeRecord, &VerificationRecord)>,
+    project_digest: &str,
+) -> Result<(), String> {
+    if !change_dir(root, id).is_dir() {
+        return Err(format!(
+            "verification persistence references non-active change `{id}`"
+        ));
+    }
+    let record = load_change(root, id)?;
+    if record.state != ChangeState::Verifying {
+        return Err(format!(
+            "verification persistence for `{id}` has state `{}` instead of `verifying`",
+            record.state.as_str()
+        ));
+    }
+    let verification = load_verification(root, &record)?;
+    if !definition_digest_matches(root, &record, &verification.contract_digest)? {
+        return Err(format!(
+            "verification persistence for `{id}` has a stale contract digest"
+        ));
+    }
+    if project_digest != verification.workspace_digest {
+        return Err(format!(
+            "verification persistence for `{id}` has a stale project-input digest"
+        ));
+    }
+    let history_path = change_dir(root, id).join("verification-attempts.json");
+    let history: VerificationAttemptLedger = serde_json::from_slice(
+        &fs::read(&history_path)
+            .map_err(|error| format!("failed to read {}: {error}", history_path.display()))?,
+    )
+    .map_err(|error| format!("invalid verification attempt history: {error}"))?;
+    if history.schema_version != 1 || history.attempts.last() != Some(&verification) {
+        return Err(format!(
+            "verification persistence for `{id}` does not match its latest attempt"
+        ));
+    }
+    if let Some((expected_record, expected_verification)) = expected
+        && (&record != expected_record || &verification != expected_verification)
+    {
+        return Err(format!(
+            "verification persistence for `{id}` is inconsistent with loaded lifecycle state"
+        ));
+    }
+    Ok(())
 }
 
 fn verification_commit_is_accepted_current(root: &Path, evidence: &VerificationRecord) -> bool {
@@ -5750,6 +11192,7 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
         return false;
     };
     let remote_state = format!("{remote_default}:{repo_state}");
+    let repo_workspace_pathspec = format!(":(top,literal){repo_workspace}");
     let state_exists = Command::new("git")
         .args(["cat-file", "-e", remote_state.as_str()])
         .current_dir(root)
@@ -5762,13 +11205,14 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
                 "--quiet",
                 remote_default.as_str(),
                 "--",
-                repo_workspace.as_str(),
+                repo_workspace_pathspec.as_str(),
             ])
             .current_dir(root)
             .status()
             .is_ok_and(|status| status.success())
 }
 
+#[cfg(test)]
 fn accepted_change_is_recorded_in_current_history(root: &Path, record: &ChangeRecord) -> bool {
     accepted_change_is_recorded_in_ref(root, record, "HEAD")
 }
@@ -5784,7 +11228,7 @@ fn accepted_change_is_recorded_in_ref(root: &Path, record: &ChangeRecord, refere
     let Ok(repo_state) = git_repo_relative_path(root, &state) else {
         return false;
     };
-    let top_state = format!(":(top){repo_state}");
+    let top_state = format!(":(top,literal){repo_state}");
     let history = Command::new("git")
         .args(["log", "--format=%H", reference, "--", top_state.as_str()])
         .current_dir(root)
@@ -5815,6 +11259,7 @@ fn accepted_change_is_recorded_in_ref(root: &Path, record: &ChangeRecord, refere
         })
 }
 
+#[cfg(test)]
 fn accepted_change_has_current_canonical_successors(root: &Path, record: &ChangeRecord) -> bool {
     let Ok(records) = list_changes_checked(root) else {
         return false;
@@ -5826,7 +11271,7 @@ fn accepted_change_has_current_canonical_successors(root: &Path, record: &Change
                 && !candidate.no_spec_change
                 && (candidate.canonical_applied || candidate.state == ChangeState::Accepted)
                 && candidate.created_at >= record.created_at
-                && candidate.id > record.id
+                && change_id_sorts_after(&candidate.id, &record.id)
                 && accepted_change_is_recorded_in_current_history(root, candidate)
         })
         .collect();
@@ -5844,55 +11289,6 @@ fn accepted_change_has_current_canonical_successors(root: &Path, record: &Change
             .any(|candidate| record_covers_project_path(root, candidate, path))
     });
     specs_governed && paths_governed
-}
-
-fn canonical_successor_governs_stale_predecessor(
-    root: &Path,
-    predecessor: &ChangeRecord,
-    records: &[ChangeRecord],
-) -> bool {
-    let current_project_digest = project_input_digest(root).ok();
-    records.iter().any(|candidate| {
-        if candidate.id == predecessor.id
-            || candidate.no_spec_change
-            || change_sequence(&candidate.id) <= change_sequence(&predecessor.id)
-            || !matches!(
-                candidate.state,
-                ChangeState::Implementing | ChangeState::Verifying | ChangeState::Accepted
-            )
-            || validate_definition(root, candidate).is_err()
-            || ensure_definition_approval_valid(root, candidate).is_err()
-            || validate_delta_files(root, candidate).is_err()
-            || !semantic_acceptance_item_exists(root, candidate).unwrap_or(false)
-        {
-            return false;
-        }
-        let scopes_match = predecessor
-            .affected_specs
-            .iter()
-            .all(|module| candidate.affected_specs.contains(module))
-            && predecessor
-                .affected_paths
-                .iter()
-                .all(|path| record_covers_project_path(root, candidate, path));
-        if !scopes_match {
-            return false;
-        }
-        match candidate.state {
-            ChangeState::Implementing => true,
-            ChangeState::Verifying => load_verification(root, candidate).is_ok_and(|evidence| {
-                evidence.passed
-                    && verification_commit_is_current(root, &evidence, is_ci_project(root))
-                    && definition_digest_matches(root, candidate, &evidence.contract_digest)
-                        .unwrap_or(false)
-                    && current_project_digest
-                        .as_ref()
-                        .is_some_and(|digest| digest == &evidence.workspace_digest)
-            }),
-            ChangeState::Accepted => ensure_closing_approval_valid(root, candidate).is_ok(),
-            _ => false,
-        }
-    })
 }
 
 fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
@@ -6037,10 +11433,14 @@ fn git_output_allow_empty(root: &Path, args: &[&str]) -> Option<String> {
 }
 
 fn git_repo_relative_path(root: &Path, project_path: &str) -> Result<String, String> {
+    Ok(format!("{}{project_path}", git_repo_prefix(root)?))
+}
+
+fn git_repo_prefix(root: &Path) -> Result<String, String> {
     let prefix = git_output_allow_empty(root, &["rev-parse", "--show-prefix"])
         .ok_or_else(|| "unable to determine project path within Git repository".to_string())?
         .replace('\\', "/");
-    Ok(format!("{prefix}{project_path}"))
+    Ok(prefix)
 }
 
 fn write_json<Value: Serialize>(path: &Path, value: &Value) -> Result<(), String> {
@@ -6192,7 +11592,13 @@ mod tests {
 
     fn completed_no_spec_record(root: &Path) -> ChangeRecord {
         fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("specs/change")).unwrap();
         fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+        fs::write(
+            root.join("specs/change/change.spec.md"),
+            "---\nmodule: change\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/lib.rs\n---\n\n# Change\n\n## Purpose\n\nLifecycle fixture.\n\n## Public API\n\nNone.\n\n## Invariants\n\nVerification is deterministic.\n\n## Behavioral Examples\n\nChecks pass.\n\n## Error Cases\n\nInvalid evidence fails.\n\n## Dependencies\n\nNone.\n\n## Legacy Notes\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
         let mut record = create_change(
             root,
             CreateChangeRequest {
@@ -6260,6 +11666,2470 @@ mod tests {
         record = start_implementation(root, &record.id).unwrap();
         verify_change(root, &record.id).unwrap();
         accept_change(root, &record.id, Some("Closing reviewer".into()), None).unwrap()
+    }
+
+    #[test]
+    fn successor_evidence_fields_are_byte_compatible_when_absent() {
+        let temp = TempDir::new().unwrap();
+        let record = completed_no_spec_record(temp.path());
+        let mut legacy_record = serde_json::to_value(&record).unwrap();
+        legacy_record.as_object_mut().unwrap().remove("supersedes");
+        legacy_record
+            .as_object_mut()
+            .unwrap()
+            .remove("acceptance_owner_corrections");
+        let decoded: ChangeRecord = serde_json::from_value(legacy_record.clone()).unwrap();
+        assert_eq!(serde_json::to_value(decoded).unwrap(), legacy_record);
+
+        let verification = VerificationRecord {
+            timestamp: 1,
+            commit: None,
+            contract_digest: "contract".into(),
+            workspace_digest: "workspace".into(),
+            acceptance_input_digest: None,
+            acceptance_manifest: None,
+            semantic_succession: None,
+            passed: true,
+            commands: Vec::new(),
+            requirement_ids: Vec::new(),
+        };
+        let mut legacy_verification = serde_json::to_value(&verification).unwrap();
+        let object = legacy_verification.as_object_mut().unwrap();
+        object.remove("acceptance_manifest");
+        object.remove("semantic_succession");
+        let decoded: VerificationRecord =
+            serde_json::from_value(legacy_verification.clone()).unwrap();
+        assert_eq!(serde_json::to_value(decoded).unwrap(), legacy_verification);
+    }
+
+    #[test]
+    fn acceptance_manifest_validation_rejects_topology_and_digest_aliases() {
+        let payload = sha256_hex(b"content");
+        let entry = AcceptanceInputEntryV1 {
+            path: "src/lib.rs".into(),
+            kind: AcceptanceInputKind::File,
+            mode: 0o100644,
+            entry_digest: acceptance_entry_digest(
+                "src/lib.rs",
+                &AcceptanceInputKind::File,
+                0o100644,
+                &payload,
+            ),
+            payload_digest: payload,
+            owners: vec!["change".into()],
+        };
+        let manifest = AcceptanceManifestV1 {
+            schema_version: 1,
+            entries: vec![entry.clone()],
+        };
+        assert!(validate_acceptance_manifest(&manifest).is_ok());
+
+        let mut duplicate = manifest.clone();
+        duplicate.entries.push(entry.clone());
+        assert!(validate_acceptance_manifest(&duplicate).is_err());
+        let mut wrong_mode = manifest.clone();
+        wrong_mode.entries[0].mode = 0o100755;
+        assert!(validate_acceptance_manifest(&wrong_mode).is_err());
+        let mut missing = manifest;
+        missing.entries[0].kind = AcceptanceInputKind::Missing;
+        missing.entries[0].mode = 0;
+        missing.entries[0].entry_digest = acceptance_entry_digest(
+            "src/lib.rs",
+            &AcceptanceInputKind::Missing,
+            0,
+            &missing.entries[0].payload_digest,
+        );
+        assert!(validate_acceptance_manifest(&missing).is_err());
+    }
+
+    #[test]
+    fn portable_symlink_targets_reject_host_specific_or_ambiguous_forms() {
+        for target in [
+            "../shared/file",
+            "shared/file",
+            "./file",
+            "dir/./file",
+            "dir//file",
+            "dir/",
+        ] {
+            assert!(
+                validate_portable_symlink_target(target).is_ok(),
+                "{target:?}"
+            );
+        }
+        for target in [
+            "",
+            "/etc/passwd",
+            "C:/secret",
+            "C:secret",
+            "dir\\file",
+            "\\\\server\\share",
+            "\\\\?\\C:\\secret",
+            "line\nfeed",
+        ] {
+            assert!(
+                validate_portable_symlink_target(target).is_err(),
+                "{target:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn portable_project_paths_reject_host_specific_or_ambiguous_forms() {
+        assert_eq!(
+            strict_portable_relative_path("src/change.rs").unwrap(),
+            "src/change.rs"
+        );
+        for path in [
+            "",
+            "/etc/passwd",
+            "C:/secret",
+            "C:secret",
+            "dir\\file",
+            "\\\\server\\share",
+            "\\\\?\\C:\\secret",
+            "./file",
+            "../file",
+            "dir/../file",
+            "dir//file",
+            "dir/",
+            "line\nfeed",
+        ] {
+            assert!(strict_portable_relative_path(path).is_err(), "{path:?}");
+        }
+    }
+
+    #[test]
+    fn clean_tracked_files_use_canonical_index_bytes_but_dirty_files_do_not() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "true"]);
+        let path = root.join("tracked.txt");
+        fs::write(&path, b"canonical\n").unwrap();
+        git(&["add", "tracked.txt"]);
+        git(&["commit", "-m", "track canonical bytes"]);
+        fs::remove_file(&path).unwrap();
+        git(&["checkout", "HEAD", "--", "tracked.txt"]);
+
+        let candidates = BTreeSet::from(["tracked.txt".to_string()]);
+        let evidence = git_evidence(root, &candidates).unwrap();
+        assert_eq!(
+            evidence.entry("tracked.txt").unwrap().payload,
+            b"canonical\n"
+        );
+
+        fs::write(&path, b"dirty\r\n").unwrap();
+        let evidence = git_evidence(root, &candidates).unwrap();
+        assert_eq!(evidence.entry("tracked.txt").unwrap().payload, b"dirty\r\n");
+    }
+
+    #[test]
+    fn repository_detection_distinguishes_plain_and_broken_git_directories() {
+        let plain = TempDir::new().unwrap();
+        assert!(!git_repository_present(plain.path()).unwrap());
+
+        let broken = TempDir::new().unwrap();
+        fs::write(
+            broken.path().join(".git"),
+            "gitdir: missing-worktree-link\n",
+        )
+        .unwrap();
+        let error = git_repository_present(broken.path()).unwrap_err();
+        assert!(error.contains("Git repository detection failed"), "{error}");
+
+        let corrupt = TempDir::new().unwrap();
+        quiet_git(corrupt.path(), &["init", "-b", "main"]);
+        fs::write(corrupt.path().join(".git/config"), "[broken\n").unwrap();
+        let error = git_repository_present(corrupt.path()).unwrap_err();
+        assert!(error.contains("Git repository detection failed"), "{error}");
+
+        let bare = TempDir::new().unwrap();
+        quiet_git(bare.path(), &["init", "--bare"]);
+        let error = git_repository_present(bare.path()).unwrap_err();
+        assert!(error.contains("not inside a work tree"), "{error}");
+    }
+
+    #[test]
+    fn literal_pathspecs_do_not_expand_metacharacter_or_colon_candidates() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        #[cfg(not(windows))]
+        fs::write(root.join("literal*.txt"), "selected\n").unwrap();
+        fs::write(root.join("literalX.txt"), "unrelated\n").unwrap();
+        #[cfg(not(windows))]
+        fs::write(root.join(":colon"), "colon\n").unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "track literal names"]);
+        #[cfg(not(windows))]
+        fs::write(root.join("literal*.txt"), "dirty selected\n").unwrap();
+        fs::write(root.join("literalX.txt"), "dirty unrelated\n").unwrap();
+
+        let candidates = BTreeSet::from(["literal*.txt".into(), ":colon".into()]);
+        let evidence = git_evidence(root, &candidates).unwrap();
+        #[cfg(not(windows))]
+        assert_eq!(
+            evidence.entry("literal*.txt").unwrap().payload,
+            b"dirty selected\n"
+        );
+        #[cfg(windows)]
+        assert_eq!(
+            evidence.entry("literal*.txt").unwrap().kind,
+            AcceptanceInputKind::Missing
+        );
+        #[cfg(not(windows))]
+        assert_eq!(evidence.entry(":colon").unwrap().payload, b"colon\n");
+        #[cfg(windows)]
+        assert_eq!(
+            evidence.entry(":colon").unwrap().kind,
+            AcceptanceInputKind::Missing
+        );
+        assert!(!evidence.entries.contains_key("literalX.txt"));
+
+        let paths = git_scoped_project_paths(
+            root,
+            &BTreeSet::from(["literal*.txt".into(), ":colon".into()]),
+        )
+        .unwrap()
+        .unwrap();
+        #[cfg(not(windows))]
+        assert_eq!(paths, vec![":colon", "literal*.txt"]);
+        #[cfg(windows)]
+        // Windows cannot materialize either candidate; the dirty literalX.txt
+        // control proves that Git did not expand the `*` candidate as a pathspec.
+        assert!(paths.is_empty());
+    }
+
+    #[test]
+    fn narrow_git_evidence_ignores_a_large_unrelated_index() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        let object = run_git_required(
+            root,
+            &["hash-object", "-w", "--stdin"],
+            Some(b"payload\n".to_vec()),
+            128,
+        )
+        .unwrap();
+        let object = std::str::from_utf8(&object).unwrap().trim();
+        fs::write(root.join("governed.txt"), b"payload\n").unwrap();
+        let mut index = format!("100644 {object}\tgoverned.txt\n");
+        for number in 0..5_000 {
+            index.push_str(&format!("100644 {object}\tunrelated-{number:05}.txt\n"));
+        }
+        run_git_required(
+            root,
+            &["update-index", "--index-info"],
+            Some(index.into_bytes()),
+            128,
+        )
+        .unwrap();
+
+        let evidence = git_evidence(root, &BTreeSet::from(["governed.txt".to_string()])).unwrap();
+        assert_eq!(evidence.entries.len(), 1);
+        assert_eq!(
+            evidence.entry("governed.txt").unwrap().payload,
+            b"payload\n"
+        );
+    }
+
+    #[test]
+    fn bounded_index_fingerprint_rejects_symlink_and_oversized_dependencies() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let target = root.join("target-index");
+        fs::write(&target, b"index").unwrap();
+        let link = root.join("linked-index");
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&target, &link).unwrap();
+            let error = fingerprint_git_index_paths(vec![link]).unwrap_err();
+            assert!(error.contains("not a regular file"), "{error}");
+        }
+        let oversized = root.join("oversized-index");
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&oversized)
+            .unwrap();
+        file.set_len(MAX_GIT_INDEX_BYTES as u64 + 1).unwrap();
+        let error = fingerprint_git_index_paths(vec![oversized]).unwrap_err();
+        assert!(error.contains("exceed"), "{error}");
+
+        let directory = root.join("directory-index");
+        fs::create_dir(&directory).unwrap();
+        let error = fingerprint_git_index_paths(vec![directory]).unwrap_err();
+        assert!(error.contains("not a regular file"), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn correction_ledger_symlink_is_rejected_before_external_payload_parse() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_no_spec_record(root);
+        let external = root.join("external-corrections.json");
+        fs::write(&external, "{\"schema_version\":1,\"corrections\":[]}").unwrap();
+        let ledger = change_dir(root, &record.id).join(CORRECTIONS_FILE);
+        std::os::unix::fs::symlink(&external, &ledger).unwrap();
+        let error = load_correction_ledger(root, &record).unwrap_err();
+        assert!(error.contains("regular file"), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn definition_delta_inventory_rejects_non_utf8_names() {
+        use std::os::unix::ffi::OsStringExt;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_no_spec_record(root);
+        let deltas = change_dir(root, &record.id).join("deltas");
+        fs::create_dir_all(&deltas).unwrap();
+        let created = fs::write(
+            deltas.join(std::ffi::OsString::from_vec(vec![0xff])),
+            "delta",
+        );
+        // Some Unix filesystems (notably the default macOS filesystem) reject
+        // non-UTF-8 names before SpecSync can observe them. In that case the
+        // invariant is already enforced by the platform, so there is no
+        // repository entry available for this regression to exercise.
+        if created.is_err() {
+            return;
+        }
+        created.unwrap();
+        let error = definition_digest(root, &record).unwrap_err();
+        assert!(
+            error.contains("portable UTF-8"),
+            "non-UTF-8 definition artifact names must be rejected"
+        );
+    }
+
+    #[test]
+    fn checkout_autocrlf_resolution_honors_local_global_and_injected_values() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "core.autocrlf", "input"]);
+
+        let isolated_command = || {
+            let mut command = rooted_git_command(root);
+            command.env_remove("GIT_CONFIG_COUNT");
+            for index in 0..8 {
+                command.env_remove(format!("GIT_CONFIG_KEY_{index}"));
+                command.env_remove(format!("GIT_CONFIG_VALUE_{index}"));
+            }
+            command
+        };
+        let mut local = isolated_command();
+        assert_eq!(
+            checkout_autocrlf_from_command(&mut local).unwrap(),
+            Some("input".into())
+        );
+
+        quiet_git(root, &["config", "--unset", "core.autocrlf"]);
+        let global_path = root.join("controlled-global-config");
+        fs::write(&global_path, "[core]\n\tautocrlf = yes\n").unwrap();
+        let mut global = isolated_command();
+        global.env("GIT_CONFIG_NOSYSTEM", "1");
+        global.env("GIT_CONFIG_GLOBAL", &global_path);
+        assert_eq!(
+            checkout_autocrlf_from_command(&mut global).unwrap(),
+            Some("true".into())
+        );
+
+        let mut injected = isolated_command();
+        injected.env("GIT_CONFIG_NOSYSTEM", "1");
+        injected.env(
+            "GIT_CONFIG_GLOBAL",
+            if cfg!(windows) { "NUL" } else { "/dev/null" },
+        );
+        injected.env("GIT_CONFIG_COUNT", "1");
+        injected.env("GIT_CONFIG_KEY_0", "core.autocrlf");
+        injected.env("GIT_CONFIG_VALUE_0", "off");
+        assert_eq!(
+            checkout_autocrlf_from_command(&mut injected).unwrap(),
+            Some("false".into())
+        );
+    }
+
+    #[test]
+    fn checkout_override_allowlist_normalizes_all_supported_settings() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "core.autocrlf", "YES"]);
+        quiet_git(root, &["config", "core.eol", "CRLF"]);
+        quiet_git(root, &["config", "core.symlinks", "off"]);
+        quiet_git(root, &["config", "core.filemode", "1"]);
+        assert_eq!(
+            effective_checkout_overrides(root).unwrap(),
+            vec![
+                "core.autocrlf=true",
+                "core.eol=crlf",
+                "core.symlinks=false",
+                "core.filemode=true",
+            ]
+        );
+    }
+
+    #[test]
+    fn clean_materialized_symlink_uses_canonical_git_target() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        assert!(
+            Command::new("git")
+                .args(["init", "-b", "main"])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let blob_source = root.join("blob-source");
+        fs::write(&blob_source, b"../shared/tool").unwrap();
+        let output = Command::new("git")
+            .args(["hash-object", "-w", "blob-source"])
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let object = String::from_utf8(output.stdout).unwrap().trim().to_string();
+        let materialized = root.join("link");
+        fs::write(&materialized, b"host-working-copy-bytes").unwrap();
+        let worktree = GitWorktreeState {
+            modified: BTreeSet::new(),
+            sparse_absent: BTreeSet::new(),
+        };
+        assert_eq!(
+            capture_git_candidate(root, "link", Some(0o120000), Some(&object), &worktree, None,)
+                .unwrap()
+                .payload,
+            b"../shared/tool"
+        );
+    }
+
+    #[test]
+    fn portable_symlink_payload_preserves_valid_relative_target_bytes() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        assert!(
+            Command::new("git")
+                .args(["init", "-b", "main"])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let blob_source = root.join("blob-source");
+        let materialized = root.join("link");
+        let worktree = GitWorktreeState {
+            modified: BTreeSet::new(),
+            sparse_absent: BTreeSet::new(),
+        };
+        for target in [
+            "./file",
+            "dir/./file",
+            "dir//file",
+            "dir/",
+            "../shared/file",
+        ] {
+            fs::write(&blob_source, target.as_bytes()).unwrap();
+            let output = Command::new("git")
+                .args(["hash-object", "-w", "blob-source"])
+                .current_dir(root)
+                .output()
+                .unwrap();
+            assert!(output.status.success());
+            let object = String::from_utf8(output.stdout).unwrap().trim().to_string();
+            fs::write(&materialized, b"host-working-copy-bytes").unwrap();
+            assert_eq!(
+                capture_git_candidate(
+                    root,
+                    "link",
+                    Some(0o120000),
+                    Some(&object),
+                    &worktree,
+                    None,
+                )
+                    .unwrap(),
+                GitCapturedEntry {
+                    kind: AcceptanceInputKind::Symlink,
+                    mode: 0o120000,
+                    object: Some(object),
+                    payload: target.as_bytes().to_vec(),
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn deleted_tracked_symlink_is_missing_across_all_digest_surfaces() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git {} failed",
+                args.join(" ")
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let blob_source = root.join("symlink-target");
+        fs::write(&blob_source, b"../shared/tool").unwrap();
+        let output = Command::new("git")
+            .args(["hash-object", "-w", "symlink-target"])
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let object = String::from_utf8(output.stdout).unwrap().trim().to_string();
+        fs::remove_file(blob_source).unwrap();
+        git(&["add", POLICY_PATH]);
+        let cache_info = format!("120000,{object},tracked-link");
+        git(&["update-index", "--add", "--cacheinfo", &cache_info]);
+        git(&["commit", "-m", "track symlink"]);
+
+        let modified = git_worktree_state(root).unwrap().unwrap().modified;
+        assert!(modified.contains("tracked-link"));
+        assert!(project_input_digest(root).is_ok());
+
+        let mut record = completed_no_spec_record(root);
+        record.affected_specs.clear();
+        record.affected_paths = vec!["tracked-link".into()];
+        record.state = ChangeState::Implementing;
+        let manifest = acceptance_manifest(root, &record, &[]).unwrap();
+        assert_eq!(manifest.entries.len(), 1);
+        let entry = &manifest.entries[0];
+        assert_eq!(entry.path, "tracked-link");
+        assert_eq!(entry.kind, AcceptanceInputKind::Missing);
+        assert_eq!(entry.mode, 0);
+        assert_eq!(entry.payload_digest, sha256_hex(b""));
+
+        let mut expected = FramedDigest::new(ACCEPTANCE_DIGEST_DOMAIN);
+        expected.entry("tracked-link", b"missing", 0, b"");
+        assert_eq!(
+            acceptance_input_digest(root, &record, &[]).unwrap(),
+            expected.finish()
+        );
+    }
+
+    #[test]
+    fn modified_tracked_symlink_uses_current_file_topology() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git {} failed",
+                args.join(" ")
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let blob_source = root.join("symlink-target");
+        fs::write(&blob_source, b"../shared/tool").unwrap();
+        let output = Command::new("git")
+            .args(["hash-object", "-w", "symlink-target"])
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let object = String::from_utf8(output.stdout).unwrap().trim().to_string();
+        fs::remove_file(blob_source).unwrap();
+        git(&["add", POLICY_PATH]);
+        let cache_info = format!("120000,{object},tracked-link");
+        git(&["update-index", "--add", "--cacheinfo", &cache_info]);
+        git(&["commit", "-m", "track symlink"]);
+        fs::write(root.join("tracked-link"), b"regular replacement\n").unwrap();
+
+        let state = git_worktree_state(root).unwrap().unwrap();
+        assert!(state.modified.contains("tracked-link"));
+        assert!(project_input_digest(root).is_ok());
+        let mut record = completed_no_spec_record(root);
+        record.affected_specs.clear();
+        record.affected_paths = vec!["tracked-link".into()];
+        record.state = ChangeState::Implementing;
+        let manifest = acceptance_manifest(root, &record, &[]).unwrap();
+        assert_eq!(manifest.entries.len(), 1);
+        let entry = &manifest.entries[0];
+        assert_eq!(entry.kind, AcceptanceInputKind::File);
+        assert_eq!(entry.mode, 0o100644);
+        assert_eq!(entry.payload_digest, sha256_hex(b"regular replacement\n"));
+
+        let mut expected = FramedDigest::new(ACCEPTANCE_DIGEST_DOMAIN);
+        expected.entry("tracked-link", b"file", 0o100644, b"regular replacement\n");
+        assert_eq!(
+            acceptance_input_digest(root, &record, &[]).unwrap(),
+            expected.finish()
+        );
+    }
+
+    #[test]
+    fn hidden_and_ambiguous_git_index_states_fail_closed() {
+        let assume = TempDir::new().unwrap();
+        let root = assume.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("tracked.txt"), "base\n").unwrap();
+        quiet_git(root, &["add", "tracked.txt"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+        quiet_git(root, &["update-index", "--assume-unchanged", "tracked.txt"]);
+        fs::write(root.join("tracked.txt"), "hidden edit\n").unwrap();
+        let error = project_input_digest(root).unwrap_err();
+        assert!(error.contains("assume-unchanged"), "{error}");
+
+        let unmerged = TempDir::new().unwrap();
+        let root = unmerged.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("tracked.txt"), "base\n").unwrap();
+        quiet_git(root, &["add", "tracked.txt"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+        quiet_git(root, &["switch", "-c", "other"]);
+        fs::write(root.join("tracked.txt"), "other\n").unwrap();
+        quiet_git(root, &["commit", "-am", "other"]);
+        quiet_git(root, &["switch", "main"]);
+        fs::write(root.join("tracked.txt"), "main\n").unwrap();
+        quiet_git(root, &["commit", "-am", "main"]);
+        let status = Command::new("git")
+            .args(["merge", "other"])
+            .current_dir(root)
+            .status()
+            .unwrap();
+        assert!(!status.success());
+        let error = project_input_digest(root).unwrap_err();
+        assert!(error.contains("unresolved Git index stages"), "{error}");
+    }
+
+    #[test]
+    fn sparse_absent_files_use_index_bytes_but_materialized_paths_fail_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::write(root.join("sparse.txt"), b"canonical sparse\n").unwrap();
+        quiet_git(root, &["add", POLICY_PATH, "sparse.txt"]);
+        quiet_git(root, &["commit", "-m", "track sparse file"]);
+        quiet_git(root, &["update-index", "--skip-worktree", "sparse.txt"]);
+        fs::remove_file(root.join("sparse.txt")).unwrap();
+
+        let state = git_worktree_state(root).unwrap().unwrap();
+        assert!(state.sparse_absent.contains("sparse.txt"));
+        assert!(project_input_digest(root).is_ok());
+        let mut record = completed_no_spec_record(root);
+        record.affected_specs.clear();
+        record.affected_paths = vec!["sparse.txt".into()];
+        record.state = ChangeState::Implementing;
+        let manifest = acceptance_manifest(root, &record, &[]).unwrap();
+        assert_eq!(manifest.entries.len(), 1);
+        assert_eq!(manifest.entries[0].kind, AcceptanceInputKind::File);
+        assert_eq!(
+            manifest.entries[0].payload_digest,
+            sha256_hex(b"canonical sparse\n")
+        );
+        let mut expected = FramedDigest::new(ACCEPTANCE_DIGEST_DOMAIN);
+        expected.entry("sparse.txt", b"file", 0o100644, b"canonical sparse\n");
+        assert_eq!(
+            acceptance_input_digest(root, &record, &[]).unwrap(),
+            expected.finish()
+        );
+
+        fs::write(root.join("sparse.txt"), b"materialized\n").unwrap();
+        let error = project_input_digest(root).unwrap_err();
+        assert!(error.contains("materialized skip-worktree"), "{error}");
+    }
+
+    #[test]
+    fn custom_content_attributes_fail_before_index_substitution() {
+        for (attribute, expected) in [
+            ("filter=demo", "filter"),
+            ("working-tree-encoding=UTF-8", "working-tree-encoding"),
+        ] {
+            let temp = TempDir::new().unwrap();
+            let root = temp.path();
+            quiet_git(root, &["init", "-b", "main"]);
+            quiet_git(root, &["config", "user.email", "test@example.com"]);
+            quiet_git(root, &["config", "user.name", "Test"]);
+            fs::write(root.join(".gitattributes"), format!("odd* {attribute}\n")).unwrap();
+            fs::write(root.join("odd name-ß.txt"), "content\n").unwrap();
+            quiet_git(root, &["add", ".gitattributes", "odd name-ß.txt"]);
+            quiet_git(root, &["commit", "-m", "track attributed path"]);
+            let error = project_input_digest(root).unwrap_err();
+            assert!(error.contains(expected), "{error}");
+        }
+    }
+
+    #[test]
+    fn attribute_output_requires_the_exact_requested_cartesian_set() {
+        let paths = vec!["tracked.txt".to_string()];
+        let refs = paths.iter().collect::<Vec<_>>();
+        let valid = b"tracked.txt\0filter\0unspecified\0tracked.txt\0working-tree-encoding\0unset\0tracked.txt\0ident\0unspecified\0";
+        validate_git_attribute_output(&refs, valid).unwrap();
+
+        for invalid in [
+            &valid[..valid.len() - 1],
+            b"tracked.txt\0filter\0unspecified\0tracked.txt\0ident\0unspecified\0".as_slice(),
+            b"other.txt\0filter\0unspecified\0tracked.txt\0working-tree-encoding\0unset\0tracked.txt\0ident\0unspecified\0".as_slice(),
+            b"tracked.txt\0filter\0unspecified\0tracked.txt\0filter\0unset\0tracked.txt\0ident\0unspecified\0".as_slice(),
+            b"tracked.txt\0unknown\0unspecified\0tracked.txt\0working-tree-encoding\0unset\0tracked.txt\0ident\0unspecified\0".as_slice(),
+            b"tracked.txt\0filter\0unspecified\0\0working-tree-encoding\0unset\0tracked.txt\0ident\0unspecified\0".as_slice(),
+        ] {
+            assert!(validate_git_attribute_output(&refs, invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn large_attribute_inventory_completes_and_rejects_late_path() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        fs::write(root.join(".gitattributes"), "late-* filter=demo\n").unwrap();
+        let mut paths = (0..4_000)
+            .map(|index| format!("ordinary-{index:05}-{}.txt", "x".repeat(48)))
+            .collect::<BTreeSet<_>>();
+        paths.insert("late-attributed-path.txt".into());
+        let error = validate_canonical_git_attributes(root, &paths).unwrap_err();
+        assert!(
+            error.contains("filter") && error.contains("late-attributed-path"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn excluded_attributes_and_flags_do_not_block_definition_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let record = completed_no_spec_record(root);
+        fs::write(root.join(".gitattributes"), "unrelated.txt filter=demo\n").unwrap();
+        fs::write(root.join("unrelated.txt"), "unrelated\n").unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(
+            root,
+            &["commit", "-m", "track definition and unrelated input"],
+        );
+        quiet_git(
+            root,
+            &["update-index", "--assume-unchanged", "unrelated.txt"],
+        );
+        assert!(definition_digest(root, &record).is_ok());
+    }
+
+    #[test]
+    fn scoped_acceptance_discovery_ignores_unrelated_transform_and_visibility_flags() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let mut record = completed_no_spec_record(root);
+        record.affected_specs.clear();
+        record.affected_paths = vec!["governed.txt".into()];
+        record.state = ChangeState::Implementing;
+        fs::write(root.join("governed.txt"), "governed\n").unwrap();
+        fs::write(root.join("unrelated.txt"), "unrelated\n").unwrap();
+        fs::write(root.join(".gitattributes"), "unrelated.txt filter=demo\n").unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "track scoped evidence"]);
+        quiet_git(
+            root,
+            &["update-index", "--assume-unchanged", "unrelated.txt"],
+        );
+        let manifest = acceptance_manifest(root, &record, &[]).unwrap();
+        assert_eq!(manifest.entries.len(), 1);
+        assert_eq!(manifest.entries[0].path, "governed.txt");
+
+        fs::write(root.join(".gitattributes"), "governed.txt filter=demo\n").unwrap();
+        let error = acceptance_manifest(root, &record, &[]).unwrap_err();
+        assert!(error.contains("filter"), "{error}");
+    }
+
+    #[test]
+    fn fsmonitor_valid_and_ident_conversion_fail_closed() {
+        let monitored = TempDir::new().unwrap();
+        let root = monitored.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("tracked.txt"), "base\n").unwrap();
+        quiet_git(root, &["add", "tracked.txt"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+        quiet_git(root, &["config", "core.fsmonitor", "true"]);
+        quiet_git(root, &["update-index", "--fsmonitor-valid", "tracked.txt"]);
+        let error = project_input_digest(root).unwrap_err();
+        assert!(error.contains("fsmonitor"), "{error}");
+
+        let identified = TempDir::new().unwrap();
+        let root = identified.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join(".gitattributes"), "tracked.txt ident\n").unwrap();
+        fs::write(root.join("tracked.txt"), "$Id$\n").unwrap();
+        quiet_git(root, &["add", ".gitattributes", "tracked.txt"]);
+        quiet_git(root, &["commit", "-m", "track ident input"]);
+        fs::remove_file(root.join("tracked.txt")).unwrap();
+        quiet_git(root, &["checkout", "HEAD", "--", "tracked.txt"]);
+        assert!(
+            fs::read_to_string(root.join("tracked.txt"))
+                .unwrap()
+                .contains("$Id:")
+        );
+        let error = project_input_digest(root).unwrap_err();
+        assert!(error.contains("ident"), "{error}");
+    }
+
+    #[test]
+    fn index_generation_mutation_retries_then_fails_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("tracked.txt"), "base\n").unwrap();
+        quiet_git(root, &["add", "tracked.txt"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+        let candidates = BTreeSet::from(["tracked.txt".to_string()]);
+        let error = git_evidence_with_hook(root, &candidates, |attempt, root| {
+            let path = format!("mutation-{attempt}.txt");
+            fs::write(root.join(&path), format!("{attempt}\n")).unwrap();
+            quiet_git(root, &["add", &path]);
+        })
+        .unwrap_err();
+        assert!(error.contains("index changed"), "{error}");
+    }
+
+    #[test]
+    fn candidate_worktree_mutation_retries_then_fails_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("tracked.txt"), "base\n").unwrap();
+        quiet_git(root, &["add", "tracked.txt"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+        let candidates = BTreeSet::from(["tracked.txt".to_string()]);
+        let error = git_evidence_with_hook(root, &candidates, |attempt, root| {
+            fs::write(root.join("tracked.txt"), format!("mutation-{attempt}\n")).unwrap();
+        })
+        .unwrap_err();
+        assert!(error.contains("candidate state changed"), "{error}");
+    }
+
+    #[test]
+    fn discovered_git_inventory_mutation_retries_then_fails_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        fs::write(root.join("tracked.txt"), "tracked\n").unwrap();
+        quiet_git(root, &["add", "tracked.txt"]);
+        let error = stable_discovered_evidence_with_hook(
+            root,
+            None,
+            &BTreeSet::new(),
+            false,
+            |attempt, root| {
+                let path = format!("appeared-{attempt}.txt");
+                fs::write(root.join(&path), "new\n").unwrap();
+                if attempt == 1 {
+                    quiet_git(root, &["add", &path]);
+                }
+            },
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("inventory") || error.contains("evidence"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn discovered_non_git_inventory_mutation_retries_then_fails_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::write(root.join("existing.txt"), "existing\n").unwrap();
+        let error = stable_discovered_evidence_with_hook(
+            root,
+            None,
+            &BTreeSet::new(),
+            false,
+            |attempt, root| {
+                fs::write(root.join(format!("appeared-{attempt}.txt")), "new\n").unwrap();
+            },
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("inventory") || error.contains("evidence"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn repository_worktree_link_mutation_fails_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        fs::write(root.join("tracked.txt"), "tracked\n").unwrap();
+        quiet_git(root, &["add", "tracked.txt"]);
+        let error = stable_discovered_evidence_with_hook(
+            root,
+            None,
+            &BTreeSet::new(),
+            false,
+            |_attempt, root| {
+                if !root.join(".git-original").exists() {
+                    fs::rename(root.join(".git"), root.join(".git-original")).unwrap();
+                    fs::write(root.join(".git"), "gitdir: missing-link\n").unwrap();
+                }
+            },
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("repository") || error.contains("Git"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn unrelated_unmerged_stage_does_not_block_scoped_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("governed.txt"), "governed\n").unwrap();
+        fs::write(root.join("conflict.txt"), "base\n").unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "base"]);
+        quiet_git(root, &["switch", "-c", "other"]);
+        fs::write(root.join("conflict.txt"), "other\n").unwrap();
+        quiet_git(root, &["commit", "-am", "other"]);
+        quiet_git(root, &["switch", "main"]);
+        fs::write(root.join("conflict.txt"), "main\n").unwrap();
+        quiet_git(root, &["commit", "-am", "main"]);
+        assert!(
+            !Command::new("git")
+                .args(["merge", "other"])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let governed = BTreeSet::from(["governed.txt".to_string()]);
+        assert!(git_evidence(root, &governed).is_ok());
+        let conflict = BTreeSet::from(["conflict.txt".to_string()]);
+        let error = git_evidence(root, &conflict).unwrap_err();
+        assert!(error.contains("unresolved Git index stages"), "{error}");
+    }
+
+    #[test]
+    fn every_false_fsmonitor_spelling_is_inactive() {
+        for value in ["false", "FALSE", "no", "No", "off", "OFF", "0"] {
+            let temp = TempDir::new().unwrap();
+            let root = temp.path();
+            quiet_git(root, &["init", "-b", "main"]);
+            quiet_git(root, &["config", "user.email", "test@example.com"]);
+            quiet_git(root, &["config", "user.name", "Test"]);
+            fs::write(root.join("tracked.txt"), "base\n").unwrap();
+            quiet_git(root, &["add", "tracked.txt"]);
+            quiet_git(root, &["commit", "-m", "base"]);
+            quiet_git(root, &["config", "core.fsmonitor", value]);
+            let candidates = BTreeSet::from(["tracked.txt".to_string()]);
+            assert!(git_evidence(root, &candidates).is_ok(), "{value}");
+        }
+    }
+
+    #[test]
+    fn split_index_fingerprint_uses_only_the_effective_dependency() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        fs::write(root.join("tracked.txt"), "base\n").unwrap();
+        quiet_git(root, &["add", "tracked.txt"]);
+        quiet_git(root, &["update-index", "--split-index"]);
+        let before = git_index_fingerprint(root).unwrap();
+        let git_dir = root.join(".git");
+        fs::write(git_dir.join("sharedindex.unrelated"), b"not an index").unwrap();
+        assert_eq!(git_index_fingerprint(root).unwrap(), before);
+        fs::write(root.join("tracked.txt"), "next\n").unwrap();
+        quiet_git(root, &["add", "tracked.txt"]);
+        assert_ne!(git_index_fingerprint(root).unwrap(), before);
+    }
+
+    #[test]
+    fn alternate_index_path_mutation_changes_the_bounded_fingerprint() {
+        let temp = TempDir::new().unwrap();
+        let alternate = temp.path().join("alternate.index");
+        let shared = temp.path().join("shared.index");
+        fs::write(&alternate, b"DIRC alternate generation one").unwrap();
+        fs::write(&shared, b"shared generation").unwrap();
+        let paths = vec![alternate.clone(), shared.clone()];
+        let before = fingerprint_git_index_paths(paths.clone()).unwrap();
+        fs::write(&alternate, b"DIRC alternate generation two").unwrap();
+        let after = fingerprint_git_index_paths(paths).unwrap();
+        assert_ne!(before, after);
+    }
+
+    #[test]
+    fn post_detection_git_failure_is_fatal_with_bounded_diagnostics() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        assert!(git_repository_present(root).unwrap());
+        let error = run_git_required(
+            root,
+            &["ls-files", "--definitely-invalid-specsync-option"],
+            None,
+            1024,
+        )
+        .unwrap_err();
+        assert!(error.contains("failed"), "{error}");
+        assert!(error.len() <= MAX_GIT_DIAGNOSTIC_BYTES + 1024);
+    }
+
+    #[test]
+    fn first_baseline_authority_binding_requires_the_ledger() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        record.affected_paths = vec![LEGACY_BASELINE_PATH.to_string()];
+        let error = bind_legacy_archive_baseline_authority(root, &mut record).unwrap_err();
+        assert!(error.contains("cannot bind a missing ledger"), "{error}");
+        assert!(record.legacy_archive_baseline_digest.is_none());
+    }
+
+    // Verifies REQ-change-014.
+    #[test]
+    fn baseline_authority_manifest_signs_exact_volatile_ledger_path() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        record.state = ChangeState::Implementing;
+        record.affected_paths.push(LEGACY_BASELINE_PATH.to_string());
+        fs::create_dir_all(root.join(".specsync/archive")).unwrap();
+        fs::write(root.join(LEGACY_BASELINE_PATH), b"{\"schema_version\":1}\n").unwrap();
+        fs::write(root.join(".specsync/archive/unrelated.txt"), b"ignored\n").unwrap();
+
+        let manifest = acceptance_manifest(root, &record, &[]).unwrap();
+        let ledger = manifest
+            .entries
+            .iter()
+            .find(|entry| entry.path == LEGACY_BASELINE_PATH)
+            .expect("the protected baseline ledger must be signed");
+        assert_eq!(ledger.owners, vec![EXACT_DELIVERY_OWNER]);
+        assert!(
+            manifest
+                .entries
+                .iter()
+                .all(|entry| entry.path != ".specsync/archive/unrelated.txt")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn clean_executable_definition_artifact_is_regular_evidence() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_no_spec_record(root);
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let context = change_dir(root, &record.id).join("context.md");
+        let mut permissions = fs::metadata(&context).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&context, permissions).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(
+            root,
+            &["commit", "-m", "track executable definition artifact"],
+        );
+        assert!(definition_digest(root, &record).is_ok());
+    }
+
+    #[test]
+    fn capped_git_runner_drains_kills_and_reaps_large_output() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        let payload = vec![b'x'; 2 * 1024 * 1024];
+        let object =
+            run_git_required(root, &["hash-object", "-w", "--stdin"], Some(payload), 256).unwrap();
+        let object = std::str::from_utf8(&object).unwrap().trim();
+        let error = run_git_bounded(root, &["cat-file", "blob", object], None, 1024).unwrap_err();
+        assert!(
+            error.contains("output exceeds deterministic bounds"),
+            "{error}"
+        );
+        assert!(run_git_required(root, &["rev-parse", "--git-dir"], None, 1024).is_ok());
+    }
+
+    #[test]
+    fn batched_git_blob_reads_preserve_binary_payloads_and_order() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        let payloads = [
+            b"first\nline\0tail".to_vec(),
+            Vec::new(),
+            b"third\r\nline\n".to_vec(),
+        ];
+        let objects: Vec<_> = payloads
+            .iter()
+            .map(|payload| {
+                run_git_required(
+                    root,
+                    &["hash-object", "-w", "--stdin"],
+                    Some(payload.clone()),
+                    128,
+                )
+                .unwrap()
+            })
+            .map(|object| String::from_utf8(object).unwrap().trim().to_string())
+            .collect();
+        let object_refs: Vec<_> = objects.iter().map(String::as_str).collect();
+
+        assert_eq!(git_blob_bytes_batch(root, &object_refs).unwrap(), payloads);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_git_runner_times_out_a_silent_process() {
+        let mut command = Command::new("sh");
+        let started = Instant::now();
+        let error = run_git_command_bounded_with_deadline(
+            &mut command,
+            &["-c", "exec sleep 30"],
+            None,
+            1024,
+            Duration::from_millis(30),
+        )
+        .unwrap_err();
+        assert!(error.contains("wall-clock deadline"), "{error}");
+        assert!(started.elapsed() < Duration::from_secs(3));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn timed_out_git_runner_reaps_child_and_joins_blocked_writer() {
+        let temp = TempDir::new().unwrap();
+        let pid_path = temp.path().join("child.pid");
+        let mut command = Command::new("sh");
+        command.env("SPECSYNC_TEST_PID_PATH", &pid_path);
+        let error = run_git_command_bounded_with_deadline(
+            &mut command,
+            &["-c", "echo $$ > \"$SPECSYNC_TEST_PID_PATH\"; exec sleep 30"],
+            Some(vec![b'x'; 4 * 1024 * 1024]),
+            1024,
+            Duration::from_millis(50),
+        )
+        .unwrap_err();
+        assert!(error.contains("wall-clock deadline"), "{error}");
+
+        let pid = fs::read_to_string(&pid_path).unwrap();
+        let status = Command::new("kill")
+            .args(["-0", pid.trim()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .unwrap();
+        assert!(!status.success(), "timed-out child {pid} was not reaped");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_git_walk_skips_volatile_trees_but_fails_on_relevant_walk_errors() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("target/hidden")).unwrap();
+        fs::write(root.join("target/hidden/file"), b"ignored").unwrap();
+        fs::set_permissions(
+            root.join("target/hidden"),
+            fs::Permissions::from_mode(0o000),
+        )
+        .unwrap();
+        assert!(strict_walk_project_paths(root).is_ok());
+        fs::set_permissions(
+            root.join("target/hidden"),
+            fs::Permissions::from_mode(0o700),
+        )
+        .unwrap();
+
+        fs::create_dir_all(root.join("relevant/hidden")).unwrap();
+        fs::write(root.join("relevant/hidden/file"), b"governed").unwrap();
+        fs::set_permissions(
+            root.join("relevant/hidden"),
+            fs::Permissions::from_mode(0o000),
+        )
+        .unwrap();
+        let result = strict_walk_project_paths(root);
+        fs::set_permissions(
+            root.join("relevant/hidden"),
+            fs::Permissions::from_mode(0o700),
+        )
+        .unwrap();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn oversized_git_evidence_inventory_fails_before_subprocess_work() {
+        let candidates = (0..=MAX_GIT_EVIDENCE_PATHS)
+            .map(|index| format!("path-{index}"))
+            .collect();
+        let error = git_evidence(Path::new("."), &candidates).unwrap_err();
+        assert!(error.contains("inventory exceeds"), "{error}");
+    }
+
+    #[test]
+    fn sparse_archive_entries_and_dirty_symlink_topology_are_preserved() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let archive = ".specsync/archive/changes/2026-07-15-CHG-0001-sparse";
+        fs::create_dir_all(root.join(archive)).unwrap();
+        fs::write(root.join(archive).join("sparse.txt"), "canonical sparse\n").unwrap();
+        let target = root.join("target");
+        fs::write(&target, "../shared/tool").unwrap();
+        let output = Command::new("git")
+            .args(["hash-object", "-w", "target"])
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let object = String::from_utf8(output.stdout).unwrap().trim().to_string();
+        fs::remove_file(target).unwrap();
+        quiet_git(root, &["add", &format!("{archive}/sparse.txt")]);
+        let cache_info = format!("120000,{object},{archive}/link");
+        quiet_git(root, &["update-index", "--add", "--cacheinfo", &cache_info]);
+        quiet_git(root, &["commit", "-m", "track archive topology"]);
+        quiet_git(
+            root,
+            &[
+                "update-index",
+                "--skip-worktree",
+                &format!("{archive}/sparse.txt"),
+            ],
+        );
+        fs::remove_file(root.join(archive).join("sparse.txt")).unwrap();
+        fs::write(root.join(archive).join("link"), "regular replacement\n").unwrap();
+
+        let snapshot = archive_workspace_snapshot(root, &root.join(archive), archive).unwrap();
+        assert_eq!(snapshot.get("sparse.txt").unwrap().1, b"canonical sparse\n");
+        assert_eq!(snapshot.get("link").unwrap().0, 0o100644);
+        assert_eq!(snapshot.get("link").unwrap().1, b"regular replacement\n");
+    }
+
+    #[test]
+    fn shared_archive_evidence_is_partitioned_by_exact_baseline_subtree() {
+        let first = ".specsync/archive/changes/2026-07-15-CHG-0001-first/state.json";
+        let second = ".specsync/archive/changes/2026-07-15-CHG-0002-second/state.json";
+        let evidence = GitEvidence {
+            modes: BTreeMap::new(),
+            entries: BTreeMap::from([
+                (
+                    first.to_string(),
+                    GitCapturedEntry {
+                        kind: AcceptanceInputKind::File,
+                        mode: 0o100644,
+                        object: None,
+                        payload: b"first".to_vec(),
+                    },
+                ),
+                (
+                    second.to_string(),
+                    GitCapturedEntry {
+                        kind: AcceptanceInputKind::File,
+                        mode: 0o100755,
+                        object: None,
+                        payload: b"second".to_vec(),
+                    },
+                ),
+            ]),
+        };
+        let paths = vec![first.to_string(), second.to_string()];
+
+        let snapshot = archive_snapshot_from_evidence(
+            &paths,
+            &evidence,
+            ".specsync/archive/changes/2026-07-15-CHG-0001-first",
+        )
+        .unwrap();
+
+        assert_eq!(snapshot.len(), 1);
+        assert_eq!(snapshot["state.json"], (0o100644, b"first".to_vec()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn definition_artifact_symlinks_fail_before_referent_reads() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_no_spec_record(root);
+        let context = change_dir(root, &record.id).join("context.md");
+        let external = temp.path().join("external-large.md");
+        fs::write(
+            &external,
+            vec![b'x'; MAX_CHANGE_ARTIFACT_BYTES as usize + 1],
+        )
+        .unwrap();
+        fs::remove_file(&context).unwrap();
+        symlink(&external, &context).unwrap();
+        let error = definition_digest(root, &record).unwrap_err();
+        assert!(
+            error.contains("not a regular file"),
+            "symlinked definition artifacts must be rejected"
+        );
+
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "track symlinked definition"]);
+        let error = definition_digest(root, &record).unwrap_err();
+        assert!(
+            error.contains("not a regular file"),
+            "tracked symlinked definition artifacts must be rejected"
+        );
+        fs::remove_file(&context).unwrap();
+        symlink("another-external-target", &context).unwrap();
+        let error = definition_digest(root, &record).unwrap_err();
+        assert!(
+            error.contains("not a regular file"),
+            "retargeted definition artifact symlinks must be rejected"
+        );
+    }
+
+    #[test]
+    fn attribute_subprocess_failure_is_reaped_and_reported() {
+        let temp = TempDir::new().unwrap();
+        let paths = BTreeSet::from(["tracked.txt".to_string()]);
+        let error = validate_canonical_git_attributes(temp.path(), &paths).unwrap_err();
+        assert!(
+            error.contains("failed to inspect Git content attributes"),
+            "{error}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn conversion_attributes_do_not_block_canonical_symlink_payloads() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join(".gitattributes"), "link filter=demo ident\n").unwrap();
+        fs::write(root.join("target"), "target\n").unwrap();
+        symlink("target", root.join("link")).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "track attributed symlink"]);
+        assert!(project_input_digest(root).is_ok());
+    }
+
+    #[test]
+    fn missing_bound_baseline_cannot_retain_stale_definition_digest() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        record.legacy_archive_baseline_digest = Some("a".repeat(64));
+        let error = bind_legacy_archive_baseline_authority(root, &mut record).unwrap_err();
+        assert!(
+            error.contains("stale binding cannot be retained"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn root_source_files_are_not_misclassified_as_delivery_metadata() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::write(root.join("main.py"), "print('ok')\n").unwrap();
+        fs::write(root.join("main.go"), "package main\n").unwrap();
+        assert!(path_is_production_source(root, "main.py"));
+        assert!(path_is_production_source(root, "main.go"));
+        assert!(!path_is_recognized_delivery_metadata("main.py"));
+        assert!(!path_is_recognized_delivery_metadata("main.go"));
+        for path in [
+            "pyproject.toml",
+            "go.mod",
+            "package.json",
+            "pnpm-lock.yaml",
+            "action.yml",
+        ] {
+            assert!(path_is_recognized_delivery_metadata(path), "{path}");
+        }
+    }
+
+    #[test]
+    fn invalid_supersedes_mutation_is_transactional() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let predecessor = completed_section_only_record(
+            root,
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nPredecessor.\n",
+        );
+        let successor = create_change(
+            root,
+            CreateChangeRequest {
+                description: "Successor".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["auth".into()],
+                affected_paths: vec!["src/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: false,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        let state_path = change_dir(root, &successor.id).join("state.json");
+        let markdown_path = change_dir(root, &successor.id).join("change.md");
+        let before_state = fs::read(&state_path).unwrap();
+        let before_markdown = fs::read(&markdown_path).unwrap();
+        let oversized = format!("src/{}.rs", "x".repeat(MAX_ACCEPTANCE_PATH_BYTES + 1));
+        assert!(
+            add_supersedes_obligation(
+                root,
+                &successor.id,
+                &predecessor.id,
+                &oversized,
+                "auth",
+                &sha256_hex(b"entry"),
+            )
+            .is_err()
+        );
+        assert_eq!(fs::read(state_path).unwrap(), before_state);
+        assert_eq!(fs::read(markdown_path).unwrap(), before_markdown);
+    }
+
+    #[test]
+    fn mapped_tests_remain_exact_only() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_section_only_record(
+            root,
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nTests remain governed.\n",
+        );
+        let candidates = BTreeSet::from(["tests/auth.rs".to_string()]);
+        let evidence = git_evidence(root, &candidates).unwrap();
+        assert_eq!(
+            acceptance_input_owners(root, &record, "tests/auth.rs", &[], &evidence,).unwrap(),
+            vec![EXACT_TEST_OWNER.to_string()]
+        );
+    }
+
+    #[test]
+    fn signed_directory_deletion_remains_a_missing_manifest_entry() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        record.affected_paths = vec!["src/".into()];
+        record.state = ChangeState::Accepted;
+        let payload = sha256_hex(b"old");
+        let signed = AcceptanceManifestV1 {
+            schema_version: 1,
+            entries: vec![AcceptanceInputEntryV1 {
+                path: "src/deleted.rs".into(),
+                kind: AcceptanceInputKind::File,
+                mode: 0o100644,
+                entry_digest: acceptance_entry_digest(
+                    "src/deleted.rs",
+                    &AcceptanceInputKind::File,
+                    0o100644,
+                    &payload,
+                ),
+                payload_digest: payload,
+                owners: vec!["change".into()],
+            }],
+        };
+        let current = acceptance_manifest_with_signed_owners(root, &record, &[], &signed).unwrap();
+        let deleted = current
+            .entries
+            .iter()
+            .find(|entry| entry.path == "src/deleted.rs")
+            .unwrap();
+        assert_eq!(deleted.kind, AcceptanceInputKind::Missing);
+        assert_eq!(deleted.payload_digest, sha256_hex(b""));
+    }
+
+    #[test]
+    fn duplicate_active_and_archived_locations_fail_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_no_spec_record(root);
+        let archived = root
+            .join(ARCHIVE_PATH)
+            .join(format!("2026-07-14-{}", record.id));
+        fs::create_dir_all(&archived).unwrap();
+        let mut archived_record = record.clone();
+        archived_record.state = ChangeState::Archived;
+        write_json(&archived.join("state.json"), &archived_record).unwrap();
+        assert!(
+            find_change_dir(root, &record.id)
+                .unwrap_err()
+                .contains("ambiguous")
+        );
+        assert!(
+            list_all_changes_checked(root)
+                .unwrap_err()
+                .contains("multiple")
+        );
+        assert_eq!(
+            terminal_evidence_summary(root, &archived_record).validity,
+            TerminalEvidenceValidity::CorruptHistory
+        );
+    }
+
+    #[test]
+    fn legacy_archive_tombstones_without_lifecycle_state_are_skipped() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(ARCHIVE_PATH).join("legacy/deltas")).unwrap();
+        fs::write(
+            root.join(ARCHIVE_PATH).join("legacy/deltas/auth.md"),
+            "## REMOVED\n### REQUIREMENT REQ-auth-001\nRetired.\n",
+        )
+        .unwrap();
+        assert!(list_all_changes_checked(root).unwrap().is_empty());
+    }
+
+    #[test]
+    fn legacy_archive_baseline_bytes_are_canonical_sorted_and_definition_digestible() {
+        let entry = |id: &str, path: &str| LegacyArchiveBaselineEntryV1 {
+            id: id.into(),
+            archive_path: path.into(),
+            introduction_commit: "1111111111111111111111111111111111111111".into(),
+            subtree_digest: "a".repeat(64),
+        };
+        let baseline = LegacyArchiveBaselineV1 {
+            schema_version: 1,
+            domain: "specsync.legacy-archive-baseline.v1".into(),
+            authority_change_id: "CHG-0042-authority".into(),
+            cutoff_commit: "2222222222222222222222222222222222222222".into(),
+            entries: vec![
+                entry(
+                    "CHG-0001-first",
+                    ".specsync/archive/changes/2026-07-11-CHG-0001-first",
+                ),
+                entry(
+                    "CHG-0002-second",
+                    ".specsync/archive/changes/2026-07-11-CHG-0002-second",
+                ),
+            ],
+        };
+        let bytes = json_content(&baseline).unwrap();
+        let (_, digest) = validate_legacy_archive_baseline_bytes(bytes.as_bytes()).unwrap();
+        validate_sha256_digest(&digest, "baseline digest").unwrap();
+
+        let compact = serde_json::to_vec(&baseline).unwrap();
+        assert!(
+            validate_legacy_archive_baseline_bytes(&compact)
+                .unwrap_err()
+                .contains("canonical persisted JSON")
+        );
+
+        let mut unsorted = baseline.clone();
+        unsorted.entries.reverse();
+        let unsorted = json_content(&unsorted).unwrap();
+        assert!(
+            validate_legacy_archive_baseline_bytes(unsorted.as_bytes())
+                .unwrap_err()
+                .contains("strictly sorted")
+        );
+
+        let mut duplicate = baseline;
+        duplicate.entries[1].id = duplicate.entries[0].id.clone();
+        let duplicate = json_content(&duplicate).unwrap();
+        assert!(
+            validate_legacy_archive_baseline_bytes(duplicate.as_bytes())
+                .unwrap_err()
+                .contains("must each be unique")
+        );
+    }
+
+    #[test]
+    fn definition_approval_binds_the_exact_legacy_baseline_bytes() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("seed"), "seed\n").unwrap();
+        git(&["add", "seed"]);
+        git(&["commit", "-m", "baseline cutoff"]);
+        let cutoff = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        let mut authority = completed_no_spec_record(root);
+        authority.base_commit = Some(cutoff.clone());
+        authority
+            .affected_paths
+            .push(LEGACY_BASELINE_PATH.to_string());
+        save_change(root, &authority).unwrap();
+        write_change_markdown(root, &authority).unwrap();
+        fs::create_dir_all(root.join(".specsync/archive")).unwrap();
+        let baseline = LegacyArchiveBaselineV1 {
+            schema_version: 1,
+            domain: "specsync.legacy-archive-baseline.v1".into(),
+            authority_change_id: authority.id.clone(),
+            cutoff_commit: cutoff,
+            entries: Vec::new(),
+        };
+        let bytes = json_content(&baseline).unwrap();
+        fs::write(root.join(LEGACY_BASELINE_PATH), &bytes).unwrap();
+        let (_, expected) = validate_legacy_archive_baseline_bytes(bytes.as_bytes()).unwrap();
+
+        let approved =
+            approve_definition(root, &authority.id, Some("Reviewer".into()), None).unwrap();
+
+        assert_eq!(
+            approved.legacy_archive_baseline_digest.as_deref(),
+            Some(expected.as_str())
+        );
+        assert!(ensure_definition_approval_valid(root, &approved).is_ok());
+
+        let mut changed = baseline;
+        fs::write(root.join("later"), "later\n").unwrap();
+        git(&["add", "later"]);
+        git(&["commit", "-m", "descendant cutoff"]);
+        changed.cutoff_commit = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        write_json(&root.join(LEGACY_BASELINE_PATH), &changed).unwrap();
+        let changed_bytes = fs::read(root.join(LEGACY_BASELINE_PATH)).unwrap();
+        let (_, changed_digest) = validate_legacy_archive_baseline_bytes(&changed_bytes).unwrap();
+        assert_ne!(
+            approved.legacy_archive_baseline_digest.as_deref(),
+            Some(changed_digest.as_str())
+        );
+        let error = bind_legacy_archive_baseline_authority(root, &mut authority).unwrap_err();
+        assert!(error.contains("must equal the authority definition base commit"));
+    }
+
+    #[test]
+    fn legacy_baseline_cutoff_accepts_only_the_exact_definition_base_in_current_history() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("history"), "root\n").unwrap();
+        git(&["add", "history"]);
+        git(&["commit", "-m", "root"]);
+        let ancestor = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        fs::write(root.join("history"), "base\n").unwrap();
+        git(&["commit", "-am", "definition base"]);
+        let base = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        let mut authority = completed_no_spec_record(root);
+        authority.base_commit = Some(base.clone());
+
+        assert!(validate_legacy_baseline_authority_cutoff(root, &authority, &base).is_ok());
+        let earlier =
+            validate_legacy_baseline_authority_cutoff(root, &authority, &ancestor).unwrap_err();
+        assert!(earlier.contains("must equal the authority definition base commit"));
+
+        fs::write(root.join("history"), "descendant\n").unwrap();
+        git(&["commit", "-am", "descendant"]);
+        let descendant = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        let later =
+            validate_legacy_baseline_authority_cutoff(root, &authority, &descendant).unwrap_err();
+        assert!(later.contains("must equal the authority definition base commit"));
+
+        git(&["switch", "-c", "divergent", &ancestor]);
+        fs::write(root.join("divergent"), "divergent\n").unwrap();
+        git(&["add", "divergent"]);
+        git(&["commit", "-m", "divergent"]);
+        let divergent = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        git(&["switch", "main"]);
+        authority.base_commit = Some(divergent.clone());
+        let unrelated =
+            validate_legacy_baseline_authority_cutoff(root, &authority, &divergent).unwrap_err();
+        assert!(unrelated.contains("not an ancestor of current authority history"));
+    }
+
+    #[test]
+    fn legacy_baseline_rejects_post_cutoff_archive_additions() {
+        let baseline = LegacyArchiveBaselineV1 {
+            schema_version: 1,
+            domain: "specsync.legacy-archive-baseline.v1".into(),
+            authority_change_id: "CHG-0043-authority".into(),
+            cutoff_commit: "2222222222222222222222222222222222222222".into(),
+            entries: vec![LegacyArchiveBaselineEntryV1 {
+                id: "CHG-0001-pre-cutoff".into(),
+                archive_path: ".specsync/archive/changes/2026-07-11-CHG-0001-pre-cutoff".into(),
+                introduction_commit: "1111111111111111111111111111111111111111".into(),
+                subtree_digest: "a".repeat(64),
+            }],
+        };
+
+        assert!(legacy_baseline_entry(&baseline, "CHG-0001-pre-cutoff").is_ok());
+        let error = legacy_baseline_entry(&baseline, "CHG-0044-post-cutoff").unwrap_err();
+        assert!(error.contains("not enumerated by the baseline"));
+    }
+
+    #[test]
+    fn legacy_archive_subtree_digest_binds_path_mode_kind_and_payload() {
+        let snapshot = BTreeMap::from([
+            ("approvals.json".into(), (0o100644, b"approval".to_vec())),
+            ("tool".into(), (0o100755, b"binary".to_vec())),
+            ("link".into(), (0o120000, b"tool".to_vec())),
+        ]);
+        let expected = legacy_archive_subtree_digest(&snapshot).unwrap();
+        for changed in [
+            BTreeMap::from([
+                ("approvals.json".into(), (0o100644, b"tampered".to_vec())),
+                ("tool".into(), (0o100755, b"binary".to_vec())),
+                ("link".into(), (0o120000, b"tool".to_vec())),
+            ]),
+            BTreeMap::from([
+                ("approvals.json".into(), (0o100644, b"approval".to_vec())),
+                ("tool".into(), (0o100644, b"binary".to_vec())),
+                ("link".into(), (0o120000, b"tool".to_vec())),
+            ]),
+            BTreeMap::from([
+                ("renamed.json".into(), (0o100644, b"approval".to_vec())),
+                ("tool".into(), (0o100755, b"binary".to_vec())),
+                ("link".into(), (0o120000, b"tool".to_vec())),
+            ]),
+        ] {
+            assert_ne!(legacy_archive_subtree_digest(&changed).unwrap(), expected);
+        }
+        let escaped = BTreeMap::from([("link".into(), (0o120000, b"/tool".to_vec()))]);
+        assert!(legacy_archive_subtree_digest(&escaped).is_err());
+        let gitlink = BTreeMap::from([("nested".into(), (0o160000, vec![0; 20]))]);
+        assert!(legacy_archive_subtree_digest(&gitlink).is_err());
+    }
+
+    #[test]
+    fn archive_snapshot_ignores_large_unrelated_index_inventory() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        let subtree = ".specsync/archive/changes/2026-07-15-CHG-0043-evidence";
+        let workspace = root.join(subtree);
+        fs::create_dir_all(&workspace).unwrap();
+        fs::write(workspace.join("approvals.json"), "archive\n").unwrap();
+        let object = run_git_required(
+            root,
+            &["hash-object", "-w", "--stdin"],
+            Some(b"unrelated\n".to_vec()),
+            128,
+        )
+        .unwrap();
+        let object = std::str::from_utf8(&object).unwrap().trim();
+        let mut index = String::new();
+        for number in 0..5_000 {
+            index.push_str(&format!("100644 {object}\tunrelated-{number:05}.txt\n"));
+        }
+        run_git_required(
+            root,
+            &["update-index", "--index-info"],
+            Some(index.into_bytes()),
+            128,
+        )
+        .unwrap();
+
+        let snapshot = archive_workspace_snapshot(root, &workspace, subtree).unwrap();
+        assert_eq!(
+            snapshot,
+            BTreeMap::from([(
+                "approvals.json".to_string(),
+                (0o100644, b"archive\n".to_vec())
+            )])
+        );
+    }
+
+    #[test]
+    fn dated_lifecycle_archive_missing_state_fails_global_enumeration() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let archived = root
+            .join(ARCHIVE_PATH)
+            .join("2026-07-15-CHG-0001-missing-state");
+        fs::create_dir_all(archived.join("deltas")).unwrap();
+        fs::write(
+            archived.join("deltas/change.md"),
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nTampered.\n",
+        )
+        .unwrap();
+        fs::write(archived.join("approvals.json"), "{}\n").unwrap();
+
+        let all_error = list_all_changes_checked(root).unwrap_err();
+        assert!(
+            all_error.contains("failed to read archived state"),
+            "{all_error}"
+        );
+        let sequence_error = located_change_sequences(root).unwrap_err();
+        assert!(
+            sequence_error.contains("failed to read archived change state"),
+            "{sequence_error}"
+        );
+    }
+
+    #[test]
+    fn status_and_check_share_exact_and_stale_terminal_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        let exact = summarize_change(root, &record).terminal_evidence.unwrap();
+        assert_eq!(exact.validity, TerminalEvidenceValidity::Exact);
+        assert!(exact.reason.is_none());
+        assert_eq!(check_project(root).terminal_evidence[0].evidence, exact);
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        let stale = summarize_change(root, &record).terminal_evidence.unwrap();
+        assert_eq!(stale.validity, TerminalEvidenceValidity::Stale);
+        assert!(
+            stale
+                .reason
+                .as_deref()
+                .is_some_and(|reason| !reason.is_empty())
+        );
+        assert_eq!(check_project(root).terminal_evidence[0].evidence, stale);
+    }
+
+    #[test]
+    fn strict_check_reports_standalone_unprovable_archived_history() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        let source = change_dir(root, &record.id);
+        let archived_dir = root
+            .join(ARCHIVE_PATH)
+            .join(format!("2026-07-14-{}", record.id));
+        fs::create_dir_all(archived_dir.parent().unwrap()).unwrap();
+        fs::rename(&source, &archived_dir).unwrap();
+        record.state = ChangeState::Archived;
+        write_json(&archived_dir.join("state.json"), &record).unwrap();
+
+        let report = check_project(root);
+        assert!(report.errors.iter().any(|error| {
+            error.contains(&record.id) && error.contains("archived change historical integrity")
+        }));
+        assert_eq!(report.terminal_evidence.len(), 1);
+        assert_eq!(
+            report.terminal_evidence[0].evidence.validity,
+            TerminalEvidenceValidity::CorruptHistory
+        );
+        assert_eq!(
+            summarize_change(root, &record).next_action,
+            "invalid archived evidence"
+        );
+    }
+
+    #[test]
+    fn normal_merge_does_not_create_a_duplicate_accepted_transition() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["switch", "-c", "feature"]);
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept feature"]);
+        git(&["switch", "main"]);
+        git(&["merge", "--no-ff", "feature", "-m", "merge feature"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        let (anchor, _, accepted) = authenticated_accepted_transition(root, &record).unwrap();
+        assert_eq!(accepted.id, record.id);
+        assert_ne!(anchor, git_output(root, &["rev-parse", "HEAD"]).unwrap());
+        assert!(ensure_closing_approval_valid(root, &record).is_ok());
+    }
+
+    #[test]
+    fn archive_post_move_failure_restores_exact_source_bytes_without_residue() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept change"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        let source = change_dir(root, &record.id);
+        let original_state = fs::read(source.join("state.json")).unwrap();
+        let original_markdown = fs::read(source.join("change.md")).unwrap();
+        let error = archive_change_with_finalize_failure(root, &record.id, true).unwrap_err();
+        assert!(error.contains("source restored"), "{error}");
+        assert_eq!(fs::read(source.join("state.json")).unwrap(), original_state);
+        assert_eq!(
+            fs::read(source.join("change.md")).unwrap(),
+            original_markdown
+        );
+        assert!(!source.join("accepted-state.json").exists());
+        assert!(
+            !root
+                .join(ARCHIVE_PATH)
+                .join(format!("{}-{}", today(), record.id))
+                .exists()
+        );
+    }
+
+    #[test]
+    fn authenticated_archive_ignores_later_input_drift_but_rejects_snapshot_tampering() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept change"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let archived_dir = archive_change(root, &record.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "archive change"]);
+
+        let snapshot = fs::read(archived_dir.join("accepted-state.json")).unwrap();
+        fs::remove_file(archived_dir.join("accepted-state.json")).unwrap();
+        let missing_snapshot =
+            validate_archived_integrity(root, &load_change(root, &record.id).unwrap()).unwrap_err();
+        assert!(missing_snapshot.contains("missing its authenticated accepted-state snapshot"));
+        fs::write(archived_dir.join("accepted-state.json"), &snapshot).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "evolve archived input"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let report = check_project(root);
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+        assert_eq!(
+            report.terminal_evidence[0].evidence.validity,
+            TerminalEvidenceValidity::AuthenticatedHistory
+        );
+
+        fs::write(archived_dir.join("accepted-state.json"), b"{}\n").unwrap();
+        let report = check_project(root);
+        assert!(
+            report.errors.iter().any(|error| {
+                error.contains(&record.id) && error.contains("historical integrity")
+            })
+        );
+        assert_eq!(
+            report.terminal_evidence[0].evidence.validity,
+            TerminalEvidenceValidity::CorruptHistory
+        );
+    }
+
+    #[test]
+    fn gitlink_manifest_hashes_the_exact_index_object_id() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("seed"), "seed\n").unwrap();
+        git(&["add", "seed"]);
+        git(&["commit", "-m", "seed"]);
+        let object = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        git(&[
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            &format!("160000,{object},vendor/library"),
+        ]);
+        let mut record = completed_no_spec_record(root);
+        record.state = ChangeState::Accepted;
+        record.affected_paths = vec!["vendor/library".into()];
+        let manifest = acceptance_manifest(root, &record, &[]).unwrap();
+        let entry = manifest
+            .entries
+            .iter()
+            .find(|entry| entry.path == "vendor/library")
+            .unwrap();
+        assert_eq!(entry.kind, AcceptanceInputKind::Gitlink);
+        assert_eq!(entry.mode, 0o160000);
+        assert_eq!(entry.payload_digest, sha256_hex(object.as_bytes()));
+    }
+
+    #[test]
+    fn persisted_supersedes_cycle_fails_before_predecessor_manifest_use() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut first = completed_section_only_record(
+            root,
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nFirst.\n",
+        );
+        let mut second = create_change(
+            root,
+            CreateChangeRequest {
+                description: "Second successor".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["auth".into()],
+                affected_paths: vec!["src/auth.rs".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: false,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        let obligation = SuccessionObligation {
+            path: "src/auth.rs".into(),
+            module: "auth".into(),
+            predecessor_entry_digest: sha256_hex(b"entry"),
+        };
+        first.state = ChangeState::Accepted;
+        first.supersedes = vec![SupersedesEdge {
+            predecessor_id: second.id.clone(),
+            obligations: vec![obligation.clone()],
+        }];
+        save_change(root, &first).unwrap();
+        second.supersedes = vec![SupersedesEdge {
+            predecessor_id: first.id.clone(),
+            obligations: vec![obligation],
+        }];
+        let error = validate_supersedes_semantics(root, &second).unwrap_err();
+        assert!(error.contains("succession cycle"), "{error}");
+    }
+
+    #[test]
+    fn explicit_semantic_successor_covers_changed_entry_but_rejects_unchanged_entry() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+
+        let delta =
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nAuthentication remains governed.\n";
+        let mut predecessor = completed_section_only_record(root, delta);
+        predecessor =
+            approve_definition(root, &predecessor.id, Some("Reviewer".into()), None).unwrap();
+        predecessor = start_implementation(root, &predecessor.id).unwrap();
+        verify_change(root, &predecessor.id).unwrap();
+        predecessor = accept_change(root, &predecessor.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept predecessor"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let predecessor_manifest = load_verification(root, &predecessor)
+            .unwrap()
+            .acceptance_manifest
+            .unwrap();
+        let mut successor = completed_section_only_record(root, delta);
+        successor.affected_paths.extend(
+            predecessor_manifest
+                .entries
+                .iter()
+                .filter(|entry| {
+                    entry.owners.iter().any(|owner| owner == "auth")
+                        && entry.path != "specs/auth/requirements.md"
+                })
+                .map(|entry| entry.path.clone()),
+        );
+        successor.affected_paths.sort();
+        successor.affected_paths.dedup();
+        save_change(root, &successor).unwrap();
+        write_change_markdown(root, &successor).unwrap();
+        for entry in predecessor_manifest.entries.iter().filter(|entry| {
+            entry.owners.iter().any(|owner| owner == "auth")
+                && entry.path != "specs/auth/requirements.md"
+        }) {
+            successor = add_supersedes_obligation(
+                root,
+                &successor.id,
+                &predecessor.id,
+                &entry.path,
+                "auth",
+                &entry.entry_digest,
+            )
+            .unwrap();
+        }
+        successor = approve_definition(root, &successor.id, Some("Reviewer".into()), None).unwrap();
+        successor = start_implementation(root, &successor.id).unwrap();
+        fs::write(root.join("src/auth.rs"), "// Authentication module v2.\n").unwrap();
+        verify_change(root, &successor.id).unwrap();
+        successor = accept_change(root, &successor.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept semantic successor"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let predecessor_evidence = summarize_change(root, &predecessor)
+            .terminal_evidence
+            .unwrap();
+        assert_eq!(
+            predecessor_evidence.validity,
+            TerminalEvidenceValidity::SuccessorCovered,
+            "{:?}",
+            predecessor_evidence.reason
+        );
+        let archived_successor = archive_change(root, &successor.id).unwrap();
+        assert!(archived_successor.is_dir());
+        let recursive_evidence = summarize_change(root, &predecessor)
+            .terminal_evidence
+            .unwrap();
+        assert_eq!(
+            recursive_evidence.validity,
+            TerminalEvidenceValidity::SuccessorCovered,
+            "{:?}",
+            recursive_evidence.reason
+        );
+        let post_move = check_project(root);
+        assert!(post_move.errors.is_empty(), "{:?}", post_move.errors);
+        assert!(post_move.terminal_evidence.iter().any(|result| {
+            result.id == successor.id
+                && result.evidence.validity == TerminalEvidenceValidity::AuthenticatedHistory
+        }));
+
+        let successor_manifest = load_verification(root, &successor)
+            .unwrap()
+            .acceptance_manifest
+            .unwrap();
+        let current_source = fs::read(root.join("src/auth.rs")).unwrap();
+        let current_spec = fs::read(root.join("specs/auth/auth.spec.md")).unwrap();
+        let mut unchanged = completed_section_only_record(root, delta);
+        fs::write(root.join("src/auth.rs"), current_source).unwrap();
+        fs::write(root.join("specs/auth/auth.spec.md"), current_spec).unwrap();
+        unchanged.affected_paths.extend(
+            successor_manifest
+                .entries
+                .iter()
+                .filter(|entry| {
+                    entry.owners.iter().any(|owner| owner == "auth")
+                        && entry.path != "specs/auth/requirements.md"
+                })
+                .map(|entry| entry.path.clone()),
+        );
+        unchanged.affected_paths.sort();
+        unchanged.affected_paths.dedup();
+        save_change(root, &unchanged).unwrap();
+        write_change_markdown(root, &unchanged).unwrap();
+        for entry in successor_manifest.entries.iter().filter(|entry| {
+            entry.owners.iter().any(|owner| owner == "auth")
+                && entry.path != "specs/auth/requirements.md"
+        }) {
+            unchanged = add_supersedes_obligation(
+                root,
+                &unchanged.id,
+                &successor.id,
+                &entry.path,
+                "auth",
+                &entry.entry_digest,
+            )
+            .unwrap();
+        }
+        unchanged = approve_definition(root, &unchanged.id, Some("Reviewer".into()), None).unwrap();
+        start_implementation(root, &unchanged.id).unwrap();
+        verify_change(root, &unchanged.id).unwrap();
+        let error = accept_change(root, &unchanged.id, Some("Closer".into()), None).unwrap_err();
+        assert!(
+            error.contains("does not change the predecessor entry"),
+            "{error}"
+        );
+        fs::write(root.join("src/auth.rs"), "// Authentication module v3.\n").unwrap();
+        verify_change(root, &unchanged.id).unwrap();
+        let recursive_successor =
+            accept_change(root, &unchanged.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept recursive semantic successor"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        assert_eq!(recursive_successor.state, ChangeState::Accepted);
+        let intermediate_evidence = summarize_change(root, &successor)
+            .terminal_evidence
+            .unwrap();
+        assert_eq!(
+            intermediate_evidence.validity,
+            TerminalEvidenceValidity::SuccessorCovered,
+            "{:?}",
+            intermediate_evidence.reason
+        );
+        let final_evidence = summarize_change(root, &predecessor)
+            .terminal_evidence
+            .unwrap();
+        assert_eq!(
+            final_evidence.validity,
+            TerminalEvidenceValidity::SuccessorCovered,
+            "{:?}",
+            final_evidence.reason
+        );
+        let recursive_report = check_project(root);
+        assert!(
+            recursive_report.errors.is_empty(),
+            "{:?}",
+            recursive_report.errors
+        );
+    }
+
+    #[test]
+    fn legacy_reconstruction_deduplicates_identical_transitions_but_rejects_distinct_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+
+        let delta =
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nLegacy evidence remains governed.\n";
+        let mut record = completed_section_only_record(root, delta);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+
+        let signed_legacy_digest = acceptance_input_digest(root, &record, &[]).unwrap();
+        let mut verification = load_verification(root, &record).unwrap();
+        verification.acceptance_input_digest = Some(signed_legacy_digest.clone());
+        verification.acceptance_manifest = None;
+        verification.semantic_succession = None;
+        write_json(
+            &change_dir(root, &record.id).join("verification.json"),
+            &verification,
+        )
+        .unwrap();
+        let mut ledger = load_approvals(root, &record).unwrap();
+        ledger
+            .approvals
+            .iter_mut()
+            .rev()
+            .find(|approval| approval.gate == "acceptance")
+            .unwrap()
+            .digest = closing_digest(&record, &verification);
+        write_json(
+            &change_dir(root, &record.id).join("approvals.json"),
+            &ledger,
+        )
+        .unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "record legacy acceptance"]);
+
+        let lifecycle_dir = change_dir(root, &record.id);
+        let accepted_state = fs::read(lifecycle_dir.join("state.json")).unwrap();
+        let accepted_markdown = fs::read(lifecycle_dir.join("change.md")).unwrap();
+        let accepted_verification = fs::read(lifecycle_dir.join("verification.json")).unwrap();
+        let accepted_approvals = fs::read(lifecycle_dir.join("approvals.json")).unwrap();
+        let commit_transition = |message: &str, distinct_evidence: bool| {
+            let mut verifying = record.clone();
+            verifying.state = ChangeState::Verifying;
+            save_change(root, &verifying).unwrap();
+            write_change_markdown(root, &verifying).unwrap();
+            git(&["add", "."]);
+            git(&["commit", "-m", &format!("prepare {message}")]);
+            fs::write(lifecycle_dir.join("state.json"), &accepted_state).unwrap();
+            fs::write(lifecycle_dir.join("change.md"), &accepted_markdown).unwrap();
+            if distinct_evidence {
+                let mut distinct_verification = verification.clone();
+                distinct_verification.timestamp += 1;
+                write_json(
+                    &lifecycle_dir.join("verification.json"),
+                    &distinct_verification,
+                )
+                .unwrap();
+                let mut distinct_ledger = ledger.clone();
+                distinct_ledger
+                    .approvals
+                    .iter_mut()
+                    .rev()
+                    .find(|approval| approval.gate == "acceptance")
+                    .unwrap()
+                    .digest = closing_digest(&record, &distinct_verification);
+                write_json(&lifecycle_dir.join("approvals.json"), &distinct_ledger).unwrap();
+            } else {
+                fs::write(
+                    lifecycle_dir.join("verification.json"),
+                    &accepted_verification,
+                )
+                .unwrap();
+                fs::write(lifecycle_dir.join("approvals.json"), &accepted_approvals).unwrap();
+            }
+            git(&["add", "."]);
+            git(&["commit", "-m", message]);
+        };
+
+        commit_transition("repeat identical legacy acceptance", false);
+        let identical_result =
+            reconstruct_legacy_acceptance_manifest(root, &record, &signed_legacy_digest);
+        assert!(
+            identical_result.is_ok(),
+            "identical legacy reconstruction must succeed"
+        );
+
+        commit_transition("repeat distinct legacy acceptance", true);
+        let error = reconstruct_legacy_acceptance_manifest(root, &record, &signed_legacy_digest)
+            .unwrap_err();
+        assert!(
+            error.contains("found 2"),
+            "distinct legacy reconstructions must remain ambiguous"
+        );
     }
 
     #[test]
@@ -6461,6 +14331,25 @@ mod tests {
         assert_eq!(change_sequence("CHG-9999-last-four-digit"), Some(9999));
         assert_eq!(change_sequence("CHG-10000-first-five-digit"), Some(10000));
         assert_eq!(change_sequence("CHG-123-too-short"), None);
+        assert_eq!(change_sequence("CHG-abcd-malformed"), None);
+        assert_eq!(change_sequence("CHG-09999-noncanonical-width"), None);
+        assert_eq!(change_sequence("CHG-18446744073709551616-overflow"), None);
+        assert!(change_id_sorts_after(
+            "CHG-10000-first-five-digit",
+            "CHG-9999-last-four-digit"
+        ));
+        assert!(change_id_sorts_after(
+            "CHG-9999-second-collision",
+            "CHG-9999-first-collision"
+        ));
+        assert!(!change_id_sorts_after(
+            "CHG-09999-noncanonical-width",
+            "CHG-9999-last-four-digit"
+        ));
+        assert!(!change_id_sorts_after(
+            "CHG-10000-first-five-digit",
+            "not-a-change-id"
+        ));
     }
 
     #[test]
@@ -6511,7 +14400,7 @@ mod tests {
         git(&["add", "."]);
         git(&["commit", "-m", "record accepted lifecycle evidence"]);
         git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
-        assert!(archive_change(root, &record.id).is_ok());
+        archive_change(root, &record.id).unwrap();
     }
 
     // Verifies REQ-change-018.
@@ -6576,7 +14465,7 @@ mod tests {
         assert!(ensure_closing_approval_valid(root, &record).is_ok());
 
         git(&["switch", "main"]);
-        assert!(archive_change(root, &record.id).is_ok());
+        archive_change(root, &record.id).unwrap();
     }
 
     #[test]
@@ -6679,6 +14568,12 @@ mod tests {
         fs::write(
             root.join("src/auth.rs"),
             "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::write(
+            root.join("specs/auth/auth.spec.md"),
+            "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuthentication.\n\n## Public API\n\nNone.\n\n## Invariants\n\nAuthentication remains governed.\n\n## Behavioral Examples\n\nChecks pass.\n\n## Error Cases\n\nInvalid evidence fails.\n\n## Dependencies\n\nNone.\n\n## Legacy Notes\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
         )
         .unwrap();
         original.affected_specs = vec!["auth".into()];
@@ -6832,7 +14727,11 @@ mod tests {
         )
         .unwrap();
         let error = ensure_closing_approval_valid(root, &record).unwrap_err();
-        assert!(error.contains("delivery inputs"));
+        assert!(
+            error.contains("delivery inputs")
+                || error.contains("no closing-valid terminal semantic successor"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -6840,6 +14739,15 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
         let mut record = completed_no_spec_record(root);
+        append_approval(
+            root,
+            &record,
+            "definition",
+            Some("Reviewer".into()),
+            definition_digest(root, &record).unwrap(),
+            None,
+        )
+        .unwrap();
         record.state = ChangeState::Accepted;
         save_change(root, &record).unwrap();
         write_change_markdown(root, &record).unwrap();
@@ -6849,6 +14757,8 @@ mod tests {
             contract_digest: definition_digest(root, &record).unwrap(),
             workspace_digest: project_input_digest(root).unwrap(),
             acceptance_input_digest: Some(acceptance_input_digest(root, &record, &[]).unwrap()),
+            acceptance_manifest: None,
+            semantic_succession: None,
             passed: true,
             commands: Vec::new(),
             requirement_ids: Vec::new(),
@@ -6867,19 +14777,40 @@ mod tests {
             None,
         )
         .unwrap();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["add", "."]);
+        git(&["commit", "-m", "record accepted evidence"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
         let destination = root
             .join(ARCHIVE_PATH)
             .join(format!("{}-{}", today(), record.id));
         fs::create_dir_all(&destination).unwrap();
 
         let error = archive_change(root, &record.id).unwrap_err();
-        assert!(error.contains("archive destination already exists"));
+        assert!(
+            error.contains("archive destination already exists"),
+            "{error}"
+        );
         assert_eq!(
             load_change(root, &record.id).unwrap().state,
             ChangeState::Accepted
         );
         fs::remove_dir_all(destination).unwrap();
-        assert!(archive_change(root, &record.id).is_ok());
+        if let Err(error) = archive_change(root, &record.id) {
+            panic!("archive retry failed: {error}");
+        }
     }
 
     #[test]
@@ -6970,6 +14901,318 @@ mod tests {
         .unwrap();
         assert_eq!(record.state, ChangeState::Approved);
         assert!(ensure_definition_approval_valid(temp.path(), &record).is_ok());
+    }
+
+    fn portable_definition_record(root: &Path) -> ChangeRecord {
+        let mut record = completed_no_spec_record(root);
+        record.legacy_archive_baseline_digest = Some("a".repeat(64));
+        save_change(root, &record).unwrap();
+        record
+    }
+
+    #[test]
+    fn marked_portable_definition_pair_is_atomic_current_and_fail_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = portable_definition_record(root);
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        fs::write(&approvals_path, "{\n  \"approvals\": []\n}\n").unwrap();
+
+        append_portable_definition_approval_v501(
+            root,
+            &record,
+            Some("user:0xLeif".into()),
+            Some("Approve portable definition".into()),
+        )
+        .unwrap();
+        let persisted: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&approvals_path).unwrap()).unwrap();
+        assert!(persisted.get("reopenings").is_none());
+        let ledger = load_approvals(root, &record).unwrap();
+        assert_eq!(ledger.approvals.len(), 2);
+        assert!(ensure_definition_approval_valid(root, &record).is_ok());
+        let effective = effective_definition_approval(root, &record, &ledger).unwrap();
+        assert_eq!(
+            effective.definition_pair.as_ref().unwrap().role,
+            DefinitionApprovalPairRole::Current
+        );
+        let (current, legacy, prefix) =
+            portable_definition_digest_pair_v501(root, &record).unwrap();
+        assert_eq!(effective.digest, current);
+        assert_eq!(ledger.approvals[1].digest, legacy);
+        assert_ne!(current, legacy);
+        assert_eq!(ledger.approvals[0].actor, ledger.approvals[1].actor);
+        assert_eq!(ledger.approvals[0].timestamp, ledger.approvals[1].timestamp);
+
+        let assert_invalid = |mut candidate: ApprovalLedger| {
+            assert!(
+                resolve_definition_approval_event(
+                    &record,
+                    &candidate,
+                    &current,
+                    Some(&legacy),
+                    &prefix,
+                )
+                .is_err()
+            );
+            candidate.approvals.clear();
+        };
+
+        let mut wrong_actor = ledger.clone();
+        wrong_actor.approvals[1].actor = "another-reviewer".into();
+        assert_invalid(wrong_actor);
+        let mut wrong_timestamp = ledger.clone();
+        wrong_timestamp.approvals[1].timestamp += 1;
+        assert_invalid(wrong_timestamp);
+        let mut reversed = ledger.clone();
+        reversed.approvals.swap(0, 1);
+        assert_invalid(reversed);
+        let mut wrong_digest = ledger.clone();
+        wrong_digest.approvals[1].digest = "b".repeat(64);
+        assert_invalid(wrong_digest);
+        let mut same_digest = ledger.clone();
+        same_digest.approvals[1].digest = same_digest.approvals[0].digest.clone();
+        same_digest.approvals[1]
+            .definition_pair
+            .as_mut()
+            .unwrap()
+            .legacy_digest = same_digest.approvals[0].digest.clone();
+        assert_invalid(same_digest);
+        let mut intervening = ledger.clone();
+        intervening.approvals.insert(
+            1,
+            ApprovalRecord {
+                gate: "acceptance".into(),
+                actor: "Closer".into(),
+                timestamp: intervening.approvals[0].timestamp,
+                digest: "c".repeat(64),
+                note: None,
+                definition_pair: None,
+            },
+        );
+        assert_invalid(intervening);
+        for field in [
+            "pair",
+            "change",
+            "correction",
+            "prefix",
+            "event",
+            "projection",
+        ] {
+            let mut malformed = ledger.clone();
+            let metadata = malformed.approvals[1].definition_pair.as_mut().unwrap();
+            match field {
+                "pair" => metadata.pair_id = "d".repeat(64),
+                "change" => metadata.change_id = "CHG-9999-other".into(),
+                "correction" => metadata.correction_count = 1,
+                "prefix" => metadata.correction_prefix_digest = "e".repeat(64),
+                "event" => metadata.event_index = 42,
+                "projection" => metadata.projection = "specsync-5.0.0".into(),
+                _ => unreachable!(),
+            }
+            assert_invalid(malformed);
+        }
+        let mut replayed = ledger.clone();
+        replayed.approvals.extend(ledger.approvals.clone());
+        assert_invalid(replayed);
+        let mut loose = ledger.clone();
+        for approval in &mut loose.approvals {
+            approval.definition_pair = None;
+        }
+        assert_invalid(loose);
+
+        let mut followed_by_closing = ledger.clone();
+        followed_by_closing.approvals.push(ApprovalRecord {
+            gate: "acceptance".into(),
+            actor: "Closer".into(),
+            timestamp: ledger.approvals[1].timestamp + 1,
+            digest: "f".repeat(64),
+            note: None,
+            definition_pair: None,
+        });
+        assert!(
+            resolve_definition_approval_event(
+                &record,
+                &followed_by_closing,
+                &current,
+                Some(&legacy),
+                &prefix,
+            )
+            .is_ok()
+        );
+        let mut superseded_by_ordinary = ledger.clone();
+        superseded_by_ordinary.approvals[0]
+            .definition_pair
+            .as_mut()
+            .unwrap()
+            .pair_id = "0".repeat(64);
+        superseded_by_ordinary.approvals.push(ApprovalRecord {
+            gate: "definition".into(),
+            actor: "Later reviewer".into(),
+            timestamp: ledger.approvals[1].timestamp + 1,
+            digest: current.clone(),
+            note: None,
+            definition_pair: None,
+        });
+        assert!(
+            resolve_definition_approval_event(
+                &record,
+                &superseded_by_ordinary,
+                &current,
+                None,
+                &prefix,
+            )
+            .is_ok()
+        );
+
+        fs::write(
+            change_dir(root, &record.id).join("context.md"),
+            "# Changed definition\n",
+        )
+        .unwrap();
+        assert!(ensure_definition_approval_valid(root, &record).is_err());
+    }
+
+    #[test]
+    fn portable_projection_rejects_unsupported_nonempty_v501_fields() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = portable_definition_record(root);
+        assert!(portable_definition_digest_pair_v501(root, &record).is_ok());
+
+        let mut canonical = record.clone();
+        canonical.canonical_applied = true;
+        assert!(portable_definition_digest_pair_v501(root, &canonical).is_err());
+        let mut corrected = record.clone();
+        corrected.correction_count = 1;
+        assert!(portable_definition_digest_pair_v501(root, &corrected).is_err());
+        let mut successor = record;
+        successor.supersedes.push(SupersedesEdge {
+            predecessor_id: "CHG-0000-predecessor".into(),
+            obligations: Vec::new(),
+        });
+        assert!(portable_definition_digest_pair_v501(root, &successor).is_err());
+    }
+
+    #[test]
+    fn v501_record_projection_is_frozen_across_new_field_representations() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = portable_definition_record(root);
+        let expected = definition_projection_bytes_v501(&record).unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&expected).unwrap();
+        for omitted in [
+            "canonical_applied",
+            "correction_count",
+            "supersedes",
+            "legacy_archive_baseline_digest",
+        ] {
+            assert!(value.get(omitted).is_none(), "{omitted}");
+        }
+
+        let mut archived = record.clone();
+        archived.state = ChangeState::Archived;
+        archived.updated_at += 100;
+        archived.canonical_applied = true;
+        archived.correction_count = 2;
+        archived.supersedes.push(SupersedesEdge {
+            predecessor_id: "CHG-0000-predecessor".into(),
+            obligations: Vec::new(),
+        });
+        archived.legacy_archive_baseline_digest = Some("b".repeat(64));
+        assert_eq!(
+            definition_projection_bytes_v501(&archived).unwrap(),
+            expected
+        );
+
+        let mut explicit_false = record;
+        explicit_false.canonical_applied = false;
+        explicit_false.correction_count = 0;
+        explicit_false.supersedes.clear();
+        explicit_false.legacy_archive_baseline_digest = None;
+        assert_eq!(
+            definition_projection_bytes_v501(&explicit_false).unwrap(),
+            expected
+        );
+    }
+
+    #[test]
+    fn portable_projection_rejects_clean_crlf_smudging_before_ledger_mutation() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = portable_definition_record(root);
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "true"]);
+        git(&["add", "."]);
+        git(&["commit", "-m", "canonical definition"]);
+
+        let context = change_dir(root, &record.id).join("context.md");
+        let lf = fs::read_to_string(&context).unwrap();
+        fs::write(&context, lf.replace('\n', "\r\n")).unwrap();
+        assert!(
+            Command::new("git")
+                .args(["diff", "--quiet", "--", context.to_str().unwrap()])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        let before = fs::read(&approvals_path).unwrap();
+        let error =
+            append_portable_definition_approval_v501(root, &record, Some("Reviewer".into()), None)
+                .unwrap_err();
+        assert!(error.contains("context.md"), "{error}");
+        assert!(error.contains("canonical LF release checkout"), "{error}");
+        assert_eq!(fs::read(approvals_path).unwrap(), before);
+    }
+
+    #[test]
+    fn strict_check_requires_definition_approval_only_in_gated_active_states() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        assert!(
+            !check_project(root)
+                .errors
+                .iter()
+                .any(|error| error.contains("definition approval"))
+        );
+
+        record.state = ChangeState::Approved;
+        save_change(root, &record).unwrap();
+        for state in [
+            ChangeState::Approved,
+            ChangeState::Implementing,
+            ChangeState::Verifying,
+        ] {
+            record.state = state;
+            save_change(root, &record).unwrap();
+            assert!(check_project(root).errors.iter().any(|error| {
+                error.contains(&record.id) && error.contains("definition approval is missing")
+            }));
+        }
+        record.state = ChangeState::Draft;
+        save_change(root, &record).unwrap();
+        assert!(
+            !check_project(root)
+                .errors
+                .iter()
+                .any(|error| error.contains("definition approval"))
+        );
     }
 
     #[test]
@@ -7212,6 +15455,61 @@ mod tests {
     }
 
     #[test]
+    fn definition_digest_caps_canonical_bytes_not_larger_checkout_bytes() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join(".gitattributes"), "*.md text eol=crlf\n").unwrap();
+        let record = completed_no_spec_record(root);
+        let context = change_dir(root, &record.id).join("context.md");
+        fs::write(
+            &context,
+            b"x\n".repeat(MAX_CHANGE_ARTIFACT_BYTES as usize / 2),
+        )
+        .unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "track definition"]);
+        fs::remove_file(&context).unwrap();
+        quiet_git(
+            root,
+            &[
+                "checkout",
+                "HEAD",
+                "--",
+                &format!("{CHANGES_PATH}/{}/context.md", record.id),
+            ],
+        );
+
+        assert!(fs::metadata(&context).unwrap().len() > MAX_CHANGE_ARTIFACT_BYTES);
+        assert!(definition_digest(root, &record).is_ok());
+    }
+
+    #[test]
+    fn definition_digest_rejects_oversized_canonical_sparse_bytes() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let record = completed_no_spec_record(root);
+        let context_relative = format!("{CHANGES_PATH}/{}/context.md", record.id);
+        let context = root.join(&context_relative);
+        fs::write(&context, vec![b'x'; MAX_CHANGE_ARTIFACT_BYTES as usize + 1]).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "track oversized definition"]);
+        quiet_git(
+            root,
+            &["update-index", "--skip-worktree", &context_relative],
+        );
+        fs::remove_file(context).unwrap();
+
+        let error = definition_digest(root, &record).unwrap_err();
+        assert!(error.contains("exceeds") && error.contains("byte limit"));
+    }
+
+    #[test]
     fn non_git_policy_disables_only_changed_path_coverage() {
         let temp = TempDir::new().unwrap();
         write_default_policy(temp.path(), Vec::new()).unwrap();
@@ -7439,6 +15737,15 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
         let mut record = completed_no_spec_record(root);
+        append_approval(
+            root,
+            &record,
+            "definition",
+            Some("Reviewer".into()),
+            definition_digest(root, &record).unwrap(),
+            None,
+        )
+        .unwrap();
         record.state = ChangeState::Accepted;
         save_change(root, &record).unwrap();
         let verification = VerificationRecord {
@@ -7447,6 +15754,8 @@ mod tests {
             contract_digest: definition_digest(root, &record).unwrap(),
             workspace_digest: "workspace".into(),
             acceptance_input_digest: None,
+            acceptance_manifest: None,
+            semantic_succession: None,
             passed: true,
             commands: Vec::new(),
             requirement_ids: Vec::new(),
@@ -7581,8 +15890,174 @@ mod tests {
         );
     }
 
+    // Verifies REQ-change-033.
     #[test]
-    fn exact_canonical_successor_can_replace_stale_frontmatter_without_deadlock() {
+    fn reopened_change_adds_exact_canonical_owner_without_replaying_delivery() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::create_dir_all(root.join("specs/legacy")).unwrap();
+        fs::write(
+            root.join("specs/legacy/legacy.spec.md"),
+            "---\nmodule: legacy\nversion: 1\nstatus: stable\nfiles:\n  - src/lib.rs\n---\n\n# Legacy\n\n## Purpose\n\nLegacy owner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+        let mut record = completed_no_spec_record(root);
+        record.affected_specs = vec!["legacy".into()];
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "The accepted source changed during release review".into(),
+        )
+        .unwrap()
+        .change;
+        record = add_acceptance_owner_correction(
+            root,
+            &record.id,
+            "src/lib.rs".into(),
+            "change".into(),
+            "Release reviewer".into(),
+            "The historical definition omitted the current canonical owner".into(),
+        )
+        .unwrap();
+        assert_eq!(record.acceptance_owner_corrections.len(), 1);
+        assert_eq!(record.acceptance_owner_corrections[0].sequence, 1);
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let corrected_state = fs::read(&state_path).unwrap();
+        let duplicate = add_acceptance_owner_correction(
+            root,
+            &record.id,
+            "src/lib.rs".into(),
+            "change".into(),
+            "Release reviewer".into(),
+            "Duplicate owner".into(),
+        )
+        .unwrap_err();
+        assert!(duplicate.contains("duplicate acceptance owner correction"));
+        assert_eq!(fs::read(&state_path).unwrap(), corrected_state);
+
+        let mut tampered = record.clone();
+        tampered.acceptance_owner_corrections[0].sequence = 2;
+        save_change(root, &tampered).unwrap();
+        let error = validate_definition(root, &tampered).unwrap_err();
+        assert!(error.contains("sequence is not contiguous"), "{error}");
+        save_change(root, &record).unwrap();
+
+        let mut broadened = record.clone();
+        broadened
+            .dependencies
+            .push("CHG-9999-unapproved-scope".into());
+        save_change(root, &broadened).unwrap();
+        let error = ensure_reopened_definition_unchanged(root, &broadened).unwrap_err();
+        assert!(error.contains("modified definition"), "{error}");
+        save_change(root, &record).unwrap();
+
+        let portable = TempDir::new().unwrap();
+        let portable_root = portable.path();
+        let portable_dir = change_dir(portable_root, &record.id);
+        fs::create_dir_all(portable_dir.join("deltas")).unwrap();
+        save_change(portable_root, &record).unwrap();
+        for artifact in &record.selected_artifacts {
+            fs::copy(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                portable_dir.join(artifact.file_name()),
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            definition_digest(root, &record).unwrap(),
+            definition_digest(portable_root, &record).unwrap()
+        );
+        assert!(
+            ensure_definition_approval_valid(root, &record)
+                .unwrap_err()
+                .contains("definition approval is stale")
+        );
+
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        let verification = load_verification(root, &record).unwrap();
+        let source = verification
+            .acceptance_manifest
+            .unwrap()
+            .entries
+            .into_iter()
+            .find(|entry| entry.path == "src/lib.rs")
+            .unwrap();
+        assert_eq!(source.owners, vec!["change", "legacy"]);
+        assert_eq!(
+            fs::read_to_string(root.join("src/lib.rs")).unwrap(),
+            "pub fn ready() -> bool { false }\n"
+        );
+    }
+
+    // Verifies REQ-change-033.
+    #[test]
+    fn owner_correction_rejects_invalid_requests_without_mutation() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let before = fs::read(&state_path).unwrap();
+
+        let wrong_state = add_acceptance_owner_correction(
+            root,
+            &record.id,
+            "src/lib.rs".into(),
+            "change".into(),
+            "Reviewer".into(),
+            "Missing owner".into(),
+        )
+        .unwrap_err();
+        assert!(wrong_state.contains("cannot correct an acceptance input owner"));
+        assert_eq!(fs::read(&state_path).unwrap(), before);
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(root, &record.id, "Reviewer".into(), "Source changed".into())
+            .unwrap()
+            .change;
+        let reopened = fs::read(&state_path).unwrap();
+        let error = add_acceptance_owner_correction(
+            root,
+            &record.id,
+            "outside/file.rs".into(),
+            "change".into(),
+            "Reviewer".into(),
+            "Missing owner".into(),
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("outside the original affected path scope"),
+            "{error}"
+        );
+        assert_eq!(fs::read(&state_path).unwrap(), reopened);
+    }
+
+    #[test]
+    fn broad_successor_without_explicit_obligations_cannot_suppress_stale_predecessor() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
         write_default_policy(root, Vec::new()).unwrap();
@@ -7671,7 +16146,7 @@ mod tests {
         }));
 
         successor = start_implementation(root, &successor.id).unwrap();
-        assert!(!check_project(root).errors.iter().any(|error| {
+        assert!(check_project(root).errors.iter().any(|error| {
             error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
         }));
 
@@ -7687,12 +16162,14 @@ mod tests {
         policy.verification_commands.clear();
         write_json(&root.join(POLICY_PATH), &policy).unwrap();
         verify_change(root, &successor.id).unwrap();
-        assert!(!check_project(root).errors.iter().any(|error| {
+        assert!(check_project(root).errors.iter().any(|error| {
             error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
         }));
         successor = accept_change(root, &successor.id, Some("Closer".into()), None).unwrap();
         assert_eq!(successor.state, ChangeState::Accepted);
-        assert!(check_project(root).errors.is_empty());
+        assert!(check_project(root).errors.iter().any(|error| {
+            error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
+        }));
     }
 
     #[test]
@@ -8944,6 +17421,21 @@ mod tests {
             "// Verifies REQ-auth-001\n#[test]\nfn passkey_authentication() {}\n",
         )
         .unwrap();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
         let mut record = completed_record(root);
         for artifact in &record.selected_artifacts {
             let content = if *artifact == ArtifactKind::Tasks {
@@ -8994,6 +17486,9 @@ mod tests {
         assert!(spec.contains(&format!("| 2026-01-01 | Initial |\n| {} |", today())));
         let requirements = fs::read_to_string(root.join("specs/auth/requirements.md")).unwrap();
         assert!(requirements.contains("### REQ-auth-001"));
+        git(&["add", "."]);
+        git(&["commit", "-m", "record accepted lifecycle evidence"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
         let archived = archive_change(root, &record.id).unwrap();
         assert!(archived.is_dir());
         assert!(!change_dir(root, &record.id).exists());
@@ -10603,43 +19098,305 @@ mod tests {
         );
     }
 
-    #[test]
-    fn ci_verification_accepts_evidence_from_an_ancestor_commit() {
+    fn quiet_git(root: &Path, args: &[&str]) -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    }
+
+    fn commit_paths(root: &Path, paths: &[&str], message: &str) {
+        let output = Command::new("git")
+            .args(["add", "--"])
+            .args(paths)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        quiet_git(root, &["commit", "-m", message]);
+    }
+
+    fn verification_history_fixture() -> (TempDir, String, VerificationRecord) {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        let git = |args: &[&str]| {
-            assert!(
-                Command::new("git")
-                    .args(args)
-                    .current_dir(root)
-                    .status()
-                    .unwrap()
-                    .success()
-            );
-        };
-        git(&["init", "-b", "main"]);
-        git(&["config", "user.email", "test@example.com"]);
-        git(&["config", "user.name", "Test"]);
-        fs::write(root.join("one.txt"), "one\n").unwrap();
-        git(&["add", "one.txt"]);
-        git(&["commit", "-m", "one"]);
-        let verified_commit = git_output(root, &["rev-parse", "HEAD"]);
-        fs::write(root.join("two.txt"), "two\n").unwrap();
-        git(&["add", "two.txt"]);
-        git(&["commit", "-m", "two"]);
-        let evidence = VerificationRecord {
-            timestamp: now(),
-            commit: verified_commit,
-            contract_digest: "contract".into(),
-            workspace_digest: "workspace".into(),
-            acceptance_input_digest: None,
-            passed: true,
-            commands: Vec::new(),
-            requirement_ids: Vec::new(),
-        };
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        quiet_git(root, &["add", "seed.txt"]);
+        quiet_git(root, &["commit", "-m", "seed"]);
+        let mut policy = SddPolicy::default();
+        policy.require_change_for_meaningful_files = false;
+        policy.verification_commands.clear();
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "implement"]);
+        let evidence = verify_change(root, &record.id).unwrap();
+        let record = load_change(root, &record.id).unwrap();
+        assert!(verification_is_current(root, &record, &evidence));
+        (temp, record.id, evidence)
+    }
 
-        assert!(verification_commit_is_current(root, &evidence, true));
-        assert!(!verification_commit_is_current(root, &evidence, false));
+    fn verification_persistence_paths(id: &str) -> [String; 3] {
+        [
+            format!(".specsync/changes/{id}/state.json"),
+            format!(".specsync/changes/{id}/verification.json"),
+            format!(".specsync/changes/{id}/verification-attempts.json"),
+        ]
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn verification_persistence_allowlist_is_exact_and_canonical() {
+        let id = "CHG-0001-harden-verification";
+        for name in [
+            "state.json",
+            "verification.json",
+            "verification-attempts.json",
+        ] {
+            assert_eq!(
+                supported_verification_persistence_id(&format!(".specsync/changes/{id}/{name}"))
+                    .unwrap(),
+                id
+            );
+        }
+        for path in [
+            ".specsync/archive/changes/CHG-0001-harden-verification/state.json",
+            ".specsync/changes/CHG-0001-harden-verification/approvals.json",
+            ".specsync/changes/CHG-0001-harden-verification/tasks.md",
+            ".specsync/changes/CHG-0001-harden-verification/change.md",
+            ".specsync/changes/CHG-0001-harden-verification/state.json/nested",
+            ".specsync/change-sequence.json",
+            ".specsync/hashes.json",
+            ".specsync/change.lock",
+            ".specsync/change-transaction.json",
+            "specs/change/change.spec.md",
+            ".specsync/sdd.json",
+            ".trust.toml",
+            "src/lib.rs",
+            "tests/change.rs",
+            "target/debug/specsync",
+            "node_modules/package/index.js",
+            ".specsync/changes/CHG-123-short/state.json",
+            ".specsync/changes/CHG-09999-wide-leading-zero/state.json",
+            ".specsync/changes/CHG-18446744073709551616-overflow/state.json",
+        ] {
+            assert!(
+                supported_verification_persistence_id(path).is_err(),
+                "unexpectedly allowed {path}"
+            );
+        }
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn exact_and_multiple_verification_persistence_commits_remain_current() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let paths = verification_persistence_paths(&id);
+        for (index, path) in paths.iter().enumerate() {
+            commit_paths(root, &[path], &format!("persist verification {index}"));
+        }
+        let record = load_change(root, &id).unwrap();
+        assert!(verification_is_current(root, &record, &evidence));
+        assert_eq!(summarize_change(root, &record).next_action, "accept");
+        assert!(!check_project(root).errors.iter().any(|error| {
+            error.contains(&id) && error.contains("verification evidence is stale")
+        }));
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn source_change_then_revert_remains_stale() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let paths = verification_persistence_paths(&id);
+        let path_refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+        commit_paths(root, &path_refs, "persist verification");
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        commit_paths(root, &["src/lib.rs"], "change source");
+        fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+        commit_paths(root, &["src/lib.rs"], "revert source");
+        let record = load_change(root, &id).unwrap();
+        assert_eq!(
+            project_input_digest(root).unwrap(),
+            evidence.workspace_digest
+        );
+        assert!(!verification_is_current(root, &record, &evidence));
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn mixed_persistence_and_source_commit_is_stale() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        let paths = verification_persistence_paths(&id);
+        let mut committed: Vec<&str> = paths.iter().map(String::as_str).collect();
+        committed.push("src/lib.rs");
+        commit_paths(root, &committed, "mix evidence and source");
+        let record = load_change(root, &id).unwrap();
+        assert!(!verification_is_current(root, &record, &evidence));
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn malicious_state_contract_mutation_is_stale() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let paths = verification_persistence_paths(&id);
+        let path_refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+        commit_paths(root, &path_refs, "persist verification");
+        let mut record = load_change(root, &id).unwrap();
+        record.title = "mutated contract".into();
+        save_change(root, &record).unwrap();
+        commit_paths(root, &[&paths[0]], "mutate state contract");
+        let record = load_change(root, &id).unwrap();
+        assert!(!verification_is_current(root, &record, &evidence));
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn verification_commit_identity_must_be_canonical_and_ancestral() {
+        let (temp, _, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let canonical = evidence.commit.clone().unwrap();
+        for invalid in [
+            canonical[..12].to_string(),
+            "HEAD".into(),
+            "main".into(),
+            "HEAD~1".into(),
+            "-n1".into(),
+            "f".repeat(40),
+        ] {
+            let mut candidate = evidence.clone();
+            candidate.commit = Some(invalid);
+            assert!(verification_persistence_descendants(root, &candidate).is_err());
+        }
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn evidence_only_merge_checks_every_parent_and_remains_current() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let paths = verification_persistence_paths(&id);
+        let path_refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+        commit_paths(root, &path_refs, "persist verification on main");
+        quiet_git(
+            root,
+            &[
+                "switch",
+                "-c",
+                "evidence-side",
+                evidence.commit.as_deref().unwrap(),
+            ],
+        );
+        let mut checkout = Command::new("git");
+        let output = checkout
+            .args(["checkout", "main", "--"])
+            .args(&path_refs)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        commit_paths(root, &path_refs, "persist verification on side");
+        quiet_git(root, &["merge", "--no-ff", "main", "-m", "merge evidence"]);
+        let record = load_change(root, &id).unwrap();
+        assert!(verification_is_current(root, &record, &evidence));
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn preverification_side_branch_change_and_revert_is_stale_after_merge() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let paths = verification_persistence_paths(&id);
+        let path_refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+        commit_paths(root, &path_refs, "persist verification");
+        let preverification = quiet_git(
+            root,
+            &[
+                "rev-parse",
+                &format!("{}^", evidence.commit.as_deref().unwrap()),
+            ],
+        );
+        quiet_git(root, &["switch", "-c", "tainted-side", &preverification]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/taint.rs"), "pub fn tainted() {}\n").unwrap();
+        commit_paths(root, &["src/taint.rs"], "taint source");
+        fs::remove_file(root.join("src/taint.rs")).unwrap();
+        commit_paths(root, &["src/taint.rs"], "revert source taint");
+        quiet_git(
+            root,
+            &["merge", "--no-ff", "main", "-m", "merge verified work"],
+        );
+        let record = load_change(root, &id).unwrap();
+        assert_eq!(
+            project_input_digest(root).unwrap(),
+            evidence.workspace_digest
+        );
+        assert!(!verification_is_current(root, &record, &evidence));
+    }
+
+    // Verifies REQ-change-013 and REQ-change-016.
+    #[test]
+    fn nested_project_strips_repository_prefix_and_rejects_outside_changes() {
+        let temp = TempDir::new().unwrap();
+        let repository = temp.path();
+        let root = repository.join("packages/app");
+        fs::create_dir_all(&root).unwrap();
+        quiet_git(repository, &["init", "-b", "main"]);
+        quiet_git(repository, &["config", "user.email", "test@example.com"]);
+        quiet_git(repository, &["config", "user.name", "Test"]);
+        fs::write(repository.join("seed.txt"), "seed\n").unwrap();
+        quiet_git(repository, &["add", "seed.txt"]);
+        quiet_git(repository, &["commit", "-m", "seed"]);
+        let mut policy = SddPolicy::default();
+        policy.require_change_for_meaningful_files = false;
+        policy.verification_commands.clear();
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let mut record = completed_no_spec_record(&root);
+        record = approve_definition(&root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(&root, &record.id).unwrap();
+        quiet_git(repository, &["add", "--all"]);
+        quiet_git(repository, &["commit", "-m", "implement nested project"]);
+        let evidence = verify_change(&root, &record.id).unwrap();
+        let project_paths = verification_persistence_paths(&record.id);
+        let repository_paths: Vec<String> = project_paths
+            .iter()
+            .map(|path| format!("packages/app/{path}"))
+            .collect();
+        let repository_path_refs: Vec<&str> = repository_paths.iter().map(String::as_str).collect();
+        commit_paths(
+            repository,
+            &repository_path_refs,
+            "persist nested verification",
+        );
+        let record = load_change(&root, &record.id).unwrap();
+        assert!(verification_is_current(&root, &record, &evidence));
+        fs::write(repository.join("outside.txt"), "outside\n").unwrap();
+        commit_paths(repository, &["outside.txt"], "change outside project");
+        assert!(!verification_is_current(&root, &record, &evidence));
     }
 
     #[test]
@@ -10873,6 +19630,15 @@ mod tests {
             completed_no_spec_record(root),
         ];
         for record in &mut records {
+            append_approval(
+                root,
+                record,
+                "definition",
+                Some("Reviewer".into()),
+                definition_digest(root, record).unwrap(),
+                None,
+            )
+            .unwrap();
             record.state = ChangeState::Accepted;
             save_change(root, record).unwrap();
             let verification = VerificationRecord {
@@ -10881,6 +19647,8 @@ mod tests {
                 contract_digest: definition_digest(root, record).unwrap(),
                 workspace_digest: project_input_digest(root).unwrap(),
                 acceptance_input_digest: None,
+                acceptance_manifest: None,
+                semantic_succession: None,
                 passed: true,
                 commands: Vec::new(),
                 requirement_ids: Vec::new(),
@@ -10927,7 +19695,7 @@ mod tests {
         git(&["add", "."]);
         git(&["commit", "-m", "record accepted lifecycle evidence"]);
         git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
-        assert!(archive_change(root, &records[0].id).is_ok());
+        archive_change(root, &records[0].id).unwrap();
     }
 
     #[cfg(unix)]

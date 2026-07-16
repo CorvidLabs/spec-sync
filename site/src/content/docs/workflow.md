@@ -22,7 +22,7 @@ draft → approved → implementing → verifying → accepted → archived
 | **Approved** | A human approves the definition digest | `change approve` |
 | **Implementing** | Code follows canonical specs plus approved deltas | `change start`, `check` |
 | **Verifying** | Tests and requirement evidence are recorded | `change verify` |
-| **Accepted** | Closing approval atomically updates canonical truth; delivery evidence can be reopened and supported classification mistakes corrected with audit history | `change accept`, `change reopen`, `change correct` |
+| **Accepted** | Closing approval atomically updates canonical truth; delivery evidence can be reopened and supported classification or ownership mistakes corrected with audit history | `change accept`, `change reopen`, `change correct`, `change correct-owner` |
 | **Archived** | The immutable workspace moves to dated history | `change archive` |
 
 Module maturity (`draft → review → active → stable → deprecated → archived`) remains separately available through `specsync lifecycle`.
@@ -84,6 +84,21 @@ Reopen is allowed only when the accepted delivery-input digest is stale. It move
 Squash-integrated changes and changes partially superseded by later canonical work may also reopen when current Git history records their accepted state or later recorded canonical changes govern every affected contract surface. The unchanged definition, passed evidence, valid closing approval, stale delivery inputs, explicit actor, and audit reason remain mandatory; copied or arbitrary off-history evidence is rejected.
 
 The reopened definition must remain identical to the contract that originally applied the canonical delta. If review requires new or changed requirements, deltas, or other definition artifacts, create a new change workspace; reacceptance fails closed instead of silently ignoring those edits.
+
+If re-verification proves that an already-scoped production input had another canonical owner omitted from the historical affected-spec list, record that exact ownership correction after reopening:
+
+```bash
+specsync change correct-owner CHG-0001-add-passkeys \
+  --path src/auth.rs \
+  --spec auth-policy \
+  --actor "Ada Reviewer" \
+  --reason "The historical definition omitted the canonical auth-policy owner"
+specsync change approve CHG-0001-add-passkeys --actor "Ada Reviewer"
+specsync change verify CHG-0001-add-passkeys
+specsync change accept CHG-0001-add-passkeys --actor "Ada Reviewer"
+```
+
+`correct-owner` is intentionally exact and additive. The path must already be inside the original delivery scope, the named module's current canonical spec must list that source file, and the change must be already applied and in `verifying` through an audited reopen. The command cannot add paths, affected specs, requirements, or semantic deltas. It preserves prior approval and reopen evidence, makes the definition approval stale, and requires fresh approval, verification, and closing approval. Reacceptance adds the corrected module only to that manifest entry and does not apply the canonical delta again. If the needed change is a real semantic rescope, create a successor change instead.
 
 When a later canonical change expands a governed contract, it can keep an accepted predecessor from deadlocking implementation only when it is an exact successor: it has a higher sequence, current human-approved definition, semantic deltas, and complete coverage of every predecessor spec and path. A verifying successor also needs fresh passed evidence. Draft, no-spec, partial, failed, stale-definition, or abandoned records never suppress predecessor errors.
 

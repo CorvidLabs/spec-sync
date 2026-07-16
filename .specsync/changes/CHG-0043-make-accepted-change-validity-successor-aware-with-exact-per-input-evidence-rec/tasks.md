@@ -1,0 +1,118 @@
+---
+change: CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec
+artifact: tasks
+---
+
+# Tasks
+
+- [x] Audit aggregate acceptance evidence and both existing successor helpers.
+- [x] Identify every lifecycle call site that makes a closing-validity decision.
+- [x] Define byte-compatible legacy behavior and fail-closed reconstruction boundaries.
+- [x] Define one same-successor path/module obligation per deterministic signed owner with exact-only delivery metadata and no broadened fallback.
+- [x] Define deterministic semantic succession tuples and trusted legacy tree-transition reconstruction.
+- [x] Define durable digest-bound supersedes edges and supported pre-approval adoption.
+- [x] Define bounded canonical manifest validation, exact gitlink hashing, and portable symlink handling.
+- [x] Define location-aware archived evidence, authenticated accepted snapshots, and dependent-preflight safety.
+- [x] Resolve CHG43 self-hosting with deterministic exact-only governed test ownership and no module fallback.
+- [x] Define byte-identical serde omission for every new state and verification field.
+- [x] Define bounded canonical succession tuples and distinct entry, manifest, and succession domains.
+- [x] Define recursive cycle-safe terminal successor validity and archived-record discovery.
+- [x] Define the canonical requirement and regression matrix, including `REQ-change-024` correction.
+- [x] Add versioned per-input manifest and semantic succession persistence with closing-digest binding.
+- [x] Implement shared recursive validity and legacy Git-tree reconstruction.
+- [x] Route check, status, reopen, and archive through the shared result.
+- [x] Apply canonical change and command deltas.
+- [x] Add the complete focused regression matrix, including exact baseline binding and post-cutoff fail-closed coverage.
+- [x] Prepare the strict SpecSync and Trust verification matrix without claiming post-acceptance or hosted results early.
+- [x] Pass and record the native unit, integration, format, type-check, lint, and release-build gates on the exact reconciled head.
+- [x] Prepare strict SpecSync and Trust verification for the exact reconciled head without claiming post-verification results early.
+- [x] Reproduce the eight Windows failures with forced `core.autocrlf=true` and isolate host-native path parsing plus checkout-smudged byte reads as the causes.
+- [x] Use canonical index blobs for clean tracked files and symlinks while preserving current bytes for dirty and untracked paths.
+- [x] Make portable project-path and symlink-target validation independent of host path semantics.
+- [x] Add CRLF, clean-index, dirty-working-tree, materialized-symlink, and portable path/target regressions.
+- [x] Pass all eight exact Windows regressions with forced `core.autocrlf=true` without platform ignores.
+- [x] Pass the configured format, lint, type-check, and normal full test gates locally.
+- [x] Prepare the correction for combined-head hosted Windows and full CI validation without claiming those results early.
+- [x] Audit the tracked-symlink deletion path after the Windows byte-portability correction.
+- [x] Classify an absent dirty tracked symlink as missing before canonical clean-symlink payload selection.
+- [x] Add deterministic project, manifest, and legacy acceptance regressions for tracked-symlink deletion.
+- [x] Pass focused normal and forced-CRLF regressions plus the configured local gates.
+- [x] Audit portable symlink validation against CHG43's normative relative-target rule.
+- [x] Preserve exact valid relative target forms while retaining host-independent rejection of absolute, drive, backslash/UNC/device, empty, and control-character targets.
+- [x] Add exact-byte regressions for valid relative target forms.
+- [x] Fail closed on hidden/materialized/ambiguous index states while preserving canonical absent sparse-checkout inputs.
+- [x] Reject custom filters and working-tree encodings through NUL-safe attribute inspection before index substitution.
+- [x] Classify modified tracked symlinks from current topology rather than historical index mode.
+- [x] Enforce definition artifact limits on authoritative signed bytes with safe dirty/untracked pre-checks.
+- [x] Add deterministic regressions for every audited index, attribute, topology, and size boundary.
+- [x] Audit attribute inspection for bidirectional pipe-capacity deadlock on large tracked inventories.
+- [x] Audit fsmonitor-valid visibility, candidate scoping, index-generation stability, subprocess cleanup, ident transformation, and sparse archive boundaries.
+- [x] Process NUL-delimited attribute checks in bounded deterministic batches with fail-closed child-process handling.
+- [x] Scope all visibility and attribute decisions to exact evidence-relevant candidate paths.
+- [x] Scope content-conversion attribute rejection to candidate regular-file topology without blocking symlink or gitlink evidence.
+- [x] Reject materialized fsmonitor-valid paths and active ident transformations before canonical index substitution.
+- [x] Bind centralized Git evidence to one stable index and split-index generation with bounded retry.
+- [x] Bound candidate count, aggregate path bytes, attribute batches, and NUL output parsing before payload and owner work.
+- [x] Include sparse-absent tracked entries in legacy archive and baseline evidence and classify dirty archived symlinks from current topology.
+- [x] Reject dirty or untracked authority-baseline absence without retaining a stale definition binding.
+- [x] Require selected definition artifacts to be regular files and reject symlinks before payload or size reads.
+- [x] Add a regression inventory exceeding pipe capacity and prove deterministic completion plus late-path rejection.
+- [x] Add excluded-path, fsmonitor-valid, ident-expansion, subprocess-failure, index-mutation, oversized-input/output, sparse archive, and deleted-baseline regressions.
+- [x] Add clean, dirty, untracked, external-target, and oversized-referent definition-artifact symlink regressions.
+- [x] Pass focused, format, lint, type-check, and full local test gates for the batching correction.
+- [x] Audit candidate construction order against volatile and record-coverage filtering.
+- [x] Filter exact project and acceptance candidates before Git evidence inspection.
+- [x] Add volatile, unrelated scoped-acceptance, and relevant-path fail-closed regressions.
+- [x] Pass focused, format, lint, type-check, and full local gates for candidate-scope ordering.
+- [x] Capture candidate topology/content inside bounded retry and make callers consume the snapshot.
+- [x] Stream and cap discovery, use one candidate-filtered index parse, and cap index/split-index dependency reads.
+- [x] Scope transforming attributes to clean materialized tracked regular index substitution.
+- [x] Parse every Git false boolean spelling while preserving active pathname hooks.
+- [x] Require a baseline ledger on first authority binding and accept clean executable definition artifacts.
+- [x] Add worktree mutation, hostile discovery/index, output-bound, transform-scope, fsmonitor-spelling, first-binding, and executable-artifact regressions.
+- [x] Centralize capped concurrent Git subprocess execution with overflow kill/reap and bounded diagnostics.
+- [x] Treat every Git failure after positive repository detection as fatal without non-Git fallback.
+- [x] Resolve and fingerprint the environment-aware effective index and actual split dependency.
+- [x] Reject unresolved stages only for selected candidates while validating global index framing.
+- [x] Add injected command failure, alternate-index mutation, overflow, and scoped-stage regressions.
+- [x] Distinguish an affirmative plain non-repository from operational `rev-parse` failures before selecting non-Git evidence.
+- [x] Fail closed with bounded diagnostics when Git markers or permission, configuration, corruption, ownership, or dubious-repository errors make detection inconclusive.
+- [x] Add plain-directory and broken-repository detection regressions and pass focused plus full relevant local gates.
+- [x] Bind Git and non-Git path discovery to the same bounded retry generation as payload capture.
+- [x] Compare pre/post inventories and immutable candidate snapshots so tracked or untracked additions and removals cannot escape evidence.
+- [x] Add deterministic discovery/capture mutation regressions for tracked, untracked, Git, and non-Git governed paths.
+- [x] Add a justified test-injectable wall-clock deadline to bounded Git subprocess execution.
+- [x] Guarantee child kill/wait and pipe-thread cleanup across timeout, overflow, pipe acquisition, polling, and panic/error exits.
+- [x] Add silent-hang timeout/reap and injected cleanup-failure regressions.
+- [x] Encode every exact Git candidate as a top-level literal pathspec and every discovery scope with explicit literal recursion semantics.
+- [x] Apply literal pathspec handling consistently to discovery, dirty-state, visibility, fsmonitor, and attribute commands.
+- [x] Add tracked, dirty, untracked, and scoped regressions for glob metacharacters and leading-colon filenames without unrelated over-selection.
+- [x] Query stage/object metadata only in bounded literal exact-candidate batches and aggregate caps across batches.
+- [x] Require exactly one stage-zero entry for each tracked candidate, reject relevant unresolved stages, and never parse unrelated index entries.
+- [x] Add a huge-unrelated-index narrow-candidate regression proving unrelated index scale cannot block scoped evidence.
+- [x] Enumerate definition delta artifacts fail-closed with bounded errors for unreadable directories, entry failures, invalid names, and racing entries.
+- [x] Bind definition inventory enumeration to the same immutable candidate capture and add platform-feasible failure regressions.
+- [x] Prune volatile Git results and filesystem subtrees during streaming discovery before descent and inventory bounds.
+- [x] Preserve explicitly governed exact delivery paths while proving huge or unreadable volatile trees cannot block nonvolatile evidence.
+- [x] Detect repository mode once per digest operation and carry an explicit repository identity token through discovery and capture.
+- [x] Revalidate the same repository/worktree linkage before return and fail closed on Git-to-non-Git or worktree-link mutation.
+- [x] Add deterministic repository-mode and worktree-identity mutation regressions.
+- [x] Fingerprint effective and shared index dependencies with metadata-first bounded streaming rather than unbounded reads.
+- [x] Reject symlink and non-regular index dependencies, enforce the cumulative cap before allocation, and compare pre/post file identity.
+- [x] Add oversized, symlinked, non-regular, and racing index dependency regressions.
+- [x] Validate `check-attr -z` output as the exact requested path/attribute Cartesian set with complete NUL framing.
+- [x] Reject malformed, empty, duplicate, missing, extra, wrong-path, and wrong-attribute records and add injected parser regressions.
+- [x] Include `corrections.json` in regular-file immutable evidence before parsing and use its captured generated-file mode.
+- [x] Reject correction-ledger symlink, gitlink, missing/non-file, and external-target topology and add regressions.
+- [x] Discover archive-subtree paths through scoped literal generation-bound inventory rather than full-project discovery.
+- [x] Prove huge or nonportable unrelated inventory cannot block an archive-subtree snapshot.
+- [x] Resolve, normalize, and explicitly replay only the checkout/diff allowlist `core.autocrlf`, `core.eol`, `core.symlinks`, and `core.filemode`.
+- [x] Add text/eol, materialized-symlink, executable-mode, boolean-spelling, and platform-safe checkout-semantics regressions while retaining all redirection/hook scrubbing.
+- [x] Define and implement the fail-closed explicitly marked adjacent current/5.0.1 portable definition approval pair from one immutable snapshot and one atomic ledger replacement.
+- [x] Route every effective definition-approval lookup through one terminal-event resolver that returns the current member and preserves full-digest verification/audit evidence.
+- [x] Make strict lifecycle checking reject invalid required approvals in Approved, Implementing, and Verifying states without blocking Draft interview work.
+- [x] Add deterministic portable-pair and strict-check parity regressions, including actual immutable SpecSync 5.0.1 golden validation and malformed/replayed pair coverage.
+- [x] Prepare the focused, full, format, lint, type-check, and release-build matrix for the final exact approval compatibility candidate.
+- [x] Reconcile the released CHG42 archive into the definition-bound legacy baseline without modifying its historical bytes.
+- [x] Share one bounded legacy-archive evidence capture across strict checking and preserve sparse-absent entries under explicit archive scopes.
+- [x] Reuse one stable project-input snapshot across all verifying records in a strict check and collapse shared baseline-authority failures into one actionable diagnostic.

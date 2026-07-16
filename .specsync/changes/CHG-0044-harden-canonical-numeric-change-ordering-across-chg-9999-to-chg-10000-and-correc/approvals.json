@@ -6,7 +6,163 @@
       "timestamp": 1784098940,
       "digest": "7ba2ed926fb2c01b78177c3ae8128b12ec57810137a81e4677d0efb695d25536",
       "note": "Definition approved after review of the fresh main-descendant artifacts, numeric ordering boundary criteria, fail-closed malformed-ID coverage, and narrowly scoped release documentation corrections."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784176191,
+      "digest": "6c05edf289d0b81273c0503bb32448d7d770823eda5d1641dd4c8b6707be5718",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784180230,
+      "digest": "9dc77f252c6e476809391e5dd450df9cbb5c93a6d7c890c08cdaf9c148bc70b6",
+      "note": null
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0044-harden-canonical-numeric-change-ordering-across-chg-9999-to-chg-10000-and-correc",
+      "actor": "0xLeif",
+      "reason": "Accepted CHG-0044, CHG-0045, and CHG-0046 legitimately updated the accepted specs/change/change.spec.md input.",
+      "timestamp": 1784179381,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784176191,
+        "digest": "6c05edf289d0b81273c0503bb32448d7d770823eda5d1641dd4c8b6707be5718",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784175152,
+        "commit": "94171de1f5c308c702fd1b4de65ddec4ff9e51e6",
+        "contract_digest": "7ba2ed926fb2c01b78177c3ae8128b12ec57810137a81e4677d0efb695d25536",
+        "workspace_digest": "200889605b69b0b39665b1b21b46e2d550f769c20a29ddeec83f22f969e566ee",
+        "acceptance_input_digest": "5c3dec0e7896748c0c8aeed2446c7b88351935643a65c1918760cb7b4fdfeb1f",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".github/workflows/trust.yml",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "c23f1edc2f3e7090d0a6cdc4c74005867e2407a94819f94b1ccaeee8f52f83f5",
+              "entry_digest": "af1294d5b1aec552a015f812dfa64f10baf0f33ad32606f60f9be943e6c5235c",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "efea343f12c20037e1fbd0c24016a98d2d4592d790bb44684d8fe7b2fd11db0b",
+              "entry_digest": "e1622eba02c5a65b871254fcbdff43156b3985774b401af377b69261daeb32cc",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "CHANGELOG.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "6b2a7bd50a4369c725b7960c41a257fdf36ca928faab0125e5f457641e46e0a5",
+              "entry_digest": "1e00c57439d3becad3aae10bca1a36377fcca32412f14721f4649435c36e0a0e",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "site/src/content/docs/comparisons/adversarial-proof.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "1639387ebb161bcf10fd4b8fea5bc73805238a7f7c7edc3a56e2634da8d5ab07",
+              "entry_digest": "99870b96178e42cefa069dd143f11668b5fffee9826e7d402646114c950c05d0",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/change/change.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "404e781cf2614610ad323d5da6eaa9a6f01e8850734a4fb5774eaf07f0b3f4f9",
+              "entry_digest": "4ef8b9235d26f3fdf47f217f3a4ba28a6aada604a04d3902473ea0a63cda0cd7",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "1ad5b3d3f53890f104a11edcf53a0ce081980a12e5009bb0a10ce3f681f28c00",
+              "entry_digest": "a96e2ba29e8afc02256656adbef0491575f0ce7eba464362f287122dae3b998a",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "6ae39456596d4156226bfc2466cf9094fe09b8cb42ef9709cee4ad9279c13861",
+              "entry_digest": "a945f298e8e3de072cd432a43b3155e0e97300ddf1082fd8c337f934167a48df",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "01d2efe978699773407d3cec28dbd206445028d48e129a8360bbb38d5c09a158",
+              "entry_digest": "e000f1b757b645635b3a36d51f2a6d66840a1738311259d0c7cd6c51ae3383de",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bd29dd5e23a110a2ee04941dfdc5419d762240b9edb1d6a2c6b82093d80d8bf2",
+              "entry_digest": "c6984cd9c173a27e196280c3dd64382d12da4bd7a4de43ffae2275819761a0a7",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "src/change.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "f2fc6aace3b0e3c9029e4759b7ad04adee622dc02fce4b290a1b65c8b7a34653",
+              "entry_digest": "70f66429038a12dde0d9bcda1e62194e68f31761e7715d1ce10636bc58d29339",
+              "owners": [
+                "change"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-026"
+        ]
+      },
+      "stale_acceptance_input_digest": "5c3dec0e7896748c0c8aeed2446c7b88351935643a65c1918760cb7b4fdfeb1f",
+      "current_acceptance_input_digest": "a96ff1fb70ab0c7790185342fe7ab0f5df36f36f52dcb24235b293db2054ef75"
+    }
+  ]
 }

@@ -9,11 +9,13 @@ spec: github.spec.md
 - **State normalization**: issue `state` is lowercased (`"open"`/`"closed"`) so callers compare consistently regardless of CLI vs REST casing.
 - **github.com only**: URL parsing handles `git@github.com:`, `https://github.com/`, and `http://github.com/`; GitHub Enterprise hosts are out of scope.
 - **Deterministic hosted Bun runtime**: Pages, site CI, and VS Code extension CI use one exact Bun
-  version. `.github/scripts/validate-workflow-runtime-pins.py` prevents an unversioned
-  `setup-bun` step from restoring a live tag-discovery dependency.
+  version and the expected `setup-bun` Action ref. `.github/scripts/validate-workflow-runtime-pins.py`
+  validates every matching setup step and rejects moving refs, duplicates, unexpected jobs, or a
+  missing nested `bun-version`, preventing a live tag-discovery dependency from returning.
 - **Monotonic Action promotion**: immutable `v<major>.<minor>.<patch>` refs are verified before the
   compatible floating `v<major>` ref advances. Release metadata remains synchronized through
-  `.github/scripts/validate-release-version.py`.
+  `.github/scripts/validate-release-version.py`, which rejects every README/site Action ref other
+  than the exact candidate ref, including moving branch names such as `main`.
 - **Hermetic release guards**: release and runtime-pin validators require no Python site packages;
   the release guard uses Ruby's standard-library Psych parser for full YAML syntax validation.
   Lifecycle verification declares the Ruby preflight explicitly, and hosted CI provisions a pinned

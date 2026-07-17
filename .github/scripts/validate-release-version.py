@@ -206,7 +206,9 @@ def main() -> int:
 
     expected_action_ref = f"v{version}"
     action_ref_pattern = re.compile(
-        r"CorvidLabs/spec-sync@(v[0-9][A-Za-z0-9._-]*)"
+        r"^\s*-\s+uses:\s*['\"]?CorvidLabs/spec-sync@"
+        r"([A-Za-z0-9][A-Za-z0-9._/-]*)",
+        re.MULTILINE,
     )
     version_input_pattern = re.compile(
         r"^\s+version:\s*['\"]?([^'\"\s#]+)", re.MULTILINE

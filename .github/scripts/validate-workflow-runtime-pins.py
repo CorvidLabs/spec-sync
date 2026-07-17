@@ -6,6 +6,7 @@ import re
 import sys
 
 EXPECTED_BUN_VERSION = "1.3.14"
+EXPECTED_SETUP_BUN_REF = "oven-sh/setup-bun@v2"
 EXPECTED_SETUP_BUN_JOBS = {
     (".github/workflows/ci.yml", "site"),
     (".github/workflows/ci.yml", "vscode-extension"),
@@ -99,15 +100,20 @@ def step_input(lines: list[str], key: str) -> str | None:
 
 
 def main() -> int:
-    found: set[tuple[str, str]] = set()
+    found_counts: dict[tuple[str, str], int] = {}
     errors: list[str] = []
 
     for workflow_path in sorted({path for path, _ in EXPECTED_SETUP_BUN_JOBS}):
         for job_name, uses, step in workflow_uses_steps(workflow_path):
-            if uses != "oven-sh/setup-bun@v2":
+            if not uses.startswith("oven-sh/setup-bun@"):
                 continue
             location = (workflow_path, job_name)
-            found.add(location)
+            found_counts[location] = found_counts.get(location, 0) + 1
+            if uses != EXPECTED_SETUP_BUN_REF:
+                errors.append(
+                    f"{workflow_path}:{job_name} must use {EXPECTED_SETUP_BUN_REF}, "
+                    f"found {uses!r}"
+                )
             version = step_input(step, "bun-version")
             if version != EXPECTED_BUN_VERSION:
                 errors.append(
@@ -115,16 +121,25 @@ def main() -> int:
                     f"{EXPECTED_BUN_VERSION}, found {version!r}"
                 )
 
+    found = set(found_counts)
     missing = EXPECTED_SETUP_BUN_JOBS - found
     unexpected = found - EXPECTED_SETUP_BUN_JOBS
     errors.extend(f"missing setup-bun step in {path}:{job}" for path, job in sorted(missing))
     errors.extend(f"unexpected setup-bun step in {path}:{job}" for path, job in sorted(unexpected))
+    errors.extend(
+        f"expected exactly one setup-bun step in {path}:{job}, found {count}"
+        for (path, job), count in sorted(found_counts.items())
+        if count != 1
+    )
 
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1
 
-    print(f"Validated Bun {EXPECTED_BUN_VERSION} across {len(found)} workflow jobs")
+    print(
+        f"Validated {EXPECTED_SETUP_BUN_REF} with Bun {EXPECTED_BUN_VERSION} "
+        f"across {len(found)} workflow jobs"
+    )
     return 0
 
 

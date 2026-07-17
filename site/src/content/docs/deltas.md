@@ -4,7 +4,7 @@ section: "Reference"
 order: 3
 ---
 
-A **semantic delta** is the machine-appliable record of how a change modifies canonical spec truth. Deltas are what let the 5.x lifecycle keep spec edits inside the same verified workflow as code edits: nothing reaches the canonical spec except through a delta that was approved, verified, and accepted.
+A **semantic delta** is the machine-applicable record of how a change modifies canonical spec truth. Deltas are what let the 5.x lifecycle keep spec edits inside the same verified workflow as code edits: nothing reaches the canonical spec except through a delta that was approved, verified, and accepted.
 
 ---
 
@@ -22,7 +22,7 @@ The file name must match the module name of an affected spec. Definition approva
 semantic delta modules must exactly match affected specs (missing: auth; extra: none)
 ```
 
-Documentation-only changes that touch no spec contract can opt out with `--no-spec-change` and a recorded rationale (see [Workflow](workflow.md)).
+Documentation-only changes that touch no spec contract can opt out with `--no-spec-change` and a recorded rationale (see [Workflow](../workflow/)).
 
 ---
 
@@ -60,7 +60,7 @@ Requirement IDs introduced through deltas are permanent. Before acceptance, ever
 requirement evidence missing for REQ-auth-004
 ```
 
-Evidence is typically bound through the change's testing artifact and the configured `verification_commands` (see [Workflow](workflow.md)).
+Evidence is typically bound through the change's testing artifact and the configured `verification_commands` (see [Workflow](../workflow/)).
 
 ---
 
@@ -155,6 +155,6 @@ Acceptance Criteria
 
 ## See Also
 
-- [Workflow](workflow.md) — the full verified lifecycle
-- [Spec Format](spec-format.md) — canonical spec structure deltas apply against
-- [CLI Reference](cli.md) — `change` command surface
+- [Workflow](../workflow/) — the full verified lifecycle
+- [Spec Format](../spec-format/) — canonical spec structure deltas apply against
+- [CLI Reference](../cli/) — `change` command surface

@@ -7,8 +7,8 @@ spec: github.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/github.rs` | cargo test github:: | `test_parse_repo_from_url_https`, `test_parse_repo_from_url_ssh`, `test_parse_repo_from_url_unknown` |
-| Release version surfaces | `python3 .github/scripts/validate-release-version.py` | Cargo, lockfile, Action default, README/docs, packaged consumer, Trust candidate, and changelog agree |
-| Hosted Bun runtime | `python3 .github/scripts/validate-workflow-runtime-pins.py` | Pages, site CI, and VS Code extension CI all pin the supported exact Bun version |
+| Release version surfaces | `python3 -S .github/scripts/validate-release-version.py` | Cargo, lockfile, Action default, README/docs, packaged consumer, Trust candidate, checkout contract, and changelog agree without site packages |
+| Hosted Bun runtime | `python3 -S .github/scripts/validate-workflow-runtime-pins.py` | Pages, site CI, and VS Code extension CI all pin the supported exact Bun version without site packages |
 
 ## Coverage Gaps
 

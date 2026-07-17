@@ -6,12 +6,90 @@ import re
 import sys
 import tomllib
 
-import yaml
+
+def yaml_scalar(raw: str) -> str:
+    """Normalize the simple scalar forms used by maintained workflow files."""
+    value = raw.split(" #", 1)[0].strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        return value[1:-1]
+    return value
 
 
-def load_yaml(path: str) -> dict:
-    document = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
-    return document if isinstance(document, dict) else {}
+def mapping_block(lines: list[str], key: str, indent: int) -> list[str] | None:
+    """Return one indentation-bounded YAML mapping block, failing closed on ambiguity."""
+    pattern = re.compile(rf"^ {{{indent}}}{re.escape(key)}:\s*(?:#.*)?$")
+    starts = [index for index, line in enumerate(lines) if pattern.match(line)]
+    if len(starts) != 1:
+        return None
+
+    start = starts[0] + 1
+    end = len(lines)
+    for index in range(start, len(lines)):
+        line = lines[index]
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        leading = len(line) - len(stripped)
+        if leading <= indent:
+            end = index
+            break
+    return lines[start:end]
+
+
+def mapping_scalar(lines: list[str], key: str, indent: int) -> str | None:
+    pattern = re.compile(rf"^ {{{indent}}}{re.escape(key)}:\s*(.*?)\s*$")
+    values = [yaml_scalar(match.group(1)) for line in lines if (match := pattern.match(line))]
+    return values[0] if len(values) == 1 else None
+
+
+def workflow_uses_steps(path: str) -> list[tuple[str, str, list[str]]]:
+    """Read workflow `uses` steps without requiring a third-party YAML package."""
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    jobs = mapping_block(lines, "jobs", 0)
+    if jobs is None:
+        return []
+
+    steps: list[tuple[str, str, list[str]]] = []
+    current_job: str | None = None
+    index = 0
+    job_pattern = re.compile(r"^  ([A-Za-z0-9_-]+):\s*(?:#.*)?$")
+    step_pattern = re.compile(r"^      -(?:\s+.*)?$")
+    inline_uses_pattern = re.compile(r"^      - uses:\s*(.*?)\s*$")
+    nested_uses_pattern = re.compile(r"^        uses:\s*(.*?)\s*$")
+    while index < len(jobs):
+        line = jobs[index]
+        if job_match := job_pattern.match(line):
+            current_job = job_match.group(1)
+        if step_pattern.match(line):
+            end = index + 1
+            while end < len(jobs):
+                candidate = jobs[end]
+                stripped = candidate.lstrip()
+                if stripped and not stripped.startswith("#"):
+                    leading = len(candidate) - len(stripped)
+                    if leading <= 6:
+                        break
+                end += 1
+            step_lines = jobs[index:end]
+            uses_values = [
+                yaml_scalar(match.group(1))
+                for step_line in step_lines
+                if (match := inline_uses_pattern.match(step_line))
+                or (match := nested_uses_pattern.match(step_line))
+            ]
+            if current_job is not None and len(uses_values) == 1:
+                steps.append((current_job, uses_values[0], step_lines))
+            index = end
+            continue
+        index += 1
+    return steps
+
+
+def find_uses_step(
+    steps: list[tuple[str, str, list[str]]], job: str, predicate
+) -> tuple[str, str, list[str]] | None:
+    matches = [step for step in steps if step[0] == job and predicate(step[1])]
+    return matches[0] if len(matches) == 1 else None
 
 
 def main() -> int:
@@ -26,49 +104,67 @@ def main() -> int:
     if lock_versions != [version]:
         errors.append(f"Cargo.lock specsync version must be {version}, found {lock_versions}")
 
-    action = load_yaml("action.yml")
-    action_version = str(
-        ((action.get("inputs") or {}).get("version") or {}).get("default", "")
-    )
+    action_lines = Path("action.yml").read_text(encoding="utf-8").splitlines()
+    inputs = mapping_block(action_lines, "inputs", 0)
+    version_input = mapping_block(inputs or [], "version", 2)
+    action_version = mapping_scalar(version_input or [], "default", 4)
     if action_version != version:
         errors.append(f"action.yml default must be {version}, found {action_version}")
 
-    ci = load_yaml(".github/workflows/ci.yml")
-    consumer_steps = ((ci.get("jobs") or {}).get("action-consumer") or {}).get("steps", [])
-    consumer = next(
-        (step for step in consumer_steps if isinstance(step, dict) and step.get("uses") == "./"),
-        None,
+    ci_steps = workflow_uses_steps(".github/workflows/ci.yml")
+    consumer = find_uses_step(
+        ci_steps, "action-consumer", lambda uses: uses == "./"
     )
     if consumer is None:
         errors.append("packaged Action consumer step not found in ci.yml")
     else:
-        consumer_version = str((consumer.get("with") or {}).get("version", ""))
+        consumer_version = mapping_scalar(consumer[2], "version", 10)
         if consumer_version != version:
             errors.append(
                 f"packaged Action consumer must use {version}, found {consumer_version}"
             )
 
-    trust = load_yaml(".github/workflows/trust.yml")
-    trust_steps = ((trust.get("jobs") or {}).get("trust") or {}).get("steps", [])
-    trust_step = next(
-        (
-            step
-            for step in trust_steps
-            if isinstance(step, dict)
-            and str(step.get("uses", "")).startswith("CorvidLabs/trust@")
-        ),
-        None,
+    trust_steps = workflow_uses_steps(".github/workflows/trust.yml")
+    trust_step = find_uses_step(
+        trust_steps, "trust", lambda uses: uses.startswith("CorvidLabs/trust@")
     )
     if trust_step is None:
         errors.append("Trust step not found in trust.yml")
     else:
-        trust_version = str((trust_step.get("with") or {}).get("specsync-version", ""))
+        trust_version = mapping_scalar(trust_step[2], "specsync-version", 10)
         if trust_version != version:
             errors.append(f"Trust candidate must use {version}, found {trust_version}")
+
+    expected_ref = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
+    for path, steps, job in (
+        ("ci.yml", ci_steps, "spec-check"),
+        ("trust.yml", trust_steps, "trust"),
+    ):
+        checkout = find_uses_step(steps, job, lambda uses: uses.startswith("actions/checkout@"))
+        if checkout is None:
+            errors.append(f"{path}:{job} checkout step not found")
+            continue
+        ref = mapping_scalar(checkout[2], "ref", 10)
+        fetch_depth = mapping_scalar(checkout[2], "fetch-depth", 10)
+        if ref != expected_ref or fetch_depth != "0":
+            errors.append(
+                f"{path}:{job} must check out the exact event head with full history"
+            )
+
+    for job in ("test", "fmt", "audit", "coverage", "action-consumer"):
+        checkout = find_uses_step(
+            ci_steps, job, lambda uses: uses.startswith("actions/checkout@")
+        )
+        if checkout is None:
+            errors.append(f"ci.yml:{job} checkout step not found")
+        elif mapping_scalar(checkout[2], "ref", 10) is not None:
+            errors.append(f"ci.yml:{job} checkout must not override the default ref")
 
     readme = Path("README.md").read_text(encoding="utf-8")
     if f"CorvidLabs/spec-sync@v{version}" not in readme:
         errors.append(f"README.md must contain immutable Action ref @v{version}")
+    if re.search(r"CorvidLabs/spec-sync@v5(?!\.)", readme):
+        errors.append("README.md must not advertise floating @v5 before release promotion")
     if f"version: '{version}'" not in readme:
         errors.append(f"README.md must pin Action binary version {version}")
 

@@ -29,5 +29,127 @@
       "note": null
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0049-make-stale-accepted-change-verification-diagnostics-actionable-with-named-delive",
+      "actor": "Kimi Code",
+      "reason": "Refresh accepted delivery-input evidence after a rustfmt-only correction to src/change.rs",
+      "timestamp": 1784331744,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "Kimi Code",
+        "timestamp": 1784327694,
+        "digest": "d71eeabede1f244e1d4bccd4b058ccb4790fb56680a3c3740eb2802aeb9bfa2a",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784327671,
+        "commit": "9bdd0beacbc40a610a2da590c05d8e41abc40904",
+        "contract_digest": "3a405de75314b2b73c46c51d9e02ee9ad7ff7f296786b07bab8ea26d2b0e68c0",
+        "workspace_digest": "51c475c6e18daa3c672bc38a6f7d7a0a9ed9b3b07b4bd28d3c3e1f01f04c2878",
+        "acceptance_input_digest": "dafcefec5fae78663971d58186be29e88304bb57f17e80295b4141a9fffd4d9f",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "91a0284e467808813d9535438c854d0048acef60bc842d952228db368a298e11",
+              "entry_digest": "e09d4448682f8f69646b966895efdf5c9d713893563978f1a24654692f848b9b",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/change/change.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "7d41218a3f43e4f6f90742edfbf4917d063960481a3fe538f5c8a97989268dde",
+              "entry_digest": "4c2a323a0c16220d5b3c26513eaf6bdc4a52cc023c69b21cd42f86304816ec2f",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d2633a06653ae6810a21c6926de9003c2aa5d41870aecb9286b0bec81138e909",
+              "entry_digest": "bd74a785b9a1746222bb7271c929415942265e5090f7c65b34d2cdc6d02bbf62",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "f0aa631135b90617c7892031560206a89d5b3d191f0c3f326d6bccfbd92006d2",
+              "entry_digest": "c3f7e1598d9a95809e66194b2da6db6f9922da60026619a920bae9a0944b57f7",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "7ae9249b340059f0a97c3da9318a69ba0dca0670d54b5149fe2094da41f18bd8",
+              "entry_digest": "dcb46e174bf982262323ef9bfa490f11650e5f8fe32984dad825ce98869b717c",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "40675c7d542c8796dc315f8b447cdb7083278720e2a7e837f5137e83263d71e0",
+              "entry_digest": "7b05029a2cadfd353be55da326f1e9b3cf2640a10472775e83d6957be390c8d1",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "src/change.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "35de4488c490c16ad7024cbc8b39a9842ac8160884223e3134af0d143f96b8de",
+              "entry_digest": "501098a82c01e8829d4b3e5ded408802482902faa5359e8a435bb7ae2ebd694a",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "tests/integration/change.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "ed9df8453b05f7b68b61996e585536b73fc0423f3ef0eeb5b55e84d7676f7be1",
+              "entry_digest": "1c58e8da5f6bbd9fbf770c87d9c208131dc1788aebae73d557e56f53d9594f9b",
+              "owners": [
+                "@exact:test"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-034"
+        ]
+      },
+      "stale_acceptance_input_digest": "dafcefec5fae78663971d58186be29e88304bb57f17e80295b4141a9fffd4d9f",
+      "current_acceptance_input_digest": "ce7c4c91bf305f44a2c59c2eb9ecd2e06d9dad94e71feaa70745d1b74ac40ac6"
+    }
+  ]
 }

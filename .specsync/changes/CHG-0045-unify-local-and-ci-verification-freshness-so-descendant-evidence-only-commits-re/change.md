@@ -1,6 +1,6 @@
 ---
 id: CHG-0045-unify-local-and-ci-verification-freshness-so-descendant-evidence-only-commits-re
-state: accepted
+state: verifying
 type: bug_fix
 base_commit: b4a90aa2871cb77cd824df759e3e90a31ab3e971
 ---

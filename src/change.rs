@@ -15947,10 +15947,12 @@ mod tests {
             "{:?}",
             stale_report.errors
         );
-        assert!(check_project(root)
-            .errors
-            .iter()
-            .any(|error| *error == expected));
+        assert!(
+            check_project(root)
+                .errors
+                .iter()
+                .any(|error| *error == expected)
+        );
     }
 
     // Verifies REQ-change-034.

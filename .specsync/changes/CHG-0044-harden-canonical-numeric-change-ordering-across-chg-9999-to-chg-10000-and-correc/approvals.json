@@ -903,6 +903,147 @@
       },
       "stale_acceptance_input_digest": "c4ed7714913f47e0e82c3b93d5378ef4850110f4f337432a8fdbb2d2ef4cbe42",
       "current_acceptance_input_digest": "d66bba3269ced31fa666e20987ee782963ebacc50c83fef25e4342ccfd8aa5ec"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0044-harden-canonical-numeric-change-ordering-across-chg-9999-to-chg-10000-and-correc",
+      "actor": "Kimi Code",
+      "reason": "Refresh accepted delivery-input evidence after a rustfmt-only correction to src/change.rs",
+      "timestamp": 1784331710,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "Kimi Code",
+        "timestamp": 1784329107,
+        "digest": "e448cc6158f594ea61ee7a436c930f0f95706dee0901d250f02570841cf1ef30",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784329070,
+        "commit": "9bdd0beacbc40a610a2da590c05d8e41abc40904",
+        "contract_digest": "7ba2ed926fb2c01b78177c3ae8128b12ec57810137a81e4677d0efb695d25536",
+        "workspace_digest": "b8026b0f4987d2abd2bcd527db97b945a9624e607018b20eeae4e1706b144c7a",
+        "acceptance_input_digest": "d66bba3269ced31fa666e20987ee782963ebacc50c83fef25e4342ccfd8aa5ec",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".github/workflows/trust.yml",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "c23f1edc2f3e7090d0a6cdc4c74005867e2407a94819f94b1ccaeee8f52f83f5",
+              "entry_digest": "af1294d5b1aec552a015f812dfa64f10baf0f33ad32606f60f9be943e6c5235c",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "efea343f12c20037e1fbd0c24016a98d2d4592d790bb44684d8fe7b2fd11db0b",
+              "entry_digest": "e1622eba02c5a65b871254fcbdff43156b3985774b401af377b69261daeb32cc",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "CHANGELOG.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "6b2a7bd50a4369c725b7960c41a257fdf36ca928faab0125e5f457641e46e0a5",
+              "entry_digest": "1e00c57439d3becad3aae10bca1a36377fcca32412f14721f4649435c36e0a0e",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "site/src/content/docs/comparisons/adversarial-proof.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "1639387ebb161bcf10fd4b8fea5bc73805238a7f7c7edc3a56e2634da8d5ab07",
+              "entry_digest": "99870b96178e42cefa069dd143f11668b5fffee9826e7d402646114c950c05d0",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/change/change.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "7d41218a3f43e4f6f90742edfbf4917d063960481a3fe538f5c8a97989268dde",
+              "entry_digest": "4c2a323a0c16220d5b3c26513eaf6bdc4a52cc023c69b21cd42f86304816ec2f",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d2633a06653ae6810a21c6926de9003c2aa5d41870aecb9286b0bec81138e909",
+              "entry_digest": "bd74a785b9a1746222bb7271c929415942265e5090f7c65b34d2cdc6d02bbf62",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "f0aa631135b90617c7892031560206a89d5b3d191f0c3f326d6bccfbd92006d2",
+              "entry_digest": "c3f7e1598d9a95809e66194b2da6db6f9922da60026619a920bae9a0944b57f7",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "7ae9249b340059f0a97c3da9318a69ba0dca0670d54b5149fe2094da41f18bd8",
+              "entry_digest": "dcb46e174bf982262323ef9bfa490f11650e5f8fe32984dad825ce98869b717c",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "40675c7d542c8796dc315f8b447cdb7083278720e2a7e837f5137e83263d71e0",
+              "entry_digest": "7b05029a2cadfd353be55da326f1e9b3cf2640a10472775e83d6957be390c8d1",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "src/change.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "35de4488c490c16ad7024cbc8b39a9842ac8160884223e3134af0d143f96b8de",
+              "entry_digest": "501098a82c01e8829d4b3e5ded408802482902faa5359e8a435bb7ae2ebd694a",
+              "owners": [
+                "change"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-026"
+        ]
+      },
+      "stale_acceptance_input_digest": "d66bba3269ced31fa666e20987ee782963ebacc50c83fef25e4342ccfd8aa5ec",
+      "current_acceptance_input_digest": "8fb0b6fde86bcfe1dfdd85e190c5d18daecda5531a26f3242b6f37d81f9b8bf9"
     }
   ]
 }

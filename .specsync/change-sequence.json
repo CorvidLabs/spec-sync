@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 47,
-  "id": "CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied",
+  "sequence": 48,
+  "id": "CHG-0048-add-static-x86-64-unknown-linux-musl-build-to-the-release-matrix-so-prebuilt-bin",
   "acknowledged_collisions": [
     {
       "sequence": 16,

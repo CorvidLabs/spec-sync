@@ -1,0 +1,34 @@
+---
+id: CHG-0048-prepare-the-specsync-5-1-1-stabilization-release-from-merged-pr-387-bump-accur
+state: verifying
+type: operations
+base_commit: d097bf88a7b057fb3010f9a5881618f48b5ae772
+---
+
+# Prepare the SpecSync 5.1.1 stabilization release from merged PR #387: bump accurate release metadata and changelog, update the GitHub Action default to 5.1.1, document and validate the floating v5 compatibility ref, verify all release artifacts and supported installation paths, and define fail-closed publication and rollback boundaries
+
+## Intent
+
+Prepare the SpecSync 5.1.1 stabilization release from merged PR #387: bump accurate release metadata and changelog, update the GitHub Action default to 5.1.1, document and validate the floating v5 compatibility ref, verify all release artifacts and supported installation paths, and define fail-closed publication and rollback boundaries
+
+## Affected Canonical Specs
+
+- `github`
+
+## Acceptance Criteria
+
+- Cargo.toml and Cargo.lock identify specsync 5.1.1 while immutable historical release and archive references remain unchanged
+- CHANGELOG.md contains an accurate dated 5.1.1 section and comparison links describing the post-5.1.0 lifecycle, performance, security, and Windows portability corrections
+- The GitHub Action default, pinned README example, Action documentation, packaged-action consumer, and Trust candidate pin consistently identify 5.1.1
+- Strict specs, complete tests, formatting, Clippy, audit, documentation, release build, packaged Action validation, hosted Linux/macOS/Windows CI, CodeQL, Trust, and provenance verification pass on the exact integrated release candidate before publication
+- CHG-0043 through CHG-0047 are archived and CHG-0048 is the only active release change before its closing approval
+- The immutable v5.1.1 tag and GitHub release are created only from integrated main after explicit closing approval, and all five platform archives plus LF-only SHA-256 records are published and verified
+- The specsync 5.1.1 crate is published to crates.io and a clean cargo install reports 5.1.1
+- The floating v5 GitHub Action ref is created or advanced only after v5.1.1 assets pass pinned Action smoke tests, and resolves to the same integrated release commit
+- The CorvidLabs Homebrew formula is updated to 5.1.1 with published checksums and passes formula validation plus a clean install test
+- Pinned v5.1.1 and floating v5 Action consumers pass supported Linux, macOS, and Windows smoke checks, and publication failures do not rewrite the immutable tag or advance downstream mutable pointers prematurely
+- Hosted site and VS Code extension jobs use an exact Bun 1.3.14 runtime pin so setup does not depend on GitHub's live Bun-tag discovery API; the pin is exercised by the release PR and integrated-main workflows
+
+## No-spec Rationale
+
+Not applicable

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0044-harden-canonical-numeric-change-ordering-across-chg-9999-to-chg-10000-and-correc",
+  "slug": "harden-canonical-numeric-change-ordering-across-chg-9999-to-chg-10000-and-correc",
+  "title": "Harden canonical numeric change ordering across CHG-9999 to CHG-10000 and correct 5.1 release documentation",
+  "description": "Harden canonical numeric change ordering across CHG-9999 to CHG-10000 and correct 5.1 release documentation",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "2646fc3495bb4f5125e6f4f463f59e58f9f93110",
+  "created_at": 1784098794,
+  "updated_at": 1784241390,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    "specs/change/testing.md",
+    "CHANGELOG.md",
+    "site/src/content/docs/comparisons/adversarial-proof.md",
+    ".github/workflows/trust.yml",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "CHG-10000 sorts after CHG-9999 by numeric sequence.",
+    "Same-sequence canonical IDs use the full ID as a deterministic tie-breaker.",
+    "Malformed, noncanonical, and overflowing IDs fail closed.",
+    "Regression coverage exercises the numeric boundary and invalid forms.",
+    "The 5.1 changelog names extensionless export-star resolution to sibling .mjs and .cjs.",
+    "Both adversarial-proof matrices identify SpecSync 5.1.",
+    "The Trust workflow describes its immutable SHA as an unreleased candidate and does not claim a nonexistent v1.0.1 tag."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

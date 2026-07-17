@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.1.1] - 2026-07-16
+
+### Changed
+
+- **Verified GitHub Action 5.x promotion contract** — the maintained Action now defaults to
+  SpecSync 5.1.1, documentation distinguishes immutable `@v5.1.1` installs from the compatible
+  floating `@v5` channel, and release promotion requires exact-version Linux, macOS, and Windows
+  smoke checks before advancing the floating ref.
+- **Deterministic hosted JavaScript runtime** — Pages, site CI, and VS Code extension CI pin Bun
+  1.3.14 instead of resolving the newest Bun tag during every run, with a repository guard that
+  prevents the three workflow jobs from drifting apart.
+
+### Fixed
+
+- **Accepted lifecycle evidence remains fail-closed under successors and corrections** — exact
+  per-input ownership, append-only correction evidence, deterministic canonical ownership, and a
+  committed legacy-baseline ledger prevent stale or ambiguous accepted changes from being treated
+  as current while preserving auditable recovery for already-applied changes.
+- **Verification freshness and integration identity are consistent** — descendant evidence-only
+  commits no longer create false stale results, distinct verifying-to-accepted transitions remain
+  required, numeric change ordering works beyond `CHG-9999`, and hosted lifecycle checks evaluate
+  the exact pull-request head before integration.
+- **Strict checks are fast, private, and portable** — Git history inspection is bounded, sensitive
+  command output is not written to logs, and Git/path handling covers Windows CRLF, literal
+  pathspecs, invalid filenames, and index-only entries without platform-specific failures.
+
 ## [5.1.0] - 2026-07-14
 
 ### Added
@@ -725,7 +751,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
-[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v5.1.0...HEAD
+[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v5.1.1...HEAD
+[5.1.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.1.1
 [5.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.1.0
 [5.0.2]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.0.2
 [5.0.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.0.1

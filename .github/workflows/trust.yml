@@ -39,5 +39,5 @@ jobs:
         id: trust
         uses: CorvidLabs/trust@ada07787b6e3f9ec31e3d2abe469d71a2024ddfd # immutable unreleased Trust candidate
         with:
-          specsync-version: "5.1.0"
+          specsync-version: "5.1.1"
           specsync-download-base-url: file://${{ runner.temp }}/specsync-trust-mirror

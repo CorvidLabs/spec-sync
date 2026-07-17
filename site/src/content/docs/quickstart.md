@@ -220,8 +220,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v5
+      - uses: CorvidLabs/spec-sync@v5.1.1
         with:
+          version: '5.1.1'
           strict: true
           require-coverage: 80
 ```

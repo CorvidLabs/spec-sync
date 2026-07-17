@@ -7,8 +7,8 @@ spec: github.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/github.rs` | cargo test github:: | `test_parse_repo_from_url_https`, `test_parse_repo_from_url_ssh`, `test_parse_repo_from_url_unknown` |
-| Release version surfaces | `ruby --version` then `PYENV_VERSION=3.10.20 python3 -S .github/scripts/validate-release-version.py` | Pinned hosted Ruby and the declared lifecycle preflight provide Psych; maintained YAML syntax, Cargo, lockfile, Action default, every README/site YAML Action step (including indented or metadata-bearing fences, named/nested `uses`, mixed-case repositories, non-version moving refs, and block/flow `with.version` inputs), packaged consumer, Trust candidate, checkout contract, and changelog agree without Python site packages or Python 3.11-only modules |
-| Hosted Bun runtime | `python3 -S .github/scripts/validate-workflow-runtime-pins.py` | Pages, site CI, and VS Code extension CI each contain exactly one expected `setup-bun` Action ref with the supported exact Bun version under that step's `with` mapping; quoted `uses` keys, mixed-case repositories, moving refs, duplicates, unexpected jobs, and missing nested inputs fail without Python site packages |
+| Release version surfaces | `ruby --version` then `PYENV_VERSION=3.10.20 python3 -S .github/scripts/validate-release-version.py` | Pinned hosted Ruby and the declared lifecycle preflight provide Psych; maintained YAML syntax, Cargo, lockfile, Action default, every README/site YAML Action step (including indented, metadata-bearing, backtick, or tilde fences, named/nested/quoted `uses`, mixed-case repositories, non-version moving refs, and block/flow `with.version` inputs), packaged consumer, Trust candidate, checkout contract, and changelog agree without Python site packages or Python 3.11-only modules |
+| Hosted Bun runtime | `python3 -S .github/scripts/validate-workflow-runtime-pins.py` | Pages, site CI, and VS Code extension CI each contain exactly one expected block-style `setup-bun` Action ref with the supported exact Bun version under that step's `with` mapping; quoted or flow-style `uses` keys, mixed-case repositories, moving refs, duplicates, unexpected jobs, and missing nested inputs fail without Python site packages |
 
 ## Coverage Gaps
 
@@ -38,6 +38,9 @@ spec: github.spec.md
 | YAML fence includes metadata | The fenced workflow example remains in release validation scope | Add fence metadata such as `title="ci.yml"`, substitute a moving spec-sync ref, and require the release validator to fail |
 | YAML fence is indented | A CommonMark fence with one to three leading spaces remains in release validation scope | Indent a YAML fence, substitute a moving spec-sync ref, and require the release validator to fail |
 | Workflow `uses` key is quoted | The YAML-equivalent step remains in runtime-pin validation scope | Add a quoted `"uses"` key with a moving setup-bun ref and require the runtime validator to fail |
+| Workflow checkout `uses` key is quoted | The YAML-equivalent checkout remains in release validation scope | Add a quoted `"uses"` key for an extra checkout step and require the release validator to fail |
+| Workflow setup-bun step uses flow mapping syntax | The YAML-equivalent setup-bun step remains in runtime-pin validation scope | Add `{ uses: oven-sh/setup-bun@main }` and require the runtime validator to fail |
+| YAML fence uses tildes | The rendered workflow example remains in release validation scope | Convert a public YAML example to a tilde fence, substitute a moving spec-sync ref, and require the release validator to fail |
 | Exact Action release fails a platform smoke test | Floating `v5` remains unchanged | Compare refs before and after the failed promotion attempt |
 
 ## Reviewer Checklist

@@ -70,9 +70,9 @@ steps = []
 errors = []
 ARGV.each do |path|
   content = File.read(path, encoding: "UTF-8")
-  content.scan(/^ {0,3}```(?:yaml|yml)(?:[ \t]+[^\r\n]*)?[ \t]*\r?\n(.*?)^ {0,3}```[ \t]*\r?$/m).each_with_index do |match, index|
+  content.scan(/^ {0,3}(`{3,}|~{3,})(?:yaml|yml)(?:[ \t]+[^\r\n]*)?[ \t]*\r?\n(.*?)^ {0,3}\1[ \t]*\r?$/m).each_with_index do |match, index|
     begin
-      document = Psych.safe_load(match.first, permitted_classes: [], aliases: false)
+      document = Psych.safe_load(match[1], permitted_classes: [], aliases: false)
     rescue Psych::Exception => error
       errors << { path: path, block: index + 1, error: error.message }
       next
@@ -220,8 +220,9 @@ def workflow_uses_steps(path: str) -> list[tuple[str, str, list[str]]]:
     index = 0
     job_pattern = re.compile(r"^  ([A-Za-z0-9_-]+):\s*(?:#.*)?$")
     step_pattern = re.compile(r"^      -(?:\s+.*)?$")
-    inline_uses_pattern = re.compile(r"^      - uses:\s*(.*?)\s*$")
-    nested_uses_pattern = re.compile(r"^        uses:\s*(.*?)\s*$")
+    uses_key = r'(?:uses|[\'\"]uses[\'\"])\s*:'
+    inline_uses_pattern = re.compile(rf"^      - {uses_key}\s*(.*?)\s*$")
+    nested_uses_pattern = re.compile(rf"^        {uses_key}\s*(.*?)\s*$")
     while index < len(jobs):
         line = jobs[index]
         if job_match := job_pattern.match(line):

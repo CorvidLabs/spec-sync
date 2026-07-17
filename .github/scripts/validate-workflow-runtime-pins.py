@@ -66,6 +66,7 @@ def workflow_uses_steps(path: str) -> list[tuple[str, str, list[str]]]:
     uses_key = r'(?:uses|[\'\"]uses[\'\"])\s*:'
     inline_uses_pattern = re.compile(rf"^      - {uses_key}\s*(.*?)\s*$")
     nested_uses_pattern = re.compile(rf"^        {uses_key}\s*(.*?)\s*$")
+    flow_uses_pattern = re.compile(rf"^      -\s*\{{\s*{uses_key}\s*([^,}}]+)")
     index = 0
     while index < len(jobs):
         line = jobs[index]
@@ -89,6 +90,7 @@ def workflow_uses_steps(path: str) -> list[tuple[str, str, list[str]]]:
                 for step_line in step_lines
                 if (match := inline_uses_pattern.match(step_line))
                 or (match := nested_uses_pattern.match(step_line))
+                or (match := flow_uses_pattern.match(step_line))
             ]
             if current_job is not None and len(uses_values) == 1:
                 steps.append((current_job, uses_values[0], step_lines))

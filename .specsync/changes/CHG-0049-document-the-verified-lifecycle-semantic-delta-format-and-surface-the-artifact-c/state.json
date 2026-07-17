@@ -5,10 +5,11 @@
   "title": "Document the verified lifecycle semantic-delta format and surface the artifact-completeness and exact delta-module approval gates in the quickstart",
   "description": "Document the verified lifecycle semantic-delta format and surface the artifact-completeness and exact delta-module approval gates in the quickstart",
   "kind": "documentation",
-  "state": "implementing",
+  "state": "accepted",
+  "canonical_applied": true,
   "base_commit": "0b9c8f5e121ccea53acbd3f0ad3a5c687fa76611",
   "created_at": 1784302413,
-  "updated_at": 1784304687,
+  "updated_at": 1784308068,
   "affected_specs": [],
   "affected_paths": [
     "site/src/content/docs/deltas.md",

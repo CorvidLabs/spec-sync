@@ -1,9 +1,9 @@
 {
-  "timestamp": 1784304591,
-  "commit": "0b9c8f5e121ccea53acbd3f0ad3a5c687fa76611",
+  "timestamp": 1784306159,
+  "commit": "74d04de8eed77478316eee6f1514470f6ef8ed64",
   "contract_digest": "50d7f16f9989be74df1771ad6851c82d8df406053664d0fead5414a5671ab2f9",
-  "workspace_digest": "0c145d0d726903473d8d64d79efb7348cf8f6168251ed9144b5dc1daa317dc40",
-  "acceptance_input_digest": "d7e78b8196070a1555f981cf4da16f40756e3bc0766586373b69342b44dfd1e9",
+  "workspace_digest": "d2b00ffbbc78d6d986663c81667c31d5bf4a2613e280ef178173ba015c95d612",
+  "acceptance_input_digest": "e89d9d463b54bf7fcff64a2c51d2a3fd6a443b070e52ca6956decdcea2b17b03",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -141,8 +141,8 @@
         "path": "site/src/content/docs/quickstart.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "4bf139e86a892a747269e8299bbb4fe7969f95f9142506106281928506e28b22",
-        "entry_digest": "9babe16df823a75f83774db224d8477ef2c223a9012e325ebc7af22ee9bfa7b3",
+        "payload_digest": "8b4bc4a8876178e75128749c10fc3da8a1c94a36f037c7540bcfe487886cd54e",
+        "entry_digest": "3f68bfc23f11dccf0c37863a3fe62a1a405da41064144b64df033a394eadcfc1",
         "owners": [
           "@exact:delivery"
         ]

@@ -24,6 +24,7 @@
     ".github/workflows/trust.yml",
     ".github/scripts/validate-release-version.py",
     ".github/scripts/validate-workflow-runtime-pins.py",
+    ".specsync/sdd.json",
     "site/src/content/docs/integrations/github-action.md",
     "specs/github/github.spec.md",
     "specs/github/requirements.md",

@@ -20,9 +20,14 @@ def main() -> int:
     errors: list[str] = []
 
     for workflow_path in sorted({path for path, _ in EXPECTED_SETUP_BUN_JOBS}):
-        document = yaml.safe_load(Path(workflow_path).read_text(encoding="utf-8"))
-        for job_name, job in document.get("jobs", {}).items():
+        document = yaml.safe_load(Path(workflow_path).read_text(encoding="utf-8")) or {}
+        jobs = document.get("jobs", {}) if isinstance(document, dict) else {}
+        for job_name, job in jobs.items():
+            if not isinstance(job, dict):
+                continue
             for step in job.get("steps", []):
+                if not isinstance(step, dict):
+                    continue
                 if step.get("uses") != "oven-sh/setup-bun@v2":
                     continue
 

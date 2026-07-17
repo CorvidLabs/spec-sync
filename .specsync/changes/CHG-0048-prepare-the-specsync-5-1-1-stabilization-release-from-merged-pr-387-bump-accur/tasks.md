@@ -17,3 +17,6 @@ artifact: tasks
   packaged-Action, strict coverage, and release-package checks; confirm hosted CI, final Trust and
   provenance, closing approval, integration, publication, and distribution smoke tests remain
   fail-closed delivery gates after lifecycle verification.
+- [x] Address all PR #389 review findings: harden malformed-YAML diagnostics, run release guards
+  for every validated surface, persist validator commands in lifecycle evidence, and keep public
+  examples on the immutable Action ref until floating-channel promotion.

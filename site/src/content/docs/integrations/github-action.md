@@ -11,7 +11,7 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 ## Basic Usage
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v5
+- uses: CorvidLabs/spec-sync@v5.1.1
   with:
     strict: 'true'
     require-coverage: '100'
@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v5
+      - uses: CorvidLabs/spec-sync@v5.1.1
         with:
           strict: 'true'
           require-coverage: '100'
@@ -56,8 +56,8 @@ jobs:
 
 Release archives and their `.sha256` files are both fetched from the selected source. A missing or mismatched checksum fails before extraction. Treat `download-base-url` as a trust boundary and configure it only with an organization-controlled mirror.
 
-`CorvidLabs/spec-sync@v5` is the compatible 5.x channel and may advance to newer verified 5.x
-releases. For an immutable install, pin both the Action ref and its binary version:
+Use the immutable release ref until compatible-channel promotion is complete, and pin both the
+Action ref and its binary version:
 
 ```yaml
 - uses: CorvidLabs/spec-sync@v5.1.1
@@ -66,8 +66,8 @@ releases. For an immutable install, pin both the Action ref and its binary versi
     strict: 'true'
 ```
 
-The floating `v5` ref is promoted only after the exact-version Action passes supported Linux,
-macOS, and Windows smoke tests.
+After the exact-version Action passes supported Linux, macOS, and Windows smoke tests, the floating
+`v5` ref is promoted as the compatible 5.x channel and may advance to newer verified 5.x releases.
 
 ---
 
@@ -90,7 +90,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v5
+      - uses: CorvidLabs/spec-sync@v5.1.1
         with:
           strict: 'true'
           comment: 'true'
@@ -105,7 +105,7 @@ jobs:
 **Custom token (e.g., for private registries or cross-repo refs):**
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v5
+- uses: CorvidLabs/spec-sync@v5.1.1
   with:
     comment: 'true'
     token: ${{ secrets.MY_PAT }}
@@ -126,7 +126,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v5
+      - uses: CorvidLabs/spec-sync@v5.1.1
         with:
           strict: 'true'
 ```
@@ -136,7 +136,7 @@ jobs:
 ## Monorepo
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v5
+- uses: CorvidLabs/spec-sync@v5.1.1
   with:
     root: './packages/backend'
     strict: 'true'

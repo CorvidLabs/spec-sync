@@ -204,13 +204,35 @@ def main() -> int:
         elif step_input(checkout[2], "ref") is not None:
             errors.append(f"ci.yml:{job} checkout must not override the default ref")
 
+    expected_action_ref = f"v{version}"
+    action_ref_pattern = re.compile(
+        r"CorvidLabs/spec-sync@(v[0-9][A-Za-z0-9._-]*)"
+    )
+    version_input_pattern = re.compile(
+        r"^\s+version:\s*['\"]?([^'\"\s#]+)", re.MULTILINE
+    )
+
     readme = Path("README.md").read_text(encoding="utf-8")
-    if f"CorvidLabs/spec-sync@v{version}" not in readme:
+    readme_refs = action_ref_pattern.findall(readme)
+    if expected_action_ref not in readme_refs:
         errors.append(f"README.md must contain immutable Action ref @v{version}")
-    if re.search(r"CorvidLabs/spec-sync@v5(?!\.)", readme):
-        errors.append("README.md must not advertise floating @v5 before release promotion")
-    if f"version: '{version}'" not in readme:
+    stale_readme_refs = sorted({ref for ref in readme_refs if ref != expected_action_ref})
+    if stale_readme_refs:
+        errors.append(
+            f"README.md Action refs must all be @{expected_action_ref}, "
+            f"found {stale_readme_refs}"
+        )
+    readme_versions = version_input_pattern.findall(readme)
+    if version not in readme_versions:
         errors.append(f"README.md must pin Action binary version {version}")
+    stale_readme_versions = sorted(
+        {input_version for input_version in readme_versions if input_version != version}
+    )
+    if stale_readme_versions:
+        errors.append(
+            f"README.md Action version inputs must all be {version}, "
+            f"found {stale_readme_versions}"
+        )
 
     action_docs = Path("site/src/content/docs/integrations/github-action.md").read_text(
         encoding="utf-8"
@@ -220,17 +242,29 @@ def main() -> int:
         found = docs_default.group(1) if docs_default else None
         errors.append(f"Action docs default must be {version}, found {found!r}")
 
-    floating_site_refs = []
+    stale_site_refs: list[str] = []
+    stale_site_versions: list[str] = []
     for path in Path("site/src/content").rglob("*"):
         if path.suffix not in {".md", ".mdx"}:
             continue
         content = path.read_text(encoding="utf-8")
-        if re.search(r"CorvidLabs/spec-sync@v5(?!\.)", content):
-            floating_site_refs.append(str(path))
-    if floating_site_refs:
+        action_refs = action_ref_pattern.findall(content)
+        for ref in action_refs:
+            if ref != expected_action_ref:
+                stale_site_refs.append(f"{path}: @{ref}")
+        if action_refs:
+            for input_version in version_input_pattern.findall(content):
+                if input_version != version:
+                    stale_site_versions.append(f"{path}: {input_version}")
+    if stale_site_refs:
         errors.append(
-            "site content must not advertise floating @v5 before release promotion: "
-            + ", ".join(sorted(floating_site_refs))
+            f"site Action refs must all be @{expected_action_ref}: "
+            + ", ".join(sorted(stale_site_refs))
+        )
+    if stale_site_versions:
+        errors.append(
+            f"site Action version inputs must all be {version}: "
+            + ", ".join(sorted(stale_site_versions))
         )
 
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")

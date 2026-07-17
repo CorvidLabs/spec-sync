@@ -15,8 +15,9 @@ spec: github.spec.md
   compatible floating `v<major>` ref advances. Release metadata remains synchronized through
   `.github/scripts/validate-release-version.py`.
 - **Hermetic release guards**: release and runtime-pin validators require no Python site packages;
-  the release guard uses Ruby's standard-library Psych parser for full YAML syntax validation, so
-  clean lifecycle workspaces and hosted runners do not depend on ambient PyYAML.
+  the release guard uses Ruby's standard-library Psych parser for full YAML syntax validation.
+  Lifecycle verification declares the Psych preflight explicitly, and hosted CI provisions a pinned
+  Ruby runtime, so neither path depends on ambient PyYAML or an undeclared hosted runtime.
 
 ## Key Files
 

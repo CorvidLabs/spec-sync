@@ -32,6 +32,7 @@
     "specs/"
   ],
   "verification_commands": [
+    "ruby -e \"require 'psych'; puts Psych::VERSION\"",
     "cargo test",
     "python3 -S .github/scripts/validate-release-version.py",
     "python3 -S .github/scripts/validate-workflow-runtime-pins.py"

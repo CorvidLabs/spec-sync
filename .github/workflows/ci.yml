@@ -211,6 +211,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
       - name: Validate pinned workflow runtimes
         run: python3 .github/scripts/validate-workflow-runtime-pins.py
       - name: Validate release version consistency

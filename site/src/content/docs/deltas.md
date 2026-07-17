@@ -22,7 +22,7 @@ The file name must match the module name of an affected spec. Definition approva
 semantic delta modules must exactly match affected specs (missing: auth; extra: none)
 ```
 
-Documentation-only changes that touch no spec contract can opt out with `--no-spec-change` and a recorded rationale (see [Workflow](../workflow/)).
+Documentation-only changes that touch no spec contract can opt out with `--no-spec-change` and a recorded rationale (see [Workflow](workflow.md)).
 
 ---
 
@@ -54,13 +54,13 @@ Acceptance Criteria
 - Calling the revocation endpoint invalidates every session owned by that user.
 ```
 
-Requirement IDs introduced through deltas are permanent. Before acceptance, every requirement ID in the delta must have **test or declared evidence** bound to it, or acceptance fails:
+Once accepted, requirement IDs remain reserved; removing one creates a permanent tombstone that prevents later reuse. Before acceptance, every added or modified requirement ID in the delta must have **test or declared evidence** bound to it, or verification fails:
 
 ```text
 requirement evidence missing for REQ-auth-004
 ```
 
-Evidence is typically bound through the change's testing artifact and the configured `verification_commands` (see [Workflow](../workflow/)).
+Bind evidence by naming the exact requirement ID in the change's `testing.md` artifact or in a detected test file. The repository's configured `verification_commands` must also pass (see [Workflow](workflow.md)).
 
 ---
 
@@ -94,7 +94,7 @@ Practical consequence: an export documented only in an approved delta already co
 Two active changes that touch the same delta surface produce deterministic validation errors — conflicting edits cannot silently interleave. Ordering tools:
 
 - `specsync change depend CHG-0002 CHG-0001` declares that CHG-0002 builds on CHG-0001.
-- When several active deltas compose into one effective contract, they apply in a deterministic order (delivery base commit, then change id).
+- When several active deltas compose into one effective contract, declared dependencies determine their topological order; change IDs provide the deterministic order among otherwise independent changes.
 
 Fix classification edits to accepted metadata with `change correct` rather than editing delta files after acceptance — fresh classification edits no longer conflict with sibling accepted deltas, but stale accepted content still routes through the audited correction chain.
 
@@ -155,6 +155,6 @@ Acceptance Criteria
 
 ## See Also
 
-- [Workflow](../workflow/) — the full verified lifecycle
-- [Spec Format](../spec-format/) — canonical spec structure deltas apply against
-- [CLI Reference](../cli/) — `change` command surface
+- [Workflow](workflow.md) — the full verified lifecycle
+- [Spec Format](spec-format.md) — canonical spec structure deltas apply against
+- [CLI Reference](cli.md) — `change` command surface

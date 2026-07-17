@@ -26,8 +26,10 @@ spec: github.spec.md
   validation structurally parses block and flow mappings, including quoted keys, arbitrary valid
   list-marker spacing, and `uses` keys after other step fields. Action repository names are normalized case-insensitively,
   while the selected release ref is compared exactly. Root `SECURITY.md` changes trigger the same
-  CI validation path as other maintained Action documentation. The release workflow is part of both
-  the maintained workflow scan and the CI path triggers.
+  CI validation path as other maintained Action documentation, and its inline Action recommendation
+  must match the current floating major ref. The release workflow is part of both the maintained
+  workflow scan and the CI path triggers. The packaged Action consumer and Trust gate must retain
+  their exact runner-local candidate mirrors so they cannot silently test an already-published binary.
 - **Hermetic release guards**: release and runtime-pin validators require no Python site packages;
   the release guard uses Ruby's standard-library Psych parser for full YAML syntax validation.
   Cargo metadata is read without Python 3.11-only `tomllib`, lifecycle verification declares the

@@ -327,6 +327,13 @@ def main() -> int:
             errors.append(
                 f"packaged Action consumer must use {version}, found {consumer_version}"
             )
+        consumer_mirror = step_input(consumer[2], "download-base-url")
+        expected_consumer_mirror = "http://127.0.0.1:8765"
+        if consumer_mirror != expected_consumer_mirror:
+            errors.append(
+                "packaged Action consumer must use the runner-local release mirror "
+                f"{expected_consumer_mirror}, found {consumer_mirror}"
+            )
 
     trust_steps = workflow_uses_steps(".github/workflows/trust.yml", errors)
     trust_step = find_uses_step(
@@ -338,6 +345,13 @@ def main() -> int:
         trust_version = step_input(trust_step[2], "specsync-version")
         if trust_version != version:
             errors.append(f"Trust candidate must use {version}, found {trust_version}")
+        trust_mirror = step_input(trust_step[2], "specsync-download-base-url")
+        expected_trust_mirror = "file://${{ runner.temp }}/specsync-trust-mirror"
+        if trust_mirror != expected_trust_mirror:
+            errors.append(
+                "Trust candidate must use the runner-local release mirror "
+                f"{expected_trust_mirror}, found {trust_mirror}"
+            )
 
     expected_ref = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
     for path, steps, job in (
@@ -419,6 +433,17 @@ def main() -> int:
         errors.append(
             f"site Action version inputs must all be {version}: "
             + ", ".join(sorted(stale_site_versions))
+        )
+
+    security = Path("SECURITY.md").read_text(encoding="utf-8")
+    security_refs = re.findall(
+        r"`uses:\s*CorvidLabs/spec-sync@([^`\s]+)`", security, re.IGNORECASE
+    )
+    expected_major_ref = f"v{version.split('.', 1)[0]}"
+    if security_refs != [expected_major_ref]:
+        errors.append(
+            "SECURITY.md inline Action guidance must contain exactly "
+            f"@{expected_major_ref}, found {security_refs}"
         )
 
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")

@@ -1,9 +1,9 @@
 {
-  "timestamp": 1784318073,
-  "commit": "2778cc28c49cb02cd4ec8919beb6516e1119ee85",
+  "timestamp": 1784322080,
+  "commit": "67875096cb19359427b653afb58bc01202400d7b",
   "contract_digest": "50d7f16f9989be74df1771ad6851c82d8df406053664d0fead5414a5671ab2f9",
-  "workspace_digest": "83832e6535b0a3dd1cc9c8b4aa82bb4243c3836f46199e8ffa8ff773b9747b71",
-  "acceptance_input_digest": "04985b6a7c3158c3fc996b6b9ea9f14a8b5804003502b8b8b3cc37931f739a07",
+  "workspace_digest": "974068225546aa479fdf4a590721514c7a0f54a2734bc7119da77af42d4795e2",
+  "acceptance_input_digest": "7caa67be91ab78f1908f4670f5fc9bbf4a42dcc79ee661bc8d206c435ce89187",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -11,8 +11,8 @@
         "path": ".github/scripts/validate-release-version.py",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "ddd685b0445b4575322b53a3dd4470a7dae20497943af42a12e861d30565afad",
-        "entry_digest": "bb3cafc94b1c1317b0ad724138a99941f6abc4de8dc8b49988dc377317f4d92b",
+        "payload_digest": "3e85c61a4ff21c822972eadbcd591cdf884423031924fe23bc4c03d34b91b489",
+        "entry_digest": "2eb6d87058474a823e6ce2fa9187f4eb7e58c23298cd7f0bd1cf78f53a36d6f3",
         "owners": [
           "@exact:delivery"
         ]
@@ -171,8 +171,8 @@
         "path": "specs/github/context.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "06f81694b4508293f46912edaca363695f0fa39bf3619626c63c99d391db60fa",
-        "entry_digest": "3e4efb372b823b6484fae9c7d13281b310685b594c0d9fb05f289c1c6f02d7c1",
+        "payload_digest": "549d0215ec8ba483b91cdcc24964b29f3865c238323f4f11ce884fcdffd55eba",
+        "entry_digest": "4ad4259ec500a11584909769208dcfe7b82b5dd2ff6f1cb752cb5dc6733cdab6",
         "owners": [
           "github"
         ]
@@ -181,8 +181,8 @@
         "path": "specs/github/github.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "180b6930659e3874b3e3210fa70e96c77c4b15cc3993d6b7483769fcd65e5de8",
-        "entry_digest": "6242af036d3a0963be46eeb44338b05b2002f9986ecee5edd5c5fdd50ba6eded",
+        "payload_digest": "b2993531899af83946929ec4e374ddd97da30c3756c07f63a39629423a60524b",
+        "entry_digest": "d5b55c2a2b49c495e834ae727ac34e7942bf4ab0710337c0ab08fa5f886eca76",
         "owners": [
           "github"
         ]
@@ -211,8 +211,8 @@
         "path": "specs/github/testing.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "4dc8699da6a05eca71c1791fbf81c02f3cc3346e8d4bb48621eaf9962f9dfcca",
-        "entry_digest": "f83279c8faf428b4c25cc4ba65604213ccd0164ff7d1b44ea8ccdf893aea71f4",
+        "payload_digest": "01ca71afbc7346ef27eac07b9a090c503964455fcf866f89d16178af3f335c38",
+        "entry_digest": "58e10a3ccd6bd573f6da5f54fcb061b775c4fb3f7c38569883cd60a1b55f229d",
         "owners": [
           "github"
         ]

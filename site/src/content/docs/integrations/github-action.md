@@ -150,6 +150,7 @@ jobs:
 | Platform | Binary |
 |:---------|:-------|
 | Linux x86_64 | `specsync-linux-x86_64` |
+| Linux x86_64 (static musl, any distro) | `specsync-linux-x86_64-musl` |
 | Linux aarch64 | `specsync-linux-aarch64` |
 | macOS x86_64 | `specsync-macos-x86_64` |
 | macOS aarch64 (Apple Silicon) | `specsync-macos-aarch64` |

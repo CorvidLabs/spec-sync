@@ -19,7 +19,7 @@ Prepare the SpecSync 5.1.1 stabilization release from merged PR #387: bump accur
 
 - Cargo.toml and Cargo.lock identify specsync 5.1.1 while immutable historical release and archive references remain unchanged
 - CHANGELOG.md contains an accurate dated 5.1.1 section and comparison links describing the post-5.1.0 lifecycle, performance, security, and Windows portability corrections
-- The GitHub Action default, every README/site fenced-YAML Action example (including named/nested steps and block/flow inputs), packaged-action consumer, and Trust candidate pin consistently identify 5.1.1 under the declared Python 3.10+ and Ruby/Psych guard runtime
+- The GitHub Action default, pinned README example, Action documentation, packaged-action consumer, and Trust candidate pin consistently identify 5.1.1
 - Strict specs, complete tests, formatting, Clippy, audit, documentation, release build, packaged Action validation, hosted Linux/macOS/Windows CI, CodeQL, Trust, and provenance verification pass on the exact integrated release candidate before publication
 - CHG-0043 through CHG-0047 are archived and CHG-0048 is the only active release change before its closing approval
 - The immutable v5.1.1 tag and GitHub release are created only from integrated main after explicit closing approval, and all five platform archives plus LF-only SHA-256 records are published and verified

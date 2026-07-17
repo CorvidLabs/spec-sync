@@ -48,6 +48,13 @@
       "timestamp": 1784258756,
       "digest": "29f57a8d303224ba5e1e23087fd2190aa4d523068c5a3861648eee237bcba7b7",
       "note": "Reapproved after adding the remaining site Action examples and full YAML/nested-input validation to deterministic scope, including fail-closed rejection of moving Action refs and duplicate or unexpected setup-bun steps."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784261016,
+      "digest": "50d7f16f9989be74df1771ad6851c82d8df406053664d0fead5414a5671ab2f9",
+      "note": "Reapproved after adding the remaining site Action examples and full YAML/nested-input validation to deterministic scope, including named/nested uses steps, block/flow with.version inputs, and Python 3.10 compatibility without tomllib."
     }
   ],
   "reopenings": []

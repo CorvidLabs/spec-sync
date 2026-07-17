@@ -8,7 +8,7 @@ artifact: tasks
 - [x] Preserve both documentation patches on one release-current branch.
 - [x] Define deterministic documentation ownership and dependency on CHG-0048.
 - [x] Review semantic-delta claims against implementation and executable examples.
-- [x] Correct requirement-evidence, ordering, and internal-link wording.
+- [x] Correct requirement-evidence, ordering, module-ID, reserved-heading, and internal-link wording.
 - [ ] Obtain explicit human definition approval and start implementation.
 - [x] Run site tests, lint, and production build.
 - [ ] Run strict lifecycle validation and the repository Trust gate.

@@ -39,9 +39,13 @@ A delta file contains `## ADDED`, `## MODIFIED`, and `## REMOVED` sections. Each
 - **MODIFIED** — replaces the referenced content with the block's full intended content.
 - **REMOVED** — retires a previously canonical requirement or section content.
 
+Lines beginning with `## ` and `### ` are reserved for delta operations and items. Inside a block body, use `####` or a deeper heading level when structured Markdown needs a heading.
+
 ---
 
 ## Requirement Blocks
+
+Requirement IDs use `REQ-<module>-<number>`. Replace underscores in the affected module name with hyphens, so a delta for `user_auth` uses IDs such as `REQ-user-auth-004`.
 
 ```markdown
 ## ADDED

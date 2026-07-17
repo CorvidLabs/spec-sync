@@ -1,6 +1,6 @@
 ---
 id: CHG-0048-prepare-the-specsync-5-1-1-stabilization-release-from-merged-pr-387-bump-accur
-state: implementing
+state: accepted
 type: operations
 base_commit: d097bf88a7b057fb3010f9a5881618f48b5ae772
 ---

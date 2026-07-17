@@ -1,8 +1,224 @@
 {
-  "timestamp": 1784261966,
-  "commit": "d6afd18fee9dd6d5a8daa55e899ac68e5d382eee",
+  "timestamp": 1784264871,
+  "commit": "3d7d0f984bd59d51b66346c250ad29dcd1147a87",
   "contract_digest": "50d7f16f9989be74df1771ad6851c82d8df406053664d0fead5414a5671ab2f9",
   "workspace_digest": "3f2e3700df2d1502124e2f2f6fb3de538aabca7e3c91f04ddc36c912fc023c1e",
+  "acceptance_input_digest": "c78a760897e7dfac3582bf280e4277658179b75f725a6f361cc8d798e26703cf",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".github/scripts/validate-release-version.py",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ba6d4727b7b91c8c754c1ed995b610b9ffa7a514141b3b7c682de2d4fd789599",
+        "entry_digest": "0b9467bcffe8585223e9e7a64b666cb2b88abb2cdf1a0a1a383b9977ffa9bcfd",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".github/scripts/validate-workflow-runtime-pins.py",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b9d9dd6647ad71e05846b7e00503508c2994c89a97bcd279f1aaaf962f00142f",
+        "entry_digest": "a2ab86a019899672ee3d20ab69a04cab25e6f97b70d94fb65d452c6e0c372769",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".github/workflows/ci.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d524942d8f69dbd6a0a2093c69261c580f1e6c8c29981d5b9751ae19c13e7de6",
+        "entry_digest": "7fc99f47a8c18ab5302c5ea8020db3f79fe3df680a94a801ee706b019b3e8a29",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".github/workflows/pages.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3ad75aff15300af91f117d64e74e56b4f1a11a868b14e4abbe8d342d58e49f81",
+        "entry_digest": "342dcbb5174769018183276afc5207027f26c2ab6902dbb3d66be49d64a56474",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".github/workflows/trust.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7ed85365d69afbefdb9e8c7fd89a1237818c6b95c963a69b428e066d3168c3b4",
+        "entry_digest": "ad0062a62981a60682598dadde0bd25ffe7d218246305941104221dd96efecec",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "77725d6922fbef9bb17f6a52727af91ed7531039d202a0b8355379c0869211b2",
+        "entry_digest": "2634da5570743e65c96043df2fd19e2fd28f2268e47a4e974b76742e799e53aa",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".specsync/sdd.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c588a277ee43cc400699d9afea8aee39b013a9de5724fb251a6b7d950d26f101",
+        "entry_digest": "7cb3b12a72c508885f9ffb5bf834dedda393db5524053a7d2f8784fc4469735a",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "CHANGELOG.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "523af5f66aa076886b704698e607be86a87db5116c742b85e92e57437dc0293f",
+        "entry_digest": "ec207a4b35e2eeae4f097922d663024e62c8813f7a2a906b2c3b0bb389d31dad",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "Cargo.lock",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3556b2fd0b9dd3e736d40b5c1b1eee4609d3105a54aae3b662f7f36265e3a52a",
+        "entry_digest": "dedc0e3473e0706ea0d81a4c80740cdd11cd563975efa84677c4fd54c004b717",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "Cargo.toml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2f3927836b81f850bfb5b1d13d646bea1e4c728f97657e26422f416632af9acf",
+        "entry_digest": "2fb47578f05f7c77efe6dfdcdb2566baf49448ef530009312d054065c4675aae",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "README.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "acb0b38c70f98fd2aacc6ca04f0db1f6e26f3f6da67f1e122d448e4c1d482e2c",
+        "entry_digest": "4bf1a422fc74e86baff3e118335d0498bef21114a450822b7923cab70882147e",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "action.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3f62e65305992d8d159bb9ca5ae1d4a428877d745270441c516395175ee52c45",
+        "entry_digest": "e8da08e812c4887aeca4f8f17c27f241e49187f088aae9270b4b1b0e19d920bd",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/integrations/github-action.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "8927cce0c5494939bab2a362d01f72b98ea356e00be36b94d2cdf06cc03c1a44",
+        "entry_digest": "244fee56a0183142ba0affdba3fb3da9c3819e29aa92794c077072b37dde99e9",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/quickstart.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4bf139e86a892a747269e8299bbb4fe7969f95f9142506106281928506e28b22",
+        "entry_digest": "9babe16df823a75f83774db224d8477ef2c223a9012e325ebc7af22ee9bfa7b3",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/examples/ci-gate.mdx",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0528173340ef099d727096fbf5a0c9fb774d5f5bf3672e1f0f797ba06f259d3e",
+        "entry_digest": "494f7b0b9bc2d72dbe92484a15fe6e95fea47b78cd07fc19fc7905c82a6eebeb",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/examples/polyglot.mdx",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "83fe54200757594541ce8205318e83714c7a6008229b4add4789697b838f6844",
+        "entry_digest": "06db30873440ab0dffba5c617f32d2ec394548ad96113340eabcc1d62341e917",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/github/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f7832940b45a46c70477160e2c5ce77bff6ad824b700efd1c9672620f132c9c8",
+        "entry_digest": "8cc909f84baa1e40589a6ac7ba2bb129afbe652e761356c88ed392757b5b9f8c",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/github.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "180b6930659e3874b3e3210fa70e96c77c4b15cc3993d6b7483769fcd65e5de8",
+        "entry_digest": "6242af036d3a0963be46eeb44338b05b2002f9986ecee5edd5c5fdd50ba6eded",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "eb309f3dbf0d930d8d7d84e5fcf5b7a39bddb3794371fd593d3fa2ac07a2a51c",
+        "entry_digest": "7c71e575b6bc1ca5eb51648e7611d54a4d45460a18c864e8153c12ebe9af541d",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d46cf3d0e0f8ad2243e7cb305caff0b57dffdfe886581889f3e3f03214cfda3a",
+        "entry_digest": "451cea772f2ddca55e0977936e1729610f686b7644a34155efab69693aad9d01",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "fef566e85ffa471ab7e68045c5381f2c40d12805109b8d6f816769f4e6af0c46",
+        "entry_digest": "0220bb6f47422b4992b592f916a710aaf08ac60ca30c7e5ba66c36bd19b1cf70",
+        "owners": [
+          "github"
+        ]
+      }
+    ]
+  },
   "passed": true,
   "commands": [
     {

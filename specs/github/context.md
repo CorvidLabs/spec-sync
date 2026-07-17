@@ -18,9 +18,10 @@ spec: github.spec.md
   compatible floating `v<major>` ref advances. Release metadata remains synchronized through
   `.github/scripts/validate-release-version.py`, which rejects every README/site Action ref other
   than the exact candidate ref, including moving branch names such as `main`. It parses fenced YAML
-  through Psych, including fences with metadata such as `title="ci.yml"`, so named/nested `uses`
-  steps and block or flow `with.version` mappings are covered without mistaking cross-project
-  reference prose for an Action step. Action repository names are normalized case-insensitively,
+  through Psych, including fences with up to three leading spaces and metadata such as
+  `title="ci.yml"`, so named/nested `uses` steps and block or flow `with.version` mappings are
+  covered without mistaking cross-project reference prose for an Action step. Workflow validation
+  also recognizes quoted `uses` keys. Action repository names are normalized case-insensitively,
   while the selected release ref is compared exactly.
 - **Hermetic release guards**: release and runtime-pin validators require no Python site packages;
   the release guard uses Ruby's standard-library Psych parser for full YAML syntax validation.

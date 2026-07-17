@@ -63,8 +63,9 @@ def workflow_uses_steps(path: str) -> list[tuple[str, str, list[str]]]:
     steps: list[tuple[str, str, list[str]]] = []
     job_pattern = re.compile(r"^  ([A-Za-z0-9_-]+):\s*(?:#.*)?$")
     step_pattern = re.compile(r"^      -(?:\s+.*)?$")
-    inline_uses_pattern = re.compile(r"^      - uses:\s*(.*?)\s*$")
-    nested_uses_pattern = re.compile(r"^        uses:\s*(.*?)\s*$")
+    uses_key = r'(?:uses|[\'\"]uses[\'\"])\s*:'
+    inline_uses_pattern = re.compile(rf"^      - {uses_key}\s*(.*?)\s*$")
+    nested_uses_pattern = re.compile(rf"^        {uses_key}\s*(.*?)\s*$")
     index = 0
     while index < len(jobs):
         line = jobs[index]

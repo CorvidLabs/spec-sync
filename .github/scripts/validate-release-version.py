@@ -70,7 +70,7 @@ steps = []
 errors = []
 ARGV.each do |path|
   content = File.read(path, encoding: "UTF-8")
-  content.scan(/^```(?:yaml|yml)(?:[ \t]+[^\r\n]*)?[ \t]*\r?\n(.*?)^```[ \t]*\r?$/m).each_with_index do |match, index|
+  content.scan(/^ {0,3}```(?:yaml|yml)(?:[ \t]+[^\r\n]*)?[ \t]*\r?\n(.*?)^ {0,3}```[ \t]*\r?$/m).each_with_index do |match, index|
     begin
       document = Psych.safe_load(match.first, permitted_classes: [], aliases: false)
     rescue Psych::Exception => error

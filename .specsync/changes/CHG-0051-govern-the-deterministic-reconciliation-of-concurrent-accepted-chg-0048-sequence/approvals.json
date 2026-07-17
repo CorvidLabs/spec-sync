@@ -1,0 +1,33 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784323662,
+      "digest": "063fef2c48e49e66a6bb2ba012f7e9d7d9fbbbeb2e7bcf762addd680868c0ca0",
+      "note": "Approved deterministic concurrent CHG-0048 collision reconciliation for the merged 5.1.1 release candidate."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784323739,
+      "digest": "d661ba47e7a7b76b0d66e9fd7dabcc31a8eeedfe3c8487ff8bd192979d708949",
+      "note": "Reapproved after completing the deterministic reconciliation verification task boundary."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784324279,
+      "digest": "aa15a91f1a7b971f8751309a80fb5adf169327d6ea1411eb981aca85e6279c2d",
+      "note": "Reapproved after adding explicit REQ-change-034 verification evidence mapping."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784324886,
+      "digest": "81686c007e2a31a719003bed0d39fb99b7f7d2de1c55f971ad59617077316cfa",
+      "note": "Accepted deterministic CHG-0048 collision reconciliation after full merged-main verification."
+    }
+  ],
+  "reopenings": []
+}

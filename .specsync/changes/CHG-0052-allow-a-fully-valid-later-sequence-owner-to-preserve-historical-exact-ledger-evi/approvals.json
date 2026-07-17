@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784325843,
+      "digest": "4a21c55c0c1162774c0cb15efaf163e99f5b85a202113330d0ae702ed4fa93e2",
+      "note": "Approved focused implementation of the existing later-sequence-owner contract after forced strict exposed the release collision gap."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784326211,
+      "digest": "ac650363fe235bce082b8814b9d48da12d7fe6f8c1b9fe04d55a40a42714d54d",
+      "note": "Reapproved after implementing the focused exact-ledger successor rule, regression coverage, and truthful pre/post-acceptance verification boundary."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784327004,
+      "digest": "1905bd67256a20bb04bcbdde1bb1d318076e91d7576ff730680c929284b467ac",
+      "note": "Accepted after end-to-end collision reconciliation coverage and full pre-acceptance verification."
+    }
+  ],
+  "reopenings": []
+}

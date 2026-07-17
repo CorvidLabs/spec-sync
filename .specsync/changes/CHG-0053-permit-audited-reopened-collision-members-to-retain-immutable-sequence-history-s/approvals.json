@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784327365,
+      "digest": "0dfe3b38ea70a55db891b2310f0b82c48def2179de5ed82e35fb9c112eddb68e",
+      "note": "Approved audited collision-member reopen support and explicit CHG-0051 semantic succession."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784327490,
+      "digest": "8a286141471022d7849857c4f4a3570e4b881be32d31c858afbd2934e6bdfe9e",
+      "note": "Reapproved after implementing fail-closed audited reopen classification, regression coverage, and the truthful pre/post-acceptance verification boundary."
+    }
+  ],
+  "reopenings": []
+}

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 50,
-  "id": "CHG-0050-update-current-v5-security-guidance-discovered-by-the-5-1-1-release-review",
+  "sequence": 53,
+  "id": "CHG-0053-permit-audited-reopened-collision-members-to-retain-immutable-sequence-history-s",
   "acknowledged_collisions": [
     {
       "sequence": 16,

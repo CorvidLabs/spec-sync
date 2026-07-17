@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 48,
-  "id": "CHG-0048-add-static-x86-64-unknown-linux-musl-build-to-the-release-matrix-so-prebuilt-bin",
+  "sequence": 49,
+  "id": "CHG-0049-make-stale-accepted-change-verification-diagnostics-actionable-with-named-delive",
   "acknowledged_collisions": [
     {
       "sequence": 16,

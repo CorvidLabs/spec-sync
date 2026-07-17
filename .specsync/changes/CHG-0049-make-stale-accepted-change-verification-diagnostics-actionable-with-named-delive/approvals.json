@@ -1,0 +1,33 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Kimi Code",
+      "timestamp": 1784323518,
+      "digest": "288e72a067e8067537b1fb02056cef8e48cec88a1b4f0e84ad91db82018141ce",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "Kimi Code",
+      "timestamp": 1784325184,
+      "digest": "ac09645fe0cd1ed556c256b50df966f3991c7d71e3434701e0bcebd7019c73e0",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "Kimi Code",
+      "timestamp": 1784325405,
+      "digest": "3a405de75314b2b73c46c51d9e02ee9ad7ff7f296786b07bab8ea26d2b0e68c0",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "Kimi Code",
+      "timestamp": 1784327694,
+      "digest": "d71eeabede1f244e1d4bccd4b058ccb4790fb56680a3c3740eb2802aeb9bfa2a",
+      "note": null
+    }
+  ],
+  "reopenings": []
+}

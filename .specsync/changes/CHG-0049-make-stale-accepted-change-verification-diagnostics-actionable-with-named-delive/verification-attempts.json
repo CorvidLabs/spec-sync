@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1784325952,
+      "commit": "9bdd0beacbc40a610a2da590c05d8e41abc40904",
+      "contract_digest": "3a405de75314b2b73c46c51d9e02ee9ad7ff7f296786b07bab8ea26d2b0e68c0",
+      "workspace_digest": "51c475c6e18daa3c672bc38a6f7d7a0a9ed9b3b07b4bd28d3c3e1f01f04c2878",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-034"
+      ]
+    },
+    {
+      "timestamp": 1784327671,
+      "commit": "9bdd0beacbc40a610a2da590c05d8e41abc40904",
+      "contract_digest": "3a405de75314b2b73c46c51d9e02ee9ad7ff7f296786b07bab8ea26d2b0e68c0",
+      "workspace_digest": "51c475c6e18daa3c672bc38a6f7d7a0a9ed9b3b07b4bd28d3c3e1f01f04c2878",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-034"
+      ]
+    }
+  ]
+}

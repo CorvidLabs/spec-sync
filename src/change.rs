@@ -9438,7 +9438,10 @@ fn validate_accepted_inputs_recursive(
             .acceptance_input_digest
             .as_deref()
             .ok_or_else(|| {
-                "accepted change is missing current delivery-input evidence".to_string()
+                format!(
+                    "accepted change is missing current delivery-input evidence; run `specsync change reopen {}` to record fresh acceptance evidence",
+                    record.id
+                )
             })?;
         let signed = if let Some(manifest) = &verification.acceptance_manifest {
             manifest.clone()
@@ -9465,8 +9468,8 @@ fn validate_accepted_inputs_recursive(
         for expected in &signed.entries {
             let current = current_by_path.get(expected.path.as_str()).ok_or_else(|| {
                 format!(
-                    "accepted input `{}` disappeared from current inventory",
-                    expected.path
+                    "delivery input `{}` disappeared from the current inventory; restore the file or run `specsync change reopen {}` to re-verify the accepted change",
+                    expected.path, record.id
                 )
             })?;
             if expected.kind == current.kind
@@ -9482,12 +9485,13 @@ fn validate_accepted_inputs_recursive(
                 .any(|owner| owner.starts_with("@exact:"))
             {
                 return Err(format!(
-                    "accepted exact-only input `{}` changed and requires audited reopen",
-                    expected.path
+                    "exact-only delivery input `{}` changed after acceptance and requires an audited reopen; run `specsync change reopen {}` to re-verify the accepted change",
+                    expected.path, record.id
                 ));
             }
             for owner in &expected.owners {
                 let mut covered = false;
+                let mut stale_covering_successors = BTreeSet::new();
                 for candidate in records.values() {
                     if candidate.id == record.id
                         || !matches!(
@@ -9554,11 +9558,14 @@ fn validate_accepted_inputs_recursive(
                         successor_covered = true;
                         break;
                     }
+                    stale_covering_successors.insert(candidate.id.clone());
                 }
                 if !covered {
-                    return Err(format!(
-                        "accepted input obligation `{}` owner `{owner}` has no closing-valid terminal semantic successor",
-                        expected.path
+                    return Err(stale_input_remediation_reason(
+                        &record.id,
+                        &expected.path,
+                        owner,
+                        &stale_covering_successors,
                     ));
                 }
             }
@@ -9572,6 +9579,28 @@ fn validate_accepted_inputs_recursive(
     visiting.remove(&record.id);
     memo.insert(record.id.clone(), result.clone());
     result
+}
+
+fn stale_input_remediation_reason(
+    record_id: &str,
+    path: &str,
+    owner: &str,
+    stale_covering_successors: &BTreeSet<String>,
+) -> String {
+    if stale_covering_successors.is_empty() {
+        format!(
+            "delivery input `{path}` (owner `{owner}`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {record_id}` to re-verify the accepted change"
+        )
+    } else {
+        let successors = stale_covering_successors
+            .iter()
+            .map(|id| format!("`{id}`"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "delivery input `{path}` (owner `{owner}`) changed after acceptance; covering successor change(s) {successors} have stale delivery-input evidence of their own; verify and accept a covering successor, or run `specsync change reopen {record_id}` to re-verify the accepted change"
+        )
+    }
 }
 
 fn semantic_tuple_matches_obligation(
@@ -14729,7 +14758,7 @@ mod tests {
         let error = ensure_closing_approval_valid(root, &record).unwrap_err();
         assert!(
             error.contains("delivery inputs")
-                || error.contains("no closing-valid terminal semantic successor"),
+                || error.contains("changed after acceptance and no accepted or archived successor change covers it"),
             "{error}"
         );
     }
@@ -15887,6 +15916,188 @@ mod tests {
                 .prior_verification
                 .contract_digest,
             prior_verification.contract_digest
+        );
+    }
+
+    // Verifies REQ-change-034.
+    #[test]
+    fn stale_accepted_change_error_names_uncovered_input_and_reopen_remediation() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        assert!(check_project(root).errors.is_empty());
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        let expected = format!(
+            "{}: accepted change verification is stale for current delivery inputs: delivery input `src/lib.rs` (owner `change`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {}` to re-verify the accepted change",
+            record.id, record.id
+        );
+        let stale_report = check_project(root);
+        assert!(
+            stale_report.errors.iter().any(|error| *error == expected),
+            "{:?}",
+            stale_report.errors
+        );
+        assert!(check_project(root)
+            .errors
+            .iter()
+            .any(|error| *error == expected));
+    }
+
+    // Verifies REQ-change-034.
+    #[test]
+    fn stale_accepted_change_error_names_covering_successor_with_stale_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+
+        let delta =
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nAuthentication remains governed.\n";
+        let mut predecessor = completed_section_only_record(root, delta);
+        predecessor =
+            approve_definition(root, &predecessor.id, Some("Reviewer".into()), None).unwrap();
+        predecessor = start_implementation(root, &predecessor.id).unwrap();
+        verify_change(root, &predecessor.id).unwrap();
+        predecessor = accept_change(root, &predecessor.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept predecessor"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let predecessor_manifest = load_verification(root, &predecessor)
+            .unwrap()
+            .acceptance_manifest
+            .unwrap();
+        let mut successor = completed_section_only_record(root, delta);
+        successor.affected_paths.extend(
+            predecessor_manifest
+                .entries
+                .iter()
+                .filter(|entry| {
+                    entry.owners.iter().any(|owner| owner == "auth")
+                        && entry.path != "specs/auth/requirements.md"
+                })
+                .map(|entry| entry.path.clone()),
+        );
+        successor.affected_paths.sort();
+        successor.affected_paths.dedup();
+        save_change(root, &successor).unwrap();
+        write_change_markdown(root, &successor).unwrap();
+        for entry in predecessor_manifest.entries.iter().filter(|entry| {
+            entry.owners.iter().any(|owner| owner == "auth")
+                && entry.path != "specs/auth/requirements.md"
+        }) {
+            successor = add_supersedes_obligation(
+                root,
+                &successor.id,
+                &predecessor.id,
+                &entry.path,
+                "auth",
+                &entry.entry_digest,
+            )
+            .unwrap();
+        }
+        successor = approve_definition(root, &successor.id, Some("Reviewer".into()), None).unwrap();
+        successor = start_implementation(root, &successor.id).unwrap();
+        fs::write(root.join("src/auth.rs"), "// Authentication module v2.\n").unwrap();
+        verify_change(root, &successor.id).unwrap();
+        successor = accept_change(root, &successor.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept semantic successor"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        assert!(check_project(root).errors.is_empty());
+
+        fs::write(root.join("src/auth.rs"), "// Authentication module v3.\n").unwrap();
+        let expected = format!(
+            "{}: accepted change verification is stale for current delivery inputs: delivery input `specs/auth/auth.spec.md` (owner `auth`) changed after acceptance; covering successor change(s) `{}` have stale delivery-input evidence of their own; verify and accept a covering successor, or run `specsync change reopen {}` to re-verify the accepted change",
+            predecessor.id, successor.id, predecessor.id
+        );
+        let stale_report = check_project(root);
+        assert!(
+            stale_report.errors.iter().any(|error| *error == expected),
+            "{:?}",
+            stale_report.errors
+        );
+    }
+
+    // Verifies REQ-change-034.
+    #[test]
+    fn stale_accepted_change_error_names_exact_only_input_and_audited_reopen() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::write(root.join("README.md"), "Initial review instructions.\n").unwrap();
+        let mut record = create_change(
+            root,
+            CreateChangeRequest {
+                description: "update review instructions".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["README.md".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Documentation-only review guidance".into()),
+            },
+        )
+        .unwrap();
+        record.acceptance_criteria = vec!["Reviewers can follow the release workflow".into()];
+        record.answers.insert("public_contract".into(), "no".into());
+        record
+            .answers
+            .insert("architecture_risk".into(), "no".into());
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        for artifact in &record.selected_artifacts {
+            let content = if *artifact == ArtifactKind::Tasks {
+                "# Tasks\n\n- [x] Complete\n"
+            } else {
+                "# Complete\n\nReviewed.\n"
+            };
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                content,
+            )
+            .unwrap();
+        }
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        assert!(check_project(root).errors.is_empty());
+
+        fs::write(root.join("README.md"), "Final review instructions.\n").unwrap();
+        let expected = format!(
+            "{}: accepted change verification is stale for current delivery inputs: exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen {}` to re-verify the accepted change",
+            record.id, record.id
+        );
+        let stale_report = check_project(root);
+        assert!(
+            stale_report.errors.iter().any(|error| *error == expected),
+            "{:?}",
+            stale_report.errors
         );
     }
 

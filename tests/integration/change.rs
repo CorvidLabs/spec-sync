@@ -841,6 +841,9 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
         .failure()
         .stderr(predicate::str::contains(
             "accepted change verification is stale for current delivery inputs",
+        ))
+        .stderr(predicate::str::contains(
+            "exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen CHG-0001-update-review-instructions` to re-verify the accepted change",
         ));
     let output = specsync()
         .args([

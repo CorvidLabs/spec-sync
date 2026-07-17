@@ -5,11 +5,11 @@
   "title": "Prepare the SpecSync 5.1.1 stabilization release from merged PR #387: bump accurate release metadata and changelog, update the GitHub Action default to 5.1.1, document and validate the floating v5 compatibility ref, verify all release artifacts and supported installation paths, and define fail-closed publication and rollback boundaries",
   "description": "Prepare the SpecSync 5.1.1 stabilization release from merged PR #387: bump accurate release metadata and changelog, update the GitHub Action default to 5.1.1, document and validate the floating v5 compatibility ref, verify all release artifacts and supported installation paths, and define fail-closed publication and rollback boundaries",
   "kind": "operations",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "d097bf88a7b057fb3010f9a5881618f48b5ae772",
   "created_at": 1784241482,
-  "updated_at": 1784301042,
+  "updated_at": 1784304605,
   "affected_specs": [
     "github"
   ],

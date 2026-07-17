@@ -12,6 +12,7 @@ YAML_FILES = (
     "action.yml",
     ".github/workflows/ci.yml",
     ".github/workflows/pages.yml",
+    ".github/workflows/release.yml",
     ".github/workflows/trust.yml",
 )
 
@@ -71,9 +72,35 @@ steps = []
 errors = []
 ARGV.each do |path|
   content = File.read(path, encoding: "UTF-8")
-  content.scan(/^ {0,3}(`{3,}|~{3,})[ \t]*(?i:yaml|yml)(?:[ \t]+[^\r\n]*)?[ \t]*\r?\n(.*?)^ {0,3}\1[ \t]*\r?$/m).each_with_index do |match, index|
+  blocks = []
+  lines = content.lines
+  line_index = 0
+  while line_index < lines.length
+    opening = /\A {0,3}(?<fence>`{3,}|~{3,})[ \t]*(?<language>yaml|yml)(?:[ \t]+[^\r\n]*)?[ \t]*\r?\n?\z/i.match(lines[line_index])
+    if opening.nil?
+      line_index += 1
+      next
+    end
+
+    marker = opening[:fence][0]
+    minimum_length = opening[:fence].length
+    body = []
+    line_index += 1
+    while line_index < lines.length
+      closing = /\A {0,3}(?<fence>`{3,}|~{3,})[ \t]*\r?\n?\z/.match(lines[line_index])
+      if !closing.nil? && closing[:fence][0] == marker && closing[:fence].length >= minimum_length
+        line_index += 1
+        break
+      end
+      body << lines[line_index]
+      line_index += 1
+    end
+    blocks << body.join
+  end
+
+  blocks.each_with_index do |block, index|
     begin
-      document = Psych.safe_load(match[1], permitted_classes: [], aliases: false)
+      document = Psych.safe_load(block, permitted_classes: [], aliases: false)
     rescue Psych::Exception => error
       errors << { path: path, block: index + 1, error: error.message }
       next

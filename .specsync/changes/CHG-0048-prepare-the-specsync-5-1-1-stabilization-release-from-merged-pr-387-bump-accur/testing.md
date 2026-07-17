@@ -9,9 +9,10 @@ Map `REQ-github-002`, `REQ-github-003`, and the change-level release acceptance 
 checks, hosted release evidence, and post-publication installation smoke tests.
 
 - **Version consistency:** assert the current package, lockfile, changelog, Action default, README pin,
-  Action docs, packaged consumer, and Trust pin are 5.1.1; scan the diff to prove archived and
-  historical version references were not bulk-rewritten.
-- **REQ-github-002:** validate `action.yml`; run the packaged Action against the runner-local
+  Action docs and examples, packaged consumer, and Trust pin are 5.1.1; scan the diff to prove
+  archived and historical version references were not bulk-rewritten.
+- **REQ-github-002:** parse maintained Action/workflow YAML with Psych, require protected settings
+  under each step's `with` mapping, and run the packaged Action against the runner-local
   candidate mirror; after publication, run pinned `@v5.1.1` and floating `@v5` consumers on Linux,
   macOS, and Windows and compare their resolved commit/version.
 - **REQ-github-003:** assert all three `setup-bun` call sites specify `bun-version: 1.3.14`; run
@@ -21,8 +22,8 @@ checks, hosted release evidence, and post-publication installation smoke tests.
   full fledge verification lanes, `fledge trust verify`, CodeQL, and the hosted required gate;
   confirm the release tag is integrated into main and matches Cargo.
 - **Persisted lifecycle evidence:** configure `specsync change verify` to run both deterministic
-  Python release guards after `cargo test`, so `REQ-github-002` and `REQ-github-003` cannot be
-  marked verified from Rust tests alone.
+  release guards after `cargo test`, without Python site packages, so `REQ-github-002` and
+  `REQ-github-003` cannot be marked verified from Rust tests alone.
 - **Distribution parity:** verify every GitHub checksum byte-for-byte, perform an exact clean Cargo
   install, validate Homebrew URLs/checksums, and run formula install/test on supported hosts.
 - **Fail-closed promotion:** exercise dry-run/preflight failures before publication; inspect remote refs

@@ -33,8 +33,8 @@
   ],
   "verification_commands": [
     "cargo test",
-    "python3 .github/scripts/validate-release-version.py",
-    "python3 .github/scripts/validate-workflow-runtime-pins.py"
+    "python3 -S .github/scripts/validate-release-version.py",
+    "python3 -S .github/scripts/validate-workflow-runtime-pins.py"
   ],
   "custom_artifacts": {},
   "principles_file": null

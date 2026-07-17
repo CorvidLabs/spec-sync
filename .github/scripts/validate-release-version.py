@@ -3,8 +3,17 @@
 
 from pathlib import Path
 import re
+import subprocess
 import sys
 import tomllib
+
+
+YAML_FILES = (
+    "action.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/pages.yml",
+    ".github/workflows/trust.yml",
+)
 
 
 def yaml_scalar(raw: str) -> str:
@@ -40,6 +49,40 @@ def mapping_scalar(lines: list[str], key: str, indent: int) -> str | None:
     pattern = re.compile(rf"^ {{{indent}}}{re.escape(key)}:\s*(.*?)\s*$")
     values = [yaml_scalar(match.group(1)) for line in lines if (match := pattern.match(line))]
     return values[0] if len(values) == 1 else None
+
+
+def step_input(lines: list[str], key: str) -> str | None:
+    """Return a scalar only when it is nested in this step's `with` mapping."""
+    with_block = mapping_block(lines, "with", 8)
+    return mapping_scalar(with_block or [], key, 10)
+
+
+def validate_yaml_syntax(errors: list[str]) -> None:
+    """Parse maintained YAML with Ruby's standard-library Psych parser."""
+    command = [
+        "ruby",
+        "-e",
+        "require 'psych'; ARGV.each { |path| Psych.parse_file(path) }",
+        *YAML_FILES,
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    except FileNotFoundError:
+        errors.append("Ruby with standard-library Psych is required for YAML syntax validation")
+        return
+    except subprocess.TimeoutExpired:
+        errors.append("YAML syntax validation timed out after 30 seconds")
+        return
+
+    if result.returncode != 0:
+        detail = result.stderr.strip()[-2000:] or "unknown Psych parser error"
+        errors.append(f"maintained YAML syntax validation failed: {detail}")
 
 
 def workflow_uses_steps(path: str) -> list[tuple[str, str, list[str]]]:
@@ -96,6 +139,7 @@ def main() -> int:
     cargo = tomllib.loads(Path("Cargo.toml").read_text(encoding="utf-8"))
     version = cargo["package"]["version"]
     errors: list[str] = []
+    validate_yaml_syntax(errors)
 
     lock = tomllib.loads(Path("Cargo.lock").read_text(encoding="utf-8"))
     lock_versions = [
@@ -118,7 +162,7 @@ def main() -> int:
     if consumer is None:
         errors.append("packaged Action consumer step not found in ci.yml")
     else:
-        consumer_version = mapping_scalar(consumer[2], "version", 10)
+        consumer_version = step_input(consumer[2], "version")
         if consumer_version != version:
             errors.append(
                 f"packaged Action consumer must use {version}, found {consumer_version}"
@@ -131,7 +175,7 @@ def main() -> int:
     if trust_step is None:
         errors.append("Trust step not found in trust.yml")
     else:
-        trust_version = mapping_scalar(trust_step[2], "specsync-version", 10)
+        trust_version = step_input(trust_step[2], "specsync-version")
         if trust_version != version:
             errors.append(f"Trust candidate must use {version}, found {trust_version}")
 
@@ -144,8 +188,8 @@ def main() -> int:
         if checkout is None:
             errors.append(f"{path}:{job} checkout step not found")
             continue
-        ref = mapping_scalar(checkout[2], "ref", 10)
-        fetch_depth = mapping_scalar(checkout[2], "fetch-depth", 10)
+        ref = step_input(checkout[2], "ref")
+        fetch_depth = step_input(checkout[2], "fetch-depth")
         if ref != expected_ref or fetch_depth != "0":
             errors.append(
                 f"{path}:{job} must check out the exact event head with full history"
@@ -157,7 +201,7 @@ def main() -> int:
         )
         if checkout is None:
             errors.append(f"ci.yml:{job} checkout step not found")
-        elif mapping_scalar(checkout[2], "ref", 10) is not None:
+        elif step_input(checkout[2], "ref") is not None:
             errors.append(f"ci.yml:{job} checkout must not override the default ref")
 
     readme = Path("README.md").read_text(encoding="utf-8")
@@ -175,6 +219,19 @@ def main() -> int:
     if docs_default is None or docs_default.group(1) != version:
         found = docs_default.group(1) if docs_default else None
         errors.append(f"Action docs default must be {version}, found {found!r}")
+
+    floating_site_refs = []
+    for path in Path("site/src/content").rglob("*"):
+        if path.suffix not in {".md", ".mdx"}:
+            continue
+        content = path.read_text(encoding="utf-8")
+        if re.search(r"CorvidLabs/spec-sync@v5(?!\.)", content):
+            floating_site_refs.append(str(path))
+    if floating_site_refs:
+        errors.append(
+            "site content must not advertise floating @v5 before release promotion: "
+            + ", ".join(sorted(floating_site_refs))
+        )
 
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
     if f"## [{version}]" not in changelog:

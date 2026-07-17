@@ -14,8 +14,9 @@ spec: github.spec.md
 - **Monotonic Action promotion**: immutable `v<major>.<minor>.<patch>` refs are verified before the
   compatible floating `v<major>` ref advances. Release metadata remains synchronized through
   `.github/scripts/validate-release-version.py`.
-- **Dependency-free release guards**: release and runtime-pin validators use only Python's standard
-  library, so clean lifecycle workspaces and self-hosted runners do not depend on ambient PyYAML.
+- **Hermetic release guards**: release and runtime-pin validators require no Python site packages;
+  the release guard uses Ruby's standard-library Psych parser for full YAML syntax validation, so
+  clean lifecycle workspaces and hosted runners do not depend on ambient PyYAML.
 
 ## Key Files
 

@@ -7,8 +7,8 @@ spec: github.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/github.rs` | cargo test github:: | `test_parse_repo_from_url_https`, `test_parse_repo_from_url_ssh`, `test_parse_repo_from_url_unknown` |
-| Release version surfaces | `python3 -S .github/scripts/validate-release-version.py` | Cargo, lockfile, Action default, README/docs, packaged consumer, Trust candidate, checkout contract, and changelog agree without site packages |
-| Hosted Bun runtime | `python3 -S .github/scripts/validate-workflow-runtime-pins.py` | Pages, site CI, and VS Code extension CI all pin the supported exact Bun version without site packages |
+| Release version surfaces | `python3 -S .github/scripts/validate-release-version.py` | Psych validates maintained YAML syntax; Cargo, lockfile, Action default, README/site examples, packaged consumer, Trust candidate, checkout contract, and changelog agree without Python site packages |
+| Hosted Bun runtime | `python3 -S .github/scripts/validate-workflow-runtime-pins.py` | Pages, site CI, and VS Code extension CI all pin the supported exact Bun version under each step's `with` mapping without Python site packages |
 
 ## Coverage Gaps
 

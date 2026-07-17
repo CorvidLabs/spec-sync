@@ -20,6 +20,27 @@ def yaml_scalar(raw: str) -> str:
     return value
 
 
+def mapping_block(lines: list[str], key: str, indent: int) -> list[str] | None:
+    """Return one indentation-bounded YAML mapping block, failing closed on ambiguity."""
+    pattern = re.compile(rf"^ {{{indent}}}{re.escape(key)}:\s*(?:#.*)?$")
+    starts = [index for index, line in enumerate(lines) if pattern.match(line)]
+    if len(starts) != 1:
+        return None
+
+    start = starts[0] + 1
+    end = len(lines)
+    for index in range(start, len(lines)):
+        line = lines[index]
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        leading = len(line) - len(stripped)
+        if leading <= indent:
+            end = index
+            break
+    return lines[start:end]
+
+
 def workflow_uses_steps(path: str) -> list[tuple[str, str, list[str]]]:
     """Read workflow `uses` steps using only the Python standard library."""
     lines = Path(path).read_text(encoding="utf-8").splitlines()
@@ -66,9 +87,14 @@ def workflow_uses_steps(path: str) -> list[tuple[str, str, list[str]]]:
     return steps
 
 
-def step_scalar(lines: list[str], key: str) -> str | None:
+def step_input(lines: list[str], key: str) -> str | None:
+    with_block = mapping_block(lines, "with", 8)
     pattern = re.compile(rf"^          {re.escape(key)}:\s*(.*?)\s*$")
-    values = [yaml_scalar(match.group(1)) for line in lines if (match := pattern.match(line))]
+    values = [
+        yaml_scalar(match.group(1))
+        for line in with_block or []
+        if (match := pattern.match(line))
+    ]
     return values[0] if len(values) == 1 else None
 
 
@@ -82,7 +108,7 @@ def main() -> int:
                 continue
             location = (workflow_path, job_name)
             found.add(location)
-            version = step_scalar(step, "bun-version")
+            version = step_input(step, "bun-version")
             if version != EXPECTED_BUN_VERSION:
                 errors.append(
                     f"{workflow_path}:{job_name} must pin bun-version "

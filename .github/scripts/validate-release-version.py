@@ -17,6 +17,7 @@ YAML_FILES = (
 
 ACTION_DOCS = (
     "README.md",
+    "SECURITY.md",
     *sorted(
         str(path)
         for path in Path("site/src/content").rglob("*")
@@ -70,7 +71,7 @@ steps = []
 errors = []
 ARGV.each do |path|
   content = File.read(path, encoding: "UTF-8")
-  content.scan(/^ {0,3}(`{3,}|~{3,})(?:yaml|yml)(?:[ \t]+[^\r\n]*)?[ \t]*\r?\n(.*?)^ {0,3}\1[ \t]*\r?$/m).each_with_index do |match, index|
+  content.scan(/^ {0,3}(`{3,}|~{3,})(?i:yaml|yml)(?:[ \t]+[^\r\n]*)?[ \t]*\r?\n(.*?)^ {0,3}\1[ \t]*\r?$/m).each_with_index do |match, index|
     begin
       document = Psych.safe_load(match[1], permitted_classes: [], aliases: false)
     rescue Psych::Exception => error
@@ -174,10 +175,9 @@ def mapping_scalar(lines: list[str], key: str, indent: int) -> str | None:
     return values[0] if len(values) == 1 else None
 
 
-def step_input(lines: list[str], key: str) -> str | None:
-    """Return a scalar only when it is nested in this step's `with` mapping."""
-    with_block = mapping_block(lines, "with", 8)
-    return mapping_scalar(with_block or [], key, 10)
+def step_input(inputs: dict[str, str], key: str) -> str | None:
+    """Return one normalized input from a structurally parsed Action step."""
+    return inputs.get(key)
 
 
 def validate_yaml_syntax(errors: list[str]) -> None:
@@ -208,53 +208,63 @@ def validate_yaml_syntax(errors: list[str]) -> None:
         errors.append(f"maintained YAML syntax validation failed: {detail}")
 
 
-def workflow_uses_steps(path: str) -> list[tuple[str, str, list[str]]]:
-    """Read workflow `uses` steps without requiring a third-party YAML package."""
-    lines = Path(path).read_text(encoding="utf-8").splitlines()
-    jobs = mapping_block(lines, "jobs", 0)
-    if jobs is None:
+def workflow_uses_steps(
+    path: str, errors: list[str]
+) -> list[tuple[str, str, dict[str, str]]]:
+    """Read every workflow Action step through Ruby's standard-library Psych parser."""
+    ruby = r'''\
+require "json"
+require "psych"
+
+document = Psych.safe_load(File.read(ARGV.fetch(0), encoding: "UTF-8"), permitted_classes: [], aliases: false)
+steps = []
+jobs = document.is_a?(Hash) ? document["jobs"] : nil
+if jobs.is_a?(Hash)
+  jobs.each do |job_name, job|
+    next unless job.is_a?(Hash) && job["steps"].is_a?(Array)
+    job["steps"].each do |step|
+      next unless step.is_a?(Hash) && step["uses"].is_a?(String)
+      inputs = step["with"].is_a?(Hash) ? step["with"] : {}
+      normalized_inputs = inputs.each_with_object({}) do |(key, value), result|
+        result[key.to_s] = value.to_s unless value.is_a?(Hash) || value.is_a?(Array)
+      end
+      steps << { job: job_name.to_s, uses: step["uses"], inputs: normalized_inputs }
+    end
+  end
+end
+puts JSON.generate(steps)
+'''
+    try:
+        result = subprocess.run(
+            ["ruby", "-e", ruby, path],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    except FileNotFoundError:
+        errors.append(f"{path}: Ruby with standard-library Psych is required")
+        return []
+    except subprocess.TimeoutExpired:
+        errors.append(f"{path}: workflow parsing timed out after 30 seconds")
         return []
 
-    steps: list[tuple[str, str, list[str]]] = []
-    current_job: str | None = None
-    index = 0
-    job_pattern = re.compile(r"^  ([A-Za-z0-9_-]+):\s*(?:#.*)?$")
-    step_pattern = re.compile(r"^      -(?:\s+.*)?$")
-    uses_key = r'(?:uses|[\'\"]uses[\'\"])\s*:'
-    inline_uses_pattern = re.compile(rf"^      - {uses_key}\s*(.*?)\s*$")
-    nested_uses_pattern = re.compile(rf"^        {uses_key}\s*(.*?)\s*$")
-    while index < len(jobs):
-        line = jobs[index]
-        if job_match := job_pattern.match(line):
-            current_job = job_match.group(1)
-        if step_pattern.match(line):
-            end = index + 1
-            while end < len(jobs):
-                candidate = jobs[end]
-                stripped = candidate.lstrip()
-                if stripped and not stripped.startswith("#"):
-                    leading = len(candidate) - len(stripped)
-                    if leading <= 6:
-                        break
-                end += 1
-            step_lines = jobs[index:end]
-            uses_values = [
-                yaml_scalar(match.group(1))
-                for step_line in step_lines
-                if (match := inline_uses_pattern.match(step_line))
-                or (match := nested_uses_pattern.match(step_line))
-            ]
-            if current_job is not None and len(uses_values) == 1:
-                steps.append((current_job, uses_values[0], step_lines))
-            index = end
-            continue
-        index += 1
-    return steps
+    if result.returncode != 0:
+        detail = result.stderr.strip()[-2000:] or "unknown Psych parser error"
+        errors.append(f"{path}: workflow parsing failed: {detail}")
+        return []
+
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        errors.append(f"{path}: workflow parser returned invalid JSON: {error}")
+        return []
+    return [(step["job"], step["uses"], step["inputs"]) for step in payload]
 
 
 def find_uses_step(
-    steps: list[tuple[str, str, list[str]]], job: str, predicate
-) -> tuple[str, str, list[str]] | None:
+    steps: list[tuple[str, str, dict[str, str]]], job: str, predicate
+) -> tuple[str, str, dict[str, str]] | None:
     matches = [step for step in steps if step[0] == job and predicate(step[1])]
     return matches[0] if len(matches) == 1 else None
 
@@ -278,7 +288,7 @@ def main() -> int:
     if action_version != version:
         errors.append(f"action.yml default must be {version}, found {action_version}")
 
-    ci_steps = workflow_uses_steps(".github/workflows/ci.yml")
+    ci_steps = workflow_uses_steps(".github/workflows/ci.yml", errors)
     consumer = find_uses_step(
         ci_steps, "action-consumer", lambda uses: uses == "./"
     )
@@ -291,7 +301,7 @@ def main() -> int:
                 f"packaged Action consumer must use {version}, found {consumer_version}"
             )
 
-    trust_steps = workflow_uses_steps(".github/workflows/trust.yml")
+    trust_steps = workflow_uses_steps(".github/workflows/trust.yml", errors)
     trust_step = find_uses_step(
         trust_steps, "trust", lambda uses: uses_action(uses, "corvidlabs/trust")
     )

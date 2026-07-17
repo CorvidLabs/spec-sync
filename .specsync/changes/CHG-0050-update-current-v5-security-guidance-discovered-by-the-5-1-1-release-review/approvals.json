@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784311297,
+      "digest": "6f7d163aeb2d806b0a0a521758d94a37ecfcb0d6340afc388033d9a415c65a4f",
+      "note": "Approved CHG-0050 as 0xLeif for the release-review security guidance correction."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784311576,
+      "digest": "83017dd921cd76591035734f29011cafc5f105d8925e4ff937a1c809b9b6b93b",
+      "note": "Reapproved CHG-0050 after adding its deterministic dependency on CHG-0049."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784312806,
+      "digest": "9a569845334d0210390c12ac98dec985d137759f6c32c829c6bbc261155fa7a2",
+      "note": "Accepted CHG-0050 after current v5 security guidance and release-validator verification passed."
+    }
+  ],
+  "reopenings": []
+}

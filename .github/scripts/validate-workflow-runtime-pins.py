@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Validate deterministic runtime pins in maintained GitHub workflows."""
 
-from pathlib import Path
-import re
+import json
+import subprocess
 import sys
 
 EXPECTED_BUN_VERSION = "1.3.14"
@@ -15,13 +15,6 @@ EXPECTED_SETUP_BUN_JOBS = {
 }
 
 
-def yaml_scalar(raw: str) -> str:
-    value = raw.split(" #", 1)[0].strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-        return value[1:-1]
-    return value
-
-
 def split_action_reference(uses: str) -> tuple[str, str] | None:
     """Return a case-normalized action repository and its case-sensitive ref."""
     repository, separator, ref = uses.rpartition("@")
@@ -30,85 +23,62 @@ def split_action_reference(uses: str) -> tuple[str, str] | None:
     return repository.casefold(), ref
 
 
-def mapping_block(lines: list[str], key: str, indent: int) -> list[str] | None:
-    """Return one indentation-bounded YAML mapping block, failing closed on ambiguity."""
-    pattern = re.compile(rf"^ {{{indent}}}{re.escape(key)}:\s*(?:#.*)?$")
-    starts = [index for index, line in enumerate(lines) if pattern.match(line)]
-    if len(starts) != 1:
-        return None
+def workflow_uses_steps(
+    path: str, errors: list[str]
+) -> list[tuple[str, str, dict[str, str]]]:
+    """Read every workflow Action step through Ruby's standard-library Psych parser."""
+    ruby = r'''\
+require "json"
+require "psych"
 
-    start = starts[0] + 1
-    end = len(lines)
-    for index in range(start, len(lines)):
-        line = lines[index]
-        stripped = line.lstrip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        leading = len(line) - len(stripped)
-        if leading <= indent:
-            end = index
-            break
-    return lines[start:end]
-
-
-def workflow_uses_steps(path: str) -> list[tuple[str, str, list[str]]]:
-    """Read workflow `uses` steps using only the Python standard library."""
-    lines = Path(path).read_text(encoding="utf-8").splitlines()
-    jobs_starts = [index for index, line in enumerate(lines) if re.match(r"^jobs:\s*(?:#.*)?$", line)]
-    if len(jobs_starts) != 1:
+document = Psych.safe_load(File.read(ARGV.fetch(0), encoding: "UTF-8"), permitted_classes: [], aliases: false)
+steps = []
+jobs = document.is_a?(Hash) ? document["jobs"] : nil
+if jobs.is_a?(Hash)
+  jobs.each do |job_name, job|
+    next unless job.is_a?(Hash) && job["steps"].is_a?(Array)
+    job["steps"].each do |step|
+      next unless step.is_a?(Hash) && step["uses"].is_a?(String)
+      inputs = step["with"].is_a?(Hash) ? step["with"] : {}
+      normalized_inputs = inputs.each_with_object({}) do |(key, value), result|
+        result[key.to_s] = value.to_s unless value.is_a?(Hash) || value.is_a?(Array)
+      end
+      steps << { job: job_name.to_s, uses: step["uses"], inputs: normalized_inputs }
+    end
+  end
+end
+puts JSON.generate(steps)
+'''
+    try:
+        result = subprocess.run(
+            ["ruby", "-e", ruby, path],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    except FileNotFoundError:
+        errors.append(f"{path}: Ruby with standard-library Psych is required")
+        return []
+    except subprocess.TimeoutExpired:
+        errors.append(f"{path}: workflow parsing timed out after 30 seconds")
         return []
 
-    jobs = lines[jobs_starts[0] + 1 :]
-    current_job: str | None = None
-    steps: list[tuple[str, str, list[str]]] = []
-    job_pattern = re.compile(r"^  ([A-Za-z0-9_-]+):\s*(?:#.*)?$")
-    step_pattern = re.compile(r"^      -(?:\s+.*)?$")
-    uses_key = r'(?:uses|[\'\"]uses[\'\"])\s*:'
-    inline_uses_pattern = re.compile(rf"^      - {uses_key}\s*(.*?)\s*$")
-    nested_uses_pattern = re.compile(rf"^        {uses_key}\s*(.*?)\s*$")
-    flow_uses_pattern = re.compile(rf"^      -\s*\{{\s*{uses_key}\s*([^,}}]+)")
-    index = 0
-    while index < len(jobs):
-        line = jobs[index]
-        if line and not line.startswith((" ", "#")):
-            break
-        if job_match := job_pattern.match(line):
-            current_job = job_match.group(1)
-        if step_pattern.match(line):
-            end = index + 1
-            while end < len(jobs):
-                candidate = jobs[end]
-                stripped = candidate.lstrip()
-                if stripped and not stripped.startswith("#"):
-                    leading = len(candidate) - len(stripped)
-                    if leading <= 6:
-                        break
-                end += 1
-            step_lines = jobs[index:end]
-            uses_values = [
-                yaml_scalar(match.group(1))
-                for step_line in step_lines
-                if (match := inline_uses_pattern.match(step_line))
-                or (match := nested_uses_pattern.match(step_line))
-                or (match := flow_uses_pattern.match(step_line))
-            ]
-            if current_job is not None and len(uses_values) == 1:
-                steps.append((current_job, uses_values[0], step_lines))
-            index = end
-            continue
-        index += 1
-    return steps
+    if result.returncode != 0:
+        detail = result.stderr.strip()[-2000:] or "unknown Psych parser error"
+        errors.append(f"{path}: workflow parsing failed: {detail}")
+        return []
+
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        errors.append(f"{path}: workflow parser returned invalid JSON: {error}")
+        return []
+    return [(step["job"], step["uses"], step["inputs"]) for step in payload]
 
 
-def step_input(lines: list[str], key: str) -> str | None:
-    with_block = mapping_block(lines, "with", 8)
-    pattern = re.compile(rf"^          {re.escape(key)}:\s*(.*?)\s*$")
-    values = [
-        yaml_scalar(match.group(1))
-        for line in with_block or []
-        if (match := pattern.match(line))
-    ]
-    return values[0] if len(values) == 1 else None
+def step_input(inputs: dict[str, str], key: str) -> str | None:
+    return inputs.get(key)
 
 
 def main() -> int:
@@ -116,7 +86,7 @@ def main() -> int:
     errors: list[str] = []
 
     for workflow_path in sorted({path for path, _ in EXPECTED_SETUP_BUN_JOBS}):
-        for job_name, uses, step in workflow_uses_steps(workflow_path):
+        for job_name, uses, step in workflow_uses_steps(workflow_path, errors):
             reference = split_action_reference(uses)
             if reference is None or reference[0] != EXPECTED_SETUP_BUN_REPOSITORY:
                 continue

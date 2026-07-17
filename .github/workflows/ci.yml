@@ -388,7 +388,9 @@ jobs:
   corvid-pet:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event_name == 'pull_request' && always()
+    # Fork pull requests receive a read-only token, so the mascot cannot post
+    # its approval review there. The required CI gate remains authoritative.
+    if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
     needs: [test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
     steps:
       - uses: actions/checkout@v5
@@ -470,7 +472,7 @@ jobs:
     runs-on: ubuntu-latest
     # Depend on every gate job, not just a subset: an attestation records
     # "proceed", so it must not sign off on a commit where any real check failed.
-    # (corvid-pet is a PR-comment mascot, not a gate, so it is intentionally out.)
+    # (corvid-pet is a same-repository PR mascot, not a gate, so it is intentionally out.)
     needs: [ci-gate]
     if: needs.ci-gate.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     # contents: write lets the step push refs/notes/attest.

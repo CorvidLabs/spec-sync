@@ -35,7 +35,7 @@ A delta file contains `## ADDED`, `## MODIFIED`, and `## REMOVED` sections. Each
 | `### REQUIREMENT <REQ-id>` | A normative requirement, with `SHALL` prose and acceptance criteria |
 | `### SPEC SECTION <section name>` | Markdown content targeting a named canonical spec section (e.g. `Public API`) |
 
-- **ADDED** — introduces a new requirement or new section content.
+- **ADDED** — introduces a new requirement or a new section whose heading does not yet exist.
 - **MODIFIED** — replaces the referenced content with the block's full intended content.
 - **REMOVED** — retires a previously canonical requirement or section content.
 
@@ -81,7 +81,11 @@ Bind evidence by naming the exact requirement ID in the change's `testing.md` ar
 | `revoke_all_sessions` | Revokes every session owned by the given user. |
 ```
 
-The section name must match a section heading in the canonical spec. A `MODIFIED` block carries the section's **full intended content after the change** — when multiple changes touch the same section in sequence, each delta restates the complete resulting table rather than only its own additions.
+For `MODIFIED` and `REMOVED`, the section name must match a section heading in the canonical spec.
+For `ADDED`, the heading must not exist yet; use `MODIFIED` to change an existing section. A
+`MODIFIED` block carries the section's **full intended content after the change** — when multiple
+changes touch the same section in sequence, each delta restates the complete resulting table rather
+than only its own additions.
 
 ---
 

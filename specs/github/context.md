@@ -18,17 +18,19 @@ spec: github.spec.md
   compatible floating `v<major>` ref advances. Release metadata remains synchronized through
   `.github/scripts/validate-release-version.py`, which rejects every README/site Action ref other
   than the exact candidate ref, including moving branch names such as `main`. It parses fenced YAML
-  through Psych, including backtick or tilde fences with up to three leading spaces and metadata
+  through Psych, including case-insensitive backtick or tilde fences with up to three leading spaces and metadata
   such as `title="ci.yml"`, so named/nested `uses` steps and block or flow `with.version` mappings
   are covered without mistaking cross-project reference prose for an Action step. Workflow
-  validation also recognizes quoted `uses` keys and rejects flow-style setup-bun steps that evade
-  the maintained block-style pin contract. Action repository names are normalized case-insensitively,
+  validation structurally parses block and flow mappings, including quoted keys, arbitrary valid
+  list-marker spacing, and `uses` keys after other step fields. Action repository names are normalized case-insensitively,
   while the selected release ref is compared exactly.
 - **Hermetic release guards**: release and runtime-pin validators require no Python site packages;
   the release guard uses Ruby's standard-library Psych parser for full YAML syntax validation.
   Cargo metadata is read without Python 3.11-only `tomllib`, lifecycle verification declares the
   Ruby preflight explicitly, and hosted CI provisions a pinned Ruby runtime, so Python 3.10+
   verification depends on neither ambient PyYAML nor an undeclared hosted runtime.
+- **Fork-safe CI decoration**: required CI runs for fork pull requests, while the optional corvid-pet
+  approval review is limited to same-repository pull requests whose token can write PR reviews.
 
 ## Key Files
 

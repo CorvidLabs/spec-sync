@@ -76,6 +76,13 @@
       "timestamp": 1784306528,
       "digest": "e966773d2fb0d81e3f4d54f746fdad0f6815e1d11c92c989635b5ff1fe9d216b",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784312007,
+      "digest": "abd39c3ce1cd8d4982aa4ed142b64c4f784752efc70d9836e596319287166b5e",
+      "note": "Reaccepted CHG-0048 after complete release-review validator and fork-PR CI verification."
     }
   ],
   "reopenings": [
@@ -612,6 +619,273 @@
       },
       "stale_acceptance_input_digest": "d7e78b8196070a1555f981cf4da16f40756e3bc0766586373b69342b44dfd1e9",
       "current_acceptance_input_digest": "e89d9d463b54bf7fcff64a2c51d2a3fd6a443b070e52ca6956decdcea2b17b03"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0048-prepare-the-specsync-5-1-1-stabilization-release-from-merged-pr-387-bump-accur",
+      "actor": "0xLeif",
+      "reason": "late PR #389 and #390 review corrections plus CHG-0050 legitimately update its accepted release validator, workflow, GitHub companion, and lifecycle sequence inputs",
+      "timestamp": 1784311541,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784306528,
+        "digest": "e966773d2fb0d81e3f4d54f746fdad0f6815e1d11c92c989635b5ff1fe9d216b",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784306159,
+        "commit": "74d04de8eed77478316eee6f1514470f6ef8ed64",
+        "contract_digest": "50d7f16f9989be74df1771ad6851c82d8df406053664d0fead5414a5671ab2f9",
+        "workspace_digest": "d2b00ffbbc78d6d986663c81667c31d5bf4a2613e280ef178173ba015c95d612",
+        "acceptance_input_digest": "e89d9d463b54bf7fcff64a2c51d2a3fd6a443b070e52ca6956decdcea2b17b03",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".github/scripts/validate-release-version.py",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "81b3e061a64b941776a80e49e80ca8811083267de2ae1756b3dcbdb222a53bc2",
+              "entry_digest": "0ef02ed4164dbb1912f934964c615c639162d17da84829ae09521e8dabee2828",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": ".github/scripts/validate-workflow-runtime-pins.py",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "e69491e826efa907f4c9cd1f94ce560966ee8da1733b044f15407977a0860fad",
+              "entry_digest": "daa719e281e955495b984cad50a3a9597059817adbf44732e224280fcfab05c1",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": ".github/workflows/ci.yml",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d524942d8f69dbd6a0a2093c69261c580f1e6c8c29981d5b9751ae19c13e7de6",
+              "entry_digest": "7fc99f47a8c18ab5302c5ea8020db3f79fe3df680a94a801ee706b019b3e8a29",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": ".github/workflows/pages.yml",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "3ad75aff15300af91f117d64e74e56b4f1a11a868b14e4abbe8d342d58e49f81",
+              "entry_digest": "342dcbb5174769018183276afc5207027f26c2ab6902dbb3d66be49d64a56474",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": ".github/workflows/trust.yml",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "7ed85365d69afbefdb9e8c7fd89a1237818c6b95c963a69b428e066d3168c3b4",
+              "entry_digest": "ad0062a62981a60682598dadde0bd25ffe7d218246305941104221dd96efecec",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "77725d6922fbef9bb17f6a52727af91ed7531039d202a0b8355379c0869211b2",
+              "entry_digest": "2634da5570743e65c96043df2fd19e2fd28f2268e47a4e974b76742e799e53aa",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": ".specsync/sdd.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "c588a277ee43cc400699d9afea8aee39b013a9de5724fb251a6b7d950d26f101",
+              "entry_digest": "7cb3b12a72c508885f9ffb5bf834dedda393db5524053a7d2f8784fc4469735a",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "CHANGELOG.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "523af5f66aa076886b704698e607be86a87db5116c742b85e92e57437dc0293f",
+              "entry_digest": "ec207a4b35e2eeae4f097922d663024e62c8813f7a2a906b2c3b0bb389d31dad",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "Cargo.lock",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "3556b2fd0b9dd3e736d40b5c1b1eee4609d3105a54aae3b662f7f36265e3a52a",
+              "entry_digest": "dedc0e3473e0706ea0d81a4c80740cdd11cd563975efa84677c4fd54c004b717",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "Cargo.toml",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "2f3927836b81f850bfb5b1d13d646bea1e4c728f97657e26422f416632af9acf",
+              "entry_digest": "2fb47578f05f7c77efe6dfdcdb2566baf49448ef530009312d054065c4675aae",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "README.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "acb0b38c70f98fd2aacc6ca04f0db1f6e26f3f6da67f1e122d448e4c1d482e2c",
+              "entry_digest": "4bf1a422fc74e86baff3e118335d0498bef21114a450822b7923cab70882147e",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "action.yml",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "3f62e65305992d8d159bb9ca5ae1d4a428877d745270441c516395175ee52c45",
+              "entry_digest": "e8da08e812c4887aeca4f8f17c27f241e49187f088aae9270b4b1b0e19d920bd",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "site/src/content/docs/integrations/github-action.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "8927cce0c5494939bab2a362d01f72b98ea356e00be36b94d2cdf06cc03c1a44",
+              "entry_digest": "244fee56a0183142ba0affdba3fb3da9c3819e29aa92794c077072b37dde99e9",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "site/src/content/docs/quickstart.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "8b4bc4a8876178e75128749c10fc3da8a1c94a36f037c7540bcfe487886cd54e",
+              "entry_digest": "3f68bfc23f11dccf0c37863a3fe62a1a405da41064144b64df033a394eadcfc1",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "site/src/content/examples/ci-gate.mdx",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "0528173340ef099d727096fbf5a0c9fb774d5f5bf3672e1f0f797ba06f259d3e",
+              "entry_digest": "494f7b0b9bc2d72dbe92484a15fe6e95fea47b78cd07fc19fc7905c82a6eebeb",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "site/src/content/examples/polyglot.mdx",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "83fe54200757594541ce8205318e83714c7a6008229b4add4789697b838f6844",
+              "entry_digest": "06db30873440ab0dffba5c617f32d2ec394548ad96113340eabcc1d62341e917",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/github/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "4116cad4da321bf8bacc379e64e61ee2371301100568500a1b7a76625b282499",
+              "entry_digest": "a10c8ac998adfdbfb2440daf0fe603712e9c19c8e564642a8ded0303b659e2d8",
+              "owners": [
+                "github"
+              ]
+            },
+            {
+              "path": "specs/github/github.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "180b6930659e3874b3e3210fa70e96c77c4b15cc3993d6b7483769fcd65e5de8",
+              "entry_digest": "6242af036d3a0963be46eeb44338b05b2002f9986ecee5edd5c5fdd50ba6eded",
+              "owners": [
+                "github"
+              ]
+            },
+            {
+              "path": "specs/github/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "eb309f3dbf0d930d8d7d84e5fcf5b7a39bddb3794371fd593d3fa2ac07a2a51c",
+              "entry_digest": "7c71e575b6bc1ca5eb51648e7611d54a4d45460a18c864e8153c12ebe9af541d",
+              "owners": [
+                "github"
+              ]
+            },
+            {
+              "path": "specs/github/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "4ff174f6bec780c9e361087da70017b05d27e3c25927cd602030c2f79d7f914a",
+              "entry_digest": "87f22124798361a56fc186338714a99b188368f39ff285578d21ee3151ff262f",
+              "owners": [
+                "github"
+              ]
+            },
+            {
+              "path": "specs/github/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "5f3f5a8af1ce20a34ac7e93259f718d8970fc46f235b25d091dc30c1a059eeaf",
+              "entry_digest": "d6060363691e2670c3b31d018190d638c37d818ab053c98cfceb6733799543f6",
+              "owners": [
+                "github"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "ruby --version",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-release-version.py",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-github-002",
+          "REQ-github-003"
+        ]
+      },
+      "stale_acceptance_input_digest": "e89d9d463b54bf7fcff64a2c51d2a3fd6a443b070e52ca6956decdcea2b17b03",
+      "current_acceptance_input_digest": "70be7db5a991fb053de692e8c47b7bf925e24e63f4bdd26c132f6e8b4aefce4c"
     }
   ]
 }

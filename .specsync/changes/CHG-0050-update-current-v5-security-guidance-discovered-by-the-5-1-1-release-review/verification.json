@@ -1,9 +1,9 @@
 {
-  "timestamp": 1784312376,
+  "timestamp": 1784312793,
   "commit": "fd2eb796b4026326e1390fc9709d341d6edeb0c5",
-  "contract_digest": "87ffa3bbfe174c943d28336c135107d48538897987edd7479e310c7bcaf7ec1a",
+  "contract_digest": "83017dd921cd76591035734f29011cafc5f105d8925e4ff937a1c809b9b6b93b",
   "workspace_digest": "e50d1b2f3311ac919d2d3cb4e4cc0a3a148c0102ebb6ab37e064b8bbafba4734",
-  "acceptance_input_digest": "09a02efae40ac3775a4504773cd2fdb79446b9149f4881b286b6fba8902f3f76",
+  "acceptance_input_digest": "4b8d374ab09831055b1f7b4e065ca292d2cfb22e8da72e3c74ec992e3793c4e0",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -11,28 +11,18 @@
         "path": ".specsync/change-sequence.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "ee1c7dc59c373a3892975aa269bc88265ed54c8e42e36f0c6cb03680eb10ac13",
-        "entry_digest": "1d80c621da9cb546dd36c47ba74173b2fa90a986999fb97adef8fbc5edf35d1c",
+        "payload_digest": "da97658e9e30e09f2f8ce463e7310ac27d2f3223ae882d2482600b8a916cb025",
+        "entry_digest": "6b8be1303d87cba88d12ddffe62fd0c4d03c602f0a0b22a23da2fc5242f9ae2f",
         "owners": [
           "@exact:delivery"
         ]
       },
       {
-        "path": "site/src/content/docs/deltas.md",
+        "path": "SECURITY.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "13cd951e2408f40ff57e51a9efd74f4a3bc8a1d0c88a15c6790423efa4e25f38",
-        "entry_digest": "8302e685abe44baf1f310762d61bd1f62bf7fe6f6fb5f35382cb1d0031a525d4",
-        "owners": [
-          "@exact:delivery"
-        ]
-      },
-      {
-        "path": "site/src/content/docs/quickstart.md",
-        "kind": "file",
-        "mode": 33188,
-        "payload_digest": "8b4bc4a8876178e75128749c10fc3da8a1c94a36f037c7540bcfe487886cd54e",
-        "entry_digest": "3f68bfc23f11dccf0c37863a3fe62a1a405da41064144b64df033a394eadcfc1",
+        "payload_digest": "9317ca4122ffa7e3428ba38179d3ed9f5effc25d9d4c6c3c18c25f5d5552747a",
+        "entry_digest": "52f7a9236ef10eb939949b480d5cc8aa1c5c8e7a61ecbe35f150fdab30d97f91",
         "owners": [
           "@exact:delivery"
         ]

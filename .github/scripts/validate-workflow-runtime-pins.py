@@ -7,6 +7,7 @@ import sys
 
 EXPECTED_BUN_VERSION = "1.3.14"
 EXPECTED_SETUP_BUN_REF = "oven-sh/setup-bun@v2"
+EXPECTED_SETUP_BUN_REPOSITORY = "oven-sh/setup-bun"
 EXPECTED_SETUP_BUN_JOBS = {
     (".github/workflows/ci.yml", "site"),
     (".github/workflows/ci.yml", "vscode-extension"),
@@ -19,6 +20,14 @@ def yaml_scalar(raw: str) -> str:
     if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
         return value[1:-1]
     return value
+
+
+def split_action_reference(uses: str) -> tuple[str, str] | None:
+    """Return a case-normalized action repository and its case-sensitive ref."""
+    repository, separator, ref = uses.rpartition("@")
+    if separator != "@" or not repository or not ref:
+        return None
+    return repository.casefold(), ref
 
 
 def mapping_block(lines: list[str], key: str, indent: int) -> list[str] | None:
@@ -105,11 +114,12 @@ def main() -> int:
 
     for workflow_path in sorted({path for path, _ in EXPECTED_SETUP_BUN_JOBS}):
         for job_name, uses, step in workflow_uses_steps(workflow_path):
-            if not uses.startswith("oven-sh/setup-bun@"):
+            reference = split_action_reference(uses)
+            if reference is None or reference[0] != EXPECTED_SETUP_BUN_REPOSITORY:
                 continue
             location = (workflow_path, job_name)
             found_counts[location] = found_counts.get(location, 0) + 1
-            if uses != EXPECTED_SETUP_BUN_REF:
+            if reference[1] != "v2":
                 errors.append(
                     f"{workflow_path}:{job_name} must use {EXPECTED_SETUP_BUN_REF}, "
                     f"found {uses!r}"

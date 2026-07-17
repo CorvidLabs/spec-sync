@@ -7,8 +7,8 @@ spec: github.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/github.rs` | cargo test github:: | `test_parse_repo_from_url_https`, `test_parse_repo_from_url_ssh`, `test_parse_repo_from_url_unknown` |
-| Release version surfaces | `ruby --version` then `PYENV_VERSION=3.10.20 python3 -S .github/scripts/validate-release-version.py` | Pinned hosted Ruby and the declared lifecycle preflight provide Psych; maintained YAML syntax, Cargo, lockfile, Action default, every README/site YAML Action step (including named/nested `uses`, non-version moving refs, and block/flow `with.version` inputs), packaged consumer, Trust candidate, checkout contract, and changelog agree without Python site packages or Python 3.11-only modules |
-| Hosted Bun runtime | `python3 -S .github/scripts/validate-workflow-runtime-pins.py` | Pages, site CI, and VS Code extension CI each contain exactly one expected `setup-bun` Action ref with the supported exact Bun version under that step's `with` mapping; moving refs, duplicates, unexpected jobs, and missing nested inputs fail without Python site packages |
+| Release version surfaces | `ruby --version` then `PYENV_VERSION=3.10.20 python3 -S .github/scripts/validate-release-version.py` | Pinned hosted Ruby and the declared lifecycle preflight provide Psych; maintained YAML syntax, Cargo, lockfile, Action default, every README/site YAML Action step (including metadata-bearing fences, named/nested `uses`, mixed-case repositories, non-version moving refs, and block/flow `with.version` inputs), packaged consumer, Trust candidate, checkout contract, and changelog agree without Python site packages or Python 3.11-only modules |
+| Hosted Bun runtime | `python3 -S .github/scripts/validate-workflow-runtime-pins.py` | Pages, site CI, and VS Code extension CI each contain exactly one expected `setup-bun` Action ref with the supported exact Bun version under that step's `with` mapping; mixed-case repositories, moving refs, duplicates, unexpected jobs, and missing nested inputs fail without Python site packages |
 
 ## Coverage Gaps
 
@@ -34,6 +34,8 @@ spec: github.spec.md
 | Network timeout | `fetch_issue_api` returns `Err` after 10 seconds | Keep or add a focused assertion before changing this behavior |
 | `gh` CLI not authenticated | `gh_is_available` returns `false` | Keep or add a focused assertion before changing this behavior |
 | GitHub Bun tag API unavailable | Maintained JS jobs do not perform latest-tag discovery | Keep exact `bun-version` pins in all three `setup-bun` jobs and run their frozen install/build commands |
+| Mixed-case Action repository spelling | Repository matching follows GitHub's case-insensitive resolution, but refs remain exact and case-sensitive | Exercise mixed-case `setup-bun` and `checkout` repository spellings with a disallowed ref and require the applicable validator to fail |
+| YAML fence includes metadata | The fenced workflow example remains in release validation scope | Add fence metadata such as `title="ci.yml"`, substitute a moving spec-sync ref, and require the release validator to fail |
 | Exact Action release fails a platform smoke test | Floating `v5` remains unchanged | Compare refs before and after the failed promotion attempt |
 
 ## Reviewer Checklist

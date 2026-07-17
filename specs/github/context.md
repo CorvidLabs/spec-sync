@@ -11,13 +11,17 @@ spec: github.spec.md
 - **Deterministic hosted Bun runtime**: Pages, site CI, and VS Code extension CI use one exact Bun
   version and the expected `setup-bun` Action ref. `.github/scripts/validate-workflow-runtime-pins.py`
   validates every matching setup step and rejects moving refs, duplicates, unexpected jobs, or a
-  missing nested `bun-version`, preventing a live tag-discovery dependency from returning.
+  missing nested `bun-version`, preventing a live tag-discovery dependency from returning. Action
+  repository names are matched case-insensitively, as GitHub resolves them, while refs remain exact
+  and case-sensitive so mixed-case owner/repository spellings cannot bypass the pin guard.
 - **Monotonic Action promotion**: immutable `v<major>.<minor>.<patch>` refs are verified before the
   compatible floating `v<major>` ref advances. Release metadata remains synchronized through
   `.github/scripts/validate-release-version.py`, which rejects every README/site Action ref other
   than the exact candidate ref, including moving branch names such as `main`. It parses fenced YAML
-  through Psych, so named/nested `uses` steps and block or flow `with.version` mappings are covered
-  without mistaking cross-project reference prose for an Action step.
+  through Psych, including fences with metadata such as `title="ci.yml"`, so named/nested `uses`
+  steps and block or flow `with.version` mappings are covered without mistaking cross-project
+  reference prose for an Action step. Action repository names are normalized case-insensitively,
+  while the selected release ref is compared exactly.
 - **Hermetic release guards**: release and runtime-pin validators require no Python site packages;
   the release guard uses Ruby's standard-library Psych parser for full YAML syntax validation.
   Cargo metadata is read without Python 3.11-only `tomllib`, lifecycle verification declares the

@@ -47,6 +47,19 @@ def lock_package_versions(path: str, name: str) -> list[str]:
     return versions
 
 
+def split_action_reference(uses: str) -> tuple[str, str] | None:
+    """Return a case-normalized action repository and its case-sensitive ref."""
+    repository, separator, ref = uses.rpartition("@")
+    if separator != "@" or not repository or not ref:
+        return None
+    return repository.casefold(), ref
+
+
+def uses_action(uses: str, repository: str) -> bool:
+    reference = split_action_reference(uses)
+    return reference is not None and reference[0] == repository.casefold()
+
+
 def documented_action_steps(errors: list[str]) -> list[dict[str, str | None]]:
     """Parse YAML documentation examples and return every spec-sync Action step."""
     ruby = r'''\
@@ -57,7 +70,7 @@ steps = []
 errors = []
 ARGV.each do |path|
   content = File.read(path, encoding: "UTF-8")
-  content.scan(/^```(?:yaml|yml)\s*$\n(.*?)^```\s*$/m).each_with_index do |match, index|
+  content.scan(/^```(?:yaml|yml)(?:[ \t]+[^\r\n]*)?[ \t]*\r?\n(.*?)^```[ \t]*\r?$/m).each_with_index do |match, index|
     begin
       document = Psych.safe_load(match.first, permitted_classes: [], aliases: false)
     rescue Psych::Exception => error
@@ -71,13 +84,17 @@ ARGV.each do |path|
         value.each { |item| walk.call(item) }
       when Hash
         uses = value["uses"]
-        if uses.is_a?(String) && uses.start_with?("CorvidLabs/spec-sync@")
+        if uses.is_a?(String)
+          repository, separator, ref = uses.rpartition("@")
+        end
+        if uses.is_a?(String) && separator == "@" &&
+           repository.downcase == "corvidlabs/spec-sync" && !ref.empty?
           inputs = value["with"]
           version = inputs.is_a?(Hash) ? inputs["version"] : nil
           steps << {
             path: path,
             block: index + 1,
-            ref: uses.delete_prefix("CorvidLabs/spec-sync@"),
+            ref: ref,
             version: version.nil? ? nil : version.to_s,
           }
         end
@@ -275,7 +292,7 @@ def main() -> int:
 
     trust_steps = workflow_uses_steps(".github/workflows/trust.yml")
     trust_step = find_uses_step(
-        trust_steps, "trust", lambda uses: uses.startswith("CorvidLabs/trust@")
+        trust_steps, "trust", lambda uses: uses_action(uses, "corvidlabs/trust")
     )
     if trust_step is None:
         errors.append("Trust step not found in trust.yml")
@@ -289,7 +306,9 @@ def main() -> int:
         ("ci.yml", ci_steps, "spec-check"),
         ("trust.yml", trust_steps, "trust"),
     ):
-        checkout = find_uses_step(steps, job, lambda uses: uses.startswith("actions/checkout@"))
+        checkout = find_uses_step(
+            steps, job, lambda uses: uses_action(uses, "actions/checkout")
+        )
         if checkout is None:
             errors.append(f"{path}:{job} checkout step not found")
             continue
@@ -302,7 +321,7 @@ def main() -> int:
 
     for job in ("test", "fmt", "audit", "coverage", "action-consumer"):
         checkout = find_uses_step(
-            ci_steps, job, lambda uses: uses.startswith("actions/checkout@")
+            ci_steps, job, lambda uses: uses_action(uses, "actions/checkout")
         )
         if checkout is None:
             errors.append(f"ci.yml:{job} checkout step not found")

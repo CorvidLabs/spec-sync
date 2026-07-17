@@ -27,6 +27,13 @@
       "timestamp": 1784244335,
       "digest": "3cc4e02b1a6302ab58971df13d681dc454a248c357bf0da02470c20c74e8db52",
       "note": "Reapproved after replacing its circular post-acceptance tasks with the truthful pre-verification task boundary."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784247831,
+      "digest": "007db43edc380cc26dfb340b6a68679eae0ab3175f3715159fb082453c33f14b",
+      "note": "Reapproved after addressing all PR #389 review findings and adding .specsync/sdd.json plus both release validators to its deterministic verification scope."
     }
   ],
   "reopenings": []

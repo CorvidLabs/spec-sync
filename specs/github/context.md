@@ -15,11 +15,14 @@ spec: github.spec.md
 - **Monotonic Action promotion**: immutable `v<major>.<minor>.<patch>` refs are verified before the
   compatible floating `v<major>` ref advances. Release metadata remains synchronized through
   `.github/scripts/validate-release-version.py`, which rejects every README/site Action ref other
-  than the exact candidate ref, including moving branch names such as `main`.
+  than the exact candidate ref, including moving branch names such as `main`. It parses fenced YAML
+  through Psych, so named/nested `uses` steps and block or flow `with.version` mappings are covered
+  without mistaking cross-project reference prose for an Action step.
 - **Hermetic release guards**: release and runtime-pin validators require no Python site packages;
   the release guard uses Ruby's standard-library Psych parser for full YAML syntax validation.
-  Lifecycle verification declares the Ruby preflight explicitly, and hosted CI provisions a pinned
-  Ruby runtime, so neither path depends on ambient PyYAML or an undeclared hosted runtime.
+  Cargo metadata is read without Python 3.11-only `tomllib`, lifecycle verification declares the
+  Ruby preflight explicitly, and hosted CI provisions a pinned Ruby runtime, so Python 3.10+
+  verification depends on neither ambient PyYAML nor an undeclared hosted runtime.
 
 ## Key Files
 

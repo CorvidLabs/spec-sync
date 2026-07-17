@@ -7,7 +7,7 @@ spec: github.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/github.rs` | cargo test github:: | `test_parse_repo_from_url_https`, `test_parse_repo_from_url_ssh`, `test_parse_repo_from_url_unknown` |
-| Release version surfaces | `ruby --version` then `python3 -S .github/scripts/validate-release-version.py` | Pinned hosted Ruby and the declared lifecycle preflight provide Psych; maintained YAML syntax, Cargo, lockfile, Action default, every README/site Action ref (including non-version moving refs) and explicit binary version, packaged consumer, Trust candidate, checkout contract, and changelog agree without Python site packages |
+| Release version surfaces | `ruby --version` then `PYENV_VERSION=3.10.20 python3 -S .github/scripts/validate-release-version.py` | Pinned hosted Ruby and the declared lifecycle preflight provide Psych; maintained YAML syntax, Cargo, lockfile, Action default, every README/site YAML Action step (including named/nested `uses`, non-version moving refs, and block/flow `with.version` inputs), packaged consumer, Trust candidate, checkout contract, and changelog agree without Python site packages or Python 3.11-only modules |
 | Hosted Bun runtime | `python3 -S .github/scripts/validate-workflow-runtime-pins.py` | Pages, site CI, and VS Code extension CI each contain exactly one expected `setup-bun` Action ref with the supported exact Bun version under that step's `with` mapping; moving refs, duplicates, unexpected jobs, and missing nested inputs fail without Python site packages |
 
 ## Coverage Gaps

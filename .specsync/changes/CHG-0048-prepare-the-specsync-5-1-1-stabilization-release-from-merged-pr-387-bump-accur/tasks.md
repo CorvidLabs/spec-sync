@@ -20,3 +20,6 @@ artifact: tasks
 - [x] Address all PR #389 review findings: harden malformed-YAML diagnostics, run release guards
   for every validated surface, persist validator commands in lifecycle evidence, and keep public
   examples on the immutable Action ref until floating-channel promotion.
+- [x] Parse every README/site fenced-YAML Action example with Psych, covering named/nested `uses`
+  steps and block/flow `with.version` inputs, and verify the release guard on Python 3.10 without
+  `tomllib`.

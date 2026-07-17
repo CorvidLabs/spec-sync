@@ -2,10 +2,10 @@
 """Validate that current release surfaces match Cargo's package version."""
 
 from pathlib import Path
+import json
 import re
 import subprocess
 import sys
-import tomllib
 
 
 YAML_FILES = (
@@ -14,6 +14,112 @@ YAML_FILES = (
     ".github/workflows/pages.yml",
     ".github/workflows/trust.yml",
 )
+
+ACTION_DOCS = (
+    "README.md",
+    *sorted(
+        str(path)
+        for path in Path("site/src/content").rglob("*")
+        if path.suffix in {".md", ".mdx"}
+    ),
+)
+
+
+def cargo_package_version(path: str) -> str | None:
+    """Read the package version without requiring Python 3.11's tomllib."""
+    content = Path(path).read_text(encoding="utf-8")
+    package = re.search(r"(?ms)^\[package\]\s*$\n(.*?)(?=^\[|\Z)", content)
+    if package is None:
+        return None
+    version = re.search(r'^version\s*=\s*["\']([^"\']+)["\']\s*$', package.group(1), re.MULTILINE)
+    return version.group(1) if version else None
+
+
+def lock_package_versions(path: str, name: str) -> list[str]:
+    """Read matching Cargo.lock package versions using its repeated table boundaries."""
+    content = Path(path).read_text(encoding="utf-8")
+    versions: list[str] = []
+    for package in re.findall(r"(?ms)^\[\[package\]\]\s*$\n(.*?)(?=^\[\[package\]\]|\Z)", content):
+        package_name = re.search(r'^name\s*=\s*"([^"]+)"\s*$', package, re.MULTILINE)
+        version = re.search(r'^version\s*=\s*"([^"]+)"\s*$', package, re.MULTILINE)
+        if package_name and package_name.group(1) == name and version:
+            versions.append(version.group(1))
+    return versions
+
+
+def documented_action_steps(errors: list[str]) -> list[dict[str, str | None]]:
+    """Parse YAML documentation examples and return every spec-sync Action step."""
+    ruby = r'''\
+require "json"
+require "psych"
+
+steps = []
+errors = []
+ARGV.each do |path|
+  content = File.read(path, encoding: "UTF-8")
+  content.scan(/^```(?:yaml|yml)\s*$\n(.*?)^```\s*$/m).each_with_index do |match, index|
+    begin
+      document = Psych.safe_load(match.first, permitted_classes: [], aliases: false)
+    rescue Psych::Exception => error
+      errors << { path: path, block: index + 1, error: error.message }
+      next
+    end
+
+    walk = lambda do |value|
+      case value
+      when Array
+        value.each { |item| walk.call(item) }
+      when Hash
+        uses = value["uses"]
+        if uses.is_a?(String) && uses.start_with?("CorvidLabs/spec-sync@")
+          inputs = value["with"]
+          version = inputs.is_a?(Hash) ? inputs["version"] : nil
+          steps << {
+            path: path,
+            block: index + 1,
+            ref: uses.delete_prefix("CorvidLabs/spec-sync@"),
+            version: version.nil? ? nil : version.to_s,
+          }
+        end
+        value.each_value { |item| walk.call(item) }
+      end
+    end
+    walk.call(document)
+  end
+end
+puts JSON.generate({ steps: steps, errors: errors })
+'''
+    try:
+        result = subprocess.run(
+            ["ruby", "-e", ruby, *ACTION_DOCS],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    except FileNotFoundError:
+        errors.append("Ruby with standard-library Psych is required for Action docs validation")
+        return []
+    except subprocess.TimeoutExpired:
+        errors.append("Action docs YAML validation timed out after 30 seconds")
+        return []
+
+    if result.returncode != 0:
+        detail = result.stderr.strip()[-2000:] or "unknown Psych parser error"
+        errors.append(f"Action docs YAML validation failed: {detail}")
+        return []
+
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        errors.append(f"Action docs validator returned invalid JSON: {error}")
+        return []
+    for parse_error in payload["errors"]:
+        errors.append(
+            f"{parse_error['path']} YAML block {parse_error['block']} is invalid: "
+            f"{parse_error['error']}"
+        )
+    return payload["steps"]
 
 
 def yaml_scalar(raw: str) -> str:
@@ -136,15 +242,14 @@ def find_uses_step(
 
 
 def main() -> int:
-    cargo = tomllib.loads(Path("Cargo.toml").read_text(encoding="utf-8"))
-    version = cargo["package"]["version"]
     errors: list[str] = []
+    version = cargo_package_version("Cargo.toml")
+    if version is None:
+        errors.append("Cargo.toml package version not found")
+        version = "<missing>"
     validate_yaml_syntax(errors)
 
-    lock = tomllib.loads(Path("Cargo.lock").read_text(encoding="utf-8"))
-    lock_versions = [
-        package["version"] for package in lock["package"] if package["name"] == "specsync"
-    ]
+    lock_versions = lock_package_versions("Cargo.lock", "specsync")
     if lock_versions != [version]:
         errors.append(f"Cargo.lock specsync version must be {version}, found {lock_versions}")
 
@@ -205,17 +310,9 @@ def main() -> int:
             errors.append(f"ci.yml:{job} checkout must not override the default ref")
 
     expected_action_ref = f"v{version}"
-    action_ref_pattern = re.compile(
-        r"^\s*-\s+uses:\s*['\"]?CorvidLabs/spec-sync@"
-        r"([A-Za-z0-9][A-Za-z0-9._/-]*)",
-        re.MULTILINE,
-    )
-    version_input_pattern = re.compile(
-        r"^\s+version:\s*['\"]?([^'\"\s#]+)", re.MULTILINE
-    )
-
-    readme = Path("README.md").read_text(encoding="utf-8")
-    readme_refs = action_ref_pattern.findall(readme)
+    documented_steps = documented_action_steps(errors)
+    readme_steps = [step for step in documented_steps if step["path"] == "README.md"]
+    readme_refs = [step["ref"] for step in readme_steps]
     if expected_action_ref not in readme_refs:
         errors.append(f"README.md must contain immutable Action ref @v{version}")
     stale_readme_refs = sorted({ref for ref in readme_refs if ref != expected_action_ref})
@@ -224,7 +321,7 @@ def main() -> int:
             f"README.md Action refs must all be @{expected_action_ref}, "
             f"found {stale_readme_refs}"
         )
-    readme_versions = version_input_pattern.findall(readme)
+    readme_versions = [step["version"] for step in readme_steps if step["version"] is not None]
     if version not in readme_versions:
         errors.append(f"README.md must pin Action binary version {version}")
     stale_readme_versions = sorted(
@@ -244,20 +341,18 @@ def main() -> int:
         found = docs_default.group(1) if docs_default else None
         errors.append(f"Action docs default must be {version}, found {found!r}")
 
-    stale_site_refs: list[str] = []
-    stale_site_versions: list[str] = []
-    for path in Path("site/src/content").rglob("*"):
-        if path.suffix not in {".md", ".mdx"}:
-            continue
-        content = path.read_text(encoding="utf-8")
-        action_refs = action_ref_pattern.findall(content)
-        for ref in action_refs:
-            if ref != expected_action_ref:
-                stale_site_refs.append(f"{path}: @{ref}")
-        if action_refs:
-            for input_version in version_input_pattern.findall(content):
-                if input_version != version:
-                    stale_site_versions.append(f"{path}: {input_version}")
+    stale_site_refs = [
+        f"{step['path']} YAML block {step['block']}: @{step['ref']}"
+        for step in documented_steps
+        if step["path"] != "README.md" and step["ref"] != expected_action_ref
+    ]
+    stale_site_versions = [
+        f"{step['path']} YAML block {step['block']}: {step['version']}"
+        for step in documented_steps
+        if step["path"] != "README.md"
+        and step["version"] is not None
+        and step["version"] != version
+    ]
     if stale_site_refs:
         errors.append(
             f"site Action refs must all be @{expected_action_ref}: "

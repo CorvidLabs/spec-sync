@@ -9,7 +9,7 @@ spec: github.spec.md
 ## Done
 
 - [x] Pin one exact Bun runtime and setup Action ref across Pages, site CI, and VS Code extension CI with a deterministic drift guard that rejects duplicate or unexpected setup steps
-- [x] Add dependency-free deterministic 5.1.1 release-version consistency validation across current distribution surfaces, rejecting every stale or moving README/site Action ref
+- [x] Add dependency-free deterministic 5.1.1 release-version consistency validation across current distribution surfaces, parsing every README/site YAML example so named/nested Action steps and block/flow `with.version` inputs reject stale or moving pins on Python 3.10+
 - [x] `detect_repo` / `parse_repo_from_url` — auto-detect `owner/repo` from SSH and HTTP(S) git remotes
 - [x] `resolve_repo` — explicit config repo wins over auto-detection, error when neither is available
 - [x] `gh_is_available` gate, with `gh` CLI preferred and `GITHUB_TOKEN` REST fallback

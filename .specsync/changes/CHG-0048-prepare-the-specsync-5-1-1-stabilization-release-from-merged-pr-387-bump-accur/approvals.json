@@ -34,6 +34,13 @@
       "timestamp": 1784247831,
       "digest": "007db43edc380cc26dfb340b6a68679eae0ab3175f3715159fb082453c33f14b",
       "note": "Reapproved after addressing all PR #389 review findings and adding .specsync/sdd.json plus both release validators to its deterministic verification scope."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784253224,
+      "digest": "29f57a8d303224ba5e1e23087fd2190aa4d523068c5a3861648eee237bcba7b7",
+      "note": "Reapproved after adding the remaining site Action examples and full YAML/nested-input validation to its deterministic scope."
     }
   ],
   "reopenings": []

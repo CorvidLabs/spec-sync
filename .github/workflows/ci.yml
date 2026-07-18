@@ -23,6 +23,12 @@ on:
       - 'vscode-extension/**'
       - '.github/scripts/**'
       - '.github/workflows/ci.yml'
+      - '.github/workflows/pages.yml'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/trust.yml'
+      - 'CHANGELOG.md'
+      - 'README.md'
+      - 'SECURITY.md'
   pull_request:
     branches: [main]
     paths:
@@ -40,6 +46,12 @@ on:
       - 'vscode-extension/**'
       - '.github/scripts/**'
       - '.github/workflows/ci.yml'
+      - '.github/workflows/pages.yml'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/trust.yml'
+      - 'CHANGELOG.md'
+      - 'README.md'
+      - 'SECURITY.md'
   workflow_dispatch:
 
 concurrency:
@@ -162,6 +174,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.14'
       - name: Install dependencies
         working-directory: site
         run: bun install --frozen-lockfile
@@ -183,6 +197,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.14'
       - name: Install dependencies
         working-directory: vscode-extension
         run: bun install --frozen-lockfile
@@ -195,13 +211,17 @@ jobs:
 
   validate-action:
     needs: classify
-    if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
-      - name: Validate action.yml
-        run: python3 -c "import yaml; yaml.safe_load(open('action.yml'))"
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - name: Validate pinned workflow runtimes
+        run: python3 .github/scripts/validate-workflow-runtime-pins.py
+      - name: Validate release version consistency
+        run: python3 .github/scripts/validate-release-version.py
 
   action-consumer:
     name: Packaged GitHub Action consumer
@@ -301,7 +321,7 @@ jobs:
       - name: Run the packaged action in the clean consumer
         uses: ./
         with:
-          version: '5.0.0'
+          version: '5.1.1'
           download-base-url: 'http://127.0.0.1:8765'
           root: ${{ runner.temp }}/consumer
           strict: 'true'
@@ -319,26 +339,6 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - name: Validate lifecycle checkout contract
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          import yaml
-
-          expected_ref = "$" + "{{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
-          ci = yaml.safe_load(Path(".github/workflows/ci.yml").read_text())
-          trust = yaml.safe_load(Path(".github/workflows/trust.yml").read_text())
-
-          ci_checkout = ci["jobs"]["spec-check"]["steps"][0]
-          trust_checkout = trust["jobs"]["trust"]["steps"][0]
-          assert ci_checkout["with"] == {"ref": expected_ref, "fetch-depth": 0}
-          assert trust_checkout["with"] == {"ref": expected_ref, "fetch-depth": 0}
-
-          for job in ("test", "fmt", "audit", "coverage", "action-consumer"):
-              checkout = ci["jobs"][job]["steps"][0]
-              assert "ref" not in checkout.get("with", {}), job
-          PY
       - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
       - name: Build specsync
@@ -392,7 +392,9 @@ jobs:
   corvid-pet:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event_name == 'pull_request' && always()
+    # Fork pull requests receive a read-only token, so the mascot cannot post
+    # its approval review there. The required CI gate remains authoritative.
+    if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
     needs: [test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
     steps:
       - uses: actions/checkout@v5
@@ -474,7 +476,7 @@ jobs:
     runs-on: ubuntu-latest
     # Depend on every gate job, not just a subset: an attestation records
     # "proceed", so it must not sign off on a commit where any real check failed.
-    # (corvid-pet is a PR-comment mascot, not a gate, so it is intentionally out.)
+    # (corvid-pet is a same-repository PR mascot, not a gate, so it is intentionally out.)
     needs: [ci-gate]
     if: needs.ci-gate.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     # contents: write lets the step push refs/notes/attest.

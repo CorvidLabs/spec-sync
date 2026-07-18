@@ -1,0 +1,56 @@
+{
+  "timestamp": 1784315897,
+  "commit": "bcfa6d156d421f153b7c2acf24d89aac5e1e7d08",
+  "contract_digest": "83017dd921cd76591035734f29011cafc5f105d8925e4ff937a1c809b9b6b93b",
+  "workspace_digest": "3dc2ee765200a930d194de126ac750fff6aae5a9a9eccc00d1250def18b5f057",
+  "acceptance_input_digest": "de11e469add8cbff917043e9055c1efa6e631a05c4ed30277065218ad9f2195a",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "da97658e9e30e09f2f8ce463e7310ac27d2f3223ae882d2482600b8a916cb025",
+        "entry_digest": "6b8be1303d87cba88d12ddffe62fd0c4d03c602f0a0b22a23da2fc5242f9ae2f",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "SECURITY.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "38a585c237082b4cd955844782f7bca75f902c4ceb807dcf63cedd9efa2cf3e6",
+        "entry_digest": "44c23dbbdb43f859141fcbb6e8c49aaa7bb7dc30aa0439549063ed104dd21f6b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "ruby --version",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

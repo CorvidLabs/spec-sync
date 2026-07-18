@@ -1,6 +1,6 @@
 ---
 module: github
-version: 3
+version: 5
 status: stable
 files:
   - src/github.rs
@@ -14,7 +14,12 @@ depends_on:
 
 ## Purpose
 
-Links spec files to GitHub issues for traceability. Validates `implements` and `tracks` frontmatter fields against actual GitHub issues, fetches issue metadata, and creates drift detection issues when specs fall out of sync.
+Links spec files to GitHub issues for traceability. Validates `implements` and `tracks` frontmatter
+fields against actual GitHub issues, fetches issue metadata, and creates drift detection issues
+when specs fall out of sync. Also defines the maintained composite GitHub Action distribution
+contract: immutable exact-version refs and a verified floating major compatibility ref whose
+default binary follows the promoted stable release. Hosted JavaScript verification uses one exact
+supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 
 ## Public API
 
@@ -110,3 +115,5 @@ Links spec files to GitHub issues for traceability. Validates `implements` and `
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out of scope sections |
 | 2026-04-06 | Initial spec for v3.3.0 |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-17 | CHG-0048-prepare-the-specsync-5-1-1-stabilization-release-from-merged-pr-387-bump-accur: Prepare the SpecSync 5.1.1 stabilization release from merged PR #387: bump accurate release metadata and changelog, update the GitHub Action default to 5.1.1, document and validate the floating v5 compatibility ref, verify all release artifacts and supported installation paths, and define fail-closed publication and rollback boundaries |
+| 2026-07-17 | Hardened release validation for inline security guidance and runner-local candidate mirrors |

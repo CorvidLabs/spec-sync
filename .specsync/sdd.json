@@ -32,7 +32,10 @@
     "specs/"
   ],
   "verification_commands": [
-    "cargo test"
+    "ruby --version",
+    "cargo test",
+    "python3 -S .github/scripts/validate-release-version.py",
+    "python3 -S .github/scripts/validate-workflow-runtime-pins.py"
   ],
   "custom_artifacts": {},
   "principles_file": null

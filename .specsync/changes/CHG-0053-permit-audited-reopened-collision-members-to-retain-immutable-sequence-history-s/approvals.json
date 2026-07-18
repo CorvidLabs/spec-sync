@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784327365,
+      "digest": "0dfe3b38ea70a55db891b2310f0b82c48def2179de5ed82e35fb9c112eddb68e",
+      "note": "Approved audited collision-member reopen support and explicit CHG-0051 semantic succession."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784327490,
+      "digest": "8a286141471022d7849857c4f4a3570e4b881be32d31c858afbd2934e6bdfe9e",
+      "note": "Reapproved after implementing fail-closed audited reopen classification, regression coverage, and the truthful pre/post-acceptance verification boundary."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784328240,
+      "digest": "07a34cd5b018fd7b77621d8dab6d08d5fd3ded0b6a812863fc6e5d6794325260",
+      "note": "Reapproved after rebasing the definition onto committed accepted CHG-0051/52 history and restoring the complete canonical Invariants section."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784329000,
+      "digest": "ba9b6a45798513dba25c1c0460c6ecd0f6985fd4f2112479910b2ef2d4ac2058",
+      "note": "Reapproved after removing the unavailable CHG-0051 semantic edge; CHG-0051 will use the truthful audited reopen and reaccept path."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784329700,
+      "digest": "9a11a4d238f68627040d146d57a9897e33537a0d5af1dd2bdefabe572a2264a2",
+      "note": "Accepted after full verification of the truthful audited reopen path and complete invariant restoration."
+    }
+  ],
+  "reopenings": []
+}

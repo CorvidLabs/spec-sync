@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0051-govern-the-deterministic-reconciliation-of-concurrent-accepted-chg-0048-sequence",
+  "slug": "govern-the-deterministic-reconciliation-of-concurrent-accepted-chg-0048-sequence",
+  "title": "Govern the deterministic reconciliation of concurrent accepted CHG-0048 sequence claims while preserving both immutable histories and the 5.1.1 release gate",
+  "description": "Govern the deterministic reconciliation of concurrent accepted CHG-0048 sequence claims while preserving both immutable histories and the 5.1.1 release gate",
+  "kind": "documentation",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "5590b2cb1fc2328c5141472a47e852a7695ed0ca",
+  "created_at": 1784323548,
+  "updated_at": 1784331401,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    ".specsync/change-sequence.json",
+    "specs/change/change.spec.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Both accepted CHG-0048 histories remain immutable and explicitly acknowledged, The sequence ledger advances through CHG-0051 without stale accepted evidence, Strict lifecycle release validation and Trust pass on the merged-main candidate"
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "research",
+    "design",
+    "plan",
+    "tasks",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784311297,
+      "digest": "6f7d163aeb2d806b0a0a521758d94a37ecfcb0d6340afc388033d9a415c65a4f",
+      "note": "Approved CHG-0050 as 0xLeif for the release-review security guidance correction."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784311576,
+      "digest": "83017dd921cd76591035734f29011cafc5f105d8925e4ff937a1c809b9b6b93b",
+      "note": "Reapproved CHG-0050 after adding its deterministic dependency on CHG-0049."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784312806,
+      "digest": "9a569845334d0210390c12ac98dec985d137759f6c32c829c6bbc261155fa7a2",
+      "note": "Accepted CHG-0050 after current v5 security guidance and release-validator verification passed."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784315916,
+      "digest": "29bd1b24a0583d81418bc045446a2dca2fe13041bfb5e73999757911b80dd343",
+      "note": "Reaccepted after reconciling the v5 security support table in late PR #390 review."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0050-update-current-v5-security-guidance-discovered-by-the-5-1-1-release-review",
+      "actor": "0xLeif",
+      "reason": "Late PR #390 security-policy review correction legitimately updates its accepted SECURITY.md input.",
+      "timestamp": 1784315114,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784312806,
+        "digest": "9a569845334d0210390c12ac98dec985d137759f6c32c829c6bbc261155fa7a2",
+        "note": "Accepted CHG-0050 after current v5 security guidance and release-validator verification passed."
+      },
+      "prior_verification": {
+        "timestamp": 1784312793,
+        "commit": "fd2eb796b4026326e1390fc9709d341d6edeb0c5",
+        "contract_digest": "83017dd921cd76591035734f29011cafc5f105d8925e4ff937a1c809b9b6b93b",
+        "workspace_digest": "e50d1b2f3311ac919d2d3cb4e4cc0a3a148c0102ebb6ab37e064b8bbafba4734",
+        "acceptance_input_digest": "4b8d374ab09831055b1f7b4e065ca292d2cfb22e8da72e3c74ec992e3793c4e0",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "da97658e9e30e09f2f8ce463e7310ac27d2f3223ae882d2482600b8a916cb025",
+              "entry_digest": "6b8be1303d87cba88d12ddffe62fd0c4d03c602f0a0b22a23da2fc5242f9ae2f",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "SECURITY.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "9317ca4122ffa7e3428ba38179d3ed9f5effc25d9d4c6c3c18c25f5d5552747a",
+              "entry_digest": "52f7a9236ef10eb939949b480d5cc8aa1c5c8e7a61ecbe35f150fdab30d97f91",
+              "owners": [
+                "@exact:delivery"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "ruby --version",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-release-version.py",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "4b8d374ab09831055b1f7b4e065ca292d2cfb22e8da72e3c74ec992e3793c4e0",
+      "current_acceptance_input_digest": "de11e469add8cbff917043e9055c1efa6e631a05c4ed30277065218ad9f2195a"
+    }
+  ]
+}

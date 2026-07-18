@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 48,
-  "id": "CHG-0048-add-static-x86-64-unknown-linux-musl-build-to-the-release-matrix-so-prebuilt-bin",
+  "sequence": 53,
+  "id": "CHG-0053-permit-audited-reopened-collision-members-to-retain-immutable-sequence-history-s",
   "acknowledged_collisions": [
     {
       "sequence": 16,
@@ -9,6 +9,13 @@
         "CHG-0016-preserve-c-ast-behavior-under-rust-1-95-clippy",
         "CHG-0016-preserve-free-text-arguments-in-generated-agent-commands",
         "CHG-0016-reject-modified-definitions-when-reaccepting-an-already-applied-change"
+      ]
+    },
+    {
+      "sequence": 48,
+      "ids": [
+        "CHG-0048-add-static-x86-64-unknown-linux-musl-build-to-the-release-matrix-so-prebuilt-bin",
+        "CHG-0048-prepare-the-specsync-5-1-1-stabilization-release-from-merged-pr-387-bump-accur"
       ]
     }
   ]

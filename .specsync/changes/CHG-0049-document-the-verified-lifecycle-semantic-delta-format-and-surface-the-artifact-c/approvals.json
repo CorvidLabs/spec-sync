@@ -1,0 +1,111 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784304683,
+      "digest": "87ffa3bbfe174c943d28336c135107d48538897987edd7479e310c7bcaf7ec1a",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784308068,
+      "digest": "8d5cfd0b79191747c73e642c9af015f2dc1533922b52f1cdc823bb1d2781d5b1",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784312396,
+      "digest": "e004f69be179e7f361b6e661d2d73095ba066b8eb2f8957933b6f603d6dba170",
+      "note": "Reaccepted CHG-0049 after correcting ADDED section semantics and complete verification."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0049-document-the-verified-lifecycle-semantic-delta-format-and-surface-the-artifact-c",
+      "actor": "0xLeif",
+      "reason": "late PR #390 documentation correction and CHG-0050 legitimately update its accepted semantic-delta guide and lifecycle sequence inputs",
+      "timestamp": 1784311554,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784308068,
+        "digest": "8d5cfd0b79191747c73e642c9af015f2dc1533922b52f1cdc823bb1d2781d5b1",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784305113,
+        "commit": "74d04de8eed77478316eee6f1514470f6ef8ed64",
+        "contract_digest": "87ffa3bbfe174c943d28336c135107d48538897987edd7479e310c7bcaf7ec1a",
+        "workspace_digest": "d2b00ffbbc78d6d986663c81667c31d5bf4a2613e280ef178173ba015c95d612",
+        "acceptance_input_digest": "a08556ddf966e499ce92ac569e3f28bd8b1492020b330d2fcea6f1e66612b313",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "ee1c7dc59c373a3892975aa269bc88265ed54c8e42e36f0c6cb03680eb10ac13",
+              "entry_digest": "1d80c621da9cb546dd36c47ba74173b2fa90a986999fb97adef8fbc5edf35d1c",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "site/src/content/docs/deltas.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "8ed94a43a2abf8f2fe460a792ba0e51d8ea19407b0d2c3acca9c65631a2b6e78",
+              "entry_digest": "7128bbe772d4c39e33fd7f1005767d7ff0ec9ad1d6f7a76da72af63b7c5151c3",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "site/src/content/docs/quickstart.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "8b4bc4a8876178e75128749c10fc3da8a1c94a36f037c7540bcfe487886cd54e",
+              "entry_digest": "3f68bfc23f11dccf0c37863a3fe62a1a405da41064144b64df033a394eadcfc1",
+              "owners": [
+                "@exact:delivery"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "ruby --version",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-release-version.py",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "a08556ddf966e499ce92ac569e3f28bd8b1492020b330d2fcea6f1e66612b313",
+      "current_acceptance_input_digest": "09a02efae40ac3775a4504773cd2fdb79446b9149f4881b286b6fba8902f3f76"
+    }
+  ]
+}

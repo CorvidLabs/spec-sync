@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0046-make-lifecycle-verification-workflows-evaluate-the-exact-pull-request-head-while",
+  "slug": "make-lifecycle-verification-workflows-evaluate-the-exact-pull-request-head-while",
+  "title": "Make lifecycle verification workflows evaluate the exact pull-request head while preserving synthetic-merge validation in ordinary build and test lanes",
+  "description": "Make lifecycle verification workflows evaluate the exact pull-request head while preserving synthetic-merge validation in ordinary build and test lanes",
+  "kind": "operations",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "03aa191badb0049986d39aaebc7dec4855ce850f",
+  "created_at": 1784102567,
+  "updated_at": 1784241411,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/trust.yml",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "This corrects GitHub Actions checkout semantics for lifecycle verification lanes only; it does not change SpecSync runtime behavior, canonical requirements, or the public contract.",
+  "acceptance_criteria": [
+    "On pull_request events the ci.yml spec-check job and trust.yml trust job checkout github.event.pull_request.head.sha with fetch-depth 0; on push events both fall back to github.sha; all other CI checkout steps remain unchanged and continue testing the synthetic merge; workflow YAML parses; strict SpecSync and candidate Trust verification pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "design",
+    "tasks",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

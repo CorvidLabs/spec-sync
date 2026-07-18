@@ -1,6 +1,6 @@
 ---
 id: CHG-0049-make-stale-accepted-change-verification-diagnostics-actionable-with-named-delive
-state: accepted
+state: verifying
 type: feature
 base_commit: 9bdd0beacbc40a610a2da590c05d8e41abc40904
 ---

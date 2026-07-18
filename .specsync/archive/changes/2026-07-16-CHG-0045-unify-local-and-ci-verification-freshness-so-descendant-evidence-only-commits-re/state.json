@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0045-unify-local-and-ci-verification-freshness-so-descendant-evidence-only-commits-re",
+  "slug": "unify-local-and-ci-verification-freshness-so-descendant-evidence-only-commits-re",
+  "title": "Unify local and CI verification freshness so descendant evidence-only commits remain current while source, test, configuration, contract, or nonancestor changes fail closed",
+  "description": "Unify local and CI verification freshness so descendant evidence-only commits remain current while source, test, configuration, contract, or nonancestor changes fail closed",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "b4a90aa2871cb77cd824df759e3e90a31ab3e971",
+  "created_at": 1784098964,
+  "updated_at": 1784241402,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "tests/integration/change.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    "specs/change/testing.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Local and CI use one freshness predicate; one or multiple descendant commits touching only excluded lifecycle-evidence paths remain current; source, test, configuration, contract, or nonancestor changes fail closed; contract and workspace digests always match; summaries and strict checks agree; and canonical REQ-change-013 and REQ-change-016 plus regressions document the behavior."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "research",
+    "requirements",
+    "docs",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

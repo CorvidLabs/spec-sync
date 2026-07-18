@@ -1,9 +1,9 @@
 {
-  "timestamp": 1784318483,
-  "commit": "4652ca1535eb65f7ba3ab0fc54b458b408fc174d",
+  "timestamp": 1784330926,
+  "commit": "b86009e41177f701d645e43a8c2bc2a367cdf37c",
   "contract_digest": "a9bcafab46f4849317b26a0174c73ee426721a9a78800ccb9c998708d89226e6",
-  "workspace_digest": "2931f040d30303fb7e03040a6f8f5a856504cd71bdca9707a7d1520e04d34442",
-  "acceptance_input_digest": "faf068747c02683a3697997e9c041437771aecb03e199ee226de01e8c590ef81",
+  "workspace_digest": "9304e5f7d7b90d8b64ad1efd03b956e19b5b7b1832c118b0a4005e43c694ff34",
+  "acceptance_input_digest": "7ce13114354ea827509f7a05a2e25fff218626d2553d2b96a13521daa73fe680",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -21,8 +21,8 @@
         "path": ".specsync/change-sequence.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "840e98586f4663fac751804786773e430f1b49a5426ffea508ae6f052576fc62",
-        "entry_digest": "dac6b4232549f527b6fa33f57a6e34351f1271da3721805ba9afa81a86843848",
+        "payload_digest": "dcb6018906aaf61f73cd03d4616bb2d63f1ee0f7f5a5ae08a4508dd1bd1369cb",
+        "entry_digest": "6539a70ff582fe2619fc17192d62be8e648a31e32e87f001f86416548dfac686",
         "owners": [
           "@exact:delivery"
         ]
@@ -31,8 +31,8 @@
         "path": "site/src/content/docs/integrations/github-action.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "2fc5838f54b69d856069d63a631f1e894974e50d83a6465ba2f8b100eca6c7cf",
-        "entry_digest": "2d6c971e5c35896519459f8a64dc61fe0f181cb21d0957b383fad62085ddc958",
+        "payload_digest": "269098249f4afc5045af218bf5e38a5d809c4e3f4d20e396a4d91253e74e9f75",
+        "entry_digest": "a201affa3c4e90030891c03ec5e53afd3b5c2364ff3106ff9f6af319768aba2d",
         "owners": [
           "@exact:delivery"
         ]
@@ -42,7 +42,22 @@
   "passed": true,
   "commands": [
     {
+      "command": "ruby --version",
+      "success": true,
+      "exit_code": 0
+    },
+    {
       "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
       "success": true,
       "exit_code": 0
     }

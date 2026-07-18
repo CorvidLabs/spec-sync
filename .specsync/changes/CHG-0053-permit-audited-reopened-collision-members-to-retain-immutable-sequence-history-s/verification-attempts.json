@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1784328082,
+      "commit": "5590b2cb1fc2328c5141472a47e852a7695ed0ca",
+      "contract_digest": "8a286141471022d7849857c4f4a3570e4b881be32d31c858afbd2934e6bdfe9e",
+      "workspace_digest": "1a75479c59abff16639c90cdbfd30c7bc2165072d34dbf6e9e4da513d6b7d595",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-035"
+      ]
+    },
+    {
+      "timestamp": 1784328923,
+      "commit": "b86009e41177f701d645e43a8c2bc2a367cdf37c",
+      "contract_digest": "07a34cd5b018fd7b77621d8dab6d08d5fd3ded0b6a812863fc6e5d6794325260",
+      "workspace_digest": "1a75479c59abff16639c90cdbfd30c7bc2165072d34dbf6e9e4da513d6b7d595",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-035"
+      ]
+    },
+    {
+      "timestamp": 1784329686,
+      "commit": "b86009e41177f701d645e43a8c2bc2a367cdf37c",
+      "contract_digest": "ba9b6a45798513dba25c1c0460c6ecd0f6985fd4f2112479910b2ef2d4ac2058",
+      "workspace_digest": "1a75479c59abff16639c90cdbfd30c7bc2165072d34dbf6e9e4da513d6b7d595",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-035"
+      ]
+    }
+  ]
+}

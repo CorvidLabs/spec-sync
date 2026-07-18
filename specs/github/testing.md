@@ -7,6 +7,8 @@ spec: github.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/github.rs` | cargo test github:: | `test_parse_repo_from_url_https`, `test_parse_repo_from_url_ssh`, `test_parse_repo_from_url_unknown` |
+| Release version surfaces | `ruby --version` then `PYENV_VERSION=3.10.20 python3 -S .github/scripts/validate-release-version.py` | Pinned hosted Ruby and the declared lifecycle preflight provide Psych; maintained YAML syntax, Cargo, lockfile, Action default, every current root/site YAML Action step (including case-insensitive, indented, metadata-bearing, backtick, or tilde fences), structurally parsed block/flow workflow steps, named/nested/quoted keys, mixed-case repositories, non-version moving refs, and block/flow `with` inputs, packaged consumer, Trust candidate, checkout contract, and changelog agree without Python site packages or Python 3.11-only modules |
+| Hosted Bun runtime | `python3 -S .github/scripts/validate-workflow-runtime-pins.py` | Pages, site CI, and VS Code extension CI each contain exactly one expected `setup-bun` Action ref with the supported exact Bun version under that step's `with` mapping; structural parsing covers block/flow mappings, quoted keys, arbitrary valid list-marker spacing, and `uses` after other keys, while mixed-case repositories, moving refs, duplicates, unexpected jobs, and missing inputs fail without Python site packages |
 
 ## Coverage Gaps
 
@@ -31,6 +33,22 @@ spec: github.spec.md
 | Issue does not exist (404) | `fetch_issue_api` returns `Err("Issue not found")` | Keep or add a focused assertion before changing this behavior |
 | Network timeout | `fetch_issue_api` returns `Err` after 10 seconds | Keep or add a focused assertion before changing this behavior |
 | `gh` CLI not authenticated | `gh_is_available` returns `false` | Keep or add a focused assertion before changing this behavior |
+| GitHub Bun tag API unavailable | Maintained JS jobs do not perform latest-tag discovery | Keep exact `bun-version` pins in all three `setup-bun` jobs and run their frozen install/build commands |
+| Mixed-case Action repository spelling | Repository matching follows GitHub's case-insensitive resolution, but refs remain exact and case-sensitive | Exercise mixed-case `setup-bun` and `checkout` repository spellings with a disallowed ref and require the applicable validator to fail |
+| YAML fence includes metadata | The fenced workflow example remains in release validation scope | Add fence metadata such as `title="ci.yml"`, substitute a moving spec-sync ref, and require the release validator to fail |
+| YAML fence is indented | A CommonMark fence with one to three leading spaces remains in release validation scope | Indent a YAML fence, substitute a moving spec-sync ref, and require the release validator to fail |
+| YAML fence separates its language with whitespace | A rendered YAML/YML example remains in release validation scope | Add horizontal whitespace between the fence marker and language, substitute a moving spec-sync ref, and require the release validator to fail |
+| YAML fence uses a longer valid closer | A rendered YAML/YML example remains in release validation scope | Open with a four-character fence, close with five matching characters, substitute a moving spec-sync ref, and require the release validator to fail |
+| YAML fence is unclosed | The CommonMark block extends to end-of-document and remains in release validation scope | Omit the closing fence, substitute a moving spec-sync ref, and require the release validator to fail |
+| Root security guidance changes | CI runs the Action documentation validator | Change `SECURITY.md` alone and confirm the workflow path filters schedule `validate-action` |
+| Root security guidance uses a moving inline ref | The inline recommendation remains pinned to the current floating major | Replace the inline `@v5` ref with `@main` and require the release validator to fail |
+| Candidate mirror input is removed | Release CI continues to exercise the just-built candidate rather than a published binary | Remove either runner-local mirror input from the packaged Action consumer or Trust gate and require the release validator to fail |
+| Release workflow changes | CI runs the full validation path and release validator scans its Action steps | Change `.github/workflows/release.yml` alone and confirm CI is scheduled; use a disallowed spec-sync ref to require the validator to fail |
+| Workflow `uses` key is quoted | The YAML-equivalent step remains in runtime-pin validation scope | Add a quoted `"uses"` key with a moving setup-bun ref and require the runtime validator to fail |
+| Workflow checkout `uses` key is quoted | The YAML-equivalent checkout remains in release validation scope | Add a quoted `"uses"` key for an extra checkout step and require the release validator to fail |
+| Workflow setup-bun step uses flow mapping syntax | The YAML-equivalent setup-bun step remains in runtime-pin validation scope | Add `{ uses: oven-sh/setup-bun@main }` and require the runtime validator to fail |
+| YAML fence uses tildes | The rendered workflow example remains in release validation scope | Convert a public YAML example to a tilde fence, substitute a moving spec-sync ref, and require the release validator to fail |
+| Exact Action release fails a platform smoke test | Floating `v5` remains unchanged | Compare refs before and after the failed promotion attempt |
 
 ## Reviewer Checklist
 
@@ -38,3 +56,5 @@ spec: github.spec.md
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.
+- Before promoting an Action release, run pinned `@v<major>.<minor>.<patch>` consumers on Linux,
+  macOS, and Windows; advance `v<major>` only after all pass.

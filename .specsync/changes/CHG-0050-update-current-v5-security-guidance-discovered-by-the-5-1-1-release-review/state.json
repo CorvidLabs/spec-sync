@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0050-update-current-v5-security-guidance-discovered-by-the-5-1-1-release-review",
+  "slug": "update-current-v5-security-guidance-discovered-by-the-5-1-1-release-review",
+  "title": "Update current v5 security guidance discovered by the 5.1.1 release review",
+  "description": "Update current v5 security guidance discovered by the 5.1.1 release review",
+  "kind": "documentation",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "fd2eb796b4026326e1390fc9709d341d6edeb0c5",
+  "created_at": 1784311222,
+  "updated_at": 1784315916,
+  "affected_specs": [],
+  "affected_paths": [
+    "SECURITY.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "This corrects a user-facing Action pin from the retired v4 line to v5 without changing canonical product behavior or public APIs.",
+  "acceptance_criteria": [
+    "SECURITY.md recommends CorvidLabs/spec-sync@v5 for current-major CI usage, the release validator scans SECURITY.md YAML examples so stale or moving pins fail"
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs"
+  ],
+  "dependencies": [
+    "CHG-0049-document-the-verified-lifecycle-semantic-delta-format-and-surface-the-artifact-c"
+  ],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

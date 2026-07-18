@@ -1,0 +1,167 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784327365,
+      "digest": "0dfe3b38ea70a55db891b2310f0b82c48def2179de5ed82e35fb9c112eddb68e",
+      "note": "Approved audited collision-member reopen support and explicit CHG-0051 semantic succession."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784327490,
+      "digest": "8a286141471022d7849857c4f4a3570e4b881be32d31c858afbd2934e6bdfe9e",
+      "note": "Reapproved after implementing fail-closed audited reopen classification, regression coverage, and the truthful pre/post-acceptance verification boundary."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784328240,
+      "digest": "07a34cd5b018fd7b77621d8dab6d08d5fd3ded0b6a812863fc6e5d6794325260",
+      "note": "Reapproved after rebasing the definition onto committed accepted CHG-0051/52 history and restoring the complete canonical Invariants section."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784329000,
+      "digest": "ba9b6a45798513dba25c1c0460c6ecd0f6985fd4f2112479910b2ef2d4ac2058",
+      "note": "Reapproved after removing the unavailable CHG-0051 semantic edge; CHG-0051 will use the truthful audited reopen and reaccept path."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784329700,
+      "digest": "9a11a4d238f68627040d146d57a9897e33537a0d5af1dd2bdefabe572a2264a2",
+      "note": "Accepted after full verification of the truthful audited reopen path and complete invariant restoration."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0053-permit-audited-reopened-collision-members-to-retain-immutable-sequence-history-s",
+      "actor": "Kimi Code",
+      "reason": "Refresh accepted delivery-input evidence after reconciling concurrent CHG-0049 lineages with origin/main",
+      "timestamp": 1784340356,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784329700,
+        "digest": "9a11a4d238f68627040d146d57a9897e33537a0d5af1dd2bdefabe572a2264a2",
+        "note": "Accepted after full verification of the truthful audited reopen path and complete invariant restoration."
+      },
+      "prior_verification": {
+        "timestamp": 1784329686,
+        "commit": "b86009e41177f701d645e43a8c2bc2a367cdf37c",
+        "contract_digest": "ba9b6a45798513dba25c1c0460c6ecd0f6985fd4f2112479910b2ef2d4ac2058",
+        "workspace_digest": "1a75479c59abff16639c90cdbfd30c7bc2165072d34dbf6e9e4da513d6b7d595",
+        "acceptance_input_digest": "10b2b4410a0d8c3b3b171276bd0911b1fb2b7ce151d2e5055073ee85eceade6e",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "201392484d2edba8b7a0f53715ab3bacf5e324d0d3b46f73d530dbd2bb2b8f31",
+              "entry_digest": "cb6ec83276e5346f1670731e85e7c5090a523349d9137437be5881b26ff24c05",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/change/change.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bcbb6ea3dce7e4b7655d761c36aa5208158505b30315a19e483423feb2f9b688",
+              "entry_digest": "ef4dc931e4fe8f507b259159b54eb58cfbb91faecfd2813390d1e90769fefa92",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "1ad5b3d3f53890f104a11edcf53a0ce081980a12e5009bb0a10ce3f681f28c00",
+              "entry_digest": "a96e2ba29e8afc02256656adbef0491575f0ce7eba464362f287122dae3b998a",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "7e41815d313de0200067d74e3bad2baece4bf89b56b7dd0f7e74b44241849d77",
+              "entry_digest": "2722b28407bcbc00428142e71d3f9be2a9fc46d905e2d95344b9b9bb3f7f4d0c",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "01d2efe978699773407d3cec28dbd206445028d48e129a8360bbb38d5c09a158",
+              "entry_digest": "e000f1b757b645635b3a36d51f2a6d66840a1738311259d0c7cd6c51ae3383de",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bd29dd5e23a110a2ee04941dfdc5419d762240b9edb1d6a2c6b82093d80d8bf2",
+              "entry_digest": "c6984cd9c173a27e196280c3dd64382d12da4bd7a4de43ffae2275819761a0a7",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "src/change.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "4cd981bfb4258a9a6bb30eded3173a19c3a51281f6482dafcdb247397965f34f",
+              "entry_digest": "769c559e1e729dfc1fc7e9377d251a0b8a2d696a7ff83c831dfc6a48e830a988",
+              "owners": [
+                "change"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "ruby --version",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-release-version.py",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-035"
+        ]
+      },
+      "stale_acceptance_input_digest": "10b2b4410a0d8c3b3b171276bd0911b1fb2b7ce151d2e5055073ee85eceade6e",
+      "current_acceptance_input_digest": "d3fb106c2ead73aa1cce634eb0e16662a66bf4817657369519853bab4e75297e"
+    }
+  ]
+}

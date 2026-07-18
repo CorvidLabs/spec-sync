@@ -77,6 +77,11 @@ specsync change new "Document and verify the existing authentication module" \
 
 Answer the returned questions, complete its adaptively selected artifacts, and approve the definition before implementation. Agents installed during `init` conduct this interview conversationally.
 
+> **Two gates fire before `change approve` succeeds:**
+>
+> 1. **Artifact completeness** — every generated artifact in the change workspace (`context.md`, `requirements.md`, `tasks.md`, `testing.md`, and any others the interview selected) must have its scaffold `TODO` marker replaced with real content. Approval fails with a path-and-line diagnostic naming the unfinished artifact.
+> 2. **Semantic deltas** — each spec module the change touches needs a delta file at `.specsync/changes/<change-id>/deltas/<module>.md` describing its contract changes (added/modified requirements and spec-section content). The set of delta modules must exactly match the change's affected specs, or approval fails with `semantic delta modules must exactly match affected specs`.
+
 Continue through the same lifecycle after the definition is complete:
 
 ```bash
@@ -220,8 +225,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v5
+      - uses: CorvidLabs/spec-sync@v5.1.1
         with:
+          version: '5.1.1'
           strict: true
           require-coverage: 80
 ```

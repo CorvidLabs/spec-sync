@@ -1,0 +1,282 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784325843,
+      "digest": "4a21c55c0c1162774c0cb15efaf163e99f5b85a202113330d0ae702ed4fa93e2",
+      "note": "Approved focused implementation of the existing later-sequence-owner contract after forced strict exposed the release collision gap."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784326211,
+      "digest": "ac650363fe235bce082b8814b9d48da12d7fe6f8c1b9fe04d55a40a42714d54d",
+      "note": "Reapproved after implementing the focused exact-ledger successor rule, regression coverage, and truthful pre/post-acceptance verification boundary."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784327004,
+      "digest": "1905bd67256a20bb04bcbdde1bb1d318076e91d7576ff730680c929284b467ac",
+      "note": "Accepted after end-to-end collision reconciliation coverage and full pre-acceptance verification."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784332136,
+      "digest": "430e94ec5adb6366b8fb1b035d4b56b1bbabe3ad378e6bd9ffb6e1aec8e47617",
+      "note": "Reaccepted after full verification against CHG-0053's restored canonical Invariants and audited collision lifecycle requirement."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0052-allow-a-fully-valid-later-sequence-owner-to-preserve-historical-exact-ledger-evi",
+      "actor": "0xLeif",
+      "reason": "Accepted CHG-0053 legitimately restores and extends its accepted specs/change/change.spec.md input.",
+      "timestamp": 1784331509,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784327004,
+        "digest": "1905bd67256a20bb04bcbdde1bb1d318076e91d7576ff730680c929284b467ac",
+        "note": "Accepted after end-to-end collision reconciliation coverage and full pre-acceptance verification."
+      },
+      "prior_verification": {
+        "timestamp": 1784326975,
+        "commit": "5590b2cb1fc2328c5141472a47e852a7695ed0ca",
+        "contract_digest": "ac650363fe235bce082b8814b9d48da12d7fe6f8c1b9fe04d55a40a42714d54d",
+        "workspace_digest": "fa450c231aebe1259ca399c5f2ee0465bdf0e3fb692dc9beef59ecb1c04280bf",
+        "acceptance_input_digest": "1e44c5d27d5768bdbc0ed346e2ebf3561b0820fe7589fb4be3da600bb7c09b63",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "c550eb2dec791cbdd9e98ccb3c0f7bd8d2605d20426c7a18a95092b6ee96dae0",
+              "entry_digest": "f3f423d92d5178d1b38e7fd723a2a5a78d8f8eb9cfb8fcf85ba83672814551be",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/change/change.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "aef2c850f0566f376ca910857de796ae4b2499cdf5fcb242132c3a718dc532d6",
+              "entry_digest": "c956a483ad1587c370418edaba89099acd3ca8cfa6cdeb166f7c865171a63d84",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "1ad5b3d3f53890f104a11edcf53a0ce081980a12e5009bb0a10ce3f681f28c00",
+              "entry_digest": "a96e2ba29e8afc02256656adbef0491575f0ce7eba464362f287122dae3b998a",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "6d1447c5b08a466568d05ae6a26ca9abd0a83f29738942705999bc016979d1ac",
+              "entry_digest": "1ec3059a6b1e0b35efaaf09c2ef1731ea23f8df0676c666d69aab6b6247f515e",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "01d2efe978699773407d3cec28dbd206445028d48e129a8360bbb38d5c09a158",
+              "entry_digest": "e000f1b757b645635b3a36d51f2a6d66840a1738311259d0c7cd6c51ae3383de",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bd29dd5e23a110a2ee04941dfdc5419d762240b9edb1d6a2c6b82093d80d8bf2",
+              "entry_digest": "c6984cd9c173a27e196280c3dd64382d12da4bd7a4de43ffae2275819761a0a7",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "src/change.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "27d487d04517aa08dacb538c145bb6ed75faa4817e2fa4a22d8de25146af9c52",
+              "entry_digest": "aeb2ea190da843b582aa521b1f13e916955204846e18bacaf9e33cb32c8bce94",
+              "owners": [
+                "change"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "ruby --version",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-release-version.py",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "1e44c5d27d5768bdbc0ed346e2ebf3561b0820fe7589fb4be3da600bb7c09b63",
+      "current_acceptance_input_digest": "0cf69b482f2acc40afae177ba2692be77afefc86bd5edc1009b163a006b226ba"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0052-allow-a-fully-valid-later-sequence-owner-to-preserve-historical-exact-ledger-evi",
+      "actor": "Kimi Code",
+      "reason": "Refresh accepted delivery-input evidence after reconciling concurrent CHG-0049 lineages with origin/main",
+      "timestamp": 1784340366,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784332136,
+        "digest": "430e94ec5adb6366b8fb1b035d4b56b1bbabe3ad378e6bd9ffb6e1aec8e47617",
+        "note": "Reaccepted after full verification against CHG-0053's restored canonical Invariants and audited collision lifecycle requirement."
+      },
+      "prior_verification": {
+        "timestamp": 1784332120,
+        "commit": "b86009e41177f701d645e43a8c2bc2a367cdf37c",
+        "contract_digest": "ac650363fe235bce082b8814b9d48da12d7fe6f8c1b9fe04d55a40a42714d54d",
+        "workspace_digest": "9304e5f7d7b90d8b64ad1efd03b956e19b5b7b1832c118b0a4005e43c694ff34",
+        "acceptance_input_digest": "0cf69b482f2acc40afae177ba2692be77afefc86bd5edc1009b163a006b226ba",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "c550eb2dec791cbdd9e98ccb3c0f7bd8d2605d20426c7a18a95092b6ee96dae0",
+              "entry_digest": "f3f423d92d5178d1b38e7fd723a2a5a78d8f8eb9cfb8fcf85ba83672814551be",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/change/change.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bcbb6ea3dce7e4b7655d761c36aa5208158505b30315a19e483423feb2f9b688",
+              "entry_digest": "ef4dc931e4fe8f507b259159b54eb58cfbb91faecfd2813390d1e90769fefa92",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "1ad5b3d3f53890f104a11edcf53a0ce081980a12e5009bb0a10ce3f681f28c00",
+              "entry_digest": "a96e2ba29e8afc02256656adbef0491575f0ce7eba464362f287122dae3b998a",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "7e41815d313de0200067d74e3bad2baece4bf89b56b7dd0f7e74b44241849d77",
+              "entry_digest": "2722b28407bcbc00428142e71d3f9be2a9fc46d905e2d95344b9b9bb3f7f4d0c",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "01d2efe978699773407d3cec28dbd206445028d48e129a8360bbb38d5c09a158",
+              "entry_digest": "e000f1b757b645635b3a36d51f2a6d66840a1738311259d0c7cd6c51ae3383de",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bd29dd5e23a110a2ee04941dfdc5419d762240b9edb1d6a2c6b82093d80d8bf2",
+              "entry_digest": "c6984cd9c173a27e196280c3dd64382d12da4bd7a4de43ffae2275819761a0a7",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "src/change.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "4cd981bfb4258a9a6bb30eded3173a19c3a51281f6482dafcdb247397965f34f",
+              "entry_digest": "769c559e1e729dfc1fc7e9377d251a0b8a2d696a7ff83c831dfc6a48e830a988",
+              "owners": [
+                "change"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "ruby --version",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-release-version.py",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "0cf69b482f2acc40afae177ba2692be77afefc86bd5edc1009b163a006b226ba",
+      "current_acceptance_input_digest": "a361567842a135ec51c8d70b32cc3c8e527fe8d24fa1f2a6a74294d44d89de80"
+    }
+  ]
+}

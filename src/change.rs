@@ -1132,7 +1132,8 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
             validate_loaded_change(&record, &expected_id, &state_path)?;
             let sequence = change_sequence(&record.id)
                 .ok_or_else(|| format!("invalid change ID `{}`", record.id.escape_default()))?;
-            let historical = matches!(record.state, ChangeState::Accepted | ChangeState::Archived);
+            let historical = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
+                || reopened_change_preserves_sequence_history(root, &record);
             located.push(LocatedChangeSequence {
                 sequence,
                 id: record.id,
@@ -1142,6 +1143,52 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
         }
     }
     Ok(located)
+}
+
+fn reopened_change_preserves_sequence_history(root: &Path, record: &ChangeRecord) -> bool {
+    if record.state != ChangeState::Verifying || !record.canonical_applied {
+        return false;
+    }
+    let Ok(approvals) = load_approvals(root, record) else {
+        return false;
+    };
+    let Some(reopening) = approvals.reopenings.last() else {
+        return false;
+    };
+    if reopening.schema_version != 1
+        || reopening.change_id != record.id
+        || reopening.actor.trim().is_empty()
+        || reopening.reason.trim().is_empty()
+        || reopening.from_state != ChangeState::Accepted
+        || reopening.to_state != ChangeState::Verifying
+        || !reopening.prior_verification.passed
+        || reopening.stale_acceptance_input_digest == reopening.current_acceptance_input_digest
+        || reopening
+            .prior_verification
+            .acceptance_input_digest
+            .as_deref()
+            != Some(reopening.stale_acceptance_input_digest.as_str())
+        || !definition_digest_matches(root, record, &reopening.prior_verification.contract_digest)
+            .unwrap_or(false)
+        || reopening.superseded_approval.gate != "acceptance"
+        || reopening.superseded_approval.digest
+            != closing_digest(record, &reopening.prior_verification)
+    {
+        return false;
+    }
+    if let Some(manifest) = &reopening.prior_verification.acceptance_manifest
+        && acceptance_manifest_digest(manifest).ok().as_deref()
+            != Some(reopening.stale_acceptance_input_digest.as_str())
+    {
+        return false;
+    }
+    approvals.approvals.iter().any(|approval| {
+        approval.gate == reopening.superseded_approval.gate
+            && approval.actor == reopening.superseded_approval.actor
+            && approval.timestamp == reopening.superseded_approval.timestamp
+            && approval.digest == reopening.superseded_approval.digest
+            && approval.note == reopening.superseded_approval.note
+    })
 }
 
 fn validate_change_sequences(root: &Path) -> Result<(), String> {
@@ -9484,6 +9531,14 @@ fn validate_accepted_inputs_recursive(
                 .iter()
                 .any(|owner| owner.starts_with("@exact:"))
             {
+                if expected.path == SEQUENCE_PATH
+                    && later_sequence_owner_covers_historical_input(
+                        root, record, records, visiting, memo,
+                    )?
+                {
+                    successor_covered = true;
+                    continue;
+                }
                 return Err(format!(
                     "exact-only delivery input `{}` changed after acceptance and requires an audited reopen; run `specsync change reopen {}` to re-verify the accepted change",
                     expected.path, record.id
@@ -9601,6 +9656,47 @@ fn stale_input_remediation_reason(
             "delivery input `{path}` (owner `{owner}`) changed after acceptance; covering successor change(s) {successors} have stale delivery-input evidence of their own; verify and accept a covering successor, or run `specsync change reopen {record_id}` to re-verify the accepted change"
         )
     }
+}
+
+fn later_sequence_owner_covers_historical_input(
+    root: &Path,
+    predecessor: &ChangeRecord,
+    records: &BTreeMap<String, ChangeRecord>,
+    visiting: &mut BTreeSet<String>,
+    memo: &mut BTreeMap<String, Result<AcceptedInputValidity, String>>,
+) -> Result<bool, String> {
+    validate_change_sequences(root)?;
+    let Some(ledger) = load_change_sequence_ledger(root)? else {
+        return Ok(false);
+    };
+    let Some(owner) = records.get(&ledger.id) else {
+        return Ok(false);
+    };
+    if owner.id == predecessor.id
+        || !matches!(owner.state, ChangeState::Accepted | ChangeState::Archived)
+        || succession_change_key(&owner.id) <= succession_change_key(&predecessor.id)
+    {
+        return Ok(false);
+    }
+    let verification = match authenticate_accepted_evidence(root, owner) {
+        Ok(verification) => verification,
+        Err(_) => return Ok(false),
+    };
+    let manifest = if let Some(manifest) = verification.acceptance_manifest.as_ref() {
+        manifest
+    } else {
+        return Ok(false);
+    };
+    if !manifest.entries.iter().any(|entry| {
+        entry.path == SEQUENCE_PATH
+            && entry
+                .owners
+                .iter()
+                .any(|owner| owner.starts_with("@exact:"))
+    }) {
+        return Ok(false);
+    }
+    Ok(validate_accepted_inputs_recursive(root, owner, records, visiting, memo).is_ok())
 }
 
 fn semantic_tuple_matches_obligation(
@@ -14355,6 +14451,85 @@ mod tests {
         assert!(error.contains("includes a mutable change"));
     }
 
+    // Verifies REQ-change-035.
+    #[test]
+    fn acknowledged_collision_allows_only_valid_audited_reopen_history() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept first collision member"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        let mut duplicate = record.clone();
+        duplicate.id = "CHG-0001-second-accepted-claim".into();
+        duplicate.slug = "second-accepted-claim".into();
+        duplicate.title = "Second accepted claim".into();
+        save_change(root, &duplicate).unwrap();
+        let mut ids = vec![record.id.clone(), duplicate.id];
+        ids.sort();
+        write_json(
+            &root.join(SEQUENCE_PATH),
+            &ChangeSequenceLedger {
+                schema_version: 1,
+                sequence: 1,
+                id: record.id.clone(),
+                acknowledged_collisions: vec![ChangeSequenceCollision { sequence: 1, ids }],
+            },
+        )
+        .unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+
+        let reopened = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Integrated delivery input changed".into(),
+        )
+        .unwrap();
+        assert_eq!(reopened.change.state, ChangeState::Verifying);
+        assert!(validate_change_sequences(root).is_ok());
+
+        let mut approvals = load_approvals(root, &reopened.change).unwrap();
+        approvals
+            .reopenings
+            .last_mut()
+            .unwrap()
+            .prior_verification
+            .passed = false;
+        write_json(
+            &change_dir(root, &reopened.change.id).join("approvals.json"),
+            &approvals,
+        )
+        .unwrap();
+        let error = validate_change_sequences(root).unwrap_err();
+        assert!(error.contains("includes a mutable change"), "{error}");
+    }
+
     #[test]
     fn change_sequences_allow_more_than_four_digits() {
         assert_eq!(change_sequence("CHG-9999-last-four-digit"), Some(9999));
@@ -18639,6 +18814,109 @@ mod tests {
         assert_eq!(
             before,
             acceptance_input_digest(root, &predecessor, &[]).unwrap()
+        );
+    }
+
+    // Verifies REQ-change-029.
+    #[test]
+    fn accepted_later_sequence_owner_covers_post_acceptance_collision_acknowledgement() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+
+        let mut predecessor = completed_no_spec_record(root);
+        git(&["add", "."]);
+        git(&["commit", "-m", "base predecessor"]);
+        predecessor =
+            approve_definition(root, &predecessor.id, Some("Reviewer".into()), None).unwrap();
+        predecessor = start_implementation(root, &predecessor.id).unwrap();
+        verify_change(root, &predecessor.id).unwrap();
+        predecessor = accept_change(root, &predecessor.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept predecessor"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        let mut intermediate = completed_no_spec_record(root);
+        intermediate =
+            approve_definition(root, &intermediate.id, Some("Reviewer".into()), None).unwrap();
+        intermediate = start_implementation(root, &intermediate.id).unwrap();
+        verify_change(root, &intermediate.id).unwrap();
+        intermediate = accept_change(root, &intermediate.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept intermediate owner"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        let mut duplicate = predecessor.clone();
+        duplicate.id = "CHG-0001-historical-collision".into();
+        duplicate.slug = "historical-collision".into();
+        duplicate.title = "Historical collision".into();
+        save_change(root, &duplicate).unwrap();
+        let mut ids = vec![predecessor.id.clone(), duplicate.id];
+        ids.sort();
+        write_json(
+            &root.join(SEQUENCE_PATH),
+            &ChangeSequenceLedger {
+                schema_version: 1,
+                sequence: 2,
+                id: intermediate.id.clone(),
+                acknowledged_collisions: vec![ChangeSequenceCollision { sequence: 1, ids }],
+            },
+        )
+        .unwrap();
+
+        let mut owner = completed_no_spec_record(root);
+        owner = approve_definition(root, &owner.id, Some("Reviewer".into()), None).unwrap();
+        owner = start_implementation(root, &owner.id).unwrap();
+        verify_change(root, &owner.id).unwrap();
+        owner = accept_change(root, &owner.id, Some("Closer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept collision reconciliation owner"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        for historical in [&predecessor, &intermediate] {
+            let evidence = summarize_change(root, historical)
+                .terminal_evidence
+                .unwrap();
+            assert_eq!(
+                evidence.validity,
+                TerminalEvidenceValidity::SuccessorCovered,
+                "{:?}",
+                evidence.reason
+            );
+        }
+        assert_eq!(
+            summarize_change(root, &owner)
+                .terminal_evidence
+                .unwrap()
+                .validity,
+            TerminalEvidenceValidity::Exact
+        );
+
+        let ledger = load_change_sequence_ledger(root).unwrap().unwrap();
+        fs::write(
+            root.join(SEQUENCE_PATH),
+            serde_json::to_string(&ledger).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            summarize_change(root, &owner)
+                .terminal_evidence
+                .unwrap()
+                .validity,
+            TerminalEvidenceValidity::Stale
         );
     }
 

@@ -17,6 +17,13 @@
         "CHG-0048-add-static-x86-64-unknown-linux-musl-build-to-the-release-matrix-so-prebuilt-bin",
         "CHG-0048-prepare-the-specsync-5-1-1-stabilization-release-from-merged-pr-387-bump-accur"
       ]
+    },
+    {
+      "sequence": 49,
+      "ids": [
+        "CHG-0049-document-the-verified-lifecycle-semantic-delta-format-and-surface-the-artifact-c",
+        "CHG-0049-make-stale-accepted-change-verification-diagnostics-actionable-with-named-delive"
+      ]
     }
   ]
 }

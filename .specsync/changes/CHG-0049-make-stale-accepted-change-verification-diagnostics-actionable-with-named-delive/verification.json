@@ -1,9 +1,9 @@
 {
-  "timestamp": 1784341979,
+  "timestamp": 1784342478,
   "commit": "9ae2256aea95093fe4fe697a787b3cfbb95aca56",
-  "contract_digest": "aa15a91f1a7b971f8751309a80fb5adf169327d6ea1411eb981aca85e6279c2d",
+  "contract_digest": "3a405de75314b2b73c46c51d9e02ee9ad7ff7f296786b07bab8ea26d2b0e68c0",
   "workspace_digest": "d0286bc64a9245206bbcd386d1010daa89212c5bf7a19d6ff1c0437e39f80c8e",
-  "acceptance_input_digest": "dea500e0153483cfa0eedea2d98241be4497a340966c8853d1d0a90ecf3fb110",
+  "acceptance_input_digest": "147a60396bc45f67ef7442de2eb3580db4fbb5982e33ddd0caec196346af52c8",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -11,8 +11,8 @@
         "path": ".specsync/change-sequence.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "79e2e38bca6bb8e9e2758bd8d7840dfb3aa808d51ae3a697b2c9797470eab51c",
-        "entry_digest": "ebcd46ce7d4f0ddd7b10ece9a1d7b22de39b337f38068ab0184805654b3e72ef",
+        "payload_digest": "d568897c28db78e878da6e878a27bd98e7eac39bb2931be2a25e47d6100c1eab",
+        "entry_digest": "4389c988e5c06a3831f3e433029926e486bd7344af8270dd4411581854244027",
         "owners": [
           "@exact:delivery"
         ]
@@ -65,6 +65,26 @@
         "entry_digest": "7b05029a2cadfd353be55da326f1e9b3cf2640a10472775e83d6957be390c8d1",
         "owners": [
           "change"
+        ]
+      },
+      {
+        "path": "src/change.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "e0e122024d13786a2ec33aebe3fc0bc369e49d0221d31ece1367d479ed5b7970",
+        "entry_digest": "854ebd96f5f83bf47c875778b5fd46124f246875661a2b84f7fcd06294dd34e3",
+        "owners": [
+          "change"
+        ]
+      },
+      {
+        "path": "tests/integration/change.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ed9df8453b05f7b68b61996e585536b73fc0423f3ef0eeb5b55e84d7676f7be1",
+        "entry_digest": "1c58e8da5f6bbd9fbf770c87d9c208131dc1788aebae73d557e56f53d9594f9b",
+        "owners": [
+          "@exact:test"
         ]
       }
     ]

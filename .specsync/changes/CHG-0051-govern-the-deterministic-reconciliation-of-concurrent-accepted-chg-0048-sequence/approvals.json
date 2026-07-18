@@ -34,6 +34,13 @@
       "timestamp": 1784331401,
       "digest": "7e639309d426b4a62c466133dc161d3d7f0c8672c54716577d2ec6bcd35a2b16",
       "note": "Reaccepted after full verification against the restored and extended canonical change contract."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "Kimi Code",
+      "timestamp": 1784341999,
+      "digest": "b3231a5bee3e3c48700a1e29c44be13cf9fe23e8dc22e8066bca10277ad45746",
+      "note": null
     }
   ],
   "reopenings": [
@@ -152,6 +159,122 @@
       },
       "stale_acceptance_input_digest": "8b2bc15ecc62a08a22dde695637a84eedcb596cd527af0228378d96be8edf2b4",
       "current_acceptance_input_digest": "ae7dca23e5c0c686169282bdf86c5d7c957645ad54c941fc082d79917d97655f"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0051-govern-the-deterministic-reconciliation-of-concurrent-accepted-chg-0048-sequence",
+      "actor": "Kimi Code",
+      "reason": "Refresh accepted delivery-input evidence after reconciling concurrent CHG-0049 lineages with origin/main",
+      "timestamp": 1784340378,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784331401,
+        "digest": "7e639309d426b4a62c466133dc161d3d7f0c8672c54716577d2ec6bcd35a2b16",
+        "note": "Reaccepted after full verification against the restored and extended canonical change contract."
+      },
+      "prior_verification": {
+        "timestamp": 1784331376,
+        "commit": "b86009e41177f701d645e43a8c2bc2a367cdf37c",
+        "contract_digest": "aa15a91f1a7b971f8751309a80fb5adf169327d6ea1411eb981aca85e6279c2d",
+        "workspace_digest": "9304e5f7d7b90d8b64ad1efd03b956e19b5b7b1832c118b0a4005e43c694ff34",
+        "acceptance_input_digest": "ae7dca23e5c0c686169282bdf86c5d7c957645ad54c941fc082d79917d97655f",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "0d15308ddbc75d0203a16849e466f70ce0d2c110fca6d24c78557e01a11b9103",
+              "entry_digest": "4646beeee5b32236ea75107ee63472177a6f6243ecf48c4d530d472f4085e231",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/change/change.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bcbb6ea3dce7e4b7655d761c36aa5208158505b30315a19e483423feb2f9b688",
+              "entry_digest": "ef4dc931e4fe8f507b259159b54eb58cfbb91faecfd2813390d1e90769fefa92",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "1ad5b3d3f53890f104a11edcf53a0ce081980a12e5009bb0a10ce3f681f28c00",
+              "entry_digest": "a96e2ba29e8afc02256656adbef0491575f0ce7eba464362f287122dae3b998a",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "7e41815d313de0200067d74e3bad2baece4bf89b56b7dd0f7e74b44241849d77",
+              "entry_digest": "2722b28407bcbc00428142e71d3f9be2a9fc46d905e2d95344b9b9bb3f7f4d0c",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "01d2efe978699773407d3cec28dbd206445028d48e129a8360bbb38d5c09a158",
+              "entry_digest": "e000f1b757b645635b3a36d51f2a6d66840a1738311259d0c7cd6c51ae3383de",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bd29dd5e23a110a2ee04941dfdc5419d762240b9edb1d6a2c6b82093d80d8bf2",
+              "entry_digest": "c6984cd9c173a27e196280c3dd64382d12da4bd7a4de43ffae2275819761a0a7",
+              "owners": [
+                "change"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "ruby --version",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-release-version.py",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-034"
+        ]
+      },
+      "stale_acceptance_input_digest": "ae7dca23e5c0c686169282bdf86c5d7c957645ad54c941fc082d79917d97655f",
+      "current_acceptance_input_digest": "dea500e0153483cfa0eedea2d98241be4497a340966c8853d1d0a90ecf3fb110"
     }
   ]
 }

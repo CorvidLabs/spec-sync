@@ -413,3 +413,16 @@ Acceptance Criteria
   reconciled ledger transition.
 - Strict lifecycle validation passes without masking stale non-ledger delivery inputs.
 
+### REQ-change-035
+
+Acknowledged immutable sequence collisions SHALL remain valid while an accepted member completes an
+audited delivery-only reopen, provided its already-applied definition, prior passing verification,
+superseded closing approval, and exact accepted-to-verifying transition remain valid.
+
+Acceptance Criteria
+
+- A structurally valid audited reopen keeps the collision acknowledgement usable during verification.
+- Missing, tampered, definition-stale, unapplied, or non-verifying reopen evidence remains mutable.
+- The reopened member still requires fresh verification and a new closing approval before acceptance.
+- Collision IDs are never renumbered, deleted, or silently rewritten.
+

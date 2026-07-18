@@ -13,7 +13,84 @@
       "timestamp": 1784318518,
       "digest": "9d061a7b5c8d05008bb18dd623561d6fa9bc8d4991a0c9105b7208c7aeccecc0",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784331410,
+      "digest": "7b5f9f095ef8dd3f7e31dd4079d5708d16dd062368dd17e00e6bca606866900e",
+      "note": "Reaccepted after full verification against the integrated 5.1.1 Action documentation."
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0048-add-static-x86-64-unknown-linux-musl-build-to-the-release-matrix-so-prebuilt-bin",
+      "actor": "0xLeif",
+      "reason": "Merged 5.1.1 release guidance legitimately updates its accepted site/src/content/docs/integrations/github-action.md input.",
+      "timestamp": 1784329738,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784318518,
+        "digest": "9d061a7b5c8d05008bb18dd623561d6fa9bc8d4991a0c9105b7208c7aeccecc0",
+        "note": null
+      },
+      "prior_verification": {
+        "timestamp": 1784318483,
+        "commit": "4652ca1535eb65f7ba3ab0fc54b458b408fc174d",
+        "contract_digest": "a9bcafab46f4849317b26a0174c73ee426721a9a78800ccb9c998708d89226e6",
+        "workspace_digest": "2931f040d30303fb7e03040a6f8f5a856504cd71bdca9707a7d1520e04d34442",
+        "acceptance_input_digest": "faf068747c02683a3697997e9c041437771aecb03e199ee226de01e8c590ef81",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".github/workflows/release.yml",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "ecdfb5e5456525af4acce6a91e29414ff97e7018faa2bf758a06c9f837475895",
+              "entry_digest": "6443420aa4b60c75ccf8ce161efbaf4592f32da3908d70c34edce6e6160fef60",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "840e98586f4663fac751804786773e430f1b49a5426ffea508ae6f052576fc62",
+              "entry_digest": "dac6b4232549f527b6fa33f57a6e34351f1271da3721805ba9afa81a86843848",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "site/src/content/docs/integrations/github-action.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "2fc5838f54b69d856069d63a631f1e894974e50d83a6465ba2f8b100eca6c7cf",
+              "entry_digest": "2d6c971e5c35896519459f8a64dc61fe0f181cb21d0957b383fad62085ddc958",
+              "owners": [
+                "@exact:delivery"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "faf068747c02683a3697997e9c041437771aecb03e199ee226de01e8c590ef81",
+      "current_acceptance_input_digest": "7ce13114354ea827509f7a05a2e25fff218626d2553d2b96a13521daa73fe680"
+    }
+  ]
 }

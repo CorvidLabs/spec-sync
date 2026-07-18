@@ -1,8 +1,8 @@
 ---
 id: CHG-0053-permit-audited-reopened-collision-members-to-retain-immutable-sequence-history-s
-state: implementing
+state: accepted
 type: bug_fix
-base_commit: 5590b2cb1fc2328c5141472a47e852a7695ed0ca
+base_commit: b86009e41177f701d645e43a8c2bc2a367cdf37c
 ---
 
 # Permit audited reopened collision members to retain immutable sequence-history status during re-verification

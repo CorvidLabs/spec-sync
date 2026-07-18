@@ -1,9 +1,9 @@
 {
-  "timestamp": 1784326975,
-  "commit": "5590b2cb1fc2328c5141472a47e852a7695ed0ca",
+  "timestamp": 1784332120,
+  "commit": "b86009e41177f701d645e43a8c2bc2a367cdf37c",
   "contract_digest": "ac650363fe235bce082b8814b9d48da12d7fe6f8c1b9fe04d55a40a42714d54d",
-  "workspace_digest": "fa450c231aebe1259ca399c5f2ee0465bdf0e3fb692dc9beef59ecb1c04280bf",
-  "acceptance_input_digest": "1e44c5d27d5768bdbc0ed346e2ebf3561b0820fe7589fb4be3da600bb7c09b63",
+  "workspace_digest": "9304e5f7d7b90d8b64ad1efd03b956e19b5b7b1832c118b0a4005e43c694ff34",
+  "acceptance_input_digest": "0cf69b482f2acc40afae177ba2692be77afefc86bd5edc1009b163a006b226ba",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -21,8 +21,8 @@
         "path": "specs/change/change.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "aef2c850f0566f376ca910857de796ae4b2499cdf5fcb242132c3a718dc532d6",
-        "entry_digest": "c956a483ad1587c370418edaba89099acd3ca8cfa6cdeb166f7c865171a63d84",
+        "payload_digest": "bcbb6ea3dce7e4b7655d761c36aa5208158505b30315a19e483423feb2f9b688",
+        "entry_digest": "ef4dc931e4fe8f507b259159b54eb58cfbb91faecfd2813390d1e90769fefa92",
         "owners": [
           "change"
         ]
@@ -41,8 +41,8 @@
         "path": "specs/change/requirements.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "6d1447c5b08a466568d05ae6a26ca9abd0a83f29738942705999bc016979d1ac",
-        "entry_digest": "1ec3059a6b1e0b35efaaf09c2ef1731ea23f8df0676c666d69aab6b6247f515e",
+        "payload_digest": "7e41815d313de0200067d74e3bad2baece4bf89b56b7dd0f7e74b44241849d77",
+        "entry_digest": "2722b28407bcbc00428142e71d3f9be2a9fc46d905e2d95344b9b9bb3f7f4d0c",
         "owners": [
           "change"
         ]
@@ -71,8 +71,8 @@
         "path": "src/change.rs",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "27d487d04517aa08dacb538c145bb6ed75faa4817e2fa4a22d8de25146af9c52",
-        "entry_digest": "aeb2ea190da843b582aa521b1f13e916955204846e18bacaf9e33cb32c8bce94",
+        "payload_digest": "4cd981bfb4258a9a6bb30eded3173a19c3a51281f6482dafcdb247397965f34f",
+        "entry_digest": "769c559e1e729dfc1fc7e9377d251a0b8a2d696a7ff83c831dfc6a48e830a988",
         "owners": [
           "change"
         ]

@@ -1,9 +1,9 @@
 {
-  "timestamp": 1784322080,
-  "commit": "67875096cb19359427b653afb58bc01202400d7b",
+  "timestamp": 1784330360,
+  "commit": "b86009e41177f701d645e43a8c2bc2a367cdf37c",
   "contract_digest": "50d7f16f9989be74df1771ad6851c82d8df406053664d0fead5414a5671ab2f9",
-  "workspace_digest": "974068225546aa479fdf4a590721514c7a0f54a2734bc7119da77af42d4795e2",
-  "acceptance_input_digest": "7caa67be91ab78f1908f4670f5fc9bbf4a42dcc79ee661bc8d206c435ce89187",
+  "workspace_digest": "9304e5f7d7b90d8b64ad1efd03b956e19b5b7b1832c118b0a4005e43c694ff34",
+  "acceptance_input_digest": "4a81812e949d3cb9ea94ccd0d2130a6e245d1866709c09c99ae35765a3c52461",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -61,8 +61,8 @@
         "path": ".specsync/change-sequence.json",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "77725d6922fbef9bb17f6a52727af91ed7531039d202a0b8355379c0869211b2",
-        "entry_digest": "2634da5570743e65c96043df2fd19e2fd28f2268e47a4e974b76742e799e53aa",
+        "payload_digest": "5c71d2454f4d71b76ed7c6e9a15f391def0a26c13ffe58997d8431fa0c839e4a",
+        "entry_digest": "d7d5aaae121df18deaa0a7e0d9e9eda1b68937130f77b317f1280ad47f807ad1",
         "owners": [
           "@exact:delivery"
         ]
@@ -131,8 +131,8 @@
         "path": "site/src/content/docs/integrations/github-action.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "8927cce0c5494939bab2a362d01f72b98ea356e00be36b94d2cdf06cc03c1a44",
-        "entry_digest": "244fee56a0183142ba0affdba3fb3da9c3819e29aa92794c077072b37dde99e9",
+        "payload_digest": "269098249f4afc5045af218bf5e38a5d809c4e3f4d20e396a4d91253e74e9f75",
+        "entry_digest": "a201affa3c4e90030891c03ec5e53afd3b5c2364ff3106ff9f6af319768aba2d",
         "owners": [
           "@exact:delivery"
         ]

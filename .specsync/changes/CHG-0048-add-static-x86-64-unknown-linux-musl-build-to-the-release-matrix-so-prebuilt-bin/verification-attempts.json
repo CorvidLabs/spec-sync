@@ -15,6 +15,36 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1784330926,
+      "commit": "b86009e41177f701d645e43a8c2bc2a367cdf37c",
+      "contract_digest": "a9bcafab46f4849317b26a0174c73ee426721a9a78800ccb9c998708d89226e6",
+      "workspace_digest": "9304e5f7d7b90d8b64ad1efd03b956e19b5b7b1832c118b0a4005e43c694ff34",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

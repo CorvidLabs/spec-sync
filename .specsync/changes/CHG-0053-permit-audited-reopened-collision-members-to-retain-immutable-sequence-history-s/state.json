@@ -5,10 +5,11 @@
   "title": "Permit audited reopened collision members to retain immutable sequence-history status during re-verification",
   "description": "Permit audited reopened collision members to retain immutable sequence-history status during re-verification",
   "kind": "bug_fix",
-  "state": "verifying",
-  "base_commit": "5590b2cb1fc2328c5141472a47e852a7695ed0ca",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "b86009e41177f701d645e43a8c2bc2a367cdf37c",
   "created_at": 1784327295,
-  "updated_at": 1784328084,
+  "updated_at": 1784329700,
   "affected_specs": [
     "change"
   ],
@@ -35,18 +36,6 @@
     "plan"
   ],
   "dependencies": [],
-  "supersedes": [
-    {
-      "predecessor_id": "CHG-0051-govern-the-deterministic-reconciliation-of-concurrent-accepted-chg-0048-sequence",
-      "obligations": [
-        {
-          "path": "specs/change/change.spec.md",
-          "module": "change",
-          "predecessor_entry_digest": "262ee82b38784dbed6bf8d09a73830bf3f6cf834498bd489d3f82fcb88e8cd5f"
-        }
-      ]
-    }
-  ],
   "answers": {
     "architecture_risk": "yes",
     "public_contract": "yes"

@@ -1,6 +1,6 @@
 ---
 id: CHG-0050-update-current-v5-security-guidance-discovered-by-the-5-1-1-release-review
-state: accepted
+state: archived
 type: documentation
 base_commit: fd2eb796b4026326e1390fc9709d341d6edeb0c5
 ---

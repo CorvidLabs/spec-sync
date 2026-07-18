@@ -1,6 +1,6 @@
 ---
 id: CHG-0051-govern-the-deterministic-reconciliation-of-concurrent-accepted-chg-0048-sequence
-state: verifying
+state: accepted
 type: documentation
 base_commit: 5590b2cb1fc2328c5141472a47e852a7695ed0ca
 ---

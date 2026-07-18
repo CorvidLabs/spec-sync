@@ -5,11 +5,11 @@
   "title": "Govern the deterministic reconciliation of concurrent accepted CHG-0048 sequence claims while preserving both immutable histories and the 5.1.1 release gate",
   "description": "Govern the deterministic reconciliation of concurrent accepted CHG-0048 sequence claims while preserving both immutable histories and the 5.1.1 release gate",
   "kind": "documentation",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "5590b2cb1fc2328c5141472a47e852a7695ed0ca",
   "created_at": 1784323548,
-  "updated_at": 1784340378,
+  "updated_at": 1784341999,
   "affected_specs": [
     "change"
   ],

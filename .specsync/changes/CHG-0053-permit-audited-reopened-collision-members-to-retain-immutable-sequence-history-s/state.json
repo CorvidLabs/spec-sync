@@ -5,11 +5,11 @@
   "title": "Permit audited reopened collision members to retain immutable sequence-history status during re-verification",
   "description": "Permit audited reopened collision members to retain immutable sequence-history status during re-verification",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "b86009e41177f701d645e43a8c2bc2a367cdf37c",
   "created_at": 1784327295,
-  "updated_at": 1784340356,
+  "updated_at": 1784341009,
   "affected_specs": [
     "change"
   ],

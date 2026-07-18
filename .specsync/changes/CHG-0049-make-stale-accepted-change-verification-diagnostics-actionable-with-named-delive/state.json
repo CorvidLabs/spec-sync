@@ -5,11 +5,11 @@
   "title": "Make stale accepted-change verification diagnostics actionable with named delivery inputs and remediation",
   "description": "Make stale accepted-change verification diagnostics actionable with named delivery inputs and remediation",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "9bdd0beacbc40a610a2da590c05d8e41abc40904",
   "created_at": 1784323228,
-  "updated_at": 1784340392,
+  "updated_at": 1784342498,
   "affected_specs": [
     "change"
   ],

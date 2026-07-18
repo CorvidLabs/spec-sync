@@ -27,6 +27,13 @@
       "timestamp": 1784332136,
       "digest": "430e94ec5adb6366b8fb1b035d4b56b1bbabe3ad378e6bd9ffb6e1aec8e47617",
       "note": "Reaccepted after full verification against CHG-0053's restored canonical Invariants and audited collision lifecycle requirement."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "Kimi Code",
+      "timestamp": 1784341517,
+      "digest": "561519e1ba82fc16fee8101c57bfdb3bc418d1809ca16400f42b507764c8d072",
+      "note": null
     }
   ],
   "reopenings": [

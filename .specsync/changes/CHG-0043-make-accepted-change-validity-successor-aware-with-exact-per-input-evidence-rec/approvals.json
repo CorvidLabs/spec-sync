@@ -320,6 +320,13 @@
       "timestamp": 1784328334,
       "digest": "a3f90df6d2619b619112dcb77f85b9c85693b549b8f58e7c54e81b9be0b099aa",
       "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "Kimi Code",
+      "timestamp": 1784332504,
+      "digest": "b43d4c1188c33aa03f853403dd4e0b875b621afe018d142e9e7c568370e7c63d",
+      "note": null
     }
   ],
   "reopenings": [

@@ -6053,12 +6053,42 @@ fn closing_digest(record: &ChangeRecord, verification: &VerificationRecord) -> S
     digest.finish()
 }
 
+/// Governs how owner resolution treats production-source inputs with no deterministic
+/// canonical owner. Current acceptance stays fail-closed; legacy acceptance-manifest
+/// reconstruction assigns the exact delivery owner so adoption-era archived ledgers validate
+/// without per-repo remediation.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum UnownedProductionSource {
+    Reject,
+    AssignExactDelivery,
+}
+
 fn acceptance_manifest(
     root: &Path,
     record: &ChangeRecord,
     overrides: &[(PathBuf, String)],
 ) -> Result<AcceptanceManifestV1, String> {
-    acceptance_manifest_internal(root, record, overrides, None)
+    acceptance_manifest_internal(
+        root,
+        record,
+        overrides,
+        None,
+        UnownedProductionSource::Reject,
+    )
+}
+
+fn acceptance_manifest_legacy(
+    root: &Path,
+    record: &ChangeRecord,
+    overrides: &[(PathBuf, String)],
+) -> Result<AcceptanceManifestV1, String> {
+    acceptance_manifest_internal(
+        root,
+        record,
+        overrides,
+        None,
+        UnownedProductionSource::AssignExactDelivery,
+    )
 }
 
 fn acceptance_manifest_with_signed_owners(
@@ -6067,7 +6097,13 @@ fn acceptance_manifest_with_signed_owners(
     overrides: &[(PathBuf, String)],
     signed: &AcceptanceManifestV1,
 ) -> Result<AcceptanceManifestV1, String> {
-    acceptance_manifest_internal(root, record, overrides, Some(signed))
+    acceptance_manifest_internal(
+        root,
+        record,
+        overrides,
+        Some(signed),
+        UnownedProductionSource::Reject,
+    )
 }
 
 fn acceptance_manifest_internal(
@@ -6075,6 +6111,7 @@ fn acceptance_manifest_internal(
     record: &ChangeRecord,
     overrides: &[(PathBuf, String)],
     signed: Option<&AcceptanceManifestV1>,
+    unowned_source: UnownedProductionSource,
 ) -> Result<AcceptanceManifestV1, String> {
     let discovery_scopes = acceptance_discovery_scopes(root, record)?;
     let override_content: BTreeMap<String, &[u8]> = overrides
@@ -6143,7 +6180,14 @@ fn acceptance_manifest_internal(
                 .map(|entry| entry.owners.clone())
                 .unwrap_or_else(|| vec![EXACT_DELIVERY_OWNER.to_string()])
         } else {
-            acceptance_input_owners(root, record, &relative, overrides, &evidence)?
+            acceptance_input_owners(
+                root,
+                record,
+                &relative,
+                overrides,
+                &evidence,
+                unowned_source,
+            )?
         };
         let entry_digest = acceptance_entry_digest(&relative, &kind, mode, &payload_digest);
         entries.push(AcceptanceInputEntryV1 {
@@ -6638,6 +6682,7 @@ fn acceptance_input_owners(
     relative: &str,
     overrides: &[(PathBuf, String)],
     evidence: &GitEvidence,
+    unowned_source: UnownedProductionSource,
 ) -> Result<Vec<String>, String> {
     if path_is_governed_test_or_fixture(relative) {
         return Ok(vec![EXACT_TEST_OWNER.to_string()]);
@@ -6698,9 +6743,16 @@ fn acceptance_input_owners(
     );
     if owners.is_empty() {
         if path_is_production_source(root, relative) {
-            return Err(format!(
-                "acceptance input `{relative}` is production source without deterministic canonical ownership"
-            ));
+            if unowned_source == UnownedProductionSource::AssignExactDelivery {
+                // Legacy reconstruction only: adoption-era records predate canonical
+                // ownership, so unowned production source routes to the exact delivery
+                // owner instead of aborting the immutable archived ledger.
+                owners.push(EXACT_DELIVERY_OWNER.to_string());
+            } else {
+                return Err(format!(
+                    "acceptance input `{relative}` is production source without deterministic canonical ownership"
+                ));
+            }
         } else {
             owners.push(EXACT_DELIVERY_OWNER.to_string());
         }
@@ -8052,7 +8104,7 @@ fn reconstruct_legacy_at_anchor(
                 record.id
             ));
         }
-        let manifest = acceptance_manifest(&tree, &historical, &[])?;
+        let manifest = acceptance_manifest_legacy(&tree, &historical, &[])?;
         let key = serde_json::to_vec(&serde_json::json!({
             "manifest": manifest,
             "verification": verification,
@@ -13378,7 +13430,15 @@ mod tests {
         let candidates = BTreeSet::from(["tests/auth.rs".to_string()]);
         let evidence = git_evidence(root, &candidates).unwrap();
         assert_eq!(
-            acceptance_input_owners(root, &record, "tests/auth.rs", &[], &evidence,).unwrap(),
+            acceptance_input_owners(
+                root,
+                &record,
+                "tests/auth.rs",
+                &[],
+                &evidence,
+                UnownedProductionSource::Reject,
+            )
+            .unwrap(),
             vec![EXACT_TEST_OWNER.to_string()]
         );
     }
@@ -13809,6 +13869,100 @@ mod tests {
         assert_eq!(
             summarize_change(root, &record).next_action,
             "invalid archived evidence"
+        );
+    }
+
+    #[test]
+    fn legacy_archived_unowned_production_source_reconstructs_with_exact_delivery_owner() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = completed_no_spec_record(root);
+        // Production source no canonical spec owns — the adoption-era shape from #397
+        // (spec-less repos whose legacy inputs can never gain a canonical owner).
+        fs::write(
+            root.join("src/unowned.rs"),
+            "pub fn adopted() -> bool { true }\n",
+        )
+        .unwrap();
+        append_approval(
+            root,
+            &record,
+            "definition",
+            Some("Reviewer".into()),
+            definition_digest(root, &record).unwrap(),
+            None,
+        )
+        .unwrap();
+        record.state = ChangeState::Accepted;
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        let verification = VerificationRecord {
+            timestamp: now(),
+            commit: None,
+            contract_digest: definition_digest(root, &record).unwrap(),
+            workspace_digest: project_input_digest(root).unwrap(),
+            acceptance_input_digest: Some(acceptance_input_digest(root, &record, &[]).unwrap()),
+            acceptance_manifest: None,
+            semantic_succession: None,
+            passed: true,
+            commands: Vec::new(),
+            requirement_ids: Vec::new(),
+        };
+        write_json(
+            &change_dir(root, &record.id).join("verification.json"),
+            &verification,
+        )
+        .unwrap();
+        append_approval(
+            root,
+            &record,
+            "acceptance",
+            Some("Reviewer".into()),
+            closing_digest(&record, &verification),
+            None,
+        )
+        .unwrap();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["add", "."]);
+        git(&["commit", "-m", "record accepted legacy evidence"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        // The strict current path still rejects the unowned production source.
+        let error = acceptance_manifest(root, &record, &[]).unwrap_err();
+        assert!(
+            error.contains("production source without deterministic canonical ownership"),
+            "{error}"
+        );
+
+        // Legacy reconstruction assigns the exact delivery owner instead, so archival and
+        // archived-integrity validation succeed without any per-repo repair.
+        archive_change(root, &record.id).unwrap();
+        let record = load_change(root, &record.id).unwrap();
+        let manifest = resolved_acceptance_manifest(root, &record).unwrap();
+        let entry = manifest
+            .entries
+            .iter()
+            .find(|entry| entry.path == "src/unowned.rs")
+            .expect("unowned source must remain an acceptance input");
+        assert_eq!(entry.owners, vec![EXACT_DELIVERY_OWNER.to_string()]);
+        assert!(
+            manifest
+                .entries
+                .iter()
+                .find(|entry| entry.path == "src/lib.rs")
+                .is_some_and(|entry| entry.owners == ["change".to_string()])
         );
     }
 

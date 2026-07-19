@@ -462,3 +462,18 @@ Acceptance Criteria
   the recording-anchor fallback runs only when they find nothing.
 - A change with no matching in-history accepted record remains unarchivable.
 
+### REQ-change-038
+
+Legacy acceptance-manifest reconstruction SHALL assign the exact delivery owner to
+production-source inputs with no deterministic canonical owner, so adoption-era archived ledgers
+validate without per-repo remediation.
+
+Acceptance Criteria
+
+- Only pre-manifest (legacy) reconstruction is relaxed; current acceptance stays fail-closed.
+- Historical aggregate reproduction, closing-approval authentication, and the exactly-one
+  distinct reconstruction rule are unchanged.
+- The exact delivery owner assignment appears only in reconstructed manifests, never in newly
+  signed ones.
+- No new command, state transition, or persisted evidence format is introduced.
+

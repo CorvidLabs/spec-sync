@@ -1,6 +1,6 @@
 ## ADDED
 
-### REQUIREMENT REQ-change-039
+### REQUIREMENT REQ-change-038
 
 The verified lifecycle SHALL allow one transactional batch of audited exact acceptance-owner
 corrections so rollout-era gaps with many omitted owners need only one reapprove → verify → accept
@@ -161,5 +161,4 @@ Acceptance Criteria
 24. A fully valid later accepted sequence owner covers only historical sequence-ledger drift, while the current owner and every non-ledger input remain exact.
 25. A structurally valid audited delivery reopen preserves immutable sequence-collision history while fresh verification and closing approval remain mandatory.
 26. Accepted-change archival trusts an in-history commit recording the change as accepted with byte-identical evidence when no first-acceptance transition anchor matches, so squash-merged evidence remains archivable while the exactly-one-eligible rule stays fail-closed.
-27. Legacy acceptance-manifest reconstruction assigns the exact delivery owner to production-source inputs with no deterministic canonical owner, so adoption-era archived ledgers validate without remediation while newly signed evidence stays fail-closed.
-28. Batch exact-owner correction validates every proposed path/module pair independently and fails closed with zero persisted mutations when any entry is invalid.
+27. Batch exact-owner correction validates every proposed path/module pair independently and fails closed with zero persisted mutations when any entry is invalid.

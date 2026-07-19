@@ -9,5 +9,5 @@ artifact: tasks
 - [x] Extend Clap `correct-owner` grammar for repeated paths/specs, manifest, and `--all-missing`.
 - [x] Wire the change command adapter for batch rendering.
 - [x] Add unit and integration tests for batch success, atomic partial failure, and discovery.
-- [x] Map REQ-change-039, REQ-cli-args-006, and REQ-cmd-change-004; update module companions.
+- [x] Map REQ-change-038, REQ-cli-args-006, and REQ-cmd-change-004; update module companions.
 - [x] Run pre-acceptance formatting, lint, tests, and release validators.

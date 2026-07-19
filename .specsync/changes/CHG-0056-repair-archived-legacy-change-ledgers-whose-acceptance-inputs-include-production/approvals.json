@@ -20,7 +20,148 @@
       "timestamp": 1784429627,
       "digest": "ffe62b741aa7ded9cec710d9ecb96492d7085951da7b4d52fe93ef2f538ba17f",
       "note": "Repair adoption-era archived ledgers via exact-delivery ownership in legacy reconstruction."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784435549,
+      "digest": "447b14eb5dd863babe3777513aaef172d677c31d15f9134c64d2bf5fd688b2c9",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784436989,
+      "digest": "5e6dc2ee57183347289627ccc04fa71694e22ca5ea70f1e88290f4679158845f",
+      "note": null
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0056-repair-archived-legacy-change-ledgers-whose-acceptance-inputs-include-production",
+      "actor": "0xLeif",
+      "reason": "Refresh accepted evidence after merging batch correct-owner REQ renumber onto change.spec.md",
+      "timestamp": 1784435479,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784429627,
+        "digest": "ffe62b741aa7ded9cec710d9ecb96492d7085951da7b4d52fe93ef2f538ba17f",
+        "note": "Repair adoption-era archived ledgers via exact-delivery ownership in legacy reconstruction."
+      },
+      "prior_verification": {
+        "timestamp": 1784429618,
+        "commit": "37120cb60407efed08b4868858e76fb847d1ee9d",
+        "contract_digest": "447b14eb5dd863babe3777513aaef172d677c31d15f9134c64d2bf5fd688b2c9",
+        "workspace_digest": "6705c07c94cccba98953080490b1498691d8b8aeb017fece34de02dd563e7deb",
+        "acceptance_input_digest": "d75e219e99d40e7555d48cd10a0ccdecb5a3cbd6bf742c1f3f040f4a0220441c",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "7b8f896d91ae4b1a4a2e3acdccb7d64fdd957dbd8c340d5e88ced97b324c335f",
+              "entry_digest": "f7491cc83eedfaba57082ad5ed56d1a4d082ef457919f42968488b3bed224e5e",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/change/change.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "96fd6eb3f20f7dfe8cf20b3a1f5f6547db339db4db20626c8c3fffbacb93ffc8",
+              "entry_digest": "60b3b30a9e2e89d06f4571870398ac4c11d4d34e5c3f9d86a9cd804d512e9db4",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "56576319a088309854176488c5cdc2e95d6c575a610bb89bb53e07f4187558de",
+              "entry_digest": "3121b8c411ac70bd5d5cb8decd9f5c27c2118840d51fd69e49741ec34d685249",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "139cad78e950a15ad07f3e53ad6ff672c5012e4df309c14844ceffabd438fbd1",
+              "entry_digest": "278ea8704952c4e34acd2f69276539d1b389439af9f9d42b2a3a71ab48d0a6f5",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "4d6e5bc67ea08b643cac0a0757c95f56af1216ae2797a8f7f939225bce16be83",
+              "entry_digest": "f2a425ebb70e568331780a5b6cc0d6e281d6930d208007393139fd5e00ee3b2a",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "40aee644b6c2fb4cd5884921148755fb53b7bb957ac283c83490991148e13f92",
+              "entry_digest": "abdbc81f356f75e2e6a57e34c7763800d4374fa23cdf415b5cb15b96133e5fff",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "src/change.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "00315dbab29d5034f60b9b9dbacaeec225b7bef12c0c65f06bb4d40b23f54fc9",
+              "entry_digest": "edf669d72ecbf54485a1bda307acc8b12cce45dddf4a564d833dcf8d7029bd98",
+              "owners": [
+                "change"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "ruby --version",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-release-version.py",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-038"
+        ]
+      },
+      "stale_acceptance_input_digest": "d75e219e99d40e7555d48cd10a0ccdecb5a3cbd6bf742c1f3f040f4a0220441c",
+      "current_acceptance_input_digest": "dad261acd03ea0b08efb00dc74f58be16d775f0989b279777a0b7b1faa2f1d9f"
+    }
+  ]
 }

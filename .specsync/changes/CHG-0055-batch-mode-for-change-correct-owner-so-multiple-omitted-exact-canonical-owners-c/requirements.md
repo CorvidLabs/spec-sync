@@ -5,7 +5,7 @@ artifact: requirements
 
 # Requirements
 
-### REQ-change-039
+### REQ-change-038
 
 The verified lifecycle SHALL allow one transactional batch of audited exact acceptance-owner
 corrections so rollout-era gaps with many omitted owners need only one reapprove → verify → accept

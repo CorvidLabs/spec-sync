@@ -1,9 +1,9 @@
 {
-  "timestamp": 1784428350,
-  "commit": "37120cb60407efed08b4868858e76fb847d1ee9d",
+  "timestamp": 1784437888,
+  "commit": "3140312666fc017865015cabdd816fed78d9eea1",
   "contract_digest": "af93fb6f06e0e2ee84d7ca7b9ba41e0d7aa2268bc92198a7905652aea448c42d",
-  "workspace_digest": "6a5392f992f998514fc37777d63881190f239ed0a3f3b3cfe8b5e7f0fd76ad70",
-  "acceptance_input_digest": "db68c0639ea7db1ce7e58b110a0471eb88ecd84c10e0ba356a3ec3917e610a4a",
+  "workspace_digest": "c4b2550e171d8f3b869e5a8f20d41c88de98bf50e7b0b5f1aecbccf34bca7038",
+  "acceptance_input_digest": "0604080dc4dda1cc5e89ed32ffe267af93ba776ff3a6d8e83fe0ad89b2b0d660",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -21,8 +21,8 @@
         "path": "specs/change/change.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "e8a0040f587b23da8d64826c2d8379a77f9c551d5a431698e945b8859c47ef0a",
-        "entry_digest": "365590e73b534ac95550019d6175d6e9d9cace24e32237c6cbdc49d78e4167c5",
+        "payload_digest": "77833db27374a8702c86bdff903c578ee37eff3058a61f40779ffcb3bc354f98",
+        "entry_digest": "a912013d3480427a1d268e28ba0bb65ff01142255b09e4562fa825f5b42aeb0f",
         "owners": [
           "change"
         ]
@@ -31,8 +31,8 @@
         "path": "specs/change/context.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "9c5cc152edfe6a3d591a1c91df4d6227472fd783f8009c628c81ed08a93c063b",
-        "entry_digest": "707b4e8b83a651f1f6c912c1b976c050e6c7b6d1fd8f43c64bce1487f28a6605",
+        "payload_digest": "515acc7b71c05f776be103279d0bab8d40248d45404daf537b09ef54c1da0e10",
+        "entry_digest": "f90e86c474b94816b04fa116a617ed50cdfa78653ecdb820e9a45d6c79e7a2ef",
         "owners": [
           "change"
         ]
@@ -41,8 +41,8 @@
         "path": "specs/change/requirements.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "4a3d7bdb1389824098a2c1b3b61f7242ac65a7b0a98ffb6b20bdae497e5823bc",
-        "entry_digest": "1bf6d05a8163eec7644808277543de6a4b42c02962232966778cccc9d6ce09de",
+        "payload_digest": "62de1796c58672279657f64b9d505eb28eb3fdcb6c5839ba3b5603bdbb768ed3",
+        "entry_digest": "a4b724850ad5ba7f0edbcf2101ed3818346b77fdfc90291221626bea46efb302",
         "owners": [
           "change"
         ]
@@ -51,8 +51,8 @@
         "path": "specs/change/tasks.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "fd086c79bde09b42f840c4bcfd4b789cb048d63a183bf16ded38052e992c2561",
-        "entry_digest": "980999bb12e2f35ed3fd8a095e76ff6d239ddea26eafd0ece974cf3e9f4607dd",
+        "payload_digest": "86fe8fb7d8490711f9440f49b32de20ddad2d87f7b85699f8b11358596f58369",
+        "entry_digest": "16ab9d57d34ab2f8aa941c041016d139822a9203aade2222e5baef158d65169f",
         "owners": [
           "change"
         ]
@@ -61,8 +61,8 @@
         "path": "specs/change/testing.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "cf413be8d8d19415c4fc8c076d739392bfb14a4bacfc423618dab3ea2a7f0b2c",
-        "entry_digest": "9680727192ff8f058e12482f9e8b1b99d6fa914b60a916816115ba0a1664b802",
+        "payload_digest": "7775b9b8d90e823424d6f2a1b8ca0398d8124c214b089aaff7d0578744ff02ed",
+        "entry_digest": "3cc94a2e8b2c7b1b3aacb7eb4cfdbf8aabb8599ac3c19377ef0606be96bcdccc",
         "owners": [
           "change"
         ]
@@ -171,8 +171,8 @@
         "path": "src/change.rs",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "63ed7a6bb065f414f5ea7747efac02c3e8dd30bf8d783a18745218a465ba4071",
-        "entry_digest": "d988d6bce9fa6ca609b68de128508b4c50734daf166e454c1e72b36b9313c84c",
+        "payload_digest": "44f2c9f4b92fa88b49e75e904a1e58e288e5f4303188712f765e6e4cd0994444",
+        "entry_digest": "6b24951271ed6a6e47feabab2f02067163786730336d0a5bfb02b113900ae609",
         "owners": [
           "change"
         ]
@@ -201,8 +201,8 @@
         "path": "tests/integration/change.rs",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "28e6d5866c020c2e8d691e72a57f710fa019a916f6b72836bd3ec47c1686cd01",
-        "entry_digest": "60b26000ae4431105a69b93e4df76cb9d7a177c90a09e0ad92ef5ee7f57004f4",
+        "payload_digest": "6353b1f34b124b2fbc3cbe1c16ee3edd2297ff6aa1ea0dd48ba58001eab18f9e",
+        "entry_digest": "d0a224e7e565ebe530f1d292401b4579abf59f7f38c169d4b60659fbf99cd670",
         "owners": [
           "@exact:test"
         ]

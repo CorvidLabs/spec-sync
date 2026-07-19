@@ -464,6 +464,21 @@ Acceptance Criteria
 
 ### REQ-change-038
 
+Legacy acceptance-manifest reconstruction SHALL assign the exact delivery owner to
+production-source inputs with no deterministic canonical owner, so adoption-era archived ledgers
+validate without per-repo remediation.
+
+Acceptance Criteria
+
+- Only pre-manifest (legacy) reconstruction is relaxed; current acceptance stays fail-closed.
+- Historical aggregate reproduction, closing-approval authentication, and the exactly-one
+  distinct reconstruction rule are unchanged.
+- The exact delivery owner assignment appears only in reconstructed manifests, never in newly
+  signed ones.
+- No new command, state transition, or persisted evidence format is introduced.
+
+### REQ-change-039
+
 The verified lifecycle SHALL allow one transactional batch of audited exact acceptance-owner
 corrections so rollout-era gaps with many omitted owners need only one reapprove → verify → accept
 cycle, without weakening per-entry scope, ownership, or append-only sequencing rules.

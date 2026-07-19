@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 55,
-  "id": "CHG-0055-batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c",
+  "sequence": 56,
+  "id": "CHG-0056-repair-archived-legacy-change-ledgers-whose-acceptance-inputs-include-production",
   "acknowledged_collisions": [
     {
       "sequence": 16,

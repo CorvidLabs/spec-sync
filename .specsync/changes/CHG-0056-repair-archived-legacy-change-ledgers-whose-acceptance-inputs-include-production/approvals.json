@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784428343,
+      "digest": "bed9781ac3f355213bf23bf1cb60d60a8b321e2ebce7b88a542c5e68f86aade6",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784428928,
+      "digest": "447b14eb5dd863babe3777513aaef172d677c31d15f9134c64d2bf5fd688b2c9",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784429627,
+      "digest": "ffe62b741aa7ded9cec710d9ecb96492d7085951da7b4d52fe93ef2f538ba17f",
+      "note": "Repair adoption-era archived ledgers via exact-delivery ownership in legacy reconstruction."
+    }
+  ],
+  "reopenings": []
+}

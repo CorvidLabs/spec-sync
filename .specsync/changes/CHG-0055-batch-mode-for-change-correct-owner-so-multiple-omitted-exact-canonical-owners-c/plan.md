@@ -5,7 +5,7 @@ artifact: plan
 
 # Plan
 
-1. Add REQ-change-038, REQ-cli-args-006, and REQ-cmd-change-004 with matching Public API /
+1. Add REQ-change-039, REQ-cli-args-006, and REQ-cmd-change-004 with matching Public API /
    Invariants / Contract deltas.
 2. Implement batch domain API with validate-all-then-write semantics and `--all-missing` discovery.
 3. Extend Clap grammar and the change command adapter.

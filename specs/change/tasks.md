@@ -33,4 +33,5 @@ spec: change.spec.md
 - [x] Add audited exact acceptance-owner corrections for reopened already-applied changes
 - [x] Make stale accepted-change verification diagnostics actionable with named inputs and remediation
 - [x] Trust squash-merged accepted evidence recorded in main history for archival
+- [x] Repair adoption-era archived ledgers by assigning exact delivery ownership during legacy manifest reconstruction
 - [x] Add transactional batch mode for exact acceptance-owner corrections

@@ -1123,7 +1123,7 @@ fn reopened_owner_correction_is_deterministic_through_json_cli() {
     assert_eq!(source["owners"], serde_json::json!(["current", "legacy"]));
 }
 
-// Verifies REQ-change-038, REQ-cli-args-006, and REQ-cmd-change-004.
+// Verifies REQ-change-039, REQ-cli-args-006, and REQ-cmd-change-004.
 #[test]
 fn batch_correct_owner_through_cli_is_transactional() {
     let temp = TempDir::new().unwrap();

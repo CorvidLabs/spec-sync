@@ -2011,11 +2011,27 @@ fn latest_reopen_for_owner_correction<'a>(
     Ok(reopening)
 }
 
+#[allow(dead_code)] // Public one-entry wrapper; batch path is used by the CLI adapter.
 pub fn add_acceptance_owner_correction(
     root: &Path,
     id: &str,
     path: String,
     module: String,
+    actor: String,
+    reason: String,
+) -> Result<ChangeRecord, String> {
+    add_acceptance_owner_corrections(root, id, vec![(path, module)], actor, reason)
+}
+
+/// Append one or more audited exact canonical owner corrections in a single transactional write.
+///
+/// Every `(path, module)` entry is validated independently against the same rules as a single
+/// [`add_acceptance_owner_correction`]. If any entry is invalid, no corrections from the batch are
+/// persisted.
+pub fn add_acceptance_owner_corrections(
+    root: &Path,
+    id: &str,
+    entries: Vec<(String, String)>,
     actor: String,
     reason: String,
 ) -> Result<ChangeRecord, String> {
@@ -2029,6 +2045,11 @@ pub fn add_acceptance_owner_correction(
     if !record.canonical_applied {
         return Err("acceptance owner correction requires an already-applied change".into());
     }
+    if entries.is_empty() {
+        return Err(
+            "acceptance owner correction batch requires at least one path/module entry".into(),
+        );
+    }
     let actor = actor.trim();
     if actor.is_empty() {
         return Err(
@@ -2041,16 +2062,6 @@ pub fn add_acceptance_owner_correction(
         return Err(
             "acceptance owner correction requires a non-empty reason passed with --reason".into(),
         );
-    }
-    if strict_portable_relative_path(&path)? != path {
-        return Err(format!(
-            "acceptance owner correction path is not canonical: `{path}`"
-        ));
-    }
-    crate::commands::validate_module_name(&module)
-        .map_err(|error| format!("invalid acceptance owner correction module: {error}"))?;
-    if module.starts_with("@exact:") {
-        return Err("reserved exact owners cannot be added through correct-owner".into());
     }
 
     validate_acceptance_owner_correction_records(&record)?;
@@ -2069,19 +2080,51 @@ pub fn add_acceptance_owner_correction(
                 .into(),
         );
     }
-    record
-        .acceptance_owner_corrections
-        .push(AcceptanceOwnerCorrection {
-            schema_version: 1,
-            sequence: record.acceptance_owner_corrections.len() as u64 + 1,
-            path,
-            module,
-            actor: actor.to_string(),
-            reason: reason.to_string(),
-            timestamp: now(),
-        });
-    validate_acceptance_owner_corrections_current(root, &record)?;
-    record.updated_at = now();
+
+    let timestamp = now();
+    let mut provisional = record.clone();
+    for (index, (path, module)) in entries.iter().enumerate() {
+        let path = path.trim();
+        let module = module.trim();
+        if path.is_empty() || module.is_empty() {
+            return Err(format!(
+                "acceptance owner correction batch entry {} has an empty path or module",
+                index + 1
+            ));
+        }
+        if strict_portable_relative_path(path)? != path {
+            return Err(format!(
+                "acceptance owner correction path is not canonical: `{path}`"
+            ));
+        }
+        crate::commands::validate_module_name(module)
+            .map_err(|error| format!("invalid acceptance owner correction module: {error}"))?;
+        if module.starts_with("@exact:") {
+            return Err("reserved exact owners cannot be added through correct-owner".into());
+        }
+        provisional
+            .acceptance_owner_corrections
+            .push(AcceptanceOwnerCorrection {
+                schema_version: 1,
+                sequence: provisional.acceptance_owner_corrections.len() as u64 + 1,
+                path: path.to_string(),
+                module: module.to_string(),
+                actor: actor.to_string(),
+                reason: reason.to_string(),
+                timestamp,
+            });
+        // Validate after each append so batch-internal duplicates and scope errors name the
+        // failing entry while leaving the on-disk record untouched.
+        validate_acceptance_owner_corrections_current(root, &provisional).map_err(|error| {
+            format!(
+                "acceptance owner correction batch entry {} failed: {error}",
+                index + 1
+            )
+        })?;
+    }
+
+    record.acceptance_owner_corrections = provisional.acceptance_owner_corrections;
+    record.updated_at = timestamp;
     let dir = change_dir(root, &record.id);
     write_prepared_files(
         root,
@@ -2091,6 +2134,98 @@ pub fn add_acceptance_owner_correction(
         ],
     )?;
     Ok(record)
+}
+
+/// Discover production-source affected paths lacking canonical ownership for `module`, then append
+/// one audited correction per path in a single transactional write.
+pub fn add_missing_acceptance_owner_corrections(
+    root: &Path,
+    id: &str,
+    module: String,
+    actor: String,
+    reason: String,
+) -> Result<ChangeRecord, String> {
+    let module = module.trim();
+    if module.is_empty() {
+        return Err("--all-missing requires a non-empty --spec module".into());
+    }
+    let paths = missing_acceptance_owner_paths(root, id, module)?;
+    if paths.is_empty() {
+        return Err(format!(
+            "no production-source affected paths lack canonical ownership for module `{module}`"
+        ));
+    }
+    let entries = paths
+        .into_iter()
+        .map(|path| (path, module.to_string()))
+        .collect();
+    add_acceptance_owner_corrections(root, id, entries, actor, reason)
+}
+
+fn missing_acceptance_owner_paths(
+    root: &Path,
+    id: &str,
+    module: &str,
+) -> Result<Vec<String>, String> {
+    let record = load_change(root, id)?;
+    require_state(
+        &record,
+        &[ChangeState::Verifying],
+        "discover missing acceptance input owners",
+    )?;
+    crate::commands::validate_module_name(module)
+        .map_err(|error| format!("invalid acceptance owner correction module: {error}"))?;
+    if module.starts_with("@exact:") {
+        return Err("reserved exact owners cannot be discovered through correct-owner".into());
+    }
+    let mut missing = Vec::new();
+    for path in &record.affected_paths {
+        let Ok(path) = strict_portable_relative_path(path) else {
+            continue;
+        };
+        if !path_is_production_source(root, &path) {
+            continue;
+        }
+        if !production_source_lacks_canonical_owner(root, &record, &path)? {
+            continue;
+        }
+        if canonical_module_owns_exact_source_path(root, module, &path).is_ok() {
+            missing.push(path);
+        }
+    }
+    missing.sort();
+    missing.dedup();
+    Ok(missing)
+}
+
+fn production_source_lacks_canonical_owner(
+    root: &Path,
+    record: &ChangeRecord,
+    relative: &str,
+) -> Result<bool, String> {
+    if !path_is_production_source(root, relative) {
+        return Ok(false);
+    }
+    let config = crate::config::load_config(root);
+    let mut candidates = BTreeSet::new();
+    for module in &record.affected_specs {
+        let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)?;
+        candidates.insert(strict_portable_project_path(root, &spec_path)?);
+    }
+    let evidence = if candidates.is_empty() {
+        GitEvidence {
+            modes: BTreeMap::new(),
+            entries: BTreeMap::new(),
+        }
+    } else {
+        git_regular_file_evidence(root, &candidates)?
+    };
+    let owners = acceptance_input_owners(root, record, relative, &[], &evidence);
+    match owners {
+        Ok(owners) => Ok(owners.iter().all(|owner| owner.starts_with("@exact:"))),
+        Err(error) if error.contains("without deterministic canonical ownership") => Ok(true),
+        Err(error) => Err(error),
+    }
 }
 
 #[derive(Serialize)]
@@ -16628,6 +16763,136 @@ mod tests {
         assert_eq!(
             fs::read_to_string(root.join("src/lib.rs")).unwrap(),
             "pub fn ready() -> bool { false }\n"
+        );
+    }
+
+    // Verifies REQ-change-038.
+    #[test]
+    fn batch_owner_corrections_append_transactionally_or_not_at_all() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("specs/legacy")).unwrap();
+        fs::create_dir_all(root.join("specs/current")).unwrap();
+        fs::write(root.join("src/a.rs"), "pub fn a() {}\n").unwrap();
+        fs::write(root.join("src/b.rs"), "pub fn b() {}\n").unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+        let owned = |module: &str| {
+            format!(
+                "---\nmodule: {module}\nversion: 1\nstatus: stable\nfiles:\n  - src/a.rs\n  - src/b.rs\n  - src/lib.rs\n---\n\n# {module}\n\n## Purpose\n\nOwner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"
+            )
+        };
+        fs::write(root.join("specs/legacy/legacy.spec.md"), owned("legacy")).unwrap();
+        fs::write(root.join("specs/current/current.spec.md"), owned("current")).unwrap();
+        let mut record = create_change(
+            root,
+            CreateChangeRequest {
+                description: "batch owner correction".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["legacy".into()],
+                affected_paths: vec!["src/a.rs".into(), "src/b.rs".into(), "src/lib.rs".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("ownership evidence only".into()),
+            },
+        )
+        .unwrap();
+        record.acceptance_criteria = vec!["Owners can be batch-corrected".into()];
+        record.answers.insert("public_contract".into(), "no".into());
+        record
+            .answers
+            .insert("architecture_risk".into(), "no".into());
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        for artifact in &record.selected_artifacts {
+            let content = if *artifact == ArtifactKind::Tasks {
+                "# Tasks\n\n- [x] Complete\n"
+            } else {
+                "# Complete\n\nReviewed.\n"
+            };
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                content,
+            )
+            .unwrap();
+        }
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "Sources changed during release review".into(),
+        )
+        .unwrap()
+        .change;
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let before = fs::read(&state_path).unwrap();
+
+        let failed = add_acceptance_owner_corrections(
+            root,
+            &record.id,
+            vec![
+                ("src/a.rs".into(), "current".into()),
+                ("outside/x.rs".into(), "current".into()),
+            ],
+            "Release reviewer".into(),
+            "Batch repair".into(),
+        )
+        .unwrap_err();
+        assert!(
+            failed.contains("batch entry 2 failed")
+                || failed.contains("outside the original affected path scope"),
+            "{failed}"
+        );
+        assert_eq!(fs::read(&state_path).unwrap(), before);
+
+        record = add_acceptance_owner_corrections(
+            root,
+            &record.id,
+            vec![
+                ("src/a.rs".into(), "current".into()),
+                ("src/b.rs".into(), "current".into()),
+            ],
+            "Release reviewer".into(),
+            "Batch repair".into(),
+        )
+        .unwrap();
+        assert_eq!(record.acceptance_owner_corrections.len(), 2);
+        assert_eq!(record.acceptance_owner_corrections[0].sequence, 1);
+        assert_eq!(record.acceptance_owner_corrections[1].sequence, 2);
+
+        fs::write(
+            root.join("specs/legacy/legacy.spec.md"),
+            "---\nmodule: legacy\nversion: 1\nstatus: stable\nfiles: []\n---\n\n# Legacy\n\n## Purpose\n\nEmpty.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+        let missing = missing_acceptance_owner_paths(root, &record.id, "current").unwrap();
+        assert_eq!(missing, vec!["src/lib.rs"]);
+        record = add_acceptance_owner_corrections(
+            root,
+            &record.id,
+            missing
+                .into_iter()
+                .map(|path| (path, "current".into()))
+                .collect(),
+            "Release reviewer".into(),
+            "Discover remaining".into(),
+        )
+        .unwrap();
+        assert_eq!(record.acceptance_owner_corrections.len(), 3);
+        assert!(
+            missing_acceptance_owner_paths(root, &record.id, "current")
+                .unwrap()
+                .is_empty()
         );
     }
 

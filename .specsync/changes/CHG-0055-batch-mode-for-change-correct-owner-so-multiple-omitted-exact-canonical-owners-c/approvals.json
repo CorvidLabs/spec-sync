@@ -1,0 +1,33 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784427581,
+      "digest": "b2087c785a6bb0f311002445bc42a406a3cf37c2c663ba088e3f8036f3077838",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784427810,
+      "digest": "8e69e0e4cd4af77a2a3b999f07133f05b32584a51be0a9b120c5d88b944e3930",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784427856,
+      "digest": "af93fb6f06e0e2ee84d7ca7b9ba41e0d7aa2268bc92198a7905652aea448c42d",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784428363,
+      "digest": "c17a210930f6f785e9f2b9ba12a6e25d5350a4f3b7df1ce13173f1957a56b103",
+      "note": "Batch correct-owner validates every entry independently and persists all or none as sequenced audit corrections."
+    }
+  ],
+  "reopenings": []
+}

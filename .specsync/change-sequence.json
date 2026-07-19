@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 54,
-  "id": "CHG-0054-trust-accepted-change-evidence-that-is-recorded-in-main-history-by-squash-merged",
+  "sequence": 55,
+  "id": "CHG-0055-batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c",
   "acknowledged_collisions": [
     {
       "sequence": 16,

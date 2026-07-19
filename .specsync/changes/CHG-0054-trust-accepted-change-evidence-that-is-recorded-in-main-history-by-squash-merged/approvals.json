@@ -1,0 +1,177 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784416589,
+      "digest": "dd074142a9ab87863aeaa2b60886f4d561eb0c65f65f4fbda4cc261a6b70f1c8",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784418064,
+      "digest": "33ed09f49574f01103f93d6fedc09ab6ddccb3f8f400fe7f48655fa3ab8b5255",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784418098,
+      "digest": "22ca94988f5645e286fa7b008835c23bc8d7508cc4832fb8a15dc59b8129085f",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784418582,
+      "digest": "814765cdbc23e30a98b3d717bdc16849450e36a527c615f1a0fc8f36e02b9e88",
+      "note": "Trust in-history accepted records with byte-identical evidence so squash-merged accepted changes archive cleanly."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784419359,
+      "digest": "e920c37485a544000c8dc2b8ee58ab132d5c5871de80d9002c0029fb68c4aa98",
+      "note": "Reaccepted after recording the module companion updates per repository convention."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0054-trust-accepted-change-evidence-that-is-recorded-in-main-history-by-squash-merged",
+      "actor": "0xLeif",
+      "reason": "Module companion files (context.md, tasks.md, testing.md) were updated after acceptance to record this change per repository convention, refreshing covered delivery inputs.",
+      "timestamp": 1784418854,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784418582,
+        "digest": "814765cdbc23e30a98b3d717bdc16849450e36a527c615f1a0fc8f36e02b9e88",
+        "note": "Trust in-history accepted records with byte-identical evidence so squash-merged accepted changes archive cleanly."
+      },
+      "prior_verification": {
+        "timestamp": 1784418563,
+        "commit": "b5218aac7de501cce60f6cbbaba3b72324427ecf",
+        "contract_digest": "22ca94988f5645e286fa7b008835c23bc8d7508cc4832fb8a15dc59b8129085f",
+        "workspace_digest": "c06e08d766f51846c5eafe9db9e804f471b1b66ca95a92c40e0cd39643b58188",
+        "acceptance_input_digest": "06415ec25c424b6a181acbea1fce40ef4d56e3f3a27db2f368d68148f0b03a2a",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "c8996fa5f0eaed8ea4d6de185d260a231ace917e91b703c59c4a836037c7165a",
+              "entry_digest": "3beee1cff634e8696abd17906d272bec57e078ae03316b9a0b3d4a1c768fe441",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/change/change.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "53fea61335e423699a5d95a386a6acece2c5083c16c5057651378ef4c0b07aa0",
+              "entry_digest": "13f0e2a36df0069b05e9c00648fcae65872778005d5bcd4b543ad3766c505bbf",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d2633a06653ae6810a21c6926de9003c2aa5d41870aecb9286b0bec81138e909",
+              "entry_digest": "bd74a785b9a1746222bb7271c929415942265e5090f7c65b34d2cdc6d02bbf62",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "fc0f317827c5a7555a9b8288a5e69c3a0196f863b75acdd46e7c916cf5d24c38",
+              "entry_digest": "5915c051ae2629709d34023a73d06939aa2dc1ae38e8cabfd36c305dcc09fb15",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "7ae9249b340059f0a97c3da9318a69ba0dca0670d54b5149fe2094da41f18bd8",
+              "entry_digest": "dcb46e174bf982262323ef9bfa490f11650e5f8fe32984dad825ce98869b717c",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "40675c7d542c8796dc315f8b447cdb7083278720e2a7e837f5137e83263d71e0",
+              "entry_digest": "7b05029a2cadfd353be55da326f1e9b3cf2640a10472775e83d6957be390c8d1",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "src/change.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "1cf8345369508b2ce8747f7282533d07c2681d0a9216174759ac4805d59d13cf",
+              "entry_digest": "2c99e1a7d1f279c004541c4d32e92144a6694cc588b98e4a9d9b0cdb1b99d3e5",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "tests/integration/change.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "ed9df8453b05f7b68b61996e585536b73fc0423f3ef0eeb5b55e84d7676f7be1",
+              "entry_digest": "1c58e8da5f6bbd9fbf770c87d9c208131dc1788aebae73d557e56f53d9594f9b",
+              "owners": [
+                "@exact:test"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "ruby --version",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-release-version.py",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-037"
+        ]
+      },
+      "stale_acceptance_input_digest": "06415ec25c424b6a181acbea1fce40ef4d56e3f3a27db2f368d68148f0b03a2a",
+      "current_acceptance_input_digest": "7639671eda812d8993c1eebabd107cf221a40ce377d0e7b031479e55b2f5ad91"
+    }
+  ]
+}

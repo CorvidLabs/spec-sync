@@ -447,3 +447,18 @@ Acceptance Criteria
 - The `accepted change verification is stale for current delivery inputs` check prefix, the
   terminal-evidence validity values, and every freshness predicate remain unchanged.
 
+### REQ-change-037
+
+Accepted-change archival SHALL trust squash-merged evidence when an in-history commit records the
+change as accepted with byte-identical state, verification, and approvals, so discarding the
+original acceptance-transition commit in a squash merge never blocks archival.
+
+Acceptance Criteria
+
+- Only commits reachable from `HEAD` or the remote default qualify as recording anchors.
+- Byte equality, accepted-state identity, and projection checks remain mandatory per anchor.
+- The exactly-one-eligible rule still fails closed on missing or ambiguous evidence.
+- First-acceptance transition anchors and the archived `accepted-state.json` scan keep priority;
+  the recording-anchor fallback runs only when they find nothing.
+- A change with no matching in-history accepted record remains unarchivable.
+

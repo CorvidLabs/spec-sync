@@ -8130,6 +8130,98 @@ fn accepted_transition_anchors(root: &Path, record: &ChangeRecord) -> Result<Vec
     Ok(anchors)
 }
 
+/// Lists every commit reachable from `HEAD` or the remote default whose `state.json` records
+/// `record` as accepted, regardless of the parent state. Unlike
+/// [`accepted_transition_anchors`], this also matches commits that refresh accepted evidence
+/// while the change is already accepted, which is the shape squash-merged re-verification
+/// produces on the default branch.
+fn accepted_recording_anchors(root: &Path, record: &ChangeRecord) -> Result<Vec<String>, String> {
+    let state = format!("{CHANGES_PATH}/{}/state.json", record.id);
+    let state = git_repo_relative_path(root, &state)?;
+    let mut references = vec!["HEAD".to_string()];
+    if let Some(remote_default) = remote_default_ref(root)
+        && !references.contains(&remote_default)
+    {
+        references.push(remote_default);
+    }
+    let mut anchors = Vec::new();
+    for reference in references {
+        let state_pathspec = format!(":(top,literal){state}");
+        let output = Command::new("git")
+            .args([
+                "log",
+                "--format=%H",
+                &reference,
+                "--",
+                state_pathspec.as_str(),
+            ])
+            .current_dir(root)
+            .output()
+            .map_err(|error| format!("failed to inspect accepted recording history: {error}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "failed to inspect accepted recording history at `{reference}`"
+            ));
+        }
+        for commit in String::from_utf8_lossy(&output.stdout).lines() {
+            if git_change_record_at(root, commit, &state).is_some_and(|current| {
+                current.id == record.id && current.state == ChangeState::Accepted
+            }) {
+                anchors.push(commit.to_string());
+            }
+        }
+    }
+    anchors.sort();
+    anchors.dedup();
+    Ok(anchors)
+}
+
+/// Evaluates one candidate anchor commit against the current evidence, recording it in
+/// `eligible` when the committed state, verification, and approvals authenticate the change's
+/// accepted record.
+#[allow(clippy::too_many_arguments)]
+fn consider_accepted_evidence_anchor(
+    root: &Path,
+    record: &ChangeRecord,
+    anchor: &str,
+    state_path: &str,
+    verification_path: &str,
+    approvals_path: &str,
+    current_verification: &[u8],
+    current_approvals: &[u8],
+    eligible: &mut BTreeMap<String, (String, Vec<u8>, ChangeRecord)>,
+) {
+    let Some(state_bytes) = git_object_bytes(root, anchor, state_path) else {
+        return;
+    };
+    let Some(verification_bytes) = git_object_bytes(root, anchor, verification_path) else {
+        return;
+    };
+    let Some(approval_bytes) = git_object_bytes(root, anchor, approvals_path) else {
+        return;
+    };
+    if verification_bytes != current_verification || approval_bytes != current_approvals {
+        return;
+    }
+    let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes) else {
+        return;
+    };
+    if accepted.id != record.id || accepted.state != ChangeState::Accepted {
+        return;
+    }
+    let mut projection = record.clone();
+    if record.state == ChangeState::Archived {
+        projection.state = ChangeState::Accepted;
+        projection.updated_at = accepted.updated_at;
+    }
+    if projection == accepted {
+        let key = accepted_evidence_key(&state_bytes, &verification_bytes, &approval_bytes);
+        eligible
+            .entry(key)
+            .or_insert((anchor.to_string(), state_bytes, accepted));
+    }
+}
+
 fn authenticated_accepted_transition(
     root: &Path,
     record: &ChangeRecord,
@@ -8151,35 +8243,17 @@ fn authenticated_accepted_transition(
     let approvals_path = git_repo_relative_path(root, &format!("{active}/approvals.json"))?;
     let mut eligible = BTreeMap::new();
     for anchor in accepted_transition_anchors(root, record)? {
-        let Some(state_bytes) = git_object_bytes(root, &anchor, &state_path) else {
-            continue;
-        };
-        let Some(verification_bytes) = git_object_bytes(root, &anchor, &verification_path) else {
-            continue;
-        };
-        let Some(approval_bytes) = git_object_bytes(root, &anchor, &approvals_path) else {
-            continue;
-        };
-        if verification_bytes != current_verification || approval_bytes != current_approvals {
-            continue;
-        }
-        let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes) else {
-            continue;
-        };
-        if accepted.id != record.id || accepted.state != ChangeState::Accepted {
-            continue;
-        }
-        let mut projection = record.clone();
-        if record.state == ChangeState::Archived {
-            projection.state = ChangeState::Accepted;
-            projection.updated_at = accepted.updated_at;
-        }
-        if projection == accepted {
-            let key = accepted_evidence_key(&state_bytes, &verification_bytes, &approval_bytes);
-            eligible
-                .entry(key)
-                .or_insert((anchor, state_bytes, accepted));
-        }
+        consider_accepted_evidence_anchor(
+            root,
+            record,
+            &anchor,
+            &state_path,
+            &verification_path,
+            &approvals_path,
+            &current_verification,
+            &current_approvals,
+            &mut eligible,
+        );
     }
     if record.state == ChangeState::Archived {
         let project_directory = strict_portable_project_path(root, &workspace)?;
@@ -8235,6 +8309,25 @@ fn authenticated_accepted_transition(
                     .entry(key)
                     .or_insert((anchor.to_string(), state_bytes, accepted));
             }
+        }
+    }
+    if eligible.is_empty() {
+        // Squash merges discard the original acceptance-transition commits while preserving
+        // the accepted evidence bytes in later default-branch commits. Trust any in-history
+        // commit that records this change as accepted when it carries byte-identical
+        // evidence; the per-anchor checks and the exactly-one rule still fail closed.
+        for anchor in accepted_recording_anchors(root, record)? {
+            consider_accepted_evidence_anchor(
+                root,
+                record,
+                &anchor,
+                &state_path,
+                &verification_path,
+                &approvals_path,
+                &current_verification,
+                &current_approvals,
+                &mut eligible,
+            );
         }
     }
     if eligible.is_empty()
@@ -14670,6 +14763,151 @@ mod tests {
 
         git(&["switch", "main"]);
         archive_change(root, &record.id).unwrap();
+    }
+
+    #[test]
+    fn refreshed_accepted_evidence_squash_merged_while_accepted_archives() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            let status = Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap();
+            assert!(status.success(), "git {args:?} failed");
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "false"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        write_default_policy(root, Vec::new()).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["switch", "-c", "feature"]);
+
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement"]);
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept"]);
+
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "feature"]);
+        git(&["commit", "-m", "squash feature"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        // Refresh the accepted evidence on a second branch: the input drift makes the
+        // accepted evidence stale, and the audited reopen produces a new verification and
+        // closing approval while the change is already recorded as accepted on main.
+        git(&["switch", "-c", "refresh"]);
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { true }\n// drifted after acceptance\n",
+        )
+        .unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "drift input"]);
+        reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "The governed source drifted after acceptance".into(),
+        )
+        .unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "reaccept"]);
+        let verification = load_verification(root, &record).unwrap();
+
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "refresh"]);
+        git(&["commit", "-m", "squash refresh"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        // The re-verification commit stayed on the discarded branch and the first squash
+        // commit already records the change as accepted, so no first-acceptance transition
+        // anchor carries the current evidence; the recording-anchor fallback must.
+        assert!(!verification_commit_is_accepted_current(
+            root,
+            &verification
+        ));
+        let archived = archive_change(root, &record.id).unwrap();
+        assert!(archived.join("accepted-state.json").exists());
+    }
+
+    #[test]
+    fn squash_merged_recording_anchor_fails_closed_without_matching_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "false"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        write_default_policy(root, Vec::new()).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["switch", "-c", "feature"]);
+
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement"]);
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept"]);
+
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "feature"]);
+        git(&["commit", "-m", "squash feature"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        // Tamper with the current closing-evidence bytes so no in-history accepted record
+        // matches them; archival must still fail closed. The note text is not bound by the
+        // closing digest, so every earlier guard still passes and the trusted-transition
+        // preflight is what must reject the archive.
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        let tampered = fs::read_to_string(&approvals_path).unwrap().replacen(
+            "\"note\": null",
+            "\"note\": \"tampered\"",
+            1,
+        );
+        assert_ne!(tampered, fs::read_to_string(&approvals_path).unwrap());
+        fs::write(&approvals_path, tampered).unwrap();
+        let error = archive_change(root, &record.id).unwrap_err();
+        assert!(
+            error.contains("requires exactly one trusted transition"),
+            "{error}"
+        );
     }
 
     #[test]

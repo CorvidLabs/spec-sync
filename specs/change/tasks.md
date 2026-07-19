@@ -32,3 +32,4 @@ spec: change.spec.md
 - [x] Harden trusted correction-history scans for unresolved remote refs and platform-valid quoted or Unicode Git paths
 - [x] Add audited exact acceptance-owner corrections for reopened already-applied changes
 - [x] Make stale accepted-change verification diagnostics actionable with named inputs and remediation
+- [x] Trust squash-merged accepted evidence recorded in main history for archival

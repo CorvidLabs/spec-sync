@@ -1,6 +1,6 @@
 ---
 id: CHG-0049-document-the-verified-lifecycle-semantic-delta-format-and-surface-the-artifact-c
-state: accepted
+state: archived
 type: documentation
 base_commit: 0b9c8f5e121ccea53acbd3f0ad3a5c687fa76611
 ---

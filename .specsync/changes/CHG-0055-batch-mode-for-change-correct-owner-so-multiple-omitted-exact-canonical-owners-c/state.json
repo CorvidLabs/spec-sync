@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0055-batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c",
+  "slug": "batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c",
+  "title": "Batch mode for change correct-owner so multiple omitted exact canonical owners can be audited and appended in one transactional correction before a single reapprove-verify-accept cycle",
+  "description": "Batch mode for change correct-owner so multiple omitted exact canonical owners can be audited and appended in one transactional correction before a single reapprove-verify-accept cycle",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "37120cb60407efed08b4868858e76fb847d1ee9d",
+  "created_at": 1784427492,
+  "updated_at": 1784437898,
+  "affected_specs": [
+    "change",
+    "cli_args",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/cli.rs",
+    "src/commands/change.rs",
+    "tests/integration/change.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Repeated --path/--spec pairs, an optional JSON or TSV manifest, or --all-missing with one --spec append every validated exact owner correction in one transactional write; each correction remains an independent sequenced audit entry; any invalid entry fails closed with zero mutations; single-path correct-owner remains supported; unit and integration tests cover batch success, partial-failure atomicity, and --all-missing discovery."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

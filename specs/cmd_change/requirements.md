@@ -42,3 +42,16 @@ Acceptance Criteria
 - Human output names the exact path, canonical module, actor, and next definition-approval gate.
 - Domain rejection exits non-zero without success output or partial lifecycle mutation.
 
+### REQ-cmd-change-004
+
+The change command adapter SHALL resolve batch correct-owner selection, delegate policy to the
+change domain, and render text/JSON results without partial lifecycle mutation on failure.
+
+Acceptance Criteria
+
+- `change correct-owner` delegates all ownership and transactionality policy to the change domain.
+- JSON emits the persisted corrected change record, including every appended owner correction.
+- Human output names the number of corrections appended (or the single path/module for one entry)
+  and the next definition-approval gate.
+- Domain rejection exits non-zero without success output or partial lifecycle mutation.
+

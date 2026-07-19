@@ -64,6 +64,19 @@ Acceptance Criteria
 - Missing path, module, actor, or reason inputs fail through deterministic Clap errors before any
   domain mutation.
 
+### REQ-cli-args-006
+
+The shared CLI grammar SHALL expose batch selection for `change correct-owner` while keeping actor
+and reason mandatory and rejecting empty or conflicting selection modes before domain mutation.
+
+Acceptance Criteria
+
+- `--path` and `--spec` are repeatable; one `--spec` may apply to every path, or path/spec counts must match.
+- `--manifest` accepts a JSON array of path/module objects or TSV `path<TAB>module` lines.
+- `--all-missing` requires exactly one `--spec` and excludes `--path`/`--manifest`.
+- Actor and reason remain required.
+- Empty or conflicting selection fails through deterministic Clap errors before domain mutation.
+
 ### REQ-cli-args-007
 
 The shared CLI grammar SHALL expose the 5.0 ledger migration as an optional source-family

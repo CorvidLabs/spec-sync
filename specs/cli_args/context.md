@@ -10,7 +10,7 @@ spec: cli_args.spec.md
 - Agents, MCP, Lifecycle, and verified Change commands remain first-class.
 - Accepted-change reopen is explicit and auditable: the grammar requires both `--actor` and `--reason`.
 - Accepted metadata correction is explicit and auditable: `change correct` restricts fields to `public_contract` or `architecture_risk`, values to `yes` or `no`, and requires both `--actor` and `--reason`.
-- Acceptance-owner correction is explicit and auditable: `change correct-owner` requires an exact path, canonical spec module, actor, and reason.
+- Acceptance-owner correction is explicit and auditable: `change correct-owner` requires actor and reason plus a batch selection from repeated `--path`/`--spec`, `--manifest`, or `--all-missing`.
 
 ## Files to Read First
 

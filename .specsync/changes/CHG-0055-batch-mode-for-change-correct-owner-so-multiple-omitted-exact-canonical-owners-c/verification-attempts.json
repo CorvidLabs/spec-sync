@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1784428350,
+      "commit": "37120cb60407efed08b4868858e76fb847d1ee9d",
+      "contract_digest": "af93fb6f06e0e2ee84d7ca7b9ba41e0d7aa2268bc92198a7905652aea448c42d",
+      "workspace_digest": "6a5392f992f998514fc37777d63881190f239ed0a3f3b3cfe8b5e7f0fd76ad70",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-038",
+        "REQ-cli-args-006",
+        "REQ-cmd-change-004"
+      ]
+    },
+    {
+      "timestamp": 1784436304,
+      "commit": "3140312666fc017865015cabdd816fed78d9eea1",
+      "contract_digest": "724d5dcee24fa3710947bda22fce34f20c6d9837518d3f42c72ec3b51a12a9c7",
+      "workspace_digest": "c4b2550e171d8f3b869e5a8f20d41c88de98bf50e7b0b5f1aecbccf34bca7038",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-039",
+        "REQ-cli-args-006",
+        "REQ-cmd-change-004"
+      ]
+    },
+    {
+      "timestamp": 1784437888,
+      "commit": "3140312666fc017865015cabdd816fed78d9eea1",
+      "contract_digest": "af93fb6f06e0e2ee84d7ca7b9ba41e0d7aa2268bc92198a7905652aea448c42d",
+      "workspace_digest": "c4b2550e171d8f3b869e5a8f20d41c88de98bf50e7b0b5f1aecbccf34bca7038",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-038",
+        "REQ-cli-args-006",
+        "REQ-cmd-change-004"
+      ]
+    }
+  ]
+}

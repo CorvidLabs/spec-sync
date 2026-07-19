@@ -11,3 +11,4 @@ spec: cmd_change.spec.md
 - [x] Dispatch audited stale-accepted reopen in text and JSON formats
 - [x] Dispatch accepted metadata correction with equivalent text and JSON projections
 - [x] Dispatch exact acceptance-owner correction with equivalent text and JSON projections
+- [x] Dispatch transactional batch correct-owner selection (paths/manifest/all-missing)

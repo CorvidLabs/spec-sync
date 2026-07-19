@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 53,
-  "id": "CHG-0053-permit-audited-reopened-collision-members-to-retain-immutable-sequence-history-s",
+  "sequence": 54,
+  "id": "CHG-0054-trust-accepted-change-evidence-that-is-recorded-in-main-history-by-squash-merged",
   "acknowledged_collisions": [
     {
       "sequence": 16,

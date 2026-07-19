@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 54,
-  "id": "CHG-0054-trust-accepted-change-evidence-that-is-recorded-in-main-history-by-squash-merged",
+  "sequence": 56,
+  "id": "CHG-0056-repair-archived-legacy-change-ledgers-whose-acceptance-inputs-include-production",
   "acknowledged_collisions": [
     {
       "sequence": 16,

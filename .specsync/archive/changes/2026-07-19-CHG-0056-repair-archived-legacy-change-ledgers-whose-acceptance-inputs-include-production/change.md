@@ -1,6 +1,6 @@
 ---
 id: CHG-0056-repair-archived-legacy-change-ledgers-whose-acceptance-inputs-include-production
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 37120cb60407efed08b4868858e76fb847d1ee9d
 ---

@@ -1,6 +1,6 @@
 ---
 id: CHG-0059-tolerate-inert-5-0-1-registry-toml-stubs-so-module-resolution-falls-back-to-defa
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 418235bcf78087c923db45f6a6a5e13f90b451b8
 ---

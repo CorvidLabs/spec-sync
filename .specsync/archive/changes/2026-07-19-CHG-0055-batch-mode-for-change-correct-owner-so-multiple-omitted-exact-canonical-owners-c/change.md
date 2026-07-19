@@ -1,6 +1,6 @@
 ---
 id: CHG-0055-batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 37120cb60407efed08b4868858e76fb847d1ee9d
 ---

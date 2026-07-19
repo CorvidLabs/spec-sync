@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 11
+version: 12
 status: stable
 files:
   - src/cli.rs
@@ -45,7 +45,8 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 7. Each `AgentsAction::Install` / `Uninstall` variant carries identical boolean flags for symmetric install/uninstall, mirroring `HooksAction`
 8. `Generate` exposes only deterministic uncovered/batch selection; provider and model flags are not accepted
 9. `ChangeAction::Reopen` requires both `--actor` and `--reason`; neither can be omitted from the CLI grammar
-10. `ChangeAction::CorrectOwner` requires exact path, canonical spec module, actor, and reason inputs
+10. `ChangeAction::CorrectOwner` requires actor and reason, plus a non-empty batch selection from repeated `--path`/`--spec` pairs, `--manifest`, or `--all-missing` with one `--spec`
+11. Conflicting or empty `correct-owner` selection modes fail in Clap before domain mutation
 
 ## Behavioral Examples
 
@@ -82,7 +83,8 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | Invalid `--enforcement` value | Clap prints accepted values: warn, enforce-new, strict |
 | Invalid `--format` value | Clap prints accepted values: text, json, markdown, github, table, csv |
 | `change reopen` without `--actor` or `--reason` | Clap names the missing required argument and exits non-zero |
-| `change correct-owner` without path, spec, actor, or reason | Clap names the missing required argument and exits non-zero |
+| `change correct-owner` without actor, reason, or any batch selection | Clap names the missing required argument and exits non-zero |
+| `change correct-owner` with conflicting `--all-missing`, `--manifest`, and `--path` modes | Clap rejects the conflicting selection before domain mutation |
 
 ## Dependencies
 
@@ -117,3 +119,4 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | 2026-07-15 | CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re: Support audited append-only correction of accepted interview metadata without replaying canonical deltas |
 | 2026-07-15 | CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec: Make accepted-change validity successor-aware with exact per-input evidence, recursive cycle-safe validation, fail-closed legacy compatibility, and safe archived successors |
 | 2026-07-15 | CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied: Permit audited deterministic ownership corrections for reopened already-applied changes |
+| 2026-07-19 | CHG-0055-batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c: Batch mode for change correct-owner so multiple omitted exact canonical owners can be audited and appended in one transactional correction before a single reapprove-verify-accept cycle |

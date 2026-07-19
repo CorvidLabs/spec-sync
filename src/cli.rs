@@ -418,16 +418,22 @@ pub enum ChangeAction {
         #[arg(long)]
         reason: String,
     },
-    /// Correct one exact canonical owner used by accepted delivery evidence
+    /// Correct one or more exact canonical owners used by accepted delivery evidence
     CorrectOwner {
         /// Reopened already-applied change ID
         id: String,
-        /// Exact portable input path already covered by the original change
-        #[arg(long)]
-        path: String,
-        /// Canonical module that currently owns the exact path
+        /// Exact portable input path already covered by the original change (repeatable)
+        #[arg(long = "path")]
+        paths: Vec<String>,
+        /// Canonical module that currently owns the exact path (repeatable; one applies to all paths)
         #[arg(long = "spec")]
-        module: String,
+        modules: Vec<String>,
+        /// Manifest of path/module pairs: JSON `[{path,module}]` or TSV `path<TAB>module` lines
+        #[arg(long)]
+        manifest: Option<PathBuf>,
+        /// Discover every production-source affected path lacking canonical ownership for `--spec`
+        #[arg(long = "all-missing", default_value_t = false)]
+        all_missing: bool,
         /// Human actor authorizing the ownership correction
         #[arg(long)]
         actor: String,
@@ -876,16 +882,46 @@ mod tests {
             Some(Command::Change {
                 action: ChangeAction::CorrectOwner {
                     id,
-                    path,
-                    module,
+                    paths,
+                    modules,
+                    manifest: None,
+                    all_missing: false,
                     actor,
                     reason,
                 }
             }) if id == "CHG-0001-passkeys"
-                && path == "src/auth.rs"
-                && module == "auth"
+                && paths == ["src/auth.rs"]
+                && modules == ["auth"]
                 && actor == "Ada Reviewer"
                 && reason == "The historical manifest omitted the canonical owner"
+        ));
+        let batch = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "correct-owner",
+            "CHG-0001-passkeys",
+            "--path",
+            "src/a.rs",
+            "--path",
+            "src/b.rs",
+            "--spec",
+            "auth",
+            "--actor",
+            "Ada Reviewer",
+            "--reason",
+            "Batch omitted owners",
+        ])
+        .unwrap();
+        assert!(matches!(
+            batch.command,
+            Some(Command::Change {
+                action: ChangeAction::CorrectOwner {
+                    paths,
+                    modules,
+                    all_missing: false,
+                    ..
+                }
+            }) if paths == ["src/a.rs", "src/b.rs"] && modules == ["auth"]
         ));
         assert!(
             Cli::try_parse_from([
@@ -901,6 +937,22 @@ mod tests {
                 "Ada Reviewer",
             ])
             .is_err()
+        );
+        assert!(
+            Cli::try_parse_from([
+                "specsync",
+                "change",
+                "correct-owner",
+                "CHG-0001-passkeys",
+                "--all-missing",
+                "--spec",
+                "auth",
+                "--actor",
+                "Ada Reviewer",
+                "--reason",
+                "Discover missing owners",
+            ])
+            .is_ok()
         );
     }
 }

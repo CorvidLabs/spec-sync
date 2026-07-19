@@ -477,3 +477,18 @@ Acceptance Criteria
   signed ones.
 - No new command, state transition, or persisted evidence format is introduced.
 
+### REQ-change-039
+
+The verified lifecycle SHALL allow one transactional batch of audited exact acceptance-owner
+corrections so rollout-era gaps with many omitted owners need only one reapprove → verify → accept
+cycle, without weakening per-entry scope, ownership, or append-only sequencing rules.
+
+Acceptance Criteria
+
+- A batch may be supplied as repeated path/module pairs, a manifest file, or `--all-missing` with
+  one canonical module.
+- Every entry is validated independently against the same rules as a single `correct-owner`.
+- Each accepted entry becomes its own sequenced `AcceptanceOwnerCorrection` record.
+- If any entry is invalid, the command fails closed and persists no corrections from the batch.
+- Single-path `correct-owner` remains supported and equivalent to a one-entry batch.
+

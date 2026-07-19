@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0054-trust-accepted-change-evidence-that-is-recorded-in-main-history-by-squash-merged",
+  "slug": "trust-accepted-change-evidence-that-is-recorded-in-main-history-by-squash-merged",
+  "title": "Trust accepted-change evidence that is recorded in main history by squash-merged commits so accepted and archived changes whose verification and closing approval bytes match an in-history accepted record can be archived even when the original acceptance-transition commit was discarded by a squash merge",
+  "description": "Trust accepted-change evidence that is recorded in main history by squash-merged commits so accepted and archived changes whose verification and closing approval bytes match an in-history accepted record can be archived even when the original acceptance-transition commit was discarded by a squash merge",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "b5218aac7de501cce60f6cbbaba3b72324427ecf",
+  "created_at": 1784416236,
+  "updated_at": 1784426833,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "tests/integration/change.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "An accepted change whose acceptance evidence was refreshed while already accepted and squash-merged (no in-history first-acceptance commit carrying current bytes, and a verification commit that is not an ancestor of HEAD) archives successfully when an in-history commit records the change as accepted with byte-identical state, verification, and approvals; changes with no matching in-history accepted record still fail closed with the existing diagnostic; all four currently blocked changes (CHG-0048 musl, CHG-0051, CHG-0052, CHG-0053) archive successfully with the fixed binary; regression tests cover the squash-merged evidence path."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

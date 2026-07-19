@@ -1,6 +1,6 @@
 ---
 id: CHG-0048-add-static-x86-64-unknown-linux-musl-build-to-the-release-matrix-so-prebuilt-bin
-state: accepted
+state: archived
 type: operations
 base_commit: 4652ca1535eb65f7ba3ab0fc54b458b408fc174d
 ---

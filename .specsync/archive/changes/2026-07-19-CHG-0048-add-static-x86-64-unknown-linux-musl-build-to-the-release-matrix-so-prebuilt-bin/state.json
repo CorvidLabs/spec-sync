@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0048-add-static-x86-64-unknown-linux-musl-build-to-the-release-matrix-so-prebuilt-bin",
+  "slug": "add-static-x86-64-unknown-linux-musl-build-to-the-release-matrix-so-prebuilt-bin",
+  "title": "Add static x86_64-unknown-linux-musl build to the release matrix so prebuilt binaries run on distros with glibc older than 2.39",
+  "description": "Add static x86_64-unknown-linux-musl build to the release matrix so prebuilt binaries run on distros with glibc older than 2.39",
+  "kind": "operations",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "4652ca1535eb65f7ba3ab0fc54b458b408fc174d",
+  "created_at": 1784317519,
+  "updated_at": 1784426778,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/release.yml",
+    "site/src/content/docs/integrations/github-action.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "CI release matrix and docs table only; no canonical spec module behavior changes",
+  "acceptance_criteria": [
+    "Release workflow matrix includes an x86_64-unknown-linux-musl target producing a specsync-linux-x86_64-musl artifact with checksum through the existing artifact-name-driven packaging, upload, and release steps; the docs Available Binaries table lists the musl artifact."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

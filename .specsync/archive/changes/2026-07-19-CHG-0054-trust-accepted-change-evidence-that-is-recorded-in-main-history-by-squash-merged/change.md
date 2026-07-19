@@ -1,6 +1,6 @@
 ---
 id: CHG-0054-trust-accepted-change-evidence-that-is-recorded-in-main-history-by-squash-merged
-state: accepted
+state: archived
 type: bug_fix
 base_commit: b5218aac7de501cce60f6cbbaba3b72324427ecf
 ---

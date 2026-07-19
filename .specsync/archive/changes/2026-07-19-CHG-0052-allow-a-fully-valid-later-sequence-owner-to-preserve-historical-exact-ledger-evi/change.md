@@ -1,6 +1,6 @@
 ---
 id: CHG-0052-allow-a-fully-valid-later-sequence-owner-to-preserve-historical-exact-ledger-evi
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 5590b2cb1fc2328c5141472a47e852a7695ed0ca
 ---

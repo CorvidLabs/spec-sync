@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0053-permit-audited-reopened-collision-members-to-retain-immutable-sequence-history-s",
+  "slug": "permit-audited-reopened-collision-members-to-retain-immutable-sequence-history-s",
+  "title": "Permit audited reopened collision members to retain immutable sequence-history status during re-verification",
+  "description": "Permit audited reopened collision members to retain immutable sequence-history status during re-verification",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "b86009e41177f701d645e43a8c2bc2a367cdf37c",
+  "created_at": 1784327295,
+  "updated_at": 1784426825,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    ".specsync/change-sequence.json",
+    "specs/change/change.spec.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "An acknowledged accepted collision member can be audited-reopened and reaccepted without invalidating the collision acknowledgement",
+    "Only an already-applied verifying record with structurally valid reopen evidence retains historical collision status",
+    "Both CHG-0048 records are reopened against the integrated Action documentation, fully reverified, and reaccepted"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

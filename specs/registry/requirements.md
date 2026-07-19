@@ -47,3 +47,15 @@ Acceptance Criteria
 - TOML parsing is zero-dependency (line-by-line string parsing)
 - HTTP errors and timeouts produce clear error messages
 
+### REQ-registry-002
+
+Local registry loading SHALL treat inert 5.0.1-era empty registry stubs as absent while still failing closed on unparsable real registries.
+
+Acceptance Criteria
+
+- A local registry file with no registry `name` and no `[specs]` module mappings is classified as an inert stub and loaded as absent.
+- The characteristic 5.0.1 placeholder (`version = 1` plus an empty `[modules]` table) is inert.
+- A named registry loads successfully even when `[specs]` is empty.
+- A file that is not inert but cannot parse as a named registry fails closed through the Result-based local loader.
+- Best-effort `load_registry` continues to return `None` for missing, inert, and unparsable content.
+

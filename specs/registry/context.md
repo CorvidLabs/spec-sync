@@ -17,7 +17,7 @@ spec: registry.spec.md
 
 ## Current Status
 
-Fully implemented. Local registry generation and remote fetching both work. The `resolve` CLI command uses this module for cross-project dependency validation.
+Fully implemented. Local registry generation and remote fetching both work. The `resolve` CLI command uses this module for cross-project dependency validation. Inert 5.0.1-era stubs (no registry `name`, no `[specs]` mappings) load as absent through `load_local_registry` so module resolution can fall back to conventional paths.
 
 ## Notes
 

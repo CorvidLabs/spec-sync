@@ -507,3 +507,14 @@ Acceptance Criteria
 - `check` on an un-migrated ledger prints the `specsync migrate 5.0` remediation, not a raw
   serde error.
 
+### REQ-change-041
+
+Canonical module path resolution SHALL fall back to default `specs/<module>/<module>.spec.md` paths when the local registry file is missing or an inert stub, without weakening fail-closed behavior for invalid non-inert registries.
+
+Acceptance Criteria
+
+- An inert 5.0.1-era empty registry stub does not block `canonical_module_paths` resolution.
+- Conventional `specs/<module>/<module>.spec.md` paths remain the fallback when the registry is missing or inert and no mapping applies.
+- A non-inert unparsable local registry still fails closed with the exact pre-fix diagnostic `failed to parse local registry {path} while resolving `{module}``.
+- Named registries with safe mappings continue to win over the conventional fallback.
+

@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784483384,
+      "digest": "dc2dce095ee28f487a382f4de098e7997c9856e72df1ac43eae30de6ee3ddfcb",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784483396,
+      "digest": "a4e3c5e82927d6d2c9939738c8ebf02d2be0e0441efc55dd09678c5b5529a39b",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784484023,
+      "digest": "70a7c6ab02fc3d7d77c8e5b569b82b97d2cc5b5e05b7fc3cd53ea8771ba3490f",
+      "note": "Inert 5.0.1 registry stubs load as absent so canonical module paths fall back to conventional specs layout; non-inert unparsable registries keep the established fail-closed diagnostic."
+    }
+  ],
+  "reopenings": []
+}

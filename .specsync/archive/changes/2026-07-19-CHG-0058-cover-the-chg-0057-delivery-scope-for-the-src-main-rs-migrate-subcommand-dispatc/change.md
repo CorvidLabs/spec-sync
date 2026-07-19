@@ -1,6 +1,6 @@
 ---
 id: CHG-0058-cover-the-chg-0057-delivery-scope-for-the-src-main-rs-migrate-subcommand-dispatc
-state: accepted
+state: archived
 type: bug_fix
 base_commit: 16fc94b95ce39dcdcdf9019252e6ad7eb733deef
 ---

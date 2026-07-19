@@ -1,6 +1,6 @@
 ---
 id: CHG-0057-add-a-native-migration-path-for-5-0-1-era-change-ledgers-that-backfills-the-5-1
-state: accepted
+state: archived
 type: feature
 base_commit: 16fc94b95ce39dcdcdf9019252e6ad7eb733deef
 ---

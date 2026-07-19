@@ -2220,7 +2220,14 @@ fn production_source_lacks_canonical_owner(
     } else {
         git_regular_file_evidence(root, &candidates)?
     };
-    let owners = acceptance_input_owners(root, record, relative, &[], &evidence);
+    let owners = acceptance_input_owners(
+        root,
+        record,
+        relative,
+        &[],
+        &evidence,
+        UnownedProductionSource::Reject,
+    );
     match owners {
         Ok(owners) => Ok(owners.iter().all(|owner| owner.starts_with("@exact:"))),
         Err(error) if error.contains("without deterministic canonical ownership") => Ok(true),

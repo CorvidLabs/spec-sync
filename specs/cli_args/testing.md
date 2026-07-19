@@ -19,3 +19,5 @@ spec: cli_args.spec.md
 | `change correct-owner <id> --path <path> --spec <module> --actor <human> --reason <text>` | Parses the complete audited exact-owner correction grammar (`REQ-cli-args-005`) |
 | `change correct-owner` missing path/spec/actor/reason | Clap rejects the command before domain mutation |
 | `change correct-owner` with repeated `--path`, `--manifest`, or `--all-missing` | Parses batch selection grammar (`REQ-cli-args-006`) |
+| `migrate 5.0 [--dry-run]` | Parses the ledger backfill mode (`REQ-cli-args-007`) |
+| `migrate 9.9` | Clap rejects the unknown source family before domain mutation |

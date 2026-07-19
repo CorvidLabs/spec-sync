@@ -1568,3 +1568,99 @@ fn indirect_recursive_lifecycle_subcommands_fail_once_with_context() {
         assert!(stderr.contains("fledge run verify"));
     }
 }
+
+// Verifies REQ-cmd-migrate-002 and REQ-cli-args-007.
+#[test]
+fn migrate_5_0_backfills_reopening_digest_fields_idempotently() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let workspace = root.join(".specsync/changes/CHG-0001-adopt-trust");
+    fs::create_dir_all(&workspace).unwrap();
+    let reopening = serde_json::json!({
+        "schema_version": 1,
+        "change_id": "CHG-0001-adopt-trust",
+        "actor": "0xLeif",
+        "reason": "5.0.1-era reopen",
+        "timestamp": 100,
+        "from_state": "accepted",
+        "to_state": "verifying",
+        "superseded_approval": {
+            "gate": "acceptance",
+            "actor": "0xLeif",
+            "timestamp": 90,
+            "digest": "aaa",
+            "note": null
+        },
+        "prior_verification": {
+            "timestamp": 80,
+            "commit": null,
+            "contract_digest": "ccc",
+            "workspace_digest": "www",
+            "acceptance_input_digest": "stale-digest-aaa",
+            "passed": true,
+            "commands": [],
+            "requirement_ids": []
+        }
+    });
+    let ledger = serde_json::json!({
+        "approvals": [],
+        "reopenings": [reopening]
+    });
+    let approvals_path = workspace.join("approvals.json");
+    fs::write(
+        &approvals_path,
+        format!("{}\n", serde_json::to_string_pretty(&ledger).unwrap()),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("verification.json"),
+        "{\n  \"timestamp\": 200,\n  \"commit\": null,\n  \"contract_digest\": \"ccc\",\n  \"workspace_digest\": \"www\",\n  \"acceptance_input_digest\": \"current-digest-bbb\",\n  \"passed\": true,\n  \"commands\": [],\n  \"requirement_ids\": []\n}\n",
+    )
+    .unwrap();
+
+    // Unknown source families fail through deterministic Clap validation before any mutation.
+    specsync()
+        .args(["migrate", "9.9"])
+        .current_dir(root)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("invalid value"));
+
+    // Dry run reports the repair without writing.
+    let before = fs::read(&approvals_path).unwrap();
+    specsync()
+        .args(["migrate", "5.0", "--dry-run"])
+        .current_dir(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("would be backfilled"));
+    assert_eq!(fs::read(&approvals_path).unwrap(), before);
+
+    // The write restores exactly the recorded evidence.
+    specsync()
+        .args(["migrate", "5.0"])
+        .current_dir(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("backfilled"));
+    let repaired: Value =
+        serde_json::from_str(&fs::read_to_string(&approvals_path).unwrap()).unwrap();
+    assert_eq!(
+        repaired["reopenings"][0]["stale_acceptance_input_digest"],
+        "stale-digest-aaa"
+    );
+    assert_eq!(
+        repaired["reopenings"][0]["current_acceptance_input_digest"],
+        "current-digest-bbb"
+    );
+
+    // A second run is a no-op.
+    let before = fs::read(&approvals_path).unwrap();
+    specsync()
+        .args(["migrate", "5.0"])
+        .current_dir(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("nothing to migrate"));
+    assert_eq!(fs::read(&approvals_path).unwrap(), before);
+}

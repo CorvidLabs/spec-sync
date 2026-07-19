@@ -1,0 +1,168 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784438382,
+      "digest": "d0d6ffcf798ca2288c2abd5bbff652bafd00069dc4a5700dab8a73b6c0cbeb72",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784439223,
+      "digest": "a6954e999d1033ed21f34133f17e4fbd6b307f04a257c41c561d579e871eebf0",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784439829,
+      "digest": "d02732f05e584ba75e9bc3f2b78b428d7de7e3867be55518ea1d0df3340e7e36",
+      "note": "Declare delivery-scope ownership of src/main.rs (cli-owned) and tests/integration/change.rs for the CHG-0057 delivery."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784477646,
+      "digest": "6b1609568040514588509185db2afd70c639225a2471a3242dc67fb175271ba9",
+      "note": "Reaccepted after merging origin/main with migrate backfill on the reconciled canonical contract."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0058-cover-the-chg-0057-delivery-scope-for-the-src-main-rs-migrate-subcommand-dispatc",
+      "actor": "0xLeif",
+      "reason": "Merged origin/main (#403 batch correct-owner) into migrate backfill branch; re-verifying accepted evidence against the reconciled canonical contract.",
+      "timestamp": 1784475505,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784439829,
+        "digest": "d02732f05e584ba75e9bc3f2b78b428d7de7e3867be55518ea1d0df3340e7e36",
+        "note": "Declare delivery-scope ownership of src/main.rs (cli-owned) and tests/integration/change.rs for the CHG-0057 delivery."
+      },
+      "prior_verification": {
+        "timestamp": 1784439819,
+        "commit": "16fc94b95ce39dcdcdf9019252e6ad7eb733deef",
+        "contract_digest": "a6954e999d1033ed21f34133f17e4fbd6b307f04a257c41c561d579e871eebf0",
+        "workspace_digest": "c311f810d1f99037c5b9cdac7cd984676d61f5cc54a8434b663c9c9b4d2a358d",
+        "acceptance_input_digest": "7a50fa851aa86f2ed8a14ff3e16d0a61a18adeb5dc7dd0f6a4f9419e1372b04c",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "efa92c2194d05c3c3b709e7f6ed484d708985701bd7cce94ce70153afe2c6d2c",
+              "entry_digest": "b2b6670f0c763e1d365e0216b8b7fb5a4e275a82cfbe6c1517183143c0a6b393",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/cli/cli.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "493d2d7cc0770a60b9a6bd520548def4744d26d79a59395579e99f4e2e5fb571",
+              "entry_digest": "889afcd35355062178271f939c917b11b75b854055cf28f24b482077a6868e02",
+              "owners": [
+                "cli"
+              ]
+            },
+            {
+              "path": "specs/cli/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "9fe650adf59e5810af601555fb71a7f0286de3ab8e5459a28de6b1f1c7687ec0",
+              "entry_digest": "74473df52f1c3f22b2908a17608438dd73a5b0dc5ac1c29908ac539065f92b8e",
+              "owners": [
+                "cli"
+              ]
+            },
+            {
+              "path": "specs/cli/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "36e5338b4acd67c51bb514104adc5aecc1b944c523dd0ea8b5b3ad62f67423d7",
+              "entry_digest": "e007a73035ed8e81f9d9be81b7f4be4586b1453e8dee334177bba633cdd00959",
+              "owners": [
+                "cli"
+              ]
+            },
+            {
+              "path": "specs/cli/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "1f8c2043e48089876b13f05a6fb3ec3c86c24859f77c5195a099bf36478b0fd6",
+              "entry_digest": "8a8285e2cfb8bf4befa25425ebc29a313e3740e611068a9d86260c46152ec81c",
+              "owners": [
+                "cli"
+              ]
+            },
+            {
+              "path": "specs/cli/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "3267318902a1db394b7b9e9d2a7668f8c8eea694e7f056f024e498ee2e7a2579",
+              "entry_digest": "fa704a470c029eff3610bd448d98ec24f40c77b28593ec4421555abbdf186048",
+              "owners": [
+                "cli"
+              ]
+            },
+            {
+              "path": "src/main.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "1e14173c1758a42666f1a7a8f20f206218af0ded9cecda177812e53e7d2b1e6c",
+              "entry_digest": "3a69f6e05dc9034073d27613e4ffce76af98ef8339822146050a3bf5b3cfbbd7",
+              "owners": [
+                "cli"
+              ]
+            },
+            {
+              "path": "tests/integration/change.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "bb9725638f2cf47fc7fdec5942f247a989e5195e942ee89227a6951b8b0d6bfa",
+              "entry_digest": "3947e722a0e8a58261e0cff8f8039ba90b58723723124a5f89c8292b55e84c10",
+              "owners": [
+                "@exact:test"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "ruby --version",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-release-version.py",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "7a50fa851aa86f2ed8a14ff3e16d0a61a18adeb5dc7dd0f6a4f9419e1372b04c",
+      "current_acceptance_input_digest": "430be585d1a30331b3785700c5015c8ade50c11b9f2d1c956439b3cc0d3a3cb7"
+    }
+  ]
+}

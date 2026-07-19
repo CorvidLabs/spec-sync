@@ -6,6 +6,7 @@ use std::process;
 use std::sync::LazyLock;
 use std::time::SystemTime;
 
+use crate::change;
 use crate::config;
 use crate::parser;
 use crate::types::OutputFormat;
@@ -954,7 +955,97 @@ fn preflight_config_lossless(root: &Path) -> Result<(), Vec<(String, Vec<String>
 
 // ─── Main command ───────────────────────────────────────────────────────────
 
-pub fn cmd_migrate(root: &Path, format: OutputFormat, dry_run: bool, no_backup: bool) {
+/// Backfill 5.1 reopening digest fields on a 5.0.1-era change ledger (`specsync migrate 5.0`).
+/// Idempotent and verification-gated; exits non-zero when any change cannot be repaired.
+fn cmd_migrate_ledger(root: &Path, format: OutputFormat, from: &str, dry_run: bool) {
+    debug_assert_eq!(from, "5.0");
+    match change::backfill_reopen_digests(root, dry_run) {
+        Ok(report) => {
+            let clean = report.is_clean();
+            match format {
+                OutputFormat::Json => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "status": if clean { "ok" } else { "error" },
+                            "mode": from,
+                            "dry_run": report.dry_run,
+                            "repaired": report.repaired,
+                            "unchanged": report.unchanged,
+                            "failed": report.failed.iter().map(|(id, reason)| {
+                                serde_json::json!({ "change": id, "reason": reason })
+                            }).collect::<Vec<_>>(),
+                        }))
+                        .unwrap()
+                    );
+                }
+                _ => {
+                    if dry_run {
+                        println!(
+                            "\n{} {} Ledger migration dry run — no files will be modified\n",
+                            "specsync migrate 5.0".bold(),
+                            "(dry-run)".dimmed()
+                        );
+                    }
+                    for id in &report.repaired {
+                        println!(
+                            "  {} {id}: reopening digest fields {}",
+                            "✓".green(),
+                            if dry_run {
+                                "would be backfilled"
+                            } else {
+                                "backfilled"
+                            }
+                        );
+                    }
+                    for (id, reason) in &report.failed {
+                        eprintln!("  {} {id}: {reason}", "✗".red());
+                    }
+                    if report.repaired.is_empty() && report.failed.is_empty() {
+                        println!(
+                            "{} Ledger already current — nothing to migrate ({} change(s) unchanged).",
+                            "✓".green(),
+                            report.unchanged.len()
+                        );
+                    }
+                }
+            }
+            if !clean {
+                process::exit(1);
+            }
+        }
+        Err(error) => {
+            match format {
+                OutputFormat::Json => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "status": "error",
+                            "mode": from,
+                            "error": error,
+                        }))
+                        .unwrap()
+                    );
+                }
+                _ => eprintln!("{} Cannot migrate ledger: {error}", "✗".red()),
+            }
+            process::exit(1);
+        }
+    }
+}
+
+pub fn cmd_migrate(
+    root: &Path,
+    format: OutputFormat,
+    from: Option<String>,
+    dry_run: bool,
+    no_backup: bool,
+) {
+    if let Some(from) = from {
+        // The CLI grammar only accepts `5.0`; route the ledger backfill and never touch the
+        // v3→v4 pipeline.
+        return cmd_migrate_ledger(root, format, &from, dry_run);
+    }
     // Discover spec files
     let spec_files = discover_specs(root);
 

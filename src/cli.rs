@@ -276,8 +276,11 @@ pub enum Command {
     },
     /// Regenerate the hash cache for all specs (useful after git pull or manual edits)
     Rehash,
-    /// Migrate a spec-sync project from v3.x to v4.0.0
+    /// Migrate a spec-sync project from v3.x to v4.0.0, or backfill a 5.0.1-era change ledger
     Migrate {
+        /// Source schema family to migrate from (`5.0` backfills 5.0.1-era reopening digests)
+        #[arg(value_name = "FROM", value_parser = ["5.0"])]
+        from: Option<String>,
         /// Preview migration without writing any files
         #[arg(long)]
         dry_run: bool,

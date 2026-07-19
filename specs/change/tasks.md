@@ -35,3 +35,4 @@ spec: change.spec.md
 - [x] Trust squash-merged accepted evidence recorded in main history for archival
 - [x] Repair adoption-era archived ledgers by assigning exact delivery ownership during legacy manifest reconstruction
 - [x] Add transactional batch mode for exact acceptance-owner corrections
+- [x] Add native 5.0→5.1 change-ledger migration with idempotent reopening digest backfill

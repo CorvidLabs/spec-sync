@@ -1,6 +1,6 @@
 ---
 module: change
-version: 41
+version: 42
 status: active
 files:
   - src/change.rs
@@ -64,6 +64,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `DefinitionApprovalPairV1` | Versioned pair identity, projection, role, change/correction coordinates, event index, and both digests |
 | `ReopenRecord` | Immutable audit event preserving superseded closing approval, prior verification, actor, reason, transition, and stale/current input digests |
 | `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
+| `ReopenBackfillReport` | Per-change repair, skip, and failure detail for a `migrate 5.0` ledger backfill |
 | `CorrectionField` | Closed supported accepted-metadata field set: public contract and architecture risk |
 | `CorrectionRecord` | Immutable sequenced metadata correction with original/effective values, actor, reason, artifacts, prior evidence, and portable digest chain |
 | `EffectiveChangeDefinition` | Validated projection of original answers/artifacts plus ordered corrections |
@@ -109,6 +110,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `correction_history` | `root, record` | `Result<Vec<CorrectionRecord>, String>` | Load validated append-only correction records for inspection clients |
 | `accept_change` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Record closing approval and atomically apply semantic deltas only when not already canonical |
 | `archive_change` | `root, id` | `Result<PathBuf, String>` | Move an accepted workspace into the dated archive |
+| `backfill_reopen_digests` | `root: &Path, dry_run: bool` | `Result<ReopenBackfillReport, String>` | Backfill 5.1 reopening digest fields on 5.0.1-era ledgers with verified, idempotent, dry-run-aware writes |
 | `summarize_change` | `root, record` | `ChangeSummary` | Project gate health, correction health, and next action using the shared verification-freshness predicate |
 | `check_project` | `root: &Path` | `SddCheckReport` | Validate lifecycle state, approvals, corrections, conflicts, deltas, path coverage, and shared verification freshness |
 | `check_project_quiet` | `root: &Path` | `SddCheckReport` | Run the same fail-closed lifecycle check while suppressing configured command output for machine-consumable report protocols |
@@ -122,6 +124,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `as_str` | Return the stable serialized name for a change state, kind, or correction field |
 | `parse` | Parse user-facing change-kind, artifact, or supported correction-field names into typed values |
 | `file_name` | Resolve an adaptive artifact to its safe Markdown filename |
+| `is_clean` | Return true when a ledger backfill recorded no per-change failures |
 
 Acceptance Criteria
 
@@ -160,6 +163,7 @@ Acceptance Criteria
 26. Accepted-change archival trusts an in-history commit recording the change as accepted with byte-identical evidence when no first-acceptance transition anchor matches, so squash-merged evidence remains archivable while the exactly-one-eligible rule stays fail-closed.
 27. Legacy acceptance-manifest reconstruction assigns the exact delivery owner to production-source inputs with no deterministic canonical owner, so adoption-era archived ledgers validate without remediation while newly signed evidence stays fail-closed.
 28. Batch exact-owner correction validates every proposed path/module pair independently and fails closed with zero persisted mutations when any entry is invalid.
+29. The 5.0 ledger migration backfills reopening digest fields idempotently from recorded evidence only, verifies each repair before writing, and never mutates ledgers it cannot repair deterministically.
 
 ## Behavioral Examples
 
@@ -273,3 +277,4 @@ Acceptance Criteria
 | 2026-07-18 | CHG-0054-trust-accepted-change-evidence-that-is-recorded-in-main-history-by-squash-merged: Trust accepted-change evidence that is recorded in main history by squash-merged commits so accepted and archived changes whose verification and closing approval bytes match an in-history accepted record can be archived even when the original acceptance-transition commit was discarded by a squash merge |
 | 2026-07-19 | CHG-0056-repair-archived-legacy-change-ledgers-whose-acceptance-inputs-include-production: Repair archived legacy change ledgers whose acceptance inputs include production source with no canonical owner by resolving unowned production source to the exact delivery owner during legacy acceptance-manifest reconstruction, so adoption-era archived records validate under current rules without per-repo remediation |
 | 2026-07-19 | CHG-0055-batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c: Batch mode for change correct-owner so multiple omitted exact canonical owners can be audited and appended in one transactional correction before a single reapprove-verify-accept cycle |
+| 2026-07-19 | CHG-0057-add-a-native-migration-path-for-5-0-1-era-change-ledgers-that-backfills-the-5-1: Add a native migration path for 5.0.1-era change ledgers that backfills the 5.1 reopening stale and current acceptance-input digest fields idempotently with a closing-digest verification pass, and surfaces an actionable migrate hint when check encounters the 5.0.1 reopening schema |

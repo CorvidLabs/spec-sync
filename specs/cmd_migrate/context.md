@@ -46,3 +46,4 @@ Rust's edition migration is the gold standard: automatic, non-interactive, test-
 Implemented, shipped, and marked `status: stable`. The full v3→v4 flow is covered by integration tests, and
 `apply_create_directories` has dedicated unit tests. Remaining work is expanding unit coverage to the other `apply_*`
 steps.
+`migrate 5.0` routes to a ledger backfill (`change::backfill_reopen_digests`) independent of the v3→v4 pipeline: idempotent, dry-run-aware, verification-gated reopening digest repair across active and archived changes.

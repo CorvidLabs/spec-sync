@@ -2,10 +2,10 @@
   "schema_version": 1,
   "attempts": [
     {
-      "timestamp": 1784429618,
-      "commit": "37120cb60407efed08b4868858e76fb847d1ee9d",
-      "contract_digest": "447b14eb5dd863babe3777513aaef172d677c31d15f9134c64d2bf5fd688b2c9",
-      "workspace_digest": "6705c07c94cccba98953080490b1498691d8b8aeb017fece34de02dd563e7deb",
+      "timestamp": 1784437959,
+      "commit": "16fc94b95ce39dcdcdf9019252e6ad7eb733deef",
+      "contract_digest": "2be5ff31699e4ae22e698271425793eff85a822ebb62a8624a457bbb0ac4f438",
+      "workspace_digest": "de3b118393c8feec4531a16e5920fe23dc0a81e9383674e2f26f80aef42ec2d3",
       "passed": true,
       "commands": [
         {
@@ -30,45 +30,15 @@
         }
       ],
       "requirement_ids": [
-        "REQ-change-038"
+        "REQ-change-040",
+        "REQ-cli-args-007",
+        "REQ-cmd-migrate-002"
       ]
     },
     {
-      "timestamp": 1784440693,
-      "commit": "1c341c9753a73e14b7da71f98b7bc07f806273b5",
-      "contract_digest": "447b14eb5dd863babe3777513aaef172d677c31d15f9134c64d2bf5fd688b2c9",
-      "workspace_digest": "c311f810d1f99037c5b9cdac7cd984676d61f5cc54a8434b663c9c9b4d2a358d",
-      "passed": true,
-      "commands": [
-        {
-          "command": "ruby --version",
-          "success": true,
-          "exit_code": 0
-        },
-        {
-          "command": "cargo test",
-          "success": true,
-          "exit_code": 0
-        },
-        {
-          "command": "python3 -S .github/scripts/validate-release-version.py",
-          "success": true,
-          "exit_code": 0
-        },
-        {
-          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
-          "success": true,
-          "exit_code": 0
-        }
-      ],
-      "requirement_ids": [
-        "REQ-change-038"
-      ]
-    },
-    {
-      "timestamp": 1784476565,
+      "timestamp": 1784477102,
       "commit": "3e0c04922e0224a80a56605dc112907cc2deef75",
-      "contract_digest": "447b14eb5dd863babe3777513aaef172d677c31d15f9134c64d2bf5fd688b2c9",
+      "contract_digest": "2be5ff31699e4ae22e698271425793eff85a822ebb62a8624a457bbb0ac4f438",
       "workspace_digest": "4b117689f5db1cbd33e9cd2936f98d290d19ef04ba156de1702518e3f403fbe2",
       "passed": true,
       "commands": [
@@ -94,7 +64,9 @@
         }
       ],
       "requirement_ids": [
-        "REQ-change-038"
+        "REQ-change-040",
+        "REQ-cli-args-007",
+        "REQ-cmd-migrate-002"
       ]
     }
   ]

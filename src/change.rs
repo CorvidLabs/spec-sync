@@ -1847,6 +1847,204 @@ pub fn reopen_change(
     })
 }
 
+/// Outcome of a `migrate 5.0` ledger backfill: per-change repair, skip, and failure detail.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct ReopenBackfillReport {
+    pub dry_run: bool,
+    pub repaired: Vec<String>,
+    pub unchanged: Vec<String>,
+    pub failed: Vec<(String, String)>,
+}
+
+impl ReopenBackfillReport {
+    pub fn is_clean(&self) -> bool {
+        self.failed.is_empty()
+    }
+}
+
+/// Backfill the 5.1 reopening digest fields (`stale_acceptance_input_digest` /
+/// `current_acceptance_input_digest`) on 5.0.1-era change ledgers. The repair is deterministic
+/// and idempotent: `stale` always reproduces the embedded prior verification's signed digest,
+/// and `current` comes from the superseding verification's signed digest when one exists, else
+/// from a live recomputation over the current inputs. Repaired ledgers must re-parse and
+/// re-validate before the write lands; a reopening that cannot be repaired deterministically
+/// fails its change without mutating that ledger while other changes still migrate.
+pub fn backfill_reopen_digests(root: &Path, dry_run: bool) -> Result<ReopenBackfillReport, String> {
+    let mut report = ReopenBackfillReport {
+        dry_run,
+        ..Default::default()
+    };
+    for workspace in change_workspaces_for_backfill(root)? {
+        let approvals_path = workspace.join("approvals.json");
+        let Ok(content) = fs::read_to_string(&approvals_path) else {
+            continue;
+        };
+        let id = workspace
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| workspace.display().to_string());
+        if serde_json::from_str::<ApprovalLedger>(&content).is_ok() {
+            report.unchanged.push(id);
+            continue;
+        }
+        match backfill_change_ledger(root, &workspace, &content, dry_run)? {
+            Ok(true) => report.repaired.push(id),
+            Ok(false) => report.unchanged.push(id),
+            Err(reason) => report.failed.push((id, reason)),
+        }
+    }
+    report.repaired.sort();
+    report.unchanged.sort();
+    report.failed.sort();
+    Ok(report)
+}
+
+fn change_workspaces_for_backfill(root: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut workspaces = Vec::new();
+    for base in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
+        let Ok(entries) = fs::read_dir(&base) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                workspaces.push(path);
+            }
+        }
+    }
+    workspaces.sort();
+    Ok(workspaces)
+}
+
+/// Repairs one change's `approvals.json`, returning `Ok(true)` when reopenings were backfilled,
+/// `Ok(false)` when nothing needed repair, or `Err(reason)` when a reopening cannot be repaired
+/// deterministically. On `Err` or verification failure the ledger is left byte-identical.
+fn backfill_change_ledger(
+    root: &Path,
+    workspace: &Path,
+    content: &str,
+    dry_run: bool,
+) -> Result<Result<bool, String>, String> {
+    let mut ledger: serde_json::Value = match serde_json::from_str(content) {
+        Ok(ledger) => ledger,
+        Err(error) => return Ok(Err(format!("approvals ledger is not valid JSON: {error}"))),
+    };
+    let Some(reopenings) = ledger
+        .get_mut("reopenings")
+        .and_then(serde_json::Value::as_array_mut)
+    else {
+        return Ok(Ok(false));
+    };
+    let mut repaired = false;
+    for reopening in reopenings.iter_mut() {
+        let has_stale = reopening
+            .get("stale_acceptance_input_digest")
+            .and_then(serde_json::Value::as_str)
+            .is_some();
+        let has_current = reopening
+            .get("current_acceptance_input_digest")
+            .and_then(serde_json::Value::as_str)
+            .is_some();
+        if has_stale && has_current {
+            continue;
+        }
+        let Some(stale) = reopening
+            .get("prior_verification")
+            .and_then(|verification| verification.get("acceptance_input_digest"))
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string)
+        else {
+            return Ok(Err(
+                "reopening is missing its embedded prior verification acceptance-input digest"
+                    .into(),
+            ));
+        };
+        let reopen_timestamp = reopening
+            .get("timestamp")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or_default();
+        let current = match superseding_acceptance_digest(workspace, reopen_timestamp)? {
+            Some(digest) => digest,
+            None => match live_acceptance_digest(root, workspace) {
+                Ok(digest) => digest,
+                Err(error) => {
+                    return Ok(Err(format!(
+                        "cannot recompute a current acceptance-input digest: {error}"
+                    )));
+                }
+            },
+        };
+        if stale == current {
+            return Ok(Err(
+                "repaired digests are identical; the recorded drift cannot be proven".into(),
+            ));
+        }
+        reopening["stale_acceptance_input_digest"] = serde_json::Value::String(stale);
+        reopening["current_acceptance_input_digest"] = serde_json::Value::String(current);
+        repaired = true;
+    }
+    if !repaired {
+        return Ok(Ok(false));
+    }
+    let bytes = serde_json::to_vec_pretty(&ledger)
+        .map_err(|error| format!("failed to encode repaired approvals ledger: {error}"))?;
+    if let Err(error) = serde_json::from_slice::<ApprovalLedger>(&bytes) {
+        return Ok(Err(format!(
+            "repaired approvals ledger failed 5.1 schema verification: {error}"
+        )));
+    }
+    if !dry_run {
+        let mut bytes = bytes;
+        bytes.push(b'\n');
+        fs::write(workspace.join("approvals.json"), bytes)
+            .map_err(|error| format!("failed to write repaired approvals ledger: {error}"))?;
+    }
+    Ok(Ok(true))
+}
+
+/// Returns the signed acceptance-input digest of the change's current verification record when
+/// it supersedes the reopening (recorded after it), matching the rollout-proven repair.
+fn superseding_acceptance_digest(
+    workspace: &Path,
+    reopen_timestamp: u64,
+) -> Result<Option<String>, String> {
+    let verification_path = workspace.join("verification.json");
+    let Ok(content) = fs::read_to_string(&verification_path) else {
+        return Ok(None);
+    };
+    let verification: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|error| format!("verification evidence is not valid JSON: {error}"))?;
+    let timestamp = verification
+        .get("timestamp")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or_default();
+    if timestamp < reopen_timestamp {
+        return Ok(None);
+    }
+    Ok(verification
+        .get("acceptance_input_digest")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string))
+}
+
+/// Recomputes the acceptance-input digest for a change that has no superseding verification,
+/// using the same manifest-aware path as the 5.1 reopen flow.
+fn live_acceptance_digest(root: &Path, workspace: &Path) -> Result<String, String> {
+    let state: ChangeRecord = serde_json::from_str(
+        &fs::read_to_string(workspace.join("state.json"))
+            .map_err(|error| format!("failed to read change state: {error}"))?,
+    )
+    .map_err(|error| format!("change state is not valid: {error}"))?;
+    let record = load_change(root, &state.id)?;
+    let verification = load_verification(root, &record)?;
+    if let Some(manifest) = &verification.acceptance_manifest {
+        let current = acceptance_manifest_with_signed_owners(root, &record, &[], manifest)?;
+        acceptance_manifest_digest(&current)
+    } else {
+        acceptance_input_digest(root, &record, &[])
+    }
+}
+
 fn validate_acceptance_owner_correction_records(record: &ChangeRecord) -> Result<(), String> {
     if record.acceptance_owner_corrections.len() > MAX_ACCEPTANCE_OWNERS {
         return Err(format!(
@@ -10243,7 +10441,16 @@ fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
 fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, String> {
     let path = find_change_dir(root, &record.id)?.join("approvals.json");
     let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-    serde_json::from_str(&content).map_err(|error| error.to_string())
+    serde_json::from_str(&content).map_err(|error| {
+        let message = error.to_string();
+        if message.contains("missing field `stale_acceptance_input_digest`")
+            || message.contains("missing field `current_acceptance_input_digest`")
+        {
+            format!("{message}; run `specsync migrate 5.0` to backfill 5.0.1-era reopening records")
+        } else {
+            message
+        }
+    })
 }
 
 fn load_verification(root: &Path, record: &ChangeRecord) -> Result<VerificationRecord, String> {
@@ -14106,6 +14313,139 @@ mod tests {
                 .find(|entry| entry.path == "src/lib.rs")
                 .is_some_and(|entry| entry.owners == ["change".to_string()])
         );
+    }
+
+    /// Builds an accepted change with one reacceptance reopening in its approvals ledger, then
+    /// strips the 5.1 digest fields from that reopening to reproduce a 5.0.1-era ledger.
+    fn reopening_ledger_without_digest_fields(root: &Path) -> ChangeRecord {
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "The governed source drifted after acceptance".into(),
+        )
+        .unwrap()
+        .change;
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        let mut ledger: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&approvals_path).unwrap()).unwrap();
+        for reopening in ledger["reopenings"].as_array_mut().unwrap() {
+            reopening
+                .as_object_mut()
+                .unwrap()
+                .remove("stale_acceptance_input_digest");
+            reopening
+                .as_object_mut()
+                .unwrap()
+                .remove("current_acceptance_input_digest");
+        }
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&ledger).unwrap()),
+        )
+        .unwrap();
+        record
+    }
+
+    #[test]
+    fn backfill_repairs_5_0_1_reopening_idempotently() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = reopening_ledger_without_digest_fields(root);
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+
+        // The un-migrated ledger fails to parse, and the failure carries the migrate hint.
+        let error = load_approvals(root, &record).unwrap_err();
+        assert!(
+            error.contains("missing field `stale_acceptance_input_digest`"),
+            "{error}"
+        );
+        assert!(error.contains("specsync migrate 5.0"), "{error}");
+
+        // Dry run reports the repair without writing.
+        let before = fs::read(&approvals_path).unwrap();
+        let report = backfill_reopen_digests(root, true).unwrap();
+        assert_eq!(report.repaired, vec![record.id.clone()]);
+        assert!(report.failed.is_empty());
+        assert_eq!(fs::read(&approvals_path).unwrap(), before);
+
+        // The write restores exactly the recorded evidence.
+        let report = backfill_reopen_digests(root, false).unwrap();
+        assert_eq!(report.repaired, vec![record.id.clone()]);
+        assert!(report.is_clean());
+        let ledger = load_approvals(root, &record).unwrap();
+        let reopening = ledger.reopenings.last().unwrap();
+        assert_eq!(
+            reopening.stale_acceptance_input_digest,
+            reopening
+                .prior_verification
+                .acceptance_input_digest
+                .clone()
+                .unwrap()
+        );
+        let superseding = load_verification(root, &record).unwrap();
+        assert_eq!(
+            reopening.current_acceptance_input_digest,
+            superseding.acceptance_input_digest.unwrap()
+        );
+        assert_ne!(
+            reopening.stale_acceptance_input_digest,
+            reopening.current_acceptance_input_digest
+        );
+
+        // A second run is a no-op.
+        let before = fs::read(&approvals_path).unwrap();
+        let report = backfill_reopen_digests(root, false).unwrap();
+        assert!(report.repaired.is_empty());
+        assert_eq!(report.unchanged, vec![record.id.clone()]);
+        assert_eq!(fs::read(&approvals_path).unwrap(), before);
+    }
+
+    #[test]
+    fn backfill_leaves_unrepairable_reopening_untouched() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = reopening_ledger_without_digest_fields(root);
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        let mut ledger: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&approvals_path).unwrap()).unwrap();
+        ledger["reopenings"][0]
+            .as_object_mut()
+            .unwrap()
+            .get_mut("prior_verification")
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .remove("acceptance_input_digest");
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&ledger).unwrap()),
+        )
+        .unwrap();
+        let before = fs::read(&approvals_path).unwrap();
+        let report = backfill_reopen_digests(root, false).unwrap();
+        assert!(report.repaired.is_empty());
+        assert_eq!(report.failed.len(), 1);
+        assert!(
+            report.failed[0]
+                .1
+                .contains("missing its embedded prior verification"),
+            "{:?}",
+            report.failed
+        );
+        assert_eq!(fs::read(&approvals_path).unwrap(), before);
     }
 
     #[test]

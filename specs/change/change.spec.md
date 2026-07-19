@@ -1,6 +1,6 @@
 ---
 module: change
-version: 42
+version: 43
 status: active
 files:
   - src/change.rs
@@ -164,38 +164,45 @@ Acceptance Criteria
 27. Legacy acceptance-manifest reconstruction assigns the exact delivery owner to production-source inputs with no deterministic canonical owner, so adoption-era archived ledgers validate without remediation while newly signed evidence stays fail-closed.
 28. Batch exact-owner correction validates every proposed path/module pair independently and fails closed with zero persisted mutations when any entry is invalid.
 29. The 5.0 ledger migration backfills reopening digest fields idempotently from recorded evidence only, verifies each repair before writing, and never mutates ledgers it cannot repair deterministically.
+30. Canonical module path resolution treats missing and inert local registries as absent fallbacks while non-inert unparsable registries still fail closed with the established parse diagnostic.
 
 ## Behavioral Examples
 
-### Scenario: Verified feature delivery
+**Scenario: Verified feature delivery**
 
 - **Given** an approved feature with `REQ-auth-001`, completed artifacts, and configured tests
 - **When** implementation verifies and a human accepts it
 - **Then** canonical requirements/specs update, the spec version increments, and the change becomes accepted
 
-### Scenario: Approved intent changes
+**Scenario: Approved intent changes**
 
 - **Given** a valid definition approval
 - **When** a selected design, requirement, or delta is edited
 - **Then** progress is blocked until the new digest is approved
 
-### Scenario: Feature branch rebases onto upstream
+**Scenario: Feature branch rebases onto upstream**
 
 - **Given** a change workspace created before new commits landed on the remote default branch
 - **When** the feature branch rebases and unified checking computes meaningful changed paths
 - **Then** upstream-only paths are excluded and only the feature branch diff requires change coverage
 
-### Scenario: Review fixes stale accepted evidence
+**Scenario: Review fixes stale accepted evidence**
 
 - **Given** an accepted change whose governed delivery inputs changed after closing approval
 - **When** a human reopens it with an actor and reason
 - **Then** the prior verification and closing approval remain in audit history, strict checking stays red until fresh verification, and reacceptance records a new closing approval without reapplying canonical deltas
 
-### Scenario: Persisted verification evidence
+**Scenario: Persisted verification evidence**
 
 - **Given** a supported verification run passed on the current commit
 - **When** one or more descendant commits persist only its canonical state, verification, and attempt-ledger files
 - **Then** local status, local strict checking, and hosted checking all keep the evidence current while matching contract and project-input digests remain mandatory
+
+**Scenario: Inert registry stub falls back to conventional paths**
+
+- **Given** a project with an inert 5.0.1-era `.specsync/registry.toml` stub and a conventional `specs/auth/auth.spec.md`
+- **When** semantic preparation resolves module `auth`
+- **Then** resolution succeeds via the conventional path without requiring a registry name
 
 ## Error Cases
 
@@ -213,6 +220,7 @@ Acceptance Criteria
 | Covered delivery input of an accepted change changes with no covering accepted successor | Unified check names the input path, its owner, and the `change reopen` remediation |
 | Covered delivery input changes while every covering successor is itself stale | Unified check names the input, the sorted covering successor IDs, and their stale evidence state |
 | Covered delivery input disappears from the current inventory | Unified check names the missing path and the restore-or-reopen remediation |
+| Non-inert local registry cannot be parsed while resolving a module | Canonical path resolution fails closed with `failed to parse local registry {path} while resolving `{module}`` |
 
 ## Dependencies
 
@@ -278,3 +286,4 @@ Acceptance Criteria
 | 2026-07-19 | CHG-0056-repair-archived-legacy-change-ledgers-whose-acceptance-inputs-include-production: Repair archived legacy change ledgers whose acceptance inputs include production source with no canonical owner by resolving unowned production source to the exact delivery owner during legacy acceptance-manifest reconstruction, so adoption-era archived records validate under current rules without per-repo remediation |
 | 2026-07-19 | CHG-0055-batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c: Batch mode for change correct-owner so multiple omitted exact canonical owners can be audited and appended in one transactional correction before a single reapprove-verify-accept cycle |
 | 2026-07-19 | CHG-0057-add-a-native-migration-path-for-5-0-1-era-change-ledgers-that-backfills-the-5-1: Add a native migration path for 5.0.1-era change ledgers that backfills the 5.1 reopening stale and current acceptance-input digest fields idempotently with a closing-digest verification pass, and surfaces an actionable migrate hint when check encounters the 5.0.1 reopening schema |
+| 2026-07-19 | CHG-0059-tolerate-inert-5-0-1-registry-toml-stubs-so-module-resolution-falls-back-to-defa: Tolerate inert 5.0.1 registry.toml stubs so module resolution falls back to default specs layout without failing closed on empty legacy stubs |

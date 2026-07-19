@@ -5160,20 +5160,19 @@ fn canonical_module_paths(
     module: &str,
 ) -> Result<(PathBuf, PathBuf), String> {
     let registry_path = crate::registry::local_registry_path(root);
-    let registered = if registry_path.exists() {
-        let registry = crate::registry::load_registry(root).ok_or_else(|| {
-            format!(
-                "failed to parse local registry {} while resolving `{module}`",
-                registry_path.display()
-            )
-        })?;
-        registry
+    let registered = match crate::registry::load_local_registry(root) {
+        Ok(Some(registry)) => registry
             .specs
             .iter()
             .find(|(registered_module, _)| registered_module == module)
-            .map(|(_, path)| path.clone())
-    } else {
-        None
+            .map(|(_, path)| path.clone()),
+        Ok(None) => None,
+        Err(_) => {
+            return Err(format!(
+                "failed to parse local registry {} while resolving `{module}`",
+                registry_path.display()
+            ));
+        }
     };
     let spec_path = if let Some(path) = registered {
         safe_project_path(root, &path).map_err(|error| {
@@ -20296,6 +20295,84 @@ mod tests {
         let mut effective_record = record;
         effective_record.state = ChangeState::Approved;
         assert!(validate_effective_contracts(root, &[effective_record]).is_ok());
+    }
+
+    // Verifies REQ-change-041.
+    #[test]
+    fn canonical_resolution_tolerates_inert_legacy_registry_stub() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/auth.rs"), "// auth\n").unwrap();
+        fs::write(
+            root.join(".specsync/registry.toml"),
+            "version = 1\n\n[modules]\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("specs/auth/auth.spec.md"),
+            "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("specs/auth/requirements.md"),
+            "# Requirements\n\nOriginal.\n",
+        )
+        .unwrap();
+        let record = create_change(
+            root,
+            CreateChangeRequest {
+                description: "Update auth with inert registry stub".into(),
+                kind: ChangeKind::BugFix,
+                affected_specs: vec!["auth".into()],
+                affected_paths: vec!["src/auth.rs".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: false,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        fs::write(
+            delta_path(root, &record, "auth"),
+            "## MODIFIED\n### SPEC SECTION Invariants\n\nInert stub fallback remains stable.\n",
+        )
+        .unwrap();
+
+        let prepared = prepare_delta_application(root, &record).unwrap();
+        assert!(
+            prepared
+                .iter()
+                .any(|(path, _)| path == &root.join("specs/auth/auth.spec.md"))
+        );
+        let (spec_path, _) = canonical_module_paths(root, "specs", "auth").unwrap();
+        assert_eq!(spec_path, root.join("specs/auth/auth.spec.md"));
+    }
+
+    // Verifies REQ-change-041.
+    #[test]
+    fn canonical_resolution_fails_closed_on_non_inert_unparsable_registry() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        let registry_path = root.join(".specsync/registry.toml");
+        fs::write(
+            &registry_path,
+            "[specs]\nauth = \"specs/auth/auth.spec.md\"\n",
+        )
+        .unwrap();
+
+        // Pre-fix diagnostic (unchanged for real/non-inert unparsable registries):
+        // "failed to parse local registry {path} while resolving `{module}`"
+        let error = canonical_module_paths(root, "specs", "auth").unwrap_err();
+        assert_eq!(
+            error,
+            format!(
+                "failed to parse local registry {} while resolving `auth`",
+                registry_path.display()
+            )
+        );
     }
 
     #[test]

@@ -151,17 +151,46 @@ pub fn fetch_remote_registry(repo: &str) -> Result<RemoteRegistry, String> {
     })
 }
 
-/// Load a registry from the local registry file
-/// (`.specsync/registry.toml`, falling back to legacy `specsync-registry.toml`).
-#[allow(dead_code)]
-pub fn load_registry(root: &Path) -> Option<RegistryEntry> {
-    let path = local_registry_path(root);
-    let content = fs::read_to_string(&path).ok()?;
-    parse_registry(&content)
+/// Return true when content has no registry `name` and no `[specs]` mappings.
+///
+/// Matches inert 5.0.1-era placeholders such as `version = 1` plus an empty
+/// `[modules]` table that never carried module authority under 5.1.x parsing.
+pub fn is_inert_legacy_registry_stub(content: &str) -> bool {
+    let (name, specs) = scan_registry_fields(content);
+    name.is_empty() && specs.is_empty()
 }
 
-/// Parse registry TOML content.
-fn parse_registry(content: &str) -> Option<RegistryEntry> {
+/// Load the local registry with explicit missing/inert/invalid discrimination.
+///
+/// - `Ok(None)` when the file is missing or an inert legacy stub
+/// - `Ok(Some(entry))` when parse succeeds
+/// - `Err(...)` when the file exists, is not inert, and cannot parse
+pub fn load_local_registry(root: &Path) -> Result<Option<RegistryEntry>, String> {
+    let path = local_registry_path(root);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content = fs::read_to_string(&path)
+        .map_err(|error| format!("failed to read local registry {}: {error}", path.display()))?;
+    if is_inert_legacy_registry_stub(&content) {
+        return Ok(None);
+    }
+    parse_registry(&content)
+        .map(Some)
+        .ok_or_else(|| format!("failed to parse local registry {}", path.display()))
+}
+
+/// Load a registry from the local registry file
+/// (`.specsync/registry.toml`, falling back to legacy `specsync-registry.toml`).
+///
+/// Best-effort: returns `None` for missing, inert, unreadable, or unparsable content.
+#[allow(dead_code)]
+pub fn load_registry(root: &Path) -> Option<RegistryEntry> {
+    load_local_registry(root).ok().flatten()
+}
+
+/// Scan registry TOML for a `name` value and `[specs]` mappings.
+fn scan_registry_fields(content: &str) -> (String, Vec<(String, String)>) {
     let mut name = String::new();
     let mut specs = Vec::new();
     let mut in_specs = false;
@@ -172,12 +201,8 @@ fn parse_registry(content: &str) -> Option<RegistryEntry> {
             continue;
         }
 
-        if line == "[registry]" {
-            in_specs = false;
-            continue;
-        }
-        if line == "[specs]" {
-            in_specs = true;
+        if line.starts_with('[') && line.ends_with(']') {
+            in_specs = line == "[specs]";
             continue;
         }
 
@@ -188,12 +213,18 @@ fn parse_registry(content: &str) -> Option<RegistryEntry> {
 
             if in_specs {
                 specs.push((key.to_string(), value.to_string()));
-            } else if key == "name" {
+            } else if key == "name" && !value.is_empty() {
                 name = value.to_string();
             }
         }
     }
 
+    (name, specs)
+}
+
+/// Parse registry TOML content.
+fn parse_registry(content: &str) -> Option<RegistryEntry> {
+    let (name, specs) = scan_registry_fields(content);
     if name.is_empty() {
         return None;
     }
@@ -327,6 +358,73 @@ messaging = "specs/messaging/messaging.spec.md"
     fn test_parse_registry_empty() {
         assert!(parse_registry("").is_none());
         assert!(parse_registry("[registry]").is_none());
+    }
+
+    #[test]
+    fn inert_legacy_registry_stub_is_detected() {
+        let stub = "version = 1\n\n[modules]\n";
+        assert!(is_inert_legacy_registry_stub(stub));
+        assert!(is_inert_legacy_registry_stub(""));
+        assert!(is_inert_legacy_registry_stub("[registry]\n"));
+        assert!(is_inert_legacy_registry_stub("[specs]\n"));
+    }
+
+    #[test]
+    fn named_or_mapped_registries_are_not_inert() {
+        assert!(!is_inert_legacy_registry_stub(
+            "[registry]\nname = \"fixture\"\n\n[specs]\n"
+        ));
+        assert!(!is_inert_legacy_registry_stub(
+            "[specs]\nauth = \"specs/auth/auth.spec.md\"\n"
+        ));
+    }
+
+    #[test]
+    fn load_local_registry_treats_inert_stub_as_absent() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/registry.toml"),
+            "version = 1\n\n[modules]\n",
+        )
+        .unwrap();
+
+        assert!(load_local_registry(root).unwrap().is_none());
+        assert!(load_registry(root).is_none());
+    }
+
+    #[test]
+    fn load_local_registry_loads_named_registry() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/registry.toml"),
+            "[registry]\nname = \"fixture\"\n\n[specs]\nauth = \"specs/auth/auth.spec.md\"\n",
+        )
+        .unwrap();
+
+        let entry = load_local_registry(root).unwrap().unwrap();
+        assert_eq!(entry.name, "fixture");
+        assert_eq!(entry.specs.len(), 1);
+        assert_eq!(entry.specs[0].0, "auth");
+    }
+
+    #[test]
+    fn load_local_registry_fails_closed_on_non_inert_unparsable() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/registry.toml"),
+            "[specs]\nauth = \"specs/auth/auth.spec.md\"\n",
+        )
+        .unwrap();
+
+        let error = load_local_registry(root).unwrap_err();
+        assert!(error.contains("failed to parse local registry"));
+        assert!(load_registry(root).is_none());
     }
 
     #[test]

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 58,
-  "id": "CHG-0058-cover-the-chg-0057-delivery-scope-for-the-src-main-rs-migrate-subcommand-dispatc",
+  "sequence": 59,
+  "id": "CHG-0059-tolerate-inert-5-0-1-registry-toml-stubs-so-module-resolution-falls-back-to-defa",
   "acknowledged_collisions": [
     {
       "sequence": 16,

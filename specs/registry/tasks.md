@@ -22,6 +22,7 @@ spec: registry.spec.md
 - [x] `RemoteRegistry` struct with `has_spec()` and `spec_path()` lookup
 - [x] `register_module` — idempotent append of a module entry to an existing registry
 - [x] Cross-repo content verification: `fetch_remote_spec`, `parse_remote_spec`, `RemoteSpec`
+- [x] Tolerate inert 5.0.1 registry.toml stubs via `load_local_registry`
 
 ## Gaps
 

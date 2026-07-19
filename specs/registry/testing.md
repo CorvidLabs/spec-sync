@@ -6,7 +6,7 @@ spec: registry.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/registry.rs` | cargo test registry:: | `test_parse_registry`, `test_parse_registry_empty`, `test_extract_module_name`, `test_remote_registry_has_spec` |
+| `src/registry.rs` | cargo test registry:: | `test_parse_registry`, `test_parse_registry_empty`, `inert_legacy_registry_stub_is_detected`, `load_local_registry_treats_inert_stub_as_absent`, `load_local_registry_fails_closed_on_non_inert_unparsable`, `test_extract_module_name`, `test_remote_registry_has_spec` |
 
 ## Coverage Gaps
 

@@ -1,22 +1,20 @@
----
-module: registry
-version: 5
-status: stable
-files:
-  - src/registry.rs
-db_tables: []
-tracks: [52]
-depends_on:
-  - specs/types/types.spec.md
----
+## ADDED
 
-# Registry
+### REQUIREMENT REQ-registry-002
 
-## Purpose
+Local registry loading SHALL treat inert 5.0.1-era empty registry stubs as absent while still failing closed on unparsable real registries.
 
-Manages cross-project spec registries for dependency resolution. Generates `specsync-registry.toml` from local spec files, fetches remote registries from GitHub repos via HTTPS, and parses the TOML registry format using zero-dependency parsing.
+Acceptance Criteria
 
-## Public API
+- A local registry file with no registry `name` and no `[specs]` module mappings is classified as an inert stub and loaded as absent.
+- The characteristic 5.0.1 placeholder (`version = 1` plus an empty `[modules]` table) is inert.
+- A named registry loads successfully even when `[specs]` is empty.
+- A file that is not inert but cannot parse as a named registry fails closed through the Result-based local loader.
+- Best-effort `load_registry` continues to return `None` for missing, inert, and unparsable content.
+
+## MODIFIED
+
+### SPEC SECTION Public API
 
 **Exported Structs**
 
@@ -46,7 +44,7 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 | `generate_registry` | `root, project_name, specs_dir` | `String` | Generate registry TOML content by scanning for spec files |
 | `register_module` | `root, module_name, spec_rel_path` | `bool` | Append a module entry to the registry file resolved by `local_registry_path`; returns false if already exists or file missing |
 
-## Invariants
+### SPEC SECTION Invariants
 
 1. Remote registry fetch uses a 10-second HTTP timeout
 2. Registry TOML format: `[registry]` section with `name`, `[specs]` section with `module = "path"` entries
@@ -58,7 +56,7 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 8. Local registry resolution prefers the v4 `.specsync/registry.toml` location; the legacy root-level `specsync-registry.toml` is only used for un-migrated 3.x layouts
 9. Inert 5.0.1-era stubs (no registry name and no `[specs]` mappings) are treated as absent; non-inert unparsable registries fail closed through `load_local_registry`
 
-## Behavioral Examples
+### SPEC SECTION Behavioral Examples
 
 **Scenario: Fetch remote registry**
 
@@ -84,7 +82,7 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 - **When** `load_local_registry(root)` is called
 - **Then** returns `Ok(None)` so callers fall back to conventional module paths
 
-## Error Cases
+### SPEC SECTION Error Cases
 
 | Condition | Behavior |
 |-----------|----------|
@@ -94,29 +92,3 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 | Local registry file unreadable | `load_registry` returns `None`; `load_local_registry` returns `Err` |
 | Inert legacy stub (no name, no `[specs]` mappings) | `load_local_registry` returns `Ok(None)`; `load_registry` returns `None` |
 | Non-inert unparsable local registry | `load_local_registry` returns `Err`; `load_registry` returns `None` |
-
-## Dependencies
-
-### Consumes
-
-| Module | What is used |
-|--------|-------------|
-| types | `RegistryEntry` |
-| ureq | HTTP client for fetching remote registries |
-
-### Consumed By
-
-| Module | What is used |
-|--------|-------------|
-| main | `fetch_remote_registry`, `generate_registry`, `load_registry` |
-
-## Change Log
-
-| Date | Change |
-|------|--------|
-| 2026-03-25 | Initial spec |
-| 2026-04-07 | Document register_module function |
-| 2026-04-10 | v2: Added `fetch_remote_spec`, `parse_remote_spec`, `RemoteSpec`, `spec_path` for cross-repo content verification |
-| 2026-06-11 | v3: Added `local_registry_path`; `load_registry`/`register_module` now resolve the v4 `.specsync/registry.toml` location with legacy fallback |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
-| 2026-07-19 | CHG-0059-tolerate-inert-5-0-1-registry-toml-stubs-so-module-resolution-falls-back-to-defa: Tolerate inert 5.0.1 registry.toml stubs so module resolution falls back to default specs layout without failing closed on empty legacy stubs |

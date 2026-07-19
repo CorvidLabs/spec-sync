@@ -34,7 +34,263 @@
       "timestamp": 1784437967,
       "digest": "8b2fbb1b9fa4136ba5dd733c2e8a72f82a17f917c4eb13216dfcf3ae50991eed",
       "note": "Native 5.0 to 5.1 change-ledger migration with idempotent reopening digest backfill."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784477119,
+      "digest": "001d28a9aa37a9f9f60eeb02d80255cae1db76e2086a05db8ca8141d4518a685",
+      "note": "Reaccepted after merging origin/main with migrate backfill on the reconciled canonical contract."
     }
   ],
-  "reopenings": []
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0057-add-a-native-migration-path-for-5-0-1-era-change-ledgers-that-backfills-the-5-1",
+      "actor": "0xLeif",
+      "reason": "Merged origin/main (#403 batch correct-owner) into migrate backfill branch; re-verifying accepted evidence against the reconciled canonical contract.",
+      "timestamp": 1784475494,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784437967,
+        "digest": "8b2fbb1b9fa4136ba5dd733c2e8a72f82a17f917c4eb13216dfcf3ae50991eed",
+        "note": "Native 5.0 to 5.1 change-ledger migration with idempotent reopening digest backfill."
+      },
+      "prior_verification": {
+        "timestamp": 1784437959,
+        "commit": "16fc94b95ce39dcdcdf9019252e6ad7eb733deef",
+        "contract_digest": "2be5ff31699e4ae22e698271425793eff85a822ebb62a8624a457bbb0ac4f438",
+        "workspace_digest": "de3b118393c8feec4531a16e5920fe23dc0a81e9383674e2f26f80aef42ec2d3",
+        "acceptance_input_digest": "b89ba9503ce00c121c0acdd4be90abfac53b03acd2cae666220e998073c7a325",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "41b526839df8727494386b935a1bc8f5da2b4a282cd3b3f708c93f97bea18bbd",
+              "entry_digest": "96aab0ff71c67ba435db47fbf3aa4fcbddcd3f98e1a92f69d865c64609f18900",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/change/change.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "ae7fac1ae74aed0ba00799a53b0436aa1736508588612b6792a0add2a7f5539a",
+              "entry_digest": "079ef438860109899aed9c30cd90440f719bd919f9a2b8577d8c3faf43144c3b",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "486be634c63d14415e0051cda83ed8dbe8cfb73dd291108fb9157b265d746b9e",
+              "entry_digest": "846887557a805aadd38aa30d82ce6969ce9cafcf17928720f2d82fcd9a9029f1",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "c56a114821272e000219d575961bc66b29081e934ab126db89de5748785175ee",
+              "entry_digest": "ba615c0b2cb209ec7217bd1cabfb1d412e24576f76f4d3bcd7c87e34c10a09fd",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "75b9da1adab1af2ad9592ff2f6f107679f5231b0d55b0c06d5765ef5f07bb4da",
+              "entry_digest": "b708a40dd4a05b8825648473ce65bdb1cf8d67082a2fff6e8ddba5f92837a729",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "0269bbe78bfe1649f792a3ebe5d769f78ab7ae946a73bac88a8e503681822437",
+              "entry_digest": "7d9eeaea11512e1d9c1fbbdc70fc5445fbc4e2c4aa45aa1d4d68c8952e0fe617",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/cli_args/cli_args.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "c8660f8efd634eb655d16199712af563e41eddca41edf8c011df7d6f1953eee2",
+              "entry_digest": "5e9f3bcc4caa191cb72cddaeb4ebd3464b505edf942e06796c4e71ffdf6551c5",
+              "owners": [
+                "cli_args"
+              ]
+            },
+            {
+              "path": "specs/cli_args/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "07b5f24d5763162fd124e67b5afe9b380b1020fa8d4255d0dd304f049eebcb39",
+              "entry_digest": "80d69b233ac368887bec65490eef32e7f7d8f371eed66f35de026369a4c87940",
+              "owners": [
+                "cli_args"
+              ]
+            },
+            {
+              "path": "specs/cli_args/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "96202356802d4c457b4bb7a02eafd8ca5b4915d108e2ce1085f0b2cb5b5ef146",
+              "entry_digest": "be276fbddb2711fa8ce3817984b09d0ed013f117961d9fe6d00c843859f4eba2",
+              "owners": [
+                "cli_args"
+              ]
+            },
+            {
+              "path": "specs/cli_args/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "5866067b99ac03e0420cbd9a6cea9a6ebf08203314da7205fbc864caad2e971e",
+              "entry_digest": "4b6b189a28db60a51f24bd048e376c19e99fca9ef5b44a887413f9b6da2901b0",
+              "owners": [
+                "cli_args"
+              ]
+            },
+            {
+              "path": "specs/cli_args/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "5f0510c19bd8cc3e8e0bf79ef1e93e4dd6ddd17c0d47435b5d864db8bceac63c",
+              "entry_digest": "50df5e3bc2128b49f94aa9bfb98cdd6e549c8a370a597bd2cc4a03b5706e8203",
+              "owners": [
+                "cli_args"
+              ]
+            },
+            {
+              "path": "specs/cmd_migrate/cmd_migrate.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "433f28c2415caf466122057772160ea42aa1c55957d413ad54aec6043b1ea591",
+              "entry_digest": "e98ca3114bdc64cccf05b854472ea5346b9dc58aa986f07cf52e757128827ada",
+              "owners": [
+                "cmd_migrate"
+              ]
+            },
+            {
+              "path": "specs/cmd_migrate/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "8bbf60b8d4d7ad1e4924709c7afec4b302fffb1c6dfdbe8b5b444ba6966affc2",
+              "entry_digest": "05e51c9bb16e4d089f19fda05bf8015bdb49e64d7035347a9ed8969ce7c7a843",
+              "owners": [
+                "cmd_migrate"
+              ]
+            },
+            {
+              "path": "specs/cmd_migrate/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "29ba47139550dcb8c36fd90af1354c7915df39135ac8b9045c928885bb20e95e",
+              "entry_digest": "2daae3958bfc4f6d4a37bb5a021dfbb4c4eb8fdaadb6b296001dcae9f1bf7ff3",
+              "owners": [
+                "cmd_migrate"
+              ]
+            },
+            {
+              "path": "specs/cmd_migrate/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "0154983dcc5d025e92b323d7b64e11ed26315b932ad20943930a3748df729da9",
+              "entry_digest": "a0aa707a13033447bc5e771eb558cfbccc985311ce67f07aaf64928107477f9a",
+              "owners": [
+                "cmd_migrate"
+              ]
+            },
+            {
+              "path": "specs/cmd_migrate/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "ff7aca5c6569b81fcc2aa48d096b24ab33e84cac40bc465c6be442fb4e09daef",
+              "entry_digest": "3973341b85ea1c2abaa11d48a38ef7c5005783555870192023ad87780ef895fb",
+              "owners": [
+                "cmd_migrate"
+              ]
+            },
+            {
+              "path": "src/change.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "5c3ce9a7e0e0f667dd649f053c1347e67d997f15bafcf6879ef91e8b77328525",
+              "entry_digest": "101f23d7f1b1c96ba22924f9e5c81dd6387cac61d87916c56fedd955837232f3",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "src/cli.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "9f3a80d68b7ea96fd39877d41ded71ef89c91d9ed724a67802d82e042ca0b7e4",
+              "entry_digest": "4ec2854b0a702b4485361d3b2aa35d06c9cccb7a462af676427b3850728495f0",
+              "owners": [
+                "cli_args"
+              ]
+            },
+            {
+              "path": "src/commands/migrate.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "deaa84218bcf760e43b646fee7bc510c4456fabeeef6d1e0c8e9e56b9264857e",
+              "entry_digest": "bdb7dc3cdacc7d90310ecb08c0ad353098cc37595cc81ad814bd126854527a96",
+              "owners": [
+                "cmd_migrate"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "ruby --version",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-release-version.py",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-040",
+          "REQ-cli-args-007",
+          "REQ-cmd-migrate-002"
+        ]
+      },
+      "stale_acceptance_input_digest": "b89ba9503ce00c121c0acdd4be90abfac53b03acd2cae666220e998073c7a325",
+      "current_acceptance_input_digest": "c339e02894a9ccede1fedde7c4d0c7b425b85cb8aa1254bbae689b3cb7fea3d3"
+    }
+  ]
 }

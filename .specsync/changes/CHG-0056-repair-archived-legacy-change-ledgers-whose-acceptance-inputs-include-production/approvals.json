@@ -27,6 +27,13 @@
       "timestamp": 1784440703,
       "digest": "4161180dc17ce170ecd4a1d1769145aad1165538c2e90c0317e3ac2542585721",
       "note": "Reaccepted against canonical change contract version 42."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784476578,
+      "digest": "31f1aaabd2d3aeeab47474f8f11c8044f67e20651dd8ff750a25652b4d7e1408",
+      "note": "Reaccepted after merging origin/main with migrate backfill on the reconciled canonical contract."
     }
   ],
   "reopenings": [
@@ -155,6 +162,132 @@
       },
       "stale_acceptance_input_digest": "d75e219e99d40e7555d48cd10a0ccdecb5a3cbd6bf742c1f3f040f4a0220441c",
       "current_acceptance_input_digest": "9b7ae6148b08d4bd83d18fd36d33861c71d7b92a68e3c0375b39c92aaffe781d"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0056-repair-archived-legacy-change-ledgers-whose-acceptance-inputs-include-production",
+      "actor": "0xLeif",
+      "reason": "Merged origin/main (#403 batch correct-owner) into migrate backfill branch; re-verifying accepted evidence against the reconciled canonical contract.",
+      "timestamp": 1784475485,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784440703,
+        "digest": "4161180dc17ce170ecd4a1d1769145aad1165538c2e90c0317e3ac2542585721",
+        "note": "Reaccepted against canonical change contract version 42."
+      },
+      "prior_verification": {
+        "timestamp": 1784440693,
+        "commit": "1c341c9753a73e14b7da71f98b7bc07f806273b5",
+        "contract_digest": "447b14eb5dd863babe3777513aaef172d677c31d15f9134c64d2bf5fd688b2c9",
+        "workspace_digest": "c311f810d1f99037c5b9cdac7cd984676d61f5cc54a8434b663c9c9b4d2a358d",
+        "acceptance_input_digest": "9b7ae6148b08d4bd83d18fd36d33861c71d7b92a68e3c0375b39c92aaffe781d",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "7b8f896d91ae4b1a4a2e3acdccb7d64fdd957dbd8c340d5e88ced97b324c335f",
+              "entry_digest": "f7491cc83eedfaba57082ad5ed56d1a4d082ef457919f42968488b3bed224e5e",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "specs/change/change.spec.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "ae7fac1ae74aed0ba00799a53b0436aa1736508588612b6792a0add2a7f5539a",
+              "entry_digest": "079ef438860109899aed9c30cd90440f719bd919f9a2b8577d8c3faf43144c3b",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/context.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "486be634c63d14415e0051cda83ed8dbe8cfb73dd291108fb9157b265d746b9e",
+              "entry_digest": "846887557a805aadd38aa30d82ce6969ce9cafcf17928720f2d82fcd9a9029f1",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/requirements.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "c56a114821272e000219d575961bc66b29081e934ab126db89de5748785175ee",
+              "entry_digest": "ba615c0b2cb209ec7217bd1cabfb1d412e24576f76f4d3bcd7c87e34c10a09fd",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/tasks.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "75b9da1adab1af2ad9592ff2f6f107679f5231b0d55b0c06d5765ef5f07bb4da",
+              "entry_digest": "b708a40dd4a05b8825648473ce65bdb1cf8d67082a2fff6e8ddba5f92837a729",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "specs/change/testing.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "0269bbe78bfe1649f792a3ebe5d769f78ab7ae946a73bac88a8e503681822437",
+              "entry_digest": "7d9eeaea11512e1d9c1fbbdc70fc5445fbc4e2c4aa45aa1d4d68c8952e0fe617",
+              "owners": [
+                "change"
+              ]
+            },
+            {
+              "path": "src/change.rs",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "5c3ce9a7e0e0f667dd649f053c1347e67d997f15bafcf6879ef91e8b77328525",
+              "entry_digest": "101f23d7f1b1c96ba22924f9e5c81dd6387cac61d87916c56fedd955837232f3",
+              "owners": [
+                "change"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "ruby --version",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-release-version.py",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": [
+          "REQ-change-038"
+        ]
+      },
+      "stale_acceptance_input_digest": "9b7ae6148b08d4bd83d18fd36d33861c71d7b92a68e3c0375b39c92aaffe781d",
+      "current_acceptance_input_digest": "5b238e1e86441d980b3baaa6a8fe49f5b389b50f7e88fea59fe38e90d5cee772"
     }
   ]
 }

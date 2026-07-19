@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784438382,
+      "digest": "d0d6ffcf798ca2288c2abd5bbff652bafd00069dc4a5700dab8a73b6c0cbeb72",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784439223,
+      "digest": "a6954e999d1033ed21f34133f17e4fbd6b307f04a257c41c561d579e871eebf0",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784439829,
+      "digest": "d02732f05e584ba75e9bc3f2b78b428d7de7e3867be55518ea1d0df3340e7e36",
+      "note": "Declare delivery-scope ownership of src/main.rs (cli-owned) and tests/integration/change.rs for the CHG-0057 delivery."
+    }
+  ],
+  "reopenings": []
+}

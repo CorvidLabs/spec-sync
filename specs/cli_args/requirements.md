@@ -64,3 +64,16 @@ Acceptance Criteria
 - Missing path, module, actor, or reason inputs fail through deterministic Clap errors before any
   domain mutation.
 
+### REQ-cli-args-007
+
+The shared CLI grammar SHALL expose the 5.0 ledger migration as an optional source-family
+positional on the `migrate` command.
+
+Acceptance Criteria
+
+- `specsync migrate 5.0` selects the ledger backfill mode; bare `specsync migrate` keeps the
+  v3→v4 default.
+- An unknown source family fails through a deterministic Clap validation error before any
+  mutation.
+- `--dry-run` and `--no-backup` remain accepted in both modes.
+

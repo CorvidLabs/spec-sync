@@ -229,9 +229,11 @@ fn run() {
         Command::Rules => commands::rules::cmd_rules(&root),
         Command::Changelog { range } => commands::changelog::cmd_changelog(&root, &range, format),
         Command::Rehash => commands::rehash::cmd_rehash(&root),
-        Command::Migrate { dry_run, no_backup } => {
-            commands::migrate::cmd_migrate(&root, format, dry_run, no_backup)
-        }
+        Command::Migrate {
+            from,
+            dry_run,
+            no_backup,
+        } => commands::migrate::cmd_migrate(&root, format, from, dry_run, no_backup),
         Command::Lifecycle { action } => match action {
             LifecycleAction::Promote { spec, force } => {
                 commands::lifecycle::cmd_promote(&root, &spec, format, force)

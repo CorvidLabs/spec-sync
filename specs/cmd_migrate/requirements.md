@@ -49,3 +49,19 @@ Acceptance Criteria
 - Clear error messages for every failure mode
 - JSON output mode produces structured migration report
 
+### REQ-cmd-migrate-002
+
+The migration command SHALL provide a `5.0` source-family mode that backfills 5.1 reopening
+digest fields across active and archived change ledgers with idempotent, dry-run-aware,
+verification-gated writes.
+
+Acceptance Criteria
+
+- `specsync migrate 5.0` repairs every deterministically repairable reopening and reports
+  per-change results.
+- Running on an already-migrated ledger reports zero repairs and changes no bytes.
+- `--dry-run` reports planned repairs without writing.
+- An unrepairable reopening fails its change without mutating that ledger; other changes still
+  migrate.
+- The v3→v4 migration pipeline is unchanged and never runs in `5.0` mode.
+

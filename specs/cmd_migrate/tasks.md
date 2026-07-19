@@ -32,6 +32,7 @@ spec: cmd_migrate.spec.md
 - [x] Auto-detection of 3.x layout with migration suggestion in `specsync check`
 - [x] Integration tests for the full v3→v4 flow (`migrate_full_v3_to_v4`, dry-run, idempotency, partial recovery, JSON, `--no-backup`, no-project)
 - [x] Unit tests for migration-step application (`apply_create_directories_creates_v4_layout`, `apply_create_directories_is_idempotent`)
+- [x] Add `migrate 5.0` source-family mode with idempotent, verified reopening digest backfill
 
 ### Open
 

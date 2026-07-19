@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 11
+version: 12
 status: stable
 files:
   - src/cli.rs
@@ -46,6 +46,7 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 8. `Generate` exposes only deterministic uncovered/batch selection; provider and model flags are not accepted
 9. `ChangeAction::Reopen` requires both `--actor` and `--reason`; neither can be omitted from the CLI grammar
 10. `ChangeAction::CorrectOwner` requires exact path, canonical spec module, actor, and reason inputs
+11. `Migrate` accepts an optional source-family positional; unknown families fail through deterministic validation before any mutation.
 
 ## Behavioral Examples
 
@@ -117,3 +118,4 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | 2026-07-15 | CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re: Support audited append-only correction of accepted interview metadata without replaying canonical deltas |
 | 2026-07-15 | CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec: Make accepted-change validity successor-aware with exact per-input evidence, recursive cycle-safe validation, fail-closed legacy compatibility, and safe archived successors |
 | 2026-07-15 | CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied: Permit audited deterministic ownership corrections for reopened already-applied changes |
+| 2026-07-19 | CHG-0057-add-a-native-migration-path-for-5-0-1-era-change-ledgers-that-backfills-the-5-1: Add a native migration path for 5.0.1-era change ledgers that backfills the 5.1 reopening stale and current acceptance-input digest fields idempotently with a closing-digest verification pass, and surfaces an actionable migrate hint when check encounters the 5.0.1 reopening schema |

@@ -21,3 +21,4 @@ spec: cli_args.spec.md
 ## Current Status
 
 Stable deterministic grammar for the core and agent-native integrations. Help text names the canonical `.specsync/config.toml` layout and all required `new --full` companions; accepted evidence can be reopened, supported accepted classification metadata corrected, or an exact acceptance owner repaired only with explicit audit inputs.
+`Migrate` gains an optional source-family positional restricted to `5.0` by the Clap grammar; unknown families fail validation before any mutation, and bare `migrate` keeps the v3→v4 default.

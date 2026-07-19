@@ -1,6 +1,6 @@
 ---
 module: cmd_migrate
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/migrate.rs
@@ -42,6 +42,7 @@ Implements the `specsync migrate` command — upgrades a spec-sync project from 
 7. `.specsync/.gitignore` ships with the migration to control which files get committed vs ignored
 8. Post-migration validation runs `specsync check` logic to confirm the migrated project is valid
 9. Partial migration state is detected and handled — if a previous migrate crashed, re-running will skip completed steps and resume
+10. The `5.0` source-family mode backfills reopening digest fields from recorded evidence only, verifies each repair before writing, and never mutates ledgers it cannot repair deterministically.
 
 ## Behavioral Examples
 
@@ -107,6 +108,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 |------|--------|
 | 2026-04-11 | Initial spec — v3.x to v4.0.0 migration command |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-19 | CHG-0057-add-a-native-migration-path-for-5-0-1-era-change-ledgers-that-backfills-the-5-1: Add a native migration path for 5.0.1-era change ledgers that backfills the 5.1 reopening stale and current acceptance-input digest fields idempotently with a closing-digest verification pass, and surfaces an actionable migrate hint when check encounters the 5.0.1 reopening schema |
 
 ## Internal Architecture
 

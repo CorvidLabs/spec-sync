@@ -35,6 +35,7 @@ spec: cmd_migrate.spec.md
 | Spec file with malformed frontmatter | Warning: skip that spec's lifecycle extraction, continue with others, report in summary | Keep or add a focused assertion before changing this behavior |
 | Disk full during backup | Error: "Backup failed — original files untouched. Free disk space and retry" | Keep or add a focused assertion before changing this behavior |
 | `--no-backup` with destructive steps | Proceed without backup (user opted out) | Keep or add a focused assertion before changing this behavior |
+| `migrate 5.0` on 5.0.1-era ledgers | Backfills reopening digest fields idempotently; dry-run and second run write nothing; unrepairable reopenings fail without mutation (`REQ-cmd-migrate-002`) | Keep or add a focused assertion before changing this behavior |
 
 ## Reviewer Checklist
 

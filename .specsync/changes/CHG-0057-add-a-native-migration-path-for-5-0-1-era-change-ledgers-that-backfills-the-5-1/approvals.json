@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784436090,
+      "digest": "8b77fb0eb37cf394c2759eb363adc7d126994b2d93fdc57ccc783e8ecd501964",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784437081,
+      "digest": "1a60c9bd27d0ff04d3f3231414dc940fe47f37965a9e943789ed789d4c8435b6",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784437309,
+      "digest": "50c67534da06b6227973f21973776cb19eb60539eadf86204241033c87eaebbe",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784437396,
+      "digest": "2be5ff31699e4ae22e698271425793eff85a822ebb62a8624a457bbb0ac4f438",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784437967,
+      "digest": "8b2fbb1b9fa4136ba5dd733c2e8a72f82a17f917c4eb13216dfcf3ae50991eed",
+      "note": "Native 5.0 to 5.1 change-ledger migration with idempotent reopening digest backfill."
+    }
+  ],
+  "reopenings": []
+}

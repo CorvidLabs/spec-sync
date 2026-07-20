@@ -53,3 +53,4 @@ spec: github.spec.md
 Module behavior is stable. URL parsing is unit-tested; network paths remain manual/integration
 coverage. The 5.1.1 release candidate adds deterministic Action/runtime distribution checks, while
 external exact/floating ref smoke tests remain publication-time gates.
+The 5.2.0 release promotion follows REQ-github-004: Action default and consumer pins move to the exact version through the accepted release change, and the floating v5 ref advances only after exact-version artifacts pass Linux/macOS/Windows verification.

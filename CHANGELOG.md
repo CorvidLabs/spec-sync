@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.2.0] - 2026-07-19
+
+### Added
+
+- **Native `specsync migrate 5.0` change-ledger migration** (#396) — backfills the 5.1 reopening
+  `stale`/`current` acceptance-input digest fields on 5.0.1-era ledgers, deterministically
+  (stale from the embedded prior verification, current from the superseding verification or a
+  live manifest-aware recomputation), idempotently, with a verification pass before any write,
+  per-change failure isolation, `--dry-run`, and an actionable `check` diagnostic that names the
+  migration instead of a raw serde error.
+- **Batch `specsync change correct-owner`** (#398) — one transactional invocation appends many
+  audited exact canonical owner corrections (repeated `--path`/`--spec`, `--manifest`, or
+  `--all-missing` discovery); every entry validates independently and a failed entry leaves the
+  ledger untouched, ending the 11–19 sequential-correction loops seen during the Trust rollout.
+- **Squash-merged accepted-evidence archival** — `specsync change archive` now trusts any
+  in-history commit recording a change as accepted with byte-identical evidence when no
+  first-acceptance transition anchor matches, so squash-merged pull requests never block
+  archival while the exactly-one-eligible rule stays fail-closed.
+
+### Fixed
+
+- **Adoption-era archived ledgers validate without repair** (#397) — legacy acceptance-manifest
+  reconstruction assigns the exact delivery owner to production-source inputs with no canonical
+  owner, so 5.0.1-era archived changes (e.g. spec-less repos) pass historical-integrity checks
+  while newly signed evidence stays fail-closed.
+- **Inert 5.0.1 registry stubs are tolerated** (#399) — a local `registry.toml` with no registry
+  `name` and no `[specs]` mappings loads as absent during canonical module path resolution,
+  falling back to conventional `specs/<module>/` paths, while invalid non-inert registries still
+  fail closed with the established diagnostic.
+
 ## [5.1.1] - 2026-07-16
 
 ### Changed
@@ -751,7 +781,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
-[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v5.1.1...HEAD
+[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v5.2.0...HEAD
+[5.2.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.2.0
 [5.1.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.1.1
 [5.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.1.0
 [5.0.2]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.0.2

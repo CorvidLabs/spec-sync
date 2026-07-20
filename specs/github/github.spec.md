@@ -1,6 +1,6 @@
 ---
 module: github
-version: 5
+version: 6
 status: stable
 files:
   - src/github.rs
@@ -54,6 +54,9 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 6. `detect_repo` handles both SSH (`git@github.com:`) and HTTPS (`https://github.com/`) remote URLs
 7. `resolve_repo` prefers explicit config over auto-detection
 8. `verify_spec_issues` classifies each issue as valid (open), closed, not_found, or error
+9. Action defaults and maintained consumer pins advance to an exact release version only through
+   an accepted release change, and floating-ref promotion waits for supported-platform
+   verification of the exact-version artifacts.
 
 ## Behavioral Examples
 
@@ -117,3 +120,4 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-17 | CHG-0048-prepare-the-specsync-5-1-1-stabilization-release-from-merged-pr-387-bump-accur: Prepare the SpecSync 5.1.1 stabilization release from merged PR #387: bump accurate release metadata and changelog, update the GitHub Action default to 5.1.1, document and validate the floating v5 compatibility ref, verify all release artifacts and supported installation paths, and define fail-closed publication and rollback boundaries |
 | 2026-07-17 | Hardened release validation for inline security guidance and runner-local candidate mirrors |
+| 2026-07-20 | CHG-0060-prepare-the-specsync-5-2-0-feature-release-bump-accurate-release-metadata-and-c: Prepare the SpecSync 5.2.0 feature release: bump accurate release metadata and changelog, update the GitHub Action default to 5.2.0, document the native migrate 5.0 ledger backfill, batch correct-owner, inert registry stub tolerance, squash-merged archive trust, and legacy archive repair, verify all release artifacts and supported installation paths, and define fail-closed publication and rollback boundaries |

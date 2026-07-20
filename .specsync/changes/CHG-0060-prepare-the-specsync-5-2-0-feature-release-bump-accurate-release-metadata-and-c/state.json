@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0060-prepare-the-specsync-5-2-0-feature-release-bump-accurate-release-metadata-and-c",
+  "slug": "prepare-the-specsync-5-2-0-feature-release-bump-accurate-release-metadata-and-c",
+  "title": "Prepare the SpecSync 5.2.0 feature release: bump accurate release metadata and changelog, update the GitHub Action default to 5.2.0, document the native migrate 5.0 ledger backfill, batch correct-owner, inert registry stub tolerance, squash-merged archive trust, and legacy archive repair, verify all release artifacts and supported installation paths, and define fail-closed publication and rollback boundaries",
+  "description": "Prepare the SpecSync 5.2.0 feature release: bump accurate release metadata and changelog, update the GitHub Action default to 5.2.0, document the native migrate 5.0 ledger backfill, batch correct-owner, inert registry stub tolerance, squash-merged archive trust, and legacy archive repair, verify all release artifacts and supported installation paths, and define fail-closed publication and rollback boundaries",
+  "kind": "operations",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "85e6ae29b85792e4ed50af7417284ac755b6bd57",
+  "created_at": 1784504030,
+  "updated_at": 1784512605,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    "Cargo.toml",
+    "Cargo.lock",
+    "CHANGELOG.md",
+    "action.yml",
+    "README.md",
+    ".github/workflows/ci.yml",
+    ".github/workflows/trust.yml",
+    "site/src/content/docs/quickstart.md",
+    "site/src/content/docs/integrations/github-action.md",
+    "specs/github/",
+    ".specsync/change-sequence.json",
+    "site/src/content/examples/ci-gate.mdx",
+    "site/src/content/examples/polyglot.mdx"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Cargo.toml and Cargo.lock read 5.2.0; CHANGELOG.md documents the 5.2.0 feature set (migrate 5.0 ledger backfill, batch correct-owner, inert registry stub tolerance, squash-merged archive trust, legacy archive repair); action.yml and all maintained workflow consumer pins read 5.2.0; README and site integration docs match; validate-release-version.py and validate-workflow-runtime-pins.py pass; full verification gate, specsync check --strict, and fledge trust verify pass; the change is accepted and merged before any tag or publication, and publication of v5.2.0 with rollback boundaries is defined but not executed by this change"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "design",
+    "tasks",
+    "requirements",
+    "docs",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

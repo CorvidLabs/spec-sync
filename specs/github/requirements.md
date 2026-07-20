@@ -93,3 +93,19 @@ Acceptance Criteria
 - The pinned runtime successfully installs frozen dependencies and passes the maintained site and
   extension verification commands.
 
+### REQ-github-004
+
+The maintained GitHub Action SHALL promote the 5.2.0 release through an immutable exact-version
+ref whose default binary version synchronizes only after exact-version artifacts pass
+supported-platform verification, with the floating major ref following the same contract.
+
+Acceptance Criteria
+
+- The composite Action's default and maintained consumer pins read exactly 5.2.0 once the
+  accepted release commit lands on main.
+- The immutable `v5.2.0` Action ref resolves to the integrated release commit after publication.
+- The floating `v5` ref moves to 5.2.0 only after pinned consumers pass on Linux, macOS, and
+  Windows.
+- A failed exact-version asset or Action smoke test leaves the floating ref and prior default
+  unchanged.
+

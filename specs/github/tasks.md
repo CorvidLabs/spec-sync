@@ -29,3 +29,4 @@ spec: github.spec.md
 ## Review Status
 
 Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.
+- [x] Prepare the 5.2.0 release: synchronized version surfaces and the Action promotion contract (REQ-github-004)

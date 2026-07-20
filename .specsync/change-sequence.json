@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 59,
-  "id": "CHG-0059-tolerate-inert-5-0-1-registry-toml-stubs-so-module-resolution-falls-back-to-defa",
+  "sequence": 60,
+  "id": "CHG-0060-prepare-the-specsync-5-2-0-feature-release-bump-accurate-release-metadata-and-c",
   "acknowledged_collisions": [
     {
       "sequence": 16,

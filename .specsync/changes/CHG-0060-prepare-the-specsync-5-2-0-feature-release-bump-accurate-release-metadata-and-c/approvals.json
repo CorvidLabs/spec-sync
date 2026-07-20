@@ -1,0 +1,33 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784506640,
+      "digest": "3aa1798c3e29e7755383d0704333ad8a5e305087dc78343ec7f240f3de3b2acf",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784511420,
+      "digest": "1b587a578ec35119222432acf79a02b477333800e43a03e56833e7f8e0a4bd5c",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784512195,
+      "digest": "46c830a38a25e5dbbac94acdbd746f0c4fd879b4717c2c5b2dde251f5b71402d",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784512605,
+      "digest": "17b6ff2b44a65f5cd857ed2b74c9ebda7e4d86c2728af07e1e03b0659f193a80",
+      "note": "5.2.0 release preparation: synchronized version surfaces, changelog, and Action promotion contract."
+    }
+  ],
+  "reopenings": []
+}

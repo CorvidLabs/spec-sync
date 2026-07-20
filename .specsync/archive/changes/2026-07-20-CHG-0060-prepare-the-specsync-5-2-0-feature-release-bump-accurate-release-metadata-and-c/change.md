@@ -1,6 +1,6 @@
 ---
 id: CHG-0060-prepare-the-specsync-5-2-0-feature-release-bump-accurate-release-metadata-and-c
-state: accepted
+state: archived
 type: operations
 base_commit: 85e6ae29b85792e4ed50af7417284ac755b6bd57
 ---

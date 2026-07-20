@@ -28,6 +28,13 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync compact` | Compact changelog tables by summarizing old entries |
 | `specsync archive-tasks` | Move completed task items to archive section |
 | `specsync merge` | Auto-resolve git merge conflicts in spec files |
+| `specsync change new <desc>` | Create a draft SDD change with the deterministic interview |
+| `specsync change approve/start/verify/accept <id>` | Drive the verified lifecycle: approve the definition, start implementation, verify, accept with closing approval |
+| `specsync change reopen <id>` | Re-verify stale accepted evidence (audited, append-only) |
+| `specsync change correct-owner <id>` | Append audited exact owner corrections (single `--path/--spec`, or batch: repeated flags, `--manifest`, `--all-missing`) |
+| `specsync change archive <id>` | Move an accepted change into the dated archive (after the delivery branch merges; squash merges supported) |
+| `specsync change check` | Validate all active/archived change workspaces and terminal evidence |
+| `specsync migrate 5.0` | Backfill 5.0.1-era reopening digest fields idempotently (the remediation `check` prints for missing-field ledgers) |
 
 ## Spec Lifecycle
 

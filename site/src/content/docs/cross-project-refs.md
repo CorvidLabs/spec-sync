@@ -61,6 +61,11 @@ name = "parser"
 spec = "specs/parser/parser.spec.md"
 ```
 
+> **Inert stubs are tolerated.** A 5.0.1-era `registry.toml` with no registry `name` and no
+> `[specs]`/`[[modules]]` mappings loads as absent: canonical module resolution falls back to the
+> conventional `specs/<module>/<module>.spec.md` path instead of failing. An invalid registry
+> that actually declares content still fails closed with the established parse diagnostic.
+
 ---
 
 ## Verifying References

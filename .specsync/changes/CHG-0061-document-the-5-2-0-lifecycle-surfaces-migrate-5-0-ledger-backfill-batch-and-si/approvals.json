@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784556664,
+      "digest": "8db163543d1c0fa994c8c0df6ed1312f5306f82bae825eae00a8f910c36bf281",
+      "note": null
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784557269,
+      "digest": "e4b230d342de08f78532284027e70f2c46baebf28538e7f982cf63bc7daaf73f",
+      "note": "Document the 5.2.0 lifecycle surfaces across cli.md, workflow.md, cross-project-refs.md, and AGENTS.md."
+    }
+  ],
+  "reopenings": []
+}

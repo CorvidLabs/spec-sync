@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0061-document-the-5-2-0-lifecycle-surfaces-migrate-5-0-ledger-backfill-batch-and-si",
+  "slug": "document-the-5-2-0-lifecycle-surfaces-migrate-5-0-ledger-backfill-batch-and-si",
+  "title": "Document the 5.2.0 lifecycle surfaces: migrate 5.0 ledger backfill, batch and single correct-owner, change supersede, squash-merged archival trust, inert registry stub tolerance, and the actionable staleness diagnostics, and refresh the AGENTS.md quick reference with the SDD lifecycle commands",
+  "description": "Document the 5.2.0 lifecycle surfaces: migrate 5.0 ledger backfill, batch and single correct-owner, change supersede, squash-merged archival trust, inert registry stub tolerance, and the actionable staleness diagnostics, and refresh the AGENTS.md quick reference with the SDD lifecycle commands",
+  "kind": "documentation",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "342bd053d410211c16fcd041a9eb94ed53012fe2",
+  "created_at": 1784556519,
+  "updated_at": 1784558671,
+  "affected_specs": [],
+  "affected_paths": [
+    "site/src/content/docs/",
+    "AGENTS.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Documentation-only update of site docs and agent instructions; no canonical spec content changes",
+  "acceptance_criteria": [
+    "cli.md documents migrate 5.0, single and batch correct-owner, and change supersede; workflow.md describes squash-merged archival trust and actionable staleness diagnostics; cross-project-refs.md documents inert registry stub tolerance; AGENTS.md quick reference lists the SDD lifecycle and migration commands"
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "requirements"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

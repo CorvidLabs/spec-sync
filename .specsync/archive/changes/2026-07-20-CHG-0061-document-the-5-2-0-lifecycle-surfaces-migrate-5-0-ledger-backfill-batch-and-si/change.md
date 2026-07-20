@@ -1,6 +1,6 @@
 ---
 id: CHG-0061-document-the-5-2-0-lifecycle-surfaces-migrate-5-0-ledger-backfill-batch-and-si
-state: accepted
+state: archived
 type: documentation
 base_commit: 342bd053d410211c16fcd041a9eb94ed53012fe2
 ---

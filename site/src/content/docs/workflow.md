@@ -67,6 +67,8 @@ Verification runs only project-configured native test commands without a shell a
 
 Archive after the delivery branch is merged (or otherwise no longer differs from its comparison base). Until then, SpecSync keeps the accepted workspace active because the delivery diff still depends on its path coverage. This prevents the common gap where accepting and immediately archiving makes an unmerged implementation look unspecced.
 
+Squash merges are fully supported: the archiver trusts any commit on the default branch that records the change as accepted with byte-identical `state.json`, `verification.json`, and `approvals.json` evidence, even when the squash discarded the original acceptance-transition commit or the verification commit never entered mainline history. Changes with no matching in-history accepted record still fail closed, so evidence can never be fabricated by editing the working tree. If `check` reports that an accepted change's verification is stale for current delivery inputs, the error names the offending input and the concrete remediation — `change reopen <id>` when the input drifted, or `specsync migrate 5.0` when a 5.0.1-era ledger is missing reopening digest fields.
+
 ## 4. Reopen After Accepted Review Fixes
 
 If final review changes a governed source, test, configuration, policy, or contract input after acceptance, strict checking correctly rejects the stale closing evidence. Do not edit lifecycle JSON or archive the active workspace. Record an audited transition instead:

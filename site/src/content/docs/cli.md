@@ -188,6 +188,18 @@ specsync migrate --json                    # machine-readable output
 
 The migration is step-based and idempotent — re-running on a partially migrated project resumes from where it left off. A backup is created in `.specsync/backup-3x/` before any destructive changes.
 
+#### `migrate 5.0`
+
+Backfill the 5.1 reopening digest fields (`stale_acceptance_input_digest` / `current_acceptance_input_digest`) on 5.0.1-era change ledgers. Use this when `specsync check` fails on a historical `approvals.json` with a missing-field error — the error message names this command as the remediation.
+
+```bash
+specsync migrate 5.0                       # repair reopening records across active and archived changes
+specsync migrate 5.0 --dry-run             # report planned repairs without writing
+specsync migrate 5.0 --json                # machine-readable report
+```
+
+The backfill is deterministic (`stale` reproduces the embedded prior-verification digest, `current` comes from the superseding verification or a live recomputation), idempotent (re-running changes nothing), and verification-gated (each repaired ledger must re-parse before the write lands). A reopening that cannot be repaired deterministically fails its change without mutating that ledger; other changes still migrate. Bare `specsync migrate` keeps the 3.x→4.0 pipeline and never touches change ledgers.
+
 ### `rehash`
 
 Regenerate the hash cache for all specs. Useful after `git pull`, branch switches, or manual spec edits to reset the incremental validation baseline.
@@ -325,6 +337,11 @@ specsync change verify CHG-0001-add-passkeys
 specsync change accept CHG-0001-add-passkeys
 specsync change reopen CHG-0001-add-passkeys --actor "Ada" --reason "Review fixes changed governed inputs"
 specsync change correct CHG-0001-add-passkeys architecture_risk yes --actor "Ada" --reason "Review found architectural impact"
+specsync change correct-owner CHG-0001-add-passkeys --path src/auth.rs --spec auth --actor "Ada" --reason "Owner omitted from the accepted affected-spec list"
+specsync change correct-owner CHG-0001-add-passkeys --path src/a.rs --path src/b.rs --spec auth --actor "Ada" --reason "Batch repair"
+specsync change correct-owner CHG-0001-add-passkeys --manifest owners.json --actor "Ada" --reason "Batch repair"
+specsync change correct-owner CHG-0001-add-passkeys --all-missing --spec auth --actor "Ada" --reason "Assign every omitted owner"
+specsync change supersede CHG-0002-update-ui CHG-0001-add-passkeys --path specs/auth/auth.spec.md --module auth
 specsync change archive CHG-0001-add-passkeys
 specsync change check
 specsync change adopt --dry-run
@@ -333,6 +350,8 @@ specsync change adopt --dry-run
 `acceptance_criteria` preserves scalar prose exactly; use a JSON array of strings to provide multiple criteria. `affected_specs` and `affected_paths` retain comma- and newline-separated list input.
 
 Definition and closing approvals are mandatory and digest-bound. Use `change reopen` when accepted delivery inputs became stale but the approved definition is unchanged. Use `change correct` when review proves an accepted `public_contract` or `architecture_risk` answer was wrong. Correction requires an explicit actor and reason, preserves the original answer and prior evidence in an append-only ledger, can only add newly required artifacts, returns to `verifying`, and requires fresh definition approval, verification, and closing approval. Correct/show/status expose both original and effective values in text and global `--json` output. Unsupported fields, values other than `yes`/`no`, no-op corrections, incomplete audit inputs, and non-accepted workspaces fail without mutation. Neither recovery path reapplies an already-canonical semantic delta. `change adopt` enables SDD for an existing project and can import active/canonical OpenSpec or Spec Kit artifacts.
+
+Use `change correct-owner` to append audited exact canonical owner corrections for reopened acceptance evidence — for example owners omitted from a historical affected-spec list. The single form takes one `--path`/`--spec` pair; the batch form accepts repeated `--path` flags (one shared `--spec` or paired lists), a `--manifest` file (JSON `[{path, module}]` or TSV), or `--all-missing --spec <module>` to discover every production-source affected path that lacks canonical ownership. Every entry validates independently against the single-correction rules, and the batch is transactional: if any entry is invalid, no corrections from the batch are persisted. Use `change supersede` before definition approval when a later change adopts an exact predecessor path/module obligation, so the predecessor's accepted evidence remains successor-covered instead of going stale.
 
 ### `lifecycle`
 

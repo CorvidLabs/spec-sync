@@ -1,0 +1,246 @@
+{
+  "timestamp": 1784557263,
+  "commit": "342bd053d410211c16fcd041a9eb94ed53012fe2",
+  "contract_digest": "8db163543d1c0fa994c8c0df6ed1312f5306f82bae825eae00a8f910c36bf281",
+  "workspace_digest": "f53eaf9a4f7a29ba1194463bbc3b31d479adb7f341fd4ab73a75b9131db4daa6",
+  "acceptance_input_digest": "65a5b375c4a7dc0630c282fd7f3520aa828e8bdcf5fc670fec32f2447056b481",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4d7ffe74e3d8f6de2ac3c34c47b1082499cbdc97f4dbb7823e7d2df4ceff6b06",
+        "entry_digest": "3761bc600d8dc8aa0711f441f7c198690153a72eea211d7bd1aa20831619439d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "AGENTS.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "fd42105f88ebd128b8506de9aaf30c5e2cebe8cbffd94ecae4ad503206b14842",
+        "entry_digest": "6a9622797c3e30cf5f2b6f66bf1ce63ea129107710c60c75438e6a38f6100f81",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/architecture.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c3e46859598a4622029fc0870e05e2850f3b9ec4b88127117f4f43bd96512164",
+        "entry_digest": "d6d2fb115eb13e497e08b9ae5767d3cb2f1f12d6619e2608335b5d938e8978d4",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/cli.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3e54d1f501e35df2996487df415e61f609830da316c227c13cb735db36117c73",
+        "entry_digest": "114b0971657a91e3ec19e4d5340fc4d4c03bc445c7ef661b82c6440473b0b33b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/companion-files.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2d17dabdb853e7483bfc5ea04bd113f5f7c459ab5e79a617b23aa4ebef058e7d",
+        "entry_digest": "2782c0458d5e4a2a1dc66a77e1f53dc7bdd9900ecbce52f4094ecdc5f6b930b4",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/comparisons/adversarial-proof.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "1639387ebb161bcf10fd4b8fea5bc73805238a7f7c7edc3a56e2634da8d5ab07",
+        "entry_digest": "99870b96178e42cefa069dd143f11668b5fffee9826e7d402646114c950c05d0",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/comparisons/bmad.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "a4b16e67faaa512c1acde7f15b33defc0d557da845f7931ff570b0beca008821",
+        "entry_digest": "972e524a4bb28e8a5fbb5c8df91f738f095b0d448ca40823da6eb4b266e5fa78",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/comparisons/openspec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "07f8a4c86a3a0b0972c596cf88ddb7069a7d62a3feeff4650ed091f10b97c475",
+        "entry_digest": "9a1d28d85e53971c72dcf8e77b3b59520fedc718817c78890fceb9a17887d954",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/comparisons/spec-kit.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9f68bb8b6dd6120db934a728c04e758f976aa38896f3ed721bbc0aa04d59f2c8",
+        "entry_digest": "bbfc620f5d729b7a0506f25b2e2924a46d6a5965560c1f5d4df5092761d25a57",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/comparisons/using-together.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "8a0f95675ec1039693af31277fc5dc4b7357edb9bebc6be4911482bd8e532cc0",
+        "entry_digest": "20a42c76a091e1e993e4d8f982c910cdfbf54185c783fd7dcd71dc6bb92e4a3a",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/configuration.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4999848134e4f740cd0c0e63dae2e592dbfd71138fd357bb1b988d286f55860d",
+        "entry_digest": "bb66d367407847033fb51e771e3b10282e0b1f1104086efdc2088a6394ee4e98",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/cross-project-refs.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4b31f455d9181531cd3693b03cd72c4b453a90da54b2196b59c25a15a4ee63d1",
+        "entry_digest": "c9d79f9e7e0294d64999fefd00c40ff5cc42a4978dfbc5e667436ad11cb75d91",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/deltas.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "13cd951e2408f40ff57e51a9efd74f4a3bc8a1d0c88a15c6790423efa4e25f38",
+        "entry_digest": "8302e685abe44baf1f310762d61bd1f62bf7fe6f6fb5f35382cb1d0031a525d4",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/index.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "6c2a54d96360183999126295670b0b762efd589815dbf80ac76d7c7d6ae6c217",
+        "entry_digest": "edd0a1d763c98f9c75400cc0c6d52ae4ed445063030e7566f2ea93cb23327fe8",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/integrations/ai-agents.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3f1330d0b373997bc8d0abb10f7836d87b5f56f5c3c88e1b331ddb393ef71a2d",
+        "entry_digest": "95372151ee30c01a1e9e428ccb23ef002d14890c04893f0d6f2b006971767bb6",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/integrations/github-action.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9bf2f7ea4d573c10c23475052a9f52105296521d8ce7612419d984d804af64d8",
+        "entry_digest": "451e8ab0f6aaf1c22e13ad0075eb13eb369a59fcbc92e8a018c40f583b328b55",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/integrations/vscode-extension.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ff74bb328a7472f5358fff27b3c9941576eb9f7c5797d1b30c31a83d734ff1b7",
+        "entry_digest": "22260ed7f39fe8df94a2312846c4e0d889b5b74e650e7430d956d4d57b75541c",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/quickstart.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7173ecca9afa733b4e206cf91ee8090116076c512833bca9628ed1de0e6a991b",
+        "entry_digest": "d191df50a674a598e459708100df57927d614fa881ec19ba8190352d08478347",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/spec-format.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "82ffca71fd41cecd8b83102eaea185c852b6cf83b53972df893d0780170df364",
+        "entry_digest": "4444d02f17311165338c0798b5d1bac539e8bd8c81fe0d0c79cddc3e69d71e1b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/why-specsync.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "fc0dd1161fc6bcea595467b03291564671cfda2c5cb56576e00c7778445c7fdf",
+        "entry_digest": "b4f55cddf9e0dda2d9e3fa63e490731275b1721adcc538817e787fe69b33498d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/workflow.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "a1430cb4de5ad7c3045d0f3a7294eb9cd33c1676cb8d26dfcb216022a93fef2c",
+        "entry_digest": "731b0ca3bcc2d3a09e1f3b59f9a22c9a03c49254c0f02d231f5a844d73423f10",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "ruby --version",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

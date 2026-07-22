@@ -8,6 +8,7 @@ spec: cli_args.spec.md
 
 ## Done
 
+- [x] Add `mcp --allow-write` with a read-only default and configured-root help text
 - [x] Correct initialization and full-scaffold help for the 5.0 layout
 - [x] Preserve global flags and complete command grammar
 - [x] Preserve verified Change, Agents, MCP, and lifecycle namespaces

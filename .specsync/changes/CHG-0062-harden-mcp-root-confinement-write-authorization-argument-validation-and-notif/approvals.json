@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784676146,
+      "digest": "80ae7c16a8262dbd42e466ff9329490de9736ce886251fc9d6f1553792eb96d5",
+      "note": "Explicitly approved by the user in the Codex task."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784684395,
+      "digest": "1a6159d1910115f4e8c4264efc62ef89df582366c2a843479d5dac6be9774ae8",
+      "note": "Human reapproval after review-driven MCP manifest, bounded scan, and bounded JSON-RPC input hardening"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784685978,
+      "digest": "87384dff77d0af311fd6d840086c0e3cc9712914e92b2e025057707739c2b77d",
+      "note": "Human reapproval after completion-only task ledger correction"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784687345,
+      "digest": "5636f550814aca9289301732a17f17aa9d53f3cd3b910fa2f6808dbfa639a642",
+      "note": "Human reapproval after adding the omitted canonical cli owner and REQ-cli-005"
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784687884,
+      "digest": "567e7dc2865cba9c4baada09be0bdb83fa51c3d631b4ebf7072021dc18831e97",
+      "note": "Human closing approval for the final verified three-owner CHG-0062 definition"
+    }
+  ],
+  "reopenings": []
+}

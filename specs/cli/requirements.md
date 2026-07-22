@@ -82,3 +82,15 @@ Acceptance Criteria
 - The process emits one contextual diagnostic and exits non-zero.
 - Commands outside the lifecycle boundary preserve current dispatch behavior.
 
+### REQ-cli-005
+
+The root CLI dispatcher SHALL preserve MCP write authorization and fail closed when the configured
+server root cannot be resolved.
+
+Acceptance Criteria
+
+- The dispatcher forwards the parsed `allow_write` capability to `run_mcp_server` without changing
+  its default.
+- MCP startup errors are printed to stderr and exit with usage status 2.
+- No MCP request is read when server-root initialization fails.
+

@@ -42,10 +42,24 @@ The create-spec commands classify the complete input after removing standalone s
 ## MCP Server
 
 ```bash
-specsync mcp
+specsync mcp                 # read-only by default
+specsync mcp --allow-write   # explicitly expose confined mutation
 ```
 
-The stdio MCP server exposes deterministic `specsync_check`, `specsync_generate`, `specsync_coverage`, and `specsync_score` tools. `specsync_generate` creates local templates only. Legacy AI/provider/model/credential/endpoint/command arguments are rejected rather than silently implying inference occurred.
+The stdio MCP server exposes `specsync_check`, `specsync_coverage`, `specsync_list_specs`,
+`specsync_score`, and `specsync_issues` by default. Optional read roots must resolve to the configured
+server root or an existing canonical descendant; outside paths, traversal, nonexistent paths, and
+symlink escapes are rejected.
+
+Confinement is also enforced for configuration/metadata/cache files, manifest workspace paths,
+dependency references, module definitions, spec file mappings, generation destinations, and nested
+symlinks. Bounded, ignore-aware preflights run before source autodetection. A project cannot redirect
+an authorized MCP operation outside the server root through its configuration or filesystem layout.
+
+Mutation is not available unless the operator starts the server with `--allow-write`. That mode adds
+deterministic `specsync_generate` and `specsync_init`, both fixed to the configured server root;
+per-call root overrides are rejected. Legacy AI/provider/model/credential/endpoint/command arguments
+are rejected rather than silently implying inference occurred.
 
 ```json
 {
@@ -57,6 +71,10 @@ The stdio MCP server exposes deterministic `specsync_check`, `specsync_generate`
   }
 }
 ```
+
+The configuration above is read-only. If an existing client depends on `specsync_generate` or
+`specsync_init`, migrate its arguments to `["mcp", "--allow-write"]` only after deciding that the
+client may write within the configured project root.
 
 ## End-to-End Agent Workflow
 
@@ -109,7 +127,8 @@ Errors identify stale contracts; warnings identify undocumented code. `--strict`
 |:--------|:--------|:--------|
 | Bootstrap coverage | `specsync generate` | Deterministic templates for uncovered modules |
 | Native agent workflow | `specsync agents install` | Project skills and supported slash commands |
-| MCP integration | `specsync mcp` | Structured local tool access |
+| MCP integration | `specsync mcp` | Read-only structured local tool access |
+| MCP mutation | `specsync mcp --allow-write` | Explicit init/generate capability at the configured root |
 | PR review | `specsync check --json` | Feed deterministic drift to a coding agent |
 | Coverage gate | `specsync check --strict --require-coverage 100` | Enforce complete release coverage |
 | Quality gate | `specsync score --json` | Improve low-quality contracts |

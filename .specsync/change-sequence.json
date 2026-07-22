@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 61,
-  "id": "CHG-0061-document-the-5-2-0-lifecycle-surfaces-migrate-5-0-ledger-backfill-batch-and-si",
+  "sequence": 62,
+  "id": "CHG-0062-harden-mcp-root-confinement-write-authorization-argument-validation-and-notif",
   "acknowledged_collisions": [
     {
       "sequence": 16,

@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 12
+version: 14
 status: stable
 files:
   - src/cli.rs
@@ -36,18 +36,10 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 
 ## Invariants
 
-1. All global flags use `#[arg(global = true)]` so they work regardless of subcommand position
-2. `--json` is a shorthand alias for `--format json` — both set the same output format
-3. `--enforcement` accepts three modes matching `types::EnforcementMode`: warn, enforce-new, strict
-4. Default output format is `text` when neither `--json` nor `--format` is specified
-5. The `Command` enum is optional — running `specsync` with no subcommand defaults to `Check`
-6. Each `HooksAction::Install` / `Uninstall` variant carries identical boolean flags for symmetric install/uninstall
-7. Each `AgentsAction::Install` / `Uninstall` variant carries identical boolean flags for symmetric install/uninstall, mirroring `HooksAction`
-8. `Generate` exposes only deterministic uncovered/batch selection; provider and model flags are not accepted
-9. `ChangeAction::Reopen` requires both `--actor` and `--reason`; neither can be omitted from the CLI grammar
-10. `ChangeAction::CorrectOwner` requires actor and reason, plus a non-empty batch selection from repeated `--path`/`--spec` pairs, `--manifest`, or `--all-missing` with one `--spec`
-11. Conflicting or empty `correct-owner` selection modes fail in Clap before domain mutation
-12. `Migrate` accepts an optional source-family positional; unknown families fail through deterministic validation before any mutation.
+1. All global flags remain available around subcommands.
+2. `--json` remains an alias for JSON output.
+3. MCP is read-only unless the `Mcp` command's `--allow-write` flag is present.
+4. Existing deterministic generation and verified SDD command grammar remains available.
 
 ## Behavioral Examples
 
@@ -75,6 +67,12 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 - **When** Clap parses arguments
 - **Then** `AgentsAction::Install { claude: true, gemini: true, cursor: false, codex: false }`
 
+### Scenario: Explicit MCP write authorization
+
+- **Given** user runs `specsync mcp --allow-write`
+- **When** Clap parses arguments
+- **Then** `Command::Mcp { allow_write: true }` is dispatched; omitting the flag yields `false`
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -83,6 +81,7 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | Missing required argument (e.g. `new` without name) | Clap prints error listing required args |
 | Invalid `--enforcement` value | Clap prints accepted values: warn, enforce-new, strict |
 | Invalid `--format` value | Clap prints accepted values: text, json, markdown, github, table, csv |
+| Unsupported MCP option or value | Clap rejects it before starting the stdio server |
 | `change reopen` without `--actor` or `--reason` | Clap names the missing required argument and exits non-zero |
 | `change correct-owner` without actor, reason, or any batch selection | Clap names the missing required argument and exits non-zero |
 | `change correct-owner` with conflicting `--all-missing`, `--manifest`, and `--path` modes | Clap rejects the conflicting selection before domain mutation |
@@ -122,3 +121,5 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | 2026-07-15 | CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied: Permit audited deterministic ownership corrections for reopened already-applied changes |
 | 2026-07-19 | CHG-0055-batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c: Batch mode for change correct-owner so multiple omitted exact canonical owners can be audited and appended in one transactional correction before a single reapprove-verify-accept cycle |
 | 2026-07-19 | CHG-0057-add-a-native-migration-path-for-5-0-1-era-change-ledgers-that-backfills-the-5-1: Add a native migration path for 5.0.1-era change ledgers that backfills the 5.1 reopening stale and current acceptance-input digest fields idempotently with a closing-digest verification pass, and surfaces an actionable migrate hint when check encounters the 5.0.1 reopening schema |
+| 2026-07-21 | CHG-0062: Add explicit `mcp --allow-write` authorization while preserving a read-only default |
+| 2026-07-22 | CHG-0062-harden-mcp-root-confinement-write-authorization-argument-validation-and-notif: Harden MCP root confinement, write authorization, argument validation, and notification semantics for issue 414 |

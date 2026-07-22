@@ -9,23 +9,30 @@ spec: mcp.spec.md
 - As an AI agent developer, I want programmatic access to spec-sync over JSON-RPC so that I can build spec validation into automated workflows
 - As an AI agent, I want to read specs, the dependency graph, config, and coverage as MCP resources so that I can inspect project state without invoking a tool
 - As a developer, I want the MCP server to run over stdio so that it works with any MCP-compatible client without network configuration
+- As an operator, I want MCP mutation disabled by default and confined to one project root when enabled
 
 ## Acceptance Criteria
 
 - Implements JSON-RPC 2.0 over stdio
 - Protocol version "2024-11-05" returned in initialize response; `initialize` advertises both `tools` and `resources` capabilities
-- Seven tools exposed: `specsync_check`, `specsync_coverage`, `specsync_generate`, `specsync_list_specs`, `specsync_init`, `specsync_score`, `specsync_issues`
+- Five read tools are exposed by default; `specsync_generate` and `specsync_init` are exposed only with `--allow-write`
 - Four resources exposed (`specsync:///specs`, `specsync:///graph`, `specsync:///config`, `specsync:///coverage`) plus one resource template (`specsync:///specs/{module}`)
 - `specsync_generate` creates deterministic local scaffolds with no inference schema
 - Retired AI/provider/model/credential/base-URL/command arguments return an explicit error without echoing values
-- Tool errors returned as `isError: true` in result content, not as JSON-RPC error objects (except parse/method-not-found)
+- Tool-domain errors return `isError: true`; malformed tool-call shapes and arguments return JSON-RPC -32602
 - Resource read errors return JSON-RPC error -32602 (unknown URI, module not found)
 - Malformed JSON returns JSON-RPC error -32700 "Parse error"
-- Unknown method returns JSON-RPC error -32601 "Method not found"
+- Unknown request methods return JSON-RPC error -32601 "Method not found"
 - Unknown tool name returns tool-level error "Unknown tool: {name}"
-- Notifications (requests without id, e.g. `notifications/initialized`) receive no response
+- Every notification receives no response and is suppressed before dispatch, including known tools and unknown methods
 - `ping` method returns empty result
-- Each tool accepts optional `root` parameter to override project directory
+- Read tools accept only existing roots that canonicalize to the server root or a descendant
+- Mutating tools reject per-call roots and always use the configured server root
+- Configuration and metadata files, configured project paths, manifest workspaces, dependency and
+  cache/schema references, module names, spec file mappings, and nested symlink targets are
+  validated against the canonical server root before a tool or resource runs
+- Recursive confinement and autodetection preflights are bounded and honor ignored/excluded directories
+- JSON-RPC input is limited to 1 MiB per line; oversized lines are drained and rejected before parsing
 - stdin EOF triggers graceful exit
 
 ## Constraints
@@ -38,7 +45,7 @@ spec: mcp.spec.md
 
 - MCP prompts (tools and resources are implemented; prompts are not)
 - HTTP/SSE transport (stdio only)
-- Authentication or authorization
+- Network authentication (stdio capability authorization is enforced by `--allow-write`)
 - Streaming partial results during long operations
 - Server-side state between calls (each invocation reloads config from scratch)
 
@@ -48,5 +55,36 @@ The MCP generate tool SHALL scaffold deterministically and delegate enrichment t
 
 Acceptance Criteria
 - The tool schema contains no AI/provider argument.
-- Tool and resource counts, JSON-RPC behavior, and root overrides remain stable.
+- Authorized deterministic generation and resource behavior remain stable.
+
+### REQ-mcp-002
+
+The MCP server SHALL confine every filesystem operation to its configured project root and SHALL
+expose mutating tools only when the operator explicitly enables writes.
+
+Acceptance Criteria
+
+- Default MCP mode omits mutating tools.
+- Direct mutator calls in default mode fail before execution.
+- Write mode is explicit and mutating tools cannot override the configured root.
+- Read roots are existing canonical descendants of the configured root.
+- Configuration/metadata/cache files, manifest/autodetection paths, dependency references, module
+  names/files, spec mappings, and nested symlink targets are confined before downstream filesystem
+  access.
+- Recursive confinement uses cumulative deterministic budgets across configured paths and spec
+  mappings and honors ignored/configured exclusions.
+- Traversal, configured-path, and symlink escapes fail before filesystem access.
+
+### REQ-mcp-003
+
+The MCP server SHALL validate JSON-RPC tool arguments exactly and SHALL obey notification response
+semantics.
+
+Acceptance Criteria
+
+- Unknown keys and wrong argument types return `-32602` without tool execution.
+- Tool-domain failures remain `isError: true` results.
+- Every notification, including unknown methods, emits no response and cannot mutate files.
+- JSON-RPC lines larger than 1 MiB are drained and rejected with `-32700` before parsing; the next
+  line remains independently processable.
 

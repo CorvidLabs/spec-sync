@@ -160,7 +160,12 @@ fn run() {
             &cli.only_status,
         ),
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
-        Command::Mcp => mcp::run_mcp_server(&root),
+        Command::Mcp { allow_write } => {
+            if let Err(message) = mcp::run_mcp_server(&root, allow_write) {
+                eprintln!("{} {message}", "error:".red().bold());
+                process::exit(2);
+            }
+        }
         Command::AddSpec { name } => commands::scaffold::cmd_add_spec(&root, &name),
         Command::Scaffold {
             name,

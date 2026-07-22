@@ -14,6 +14,8 @@ spec: cli.spec.md
 - **Panic guard**: `main()` wraps `run()` in `std::panic::catch_unwind` and prints a "please report it" message with the issue tracker URL instead of a raw backtrace.
 - **Deterministic generation**: `generate` accepts module selection only; coding-agent enrichment is reached through Agents or MCP, not embedded inference flags.
 - **Recursive lifecycle boundary**: Before dispatching `change` or `lifecycle`, `main.rs` consults the inherited verification context and exits once with a contextual diagnostic; the default/check path uses the same domain guard through unified checking.
+- **MCP capability boundary**: The dispatcher forwards the parsed `allow_write` bit unchanged to the
+  MCP server and reports server-root initialization failures on stderr with exit status 2.
 
 ## Files to Read First
 
@@ -22,7 +24,9 @@ spec: cli.spec.md
 
 ## Current Status
 
-Fully implemented. The CLI exposes deterministic validation/generation, complete lifecycle/change commands, and native Agents/MCP integration without embedded inference configuration.
+Fully implemented. The CLI exposes deterministic validation/generation, complete lifecycle/change
+commands, and native Agents/MCP integration without embedded inference configuration. MCP mutation
+remains opt-in at dispatch and startup fails closed before request processing when the root is invalid.
 
 ## Notes
 

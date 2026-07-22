@@ -69,10 +69,28 @@ Scores are based on a weighted rubric: completeness, detail level, API table cov
 Start SpecSync as an MCP (Model Context Protocol) server over stdio. Enables AI agents like Claude Code, Cursor, and Windsurf to use SpecSync tools natively.
 
 ```bash
-specsync mcp                            # start MCP server (stdio JSON-RPC)
+specsync mcp                            # read-only MCP server (stdio JSON-RPC)
+specsync mcp --allow-write              # additionally expose root-confined init/generate tools
 ```
 
-Exposes tools: `specsync_check`, `specsync_generate`, `specsync_coverage`, `specsync_score`.
+By default, the server exposes five read tools: `specsync_check`, `specsync_coverage`,
+`specsync_list_specs`, `specsync_score`, and `specsync_issues`. Read-tool `root` overrides must name
+the configured server root or an existing directory beneath it after canonicalization. Traversal,
+nonexistent paths, outside paths, and symlink escapes are rejected.
+
+The same boundary applies before and after project configuration loads: config/metadata/cache files,
+`specs_dir`, `source_dirs`, `schema_dir`, manifest workspace paths, dependency references, module
+files/names, spec file mappings, and nested symlink targets must remain inside the canonical server
+root. Invalid paths fail before project data is read or generated. Confinement and source
+autodetection scans are bounded and honor ignored or configured-excluded directories.
+
+`--allow-write` is an explicit capability grant. It additionally exposes `specsync_generate` and
+`specsync_init`; these mutating tools always operate at the configured server root and reject a
+per-call `root` argument. Exact tool schemas reject unknown keys and wrong value types.
+
+**Migration note:** MCP clients that expect `specsync_generate` or `specsync_init` in the default
+tool list must add `--allow-write` to the server command. Grant it only when that client should be
+able to modify the configured project.
 
 ### `add-spec`
 

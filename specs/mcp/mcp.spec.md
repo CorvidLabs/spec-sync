@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 5
+version: 7
 status: stable
 files:
   - src/mcp.rs
@@ -33,8 +33,10 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 2. Server reports tools and resources capabilities.
 3. Read-only mode exposes five non-mutating tools; write mode additionally exposes
    `specsync_generate` and `specsync_init`.
-4. All filesystem operations remain within the canonical configured root.
-5. Read tools may select only an existing canonical descendant root.
+4. The requested root is opened and identity-bound before canonicalization; the canonical path is
+   reopened and must identify the same directory, so startup replacement cannot redirect authority.
+5. Read tools lexically validate a relative descendant and open it only through the retained server
+   root capability, so replacement of the ambient root path cannot redirect selection.
 6. Mutating tools require write mode, reject root overrides, and use the configured root.
 7. Tool argument schemas and runtime validation reject unknown properties and wrong types.
 8. Tool-domain errors use `isError`; JSON-RPC shape errors use protocol error objects.
@@ -44,8 +46,25 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
     the canonical root before use.
 11. Recursive checks canonicalize only symlinks, honor ignored/configured exclusions, and share
     deterministic cumulative bounds across configured paths and spec mappings.
-12. JSON-RPC input lines are bounded to 1 MiB and oversized lines are drained before the next request.
-13. Resources and deterministic generation behavior remain compatible when authorized.
+12. JSON-RPC input lines and responses are bounded to 1 MiB, and request IDs are bounded to 4 KiB.
+13. Generated output is limited to 1,000 specs and 64 MiB, preflighted before mutation, staged and
+    synced beside each destination, and atomically published without overwriting existing files;
+    retained parent capabilities and inode identities preserve replacements at public transaction
+    paths. Empty parent directories created during a failed batch may remain because no portable
+    create-and-open directory primitive can prove ownership across a concurrent replacement.
+    Processes already authorized to mutate the server root must not race private
+    `.specsync-mcp-stage-*` or `.specsync-mcp-quarantine-*` names.
+14. Explicit root-wide and manifest-derived inputs remain present in bounded snapshots even when
+    they cross normally ignored directory names; ignored or configured-exclusion symlink names
+    are skipped before following targets unless an explicit configured input names them or a descendant;
+    manifest discovery parses Cargo workspace
+    membership as TOML plus comment/escape-aware shared Gradle settings; snapshots copy the exact
+    manifest bytes charged to the shared cumulative byte budget.
+15. GitHub issue verification requires explicit `GITHUB_TOKEN`, performs read/list/verify requests
+    in-process without a provider subprocess, prepares once, globally deduplicates at most 100 IDs,
+    includes authentication/preflight in the 30-second batch bound, and revalidates repository
+    access before accepting not-found; provider failures remain inconclusive tool errors rather
+    than successful empty/not-found results.
 
 ## Behavioral Examples
 
@@ -104,14 +123,18 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 |-----------|----------|
 | Malformed JSON input | JSON-RPC error -32700 "Parse error" |
 | JSON-RPC input line exceeds 1 MiB | JSON-RPC error -32700; the line is drained and the next request remains processable |
+| JSON-RPC request ID exceeds 4 KiB | JSON-RPC error -32600 with a null ID; no dispatch |
 | Unknown method with id | JSON-RPC error -32601 "Method not found" |
 | Unknown tool name | Tool error: "Unknown tool: {name}" |
 | Mutating tool in read-only mode | Tool error requiring `--allow-write`; no tool execution |
 | Mutating tool with a per-call `root` | JSON-RPC error -32602; the server root remains authoritative |
 | Non-object params/arguments, wrong argument type, or unknown key | JSON-RPC error -32602 before tool execution |
-| Read root outside the server root, nonexistent, traversing, or symlink-escaped | Tool error with `isError: true`; no outside mutation |
+| Read root outside the server root, nonexistent, traversing, symlink-escaped, or selected after ambient root replacement | Tool error with `isError: true`; retained authority never follows the replacement path |
 | Configured, manifest-derived, dependency/cache/schema, module, spec-mapping, or nested-symlink path escapes the root | Tool/resource error before downstream filesystem access; outside bytes remain unchanged |
 | Cumulative confinement or manifest preflight exceeds its deterministic entry bound | Tool/resource error before downstream filesystem access |
+| Generation exceeds 1,000 specs, 64 MiB, or its response budget | Tool error before publishing project files |
+| Generated destination exists, a public parent path is replaced, or a staged batch cannot publish completely | Tool error; identity-bound cleanup preserves public replacements; an empty parent created by the failed batch may remain |
+| GitHub issue provider tree, authentication, repository recheck, timeout, malformed output, or transport failure | Inconclusive tool error; no trustworthy zero-count or not-found result |
 | Server root cannot be resolved | Server exits nonzero and writes an actionable diagnostic to stderr |
 | Unknown resource URI | JSON-RPC error -32602 "Unknown resource URI: {uri}" |
 | Spec module not found | JSON-RPC error -32602 "No spec found for module: {name}" |
@@ -127,7 +150,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | Module | What is used |
 |--------|-------------|
 | config | `load_config`, `detect_source_dirs` |
-| validator | `validate_spec`, `find_spec_files`, `compute_coverage`, `get_schema_table_names` |
+| validator | `validate_spec`, `find_spec_files`, `compute_coverage_checked`, `get_schema_table_names` |
 | generator | `generate_specs_for_unspecced_modules_paths` |
 | scoring | `score_spec`, `compute_project_score` |
 | parser | `parse_frontmatter` |
@@ -150,3 +173,5 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-21 | CHG-0062: Make MCP read-only by default with explicit confined writes, exact argument validation, and notification-safe dispatch |
 | 2026-07-22 | CHG-0062-harden-mcp-root-confinement-write-authorization-argument-validation-and-notif: Harden MCP root confinement, write authorization, argument validation, and notification semantics for issue 414 |
+| 2026-07-22 | CHG-0063: Identity-bind roots and quarantine rollback, parse Cargo TOML and checked Gradle inputs, normalize Windows roots, and use bounded in-process GitHub verification |
+| 2026-07-22 | CHG-0063 defensive review: Skip ignored-name symlinks before traversal and compare Windows root components with native ordinal Unicode case semantics |

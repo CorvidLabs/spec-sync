@@ -1,4 +1,4 @@
-use crate::config::{default_schema_pattern, discover_manifest_modules};
+use crate::config::{default_schema_pattern, discover_manifest_modules_checked};
 use crate::exports::{get_exported_symbols_full, has_configured_extension, is_test_file};
 use crate::parser::{
     body_has_section, find_section_offset, find_stub_sections, get_missing_sections,
@@ -1084,6 +1084,28 @@ mod tests {
     }
 
     #[test]
+    fn malformed_gradle_settings_make_coverage_inconclusive() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("src/main/kotlin")).unwrap();
+        fs::write(tmp.path().join("build.gradle.kts"), "plugins {}\n").unwrap();
+        fs::write(
+            tmp.path().join("settings.gradle.kts"),
+            "include(\":member\"\n",
+        )
+        .unwrap();
+        let config = SpecSyncConfig {
+            source_dirs: vec!["src".to_string()],
+            ..SpecSyncConfig::default()
+        };
+
+        let error = compute_coverage_checked(tmp.path(), &[], &config).unwrap_err();
+        assert!(error.contains("Cannot parse Gradle settings manifest"));
+        let report = compute_coverage(tmp.path(), &[], &config);
+        assert_eq!(report.coverage_percent, 0);
+        assert!(report.unspecced_modules[0].contains("inconclusive"));
+    }
+
+    #[test]
     fn configured_static_html_has_non_vacuous_coverage() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
@@ -1684,11 +1706,31 @@ fn get_spec_module_dirs(dir: &Path) -> Vec<String> {
 }
 
 /// Compute file and module coverage.
+#[allow(dead_code)]
 pub fn compute_coverage(
     root: &Path,
     spec_files: &[PathBuf],
     config: &SpecSyncConfig,
 ) -> CoverageReport {
+    compute_coverage_checked(root, spec_files, config).unwrap_or_else(|error| CoverageReport {
+        total_source_files: 0,
+        specced_file_count: 0,
+        unspecced_files: Vec::new(),
+        unspecced_modules: vec![format!("Coverage inconclusive: {error}")],
+        coverage_percent: 0,
+        total_loc: 0,
+        specced_loc: 0,
+        loc_coverage_percent: 0,
+        unspecced_file_loc: Vec::new(),
+    })
+}
+
+/// Compute file and module coverage while surfacing malformed manifest inputs.
+pub fn compute_coverage_checked(
+    root: &Path,
+    spec_files: &[PathBuf],
+    config: &SpecSyncConfig,
+) -> Result<CoverageReport, String> {
     let specced_files = collect_specced_files(spec_files);
     let exclude_dirs: HashSet<String> = config.exclude_dirs.iter().cloned().collect();
 
@@ -1789,7 +1831,7 @@ pub fn compute_coverage(
     }
 
     // Then: detect modules from manifest files (Package.swift, Cargo.toml, etc.)
-    let manifest = discover_manifest_modules(root);
+    let manifest = discover_manifest_modules_checked(root)?;
     for name in manifest.modules.keys() {
         if !spec_modules.contains(name) && seen_modules.insert(name.clone()) {
             unspecced_modules.push(name.clone());
@@ -1844,7 +1886,7 @@ pub fn compute_coverage(
 
     let loc_coverage_percent = (specced_loc * 100).checked_div(total_loc).unwrap_or(100);
 
-    CoverageReport {
+    Ok(CoverageReport {
         total_source_files: all_source_files.len(),
         specced_file_count: specced_count,
         unspecced_files,
@@ -1854,5 +1896,5 @@ pub fn compute_coverage(
         specced_loc,
         loc_coverage_percent,
         unspecced_file_loc,
-    }
+    })
 }

@@ -1,6 +1,6 @@
 ---
 module: cmd_import
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/import.rs
@@ -31,9 +31,12 @@ Implements the `specsync import` command. Imports specs from external systems (G
 
 1. Supported sources: `github`, `jira`, `confluence`
 2. GitHub import resolves repo from config, CLI flag, or git remote
-3. Creates spec and companion files (tasks.md, context.md, requirements.md, testing.md); design.md is generated only when `companions.design` is enabled in config
-4. Will not overwrite existing spec
-5. Success guidance tells users to validate and complete imported details, not to fill template markers
+3. Single and batch GitHub imports require explicit `GITHUB_TOKEN` and use only typed in-process REST reads; authenticated `gh` state is not a fallback
+4. Batch GitHub import follows every valid page, bounded to 100 pages of 100 issues, and fails on malformed pagination, duplicate issue IDs, or a continuing page at the cap instead of returning partial success
+5. Each GitHub REST operation is bounded to 10 seconds
+6. Creates spec and companion files (tasks.md, context.md, requirements.md, testing.md); design.md is generated only when `companions.design` is enabled in config
+7. Will not overwrite existing spec
+8. Success guidance tells users to validate and complete imported details, not to fill template markers
 
 ## Behavioral Examples
 
@@ -50,6 +53,8 @@ Implements the `specsync import` command. Imports specs from external systems (G
 | Invalid source type | Exits 1 with supported list |
 | Spec already exists | Exits 1 |
 | Fetch fails | Exits 1 with error |
+| `GITHUB_TOKEN` missing for GitHub import | Exits 1 with explicit-token guidance; does not consult `gh` |
+| GitHub issue pagination is malformed, duplicated, or exceeds 100 pages | Batch import fails closed without reporting a truncated issue set |
 
 ## Dependencies
 
@@ -59,7 +64,7 @@ Implements the `specsync import` command. Imports specs from external systems (G
 |--------|-------------|
 | config | `load_config` |
 | generator | `generate_companion_files` |
-| github | `resolve_repo` |
+| github | `resolve_repo`, strict typed `list_issues` pagination |
 | importer | `import_github_issue`, `import_jira_issue`, `import_confluence_page` |
 
 ### Consumed By
@@ -74,5 +79,6 @@ Implements the `specsync import` command. Imports specs from external systems (G
 |------|--------|
 | 2026-06-07 | Update import success guidance for guided imported specs |
 | 2026-04-09 | Initial spec |
+| 2026-07-22 | CHG-0063: Require explicit-token in-process GitHub REST reads and fail closed on partial pagination |
 | 2026-04-13 | Document testing.md and conditional design.md in companion generation |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

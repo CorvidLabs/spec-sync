@@ -20,16 +20,22 @@ spec: manifest.spec.md
 - package.json workspaces support both array and object forms with glob expansion
 - Go module name uses the last path segment of the module path
 - Python tries `[project]` before `[tool.poetry]` in pyproject.toml
-- Gradle multi-module detection via `include()` in settings.gradle
-- All TOML/YAML parsing is zero-dependency (regex and string-based)
+- Gradle multi-module detection accepts comment-aware Groovy/Kotlin single- and double-quoted,
+  escape-decoded, parenthesized or bare multiline `include` declarations, nested colon paths, and
+  `projectDir` overrides.
+- Every Gradle `include` argument is a complete quoted literal; dynamic or mixed expressions reject
+  checked discovery instead of returning a partial module set.
+- Supported `projectDir` values are exactly `file(<literal>)` or `new File(rootDir, <literal>)`;
+  alternate bases, extra arguments, and trailing expressions reject checked discovery.
+- General metadata extraction remains string/regex based; MCP Cargo workspace security discovery parses bounded manifests as real TOML
 - `ManifestDiscovery::default()` returns empty collections (safe fallback)
-- Unparseable manifests are silently skipped (no errors, try next format)
+- Checked discovery surfaces malformed Gradle comments, escapes, strings, parentheses, and overrides so coverage gates remain inconclusive
 
 ## Constraints
 
-- No external TOML, YAML, or Swift package description parser dependencies
-- Parsing must be fast — only string/regex operations, no process spawning
-- Must handle malformed manifests gracefully without panicking
+- General manifest metadata avoids external YAML or Swift package parsers; MCP security preflight uses the `toml` crate for Cargo workspace structure
+- Parsing must be local and process-free; general discovery uses string/regex operations and MCP Cargo preflight uses in-process TOML
+- Must handle malformed manifests without panicking or returning partial security-gate discovery
 
 ## Out of Scope
 
@@ -49,8 +55,13 @@ Acceptance Criteria
 - package.json workspaces support both array and object forms with glob expansion
 - Go module name uses the last path segment of the module path
 - Python tries `[project]` before `[tool.poetry]` in pyproject.toml
-- Gradle multi-module detection via `include()` in settings.gradle
-- All TOML/YAML parsing is zero-dependency (regex and string-based)
+- Gradle multi-module detection accepts comment-aware Groovy/Kotlin single- and double-quoted,
+  escape-decoded, parenthesized or bare multiline `include` declarations, nested colon paths, and
+  `projectDir` overrides.
+- Every Gradle `include` argument is a complete quoted literal; dynamic or mixed expressions reject
+  checked discovery instead of returning a partial module set.
+- Supported `projectDir` values are exactly `file(<literal>)` or `new File(rootDir, <literal>)`;
+  alternate bases, extra arguments, and trailing expressions reject checked discovery.
+- General metadata extraction remains string/regex based; MCP Cargo workspace security discovery parses bounded manifests as real TOML
 - `ManifestDiscovery::default()` returns empty collections (safe fallback)
-- Unparseable manifests are silently skipped (no errors, try next format)
-
+- Checked discovery surfaces malformed Gradle comments, escapes, strings, parentheses, and overrides so coverage gates remain inconclusive

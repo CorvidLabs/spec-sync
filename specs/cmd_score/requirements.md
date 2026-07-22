@@ -21,6 +21,7 @@ spec: cmd_score.spec.md
 - Default/text output prints each spec's grade and either the 5-subscore line or, with `--explain`, a per-criterion breakdown with ✓/✗ marks and point details, followed by suggestions
 - Batch mode (no filters, or `--all`) prints a "Scoring N spec(s)…" progress header in text mode (suppressed for JSON/CSV)
 - Grades are colorized by band (A/B green, C/D yellow, F red); subscores colorized (20 green, 10–19 yellow, <20 red)
+- Malformed Gradle/manifest discovery exits nonzero; JSON remains valid with `valid: false`, `inconclusive: true`, null score and grade, zero counts/distribution, empty specs, and an explicit error.
 
 ## Constraints
 
@@ -32,7 +33,7 @@ spec: cmd_score.spec.md
 ## Out of Scope
 
 - Defining or tuning the scoring rubric (owned by the scoring module)
-- Failing the build on low scores — `score` is informational and does not set a non-zero exit code
+- Failing the build on score quality alone — warn-mode scoring is advisory, while configured coverage gates and inconclusive discovery may exit nonzero
 - Writing scores to a file or committing them
 - Interactive prompts
 
@@ -49,4 +50,5 @@ Acceptance Criteria
 - Default/text output prints each spec's grade and either the 5-subscore line or, with `--explain`, a per-criterion breakdown with ✓/✗ marks and point details, followed by suggestions
 - Batch mode (no filters, or `--all`) prints a "Scoring N spec(s)…" progress header in text mode (suppressed for JSON/CSV)
 - Grades are colorized by band (A/B green, C/D yellow, F red); subscores colorized (20 green, 10–19 yellow, <20 red)
+- Checked coverage discovery must succeed before scoring gates are evaluated; malformed discovery exits nonzero with the documented structured JSON failure.
 

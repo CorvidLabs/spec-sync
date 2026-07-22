@@ -11,7 +11,7 @@ use crate::ignore::IgnoreRules;
 use crate::output::{print_check_markdown, print_coverage_line, print_summary};
 use crate::parser;
 use crate::types;
-use crate::validator::{compute_coverage, get_schema_table_names};
+use crate::validator::{compute_coverage_checked, get_schema_table_names};
 
 use crate::config::is_legacy_layout;
 
@@ -19,6 +19,35 @@ use super::{
     build_schema_columns, compute_exit_code, create_drift_issues, exit_with_status,
     filter_by_status, filter_specs, load_and_discover, run_validation,
 };
+
+fn checked_coverage_or_exit(
+    root: &Path,
+    spec_files: &[PathBuf],
+    config: &types::SpecSyncConfig,
+    format: types::OutputFormat,
+) -> types::CoverageReport {
+    compute_coverage_checked(root, spec_files, config).unwrap_or_else(|error| {
+        let message = format!("Coverage inconclusive: {error}");
+        match format {
+            types::OutputFormat::Json => {
+                let output = serde_json::json!({
+                    "passed": false,
+                    "valid": false,
+                    "inconclusive": true,
+                    "error": message,
+                    "errors": [message],
+                    "warnings": [],
+                    "notices": [],
+                    "stale": [],
+                    "specs_checked": 0,
+                });
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            }
+            _ => eprintln!("{} {message}", "error:".red().bold()),
+        }
+        process::exit(1);
+    })
+}
 
 /// Files whose contents affect validation globally rather than through a single
 /// spec's frontmatter: the resolved config file and every file in the schema
@@ -173,7 +202,7 @@ pub fn cmd_check(
         // state they exist to catch: a project with source code but no specs (the
         // default state right after `specsync init`). Default mode (warn, no gate)
         // still exits 0 with the informational message.
-        let coverage = compute_coverage(root, &spec_files, &config);
+        let coverage = checked_coverage_or_exit(root, &spec_files, &config, format);
         let exit_code = compute_exit_code(0, 0, strict, enforcement, &coverage, require_coverage);
         match format {
             Json => {
@@ -251,7 +280,7 @@ pub fn cmd_check(
 
     if specs_to_validate.is_empty() && matches!(format, Text) {
         println!("{}", "All specs unchanged — nothing to validate.".green());
-        let coverage = compute_coverage(root, &spec_files, &config);
+        let coverage = checked_coverage_or_exit(root, &spec_files, &config, format);
         print_coverage_line(&coverage);
         // A warm cache skips spec RE-validation, but a requested coverage/
         // enforcement gate must still be evaluated against freshly computed
@@ -485,7 +514,7 @@ pub fn cmd_check(
 
     // Include staleness warnings in total when --strict
     let effective_warnings = total_warnings + staleness_warnings + git_stale_warnings;
-    let coverage = compute_coverage(root, &spec_files, &config);
+    let coverage = checked_coverage_or_exit(root, &spec_files, &config, format);
 
     // Update hash cache after validation (only when no errors).
     // Specs with warnings are still cached, which is why --fix, --strict, and

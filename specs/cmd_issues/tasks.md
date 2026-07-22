@@ -6,20 +6,24 @@ spec: cmd_issues.spec.md
 
 ## Post-5.0 Test Debt
 
-- [ ] Add coverage for the no-references path (specs without `implements`/`tracks`) — assertable without network.
+- [x] Add command-level coverage for the no-references path with and without configured `github.repo`.
 - [ ] Add a mocked/recorded GitHub fixture to cover valid/closed/not-found classification and the non-zero exit on 404.
 
 ## Done
 
-- [x] Verifies `implements`/`tracks` references via `github::verify_spec_issues`, tallying valid/closed/not-found/error counts.
+- [x] Verifies all `implements`/`tracks` references through one bounded globally deduplicated batch,
+  tallying valid/closed/not-found/error counts per spec.
 - [x] Repo resolution via `github::resolve_repo` with a clear error + exit 1 when unresolvable.
 - [x] Text/Table/Csv, Json, and Markdown/Github output formats.
 - [x] `--create` runs validation and opens drift issues for specs with errors.
 - [x] Non-zero exit when any reference is not found or errored.
+- [x] Gather references before repository/provider resolution and skip GitHub entirely when empty.
+- [x] Add a command-level missing-token regression with per-spec JSON error attribution.
 
 ## Gaps
 
-- No integration or inline unit tests target `src/commands/issues.rs`. The command depends on the live GitHub API, so end-to-end testing needs recorded fixtures or a mock.
+- Network-free command fixtures cover the no-reference path; end-to-end provider classification
+  still needs recorded fixtures or a mock process boundary.
 
 ## Review Status
 

@@ -4,7 +4,8 @@ spec: importer.spec.md
 
 ## Key Decisions
 
-- Reuses existing `github::gh_is_available()` for auth detection rather than duplicating
+- Reuses `github::fetch_issue_details()` for explicit-token typed REST, operation bounds, strict
+  payload parsing, and repository-aware 404 classification; GitHub imports never launch `gh`.
 - Uses simple regex-free HTML stripping for Confluence — no external HTML parser dependency
 - Base64 encoding is hand-rolled to avoid adding a dependency (only used for Jira/Confluence basic auth)
 - Requirements extraction is heuristic-based: looks for checkboxes, "Acceptance Criteria"/"Requirements", and "Definition of Done" sections
@@ -18,10 +19,13 @@ spec: importer.spec.md
 
 ## Current Status
 
-All three importers implemented and tested. CLI subcommand wired up.
+All three importers are implemented. The GitHub public entry delegates through an injected
+crate-private seam to the shared typed provider, with success conversion and provider-failure
+non-production covered in unit tests; single and batch CLI token failures are covered end-to-end
+and assert that no spec output is created. Live REST success remains an integration-only gate.
 
 ## Notes
 
 - Jira Cloud uses email:token basic auth; Jira Server/DC uses bearer token
 - Confluence storage format is HTML-like, not markdown
-- GitHub importer can auto-detect repo from git remote
+- Repository selection remains command-layer policy; the importer accepts a validated repository identifier and performs no Git or provider-subprocess discovery

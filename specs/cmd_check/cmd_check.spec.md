@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 8
+version: 9
 status: stable
 files:
   - src/commands/check.rs
@@ -46,6 +46,7 @@ Implements the primary deterministic validation entry point, including caching, 
 6. `--create-issues` groups errors by spec path and creates one GitHub issue per affected spec
 7. `--explain` appends per-category score breakdown (FM/Sec/API/Depth/Fresh each out of 20) to each spec's output
 8. Exit code is determined by enforcement mode and `--strict` flag via `compute_exit_code`
+9. Coverage uses checked manifest discovery; malformed Gradle settings make the result inconclusive and exit 1 instead of producing partial or vacuous coverage
 
 ## Behavioral Examples
 
@@ -75,6 +76,7 @@ Implements the primary deterministic validation entry point, including caching, 
 | Spec name filter matches nothing while specs exist | Prints "No specs matched" error (no contradictory "No spec files found" message) and exits 1 |
 | Hash cache file is corrupted | Falls back to full validation (cache miss) |
 | `--create-issues` with no GitHub repo | Prints error, skips issue creation |
+| Malformed Gradle settings prevent coverage discovery | Emits an explicit inconclusive failure, preserves valid structured JSON in JSON mode, and exits 1 |
 
 ## Dependencies
 
@@ -87,7 +89,7 @@ Implements the primary deterministic validation entry point, including caching, 
 | ignore | `IgnoreRules::load` |
 | output | `print_summary`, `print_coverage_line`, `print_check_markdown` |
 | comment | `build_comment_body` |
-| validator | `compute_coverage`, `validate_spec` |
+| validator | `compute_coverage_checked`, `validate_spec` |
 | types | `SpecSyncConfig`, `OutputFormat`, `EnforcementMode`, `CoverageReport` |
 | github | `resolve_repo` |
 
@@ -105,6 +107,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-07-22 | v9: fail closed when malformed Gradle/manifest discovery makes coverage inconclusive, preserving structured JSON failure output |
 | 2026-07-10 | v5: add unified SDD lifecycle, approval, delta, effective-contract, and changed-path gates |
 | 2026-06-11 | v4: `--fix` bypasses the hash cache (no more silent no-op after a cached warning run); bare API-kind headings are promoted to export headers and symbols already documented in any Public API table are not re-added; partial export-coverage summary prints as ⚠ so the warning count matches printed warnings |
 | 2026-06-11 | v3: `--fix` routes exports to the matching table by kind; unmatched spec filters exit 1 without contradictory output |

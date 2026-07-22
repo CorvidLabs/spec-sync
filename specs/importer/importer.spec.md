@@ -1,6 +1,6 @@
 ---
 module: importer
-version: 3
+version: 4
 status: active
 files:
   - src/importer.rs
@@ -22,7 +22,7 @@ Generates spec files from external project management systems. Supports importin
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `import_github_issue` | `repo: &str, number: u64` | `Result<ImportedItem, String>` | Fetch a GitHub issue and convert to `ImportedItem`; tries `gh` CLI, falls back to REST API |
+| `import_github_issue` | `repo: &str, number: u64` | `Result<ImportedItem, String>` | Fetch a GitHub issue through typed in-process REST with explicit `GITHUB_TOKEN` and convert it to `ImportedItem` |
 | `import_jira_issue` | `issue_key: &str` | `Result<ImportedItem, String>` | Fetch a Jira issue via REST API v3 and convert to `ImportedItem` |
 | `import_confluence_page` | `page_id: &str` | `Result<ImportedItem, String>` | Fetch a Confluence page via REST API and convert to `ImportedItem` |
 | `render_spec` | `item: &ImportedItem` | `String` | Render an `ImportedItem` into a complete spec markdown string |
@@ -38,7 +38,8 @@ Generates spec files from external project management systems. Supports importin
 
 ## Invariants
 
-1. `import_github_issue` follows the same auth strategy as `github::fetch_issue` — `gh` CLI first, REST API fallback
+1. `import_github_issue` delegates to `github::fetch_issue_details`, requires explicit
+   `GITHUB_TOKEN`, revalidates repository access after ambiguous 404, and never launches `gh`.
 2. Jira importer handles both ADF (Atlassian Document Format) and plain text descriptions
 3. Confluence importer strips HTML tags to extract plain text from storage format
 4. `slugify` always produces a valid, non-empty module name from non-empty input (lowercase, no special chars)
@@ -90,7 +91,7 @@ Generates spec files from external project management systems. Supports importin
 | `JIRA_TOKEN` not set | `import_jira_issue` returns `Err("JIRA_TOKEN environment variable not set")` |
 | `CONFLUENCE_URL` not set | `import_confluence_page` returns `Err("CONFLUENCE_URL environment variable not set")` |
 | `CONFLUENCE_TOKEN` not set | `import_confluence_page` returns `Err("CONFLUENCE_TOKEN environment variable not set")` |
-| GitHub: neither `gh` nor `GITHUB_TOKEN` | `import_github_issue` returns `Err` |
+| GitHub: `GITHUB_TOKEN` missing | `import_github_issue` returns an actionable `Err` without consulting authenticated `gh` state |
 | Issue/page not found (404) | Each importer returns `Err("{type} not found")` |
 | Network timeout | Returns `Err` with connection details |
 | Invalid issue number for GitHub | CLI rejects before calling importer |
@@ -101,10 +102,9 @@ Generates spec files from external project management systems. Supports importin
 
 | Module | What is used |
 |--------|-------------|
-| github | `gh_is_available` for auth detection |
+| github | `fetch_issue_details` for typed, bounded, repository-aware in-process REST reads |
 | (external) | `ureq` for HTTP REST API calls |
 | (external) | `serde_json` for parsing JSON responses |
-| (external) | `gh` CLI for authenticated GitHub operations |
 
 ### Consumed By
 
@@ -117,5 +117,6 @@ Generates spec files from external project management systems. Supports importin
 | Date | Change |
 |------|--------|
 | 2026-06-07 | Replace imported-spec unfinished-work markers with guided requirement prompts |
+| 2026-07-22 | CHG-0063: Move GitHub imports to explicit-token typed REST and remove `gh issue view` reads |
 | 2026-04-07 | Initial implementation — GitHub, Jira, Confluence importers (#97) |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

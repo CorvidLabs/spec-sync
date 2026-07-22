@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 62,
-  "id": "CHG-0062-harden-mcp-root-confinement-write-authorization-argument-validation-and-notif",
+  "sequence": 64,
+  "id": "CHG-0064-add-capability-safe-filesystem-support-for-mcp-security-hardening",
   "acknowledged_collisions": [
     {
       "sequence": 16,

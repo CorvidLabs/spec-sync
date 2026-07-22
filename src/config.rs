@@ -53,23 +53,36 @@ const DEFAULT_STATIC_SOURCE_EXTENSIONS: &[&str] = &["html", "htm", "css"];
 /// then falling back to scanning the project root for files with supported
 /// language extensions. Returns directories relative to root.
 pub fn detect_source_dirs(root: &Path) -> Vec<String> {
+    detect_source_dirs_checked(root).unwrap_or_else(|_| detect_source_dirs_by_scan(root))
+}
+
+/// Auto-detect source directories while surfacing malformed manifest inputs.
+pub fn detect_source_dirs_checked(root: &Path) -> Result<Vec<String>, String> {
     // Try manifest-aware detection first
-    let manifest_discovery = manifest::discover_from_manifests(root);
+    let manifest_discovery = manifest::discover_from_manifests_checked(root)?;
     if !manifest_discovery.source_dirs.is_empty() {
         let mut dirs = manifest_discovery.source_dirs;
         dirs.sort();
         dirs.dedup();
-        return dirs;
+        return Ok(dirs);
     }
 
     // Fall back to directory scanning
-    detect_source_dirs_by_scan(root)
+    Ok(detect_source_dirs_by_scan(root))
 }
 
 /// Discover modules from manifest files (Package.swift, Cargo.toml, etc.).
 /// Returns the manifest discovery result for use in module detection.
+#[allow(dead_code)]
 pub fn discover_manifest_modules(root: &Path) -> manifest::ManifestDiscovery {
     manifest::discover_from_manifests(root)
+}
+
+/// Discover manifest modules while surfacing malformed manifest inputs.
+pub fn discover_manifest_modules_checked(
+    root: &Path,
+) -> Result<manifest::ManifestDiscovery, String> {
+    manifest::discover_from_manifests_checked(root)
 }
 
 /// Scan-based source directory detection (fallback when no manifests found).
@@ -1926,6 +1939,21 @@ verify_issues = false
         let dirs = detect_source_dirs(tmp.path());
 
         assert_eq!(dirs, vec!["."]);
+    }
+
+    #[test]
+    fn checked_source_detection_surfaces_malformed_gradle_settings() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join("src/main/kotlin")).unwrap();
+        fs::write(tmp.path().join("build.gradle.kts"), "plugins {}\n").unwrap();
+        fs::write(
+            tmp.path().join("settings.gradle.kts"),
+            "include(\":member\"\n",
+        )
+        .unwrap();
+
+        let error = detect_source_dirs_checked(tmp.path()).unwrap_err();
+        assert!(error.contains("Cannot parse Gradle settings manifest"));
     }
 
     // --- config.local.toml merging ---

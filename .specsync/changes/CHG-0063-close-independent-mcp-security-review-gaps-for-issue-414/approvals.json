@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784693729,
+      "digest": "c6545cfb90ec04396c114c4a8a0a6bb6d513d63566b649ffe9d95af3ae2b695f",
+      "note": "Human approved the corrected complete CHG-0063 successor definition and review gates"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784734137,
+      "digest": "fc59a37283ad193314194c2b5a080f1bee3b96a4a26216bbdbac5bd7d3b55584",
+      "note": "User explicitly approved the final corrected CHG-0063 definition on 2026-07-22."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784755121,
+      "digest": "1a559193551941edb9eee8bdfa4f1eb5d2adb53c55d5a57eaa6781b497cd0580",
+      "note": "Approved definition digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784761846,
+      "digest": "96858a355da188eceb8e9f09a937cfd4d16009634503a9b404db658c9d088a89",
+      "note": "User reapproved CHG-0063 digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed on 2026-07-22; effective definition digest remained exact after obsolete unsigned succession-edge reconciliation."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784762913,
+      "digest": "c2f84eed45c14039350862c74cdc1962e3f5ddc51f2313760998c5b3f4095e3a",
+      "note": "User approved CHG-0063 artifact digest c2f84eed45c14039350862c74cdc1962e3f5ddc51f2313760998c5b3f4095e3a on 2026-07-22."
+    }
+  ],
+  "reopenings": []
+}

@@ -54,3 +54,16 @@ Acceptance Criteria
 - Canonical TOML reads and emits `require_draft_files = true` without losing the value during migration.
 - Legacy JSON reads `requireDraftFiles` and recognizes it as a supported key.
 - The canonical configuration structure table documents both serialized names and behavior.
+
+### REQ-config-005
+
+Configuration SHALL expose checked source-directory and manifest discovery that preserves malformed
+or unreadable Gradle settings as errors while retaining infallible compatibility wrappers.
+
+Acceptance Criteria
+
+- Checked discovery returns an error before exposing partial manifest modules or source roots.
+- `detect_source_dirs` remains compatible and falls back to scan-based discovery on a checked error.
+- `discover_manifest_modules` remains compatible with its infallible discovery return type.
+- Coverage and enforcement callers can use the checked variants to distinguish inconclusive
+  discovery from successful empty discovery.

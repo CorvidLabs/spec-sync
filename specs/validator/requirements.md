@@ -123,3 +123,19 @@ Acceptance Criteria
 - Redundant dot segments cannot create coverage mismatches.
 - Absolute, parent-segment, prefixed, and backslash mappings remain errors in every lifecycle status and never count toward ownership or coverage.
 - A missing planned leaf beneath an existing symlinked parent that resolves outside the project or cannot be resolved is rejected before notice emission.
+
+### REQ-validator-008
+
+Coverage gates SHALL use fallible checked manifest discovery and SHALL report malformed or unreadable
+Gradle settings as inconclusive instead of accepting partial coverage.
+
+Acceptance Criteria
+
+- `compute_coverage_checked` propagates checked manifest-discovery errors without producing a
+  partial `CoverageReport`.
+- CLI check, coverage, generate, report, score, and comment gates use checked coverage and exit
+  non-zero with an inconclusive diagnostic.
+- MCP coverage, check, score, and generation flows use checked coverage and return a tool or
+  resource error rather than a false-green result.
+- `compute_coverage` remains available for compatibility and returns a zero-percent report carrying
+  an inconclusive module diagnostic when checked discovery fails.

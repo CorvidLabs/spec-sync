@@ -26,7 +26,7 @@ spec: mcp.spec.md
 - Unknown tool name returns tool-level error "Unknown tool: {name}"
 - Every notification receives no response and is suppressed before dispatch, including known tools and unknown methods
 - `ping` method returns empty result
-- Read tools accept only existing roots that canonicalize to the server root or a descendant
+- Read tools accept only lexical descendants opened through the retained server-root capability
 - Mutating tools reject per-call roots and always use the configured server root
 - Configuration and metadata files, configured project paths, manifest workspaces, dependency and
   cache/schema references, module names, spec file mappings, and nested symlink targets are
@@ -67,13 +67,18 @@ Acceptance Criteria
 - Default MCP mode omits mutating tools.
 - Direct mutator calls in default mode fail before execution.
 - Write mode is explicit and mutating tools cannot override the configured root.
-- Read roots are existing canonical descendants of the configured root.
+- Read roots are lexical descendants opened only through the retained configured-root capability.
 - Configuration/metadata/cache files, manifest/autodetection paths, dependency references, module
   names/files, spec mappings, and nested symlink targets are confined before downstream filesystem
   access.
 - Recursive confinement uses cumulative deterministic budgets across configured paths and spec
   mappings and honors ignored/configured exclusions.
 - Traversal, configured-path, and symlink escapes fail before filesystem access.
+- Project files are bounded to 8 MiB and actual project/config input to 64 MiB per operation;
+  manifests are copied from the exact bytes charged during discovery.
+- Cargo TOML and comment/escape-aware shared Gradle workspace parsing preserve explicitly declared
+  inputs beneath normally ignored names, including multiline includes and supported `projectDir`
+  overrides.
 
 ### REQ-mcp-003
 
@@ -87,4 +92,9 @@ Acceptance Criteria
 - Every notification, including unknown methods, emits no response and cannot mutate files.
 - JSON-RPC lines larger than 1 MiB are drained and rejected with `-32700` before parsing; the next
   line remains independently processable.
-
+- Generation is limited to 1,000 specs and 64 MiB, atomically publishes through retained parent
+  capabilities, and rolls back only matching transaction identities.
+- GitHub issue verification requires explicit `GITHUB_TOKEN`, performs reads in-process without a
+  provider subprocess, prepares once, globally caps/deduplicates 100 IDs, includes authentication
+  and repository preflight in its 30-second deadline, and revalidates access after an apparent
+  missing issue.

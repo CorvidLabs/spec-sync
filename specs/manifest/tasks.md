@@ -16,6 +16,11 @@ spec: manifest.spec.md
 - [x] Cargo.toml parser (packages, binaries, workspace members)
 - [x] Package.swift parser (targets with balanced paren extraction)
 - [x] build.gradle/build.gradle.kts parser (modules, Android detection)
+- [x] Shared Gradle settings parser for Groovy/Kotlin comments, escapes, quoting, multiline includes, nested names, and `projectDir` overrides
+- [x] Checked Gradle discovery that keeps malformed inputs inconclusive for coverage gates
+- [x] Reject dynamic Gradle includes and unsupported `projectDir` bases, arguments, or suffixes without partial discovery
+- [x] Discover and validate settings-only Gradle multi-project workspaces without requiring a root build script
+- [x] Real-TOML Cargo workspace discovery for MCP snapshot and confinement preflight
 - [x] package.json parser (workspaces, monorepo support)
 - [x] pubspec.yaml parser (single-entry lib/)
 - [x] go.mod parser (module name + standard dirs)

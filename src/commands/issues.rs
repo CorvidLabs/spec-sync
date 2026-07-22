@@ -11,6 +11,20 @@ use crate::validator::{find_spec_files, get_schema_table_names};
 
 use super::{build_schema_columns, create_drift_issues, run_validation};
 
+fn issue_text_summary(
+    reference_specs: usize,
+    valid: usize,
+    closed: usize,
+    not_found: usize,
+    errors: usize,
+) -> Option<String> {
+    (reference_specs > 0).then(|| {
+        format!(
+            "Issue references: {valid} valid, {closed} closed, {not_found} not found, {errors} errors"
+        )
+    })
+}
+
 pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
     let config = load_config(root);
     let specs_dir = root.join(&config.specs_dir);
@@ -21,24 +35,12 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
         return;
     }
 
-    let repo_config = config.github.as_ref().and_then(|g| g.repo.as_deref());
-    let repo = match github::resolve_repo(repo_config, root) {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("{} {e}", "error:".red().bold());
-            process::exit(1);
-        }
-    };
-
-    if matches!(format, types::OutputFormat::Text) {
-        println!("Verifying issue references against {repo}...\n");
-    }
-
     let mut total_valid = 0usize;
     let mut total_closed = 0usize;
     let mut total_not_found = 0usize;
     let mut total_errors = 0usize;
     let mut json_results: Vec<serde_json::Value> = Vec::new();
+    let mut references = Vec::new();
 
     for spec_path in &spec_files {
         let content = match fs::read_to_string(spec_path) {
@@ -62,7 +64,39 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
             .to_string_lossy()
             .to_string();
 
-        let verification = github::verify_spec_issues(&repo, &rel_path, &fm.implements, &fm.tracks);
+        if !fm.implements.is_empty() || !fm.tracks.is_empty() {
+            references.push((rel_path, fm.implements.clone(), fm.tracks.clone()));
+        }
+    }
+
+    let repo_config = config.github.as_ref().and_then(|g| g.repo.as_deref());
+    let repo = if references.is_empty() {
+        repo_config.map(str::to_owned)
+    } else {
+        match github::resolve_repo(repo_config, root) {
+            Ok(repo) => Some(repo),
+            Err(error) => {
+                eprintln!("{} {error}", "error:".red().bold());
+                process::exit(1);
+            }
+        }
+    };
+
+    if matches!(format, types::OutputFormat::Text)
+        && let Some(repo) = repo.as_deref()
+        && !references.is_empty()
+    {
+        println!("Verifying issue references against {repo}...\n");
+    }
+
+    let verifications = repo
+        .as_deref()
+        .filter(|_| !references.is_empty())
+        .map(|repo| github::verify_issue_batch(repo, &references))
+        .unwrap_or_default();
+
+    for verification in verifications {
+        let rel_path = verification.spec_path.clone();
 
         total_valid += verification.valid.len();
         total_closed += verification.closed.len();
@@ -158,7 +192,11 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
             println!("{}", serde_json::to_string_pretty(&output).unwrap());
         }
         types::OutputFormat::Markdown | types::OutputFormat::Github => {
-            println!("## Issue Verification — {repo}\n");
+            if let Some(repo) = repo.as_deref() {
+                println!("## Issue Verification — {repo}\n");
+            } else {
+                println!("## Issue Verification\n");
+            }
             println!("| Metric | Count |");
             println!("|--------|-------|");
             println!("| Valid (open) | {total_valid} |");
@@ -167,8 +205,15 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
             println!("| Errors | {total_errors} |");
         }
         types::OutputFormat::Text | types::OutputFormat::Table | types::OutputFormat::Csv => {
-            let total_refs = total_valid + total_closed + total_not_found;
-            if total_refs == 0 {
+            if let Some(summary) = issue_text_summary(
+                references.len(),
+                total_valid,
+                total_closed,
+                total_not_found,
+                total_errors,
+            ) {
+                println!("{summary}");
+            } else {
                 println!(
                     "{}",
                     "No issue references found in spec frontmatter.".cyan()
@@ -176,18 +221,28 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
                 println!(
                     "Add `implements: [42]` or `tracks: [10]` to spec frontmatter to link issues."
                 );
-            } else {
-                println!(
-                    "Issue references: {} valid, {} closed, {} not found",
-                    total_valid.to_string().green(),
-                    total_closed.to_string().yellow(),
-                    total_not_found.to_string().red(),
-                );
             }
         }
     }
 
     if total_not_found > 0 || total_errors > 0 {
         process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::issue_text_summary;
+
+    #[test]
+    fn all_error_batches_report_errors_instead_of_no_reference_guidance() {
+        let summary = issue_text_summary(1, 0, 0, 0, 2)
+            .expect("a batch with references must produce a summary");
+
+        assert_eq!(
+            summary,
+            "Issue references: 0 valid, 0 closed, 0 not found, 2 errors"
+        );
+        assert!(issue_text_summary(0, 0, 0, 0, 0).is_none());
     }
 }

@@ -7,7 +7,7 @@ use crate::comment;
 use crate::github;
 use crate::ignore::IgnoreRules;
 use crate::types;
-use crate::validator::{compute_coverage, get_schema_table_names};
+use crate::validator::{compute_coverage_checked, get_schema_table_names};
 
 use super::{build_schema_columns, compute_exit_code, load_and_discover, run_validation};
 
@@ -53,7 +53,10 @@ pub fn cmd_comment(
         &ignore_rules,
     );
 
-    let coverage = compute_coverage(root, &spec_files, &config);
+    let coverage = compute_coverage_checked(root, &spec_files, &config).unwrap_or_else(|error| {
+        eprintln!("{} Coverage inconclusive: {error}", "error:".red().bold());
+        process::exit(1);
+    });
 
     // Use the same exit-code logic as `check` so the comment status matches CI
     let exit_code = compute_exit_code(

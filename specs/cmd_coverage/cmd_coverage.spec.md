@@ -1,6 +1,6 @@
 ---
 module: cmd_coverage
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/coverage.rs
@@ -33,6 +33,7 @@ Implements the `specsync coverage` command. Reports file-level and LOC-level spe
 1. Runs validation before computing coverage for accurate results
 2. JSON output includes coverage percentages, file counts, and unspecced file list
 3. Delegates exit code to `exit_with_status()`
+4. Checked manifest discovery must succeed before coverage can be trusted; malformed Gradle settings are inconclusive and exit 1
 
 ## Behavioral Examples
 
@@ -54,6 +55,7 @@ Implements the `specsync coverage` command. Reports file-level and LOC-level spe
 |-----------|----------|
 | Coverage below threshold | Exits 1 with details |
 | No specs found | Prints suggestion, exits 0 |
+| Malformed Gradle settings prevent coverage discovery | Exits 1; JSON remains valid with `valid: false`, `inconclusive: true`, null percentages, empty collections, and an explicit error |
 
 ## Dependencies
 
@@ -64,7 +66,7 @@ Implements the `specsync coverage` command. Reports file-level and LOC-level spe
 | commands | `load_and_discover`, `build_schema_columns`, `run_validation`, `exit_with_status` |
 | output | `print_coverage_line`, `print_coverage_report` |
 | ignore | `IgnoreRules::load` |
-| validator | `compute_coverage` |
+| validator | `compute_coverage_checked` |
 | types | `OutputFormat`, `EnforcementMode` |
 
 ### Consumed By
@@ -77,5 +79,6 @@ Implements the `specsync coverage` command. Reports file-level and LOC-level spe
 
 | Date | Change |
 |------|--------|
+| 2026-07-22 | v3: fail closed on malformed Gradle/manifest discovery and preserve explicit inconclusive JSON |
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

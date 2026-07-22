@@ -7,7 +7,7 @@ use crate::generator::{
 };
 use crate::output::{print_coverage_line, print_coverage_report, print_summary};
 use crate::types;
-use crate::validator::{compute_coverage, get_schema_table_names};
+use crate::validator::{compute_coverage_checked, get_schema_table_names};
 
 use super::{
     build_schema_columns, compute_exit_code, exit_with_status, load_and_discover, run_validation,
@@ -78,7 +78,7 @@ fn cmd_generate_all(
         (te, tw, p, t)
     };
 
-    let mut coverage = compute_coverage(root, &spec_files, &config);
+    let mut coverage = checked_coverage_or_exit(root, &spec_files, &config, json);
 
     if json {
         let outcome = generate_specs_for_unspecced_modules_paths(root, &coverage, &config);
@@ -89,7 +89,7 @@ fn cmd_generate_all(
         // states (validation errors, unspecced files, sub-threshold/vacuous coverage)
         // a gate exists to catch.
         let (config, spec_files) = load_and_discover(root, true);
-        let coverage = compute_coverage(root, &spec_files, &config);
+        let coverage = checked_coverage_or_exit(root, &spec_files, &config, true);
         let (total_errors, total_warnings) = if spec_files.is_empty() {
             (0, 0)
         } else {
@@ -155,7 +155,7 @@ fn cmd_generate_all(
         let (config, spec_files) = load_and_discover(root, true);
         let schema_tables = get_schema_table_names(root, &config);
         let schema_columns = build_schema_columns(root, &config);
-        coverage = compute_coverage(root, &spec_files, &config);
+        coverage = checked_coverage_or_exit(root, &spec_files, &config, json);
         if !spec_files.is_empty() {
             let (te, tw, p, t, _, _, _) = run_validation(
                 root,
@@ -215,7 +215,7 @@ fn cmd_generate_batch(
         config.enforcement
     });
 
-    let coverage = compute_coverage(root, &spec_files, &config);
+    let coverage = checked_coverage_or_exit(root, &spec_files, &config, json);
 
     // Filter the coverage report to only the requested modules
     let unspecced_set: std::collections::HashSet<&str> = coverage
@@ -254,7 +254,7 @@ fn cmd_generate_batch(
         // matching the text path — the JSON path previously ignored
         // --strict/--enforcement/--require-coverage (a machine-consumer false pass).
         let (config, spec_files) = load_and_discover(root, true);
-        let coverage = compute_coverage(root, &spec_files, &config);
+        let coverage = checked_coverage_or_exit(root, &spec_files, &config, true);
         let (total_errors, total_warnings) = if spec_files.is_empty() {
             (0, 0)
         } else {
@@ -342,7 +342,7 @@ fn cmd_generate_batch(
 
     // Final coverage + exit status
     let (config, spec_files) = load_and_discover(root, true);
-    let coverage = compute_coverage(root, &spec_files, &config);
+    let coverage = checked_coverage_or_exit(root, &spec_files, &config, json);
     print_coverage_line(&coverage);
 
     let schema_tables = get_schema_table_names(root, &config);
@@ -369,4 +369,26 @@ fn cmd_generate_batch(
         &coverage,
         require_coverage,
     );
+}
+
+fn checked_coverage_or_exit(
+    root: &Path,
+    spec_files: &[std::path::PathBuf],
+    config: &types::SpecSyncConfig,
+    json: bool,
+) -> types::CoverageReport {
+    compute_coverage_checked(root, spec_files, config).unwrap_or_else(|error| {
+        if json {
+            let output = serde_json::json!({
+                "valid": false,
+                "inconclusive": true,
+                "error": format!("Coverage inconclusive: {error}"),
+                "generated": [],
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        } else {
+            eprintln!("Coverage inconclusive: {error}");
+        }
+        process::exit(1);
+    })
 }

@@ -28,18 +28,30 @@ pub struct ManifestDiscovery {
     pub source_dirs: Vec<String>,
 }
 
+/// A Gradle module name and its effective project-relative directory.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct GradleSettingsModule {
+    pub(crate) name: String,
+    pub(crate) path: String,
+}
+
 /// Discover modules from all supported manifest files in the project root.
+#[allow(dead_code)]
 pub fn discover_from_manifests(root: &Path) -> ManifestDiscovery {
+    discover_from_manifests_checked(root).unwrap_or_default()
+}
+
+/// Discover modules while surfacing malformed manifest inputs.
+pub fn discover_from_manifests_checked(root: &Path) -> Result<ManifestDiscovery, String> {
     let mut discovery = ManifestDiscovery::default();
 
-    // Try each manifest type in order
     if let Some(d) = parse_cargo_toml(root) {
         merge_discovery(&mut discovery, d);
     }
     if let Some(d) = parse_package_swift(root) {
         merge_discovery(&mut discovery, d);
     }
-    if let Some(d) = parse_gradle(root) {
+    if let Some(d) = parse_gradle_checked(root)? {
         merge_discovery(&mut discovery, d);
     }
     if let Some(d) = parse_package_json(root) {
@@ -55,7 +67,7 @@ pub fn discover_from_manifests(root: &Path) -> ManifestDiscovery {
         merge_discovery(&mut discovery, d);
     }
 
-    discovery
+    Ok(discovery)
 }
 
 fn merge_discovery(target: &mut ManifestDiscovery, source: ManifestDiscovery) {
@@ -300,17 +312,57 @@ fn extract_swift_dependencies(block: &str) -> Vec<String> {
 
 // ─── build.gradle.kts / build.gradle (Kotlin/Java) ──────────────────────
 
+#[allow(dead_code)]
 fn parse_gradle(root: &Path) -> Option<ManifestDiscovery> {
-    // Try Kotlin DSL first, then Groovy
-    let path = if root.join("build.gradle.kts").exists() {
-        root.join("build.gradle.kts")
-    } else if root.join("build.gradle").exists() {
-        root.join("build.gradle")
-    } else {
-        return None;
-    };
+    parse_gradle_checked(root).ok().flatten()
+}
 
-    let content = fs::read_to_string(&path).ok()?;
+fn parse_gradle_checked(root: &Path) -> Result<Option<ManifestDiscovery>, String> {
+    // Try Kotlin DSL first, then Groovy. A settings manifest is independently sufficient for a
+    // multi-project Gradle workspace; do not require a root build script before parsing it.
+    let build_path = if root.join("build.gradle.kts").exists() {
+        Some(root.join("build.gradle.kts"))
+    } else if root.join("build.gradle").exists() {
+        Some(root.join("build.gradle"))
+    } else {
+        None
+    };
+    let settings_path = if root.join("settings.gradle.kts").exists() {
+        Some(root.join("settings.gradle.kts"))
+    } else if root.join("settings.gradle").exists() {
+        Some(root.join("settings.gradle"))
+    } else {
+        None
+    };
+    if build_path.is_none() && settings_path.is_none() {
+        return Ok(None);
+    }
+    let content = if let Some(path) = build_path {
+        fs::read_to_string(&path).map_err(|error| {
+            format!(
+                "Cannot read Gradle build manifest {}: {error}",
+                path.display()
+            )
+        })?
+    } else {
+        String::new()
+    };
+    let modules = if let Some(settings_path) = settings_path {
+        let settings = fs::read_to_string(&settings_path).map_err(|error| {
+            format!(
+                "Cannot read Gradle settings manifest {}: {error}",
+                settings_path.display()
+            )
+        })?;
+        parse_gradle_settings(&settings).map_err(|error| {
+            format!(
+                "Cannot parse Gradle settings manifest {}: {error}",
+                settings_path.display()
+            )
+        })?
+    } else {
+        Vec::new()
+    };
     let mut discovery = ManifestDiscovery::default();
 
     // Detect Android project vs plain Kotlin/Java
@@ -337,64 +389,422 @@ fn parse_gradle(root: &Path) -> Option<ManifestDiscovery> {
         }
     }
 
-    // Extract project name from settings.gradle.kts or settings.gradle
-    let settings_path = if root.join("settings.gradle.kts").exists() {
-        Some(root.join("settings.gradle.kts"))
-    } else if root.join("settings.gradle").exists() {
-        Some(root.join("settings.gradle"))
-    } else {
-        None
-    };
+    for module in modules {
+        let module_src = format!("{}/src/main", module.path);
+        let source_path = if root
+            .join(format!("{}/src/main/kotlin", module.path))
+            .exists()
+        {
+            format!("{}/src/main/kotlin", module.path)
+        } else if root.join(format!("{}/src/main/java", module.path)).exists() {
+            format!("{}/src/main/java", module.path)
+        } else {
+            module_src
+        };
 
-    if let Some(settings_path) = settings_path
-        && let Ok(settings) = fs::read_to_string(&settings_path)
-    {
-        // Parse include(":module1", ":module2") or include ":module1", ":module2"
-        for line in settings.lines() {
-            let line = line.trim();
-            if line.starts_with("include") {
-                // Extract quoted module names
-                let mut search = line;
-                while let Some(quote_start) = search.find('"') {
-                    let rest = &search[quote_start + 1..];
-                    if let Some(quote_end) = rest.find('"') {
-                        let module = rest[..quote_end].trim_start_matches(':');
-                        if !module.is_empty() {
-                            let module_src = format!("{module}/src/main");
-                            let source_path =
-                                if root.join(format!("{module}/src/main/kotlin")).exists() {
-                                    format!("{module}/src/main/kotlin")
-                                } else if root.join(format!("{module}/src/main/java")).exists() {
-                                    format!("{module}/src/main/java")
-                                } else {
-                                    module_src
-                                };
-
-                            discovery.modules.insert(
-                                module.to_string(),
-                                ManifestModule {
-                                    name: module.to_string(),
-                                    source_paths: vec![source_path.clone()],
-                                    dependencies: Vec::new(),
-                                },
-                            );
-                            if !discovery.source_dirs.contains(&source_path) {
-                                discovery.source_dirs.push(source_path);
-                            }
-                        }
-                        search = &rest[quote_end + 1..];
-                    } else {
-                        break;
-                    }
-                }
-            }
+        discovery.modules.insert(
+            module.name.clone(),
+            ManifestModule {
+                name: module.name,
+                source_paths: vec![source_path.clone()],
+                dependencies: Vec::new(),
+            },
+        );
+        if !discovery.source_dirs.contains(&source_path) {
+            discovery.source_dirs.push(source_path);
         }
     }
 
     if discovery.modules.is_empty() && discovery.source_dirs.is_empty() {
-        None
+        Ok(None)
     } else {
-        Some(discovery)
+        Ok(Some(discovery))
+    }
+}
+
+/// Parse Groovy or Kotlin Gradle settings into effective module directories.
+///
+/// Supports parenthesized and bare `include` forms, single or double quotes,
+/// multiline declarations, nested `:module:name` paths, and the common
+/// `project(...).projectDir = file(...)` / `new File(rootDir, ...)` overrides.
+pub(crate) fn parse_gradle_settings(content: &str) -> Result<Vec<GradleSettingsModule>, String> {
+    let content = strip_gradle_comments(content)?;
+    let mut included = Vec::new();
+    let lines: Vec<&str> = content.lines().collect();
+    let mut index = 0usize;
+    while index < lines.len() {
+        let trimmed = lines[index].trim_start();
+        if !is_gradle_include_start(trimmed) {
+            index += 1;
+            continue;
+        }
+
+        let mut statement = trimmed.to_string();
+        let mut balance = gradle_paren_balance(trimmed);
+        while index + 1 < lines.len() && (balance > 0 || statement.trim_end().ends_with(',')) {
+            index += 1;
+            statement.push('\n');
+            statement.push_str(lines[index].trim());
+            balance += gradle_paren_balance(lines[index]);
+        }
+        if balance != 0 {
+            return Err("Gradle include declaration has unbalanced parentheses".to_string());
+        }
+        for value in parse_gradle_include_statement(&statement)? {
+            let name = value.trim().trim_start_matches(':');
+            if !name.is_empty() {
+                included.push(name.replace(':', "/"));
+            }
+        }
+        index += 1;
+    }
+
+    let overrides = parse_gradle_project_dir_overrides(&content)?;
+
+    included.sort();
+    included.dedup();
+    Ok(included
+        .into_iter()
+        .map(|name| GradleSettingsModule {
+            path: overrides
+                .get(&name)
+                .cloned()
+                .unwrap_or_else(|| name.clone()),
+            name,
+        })
+        .collect())
+}
+
+fn parse_gradle_project_dir_overrides(content: &str) -> Result<HashMap<String, String>, String> {
+    let mut overrides = HashMap::new();
+    let mut search_start = 0usize;
+
+    while let Some(relative_index) = content[search_start..].find(".projectDir") {
+        let project_dir_index = search_start + relative_index;
+        let before = &content[..project_dir_index];
+        let Some(project_index) = find_gradle_project_call(before) else {
+            search_start = project_dir_index + ".projectDir".len();
+            continue;
+        };
+
+        let project_call = before[project_index + "project".len()..].trim_start();
+        let (project_arguments, project_remainder) = gradle_parenthesized(project_call)?;
+        if !project_remainder.trim().is_empty() {
+            search_start = project_dir_index + ".projectDir".len();
+            continue;
+        }
+        let module_values = gradle_string_arguments(project_arguments)?;
+        if module_values.len() != 1 {
+            return Err("Gradle projectDir assignment must identify one module".to_string());
+        }
+
+        let assignment = content[project_dir_index + ".projectDir".len()..].trim_start();
+        let Some(right_hand_side) = assignment.strip_prefix('=') else {
+            return Err("Gradle projectDir assignment is missing '='".to_string());
+        };
+        let right_hand_side = right_hand_side.trim_start();
+        let path = if let Some(file_call) = right_hand_side.strip_prefix("file") {
+            let (arguments, remainder) = gradle_parenthesized(file_call.trim_start())?;
+            require_gradle_expression_end(remainder)?;
+            let path_values = gradle_string_arguments(arguments)?;
+            if path_values.len() != 1 {
+                return Err("Gradle projectDir assignment must contain one path".to_string());
+            }
+            path_values[0].clone()
+        } else if let Some(file_call) = right_hand_side.strip_prefix("new") {
+            let Some(file_call) = file_call.trim_start().strip_prefix("File") else {
+                return Err("Unsupported Gradle projectDir assignment".to_string());
+            };
+            let (arguments, remainder) = gradle_parenthesized(file_call.trim_start())?;
+            require_gradle_expression_end(remainder)?;
+            parse_gradle_root_dir_file_arguments(arguments)?
+        } else {
+            return Err("Unsupported Gradle projectDir assignment".to_string());
+        };
+
+        let module = module_values[0].trim_start_matches(':').replace(':', "/");
+        overrides.insert(module, path.replace('\\', "/"));
+        search_start = project_dir_index + ".projectDir".len();
+    }
+
+    Ok(overrides)
+}
+
+fn find_gradle_project_call(content: &str) -> Option<usize> {
+    content.rmatch_indices("project").find_map(|(index, _)| {
+        let before_is_boundary = content[..index]
+            .chars()
+            .next_back()
+            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+        let after = content[index + "project".len()..].trim_start();
+        (before_is_boundary && after.starts_with('(')).then_some(index)
+    })
+}
+
+fn gradle_parenthesized(value: &str) -> Result<(&str, &str), String> {
+    let Some(value) = value.strip_prefix('(') else {
+        return Err("Gradle declaration is missing an opening parenthesis".to_string());
+    };
+    let mut depth = 1usize;
+    let mut quote = None;
+    let mut escaped = false;
+    for (index, character) in value.char_indices() {
+        if let Some(delimiter) = quote {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == delimiter {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(character, '\'' | '"') {
+            quote = Some(character);
+            continue;
+        }
+        match character {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Ok((&value[..index], &value[index + character.len_utf8()..]));
+                }
+            }
+            _ => {}
+        }
+    }
+    Err("Gradle declaration has unbalanced parentheses".to_string())
+}
+
+fn parse_gradle_include_statement(statement: &str) -> Result<Vec<String>, String> {
+    let Some(arguments) = statement.strip_prefix("include") else {
+        return Err("Gradle include declaration is missing 'include'".to_string());
+    };
+    let arguments = arguments.trim_start();
+    if arguments.starts_with('(') {
+        let (arguments, remainder) = gradle_parenthesized(arguments)?;
+        require_gradle_complete_remainder(remainder, "include declaration")?;
+        gradle_string_arguments(arguments)
+    } else {
+        let arguments = strip_gradle_statement_terminator(arguments, "include declaration")?;
+        gradle_string_arguments(arguments)
+    }
+}
+
+fn parse_gradle_root_dir_file_arguments(arguments: &str) -> Result<String, String> {
+    let Some(arguments) = arguments.trim_start().strip_prefix("rootDir") else {
+        return Err("Gradle new File projectDir base must be rootDir".to_string());
+    };
+    let Some(arguments) = arguments.trim_start().strip_prefix(',') else {
+        return Err("Gradle new File projectDir base must be exactly rootDir".to_string());
+    };
+    let path_values = gradle_string_arguments(arguments)?;
+    if path_values.len() != 1 {
+        return Err("Gradle new File projectDir assignment must contain one path".to_string());
+    }
+    Ok(path_values[0].clone())
+}
+
+fn require_gradle_expression_end(remainder: &str) -> Result<(), String> {
+    let statement_remainder = remainder
+        .split_once('\n')
+        .map_or(remainder, |(line, _)| line);
+    require_gradle_complete_remainder(statement_remainder, "projectDir assignment")
+}
+
+fn require_gradle_complete_remainder(remainder: &str, context: &str) -> Result<(), String> {
+    let remainder = remainder.trim();
+    if remainder.is_empty() || remainder == ";" {
+        Ok(())
+    } else {
+        Err(format!("Unsupported trailing Gradle {context} expression"))
+    }
+}
+
+fn strip_gradle_statement_terminator<'a>(
+    statement: &'a str,
+    context: &str,
+) -> Result<&'a str, String> {
+    let statement = statement.trim_end();
+    let Some(statement) = statement.strip_suffix(';') else {
+        return Ok(statement);
+    };
+    if statement.trim_end().ends_with(';') {
+        return Err(format!("Unsupported trailing Gradle {context} expression"));
+    }
+    Ok(statement.trim_end())
+}
+
+fn strip_gradle_comments(content: &str) -> Result<String, String> {
+    let mut cleaned = String::with_capacity(content.len());
+    let mut characters = content.chars().peekable();
+    let mut quote = None;
+    let mut escaped = false;
+
+    while let Some(character) = characters.next() {
+        if let Some(delimiter) = quote {
+            cleaned.push(character);
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == delimiter {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(character, '\'' | '"') {
+            quote = Some(character);
+            cleaned.push(character);
+            continue;
+        }
+        if character != '/' {
+            cleaned.push(character);
+            continue;
+        }
+
+        match characters.peek().copied() {
+            Some('/') => {
+                characters.next();
+                for comment_character in characters.by_ref() {
+                    if comment_character == '\n' {
+                        cleaned.push('\n');
+                        break;
+                    }
+                }
+            }
+            Some('*') => {
+                characters.next();
+                cleaned.push(' ');
+                let mut previous = None;
+                let mut terminated = false;
+                for comment_character in characters.by_ref() {
+                    if comment_character == '\n' {
+                        cleaned.push('\n');
+                    }
+                    if previous == Some('*') && comment_character == '/' {
+                        terminated = true;
+                        break;
+                    }
+                    previous = Some(comment_character);
+                }
+                if !terminated {
+                    return Err("Gradle settings contain an unterminated block comment".to_string());
+                }
+            }
+            _ => cleaned.push(character),
+        }
+    }
+
+    if quote.is_some() {
+        return Err("Gradle settings contain an unterminated quoted string".to_string());
+    }
+    if escaped {
+        return Err("Gradle settings contain a dangling string escape".to_string());
+    }
+    Ok(cleaned)
+}
+
+fn is_gradle_include_start(line: &str) -> bool {
+    let Some(rest) = line.strip_prefix("include") else {
+        return false;
+    };
+    rest.is_empty()
+        || rest.chars().next().is_some_and(|character| {
+            character.is_whitespace() || matches!(character, '(' | '\'' | '"')
+        })
+}
+
+fn gradle_paren_balance(value: &str) -> i32 {
+    let mut balance = 0i32;
+    let mut quote = None;
+    let mut escaped = false;
+    for character in value.chars() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if character == '\\' && quote.is_some() {
+            escaped = true;
+            continue;
+        }
+        if matches!(character, '\'' | '"') {
+            if quote == Some(character) {
+                quote = None;
+            } else if quote.is_none() {
+                quote = Some(character);
+            }
+            continue;
+        }
+        if quote.is_none() {
+            match character {
+                '(' => balance += 1,
+                ')' => balance -= 1,
+                _ => {}
+            }
+        }
+    }
+    balance
+}
+
+fn gradle_string_arguments(mut value: &str) -> Result<Vec<String>, String> {
+    let mut values = Vec::new();
+    loop {
+        value = value.trim_start();
+        if value.is_empty() {
+            return Ok(values);
+        }
+
+        let (parsed, remainder) = gradle_string_literal(value)?;
+        values.push(parsed);
+        value = remainder.trim_start();
+        if value.is_empty() {
+            return Ok(values);
+        }
+        let Some(remainder) = value.strip_prefix(',') else {
+            return Err("Unsupported or dynamic Gradle expression".to_string());
+        };
+        value = remainder;
+    }
+}
+
+fn gradle_string_literal(value: &str) -> Result<(String, &str), String> {
+    let Some(delimiter) = value
+        .chars()
+        .next()
+        .filter(|character| matches!(character, '\'' | '"'))
+    else {
+        return Err("Unsupported or dynamic Gradle expression".to_string());
+    };
+    let mut parsed = String::new();
+    let mut escaped = false;
+    for (index, character) in value[delimiter.len_utf8()..].char_indices() {
+        if escaped {
+            match character {
+                '\\' | '\'' | '"' => parsed.push(character),
+                'n' => parsed.push('\n'),
+                'r' => parsed.push('\r'),
+                't' => parsed.push('\t'),
+                _ => {
+                    parsed.push('\\');
+                    parsed.push(character);
+                }
+            }
+            escaped = false;
+        } else if character == '\\' {
+            escaped = true;
+        } else if character == delimiter {
+            let end = delimiter.len_utf8() + index + character.len_utf8();
+            return Ok((parsed, &value[end..]));
+        } else {
+            parsed.push(character);
+        }
+    }
+    if escaped {
+        Err("Gradle settings contain a dangling string escape".to_string())
+    } else {
+        Err("Gradle settings contain an unterminated quoted string".to_string())
     }
 }
 
@@ -793,6 +1203,198 @@ let package = Package(
             result
                 .source_dirs
                 .contains(&"packages/core/src".to_string())
+        );
+    }
+
+    #[test]
+    fn gradle_settings_support_groovy_kotlin_multiline_and_project_dir_overrides() {
+        let modules = parse_gradle_settings(
+            r#"
+include ':groovy:member',
+        ':second'
+include(
+    ":kotlin:member",
+    ':vendor:member'
+);
+project(':vendor:member').projectDir = file('vendor/custom-member');
+project(":second").projectDir = new File(rootDir, "modules/second")
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            modules,
+            vec![
+                GradleSettingsModule {
+                    name: "groovy/member".to_string(),
+                    path: "groovy/member".to_string(),
+                },
+                GradleSettingsModule {
+                    name: "kotlin/member".to_string(),
+                    path: "kotlin/member".to_string(),
+                },
+                GradleSettingsModule {
+                    name: "second".to_string(),
+                    path: "modules/second".to_string(),
+                },
+                GradleSettingsModule {
+                    name: "vendor/member".to_string(),
+                    path: "vendor/custom-member".to_string(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn gradle_manifest_discovery_rejects_dynamic_include_without_partial_modules() {
+        let tmp = tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("src/main/kotlin")).unwrap();
+        fs::write(tmp.path().join("build.gradle.kts"), "plugins {}\n").unwrap();
+        fs::write(
+            tmp.path().join("settings.gradle.kts"),
+            r#"include(":safe", dynamicModule)"#,
+        )
+        .unwrap();
+
+        let error = discover_from_manifests_checked(tmp.path()).unwrap_err();
+        assert!(error.contains("Unsupported or dynamic Gradle expression"));
+        let compatibility_result = discover_from_manifests(tmp.path());
+        assert!(compatibility_result.modules.is_empty());
+        assert!(compatibility_result.source_dirs.is_empty());
+    }
+
+    #[test]
+    fn gradle_settings_only_workspace_discovers_included_modules() {
+        let tmp = tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("member/src/main/kotlin")).unwrap();
+        fs::write(
+            tmp.path().join("settings.gradle.kts"),
+            "include(\":member\")\n",
+        )
+        .unwrap();
+
+        let result = discover_from_manifests_checked(tmp.path()).unwrap();
+
+        assert_eq!(
+            result.modules["member"].source_paths,
+            vec!["member/src/main/kotlin"]
+        );
+    }
+
+    #[test]
+    fn gradle_settings_only_workspace_fails_closed_when_malformed() {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("settings.gradle"), "include(\":member\"\n").unwrap();
+
+        let error = discover_from_manifests_checked(tmp.path()).unwrap_err();
+
+        assert!(error.contains("Cannot parse Gradle settings manifest"));
+        assert!(discover_from_manifests(tmp.path()).modules.is_empty());
+    }
+
+    #[test]
+    fn gradle_settings_reject_unsupported_project_dir_bases_and_suffixes() {
+        let outside_base = parse_gradle_settings(
+            r#"
+include(":outside")
+project(":outside").projectDir = new File(rootDir.parentFile, "outside")
+"#,
+        )
+        .unwrap_err();
+        assert!(outside_base.contains("base must be exactly rootDir"));
+
+        for assignment in [
+            r#"file("modules/safe").parentFile"#,
+            r#"new File(rootDir, "modules/safe") + "/outside""#,
+        ] {
+            let settings =
+                format!("include(\":safe\")\nproject(\":safe\").projectDir = {assignment}\n");
+            let error = parse_gradle_settings(&settings).unwrap_err();
+            assert!(error.contains("Unsupported trailing Gradle projectDir assignment expression"));
+        }
+    }
+
+    #[test]
+    fn gradle_manifest_discovery_uses_the_effective_project_directory() {
+        let tmp = tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("vendor/custom/src/main/kotlin")).unwrap();
+        fs::write(tmp.path().join("build.gradle"), "plugins {}\n").unwrap();
+        fs::write(
+            tmp.path().join("settings.gradle"),
+            "include ':member'\nproject(':member').projectDir = file('vendor/custom')\n",
+        )
+        .unwrap();
+
+        let result = parse_gradle(tmp.path()).unwrap();
+        assert_eq!(
+            result.modules["member"].source_paths,
+            vec!["vendor/custom/src/main/kotlin"]
+        );
+        assert!(
+            result
+                .source_dirs
+                .contains(&"vendor/custom/src/main/kotlin".to_string())
+        );
+    }
+
+    #[test]
+    fn gradle_settings_ignore_comments_and_decode_escaped_values() {
+        let commented = parse_gradle_settings("include ':member' // \"comment\n").unwrap();
+        assert_eq!(commented[0].name, "member");
+
+        let modules = parse_gradle_settings(
+            r#"
+include(
+    ":member", // ignored quote: "
+    ':quoted\'member',
+    ":slash//member" /* ignored quote: ' */
+)
+project(":member").projectDir = file("modules\\member")
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(modules[0].name, "member");
+        assert_eq!(modules[0].path, "modules/member");
+        assert_eq!(modules[1].name, "quoted'member");
+        assert_eq!(modules[2].name, "slash//member");
+    }
+
+    #[test]
+    fn gradle_manifest_discovery_fails_closed_for_malformed_settings() {
+        let tmp = tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("src/main/kotlin")).unwrap();
+        fs::write(tmp.path().join("build.gradle.kts"), "plugins {}\n").unwrap();
+        fs::write(
+            tmp.path().join("settings.gradle.kts"),
+            "include(\":member\"\n",
+        )
+        .unwrap();
+
+        let error = discover_from_manifests_checked(tmp.path()).unwrap_err();
+        assert!(error.contains("Cannot parse Gradle settings manifest"));
+        let result = discover_from_manifests(tmp.path());
+        assert!(result.modules.is_empty());
+        assert!(result.source_dirs.is_empty());
+    }
+
+    #[test]
+    fn gradle_manifest_discovery_accepts_comments_and_escaped_paths() {
+        let tmp = tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("modules/member/src/main/kotlin")).unwrap();
+        fs::write(tmp.path().join("build.gradle.kts"), "plugins {}\n").unwrap();
+        fs::write(
+            tmp.path().join("settings.gradle.kts"),
+            r#"include(":member") // ignored unterminated quote: "
+project(":member").projectDir = file("modules\\member") /* ignored: ' */
+"#,
+        )
+        .unwrap();
+
+        let result = discover_from_manifests(tmp.path());
+        assert_eq!(
+            result.modules["member"].source_paths,
+            vec!["modules/member/src/main/kotlin"]
         );
     }
 

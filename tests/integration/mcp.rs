@@ -183,6 +183,58 @@ fn mcp_tool_init_creates_config() {
 }
 
 #[test]
+fn mcp_generate_reports_destination_collisions_and_io_failures_as_tool_errors() {
+    let tmp = TempDir::new().unwrap();
+
+    let collision_root = tmp.path().join("collision-server");
+    fs::create_dir_all(collision_root.join("src")).unwrap();
+    fs::create_dir_all(collision_root.join("specs/collision/collision.spec.md")).unwrap();
+    fs::write(
+        collision_root.join("specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+    )
+    .unwrap();
+    fs::write(
+        collision_root.join("src/collision.rs"),
+        "pub fn collision() {}\n",
+    )
+    .unwrap();
+
+    let collision_responses = mcp_request_with_write(
+        &collision_root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": { "name": "specsync_generate", "arguments": {} }
+        })],
+    );
+    assert_generation_failed_without_zero_count(&collision_responses[0]);
+
+    let blocked_root = tmp.path().join("blocked-server");
+    fs::create_dir_all(blocked_root.join("src")).unwrap();
+    fs::create_dir_all(blocked_root.join("specs")).unwrap();
+    fs::write(
+        blocked_root.join("specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+    )
+    .unwrap();
+    fs::write(blocked_root.join("src/blocked.rs"), "pub fn blocked() {}\n").unwrap();
+    fs::write(blocked_root.join("specs/blocked"), "not a directory\n").unwrap();
+
+    let blocked_responses = mcp_request_with_write(
+        &blocked_root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": { "name": "specsync_generate", "arguments": {} }
+        })],
+    );
+    assert_generation_failed_without_zero_count(&blocked_responses[0]);
+}
+
+#[test]
 fn mcp_read_only_rejects_direct_mutators_and_preserves_outside_victim() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().join("server");
@@ -334,6 +386,37 @@ fn mcp_read_roots_allow_existing_children_and_reject_escapes() {
     assert_eq!(fs::read(victim).unwrap(), victim_bytes);
 }
 
+#[test]
+fn mcp_absolute_outside_roots_do_not_disclose_existence() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().join("server");
+    let existing_outside = tmp.path().join("existing-outside");
+    let missing_outside = tmp.path().join("missing-outside");
+    fs::create_dir_all(&root).unwrap();
+    fs::create_dir_all(&existing_outside).unwrap();
+
+    let responses = mcp_request(
+        &root,
+        &[
+            coverage_request(1, serde_json::json!(existing_outside.to_string_lossy())),
+            coverage_request(2, serde_json::json!(missing_outside.to_string_lossy())),
+        ],
+    );
+
+    let existing_error = responses[0]["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    let missing_error = responses[1]["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    assert_eq!(responses[0]["result"]["isError"], true);
+    assert_eq!(responses[1]["result"]["isError"], true);
+    assert_eq!(existing_error, missing_error);
+    assert!(existing_error.contains("escapes the configured server root"));
+    assert!(!existing_error.contains(existing_outside.to_string_lossy().as_ref()));
+    assert!(!missing_error.contains(missing_outside.to_string_lossy().as_ref()));
+}
+
 #[cfg(unix)]
 #[test]
 fn mcp_read_root_rejects_symlink_escape_and_preserves_referent() {
@@ -353,6 +436,126 @@ fn mcp_read_root_rejects_symlink_escape_and_preserves_referent() {
 
     assert_eq!(responses[0]["result"]["isError"], true);
     assert_eq!(fs::read(victim).unwrap(), victim_bytes);
+}
+
+#[cfg(windows)]
+#[test]
+fn mcp_read_root_rejects_windows_junction_escape_and_preserves_referent() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().join("server");
+    let outside = tmp.path().join("outside");
+    let junction = root.join("escape");
+    fs::create_dir_all(&root).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    let victim = outside.join("victim.bin");
+    let victim_bytes = b"junction escape victim";
+    fs::write(&victim, victim_bytes).unwrap();
+
+    create_windows_junction(&junction, &outside)
+        .unwrap_or_else(|error| panic!("failed to create Windows junction fixture: {error}"));
+    assert_eq!(
+        fs::canonicalize(&junction).unwrap(),
+        fs::canonicalize(&outside).unwrap()
+    );
+
+    let responses = mcp_request(&root, &[coverage_request(1, serde_json::json!("escape"))]);
+
+    assert_eq!(responses[0]["result"]["isError"], true);
+    assert_eq!(fs::read(victim).unwrap(), victim_bytes);
+}
+
+#[cfg(windows)]
+#[test]
+fn mcp_write_tools_reject_windows_junction_destinations_without_touching_outside_bytes() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().join("server");
+    let outside = tmp.path().join("outside");
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs")).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    fs::write(root.join("src/evil.rs"), "pub fn evil() {}\n").unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+    )
+    .unwrap();
+    let victim = outside.join("victim.bin");
+    let victim_bytes = b"windows write-junction victim\0exact";
+    fs::write(&victim, victim_bytes).unwrap();
+    create_windows_junction(&root.join("specs/evil"), &outside)
+        .unwrap_or_else(|error| panic!("failed to create Windows junction fixture: {error}"));
+
+    let responses = mcp_request_with_write(
+        &root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": { "name": "specsync_generate", "arguments": {} }
+        })],
+    );
+
+    assert_eq!(responses[0]["result"]["isError"], true);
+    assert_eq!(fs::read(&victim).unwrap(), victim_bytes);
+    assert!(!outside.join("evil.spec.md").exists());
+    assert!(fs::read_dir(&outside).unwrap().all(|entry| {
+        !entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".specsync-mcp-stage-")
+    }));
+}
+
+#[cfg(windows)]
+#[test]
+fn mcp_init_rejects_a_windows_junction_at_its_destination() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().join("server");
+    let outside = tmp.path().join("outside");
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    let victim = outside.join("victim.bin");
+    let victim_bytes = b"windows init-junction victim\0exact";
+    fs::write(&victim, victim_bytes).unwrap();
+    create_windows_junction(&root.join("specsync.json"), &outside)
+        .unwrap_or_else(|error| panic!("failed to create Windows junction fixture: {error}"));
+
+    let responses = mcp_request_with_write(
+        &root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": { "name": "specsync_init", "arguments": {} }
+        })],
+    );
+
+    assert_eq!(responses[0]["result"]["isError"], true);
+    assert_eq!(fs::read(&victim).unwrap(), victim_bytes);
+    assert!(!outside.join("specsync.json").exists());
+}
+
+#[cfg(windows)]
+#[test]
+fn mcp_windows_read_roots_accept_absolute_children_and_reject_ambiguous_prefixes() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().join("server");
+    let child = root.join("child");
+    fs::create_dir_all(child.join("src")).unwrap();
+
+    let responses = mcp_request(
+        &root,
+        &[
+            coverage_request(1, serde_json::json!(child.to_string_lossy())),
+            coverage_request(2, serde_json::json!(r"\Windows")),
+            coverage_request(3, serde_json::json!(r"C:relative")),
+        ],
+    );
+
+    assert_eq!(responses[0]["result"]["isError"].as_bool(), None);
+    assert_eq!(responses[1]["result"]["isError"], true);
+    assert_eq!(responses[2]["result"]["isError"], true);
 }
 
 #[test]
@@ -621,6 +824,128 @@ fn mcp_rejects_metadata_symlinks_and_traversing_dependency_references() {
     );
 }
 
+#[test]
+fn mcp_issues_requires_explicit_repo_before_redirected_git_metadata() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    let spec_path = root.join("specs/auth/auth.spec.md");
+    let spec = fs::read_to_string(&spec_path).unwrap();
+    fs::write(
+        &spec_path,
+        spec.replacen(
+            "status: active\n",
+            "status: active\nimplements:\n  - 1\n",
+            1,
+        ),
+    )
+    .unwrap();
+    let outside_git = tmp.path().join("outside-git");
+    fs::create_dir_all(outside_git.join("objects")).unwrap();
+    fs::create_dir_all(outside_git.join("refs/heads")).unwrap();
+    fs::write(outside_git.join("HEAD"), "ref: refs/heads/main\n").unwrap();
+    fs::write(
+        outside_git.join("config"),
+        "[core]\n\trepositoryformatversion = 0\n\tbare = false\n\
+         [remote \"origin\"]\n\turl = git@github.com:outside/metadata.git\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".git"),
+        format!("gitdir: {}\n", outside_git.display()),
+    )
+    .unwrap();
+
+    let responses = mcp_request(
+        &root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": { "name": "specsync_issues", "arguments": {} }
+        })],
+    );
+
+    let error = responses[0]["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    assert_eq!(responses[0]["result"]["isError"], true);
+    assert!(error.contains("explicit `github.repo`"));
+    assert!(!error.contains("outside/metadata"));
+}
+
+#[test]
+fn mcp_issues_without_references_skips_repository_resolution() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    let responses = mcp_request(
+        &root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": { "name": "specsync_issues", "arguments": {} }
+        })],
+    );
+
+    assert_eq!(responses[0]["result"]["isError"].as_bool(), None);
+    let result: serde_json::Value = serde_json::from_str(
+        responses[0]["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(result["repo"], serde_json::Value::Null);
+    assert_eq!(result["total_valid"], 0);
+    assert_eq!(result["total_closed"], 0);
+    assert_eq!(result["total_not_found"], 0);
+    assert_eq!(result["specs"], serde_json::json!([]));
+}
+
+#[cfg(unix)]
+#[test]
+fn mcp_issues_rejects_a_git_symlink_to_outside_metadata() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    let spec_path = root.join("specs/auth/auth.spec.md");
+    let spec = fs::read_to_string(&spec_path).unwrap();
+    fs::write(
+        &spec_path,
+        spec.replacen(
+            "status: active\n",
+            "status: active\nimplements:\n  - 1\n",
+            1,
+        ),
+    )
+    .unwrap();
+    let outside_git = tmp.path().join("outside-git");
+    fs::create_dir_all(&outside_git).unwrap();
+    fs::write(
+        outside_git.join("config"),
+        "[remote \"origin\"]\n\turl = git@github.com:outside/symlink.git\n",
+    )
+    .unwrap();
+    symlink(&outside_git, root.join(".git")).unwrap();
+
+    let responses = mcp_request(
+        &root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": { "name": "specsync_issues", "arguments": {} }
+        })],
+    );
+
+    let error = responses[0]["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    assert_eq!(responses[0]["result"]["isError"], true);
+    assert!(!error.contains("outside/symlink"));
+}
+
 #[cfg(unix)]
 #[test]
 fn mcp_confinement_scan_honors_configured_excluded_directories() {
@@ -807,7 +1132,7 @@ fn mcp_manifest_autodetection_rejects_gradle_and_python_path_escapes() {
     fs::write(gradle_root.join("build.gradle.kts"), "plugins {}\n").unwrap();
     fs::write(
         gradle_root.join("settings.gradle.kts"),
-        "include(\":../outside-gradle\")\n",
+        "include ':outside'\nproject(':outside').projectDir = file('../outside-gradle')\n",
     )
     .unwrap();
     fs::write(
@@ -849,6 +1174,64 @@ fn mcp_manifest_autodetection_rejects_gradle_and_python_path_escapes() {
 }
 
 #[test]
+fn mcp_gradle_preflight_rejects_malformed_settings_without_partial_results() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    fs::write(root.join("build.gradle.kts"), "plugins {}\n").unwrap();
+    fs::write(root.join("settings.gradle.kts"), "include(\":member\"\n").unwrap();
+
+    let responses = mcp_request(
+        &root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": { "name": "specsync_coverage", "arguments": {} }
+        })],
+    );
+
+    assert_eq!(responses[0]["result"]["isError"], true);
+    assert!(
+        responses[0]["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("Gradle")
+    );
+}
+
+#[test]
+fn mcp_gradle_preflight_accepts_comments_and_escaped_paths() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    fs::create_dir_all(root.join("modules/member/src/main/kotlin")).unwrap();
+    fs::write(root.join("build.gradle.kts"), "plugins {}\n").unwrap();
+    fs::write(
+        root.join("settings.gradle.kts"),
+        r#"include(":member") // ignored unterminated quote: "
+project(":member").projectDir = file("modules\\member") /* ignored: ' */
+"#,
+    )
+    .unwrap();
+
+    let responses = mcp_request(
+        &root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": { "name": "specsync_list_specs", "arguments": {} }
+        })],
+    );
+
+    assert_ne!(responses[0]["result"]["isError"], true);
+    let content = responses[0]["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    let result: serde_json::Value = serde_json::from_str(content).unwrap();
+    assert_eq!(result["count"], 1);
+}
+
+#[test]
 fn mcp_manifest_preflight_rejects_cycles_and_excessive_configured_paths() {
     let tmp = TempDir::new().unwrap();
 
@@ -868,7 +1251,11 @@ fn mcp_manifest_preflight_rejects_cycles_and_excessive_configured_paths() {
             "params": { "name": "specsync_coverage", "arguments": {} }
         })],
     );
-    assert_eq!(cycle_responses[0]["result"]["isError"], true);
+    assert_eq!(
+        cycle_responses[0]["result"]["isError"], true,
+        "unexpected cycle response: {}",
+        cycle_responses[0]
+    );
     assert!(
         cycle_responses[0]["result"]["content"][0]["text"]
             .as_str()
@@ -902,7 +1289,7 @@ fn mcp_manifest_preflight_rejects_cycles_and_excessive_configured_paths() {
         bounded_responses[0]["result"]["content"][0]["text"]
             .as_str()
             .unwrap()
-            .contains("path entries")
+            .contains("input paths")
     );
 }
 
@@ -987,6 +1374,153 @@ fn mcp_tools_call_rejects_shape_type_and_unknown_key_errors() {
 }
 
 #[test]
+fn mcp_invalid_json_rpc_envelopes_return_invalid_request_without_mutating() {
+    let tmp = TempDir::new().unwrap();
+    let mutator = serde_json::json!({
+        "id": 1,
+        "method": "tools/call",
+        "params": { "name": "specsync_init", "arguments": {} }
+    });
+    let requests = [
+        mutator.clone(),
+        serde_json::json!({
+            "jsonrpc": "1.0", "id": 2, "method": "tools/call",
+            "params": { "name": "specsync_init", "arguments": {} }
+        }),
+        serde_json::json!({
+            "jsonrpc": 2, "id": 3, "method": "tools/call",
+            "params": { "name": "specsync_init", "arguments": {} }
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": 4, "method": ["tools/call"],
+            "params": { "name": "specsync_init", "arguments": {} }
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": { "invalid": true }, "method": "tools/call",
+            "params": { "name": "specsync_init", "arguments": {} }
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": [5], "method": "tools/call",
+            "params": { "name": "specsync_init", "arguments": {} }
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": "invalid"
+        }),
+        serde_json::json!([mutator]),
+    ];
+
+    let responses = mcp_request_with_write(tmp.path(), &requests);
+
+    assert_eq!(responses.len(), requests.len());
+    for response in responses {
+        assert_eq!(response["id"], serde_json::Value::Null);
+        assert_eq!(response["error"]["code"], -32600);
+        assert!(response.get("result").is_none());
+    }
+    assert!(!tmp.path().join("specsync.json").exists());
+}
+
+#[test]
+fn mcp_rejects_oversized_request_ids_before_dispatching_mutators() {
+    let tmp = TempDir::new().unwrap();
+    let requests = [serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": "x".repeat(4 * 1024 + 1),
+        "method": "tools/call",
+        "params": { "name": "specsync_init", "arguments": {} }
+    })];
+
+    let responses = mcp_request_with_write(tmp.path(), &requests);
+
+    assert_eq!(responses.len(), 1);
+    assert_eq!(responses[0]["id"], serde_json::Value::Null);
+    assert_eq!(responses[0]["error"]["code"], -32600);
+    assert!(!tmp.path().join("specsync.json").exists());
+}
+
+#[test]
+fn mcp_resources_read_requires_exact_params_and_confines_direct_uris() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    let outside = tmp.path().join("outside");
+    fs::create_dir_all(&outside).unwrap();
+    let secret = "outside-resource-secret";
+    fs::write(outside.join("secret.spec.md"), secret).unwrap();
+
+    let requests = [
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": 1, "method": "resources/read", "params": []
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": 2, "method": "resources/read", "params": {}
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": 3, "method": "resources/read",
+            "params": { "uri": 42 }
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": 4, "method": "resources/read",
+            "params": { "uri": "specsync:///config", "extra": true }
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": 5, "method": "resources/read",
+            "params": { "uri": "specsync:///specs/../../outside/secret.spec.md" }
+        }),
+    ];
+
+    let responses = mcp_request(&root, &requests);
+
+    assert_eq!(responses.len(), requests.len());
+    for response in &responses[..4] {
+        assert_eq!(response["error"]["code"], -32602);
+        assert!(response.get("result").is_none());
+    }
+    assert_eq!(responses[4]["error"]["code"], -32602);
+    assert!(responses[4].get("result").is_none());
+    assert!(!responses[4].to_string().contains(secret));
+}
+
+#[cfg(unix)]
+#[test]
+fn mcp_resources_read_rejects_a_spec_symlink_to_an_outside_resource() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().join("server");
+    let outside = tmp.path().join("outside");
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs")).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+    )
+    .unwrap();
+    let secret = "outside-symlink-resource-secret";
+    let outside_spec = outside.join("outside.spec.md");
+    fs::write(
+        &outside_spec,
+        format!("---\nmodule: outside\nversion: 1\nstatus: stable\nfiles: []\n---\n\n{secret}\n"),
+    )
+    .unwrap();
+    symlink(&outside_spec, root.join("specs/outside.spec.md")).unwrap();
+
+    let responses = mcp_request(
+        &root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "resources/read",
+            "params": { "uri": "specsync:///specs/outside" }
+        })],
+    );
+
+    assert_eq!(responses[0]["error"]["code"], -32602);
+    assert!(responses[0].get("result").is_none());
+    assert!(!responses[0].to_string().contains(secret));
+}
+
+#[test]
 fn mcp_notifications_never_respond_or_mutate() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().join("server");
@@ -1066,6 +1600,253 @@ fn mcp_rejects_an_oversized_line_and_processes_the_next_request() {
     );
     assert_eq!(responses[1]["id"], 2);
     assert_eq!(responses[1]["result"], serde_json::json!({}));
+}
+
+#[test]
+fn mcp_bounds_per_file_and_cumulative_project_inputs() {
+    let tmp = TempDir::new().unwrap();
+
+    let per_file_root = tmp.path().join("per-file-server");
+    fs::create_dir_all(per_file_root.join("src")).unwrap();
+    fs::write(
+        per_file_root.join("specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+    )
+    .unwrap();
+    fs::File::create(per_file_root.join("src/oversized.rs"))
+        .unwrap()
+        .set_len(8 * 1024 * 1024 + 1)
+        .unwrap();
+
+    let per_file_responses = mcp_request(
+        &per_file_root,
+        &[coverage_request(1, serde_json::json!("."))],
+    );
+    let per_file_error = per_file_responses[0]["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    assert_eq!(per_file_responses[0]["result"]["isError"], true);
+    assert!(per_file_error.contains("8 MiB per-file limit"));
+
+    let cumulative_root = tmp.path().join("cumulative-server");
+    fs::create_dir_all(cumulative_root.join("src")).unwrap();
+    fs::write(
+        cumulative_root.join("specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+    )
+    .unwrap();
+    for index in 0..9 {
+        fs::File::create(cumulative_root.join(format!("src/input-{index}.rs")))
+            .unwrap()
+            .set_len(8 * 1024 * 1024)
+            .unwrap();
+    }
+
+    let cumulative_responses = mcp_request(
+        &cumulative_root,
+        &[coverage_request(2, serde_json::json!("."))],
+    );
+    let cumulative_error = cumulative_responses[0]["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    assert_eq!(cumulative_responses[0]["result"]["isError"], true);
+    assert!(cumulative_error.contains("64 MiB cumulative limit"));
+
+    let config_cumulative_root = tmp.path().join("config-cumulative-server");
+    fs::create_dir_all(config_cumulative_root.join("src")).unwrap();
+    let mut padded_config = br#"{"specsDir":"specs","sourceDirs":["src"]}"#.to_vec();
+    padded_config.resize(4 * 1024 * 1024, b' ');
+    fs::write(config_cumulative_root.join("specsync.json"), padded_config).unwrap();
+    for index in 0..8 {
+        fs::File::create(config_cumulative_root.join(format!("src/input-{index}.rs")))
+            .unwrap()
+            .set_len(8 * 1024 * 1024)
+            .unwrap();
+    }
+
+    let config_cumulative_responses = mcp_request(
+        &config_cumulative_root,
+        &[coverage_request(3, serde_json::json!("."))],
+    );
+    let config_cumulative_error = config_cumulative_responses[0]["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    assert_eq!(config_cumulative_responses[0]["result"]["isError"], true);
+    assert!(config_cumulative_error.contains("64 MiB cumulative limit"));
+
+    let explicit_source_root = tmp.path().join("explicit-source-server");
+    fs::create_dir_all(explicit_source_root.join("src/docs")).unwrap();
+    fs::write(
+        explicit_source_root.join("specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+    )
+    .unwrap();
+    fs::File::create(explicit_source_root.join("src/docs/oversized.rs"))
+        .unwrap()
+        .set_len(8 * 1024 * 1024 + 1)
+        .unwrap();
+
+    let explicit_source_responses = mcp_request(
+        &explicit_source_root,
+        &[coverage_request(4, serde_json::json!("."))],
+    );
+    let explicit_source_error = explicit_source_responses[0]["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    assert_eq!(explicit_source_responses[0]["result"]["isError"], true);
+    assert!(explicit_source_error.contains("8 MiB per-file limit"));
+
+    let normally_ignored_root = tmp.path().join("explicit-vendor-server");
+    fs::create_dir_all(normally_ignored_root.join("vendor")).unwrap();
+    fs::write(
+        normally_ignored_root.join("specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["vendor"]}"#,
+    )
+    .unwrap();
+    fs::File::create(normally_ignored_root.join("vendor/oversized.rs"))
+        .unwrap()
+        .set_len(8 * 1024 * 1024 + 1)
+        .unwrap();
+
+    let normally_ignored_responses = mcp_request(
+        &normally_ignored_root,
+        &[coverage_request(5, serde_json::json!("."))],
+    );
+    let normally_ignored_error = normally_ignored_responses[0]["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    assert_eq!(normally_ignored_responses[0]["result"]["isError"], true);
+    assert!(normally_ignored_error.contains("8 MiB per-file limit"));
+
+    for git_name in [".git", ".GIT"] {
+        let git_input_root = tmp
+            .path()
+            .join(format!("git-input-server-{}", &git_name[1..]));
+        fs::create_dir_all(git_input_root.join(git_name)).unwrap();
+        fs::write(
+            git_input_root.join("specsync.json"),
+            format!(r#"{{"specsDir":"specs","sourceDirs":["{git_name}"]}}"#),
+        )
+        .unwrap();
+        fs::write(
+            git_input_root.join(git_name).join("config"),
+            "outside = false\n",
+        )
+        .unwrap();
+
+        let git_input_responses = mcp_request(
+            &git_input_root,
+            &[coverage_request(6, serde_json::json!("."))],
+        );
+        let git_input_error = git_input_responses[0]["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap();
+        assert_eq!(git_input_responses[0]["result"]["isError"], true);
+        assert!(git_input_error.contains("must not use Git metadata"));
+    }
+
+    let manifest_root = tmp.path().join("manifest-cumulative-server");
+    fs::create_dir_all(manifest_root.join("src")).unwrap();
+    fs::write(
+        manifest_root.join("specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+    )
+    .unwrap();
+    for index in 0..9 {
+        let member = manifest_root.join(format!("member-{index}"));
+        fs::create_dir_all(&member).unwrap();
+        fs::File::create(member.join("Cargo.toml"))
+            .unwrap()
+            .set_len(8 * 1024 * 1024)
+            .unwrap();
+    }
+
+    let manifest_responses = mcp_request(
+        &manifest_root,
+        &[coverage_request(7, serde_json::json!("."))],
+    );
+    let manifest_error = manifest_responses[0]["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    assert_eq!(manifest_responses[0]["result"]["isError"], true);
+    assert!(manifest_error.contains("64 MiB cumulative limit"));
+}
+
+#[test]
+fn mcp_bounds_outbound_resource_responses() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/large")).unwrap();
+    fs::write(root.join("src/large.rs"), "pub fn large() {}\n").unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+    )
+    .unwrap();
+    let mut spec = valid_spec("large", &["src/large.rs"]);
+    spec.push_str(&"x".repeat(1024 * 1024));
+    fs::write(root.join("specs/large/large.spec.md"), spec).unwrap();
+
+    let responses = mcp_request(
+        root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "resources/read",
+            "params": { "uri": "specsync:///specs/large" }
+        })],
+    );
+
+    assert_eq!(responses.len(), 1);
+    assert_eq!(responses[0]["id"], 1);
+    assert_eq!(responses[0]["error"]["code"], -32603);
+    assert!(
+        responses[0]["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("1 MiB output limit")
+    );
+    assert!(responses[0].to_string().len() < 1024);
+}
+
+#[test]
+fn mcp_rejects_an_attacker_controlled_oversized_id_with_a_bounded_error() {
+    let tmp = TempDir::new().unwrap();
+    let method = "unknown";
+    let probe = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": "",
+        "method": method
+    });
+    let probe_len = serde_json::to_string(&probe).unwrap().len();
+    let id = "x".repeat(1024 * 1024 - probe_len);
+    let request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "method": method
+    });
+    let encoded = serde_json::to_string(&request).unwrap();
+    assert_eq!(encoded.len(), 1024 * 1024);
+
+    let output = specsync()
+        .arg("mcp")
+        .arg("--root")
+        .arg(tmp.path())
+        .write_stdin(format!("{encoded}\n"))
+        .output()
+        .expect("failed to run mcp");
+
+    assert!(output.stdout.len() <= 1024 * 1024);
+    let response: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(response["id"].is_null());
+    assert_eq!(response["error"]["code"], -32600);
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("4 KiB")
+    );
 }
 
 #[test]
@@ -1250,4 +2031,33 @@ fn mcp_request_with_write(
         .filter(|line| !line.trim().is_empty())
         .map(|line| serde_json::from_str(line).expect("invalid JSON-RPC response"))
         .collect()
+}
+
+fn assert_generation_failed_without_zero_count(response: &serde_json::Value) {
+    assert_eq!(response["result"]["isError"], true);
+    let text = response["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(!text.contains("\"count\": 0"));
+}
+
+#[cfg(windows)]
+fn create_windows_junction(
+    junction: &std::path::Path,
+    target: &std::path::Path,
+) -> Result<(), String> {
+    let output = std::process::Command::new("cmd")
+        .args(["/D", "/C", "mklink", "/J"])
+        .arg(junction)
+        .arg(target)
+        .output()
+        .map_err(|error| format!("failed to launch cmd /C mklink /J: {error}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+
+    Err(format!(
+        "cmd /C mklink /J exited with {:?}; stdout: {}; stderr: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stdout).trim(),
+        String::from_utf8_lossy(&output.stderr).trim()
+    ))
 }

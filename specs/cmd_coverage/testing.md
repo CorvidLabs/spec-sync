@@ -15,6 +15,7 @@ spec: cmd_coverage.spec.md
 | `tests/integration.rs` | cargo test --test integration require_coverage_on_coverage_subcommand | End-to-end fixture: `require_coverage_on_coverage_subcommand` |
 | `tests/integration.rs` | cargo test --test integration strict_on_coverage_subcommand | End-to-end fixture: `strict_on_coverage_subcommand` |
 | `tests/integration.rs` | cargo test --test integration mcp_tool_coverage_returns_metrics | End-to-end fixture: `mcp_tool_coverage_returns_metrics` |
+| `tests/integration/commands.rs` | cargo test --test integration malformed_gradle_is_inconclusive_for_coverage_gating_commands | Malformed Gradle discovery exits 1 with parseable `valid: false` / `inconclusive: true` JSON |
 
 ## Behavioral Verification
 
@@ -22,7 +23,7 @@ spec: cmd_coverage.spec.md
 |------|-----------------|--------|-----------------|
 | Full coverage | all source files claimed by specs | `cmd_coverage` runs | prints 100% with green check marks |
 | Below threshold | partial coverage, `--require-coverage 80` | `cmd_coverage` runs | lists uncovered files and exits 1 |
-| JSON metrics dump | `--format json` | `cmd_coverage` runs | emits coverage keys (`file_coverage`, `loc_coverage`, `uncovered_files`, …) and exits 0 regardless of validation status |
+| JSON metrics dump | `--format json` with trustworthy discovery | `cmd_coverage` runs | emits coverage keys (`file_coverage`, `loc_coverage`, `uncovered_files`, …); configured gates determine exit status |
 
 ## Regression Matrix
 
@@ -30,6 +31,7 @@ spec: cmd_coverage.spec.md
 |------|-------------------|-----------------|
 | Coverage below threshold | Exits 1 with details | Keep or add a focused assertion before changing this behavior |
 | No specs found | Prints suggestion, exits 0 | Keep or add a focused assertion before changing this behavior |
+| Malformed Gradle settings | Emits valid structured inconclusive JSON and exits 1 | Covered by `malformed_gradle_is_inconclusive_for_coverage_gating_commands` |
 
 ## Reviewer Checklist
 

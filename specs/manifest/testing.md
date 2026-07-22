@@ -6,7 +6,7 @@ spec: manifest.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/manifest.rs` | cargo test manifest:: | `test_parse_cargo_toml_basic`, `test_parse_package_swift_basic`, `test_parse_package_json_workspaces`, `test_parse_go_mod`, `test_extract_balanced_parens` |
+| `src/manifest.rs` | cargo test manifest:: | Core ecosystem parsers plus shared Gradle settings, comments/escapes, effective project directories, and checked malformed-discovery regressions |
 
 ## Coverage Gaps
 
@@ -22,6 +22,9 @@ spec: manifest.spec.md
 | Go project with standard layout | `go.mod` with `module github.com/user/myproject` and `cmd/`, `internal/` directories exist | `discover_from_manifests(root)` is called | returns module "myproject" with source dirs `["cmd", "internal"]` |
 | No manifest files present | a project root with no recognized manifest files | `discover_from_manifests(root)` is called | returns an empty `ManifestDiscovery` (no modules, no source dirs) |
 | Android Gradle project | `build.gradle.kts` containing `android {` and `app/src/main/kotlin/` exists | `discover_from_manifests(root)` is called | includes `app/src/main/kotlin` in source dirs |
+| Standard Gradle settings variants | comments, escaped Groovy/Kotlin quotes, literal multiline includes, nested names, and the two supported literal `projectDir` forms | `parse_gradle_settings` and checked discovery are called | each unique module is returned once with its effective normalized source directory |
+| Settings-only Gradle workspace | `settings.gradle[.kts]` exists without a root build script | checked discovery is called | included modules are discovered; malformed settings return `Err` instead of empty coverage |
+| Cargo workspace security discovery | multiline TOML workspace members with comments or a commented fake `[workspace]` header | MCP snapshot/preflight discovery is called | real TOML members are included and malformed TOML is inconclusive without partial paths |
 
 ## Regression Matrix
 
@@ -29,7 +32,11 @@ spec: manifest.spec.md
 |------|-------------------|-----------------|
 | Manifest file missing | Parser returns `None`, skipped silently | Keep or add a focused assertion before changing this behavior |
 | Manifest file unreadable | Parser returns `None` (fs::read_to_string fails gracefully) | Keep or add a focused assertion before changing this behavior |
-| Malformed manifest content | Best-effort extraction; missing fields result in defaults or skipped entries | Keep or add a focused assertion before changing this behavior |
+| Malformed non-Gradle manifest content | Best-effort extraction; missing fields result in defaults or skipped entries | Keep or add a focused assertion before changing this behavior |
+| Malformed Gradle comments, escapes, strings, parentheses, or override | Checked discovery returns `Err` and coverage gates remain inconclusive | Exercise each malformed class without partial module results; checked discovery merges the same parsed read rather than rereading |
+| Missing root Gradle build script with present settings | Settings remain authoritative | Exercise valid and malformed settings-only workspaces |
+| Dynamic Gradle include or unsupported `projectDir` base/arity/suffix | Checked discovery returns `Err` without partial modules | Exercise mixed literal/dynamic includes, `rootDir.parentFile`, extra arguments, and trailing expressions |
+| Malformed MCP Cargo TOML or workspace shape | Snapshot/confinement discovery is inconclusive | Exercise syntax errors, non-table workspace, and non-string members |
 | Workspace member directory doesn't exist | Skipped (Cargo.toml existence check) | Keep or add a focused assertion before changing this behavior |
 | No parsers produce results | Returns default empty `ManifestDiscovery` | Keep or add a focused assertion before changing this behavior |
 

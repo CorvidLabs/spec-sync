@@ -6,8 +6,9 @@ spec: cmd_report.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/report.rs` | cargo test commands::report | No inline tests and no `specsync report` integration tests exist. Add focused coverage for staleness flagging, incomplete detection, and JSON shape before risky changes |
+| `src/commands/report.rs` | cargo test commands::report | No inline tests. Add focused coverage for staleness flagging and incomplete detection before risky changes |
 | `src/git_utils.rs` (indirect) | cargo test git_utils | Staleness primitives `git_last_commit_hash` / `git_commits_since` are tested here, not in `report` |
+| `tests/integration/commands.rs` | cargo test --test integration malformed_gradle_is_inconclusive_for_coverage_gating_commands | Report exits 1 with parseable inconclusive JSON when Gradle discovery is malformed |
 
 > Note: `coverage_full_reports_100`, `invalid_frontmatter_reports_error`, `missing_required_sections_reports_error`, and `missing_frontmatter_fields_reports_error` exercise the `coverage` and `check` commands — **not** `report`. Do not rely on them as `cmd_report` coverage.
 
@@ -25,6 +26,7 @@ spec: cmd_report.spec.md
 | Git not available or not a git repo | Staleness detection gracefully returns 0 (not stale) | Keep or add a focused assertion before changing this behavior |
 | Spec references a file that doesn't exist | File is skipped in staleness calculation | Keep or add a focused assertion before changing this behavior |
 | No spec files found | Renders an empty report (0/0 files, 100% overall, no module rows) and exits 0 | Keep or add a focused assertion before changing this behavior |
+| Malformed Gradle settings | Emits structured inconclusive JSON and exits 1 before partial reporting | Covered by `malformed_gradle_is_inconclusive_for_coverage_gating_commands` |
 
 ## Reviewer Checklist
 

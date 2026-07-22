@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::scoring;
 use crate::types;
-use crate::validator::compute_coverage;
+use crate::validator::compute_coverage_checked;
 
 use super::{
     compute_exit_code, exit_with_status, filter_by_status, filter_specs, load_and_discover,
@@ -42,6 +42,24 @@ pub fn cmd_score(
     let (config, all_spec_files) = load_and_discover(root, gate_requested);
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
     let spec_files = filter_by_status(&spec_files, exclude_status, only_status);
+    let coverage = compute_coverage_checked(root, &spec_files, &config).unwrap_or_else(|error| {
+        if json {
+            let output = serde_json::json!({
+                "valid": false,
+                "inconclusive": true,
+                "error": format!("Coverage inconclusive: {error}"),
+                "average_score": serde_json::Value::Null,
+                "grade": serde_json::Value::Null,
+                "total_specs": 0,
+                "distribution": { "A": 0, "B": 0, "C": 0, "D": 0, "F": 0 },
+                "specs": [],
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        } else {
+            eprintln!("Coverage inconclusive: {error}");
+        }
+        std::process::exit(1);
+    });
     let scores: Vec<scoring::SpecScore> = spec_files
         .iter()
         .map(|f| scoring::score_spec(f, root, &config))
@@ -112,7 +130,7 @@ pub fn cmd_score(
     // config now gate the exit code — previously they were silent no-ops here.
     // score does no validation, so errors/warnings are 0; coverage and
     // unspecced-file gating still apply.
-    let coverage = compute_coverage(root, &spec_files, &config);
+
     // JSON and CSV are machine formats: their body is already printed, so gate
     // SILENTLY via the exit code — appending exit_with_status's human message
     // would corrupt the parseable output. Other formats get the explanation.

@@ -21,4 +21,5 @@ Acceptance Criteria
 - Provider and model flags are absent.
 - Default, batch, uncovered, and JSON modes retain their non-AI behavior.
 - Generated paths and exit status remain machine-readable for coding agents.
+- Malformed Gradle/manifest discovery exits nonzero before generation; JSON remains valid with `valid: false`, `inconclusive: true`, an explicit error, and `generated: []`.
 

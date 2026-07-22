@@ -17,6 +17,7 @@ spec: cmd_check.spec.md
 | `tests/integration.rs` | cargo test --test integration require_coverage_on_coverage_subcommand | End-to-end fixture: `require_coverage_on_coverage_subcommand` |
 | `tests/integration.rs` (--fix) | cargo test --test integration fix_ | `fix_adds_undocumented_exports_to_spec`, `fix_does_not_duplicate_already_documented_exports`, `fix_creates_public_api_section_when_missing`, `fix_with_json_output`, `fix_does_not_duplicate_when_non_export_subsections_present`, `fix_near_miss_handles_levenshtein_typos`, `fix_dry_run_does_not_write_files`, `fix_backup_creates_backup_dir`, `fix_backup_preserves_original_on_success` |
 | `tests/integration.rs` (suggestions/dry-run) | cargo test --test integration check_shows_fix_suggestions dry_run_without_fix_warns | `check_shows_fix_suggestions`, `dry_run_without_fix_warns`, `wildcard_reexport_with_fix_adds_all_symbols` |
+| `tests/integration/commands.rs` | cargo test --test integration malformed_gradle_is_inconclusive_for_coverage_gating_commands | Exits nonzero while check JSON remains parseable with `valid: false`, `inconclusive: true`, and a Gradle error |
 
 ## Behavioral Verification
 
@@ -39,6 +40,7 @@ spec: cmd_check.spec.md
 | `--stale` outside a git repo | No staleness output, no crash (the `is_git_repo` guard skips it) | Keep or add a focused assertion before changing this behavior |
 | Validation has errors | Hash cache is NOT updated/saved (only saved when `total_errors == 0`) | Keep or add a focused assertion before changing this behavior |
 | `--dry-run` without `--fix` | Prints a warning that dry-run has no effect, makes no changes | Keep or add a focused assertion before changing this behavior |
+| Manifest discovery is malformed | Never report partial/vacuous coverage or a successful exit; JSON remains a structured failure | Covered by `malformed_gradle_is_inconclusive_for_coverage_gating_commands` |
 
 ## Reviewer Checklist
 

@@ -7,6 +7,7 @@ spec: validator.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/validator.rs` | cargo test validator:: | `test_is_cross_project_ref`, `test_parse_cross_project_ref`, `test_find_spec_files_empty_dir`, `test_find_spec_files_nonexistent`, `test_find_spec_files_with_specs`, `test_validate_spec_missing_frontmatter` |
+| `src/validator.rs` | cargo test validator::malformed_gradle_settings_make_coverage_inconclusive | Checked coverage returns the Gradle parse error; compatibility coverage carries an inconclusive zero-percent result |
 | `tests/integration.rs` | cargo test --test integration check_valid_project_passes | End-to-end fixture: `check_valid_project_passes` |
 | `tests/integration.rs` | cargo test --test integration check_missing_source_file_fails | End-to-end fixture: `check_missing_source_file_fails` |
 | `tests/integration.rs` | cargo test --test integration check_undocumented_export_warns | End-to-end fixture: `check_undocumented_export_warns` |
@@ -24,6 +25,7 @@ spec: validator.spec.md
 | Spec documents non-existent export | a spec listing `` `nonExistent` `` in the Public API table | `validate_spec` is called | errors include "Spec documents 'nonExistent' but no matching export found in source" |
 | Undocumented code export | source code exports `helperFn` but the spec does not list it | `validate_spec` is called | warnings include "Export 'helperFn' not in spec (undocumented)" |
 | Cross-project dependency reference | a spec with `depends_on: ["corvid-labs/algochat@auth"]` | `validate_spec` is called locally | the cross-project ref is skipped (no error or warning) |
+| Malformed Gradle settings | a source tree with an unterminated Gradle `include` declaration | a CLI/MCP gate calls `compute_coverage_checked` | coverage is inconclusive and the caller fails instead of reporting partial totals |
 
 ## Regression Matrix
 
@@ -38,6 +40,7 @@ spec: validator.spec.md
 | Static HTML mapped or unmapped | Coverage denominator remains one and a 100% gate distinguishes `1/1` from `0/1` | Keep CLI fixtures for both cases |
 | Generated companion marker | Warning includes artifact path and source line; strict mode fails | Cover every supported artifact plus fenced and similar-prose negatives |
 | Built-in design markers | Layout, Components, Tokens, and Assets placeholders each produce a distinct warning | Keep the generated template lines and validator marker table in parity |
+| Malformed or unreadable Gradle settings | Checked coverage returns an error; compatibility coverage remains callable with a zero-percent inconclusive report | Keep gate callers on `compute_coverage_checked` and cover text/JSON or MCP failure output when it changes |
 
 ## Reviewer Checklist
 

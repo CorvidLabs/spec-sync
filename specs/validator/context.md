@@ -12,6 +12,9 @@ spec: validator.spec.md
 - **Module detection cascade**: User-defined modules (config) → manifest-discovered modules → subdirectory scanning → flat file detection. Each level is a fallback.
 - **Static coverage is non-vacuous**: HTML, HTM, and CSS files participate in default source discovery even though they expose no API symbols.
 - **Generated companion markers fail strict**: Every known artifact-specific scaffold prompt emitted by the built-in templates, including all Layout, Components, Tokens, and Assets design bullets, emits a path-and-line warning outside fenced examples; strict mode promotes those warnings to errors.
+- **Coverage gates fail inconclusively on malformed manifests**: `compute_coverage_checked` propagates
+  Gradle settings errors to CLI and MCP gate callers. The original `compute_coverage` API remains as
+  a compatibility wrapper and produces a zero-percent report carrying an inconclusive diagnostic.
 
 ## Files to Read First
 
@@ -21,7 +24,7 @@ spec: validator.spec.md
 
 ## Current Status
 
-Fully implemented. The validator is the heart of spec-sync — it powers `specsync check`, `specsync coverage`, and is exposed via MCP. Its in-file regression-test module intentionally precedes coverage helpers, so the narrow `items_after_test_module` Clippy allowance is localized to that test module rather than weakening project-wide lint policy.
+Fully implemented. The validator is the heart of spec-sync — it powers `specsync check`, `specsync coverage`, and is exposed via MCP. Coverage and enforcement callers now use checked discovery so malformed Gradle settings cannot produce partial or false-green coverage. Its in-file regression-test module intentionally precedes coverage helpers, so the narrow `items_after_test_module` Clippy allowance is localized to that test module rather than weakening project-wide lint policy.
 
 ## Notes
 

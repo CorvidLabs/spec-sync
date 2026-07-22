@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **MCP now starts read-only and fails closed at its trust boundary** (#414) — mutating tools require
+  the explicit `mcp --allow-write` opt-in; read paths are confined beneath the canonical server
+  root before filesystem probing; operations use bounded capability-safe snapshots and confined
+  writes to resist symlink/junction races; configuration and actual copied input bytes share one
+  operation budget; configured source roots remain visible; requests and responses are bounded;
+  GitHub issue access requires an explicit configured repository and `GITHUB_TOKEN` instead of Git metadata discovery;
+  unavailable Git freshness is reported and scored conservatively; malformed JSON-RPC envelopes and
+  resource arguments are rejected; startup root acquisition is identity-bound; root-wide and
+  manifest-derived inputs cannot disappear behind snapshot ignores; request IDs are bounded; and
+  generation is count/content bounded, staged, synced, and atomically published with identity-safe
+  failed-batch file rollback while conservatively retaining ambiguous empty parents; startup captures
+  the root handle and identity before canonicalization and rejects any mismatched canonical reopen;
+  read-root selection and generation rollback stay bound to retained parent capabilities and exact
+  filesystem identities even when ambient paths are replaced.
+- **MCP manifest and issue checks fail closed under adversarial input** — bounded Cargo workspace
+  discovery uses real TOML, while shared checked Gradle discovery handles Groovy/Kotlin comments,
+  escapes, includes, and supported project directories; malformed discovery is inconclusive for
+  gates. Manifest discovery shares the 64 MiB input budget and snapshots exact preflighted bytes.
+  Issue reads, listing, and verification require `GITHUB_TOKEN`, use in-process GitHub REST, and
+  never spawn a `gh` provider process; `gh` remains only the explicit issue-creation write path.
+  Verification globally deduplicates/caps IDs, includes repository preflight in the complete batch
+  deadline, and revalidates repository access after apparent absence. Inaccessible repositories,
+  authentication failures, timeouts, and malformed responses are inconclusive rather than
+  not_found; all-error CLI batches report their error count instead of claiming no references.
+  Single and batch GitHub imports use the same explicit-token typed REST path, with no authenticated
+  `gh` fallback. Batch import follows every valid page, bounded to 100 pages of 100 issues, and
+  fails on malformed links, duplicate issue IDs, or cap truncation rather than returning a partial
+  issue set.
+
 ## [5.2.0] - 2026-07-19
 
 ### Added

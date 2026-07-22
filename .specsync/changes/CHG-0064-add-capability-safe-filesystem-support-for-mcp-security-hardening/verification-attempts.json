@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1784732793,
+      "commit": "a0d993b7d10d177f9a4770f54fbe14045750221c",
+      "contract_digest": "5592890d2ac472a734434eb3459da25281a98d5e20fe02e2c78e3e99ee08879a",
+      "workspace_digest": "a1991ad02b6ff61d43d0bbb9ec5b828976c268ababe46b7cb44a4a61d17410b8",
+      "passed": false,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1784733050,
+      "commit": "a0d993b7d10d177f9a4770f54fbe14045750221c",
+      "contract_digest": "5592890d2ac472a734434eb3459da25281a98d5e20fe02e2c78e3e99ee08879a",
+      "workspace_digest": "a1991ad02b6ff61d43d0bbb9ec5b828976c268ababe46b7cb44a4a61d17410b8",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1784760162,
+      "commit": "a0d993b7d10d177f9a4770f54fbe14045750221c",
+      "contract_digest": "5592890d2ac472a734434eb3459da25281a98d5e20fe02e2c78e3e99ee08879a",
+      "workspace_digest": "885703efac36294f7fde2ad12378abadc3e218323b2601763017accf959870ef",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

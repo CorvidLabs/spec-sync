@@ -9,31 +9,41 @@ spec: github.spec.md
 - As a developer, I want to verify that `implements` and `tracks` frontmatter references actual open GitHub issues so that specs stay linked to real work
 - As a developer, I want to be notified when referenced issues are closed so that I can update spec requirements that may no longer be valid
 - As a team lead, I want drift detection issues auto-created when specs fall out of sync so that teams are notified of documentation debt
-- As a CI operator without `gh` CLI, I want to use `GITHUB_TOKEN` for API access so that checks work in headless environments
-- As a developer, I want `gh` CLI tried first before falling back to REST API so that I get the fastest, most reliable access with my existing auth
+- As a CI operator, I want issue reads to require an explicit `GITHUB_TOKEN` so authorization is deterministic in headless environments
+- As a security reviewer, I want read/list/verify operations to avoid `gh` provider subprocesses so project checks cannot inherit an escapable process tree
 
 ## Acceptance Criteria
 
 - `detect_repo` extracts `owner/repo` from SSH (`git@github.com:owner/repo.git`), HTTPS (`https://github.com/owner/repo.git`), and `http://github.com/...` remote URLs; the trailing `.git` is optional
 - `resolve_repo` prefers explicit config repo over auto-detected repo; returns error if neither is available
 - `gh_is_available` returns true only when `gh auth status` succeeds (CLI is installed and authenticated)
-- `fetch_issue` tries `gh` CLI first, falls back to REST API only if `gh` is unavailable
-- `fetch_issue_api` requires `GITHUB_TOKEN` environment variable; returns clear error if unset
+- `fetch_issue`, `list_issues`, and issue verification use in-process GitHub REST and never launch a `gh` provider process
+- Every issue read/list/verify path requires `GITHUB_TOKEN`; authenticated `gh` state is not a fallback
 - `fetch_issue_api` uses a 10-second HTTP timeout; returns error on network failure
 - Issue state is normalized to lowercase (`"open"` / `"closed"`) regardless of API response format
 - `verify_spec_issues` classifies each issue as valid (open), closed, not_found, or error with detailed messages
-- `create_drift_issue` requires `gh` CLI — no REST API fallback for issue creation
+- Issue verification preflights repository access once, revalidates access after an apparent
+  missing issue, classifies only confirmed absent issues as not_found, and treats provider failures
+  as errors.
+- One verification batch deduplicates issue IDs across specs, accepts at most 100 unique IDs, and
+  enforces a 10-second REST operation and 30-second complete repository-preflight/fetch deadline.
+- `create_drift_issue` is the only issue operation that invokes `gh`; no REST write fallback is provided
 - `create_drift_issue` creates issue titled "Spec drift detected: {path}" with formatted error list in body
 - Drift issues are created with configurable labels (default `["spec-drift"]`, set via `github.drift_labels`)
-- `list_issues` lists open issues (optionally filtered by label), preferring `gh` CLI and falling back to the REST API; the REST path skips pull requests
+- `list_issues` lists every open issue through in-process REST, requires `GITHUB_TOKEN`, skips pull
+  requests, follows strict GitHub `Link` pagination for at most 100 pages, and fails on malformed
+  links, duplicate issue numbers, or a page-limit truncation. Each next link must retain the
+  requested repository issues endpoint and exact `state=open`, `per_page=100`, label, and page
+  query semantics.
 - Auth tokens (`GITHUB_TOKEN`) are redacted from REST request error messages via `redact_token` before being surfaced (defense-in-depth)
 
 ## Constraints
 
-- Must support both `gh` CLI (preferred) and direct REST API (fallback) for maximum compatibility
+- Read/list/verify operations must use in-process REST; `gh` is reserved for explicit issue-creation writes
 - Must handle unauthenticated or rate-limited scenarios gracefully with actionable error messages
 - Must not panic on provider failure — return `Result` with descriptive error message
-- HTTP timeout must be enforced even if GitHub API hangs (`ureq` global timeout: 10s for single issues, 15s for `list_issues`)
+- Every REST operation uses a 10-second global timeout; verification additionally has a 30-second batch deadline
+- Read/list/verify operations must not spawn a `gh` provider process on any platform.
 - Must not require write access to repo for read-only operations (issue verification)
 - SSH and HTTPS remote URL formats must both be supported for auto-detection
 
@@ -55,15 +65,24 @@ Acceptance Criteria
 - `detect_repo` extracts `owner/repo` from SSH (`git@github.com:owner/repo.git`), HTTPS (`https://github.com/owner/repo.git`), and `http://github.com/...` remote URLs; the trailing `.git` is optional
 - `resolve_repo` prefers explicit config repo over auto-detected repo; returns error if neither is available
 - `gh_is_available` returns true only when `gh auth status` succeeds (CLI is installed and authenticated)
-- `fetch_issue` tries `gh` CLI first, falls back to REST API only if `gh` is unavailable
-- `fetch_issue_api` requires `GITHUB_TOKEN` environment variable; returns clear error if unset
+- `fetch_issue`, `list_issues`, and issue verification use in-process GitHub REST and never launch a `gh` provider process
+- Every issue read/list/verify path requires `GITHUB_TOKEN`; authenticated `gh` state is not a fallback
 - `fetch_issue_api` uses a 10-second HTTP timeout; returns error on network failure
 - Issue state is normalized to lowercase (`"open"` / `"closed"`) regardless of API response format
 - `verify_spec_issues` classifies each issue as valid (open), closed, not_found, or error with detailed messages
-- `create_drift_issue` requires `gh` CLI — no REST API fallback for issue creation
+- Issue verification preflights repository access once and revalidates it after apparent absence;
+  inaccessible repositories, authentication, transport, timeout, and malformed-provider failures
+  are errors rather than not_found.
+- Batch verification globally deduplicates at most 100 issue IDs and bounds REST request duration
+  plus repository-preflight and total elapsed time.
+- `create_drift_issue` is the only issue operation that invokes `gh`; no REST write fallback is provided
 - `create_drift_issue` creates issue titled "Spec drift detected: {path}" with formatted error list in body
 - Drift issues are created with configurable labels (default `["spec-drift"]`, set via `github.drift_labels`)
-- `list_issues` lists open issues (optionally filtered by label), preferring `gh` CLI and falling back to the REST API; the REST path skips pull requests
+- `list_issues` lists every open issue through in-process REST, requires `GITHUB_TOKEN`, skips pull
+  requests, follows strict GitHub `Link` pagination for at most 100 pages, and fails on malformed
+  links, duplicate issue numbers, or a page-limit truncation. Each next link must retain the
+  requested repository issues endpoint and exact `state=open`, `per_page=100`, label, and page
+  query semantics.
 - Auth tokens (`GITHUB_TOKEN`) are redacted from REST request error messages via `redact_token` before being surfaced (defense-in-depth)
 
 ### REQ-github-002
@@ -108,4 +127,3 @@ Acceptance Criteria
   Windows.
 - A failed exact-version asset or Action smoke test leaves the floating ref and prior default
   unchanged.
-

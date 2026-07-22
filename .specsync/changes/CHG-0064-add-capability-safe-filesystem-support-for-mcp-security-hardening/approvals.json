@@ -1,0 +1,118 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784726800,
+      "digest": "30f0b17fdb890432de97b3a4c11c532ad2772081397761b7c8da6612678fdf05",
+      "note": "User explicitly approved CHG-0064 on 2026-07-22."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784732310,
+      "digest": "5592890d2ac472a734434eb3459da25281a98d5e20fe02e2c78e3e99ee08879a",
+      "note": "User explicitly approved the corrected final CHG-0064 definition on 2026-07-22."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784733798,
+      "digest": "17f644bba3bbf509820806f1fdda445a9a020d24a269328ef0cdad6fa479bfb1",
+      "note": "User explicitly approved closing CHG-0064 after exact-byte verification on 2026-07-22."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784761656,
+      "digest": "0c8d22d6a48930dffae22ead6116abfb9a28834df9d8abffd59408eb3278ac31",
+      "note": "User approved closing CHG-0064 after fresh verification on 2026-07-22."
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0064-add-capability-safe-filesystem-support-for-mcp-security-hardening",
+      "actor": "0xLeif",
+      "reason": "The accepted exact-only Cargo.lock bytes predate later legitimate capability-filesystem, direct TOML parser, and dependency resolution updates required by the completed issue-414 hardening; reopen to verify current delivery inputs without rewriting prior evidence.",
+      "timestamp": 1784755166,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784733798,
+        "digest": "17f644bba3bbf509820806f1fdda445a9a020d24a269328ef0cdad6fa479bfb1",
+        "note": "User explicitly approved closing CHG-0064 after exact-byte verification on 2026-07-22."
+      },
+      "prior_verification": {
+        "timestamp": 1784733050,
+        "commit": "a0d993b7d10d177f9a4770f54fbe14045750221c",
+        "contract_digest": "5592890d2ac472a734434eb3459da25281a98d5e20fe02e2c78e3e99ee08879a",
+        "workspace_digest": "a1991ad02b6ff61d43d0bbb9ec5b828976c268ababe46b7cb44a4a61d17410b8",
+        "acceptance_input_digest": "34d9a8b65b501afaae2b438406a096a6b8d261f1c9c3ef7884f13a8cd7b37099",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d59281ec1ee11a4eea427a9ff56b75c435de455e1db212aabf1d37fa16f90471",
+              "entry_digest": "152cf47d6d29dffaa0493691f34b788f37a06c7945918ab3a252dce2e3a3f422",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "Cargo.lock",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "e1d0c15530e38d4ca0b1c913b2f67ed635698e009923d38ce1c776f16ba78bda",
+              "entry_digest": "5c5a75d2d01e81c707b922064b41bd5709b34db30ea487c11bc774631bafb03d",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "Cargo.toml",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d015dfb249069b0048760ae11aa01a4a53d840c4e079b6ddc3aa708c40e16a59",
+              "entry_digest": "075613bc3ac14a08ab607c131c78e68fade0e7df1a6095ebe31eb217fc5a5639",
+              "owners": [
+                "@exact:delivery"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "ruby --version",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-release-version.py",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "34d9a8b65b501afaae2b438406a096a6b8d261f1c9c3ef7884f13a8cd7b37099",
+      "current_acceptance_input_digest": "aaa06f6cfa535667807309188160aa4725c02cc54eec28ff62d6f45af45ff855"
+    }
+  ]
+}

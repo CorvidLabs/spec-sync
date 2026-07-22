@@ -14,6 +14,9 @@ spec: cmd_import.spec.md
 - `cmd_import` routes to one of three modes: single import (`source` + `id`), batch issues (`--all-issues`), or batch directory (`--from-dir <dir>`).
 - Single import supports sources `github`/`gh`, `jira`, and `confluence`/`wiki`; an unknown source exits 1 with the supported list.
 - GitHub repo is resolved from `--repo`, then `github.repo` in config, then `github::detect_repo(root)`; if none resolve, exits 1.
+- Single and batch GitHub imports require explicit `GITHUB_TOKEN`; authenticated `gh` state is not a read fallback and no provider subprocess is launched.
+- `--all-issues` follows strict GitHub pagination for at most 100 pages of 100 issues and fails on malformed links, duplicate issue IDs, or a continuing next page at the cap instead of importing a partial list.
+- Every GitHub REST operation is bounded to 10 seconds.
 - Each created spec lives at `<specsDir>/<module>/<module>.spec.md` and is never overwritten — an existing spec causes exit 1 (single) or a skip (batch).
 - After writing a spec, companions are generated via `generator::generate_companion_files_for_spec` with `companions.design` from config controlling whether `design.md` is created.
 - Batch modes print a `[n/total]` progress line per item and a final summary of imported/skipped/error counts; directory mode scans `.md` files one level deep, sorted.
@@ -39,6 +42,9 @@ Acceptance Criteria
 - `cmd_import` routes to one of three modes: single import (`source` + `id`), batch issues (`--all-issues`), or batch directory (`--from-dir <dir>`).
 - Single import supports sources `github`/`gh`, `jira`, and `confluence`/`wiki`; an unknown source exits 1 with the supported list.
 - GitHub repo is resolved from `--repo`, then `github.repo` in config, then `github::detect_repo(root)`; if none resolve, exits 1.
+- Single and batch GitHub imports require explicit `GITHUB_TOKEN`; authenticated `gh` state is not a read fallback and no provider subprocess is launched.
+- `--all-issues` follows strict GitHub pagination for at most 100 pages of 100 issues and fails on malformed links, duplicate issue IDs, or a continuing next page at the cap instead of importing a partial list.
+- Every GitHub REST operation is bounded to 10 seconds.
 - Each created spec lives at `<specsDir>/<module>/<module>.spec.md` and is never overwritten — an existing spec causes exit 1 (single) or a skip (batch).
 - After writing a spec, companions are generated via `generator::generate_companion_files_for_spec` with `companions.design` from config controlling whether `design.md` is created.
 - Batch modes print a `[n/total]` progress line per item and a final summary of imported/skipped/error counts; directory mode scans `.md` files one level deep, sorted.

@@ -4,9 +4,18 @@ spec: github.spec.md
 
 ## Key Decisions
 
-- **`gh` CLI first, REST fallback**: every read path (`fetch_issue`, `list_issues`) calls `gh_is_available` and prefers the CLI, falling back to direct `ureq` REST calls with `GITHUB_TOKEN`. Issue creation (`create_drift_issue`) is `gh`-only.
+- **In-process REST reads**: `fetch_issue`, `list_issues`, and batch verification require an explicit `GITHUB_TOKEN` and use direct `ureq` requests. They do not launch `gh`; issue creation (`create_drift_issue`) is the only `gh` path.
+- **Bounded complete listing**: `list_issues` uses 10-second page requests and strict `Link`
+  pagination for at most 100 pages. Malformed links, duplicate issue IDs, or a continuing next page
+  at the cap are errors rather than silently truncated imports. A next link is accepted only when
+  it preserves the requested repository issues endpoint and exact open-state, page-size, label,
+  and page query semantics.
 - **Token redaction**: `redact_token` strips any verbatim `GITHUB_TOKEN` occurrence from REST error strings before they surface (added 4.3.5). The token travels in the `Authorization` header, so this is defense-in-depth against a misbehaving proxy/redirect echoing it back.
-- **State normalization**: issue `state` is lowercased (`"open"`/`"closed"`) so callers compare consistently regardless of CLI vs REST casing.
+- **State normalization**: verified issue `state` is lowercased (`"open"`/`"closed"`) so callers compare REST results consistently.
+- **Fail-closed batch verification**: issue checks preflight repository access once, globally
+  deduplicate at most 100 IDs across the batch, and revalidate access after typed not-found
+  outcomes. REST operations and the complete batch are deadline-bounded; ambiguous
+  private-repository 404s remain inconclusive.
 - **github.com only**: URL parsing handles `git@github.com:`, `https://github.com/`, and `http://github.com/`; GitHub Enterprise hosts are out of scope.
 - **Deterministic hosted Bun runtime**: Pages, site CI, and VS Code extension CI use one exact Bun
   version and the expected `setup-bun` Action ref. `.github/scripts/validate-workflow-runtime-pins.py`
@@ -40,7 +49,7 @@ spec: github.spec.md
 
 ## Key Files
 
-- `src/github.rs` - Main implementation: repo detection, `gh`/REST issue fetch, `list_issues`, `create_drift_issue`, `redact_token`
+- `src/github.rs` - Main implementation: repo detection, in-process REST reads/listing/verification, `gh`-only `create_drift_issue`, and `redact_token`
 - `src/commands/mod.rs` - `create_drift_issues` wires `github.drift_labels` (default `["spec-drift"]`) into `create_drift_issue`
 - `specs/github/github.spec.md` - Module specification
 - `specs/github/requirements.md` - User stories and acceptance criteria
@@ -50,7 +59,9 @@ spec: github.spec.md
 
 ## Current Status
 
-Module behavior is stable. URL parsing is unit-tested; network paths remain manual/integration
-coverage. The 5.1.1 release candidate adds deterministic Action/runtime distribution checks, while
+CHG-0063 verification is active. URL parsing, endpoint-bound pagination, REST provider
+classification/revalidation, malformed responses, global deduplication/caps, complete deadlines,
+transport failures, and rejection of legacy `gh` reads without process spawning are unit-tested;
+live network paths remain integration-only. The 5.1.1 release candidate adds deterministic Action/runtime distribution checks, while
 external exact/floating ref smoke tests remain publication-time gates.
 The 5.2.0 release promotion follows REQ-github-004: Action default and consumer pins move to the exact version through the accepted release change, and the floating v5 ref advances only after exact-version artifacts pass Linux/macOS/Windows verification.

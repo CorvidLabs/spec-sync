@@ -12,3 +12,4 @@ spec: config.spec.md
 - [x] Remove embedded inference fields
 - [x] Ignore legacy AI key names with value-safe migration guidance
 - [x] Auto-detect zero-config HTML, HTM, and CSS source directories
+- [x] Add fallible checked source-directory and manifest discovery while retaining compatibility wrappers

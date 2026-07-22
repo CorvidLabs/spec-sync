@@ -8,6 +8,8 @@ spec: config.spec.md
 - Retired AI key names are recognized only to emit value-safe migration guidance, then ignored.
 - Configuration never interprets provider credentials or commands.
 - Source discovery recognizes supported language files plus default measurable HTML, HTM, and CSS content at the root or within top-level directories while preserving ignored-directory and empty-project behavior.
+- Checked source-directory and manifest discovery surface malformed or unreadable Gradle settings;
+  existing infallible entry points remain compatibility wrappers, with scan fallback for source dirs.
 
 ## Files to Read First
 
@@ -16,4 +18,4 @@ spec: config.spec.md
 
 ## Current Status
 
-Stable 5.0 secret-free configuration schema.
+Stable 5.0 secret-free configuration schema with checked discovery available to validation gates.

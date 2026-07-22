@@ -6,12 +6,16 @@ spec: cmd_issues.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/issues.rs` | (none) | No inline `#[cfg(test)]` module and no integration fixtures — the command depends on the live GitHub API. |
-| `src/github.rs` | cargo test github | `verify_spec_issues`/`resolve_repo` classification and repo resolution are covered in the `github` module's tests. |
+| `src/commands/issues.rs` | cargo test commands::issues::tests | Pure summary regression distinguishes no references from an all-error batch. |
+| `tests/integration/commands.rs` | cargo test --test integration commands::issues_without_references | No-reference projects succeed before repository/provider resolution with and without `github.repo`. |
+| `tests/integration/commands.rs` | cargo test --test integration commands::issues_reference_batch_fails_closed_without_a_rest_token | A referenced issue with configured repo but no token exits non-zero with attributed JSON error output. |
+| `src/github.rs` | cargo test github | Typed classification, global deduplication/cap, strict provider parsing, transport failure, and timeout are covered in the GitHub module. |
+| MCP batch cap | cargo test mcp::tests::issue_tool_enforces_one_deduplicated_invocation_cap_across_specs | Multiple individually safe specs exceed the project-wide cap before provider access. |
 
 ## Coverage Gaps
 
-- No fixture exercises the verification flow. The most testable, network-free case is "no spec references": a project whose specs have neither `implements` nor `tracks` should print "No issue references found in spec frontmatter." and exit 0 — add that first.
+- No end-to-end fixture exercises live successful/closed/not-found classification; no-reference
+  behavior and explicit-token provider failure are covered without network access.
 - Add recorded/mocked GitHub responses to cover the valid/closed/not-found/error classification and the non-zero exit on 404 or error.
 
 ## Behavioral Verification
@@ -28,11 +32,15 @@ spec: cmd_issues.spec.md
 
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
-| GitHub repo unresolvable | Prints error, exits 1 | Add a focused assertion before changing repo resolution. |
+| GitHub repo unresolvable with references | Prints error, exits 1 | Add a focused assertion before changing repo resolution. |
+| No references and no repository | Guidance, exit 0, no provider access | Keep both `issues_without_references_*` command regressions. |
 | Issue returns 404 (not found) | Counted as not-found; triggers exit 1 | Add a mocked fixture before changing exit logic. |
-| Verification error (e.g. API/auth failure) | Counted as error; **triggers exit 1** (`total_not_found > 0 || total_errors > 0`) | Add a mocked fixture before changing exit logic. |
+| Verification error (e.g. API/auth failure) | Counted as error; **triggers exit 1** (`total_not_found > 0 || total_errors > 0`) | Missing-token command path is covered by `issues_reference_batch_fails_closed_without_a_rest_token`; retain a recorded provider-error fixture before changing classification. |
+| All references produce errors | Summary includes the error count and does not print no-reference guidance | Keep `all_error_batches_report_errors_instead_of_no_reference_guidance`. |
+| Duplicate references across specs | One provider lookup per unique ID | Keep the GitHub batch deduplication regression. |
+| More than 100 unique references | Batch error before provider access and exit 1 | Keep the MCP cross-spec cap regression. |
 | Closed issue only | Warned but does **not** by itself force a non-zero exit | Add a mocked fixture before changing the exit condition. |
-| Spec without `implements`/`tracks` | Skipped (not verified) | Cover with the network-free "no references" fixture. |
+| Spec without `implements`/`tracks` | Skipped; repository resolution is also skipped if all specs are empty | Keep the network-free no-reference fixtures. |
 
 ## Reviewer Checklist
 

@@ -10,10 +10,11 @@ spec: cmd_comment.spec.md
 | `src/comment.rs` rendering | cargo test comment::tests::test_render_check_comment | `test_render_check_comment_passed`, `test_render_check_comment_failed_with_errors`, `test_render_check_comment_has_footer`, `test_render_check_comment_truncates_unspecced_files` |
 | `src/comment.rs` suggestions | cargo test comment::tests::test_suggestion | `test_suggestion_for_missing_section`, `test_suggestion_for_source_file_not_found`, `test_suggestion_for_db_table`, `test_suggestion_for_dependency`, … |
 | `src/comment.rs` grouping/links | cargo test comment::tests | `test_group_by_spec`, `test_split_spec_prefix`, `test_strip_spec_prefix`, `test_spec_link_with_repo`, `test_spec_link_without_repo` |
+| `tests/integration/commands.rs` | cargo test --test integration malformed_gradle_is_inconclusive_for_coverage_gating_commands | Checked manifest failure exits 1 before markdown or GitHub posting and identifies Gradle on stderr |
 
 ## Coverage Gaps
 
-- No test drives `cmd_comment` directly, so stdout mode (body printed to stdout) and the `--pr` posting branch (resolve repo + `gh pr comment`) are unverified at the wrapper level. The body content is covered through `comment::render_check_comment`.
+- Healthy stdout mode and the `--pr` posting branch remain unverified at the wrapper level; malformed-discovery fail-closed behavior is covered end to end. Body content is covered through `comment::render_check_comment`.
 
 ## Behavioral Verification
 
@@ -30,6 +31,7 @@ spec: cmd_comment.spec.md
 | `gh` CLI not installed | Prints "Failed to run gh CLI" + install hint, exits 1 | Keep or add a focused assertion before changing this behavior |
 | `gh pr comment` exits non-zero | Prints the exit code and exits 1 | Keep or add a focused assertion before changing this behavior |
 | GitHub repo unresolvable (`--pr` set) | Prints resolver error and exits 1 | Keep or add a focused assertion before changing this behavior |
+| Malformed Gradle settings | Prints an inconclusive diagnostic and exits 1 before rendering or posting | Covered by `malformed_gradle_is_inconclusive_for_coverage_gating_commands` |
 
 ## Reviewer Checklist
 

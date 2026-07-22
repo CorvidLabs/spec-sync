@@ -8,12 +8,15 @@ spec: importer.spec.md
 |------|---------|---------------------|
 | `src/importer.rs` (slugify) | cargo test importer:: | `test_slugify_simple`, `test_slugify_special_chars`, `test_slugify_already_slug`, `test_slugify_mixed_case_spaces`, `test_slugify_empty` |
 | `src/importer.rs` (requirement extraction) | cargo test importer:: | `test_extract_requirements_checkboxes`, `test_extract_requirements_criteria_section`, `test_extract_requirements_definition_of_done`, `test_extract_requirements_empty_body` |
-| `src/importer.rs` (parsers) | cargo test importer:: | `test_parse_github_json_full`, `test_parse_jira_json_plain_description`, `test_parse_jira_json_adf_description`, `test_parse_confluence_json` |
+| `src/importer.rs` (parsers) | cargo test importer:: | `test_import_github_issue_entry_path_converts_shared_typed_details`, `test_import_github_issue_entry_path_returns_no_item_on_provider_failure`, `test_import_github_issue_details_full`, `test_import_github_issue_details_empty_body`, `test_parse_jira_json_plain_description`, `test_parse_jira_json_adf_description`, `test_parse_confluence_json` |
+| GitHub provider boundary | cargo test github::tests | All-platform source guard forbids `gh` construction in importer/read modules; Unix token-present importer entry also fails through an isolated unreachable local REST endpoint without executing a PATH-injected sentinel |
+| GitHub CLI failure boundary | cargo test --test integration github_import_fails_closed | Single and batch commands require `GITHUB_TOKEN`, exit non-zero, and create no spec output |
 | `src/importer.rs` (render/encode) | cargo test importer:: | `test_render_spec_with_issue_number`, `test_render_spec_without_issue_number`, `test_base64_encode`, `test_strip_html_nested` |
 
 ## Coverage Gaps
 
-- Integration gap: add a fixture for "Import GitHub issue with acceptance criteria" before changing user-visible CLI output, generated files, or error handling in importer.
+- Live-success integration gap: add a credential-safe recorded REST fixture for "Import GitHub
+  issue with acceptance criteria" before changing successful user-visible output or generated files.
 
 ## Behavioral Verification
 
@@ -33,7 +36,7 @@ spec: importer.spec.md
 | `JIRA_TOKEN` not set | `import_jira_issue` returns `Err("JIRA_TOKEN environment variable not set")` | Keep or add a focused assertion before changing this behavior |
 | `CONFLUENCE_URL` not set | `import_confluence_page` returns `Err("CONFLUENCE_URL environment variable not set")` | Keep or add a focused assertion before changing this behavior |
 | `CONFLUENCE_TOKEN` not set | `import_confluence_page` returns `Err("CONFLUENCE_TOKEN environment variable not set")` | Keep or add a focused assertion before changing this behavior |
-| GitHub: neither `gh` nor `GITHUB_TOKEN` | `import_github_issue` returns `Err` | Keep or add a focused assertion before changing this behavior |
+| GitHub: `GITHUB_TOKEN` missing or issue 404 becomes repository-inaccessible | Typed shared REST path returns `Err`; no `gh` process is launched and no spec is written | Covered by GitHub provider/token/revalidation tests, importer entry-path tests, and single/batch command regressions |
 | Issue/page not found (404) | Each importer returns `Err("{type} not found")` | Keep or add a focused assertion before changing this behavior |
 | Network timeout | Returns `Err` with connection details | Keep or add a focused assertion before changing this behavior |
 | Invalid issue number for GitHub | CLI rejects before calling importer | Keep or add a focused assertion before changing this behavior |

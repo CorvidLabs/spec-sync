@@ -1,6 +1,6 @@
 ---
 module: config
-version: 8
+version: 9
 status: stable
 files:
   - src/config.rs
@@ -16,7 +16,7 @@ depends_on:
 
 ## Purpose
 
-Loads canonical project configuration from `.specsync/config.toml`, with compatibility fallbacks for `.specsync/config.json`, `.specsync.toml`, and `specsync.json`, then auto-detects source directories from supported language and default static HTML, HTM, and CSS files when configuration does not provide them.
+Loads canonical project configuration from `.specsync/config.toml`, with compatibility fallbacks for `.specsync/config.json`, `.specsync.toml`, and `specsync.json`, then auto-detects source directories from manifests, supported language files, and default static HTML, HTM, and CSS files when configuration does not provide them. Fallible checked discovery APIs preserve malformed Gradle settings as errors, while infallible wrappers remain available for compatibility.
 
 ## Public API
 
@@ -26,9 +26,11 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 |----------|-----------|---------|-------------|
 | `load_config` | `root: &Path` | `SpecSyncConfig` | Load configuration in canonical-to-legacy precedence order, falling back to defaults with auto-detected source directories |
 | `load_config_from_path` | `config_path: &Path, root: &Path` | `SpecSyncConfig` | Load config from a specific file path (JSON or TOML based on extension), used by migration |
-| `detect_source_dirs` | `root: &Path` | `Vec<String>` | Auto-detect source directories by scanning for supported language files up to 3 levels deep |
+| `detect_source_dirs` | `root: &Path` | `Vec<String>` | Compatibility source-directory discovery; falls back to scan-based detection when checked manifest discovery fails |
+| `detect_source_dirs_checked` | `root: &Path` | `Result<Vec<String>, String>` | Auto-detect source directories while surfacing malformed or unreadable Gradle settings instead of returning partial manifest discovery |
 | `default_schema_pattern` | — | `&'static str` | Returns the default regex for SQL CREATE TABLE extraction |
-| `discover_manifest_modules` | `root: &Path` | `ManifestDiscovery` | Discover modules from manifest files (Package.swift, Cargo.toml, etc.) |
+| `discover_manifest_modules` | `root: &Path` | `ManifestDiscovery` | Compatibility manifest discovery that preserves the infallible return type |
+| `discover_manifest_modules_checked` | `root: &Path` | `Result<ManifestDiscovery, String>` | Discover modules from manifest files while surfacing malformed or unreadable Gradle settings |
 | `is_legacy_layout` | `root: &Path` | `bool` | Detect whether a project uses a legacy 3.x layout (root-level config files without `.specsync/version` stamp) |
 | `config_to_toml` | `config: &SpecSyncConfig` | `String` | Serialize a `SpecSyncConfig` to the current canonical `.specsync/config.toml` format |
 | `config_to_toml_lossy_fields` | `config: &SpecSyncConfig` | `Vec<&'static str>` | List config fields `config_to_toml` cannot represent (e.g. `customRules`), so `migrate` can refuse rather than silently drop them |
@@ -46,6 +48,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 8. The reader accepts both TOML string kinds for scalar and array values: basic `"..."` strings (backslash escapes decoded) and literal `'...'` strings (taken verbatim, no escape processing); a `#`, `,`, `[`, or `]` appearing inside either kind is treated as content, not as a comment or array structure
 9. A config file that is absent is expected — defaults apply silently. But a config file that **exists yet cannot be read** (e.g. not valid UTF-8) fails loud: a warning naming the file is printed and built-in defaults are used, rather than silently reverting to defaults (which would downgrade enforcement — strict→warn, exit 1→0 — with no signal). The same applies to the optional local override file (`config.local.toml`)
 10. Retired AI key names are ignored with migration guidance; their values are never retained, serialized, printed, or executed
+11. Checked source-directory and manifest discovery fail before returning partial results when Gradle settings are malformed or unreadable; compatibility wrappers remain infallible for existing callers
 
 ## Behavioral Examples
 
@@ -73,6 +76,12 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 - **When** `detect_source_dirs(root)` is called
 - **Then** it returns `["lib", "src"]` in deterministic order
 
+**Scenario: Checked discovery encounters malformed Gradle settings**
+
+- **Given** a project whose `settings.gradle.kts` contains an unterminated `include` declaration
+- **When** `detect_source_dirs_checked(root)` or `discover_manifest_modules_checked(root)` is called
+- **Then** it returns an error naming the Gradle settings manifest instead of partial discovery
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -80,6 +89,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | Config file exists but unreadable (e.g. not valid UTF-8) | Prints a warning naming the file to stderr, then falls back to `SpecSyncConfig::default()` (fail-loud, not silent) |
 | Config file absent | Silently uses `SpecSyncConfig::default()` with auto-detected source dirs (expected) |
 | Malformed JSON config | Prints warning to stderr, falls back to defaults |
+| Malformed or unreadable Gradle settings passed to checked discovery | Returns `Err`; compatibility wrappers preserve their infallible signatures |
 | Empty project root | Returns `["src"]` as source dirs |
 
 ## Dependencies
@@ -95,7 +105,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 
 | Module | What is used |
 |--------|-------------|
-| validator | `load_config` (indirectly via main) |
+| validator | `load_config` (indirectly via main), `discover_manifest_modules_checked` for fallible coverage discovery |
 | mcp | `load_config`, `detect_source_dirs` |
 | watch | `load_config` |
 | main | `load_config` |
@@ -105,6 +115,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 
 | Date | Change |
 |------|--------|
+| 2026-07-22 | v9: add checked source-directory and manifest discovery APIs so malformed Gradle settings remain explicit errors while compatibility wrappers stay infallible |
 | 2026-07-10 | v3: keep configuration round-trip tests warning-free under current stable Clippy |
 | 2026-03-25 | Initial spec |
 | 2026-03-28 | Document discover_manifest_modules |

@@ -4,10 +4,16 @@ spec: cmd_issues.spec.md
 
 ## Key Decisions
 
-- Verification is delegated entirely to `github::verify_spec_issues`, which returns an `IssueVerification { valid, closed, not_found, errors }`. This command's job is to iterate specs, accumulate totals, format output, and choose the exit code.
+- Verification is delegated as one project-wide `github::verify_issue_batch`, which globally
+  deduplicates/caps references and returns one `IssueVerification` per spec. This command gathers
+  references, accumulates totals, formats output, and chooses the exit code.
 - Closed issues are surfaced as warnings, not failures: only `not_found` (404) and `errors` drive the non-zero exit. This avoids breaking CI for legitimately-closed-but-still-referenced issues while still flagging them for review.
 - `--create` reuses the shared validation pipeline (`run_validation`, `build_schema_columns`, `get_schema_table_names`) and `create_drift_issues` from the `commands` module, so drift-issue creation stays consistent with other commands.
 - Specs without `implements` or `tracks` are skipped early so the command only talks to GitHub when there is something to verify.
+- Repository resolution also happens after that scan, so an empty project succeeds without a Git
+  remote, configured repository, credentials, or provider process.
+- The human-readable summary branches on whether references were gathered, not on successful result
+  counts, so provider-wide failures cannot masquerade as an empty project.
 
 ## Files to Read First
 
@@ -18,7 +24,9 @@ spec: cmd_issues.spec.md
 
 ## Current Status
 
-Implemented and stable. No tests target this file directly because it depends on the live GitHub API; verification logic is covered in the `github` module's tests.
+Implemented under CHG-0063 verification. Provider classification, global deduplication/caps, malformed output,
+transport failure, and timeout behavior are covered in the `github` and MCP module tests; live
+provider success remains integration-only.
 
 ## Notes
 

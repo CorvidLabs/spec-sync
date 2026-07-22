@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 11
+version: 12
 status: stable
 files:
   - src/validator.rs
@@ -19,7 +19,7 @@ depends_on:
 
 ## Purpose
 
-Core validation engine for spec-sync. Validates individual specs and selected companion artifacts against source code, discovers configured and zero-config source files including static HTML, HTM, and CSS content, rejects every known generated companion marker outside fenced examples, extracts schema table names from SQL migrations, computes non-vacuous file and LOC coverage metrics, and resolves cross-project dependency references.
+Core validation engine for spec-sync. Validates individual specs and selected companion artifacts against source code, discovers configured and zero-config source files including static HTML, HTM, and CSS content, rejects every known generated companion marker outside fenced examples, extracts schema table names from SQL migrations, computes non-vacuous file and LOC coverage metrics, preserves malformed manifest discovery as an inconclusive checked error for gates, and resolves cross-project dependency references.
 
 ## Public API
 
@@ -30,6 +30,7 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 | `validate_spec` | `spec_path: &Path, root: &Path, schema_tables: &HashSet<String>, schema_columns: &HashMap<String, SchemaTable>, config: &SpecSyncConfig` | `ValidationResult` | Validate a single spec file: frontmatter, files, sections, API surface, dependencies |
 | `find_spec_files` | `dir: &Path` | `Vec<PathBuf>` | Recursively find all `*.spec.md` files in a directory |
 | `compute_coverage` | `root, spec_files, config` | `CoverageReport` | Compute file and LOC coverage across all source directories |
+| `compute_coverage_checked` | `root, spec_files, config` | `Result<CoverageReport, String>` | Compute coverage while surfacing malformed or unreadable manifest discovery as an inconclusive error for gate callers |
 | `get_schema_table_names` | `root, config` | `HashSet<String>` | Extract table names from SQL schema files using configurable regex |
 | `is_cross_project_ref` | `dep: &str` | `bool` | Check if a dependency string is a cross-project ref (`owner/repo@module`) |
 | `parse_cross_project_ref` | `dep: &str` | `Option<(&str, &str)>` | Parse cross-project ref into (owner/repo, module) tuple |
@@ -50,6 +51,7 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 10. Sections with no substantive content are reported as unfinished draft text rather than as template markers
 11. `validate_spec` records the spec's parsed lifecycle status on `ValidationResult.status` (None when frontmatter is unreadable) so reporters can surface status-based skips, e.g. drafts skipping section and export checks
 12. Requirements companions are validated when present but optional for technical/internal modules under the adaptive 5.0 artifact model
+13. `compute_coverage_checked` propagates malformed or unreadable Gradle discovery instead of reporting partial coverage; the compatibility `compute_coverage` wrapper remains available, while CLI and MCP gates use the checked path
 
 ## Behavioral Examples
 
@@ -77,6 +79,12 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 - **When** `validate_spec` is called locally
 - **Then** the cross-project ref is skipped (no error or warning)
 
+### Scenario: Malformed Gradle settings make coverage inconclusive
+
+- **Given** a configured source tree and malformed `settings.gradle` or `settings.gradle.kts`
+- **When** `compute_coverage_checked` is called by a CLI or MCP gate
+- **Then** it returns an error and the caller reports coverage as inconclusive instead of accepting partial totals
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -87,6 +95,7 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 | DB table not in schema | Error: "DB table not found in schema" |
 | Missing required section | Error: "Missing required section: ## SectionName" |
 | Dependency spec not found | Error: "Dependency spec not found" |
+| Malformed or unreadable Gradle settings during checked coverage | Returns `Err`; CLI/MCP gate callers report an inconclusive failure rather than coverage success |
 
 ## Dependencies
 
@@ -96,15 +105,15 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 |--------|-------------|
 | parser | `parse_frontmatter`, `get_spec_symbols`, `get_missing_sections` |
 | exports | `get_exported_symbols`, `has_extension`, `is_test_file` |
-| config | `default_schema_pattern` |
+| config | `default_schema_pattern`, `discover_manifest_modules_checked` |
 | types | `CoverageReport`, `ValidationResult`, `SpecSyncConfig` |
 
 **Consumed By**
 
 | Module | What is used |
 |--------|-------------|
-| main | `validate_spec`, `find_spec_files`, `compute_coverage`, `get_schema_table_names` |
-| mcp | `validate_spec`, `find_spec_files`, `compute_coverage`, `get_schema_table_names` |
+| main | `validate_spec`, `find_spec_files`, `compute_coverage_checked`, `get_schema_table_names` |
+| mcp | `validate_spec`, `find_spec_files`, `compute_coverage_checked`, `get_schema_table_names` |
 | archive | `find_spec_files` to locate spec companion files |
 | compact | `find_spec_files` to locate all spec files |
 | merge | `find_spec_files` to locate all spec files when `--all` is used |
@@ -117,6 +126,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-07-22 | v12: add checked coverage so malformed Gradle discovery fails CLI and MCP gates as inconclusive while retaining the compatibility report wrapper |
 | 2026-07-10 | v5: keep coverage regression fixtures warning-free under current stable Clippy and document the intentionally in-file test-module layout |
 | 2026-07-10 | v5: make canonical requirements companions adaptive rather than empty mandatory ceremony |
 | 2026-07-02 | v4: add `source_within_root` — shared guard rejecting `files:` paths that escape the project root (absolute/`..`/symlink); applied in `validate_spec` and every export-extraction site (score, check --fix, diff, new) to close an out-of-root identifier-disclosure vector |

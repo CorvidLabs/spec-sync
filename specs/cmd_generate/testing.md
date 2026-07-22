@@ -11,3 +11,4 @@ spec: cmd_generate.spec.md
 | JSON output | No AI-specific fields |
 | Legacy provider/model flags | Rejected by Clap |
 | Inference environment variables | Do not affect output or execute commands |
+| Malformed Gradle settings | No files generated; exits 1 with parseable `valid: false` / `inconclusive: true` JSON |

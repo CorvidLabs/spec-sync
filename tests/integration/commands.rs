@@ -4,7 +4,243 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
+// ─── 1. specsync issues ────────────────────────────────────────────────
+
+#[test]
+fn issues_without_references_does_not_require_repository_configuration() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    specsync()
+        .arg("issues")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "No issue references found in spec frontmatter.",
+        ))
+        .stdout(predicate::str::contains("Verifying issue references").not())
+        .stderr(predicate::str::contains("Cannot determine GitHub repo").not());
+}
+
+#[test]
+fn issues_without_references_preserves_configured_repository_outputs() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    let config_path = root.join("specsync.json");
+    let config = fs::read_to_string(&config_path).unwrap();
+    fs::write(
+        config_path,
+        config.replace(
+            "\n}",
+            ",\n  \"github\": { \"repo\": \"CorvidLabs/spec-sync\" }\n}",
+        ),
+    )
+    .unwrap();
+
+    specsync()
+        .arg("issues")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "No issue references found in spec frontmatter.",
+        ))
+        .stdout(predicate::str::contains("Verifying issue references").not())
+        .stderr(predicate::str::contains("Cannot determine GitHub repo").not());
+
+    specsync()
+        .arg("issues")
+        .arg("--root")
+        .arg(&root)
+        .args(["--format", "json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "\"repo\": \"CorvidLabs/spec-sync\"",
+        ))
+        .stdout(predicate::str::contains("\"valid\": 0"))
+        .stdout(predicate::str::contains("\"errors\": 0"))
+        .stdout(predicate::str::contains("\"specs\": []"))
+        .stderr(predicate::str::contains("Cannot determine GitHub repo").not());
+}
+
+#[test]
+fn issues_reference_batch_fails_closed_without_a_rest_token() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    let config_path = root.join("specsync.json");
+    let config = fs::read_to_string(&config_path).unwrap();
+    fs::write(
+        config_path,
+        config.replace(
+            "\n}",
+            ",\n  \"github\": { \"repo\": \"CorvidLabs/spec-sync\" }\n}",
+        ),
+    )
+    .unwrap();
+    let spec_path = root.join("specs/auth/auth.spec.md");
+    let spec = fs::read_to_string(&spec_path).unwrap();
+    fs::write(
+        spec_path,
+        spec.replace("depends_on: []", "depends_on: []\nimplements: [42]"),
+    )
+    .unwrap();
+
+    let output = specsync()
+        .arg("issues")
+        .arg("--root")
+        .arg(&root)
+        .args(["--format", "json"])
+        .env_remove("GITHUB_TOKEN")
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(json["repo"], "CorvidLabs/spec-sync");
+    assert_eq!(json["valid"], 0);
+    assert_eq!(json["errors"], 1);
+    assert_eq!(json["specs"].as_array().map(Vec::len), Some(1));
+    assert!(
+        json["specs"][0]["errors"][0]
+            .as_str()
+            .is_some_and(|error| error.contains("GITHUB_TOKEN"))
+    );
+}
+
 // ─── 2. specsync coverage ───────────────────────────────────────────────
+
+#[test]
+fn single_github_import_fails_closed_without_a_rest_token_or_output() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    specsync()
+        .arg("import")
+        .args(["github", "42", "--repo", "CorvidLabs/spec-sync"])
+        .arg("--root")
+        .arg(&root)
+        .env_remove("GITHUB_TOKEN")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("GITHUB_TOKEN"));
+
+    let entries = fs::read_dir(root.join("specs"))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(entries.len(), 1, "failed import must not create a spec");
+    assert!(root.join("specs/auth/auth.spec.md").exists());
+}
+
+#[test]
+fn batch_github_import_fails_closed_without_a_rest_token_or_output() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    specsync()
+        .arg("import")
+        .args(["--all-issues", "--repo", "CorvidLabs/spec-sync"])
+        .arg("--root")
+        .arg(&root)
+        .env_remove("GITHUB_TOKEN")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("GITHUB_TOKEN"));
+
+    let entries = fs::read_dir(root.join("specs"))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(entries.len(), 1, "failed batch must not create specs");
+    assert!(root.join("specs/auth/auth.spec.md").exists());
+}
+
+#[test]
+fn malformed_gradle_is_inconclusive_for_coverage_gating_commands() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    fs::write(root.join("build.gradle.kts"), "plugins {}\n").unwrap();
+    fs::write(root.join("settings.gradle.kts"), "include(\":member\"\n").unwrap();
+
+    for command in ["check", "coverage", "generate", "report", "score"] {
+        let output = specsync()
+            .arg(command)
+            .arg("--root")
+            .arg(&root)
+            .args(["--format", "json"])
+            .assert()
+            .failure()
+            .get_output()
+            .stdout
+            .clone();
+        let json: serde_json::Value = serde_json::from_slice(&output).unwrap_or_else(|error| {
+            panic!(
+                "{command} must emit valid JSON for inconclusive coverage: {error}; stdout={}",
+                String::from_utf8_lossy(&output)
+            )
+        });
+        assert_eq!(
+            json["inconclusive"], true,
+            "unexpected {command} JSON: {json}"
+        );
+        assert!(
+            json["error"]
+                .as_str()
+                .is_some_and(|message| message.contains("Gradle")),
+            "unexpected {command} error: {json}"
+        );
+        match command {
+            "coverage" => {
+                assert!(json["file_coverage"].is_null());
+                assert!(json["loc_coverage"].is_null());
+                assert_eq!(json["files_covered"], 0);
+                assert_eq!(json["files_total"], 0);
+                assert_eq!(json["loc_covered"], 0);
+                assert_eq!(json["loc_total"], 0);
+                assert_eq!(json["modules"], serde_json::json!([]));
+                assert_eq!(json["uncovered_files"], serde_json::json!([]));
+            }
+            "generate" => {
+                assert_eq!(json["generated"], serde_json::json!([]));
+                assert!(
+                    !root.join("specs/member").exists(),
+                    "generate must not mutate the project after inconclusive discovery"
+                );
+            }
+            "report" => {
+                assert!(json["overall_coverage_pct"].is_null());
+                assert_eq!(json["files_covered"], 0);
+                assert_eq!(json["files_total"], 0);
+                assert_eq!(json["total_modules"], 0);
+                assert_eq!(json["stale_modules"], 0);
+                assert_eq!(json["incomplete_modules"], 0);
+                assert_eq!(json["modules"], serde_json::json!([]));
+            }
+            "score" => {
+                assert!(json["average_score"].is_null());
+                assert!(json["grade"].is_null());
+                assert_eq!(json["total_specs"], 0);
+                assert_eq!(json["specs"], serde_json::json!([]));
+            }
+            _ => {}
+        }
+    }
+
+    specsync()
+        .arg("comment")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("Coverage inconclusive"))
+        .stderr(predicate::str::contains("Gradle"));
+}
 
 #[test]
 fn coverage_full_reports_100() {

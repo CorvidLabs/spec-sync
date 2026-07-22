@@ -18,6 +18,7 @@ spec: cmd_report.spec.md
 - Staleness resolves the spec's last commit once via `git_last_commit_hash`, then calls `git_commits_since(root, spec_commit, source_file)` per source file (no per-file spec `git log`).
 - A module is **incomplete** when it is missing any of `status`/`module`/`version`, or when `## Public API` or `## Invariants` is absent, empty, or only `TODO`/`TBD`/`N/A`/an HTML comment.
 - Text mode prints an overall coverage line, a Module/Coverage/Stale/Incomplete table, and stale/incomplete detail sections; JSON mode emits overall stats plus a `modules` array with `coverage_pct`, `stale`, `commits_behind`, `incomplete`, `missing_fields`, and `empty_sections`.
+- Malformed Gradle/manifest discovery exits nonzero; JSON remains valid with `valid: false`, `inconclusive: true`, null overall coverage, zero counts, empty modules, and an explicit error.
 
 ## Constraints
 
@@ -43,4 +44,5 @@ Acceptance Criteria
 - Staleness resolves the spec's last commit once via `git_last_commit_hash`, then calls `git_commits_since(root, spec_commit, source_file)` per source file (no per-file spec `git log`).
 - A module is **incomplete** when it is missing any of `status`/`module`/`version`, or when `## Public API` or `## Invariants` is absent, empty, or only `TODO`/`TBD`/`N/A`/an HTML comment.
 - Text mode prints an overall coverage line, a Module/Coverage/Stale/Incomplete table, and stale/incomplete detail sections; JSON mode emits overall stats plus a `modules` array with `coverage_pct`, `stale`, `commits_behind`, `incomplete`, `missing_fields`, and `empty_sections`.
+- Malformed Gradle/manifest discovery exits nonzero rather than reporting partial coverage; JSON preserves an explicit `valid: false`, `inconclusive: true` failure shape.
 

@@ -1,0 +1,35 @@
+---
+change: CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414
+artifact: plan
+---
+
+# Plan
+
+1. Reject absolute outside roots before canonicalization, retain the server-root directory
+   capability, and require explicit MCP issue-repository identity instead of consulting project Git
+   metadata.
+2. Validate complete JSON-RPC 2.0 envelopes and exact resource arguments before dispatch.
+3. Build bounded read snapshots with actual-byte accounting, including configuration inputs, and add
+   deterministic inbound-line and outbound-response bounds; propagate transport errors.
+4. Preflight capability-relative generation destinations, verify every required output, and roll
+   back partial multi-file writes on failure.
+5. Add Unix symlink, Windows junction, case-insensitive Git metadata, malformed envelope/resource,
+   byte-budget, response-ID-bound, and transactional write-failure regressions.
+6. Update the MCP semantic delta, companions, public documentation, and release changelog.
+7. Run focused tests, full repository/trust gates, private sandbox replay, two independent rereviews,
+   Attest provenance, and GitHub CI before requesting closing approval.
+8. Close follow-up adversarial findings by identity-binding startup root acquisition, preserving
+   manifest-derived inputs across ignores, bounding and atomically publishing generated output, and
+   adding Windows write-junction coverage; rerun every affected gate afterward.
+9. Close final acceptance findings by capturing the retained root handle before canonicalization
+   and retaining failed empty parents rather than claiming ownership across create/open races.
+10. Close the next independent findings by parsing/budgeting every manifest and making GitHub issue
+    verification repository-aware, typed, globally deduplicated, capped, strict, and time-bounded.
+11. Close final adversarial findings with capability-only read-root resolution, no provider
+    subprocess for GitHub reads/listing/verification, post-404 repository revalidation, immutable
+    preflighted manifest bytes, one shared full Gradle settings parser, identity-bound generation
+    rollback, truthful all-error summaries, and complete public compatibility limits.
+12. Close the final dual-review findings with scoped quarantine-based rollback, conservative empty
+    parent retention, staged-identity publication checks, real TOML Cargo workspace parsing, one
+    Windows-aware root suffix routine, in-process GitHub reads, fail-closed Gradle parsing, and
+    no-reference issue reporting before repository resolution.

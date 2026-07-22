@@ -1,6 +1,6 @@
 ---
 module: cmd_issues
-version: 2
+version: 4
 status: stable
 files:
   - src/commands/issues.rs
@@ -33,10 +33,15 @@ Implements the `specsync issues` command — verifies GitHub issue references in
 ## Invariants
 
 1. Checks both `implements` and `tracks` frontmatter fields for issue numbers
-2. Each issue number is verified via GitHub API (`gh api repos/{owner}/{repo}/issues/{num}`)
+2. References from all specs are sent through one globally deduplicated, capped, and time-bounded
+   GitHub verification batch.
 3. Counts are tallied: valid (open), closed, not found (404), error (API failure)
-4. With `--create`, calls `create_drift_issues` for specs with validation errors
-5. Exits 1 if any issue references are not found (404)
+4. Human-readable output prints no-reference guidance only when no spec references were gathered;
+   all-error batches print a summary with the error count.
+5. With `--create`, calls `create_drift_issues` for specs with validation errors
+6. Exits 1 if any issue references are not found (404) or unverifiable
+7. Specs are scanned before repository/provider resolution; an empty reference set succeeds with
+   no-reference guidance and performs no GitHub access.
 
 ## Behavioral Examples
 
@@ -57,9 +62,13 @@ Implements the `specsync issues` command — verifies GitHub issue references in
 | Condition | Behavior |
 |-----------|----------|
 | GitHub repo unresolvable | Exits 1 with error message |
+| No references and no configured/detectable repository | Prints no-reference guidance and exits 0 without provider access |
 | `gh` CLI not available | API calls fail, counted as errors |
 | Issue returns 404 | Counted as "not found", triggers non-zero exit |
 | API rate limit | Counted as "error", reported but does not halt |
+| Repository inaccessible or provider malformed/timed out | Counted as error, never not-found |
+| More than 100 unique issue IDs | Batch error before provider access |
+| Every referenced issue is unverifiable | Prints an error-count summary, never no-reference guidance, and exits 1 |
 
 ## Dependencies
 
@@ -87,3 +96,5 @@ Implements the `specsync issues` command — verifies GitHub issue references in
 |------|--------|
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-22 | CHG-0063: Batch, deduplicate, cap, fail closed, and report all-error GitHub verification truthfully |
+| 2026-07-22 | CHG-0063: Skip repository and provider resolution when no issue references are present |

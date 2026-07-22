@@ -6,7 +6,7 @@ spec: cmd_score.spec.md
 
 - `cmd_score` is a pure renderer over the `scoring` module: it scores each discovered spec with `score_spec`, aggregates with `compute_project_score`, then formats per the requested `OutputFormat`.
 - Four output renderers live here — text, table (ASCII), CSV (with a SUMMARY row), and JSON — each driven off the same `ProjectScore`.
-- Scoring is informational: unlike `check`, it never sets a non-zero exit code.
+- Scoring is advisory under warn mode, but configured coverage gates and inconclusive checked manifest discovery set a non-zero exit code; malformed Gradle JSON remains a structured failure.
 - "Batch mode" (no filters or `--all`) prints a progress header in text mode only, so CSV/JSON stay clean for piping.
 - `--explain` deepens output: in text it lists every criterion with ✓/✗ and points; in JSON it adds an `explain` array; in table it adds the five sub-score columns.
 

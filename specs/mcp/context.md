@@ -69,6 +69,8 @@ spec: mcp.spec.md
   extension and block-scalar lookalikes are ignored. MCP diagnostic boundaries must not leak the
   server's absolute root, raw OS errors, or spec bytes: callers receive a sanitized relative path
   and a stable content-free reason.
+- Issue diagnostic path normalization is platform-specific: Windows separators render as `/`,
+  while Unix literal backslashes remain filename bytes instead of being reinterpreted as hierarchy.
 - Windows confinement fixtures construct every path with native joins. The absolute-child read
   fixture is a valid one-file, fully covered project so its success proves root selection and
   downstream coverage execution; the junction fixture first proves that the reparse point targets
@@ -89,5 +91,7 @@ root-bound mutation; conservative unavailable-freshness scoring; atomic bounded 
 publication; and no embedded provider or credential surfaces. Shared real-YAML issue parsing,
 checked top-level shapes, duplicate/global malformed rejection, checked traversal/non-UTF-8
 discovery, relative content-free diagnostics, and Windows startup-alias absolute-child handling now
-have focused implementation and regression coverage. Fresh definition reapproval, Windows runtime CI, independent rereview, and final
+have focused implementation and regression coverage. The latest adversarial Unix-backslash
+diagnostic collision is fixed with an OS-specific regression. Fresh definition reapproval, Windows
+runtime CI, independent rereview, and final
 repository/trust/provenance/CI gates remain open.

@@ -55,6 +55,7 @@ spec: mcp.spec.md
 | MCP issue scan encounters duplicate keys or malformed YAML anywhere | Entire issue result is inconclusive with a stable content-free reason |
 | MCP issue YAML contains comments/trailing commas plus nested extension or block-scalar lookalikes | Valid top-level positive unsigned lists are accepted; nested/text lookalikes are ignored |
 | MCP spec read fails beneath a host-absolute root | Diagnostic contains only a sanitized relative path and content-free reason; no root, OS detail, or spec bytes |
+| MCP issue finding contains a literal Unix backslash | Unix preserves the backslash as filename data; Windows alone normalizes separators to `/`, so no nested-path identity collision is introduced |
 | Public-entry replacement before quarantine during staging, publication, or file rollback | Atomic quarantine preserves the replacement and rejects the batch |
 | Replacement reuses the same Unix inode or rewrites the same filesystem entry | Exact-byte identity rejects and preserves the replacement instead of trusting inode identity alone; hashing fails closed above the 64 MiB output bound |
 | Same-user process races a private staging or quarantine name | Outside the MCP caller/path-confinement threat boundary; deployments must isolate server-root mutation |

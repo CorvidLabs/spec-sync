@@ -30,7 +30,7 @@ artifact: testing
 | Same-user process mutates private transaction names | Outside the MCP caller/path boundary; deployment must isolate server-root mutation |
 | Generation over 1,000 specs, 64 MiB, or response budget | Rejected before destination publication |
 | Windows generate/init junction destination | Native-join fixture proves the outside reparse target, then accepts rejection at either capability snapshot traversal or generation-destination confinement; outside bytes remain exact and no stage file escapes |
-| Windows absolute child read root | A valid one-file covered project reaches downstream coverage at 1/1; rooted and drive-relative lookalikes fail for root validation |
+| Windows absolute child read root | A valid one-file covered project reaches downstream coverage at 1/1 beneath either identity-bound startup spelling; sibling-prefix, rooted, and drive-relative lookalikes fail for root validation |
 | Python package path beneath a normally ignored name | Manifest-derived source remains present and budgeted |
 | GitHub inaccessible repository, auth, transport, timeout, or malformed provider | Inconclusive tool error; never successful zero/not-found counts |
 | GitHub read/list/verify path is invoked | Uses explicit-token in-process REST; no provider subprocess or descendant exists |
@@ -42,6 +42,7 @@ artifact: testing
 | All references fail verification | Text summary reports the error count and does not print no-reference guidance |
 | No issue references, with or without valid `github.repo` | No-reference guidance; configured syntax is checked, but Git auto-detection/provider access are skipped |
 | Missing/empty specs with malformed configured `github.repo` | Repository syntax error before no-spec/no-reference success; no Git auto-detection or provider access |
+| Selected project config is malformed, invalid UTF-8, or unreadable | Structured `<project-config>` finding, exit 1, and no default-path no-spec/no-reference success |
 | Legacy JSON `github.repo` is a number, boolean, object, or list | Surrounding valid config remains, but repository resolution fails closed without Git auto-detection |
 | CLI/MCP scan encounters unreadable or malformed/missing-frontmatter spec | Inconclusive with safe path attribution; no spec bytes and no successful zero-reference result |
 | Valid checked issue frontmatter uses CRLF delimiters | Parsed identically to LF by parser, CLI issue inspection, and MCP issue inspection |
@@ -50,6 +51,7 @@ artifact: testing
 | Checked issue YAML has comments/trailing commas and nested extension/block-scalar lookalikes | Valid top-level positive unsigned lists are accepted; nested/text lookalikes are ignored |
 | Recursive spec discovery encounters a walker error | Checked discovery reports an inconclusive finding; no partial/empty success |
 | Finding path contains controls, pipes, backticks, or line breaks | Every format remains parseable and content-free; text has no raw controls and Markdown/GitHub emits one escaped row with a valid code span |
+| MCP issue finding contains a literal Unix backslash | Unix preserves the backslash as filename data; Windows alone normalizes separators to `/`, preventing diagnostic identity collisions |
 | Finding path begins or ends with a backtick | Markdown/GitHub pads code-span content inside a longer delimiter |
 | Finding/repository text contains bidi formatting or Unicode Zl/Zp separators | Every renderer escapes the characters; visual order and line/table structure cannot be injected |
 | CLI spec path is replaced by a symlink, regular file, or hardlink after discovery | Identity remains binding through read; replacement bytes are rejected and never parsed |
@@ -73,24 +75,19 @@ artifact: testing
 
 Focused evidence lives in `src/parser.rs`, `src/validator.rs`, `src/mcp.rs`, `src/manifest.rs`,
 `src/github.rs`, `src/importer.rs`, `src/commands/issues.rs`, `tests/integration/commands.rs`, and
-`tests/integration/mcp.rs`. The current evidence inventory records 1,852 unit tests and 275
-integration tests. The final source tree passes formatting, linting, type checks, the Windows GNU
-integration cross-build, optimized release compilation, and the 43-page Astro site build. Earlier
-RustSec audit and VS Code extension compile/package runs remain historical until the repository
-lane refreshes them. Fresh Windows runtime evidence remains pending. A fresh local replay against
-a clean clone of the private `CorvidLabs/spec-sync-sandbox` repository confirms read-only tool listing,
-write opt-in, write-root immutability, traversal/absolute/symlink rejection, exact argument typing,
-notification silence, and an unchanged clone. Current coverage accounting is 105/105 source files
-and 97,237/97,237 LOC, and all 62 specs score 100/100. This count is not a claim that the pending
-final repository or trust gates have run. Two independent final-tree read-only rereviews now PASS
-with zero high or medium findings: acceptance/contract/evidence and defensive
-security/compatibility/regression. The complete repository lane, strict trust verification, Attest
-provenance, and GitHub CI including Windows runtime remain pending.
+`tests/integration/mcp.rs`. Historical evidence before the final adversarial patch includes 1,854
+unit tests, 275 integration tests, release compilation, RustSec audit, and focused Windows
+cross-target checks. The current patch has focused green formatting, linting, 22 issue integration
+tests, the MCP diagnostic regression, and its unit helper. Those results do not substitute for a
+fresh exact-revision repository lane. The prior private `CorvidLabs/spec-sync-sandbox` replay,
+coverage accounting, score results, independent PASS verdicts, trust verification, Attest
+provenance, and hosted CI all predate the final patch and must be refreshed. Native Windows runtime
+evidence remains pending.
 The newest real-YAML, exact-snapshot validation, same-handle discovery, configured-repository,
 bidi/Zl/Zp, raw GitHub item, checked-discovery/non-UTF-8, confined-`specs_dir`,
 relative-diagnostic, and null-marker regressions are present in the active source tree. Fresh
-definition reapproval, Windows runtime, final repository lane, trust verification, Attest
-provenance, and GitHub CI remain pending.
+definition reapproval, both independent rereviews, sandbox replay, Windows runtime, final repository
+lane, trust verification, Attest provenance, and GitHub CI remain pending.
 
 - `REQ-mcp-002`: `mcp::tests::test_repeated_tree_scans_share_one_confinement_budget`,
   `mcp::tests::snapshot_copies_the_exact_manifest_bytes_charged_during_discovery`,

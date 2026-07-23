@@ -48,6 +48,9 @@ spec: cmd_issues.spec.md
   backtick so CommonMark does not misparse the edge delimiter.
 - Relative diagnostic paths are normalized component-wise for display: Windows separators become
   `/`, while Unix keeps literal `\` bytes in filenames as escaped data.
+- Issue inspection preflights the selected configuration file before using the compatibility
+  loader. Unreadable, invalid-UTF-8, or syntactically malformed JSON/TOML becomes one stable
+  `<project-config>` finding, so defaults cannot hide a configured specs tree.
 
 ## Files to Read First
 
@@ -64,7 +67,8 @@ spec: cmd_issues.spec.md
 CHG-0063 verification remains active. Provider classification, global deduplication/caps,
 malformed output, transport failure, timeout behavior, bounded capability-rooted same-handle
 spec/source snapshots, preserved snapshot-based `--create` validation, configured-repository
-syntax checks, checked real-YAML issue fields, confined traversal, and renderer sanitization have
+syntax checks, checked real-YAML issue fields, checked configuration loading, confined traversal,
+and renderer sanitization have
 focused evidence. Fresh CHG definition reapproval, Windows runtime after the separator/fixture
 repair, final independent rereview, trust/provenance, and
 GitHub CI remain open; live provider success remains integration-only.

@@ -74,6 +74,9 @@ path replacement cannot redirect issue inspection or `--create` validation.
 14. Spec discovery retains no more than 10,000 snapshots, reads at most 4 MiB per spec, and retains
     at most 64 MiB of spec bytes cumulatively. Mapped-source snapshotting likewise limits each
     source observation to 4 MiB and retained source bytes to 64 MiB cumulatively.
+15. A present selected project config must be readable UTF-8 and syntactically valid before issue
+    discovery. Malformed or unreadable configuration is a structured, content-free finding and
+    cannot fall back to default paths or a successful no-spec result.
 
 ## Behavioral Examples
 
@@ -114,6 +117,7 @@ path replacement cannot redirect issue inspection or `--create` validation.
 | A discovered spec is replaced with a regular file or hardlink before read | Identity mismatch becomes a safe read finding; replacement bytes are never parsed |
 | A spec exceeds 4 MiB, discovery exceeds 10,000 specs, or retained spec bytes exceed 64 MiB | Reports bounded inspection findings and exits 1 rather than retaining an unbounded snapshot set |
 | Retained mapped sources exceed per-file or cumulative limits | Source observations become unreadable/rejected validation inputs; validation never falls back to ambient reopening |
+| Selected project config is unreadable, invalid UTF-8, or malformed JSON/TOML | Reports a structured project-configuration finding and exits 1 without scanning fallback paths or claiming no specs |
 
 ## Dependencies
 
@@ -146,3 +150,4 @@ path replacement cannot redirect issue inspection or `--create` validation.
 | 2026-07-22 | CHG-0063 independent-review follow-up: Fail closed on unreadable/malformed specs, invalid issue-field shapes, traversal errors, and hostile diagnostic paths |
 | 2026-07-22 | CHG-0063 final adversarial follow-up: Use one retained project capability for bounded same-handle spec/source snapshots and `--create` validation, cap all recursive entries, reject regular/hardlink replacement, validate configured repo syntax even with missing/empty specs, pad edge-backtick code spans, and sanitize hostile renderer input |
 | 2026-07-22 | CHG-0063 Windows CI follow-up: Normalize Windows diagnostic path separators to forward slashes while preserving literal Unix filename backslashes, and repair junction fixtures to use native path joins |
+| 2026-07-22 | CHG-0063 adversarial follow-up: Fail closed when a selected project config is unreadable or malformed so configured specs cannot disappear behind default-path no-spec success |

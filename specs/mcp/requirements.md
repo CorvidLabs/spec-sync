@@ -125,3 +125,5 @@ Acceptance Criteria
   extension and block-scalar lookalikes are ignored; LF and CRLF delimiters are equivalent.
 - MCP read diagnostics expose only a sanitized project-relative spec path and a content-free
   reason; they do not expose the server's absolute root, raw OS error text, or spec bytes.
+- MCP issue diagnostic paths normalize separators only on Windows; literal Unix filename
+  backslashes remain data and cannot collide with a nested path identity.

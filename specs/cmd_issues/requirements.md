@@ -110,6 +110,9 @@ Acceptance Criteria
 - Checked traversal failures are retained as findings, and every rendered finding path is
   project-relative, content-free, control/bidi/Zl/Zp-safe, and valid in its output format.
 - Windows finding paths use forward slashes while Unix literal backslashes remain filename data.
+- A present selected project configuration must be readable UTF-8 and syntactically valid JSON or
+  TOML before discovery; failure is a content-free configuration finding, suppresses no-spec and
+  no-reference success, and exits 1 without default-path fallback.
 - Markdown/GitHub code spans pad content when a path starts or ends with a backtick.
 - Exits 1 when any reference is not found (404), any verification error occurred, or any spec
   inspection finding exists; otherwise exits 0.

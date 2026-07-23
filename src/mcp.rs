@@ -4410,7 +4410,7 @@ fn issue_relative_spec_path(root: &Path, spec_path: &Path) -> String {
     for character in relative.chars() {
         if is_unsafe_issue_diagnostic_character(character) {
             sanitized.push_str(&format!("\\u{{{:04X}}}", character as u32));
-        } else if character == '\\' {
+        } else if cfg!(windows) && character == '\\' {
             sanitized.push('/');
         } else {
             sanitized.push(character);
@@ -4875,9 +4875,16 @@ Test
             );
         }
 
+        let path = root.join(r"specs\windows\path.spec.md");
+        #[cfg(windows)]
         assert_eq!(
-            issue_relative_spec_path(root, &root.join(r"specs\windows\path.spec.md")),
+            issue_relative_spec_path(root, &path),
             "specs/windows/path.spec.md"
+        );
+        #[cfg(not(windows))]
+        assert_eq!(
+            issue_relative_spec_path(root, &path),
+            r"specs\windows\path.spec.md"
         );
     }
 
@@ -4899,7 +4906,7 @@ Test
         let error = tool_issues(tmp.path())
             .expect_err("unsafe filename formatting must not produce a successful issue result");
 
-        assert!(error.contains("specs/hostile/segment/before"));
+        assert!(error.contains(r"specs/hostile/segment\before"));
         for character in dangerous_characters {
             assert!(
                 error.contains(&format!("\\u{{{:04X}}}", character as u32)),

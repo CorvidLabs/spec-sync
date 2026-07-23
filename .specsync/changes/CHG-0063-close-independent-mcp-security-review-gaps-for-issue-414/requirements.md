@@ -39,6 +39,9 @@ Acceptance Criteria
   caller and project-path confinement boundary.
 - Windows absolute read roots derive their relative suffix with the same case-insensitive,
   extended-drive/UNC-aware normalization used for containment.
+- On Windows, an absolute child may use either original or canonical startup spelling after both
+  spellings are bound to the same root identity; only the suffix is opened through the retained
+  canonical capability, and sibling-prefix lookalikes fail.
 
 ### REQ-mcp-003
 
@@ -75,6 +78,8 @@ Acceptance Criteria
   YAML and blank/null/wrong-shaped known fields fail closed; comments/trailing commas remain valid;
   nested extension and block-scalar lookalikes are ignored; LF and CRLF frontmatter delimiters are
   parsed equivalently.
+- MCP issue diagnostic paths normalize separators only on Windows; literal Unix filename
+  backslashes remain data and cannot be misreported as nested-path separators.
 - Release notes and public MCP guidance document all compatibility changes.
 
 ### REQ-github-001
@@ -160,6 +165,9 @@ Acceptance Criteria
 - Projects with no references skip Git auto-detection and provider access. A configured
   `github.repo` is still syntax-validated before no-reference success, including when the specs
   directory is missing or contains no specs.
+- A present selected project config must be readable UTF-8 and syntactically valid JSON or TOML;
+  malformed or unreadable config is a structured content-free finding that exits 1 without
+  default-path fallback, no-spec success, or no-reference success.
 - Unreadable specs and malformed or missing frontmatter are retained as path-attributed,
   content-free inspection findings in text, JSON, Markdown, and GitHub output; they suppress
   no-reference guidance and make the command exit 1.
@@ -176,6 +184,7 @@ Acceptance Criteria
 - Every renderer escapes controls, bidi formatting characters, and Unicode Zl/Zp separators;
   Markdown/GitHub additionally preserve valid escaped table/code-span structure and pad code-span
   content when a path begins or ends with a backtick.
+- Windows finding paths use forward slashes, while literal Unix backslashes remain filename data.
 - `--create` performs normal drift validation from retained spec and mapped-source snapshots
   through `validate_spec_content_with_sources`, without reopening discovered paths or resolving
   supplied-content TypeScript wildcard imports through ambient paths.

@@ -80,7 +80,8 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
     `implements`/`tracks`, make verification inconclusive. Comments and valid trailing commas are
     accepted; nested extension and block-scalar lookalikes are ignored. Read diagnostics use only a
     sanitized relative spec path and a content-free reason, never host-absolute paths, raw OS
-    errors, or spec bytes.
+    errors, or spec bytes. Windows diagnostic separators render as `/`; Unix literal backslashes
+    remain filename data and are not conflated with nested paths.
 
 ## Behavioral Examples
 
@@ -200,3 +201,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-22 | CHG-0063 independent-review follow-up: Restrict Cargo path discovery, normalize confined Windows-native paths, make checked issue discovery/field parsing fail closed with relative content-free diagnostics, and repair Windows fixtures |
 | 2026-07-22 | CHG-0063 final adversarial follow-up: Share maintained real-YAML checked issue parsing, reject duplicate/global malformed YAML and blank/null/wrong shapes, and preserve valid comments/trailing commas |
 | 2026-07-22 | CHG-0063 Windows CI follow-up: Accept absolute children beneath the identity-bound startup root when Windows expands an 8.3 alias, while continuing to open only through the retained canonical capability and reject sibling-prefix lookalikes |
+| 2026-07-22 | CHG-0063 adversarial follow-up: Preserve literal Unix backslashes in MCP issue diagnostic identities while normalizing separators only on Windows |

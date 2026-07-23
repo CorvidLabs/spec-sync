@@ -22,6 +22,8 @@ spec: cmd_issues.spec.md
 - [x] Pad Markdown/GitHub code-span content when hostile paths begin or end with backticks.
 - [x] Normalize Windows finding paths to forward slashes without rewriting literal Unix filename
   backslashes.
+- [x] Fail closed with structured output when malformed or unreadable selected configuration would
+  otherwise hide a custom specs directory behind default-path no-spec success.
 
 ## Post-5.0 Test Debt
 

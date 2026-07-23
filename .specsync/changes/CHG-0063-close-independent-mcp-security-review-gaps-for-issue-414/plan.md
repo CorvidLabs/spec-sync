@@ -39,3 +39,8 @@ artifact: plan
     the 100,000-total-entry bound, requiring canonical decimal provider URL spelling, and
     synchronizing all six facets across definition artifacts; rerun both independent reviews and
     all gates afterward.
+14. Close hosted-Windows and final adversarial findings by accepting identity-bound startup-root
+    aliases without trusting ambient candidates, preserving literal Unix diagnostic backslashes,
+    normalizing separators only on Windows, and making malformed/unreadable selected configuration
+    a structured non-zero issue-inspection finding; synchronize the definition and rerun every
+    exact-revision gate and both independent reviews.

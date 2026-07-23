@@ -135,3 +135,14 @@ findings: one audited every acceptance/contract/evidence row, and the other rech
 compatibility, and regression boundaries. Both distinguished the remaining lifecycle, hosted
 Windows, trust/provenance, and GitHub CI work as procedural gates rather than implementation
 findings.
+
+Hosted Windows then exposed an 8.3-to-long-name startup-root spelling mismatch plus native fixture
+and display-separator assumptions. The identity-bound original and canonical root spellings now
+authorize only a lexical suffix opened through the retained canonical capability, and
+sibling-prefix lookalikes remain rejected. A fresh adversarial pass also found that MCP diagnostics
+reinterpreted literal Unix backslashes as hierarchy and that malformed/unreadable selected config
+could fall back to defaults and claim no specs. Both are now characterized and fixed: separator
+normalization is Windows-only, and checked issue config loading emits one structured non-zero
+`<project-config>` finding. The prior PASS verdicts and evidence predate this final patch; fresh
+independent rereviews, definition approval, dependency re-verification, repository/trust/provenance
+gates, private-sandbox replay, and hosted CI remain required.

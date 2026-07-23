@@ -68,6 +68,98 @@ fn issues_without_references_preserves_configured_repository_outputs() {
 }
 
 #[test]
+fn issues_fails_closed_when_malformed_config_hides_custom_specs() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    fs::remove_dir_all(root.join("specs")).unwrap();
+    let custom_specs = root.join("custom-specs/auth");
+    fs::create_dir_all(&custom_specs).unwrap();
+    fs::write(
+        custom_specs.join("auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"])
+            .replace("depends_on: []", "depends_on: []\nimplements: [42]"),
+    )
+    .unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        r#"{"specsDir":"custom-specs","sourceDirs":["src"]"#,
+    )
+    .unwrap();
+
+    specsync()
+        .arg("issues")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("<project-config>"))
+        .stdout(predicate::str::contains(
+            "Unable to read or parse project configuration.",
+        ))
+        .stdout(predicate::str::contains("No spec files found.").not())
+        .stdout(predicate::str::contains("No issue references found in spec frontmatter.").not());
+
+    let output = specsync()
+        .arg("issues")
+        .arg("--root")
+        .arg(&root)
+        .args(["--format", "json"])
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("config failure must preserve structured JSON");
+    assert_eq!(json["inspection_findings"], 1);
+    assert_eq!(json["findings"][0]["kind"], "configuration_error");
+    assert_eq!(json["findings"][0]["spec"], "<project-config>");
+    assert_eq!(
+        json["findings"][0]["message"],
+        "Unable to read or parse project configuration."
+    );
+}
+
+#[test]
+fn issues_fails_closed_when_config_is_not_readable_text() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    fs::remove_dir_all(root.join("specs")).unwrap();
+    let custom_specs = root.join("custom-specs/auth");
+    fs::create_dir_all(&custom_specs).unwrap();
+    fs::write(
+        custom_specs.join("auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        b"{\"specsDir\":\"custom-specs\",\"sourceDirs\":[\"src\"]}\xff",
+    )
+    .unwrap();
+
+    let output = specsync()
+        .arg("issues")
+        .arg("--root")
+        .arg(&root)
+        .args(["--format", "json"])
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("config failure must preserve structured JSON");
+    assert_eq!(json["inspection_findings"], 1);
+    assert_eq!(json["findings"][0]["kind"], "configuration_error");
+    assert_eq!(json["findings"][0]["spec"], "<project-config>");
+    assert_eq!(
+        json["findings"][0]["message"],
+        "Unable to read or parse project configuration."
+    );
+}
+
+#[test]
 fn issues_validates_configured_repository_when_specs_are_missing_or_empty() {
     for empty_directory in [false, true] {
         let tmp = TempDir::new().unwrap();

@@ -17,6 +17,7 @@ spec: cmd_issues.spec.md
 | `--create` snapshot validation | focused command integration filter plus `snapshot_validation_never_reopens_replaced_mapped_source` | Drift validation consumes retained spec/source observations through `validate_spec_content_with_sources`, never reopens replaced paths, and does not resolve supplied-content TypeScript wildcards through ambient paths. |
 | Renderer adversarial characters | focused command unit/integration filters | Controls, bidi formatting controls, Zl/Zp separators, pipes, backticks, and newline-like input remain escaped and structurally safe in every output format. |
 | Cross-platform relative paths | `cargo test relative_paths_use_slashes_on_every_platform` plus focused `issues_` integration tests | Windows emits forward-slash relative paths and native junction fixtures avoid command-option parsing; Unix preserves literal backslashes in filenames. |
+| Checked selected config | `issues_fails_closed_when_malformed_config_hides_custom_specs`, `issues_fails_closed_when_config_is_not_readable_text` | Malformed or unreadable selected config emits parseable structured findings, exits 1, and never claims no specs through fallback defaults. |
 | `src/github.rs` | cargo test github | Typed classification, global deduplication/cap, strict provider parsing, transport failure, and timeout are covered in the GitHub module. |
 | MCP batch cap | cargo test mcp::tests::issue_tool_enforces_one_deduplicated_invocation_cap_across_specs | Multiple individually safe specs exceed the project-wide cap before provider access. |
 

@@ -95,6 +95,10 @@ artifact: tasks
   artifacts, and covering boolean legacy JSON repository values.
 - [x] Obtain a clean renewed independent acceptance rereview and separate defensive
   security/compatibility rereview after the full final tree is available.
+- [x] Repair hosted-Windows startup-alias and native-path fixture failures while preserving
+  retained-capability authority and sibling-prefix rejection.
+- [x] Close the final adversarial Unix-backslash diagnostic collision and malformed-config
+  false-green with focused cross-platform and structured-output regressions.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.
 - [ ] Obtain fresh definition reapproval after this material independent-review artifact amendment.

@@ -17,6 +17,8 @@ Acceptance Criteria
 - Repository/provider resolution occurs only after inspection. Empty-reference projects skip Git
   auto-detection and provider access, but configured repository syntax is still validated even
   when the specs directory is missing or contains no specs.
+- A present selected project config must be readable UTF-8 and syntactically valid JSON or TOML;
+  failures are structured content-free findings that exit 1 without default-path fallback.
 - Unreadable specs and malformed or missing frontmatter are retained as path-attributed,
   content-free inspection findings in every output format, suppress no-reference guidance, and
   contribute to exit 1.
@@ -36,6 +38,7 @@ Acceptance Criteria
 - Renderer boundaries escape controls, bidi formatting characters, and Unicode Zl/Zp separators;
   Markdown/GitHub preserve valid escaped table rows and code spans, padding span content when a
   path begins or ends with a backtick.
+- Windows finding paths use forward slashes; Unix literal backslashes remain filename data.
 - `--create` validates retained spec and mapped-source snapshots through
   `validate_spec_content_with_sources` without reopening discovered paths or resolving
   supplied-content TypeScript wildcard imports through ambient paths, then preserves normal
@@ -63,3 +66,6 @@ Acceptance Criteria
     targets.
 12. Spec and mapped-source reads derive from one retained project capability, and recursive
     discovery examines no more than 100,000 total entries including non-spec entries.
+13. A malformed or unreadable selected config is a structured non-zero finding and cannot produce
+    fallback no-spec/no-reference success.
+14. Finding paths normalize separators only on Windows; Unix literal backslashes remain data.

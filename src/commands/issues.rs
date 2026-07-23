@@ -43,6 +43,7 @@ struct SpecSnapshot {
 
 #[derive(Debug, PartialEq, Eq)]
 enum SpecInspectionFindingKind {
+    ConfigLoadError,
     ConfigurationError,
     DiscoveryError,
     ReadError,
@@ -52,7 +53,7 @@ enum SpecInspectionFindingKind {
 impl SpecInspectionFindingKind {
     fn as_str(&self) -> &'static str {
         match self {
-            Self::ConfigurationError => "configuration_error",
+            Self::ConfigLoadError | Self::ConfigurationError => "configuration_error",
             Self::DiscoveryError => "discovery_error",
             Self::ReadError => "read_error",
             Self::MalformedFrontmatter => "malformed_frontmatter",
@@ -61,6 +62,7 @@ impl SpecInspectionFindingKind {
 
     fn message(&self) -> &'static str {
         match self {
+            Self::ConfigLoadError => "Unable to read or parse project configuration.",
             Self::ConfigurationError => {
                 "Configured specs directory is not confined to the project."
             }
@@ -129,6 +131,49 @@ fn specs_dir_configuration_finding() -> SpecInspectionFinding {
         spec: "<configured-specs-dir>".to_string(),
         kind: SpecInspectionFindingKind::ConfigurationError,
     }
+}
+
+fn project_config_finding() -> SpecInspectionFinding {
+    SpecInspectionFinding {
+        spec: "<project-config>".to_string(),
+        kind: SpecInspectionFindingKind::ConfigLoadError,
+    }
+}
+
+fn load_issues_config_checked(root: &Path) -> Result<types::SpecSyncConfig, SpecInspectionFinding> {
+    let config_paths = [
+        root.join(".specsync/config.toml"),
+        root.join(".specsync/config.json"),
+        root.join(".specsync.toml"),
+        root.join("specsync.json"),
+    ];
+    let config_path = config_paths
+        .into_iter()
+        .find_map(|path| match fs::symlink_metadata(&path) {
+            Ok(_) => Some(Ok(path)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(_) => Some(Err(project_config_finding())),
+        })
+        .transpose()?;
+
+    let Some(config_path) = config_path else {
+        return Ok(load_config(root));
+    };
+    let content = fs::read_to_string(&config_path).map_err(|_| project_config_finding())?;
+    let content = content.trim_start_matches('\u{feff}');
+    let is_toml = config_path
+        .extension()
+        .and_then(OsStr::to_str)
+        .is_some_and(|extension| extension == "toml");
+
+    if is_toml {
+        toml::from_str::<toml::Table>(content).map_err(|_| project_config_finding())?;
+    } else {
+        serde_json::from_str::<types::SpecSyncConfig>(content)
+            .map_err(|_| project_config_finding())?;
+    }
+
+    Ok(load_config(root))
 }
 
 #[cfg(unix)]
@@ -1056,16 +1101,23 @@ fn issue_verification_json(verification: &github::IssueVerification) -> serde_js
 }
 
 pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
-    let config = load_config(root);
-    let (opened_specs, snapshots, mut inspection_findings) =
-        match open_specs_directory(root, &config.specs_dir) {
+    let config = load_issues_config_checked(root);
+    let (config, opened_specs, snapshots, mut inspection_findings) = match config {
+        Ok(config) => match open_specs_directory(root, &config.specs_dir) {
             Ok(Some(specs)) => {
                 let (snapshots, findings) = find_spec_snapshots_checked(&specs);
-                (Some(specs), snapshots, findings)
+                (config, Some(specs), snapshots, findings)
             }
-            Ok(None) => (None, Vec::new(), Vec::new()),
-            Err(finding) => (None, Vec::new(), vec![finding]),
-        };
+            Ok(None) => (config, None, Vec::new(), Vec::new()),
+            Err(finding) => (config, None, Vec::new(), vec![finding]),
+        },
+        Err(finding) => (
+            types::SpecSyncConfig::default(),
+            None,
+            Vec::new(),
+            vec![finding],
+        ),
+    };
 
     let mut total_valid = 0usize;
     let mut total_closed = 0usize;

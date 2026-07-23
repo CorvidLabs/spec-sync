@@ -34,6 +34,13 @@
       "timestamp": 1784762913,
       "digest": "c2f84eed45c14039350862c74cdc1962e3f5ddc51f2313760998c5b3f4095e3a",
       "note": "User approved CHG-0063 artifact digest c2f84eed45c14039350862c74cdc1962e3f5ddc51f2313760998c5b3f4095e3a on 2026-07-22."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784774813,
+      "digest": "e318a5632ca2157b538530d4736807139e3a4efe492bd0becf47feb7efcbb11d",
+      "note": "User reapproved digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed after final compatibility amendments."
     }
   ],
   "reopenings": []

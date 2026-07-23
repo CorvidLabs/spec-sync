@@ -733,6 +733,168 @@ fn mcp_rejects_configured_read_and_write_path_escapes() {
     assert_eq!(fs::read(victim).unwrap(), victim_bytes);
 }
 
+#[test]
+fn mcp_allow_empty_tool_and_resource_reject_malformed_selected_config() {
+    for (format, relative_config, config) in [
+        (
+            "JSON",
+            ".specsync/config.json",
+            r#"{"specsDir":"custom-specs","sourceDirs":["custom-source"]"#,
+        ),
+        (
+            "TOML",
+            ".specsync/config.toml",
+            "specs_dir = \"custom-specs\"\nsource_dirs = [\"custom-source\"]\n[broken\n",
+        ),
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::create_dir_all(root.join("custom-source")).unwrap();
+        fs::create_dir_all(root.join("custom-specs/custom")).unwrap();
+        fs::write(root.join("custom-source/lib.rs"), "pub fn custom() {}\n").unwrap();
+        fs::write(
+            root.join("custom-specs/custom/custom.spec.md"),
+            valid_spec("custom", &["custom-source/lib.rs"]),
+        )
+        .unwrap();
+        fs::write(root.join(relative_config), config).unwrap();
+
+        assert_mcp_allow_empty_reads_reject_config(
+            root,
+            &format!("malformed {format}"),
+            &format!("malformed {format}"),
+        );
+    }
+}
+
+#[test]
+fn mcp_allow_empty_tool_and_resource_reject_invalid_utf8_selected_config() {
+    for relative_config in [".specsync/config.json", ".specsync/config.toml"] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        let mut config = if relative_config.ends_with(".json") {
+            br#"{"specsDir":"custom-specs","sourceDirs":["custom-source"]}"#.to_vec()
+        } else {
+            b"specs_dir = \"custom-specs\"\nsource_dirs = [\"custom-source\"]\n".to_vec()
+        };
+        config.push(0xff);
+        fs::write(root.join(relative_config), config).unwrap();
+
+        assert_mcp_allow_empty_reads_reject_config(
+            root,
+            "not valid UTF-8",
+            &format!("invalid UTF-8 {relative_config}"),
+        );
+    }
+}
+
+#[test]
+fn mcp_allow_empty_tool_and_resource_reject_wrong_typed_selected_path_fields() {
+    for (relative_config, config, selector) in [
+        (
+            ".specsync/config.json",
+            r#"{"specsDir":42,"sourceDirs":["custom-source"]}"#,
+            "specsDir",
+        ),
+        (
+            ".specsync/config.json",
+            r#"{"specsDir":"custom-specs","sourceDirs":"custom-source"}"#,
+            "sourceDirs",
+        ),
+        (
+            ".specsync/config.toml",
+            "specs_dir = 42\nsource_dirs = [\"custom-source\"]\n",
+            "specs_dir",
+        ),
+        (
+            ".specsync/config.toml",
+            "specs_dir = \"custom-specs\"\nsource_dirs = \"custom-source\"\n",
+            "source_dirs",
+        ),
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::create_dir_all(root.join("custom-source")).unwrap();
+        fs::create_dir_all(root.join("custom-specs")).unwrap();
+        fs::write(root.join(relative_config), config).unwrap();
+
+        assert_mcp_allow_empty_reads_reject_config(
+            root,
+            selector,
+            &format!("wrong-typed path selector {selector} in {relative_config}"),
+        );
+    }
+}
+
+#[test]
+fn mcp_allow_empty_tool_and_resource_preserve_valid_selected_config_compatibility() {
+    for (relative_config, config) in [
+        (
+            ".specsync/config.json",
+            r#"{"specsDir":"custom-specs","sourceDirs":["custom-source"]}"#,
+        ),
+        (
+            ".specsync/config.toml",
+            "specs_dir = \"custom-specs\"\nsource_dirs = [\"custom-source\"]\n",
+        ),
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::create_dir_all(root.join("custom-source")).unwrap();
+        fs::create_dir_all(root.join("custom-specs/custom")).unwrap();
+        fs::write(root.join("custom-source/lib.rs"), "pub fn custom() {}\n").unwrap();
+        fs::write(
+            root.join("custom-specs/custom/custom.spec.md"),
+            valid_spec("custom", &["custom-source/lib.rs"]),
+        )
+        .unwrap();
+        fs::write(root.join(relative_config), format!("\u{feff}{config}")).unwrap();
+
+        let responses = mcp_request(
+            root,
+            &[
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": { "name": "specsync_list_specs", "arguments": {} }
+                }),
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "resources/read",
+                    "params": { "uri": "specsync:///specs" }
+                }),
+            ],
+        );
+
+        let tool_result: serde_json::Value = serde_json::from_str(
+            responses[0]["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        let resource_result: serde_json::Value = serde_json::from_str(
+            responses[1]["result"]["contents"][0]["text"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            tool_result["count"], 1,
+            "valid config failed: {responses:#?}"
+        );
+        assert_eq!(
+            resource_result["count"], 1,
+            "valid config failed: {responses:#?}"
+        );
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn mcp_rejects_configured_symlink_trees_and_dangling_write_destinations() {
@@ -2241,6 +2403,47 @@ fn coverage_request(id: u64, root: serde_json::Value) -> serde_json::Value {
             "arguments": { "root": root }
         }
     })
+}
+
+fn assert_mcp_allow_empty_reads_reject_config(root: &std::path::Path, expected: &str, label: &str) {
+    let responses = mcp_request(
+        root,
+        &[
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": { "name": "specsync_list_specs", "arguments": {} }
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "resources/read",
+                "params": { "uri": "specsync:///specs" }
+            }),
+        ],
+    );
+
+    assert_eq!(
+        responses[0]["result"]["isError"], true,
+        "{label} produced an allow-empty tool success: {responses:#?}"
+    );
+    assert!(
+        responses[0]["result"]["content"][0]["text"]
+            .as_str()
+            .is_some_and(|error| error.contains(expected)),
+        "{label} tool rejection was not explicit: {responses:#?}"
+    );
+    assert_eq!(
+        responses[1]["error"]["code"], -32602,
+        "{label} produced an allow-empty resource success: {responses:#?}"
+    );
+    assert!(
+        responses[1]["error"]["message"]
+            .as_str()
+            .is_some_and(|error| error.contains(expected)),
+        "{label} resource rejection was not explicit: {responses:#?}"
+    );
 }
 
 fn mcp_request_with_write(

@@ -1,6 +1,6 @@
 ---
 module: cmd_issues
-version: 6
+version: 7
 status: stable
 files:
   - src/commands/issues.rs
@@ -74,9 +74,14 @@ path replacement cannot redirect issue inspection or `--create` validation.
 14. Spec discovery retains no more than 10,000 snapshots, reads at most 4 MiB per spec, and retains
     at most 64 MiB of spec bytes cumulatively. Mapped-source snapshotting likewise limits each
     source observation to 4 MiB and retained source bytes to 64 MiB cumulatively.
-15. A present selected project config must be readable UTF-8 and syntactically valid before issue
-    discovery. Malformed or unreadable configuration is a structured, content-free finding and
-    cannot fall back to default paths or a successful no-spec result.
+15. A present selected project config is opened through the retained project capability, rejected
+    when it is a symlink/reparse point or non-regular entry, identity-checked through the same
+    handle, and read at most once into a 4 MiB snapshot. Parsing and all later configuration use
+    those exact retained bytes; malformed UTF-8, JSON/TOML syntax, or known TOML field shapes are
+    structured, content-free findings and cannot fall back to ambient/default paths.
+16. Missing/empty specs and repository-resolution failures are rendered through the selected output
+    format. JSON remains parseable, and Markdown/GitHub retain their structured headings and
+    diagnostics instead of leaking an early text-only exit.
 
 ## Behavioral Examples
 
@@ -118,6 +123,8 @@ path replacement cannot redirect issue inspection or `--create` validation.
 | A spec exceeds 4 MiB, discovery exceeds 10,000 specs, or retained spec bytes exceed 64 MiB | Reports bounded inspection findings and exits 1 rather than retaining an unbounded snapshot set |
 | Retained mapped sources exceed per-file or cumulative limits | Source observations become unreadable/rejected validation inputs; validation never falls back to ambient reopening |
 | Selected project config is unreadable, invalid UTF-8, or malformed JSON/TOML | Reports a structured project-configuration finding and exits 1 without scanning fallback paths or claiming no specs |
+| Selected project config is a symlink/reparse point, non-regular entry, over 4 MiB, replaced during read, or has a wrong-shaped known TOML field | Reports the same content-free configuration finding; no target/replacement bytes or ambient fallback path are used |
+| Missing/empty specs or repository resolution fails under JSON/Markdown/GitHub output | Renders one valid selected-format document before returning the trustworthy success or failure exit |
 
 ## Dependencies
 
@@ -151,3 +158,4 @@ path replacement cannot redirect issue inspection or `--create` validation.
 | 2026-07-22 | CHG-0063 final adversarial follow-up: Use one retained project capability for bounded same-handle spec/source snapshots and `--create` validation, cap all recursive entries, reject regular/hardlink replacement, validate configured repo syntax even with missing/empty specs, pad edge-backtick code spans, and sanitize hostile renderer input |
 | 2026-07-22 | CHG-0063 Windows CI follow-up: Normalize Windows diagnostic path separators to forward slashes while preserving literal Unix filename backslashes, and repair junction fixtures to use native path joins |
 | 2026-07-22 | CHG-0063 adversarial follow-up: Fail closed when a selected project config is unreadable or malformed so configured specs cannot disappear behind default-path no-spec success |
+| 2026-07-22 | CHG-0063 final configuration follow-up: Read selected config through one retained, bounded, same-handle snapshot; reject special entries and wrong-shaped TOML fields; preserve structured early output |

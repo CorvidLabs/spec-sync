@@ -6,11 +6,10 @@ artifact: context
 # Context
 
 CHG-0062 fixed issue #414's arbitrary-write primitive. Final review-driven hardening changed its
-delivery inputs, so the user authorized an audited reopen. CHG-0062 is explicitly reopened and
-verifying; fresh verification evidence and human closing acceptance are still pending. Its prior
-immutable acceptance manifest therefore remains historical evidence rather than acceptance of the
-current workspace. The current six MCP entries remain governed by CHG-0062's reopened verification
-and are not modeled as CHG-0063 successor obligations.
+delivery inputs, so the user authorized an audited reopen. CHG-0062 was reopened, freshly verified
+against the implementation, and accepted again with the user's closing approval. Its historical
+immutable acceptance remains preserved, and the current six MCP entries are not modeled as
+CHG-0063 successor obligations.
 Independent review identified medium gaps: absolute outside paths were canonicalized before
 authorization, `specsync_issues` could follow redirected Git metadata, Windows reparse-point
 evidence was absent, project inputs/responses were unbounded, generator write failures could report
@@ -19,8 +18,7 @@ success, and malformed JSON-RPC envelopes could dispatch.
 The implementation now retains a `cap-std` server-root capability, snapshots reads into bounded
 temporary directories, counts actual project/config bytes, excludes every case variant of `.git`,
 uses conservative Git-freshness scoring, and rolls back partial generation. CHG-0064 owns the
-`cap-std` capability dependency wiring and is explicitly reopened and verifying; fresh verification
-evidence and human closing acceptance are still pending. CHG-0063 owns the `serde-saphyr`
+`cap-std` capability dependency wiring and remains accepted/current. CHG-0063 owns the `serde-saphyr`
 checked-YAML dependency, review-driven behavior, tests, MCP/parser/validator contract amendments,
 public docs, and release note. The current protected docs retain the intended read-only default,
 write opt-in, confinement, and migration guidance while CHG-0062 awaits fresh verification and
@@ -143,6 +141,15 @@ sibling-prefix lookalikes remain rejected. A fresh adversarial pass also found t
 reinterpreted literal Unix backslashes as hierarchy and that malformed/unreadable selected config
 could fall back to defaults and claim no specs. Both are now characterized and fixed: separator
 normalization is Windows-only, and checked issue config loading emits one structured non-zero
-`<project-config>` finding. The prior PASS verdicts and evidence predate this final patch; fresh
-independent rereviews, definition approval, dependency re-verification, repository/trust/provenance
-gates, private-sandbox replay, and hosted CI remain required.
+`<project-config>` finding.
+
+The renewed review then identified an ambient double-read of CLI config, MCP allow-empty fallback
+on malformed selected config, and text-only early exits under structured `issues` formats. CLI
+config now uses the same retained project capability as specs, rejects link/reparse/non-regular
+entries, enforces one 4 MiB identity-checked read, and parses/applies only those retained bytes with
+known TOML field-type validation. MCP validates exact selected config bytes and path-selector
+types before compatibility loading. Missing/empty specs and repository failures now reach the
+selected JSON/Markdown/GitHub renderer. CHG-0062 and CHG-0064 are accepted/current; the prior
+CHG-0063 approval and PASS verdicts predate this material artifact change, so fresh exact-digest
+approval, independent rereviews, repository/trust/provenance gates, private-sandbox replay, hosted
+Windows runtime, and GitHub CI remain required.

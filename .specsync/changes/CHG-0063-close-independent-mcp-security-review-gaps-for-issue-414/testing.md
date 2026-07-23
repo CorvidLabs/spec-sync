@@ -43,6 +43,9 @@ artifact: testing
 | No issue references, with or without valid `github.repo` | No-reference guidance; configured syntax is checked, but Git auto-detection/provider access are skipped |
 | Missing/empty specs with malformed configured `github.repo` | Repository syntax error before no-spec/no-reference success; no Git auto-detection or provider access |
 | Selected project config is malformed, invalid UTF-8, or unreadable | Structured `<project-config>` finding, exit 1, and no default-path no-spec/no-reference success |
+| Selected CLI config is linked, non-regular, replaced during read, over 4 MiB, or has wrong-shaped known TOML fields | Same content-free configuration finding; only exact same-handle retained bytes can configure the scan |
+| MCP selected config is malformed, invalid UTF-8, or has wrong-typed specs/source selectors | Every allow-empty tool/resource is inconclusive before compatibility fallback; valid BOM-prefixed config remains supported |
+| Missing/empty specs or repository failure under JSON/Markdown/GitHub | One valid selected-format report is rendered; JSON parses and failure exits remain non-zero |
 | Legacy JSON `github.repo` is a number, boolean, object, or list | Surrounding valid config remains, but repository resolution fails closed without Git auto-detection |
 | CLI/MCP scan encounters unreadable or malformed/missing-frontmatter spec | Inconclusive with safe path attribution; no spec bytes and no successful zero-reference result |
 | Valid checked issue frontmatter uses CRLF delimiters | Parsed identically to LF by parser, CLI issue inspection, and MCP issue inspection |
@@ -87,7 +90,10 @@ The newest real-YAML, exact-snapshot validation, same-handle discovery, configur
 bidi/Zl/Zp, raw GitHub item, checked-discovery/non-UTF-8, confined-`specs_dir`,
 relative-diagnostic, and null-marker regressions are present in the active source tree. Fresh
 definition reapproval, both independent rereviews, sandbox replay, Windows runtime, final repository
-lane, trust verification, Attest provenance, and GitHub CI remain pending.
+lane, trust verification, Attest provenance, and GitHub CI remain pending. The latest local focused
+run passes formatting, lint, 27 `issues_` integrations, four MCP selected-config integrations, 87
+config unit tests, and 14 config-filtered integrations; these are not substitutes for final-tree
+full-lane evidence.
 
 - `REQ-mcp-002`: `mcp::tests::test_repeated_tree_scans_share_one_confinement_budget`,
   `mcp::tests::snapshot_copies_the_exact_manifest_bytes_charged_during_discovery`,
@@ -261,6 +267,10 @@ lane, trust verification, Attest provenance, and GitHub CI remain pending.
   `config::tests::json_github_repo_wrong_types_fail_closed_without_discarding_valid_config`
   proves wrong-shaped legacy JSON repository values remain invalid without discarding valid
   surrounding configuration or falling back to Git auto-detection.
+- `REQ-config-007`: retained-config hook tests plus
+  `issues_rejects_wrong_shaped_toml_path_fields_from_retained_snapshot` prove exact-byte parsing,
+  same-capability authority, post-snapshot pathname replacement resistance, and known-field type
+  rejection.
 - `REQ-validator-008`:
   `validator::tests::malformed_gradle_settings_make_coverage_inconclusive` proves checked coverage
   returns no partial report and the compatibility wrapper carries an inconclusive diagnostic.
@@ -276,3 +286,7 @@ lane, trust verification, Attest provenance, and GitHub CI remain pending.
   rejects leading-zero provider URL identities; and
   `commands::tests::rendered_drift_errors_prefer_longest_discovered_spec_path` proves exact private
   attribution while public rendered-vector compatibility remains intact.
+  `issues_missing_or_empty_specs_use_selected_structured_renderer` and
+  `issues_repository_resolution_failures_use_selected_structured_renderer` prove early selected
+  output, while the `mcp_allow_empty_tool_and_resource_*selected_config*` group proves MCP
+  malformed/UTF-8/type rejection and valid BOM compatibility.

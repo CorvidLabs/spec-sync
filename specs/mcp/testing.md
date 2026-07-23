@@ -33,6 +33,7 @@ spec: mcp.spec.md
 | Input line over 1 MiB followed by a valid request | Oversized line is rejected and drained; following request succeeds |
 | Response over 1 MiB | Replaced by a bounded -32603 response; request IDs over 4 KiB are rejected with -32600 before dispatch |
 | Project file over 8 MiB or configuration plus inputs over 64 MiB | Rejected before downstream parsing using actual copied bytes |
+| Selected config is malformed, invalid UTF-8, or has wrong-typed specs/source selectors | Every allow-empty tool/resource returns an error before compatibility fallback; valid BOM-prefixed JSON/TOML remains supported |
 | Explicitly configured normally ignored source root | Included in the bounded snapshot and validated |
 | Ignored or configured-exclusion basename is a symlink | Skipped before following target metadata unless an explicit configured input names it or a descendant; broad ancestor inputs do not override `excludeDirs` |
 | `sourceDirs: ["."]` or Cargo/Gradle manifest member beneath an ignored directory | Included and copied from exact bytes charged to the same bounded snapshot budget |
@@ -91,3 +92,5 @@ on Windows CI.
 `read_root_suffix_accepts_the_identity_bound_startup_alias_only_as_a_prefix` and
 `mcp_windows_read_roots_accept_absolute_children_and_reject_ambiguous_prefixes` cover canonical
 8.3 expansion, original-spelling absolute children, and sibling-prefix rejection.
+The `mcp_allow_empty_tool_and_resource_*selected_config*` integration group covers malformed,
+invalid-UTF-8, wrong-typed, and valid BOM-prefixed selected config behavior across tools/resources.

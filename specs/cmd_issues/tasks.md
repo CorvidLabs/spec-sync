@@ -24,6 +24,10 @@ spec: cmd_issues.spec.md
   backslashes.
 - [x] Fail closed with structured output when malformed or unreadable selected configuration would
   otherwise hide a custom specs directory behind default-path no-spec success.
+- [x] Snapshot selected configuration through the retained project capability, reject special
+  entries and over-limit/replaced input, validate known TOML field shapes, and parse exact bytes.
+- [x] Route missing/empty specs and repository-resolution failures through JSON/Markdown/GitHub
+  renderers instead of early text-only exits.
 
 ## Post-5.0 Test Debt
 

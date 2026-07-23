@@ -13,6 +13,9 @@ spec: config.spec.md
 - A present legacy JSON `github.repo` accepts only a string (or explicit `null` as absent).
   Numbers, booleans, objects, and lists retain an invalid sentinel so repository resolution fails
   closed instead of falling back to Git auto-detection.
+- Retained filesystem callers use the crate-private checked snapshot parser: JSON/TOML is parsed
+  from exact supplied bytes, real TOML syntax and known field types are validated first, and no
+  pathname is reopened.
 
 ## Files to Read First
 
@@ -22,4 +25,5 @@ spec: config.spec.md
 ## Current Status
 
 Stable 5.0 secret-free configuration schema with checked discovery available to validation gates.
-CHG-0063 adds fail-closed legacy GitHub repository shape validation.
+CHG-0063 adds fail-closed legacy GitHub repository shape validation and exact-byte checked parsing
+for capability-rooted issue inspection.

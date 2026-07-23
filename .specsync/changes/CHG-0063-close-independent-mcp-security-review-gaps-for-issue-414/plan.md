@@ -44,3 +44,7 @@ artifact: plan
     normalizing separators only on Windows, and making malformed/unreadable selected configuration
     a structured non-zero issue-inspection finding; synchronize the definition and rerun every
     exact-revision gate and both independent reviews.
+15. Close the renewed config/output findings by snapshotting CLI config through the same retained
+    project capability, enforcing same-handle identity and a 4 MiB bound, parsing exact JSON/TOML
+    bytes with known-field type checks, validating MCP selected configs before compatibility
+    loading, and routing missing-spec/repository failures through the selected structured renderer.

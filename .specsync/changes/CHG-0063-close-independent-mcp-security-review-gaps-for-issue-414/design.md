@@ -16,6 +16,11 @@ artifact: design
 - Canonicalize in-root candidates to catch symlink/junction escapes before snapshot traversal.
 - Do not execute Git for MCP repository discovery; use only explicit `github.repo`.
 - Reject every case variant of `.git` in configured roots and omit Git metadata from snapshots.
+- For CLI issues, retain one project capability for config and specs. Open the selected config as
+  a non-link regular file, bind its discovered/open/read-complete identity, cap it at 4 MiB, and
+  parse/apply only the retained bytes.
+- Validate MCP selected config bytes and specs/source selector types before the compatibility
+  loader can substitute defaults.
 
 ## Bounded I/O
 
@@ -53,3 +58,5 @@ artifact: design
   operation, and whole-batch deadlines without spawning a provider subprocess.
 - Gather issue references before repository selection so an empty project never resolves a
   repository or contacts GitHub.
+- Route missing-spec and repository-resolution outcomes through the selected JSON/Markdown/GitHub
+  renderer before selecting the exit status.

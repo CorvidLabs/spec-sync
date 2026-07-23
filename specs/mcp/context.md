@@ -71,6 +71,9 @@ spec: mcp.spec.md
   and a stable content-free reason.
 - Issue diagnostic path normalization is platform-specific: Windows separators render as `/`,
   while Unix literal backslashes remain filename bytes instead of being reinterpreted as hierarchy.
+- Selected configuration is validated directly from its already-bounded snapshot before
+  compatibility loading. Invalid UTF-8, malformed JSON/TOML, and wrong-typed specs/source path
+  selectors fail tools and resources instead of reverting to default paths.
 - Windows confinement fixtures construct every path with native joins. The absolute-child read
   fixture is a valid one-file, fully covered project so its success proves root selection and
   downstream coverage execution; the junction fixture first proves that the reparse point targets
@@ -90,8 +93,8 @@ retained-capability, configuration-, Git-metadata-, and autodetection-level conf
 root-bound mutation; conservative unavailable-freshness scoring; atomic bounded generated-output
 publication; and no embedded provider or credential surfaces. Shared real-YAML issue parsing,
 checked top-level shapes, duplicate/global malformed rejection, checked traversal/non-UTF-8
-discovery, relative content-free diagnostics, and Windows startup-alias absolute-child handling now
-have focused implementation and regression coverage. The latest adversarial Unix-backslash
-diagnostic collision is fixed with an OS-specific regression. Fresh definition reapproval, Windows
-runtime CI, independent rereview, and final
+discovery, relative content-free diagnostics, Windows startup-alias absolute-child handling, and
+selected-config fail-closed validation now have focused implementation and regression coverage.
+The latest adversarial Unix-backslash diagnostic collision is fixed with an OS-specific
+regression. Fresh definition reapproval, Windows runtime CI, independent rereview, and final
 repository/trust/provenance/CI gates remain open.

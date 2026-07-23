@@ -61,4 +61,6 @@ spec: mcp.spec.md
   and blank/null/wrong shapes while accepting comments/trailing commas and ignoring nested
   extension/block-scalar lookalikes
 - [x] Preserve valid issue references in CRLF specs through the shared checked parser
+- [x] Reject malformed, invalid-UTF-8, or wrong-typed selected config snapshots before MCP
+  compatibility loading, including allow-empty tools and resources
 - [ ] Pass fresh Windows reparse-point CI

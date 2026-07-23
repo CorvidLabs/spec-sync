@@ -7,10 +7,9 @@ artifact: docs
 
 - Preserve the current `HEAD` CLI and AI-agent pages while publishing lexical preauthorization,
   byte limits, exact envelope/resource validation, explicit `github.repo`, and fail-closed
-  generation behavior in the new MCP security reference. Describe CHG-0062 as reopened/verifying
-  and pending fresh verification and closing acceptance; preserve its historical exact-byte
-  evidence without presenting it as acceptance of the current workspace or retaining obsolete
-  CHG-0063 successor obligations.
+  generation behavior in the new MCP security reference. Record that CHG-0062 has fresh
+  verification and closing acceptance after its audited reopen; preserve its historical
+  exact-byte evidence without retaining obsolete CHG-0063 successor obligations.
 - Add an `[Unreleased]` security/compatibility entry to `CHANGELOG.md` for the read-only default and
   review-driven hardening.
 - Keep the existing `--allow-write` migration guidance and make explicit that GitHub read/list/
@@ -56,5 +55,10 @@ artifact: docs
   plus GitHub issue title/body text sanitize hostile input.
 - Record that every raw GitHub issue/pull-request item is fully validated as open with exact
   repository/resource/number URL identity and raw duplicate checks before PR filtering.
+- Document that CLI issue config is one retained, same-handle, 4 MiB snapshot parsed from exact
+  bytes; linked/non-regular/replaced/malformed/wrong-shaped config fails closed. MCP likewise
+  validates selected config bytes and path selectors before compatibility loading.
+- Document that missing/empty specs and repository-resolution failures use the selected
+  JSON/Markdown/GitHub renderer instead of text-only early exits.
 - Keep fresh Windows runtime and final repository/trust/provenance evidence described as pending
   until those gates actually pass.

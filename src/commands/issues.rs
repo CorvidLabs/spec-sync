@@ -9,7 +9,6 @@ use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
 use std::process;
 
-use crate::config::load_config;
 use crate::github;
 use crate::ignore::IgnoreRules;
 use crate::parser;
@@ -29,6 +28,7 @@ const MAX_SPEC_SNAPSHOT_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_SPEC_SNAPSHOT_TOTAL_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_SPEC_SNAPSHOT_FILES: usize = 10_000;
 const MAX_SPEC_SNAPSHOT_ENTRIES: usize = 100_000;
+const MAX_CONFIG_SNAPSHOT_BYTES: u64 = 4 * 1024 * 1024;
 
 struct OpenedSpecsDirectory {
     project: Dir,
@@ -138,42 +138,6 @@ fn project_config_finding() -> SpecInspectionFinding {
         spec: "<project-config>".to_string(),
         kind: SpecInspectionFindingKind::ConfigLoadError,
     }
-}
-
-fn load_issues_config_checked(root: &Path) -> Result<types::SpecSyncConfig, SpecInspectionFinding> {
-    let config_paths = [
-        root.join(".specsync/config.toml"),
-        root.join(".specsync/config.json"),
-        root.join(".specsync.toml"),
-        root.join("specsync.json"),
-    ];
-    let config_path = config_paths
-        .into_iter()
-        .find_map(|path| match fs::symlink_metadata(&path) {
-            Ok(_) => Some(Ok(path)),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-            Err(_) => Some(Err(project_config_finding())),
-        })
-        .transpose()?;
-
-    let Some(config_path) = config_path else {
-        return Ok(load_config(root));
-    };
-    let content = fs::read_to_string(&config_path).map_err(|_| project_config_finding())?;
-    let content = content.trim_start_matches('\u{feff}');
-    let is_toml = config_path
-        .extension()
-        .and_then(OsStr::to_str)
-        .is_some_and(|extension| extension == "toml");
-
-    if is_toml {
-        toml::from_str::<toml::Table>(content).map_err(|_| project_config_finding())?;
-    } else {
-        serde_json::from_str::<types::SpecSyncConfig>(content)
-            .map_err(|_| project_config_finding())?;
-    }
-
-    Ok(load_config(root))
 }
 
 #[cfg(unix)]
@@ -491,6 +455,96 @@ fn read_verified_file(
     .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "spec is not valid UTF-8"))
 }
 
+fn read_project_config_snapshot<Hook>(
+    project: &Dir,
+    relative_path: &Path,
+    after_discovery: &mut Hook,
+) -> Result<Option<Vec<u8>>, SpecInspectionFinding>
+where
+    Hook: FnMut(&Path),
+{
+    let components = relative_path.components().collect::<Vec<_>>();
+    let Some((file_name, parent_components)) = components.split_last() else {
+        return Err(project_config_finding());
+    };
+    let Component::Normal(file_name) = file_name else {
+        return Err(project_config_finding());
+    };
+
+    let mut directory = project.try_clone().map_err(|_| project_config_finding())?;
+    for component in parent_components {
+        let Component::Normal(component) = component else {
+            return Err(project_config_finding());
+        };
+        directory = match open_verified_directory(&directory, component) {
+            Ok(child) => child,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(_) => return Err(project_config_finding()),
+        };
+    }
+
+    let metadata = match directory.symlink_metadata(file_name) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err(project_config_finding()),
+    };
+    if is_link_or_reparse_point(&metadata) || !metadata.is_file() {
+        return Err(project_config_finding());
+    }
+    let identity = discovered_file_identity(&directory, file_name, &metadata)
+        .map_err(|_| project_config_finding())?;
+    after_discovery(relative_path);
+    let bytes = read_verified_bytes(&directory, file_name, identity, MAX_CONFIG_SNAPSHOT_BYTES)
+        .map_err(|_| project_config_finding())?;
+    Ok(Some(bytes))
+}
+
+fn load_issues_config_checked(
+    project: &Dir,
+    root: &Path,
+) -> Result<types::SpecSyncConfig, SpecInspectionFinding> {
+    load_issues_config_checked_with_hooks(project, root, |_| {}, |_| {})
+}
+
+fn load_issues_config_checked_with_hooks<DiscoveryHook, SnapshotHook>(
+    project: &Dir,
+    root: &Path,
+    mut after_discovery: DiscoveryHook,
+    mut after_snapshot: SnapshotHook,
+) -> Result<types::SpecSyncConfig, SpecInspectionFinding>
+where
+    DiscoveryHook: FnMut(&Path),
+    SnapshotHook: FnMut(&Path),
+{
+    let config_paths = [
+        Path::new(".specsync/config.toml"),
+        Path::new(".specsync/config.json"),
+        Path::new(".specsync.toml"),
+        Path::new("specsync.json"),
+    ];
+
+    for relative_path in config_paths {
+        let Some(bytes) =
+            read_project_config_snapshot(project, relative_path, &mut after_discovery)?
+        else {
+            continue;
+        };
+        after_snapshot(relative_path);
+        let content = String::from_utf8(bytes).map_err(|_| project_config_finding())?;
+        return crate::config::parse_config_content_checked(
+            &root.join(relative_path),
+            &content,
+            root,
+        )
+        .map_err(|_| project_config_finding());
+    }
+
+    Ok(types::SpecSyncConfig {
+        source_dirs: crate::config::detect_source_dirs(root),
+        ..Default::default()
+    })
+}
+
 fn open_verified_root(root: &Path) -> io::Result<Dir> {
     let directory = Dir::open_ambient_dir(root, ambient_authority())?;
     let expected_identity = directory_identity(&directory)?;
@@ -509,8 +563,17 @@ fn open_verified_root(root: &Path) -> io::Result<Dir> {
     Ok(directory)
 }
 
+#[cfg(all(test, unix))]
 fn open_specs_directory(
     root: &Path,
+    configured: &str,
+) -> Result<Option<OpenedSpecsDirectory>, SpecInspectionFinding> {
+    let project = open_verified_root(root).map_err(|_| specs_dir_configuration_finding())?;
+    open_specs_directory_from_project(project, configured)
+}
+
+fn open_specs_directory_from_project(
+    project: Dir,
     configured: &str,
 ) -> Result<Option<OpenedSpecsDirectory>, SpecInspectionFinding> {
     let configured = Path::new(configured);
@@ -534,7 +597,6 @@ fn open_specs_directory(
         return Err(specs_dir_configuration_finding());
     }
 
-    let project = open_verified_root(root).map_err(|_| specs_dir_configuration_finding())?;
     let mut directory = project
         .try_clone()
         .map_err(|_| specs_dir_configuration_finding())?;
@@ -1101,21 +1163,29 @@ fn issue_verification_json(verification: &github::IssueVerification) -> serde_js
 }
 
 pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
-    let config = load_issues_config_checked(root);
-    let (config, opened_specs, snapshots, mut inspection_findings) = match config {
-        Ok(config) => match open_specs_directory(root, &config.specs_dir) {
-            Ok(Some(specs)) => {
-                let (snapshots, findings) = find_spec_snapshots_checked(&specs);
-                (config, Some(specs), snapshots, findings)
-            }
-            Ok(None) => (config, None, Vec::new(), Vec::new()),
-            Err(finding) => (config, None, Vec::new(), vec![finding]),
+    let project = open_verified_root(root);
+    let (config, opened_specs, snapshots, mut inspection_findings) = match project {
+        Ok(project) => match load_issues_config_checked(&project, root) {
+            Ok(config) => match open_specs_directory_from_project(project, &config.specs_dir) {
+                Ok(Some(specs)) => {
+                    let (snapshots, findings) = find_spec_snapshots_checked(&specs);
+                    (config, Some(specs), snapshots, findings)
+                }
+                Ok(None) => (config, None, Vec::new(), Vec::new()),
+                Err(finding) => (config, None, Vec::new(), vec![finding]),
+            },
+            Err(finding) => (
+                types::SpecSyncConfig::default(),
+                None,
+                Vec::new(),
+                vec![finding],
+            ),
         },
-        Err(finding) => (
+        Err(_) => (
             types::SpecSyncConfig::default(),
             None,
             Vec::new(),
-            vec![finding],
+            vec![specs_dir_configuration_finding()],
         ),
     };
 
@@ -1135,28 +1205,24 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
     }
 
     let repo_config = config.github.as_ref().and_then(|g| g.repo.as_deref());
+    let mut repository_error = None;
     let repo = match (repo_config, references.is_empty()) {
         (None, true) => None,
-        _ => {
-            let resolved = match github::resolve_repo(repo_config, root) {
-                Ok(repo) => repo,
-                Err(error) => {
-                    eprintln!("{} {}", "error:".red().bold(), safe_diagnostic(&error));
-                    process::exit(1);
-                }
-            };
-            Some(resolved)
-        }
+        _ => match github::resolve_repo(repo_config, root) {
+            Ok(repo) => Some(repo),
+            Err(error) => {
+                repository_error = Some(safe_diagnostic(&error));
+                None
+            }
+        },
     };
 
-    if snapshots.is_empty() && inspection_findings.is_empty() {
-        println!("No spec files found.");
-        return;
-    }
+    let no_specs = snapshots.is_empty() && inspection_findings.is_empty();
 
     if matches!(format, types::OutputFormat::Text)
         && let Some(repo) = repo.as_deref()
         && !references.is_empty()
+        && repository_error.is_none()
     {
         println!(
             "Verifying issue references against {}...\n",
@@ -1220,12 +1286,19 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
         }
     }
 
-    if create && let Some(specs) = opened_specs {
+    if create
+        && repository_error.is_none()
+        && let Some(specs) = opened_specs
+    {
         let (all_errors, _, _) =
             collect_snapshot_validation(&specs.project, root, &snapshots, &config);
         if !all_errors.is_empty() {
             create_drift_issues_with_diagnostics(root, &config, &all_errors, format);
         }
+    }
+
+    if let Some(error) = repository_error.as_deref() {
+        eprintln!("{} {error}", "error:".red().bold());
     }
 
     match format {
@@ -1251,6 +1324,12 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
                 "findings": findings,
                 "specs": json_results,
             });
+            let mut output = output;
+            if let Some(error) = repository_error.as_deref() {
+                output["error"] = serde_json::Value::String(error.to_string());
+            } else if no_specs {
+                output["message"] = serde_json::Value::String("No spec files found.".to_string());
+            }
             println!("{}", serde_json::to_string_pretty(&output).unwrap());
         }
         types::OutputFormat::Markdown | types::OutputFormat::Github => {
@@ -1279,36 +1358,51 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
                     );
                 }
             }
+            if let Some(error) = repository_error.as_deref() {
+                println!("\n**Error:** {}", markdown_cell(error));
+            } else if no_specs {
+                println!("\nNo spec files found.");
+            }
         }
         types::OutputFormat::Text | types::OutputFormat::Table | types::OutputFormat::Csv => {
-            for finding in &inspection_findings {
-                println!("  {}", safe_diagnostic(&finding.spec).bold());
-                println!("    {} {}", "✗".red(), finding.kind.message());
-                println!();
-            }
+            if repository_error.is_none() {
+                if no_specs {
+                    println!("No spec files found.");
+                } else {
+                    for finding in &inspection_findings {
+                        println!("  {}", safe_diagnostic(&finding.spec).bold());
+                        println!("    {} {}", "✗".red(), finding.kind.message());
+                        println!();
+                    }
 
-            if let Some(summary) = issue_text_summary(
-                references.len(),
-                total_valid,
-                total_closed,
-                total_not_found,
-                total_errors,
-                inspection_findings.len(),
-            ) {
-                println!("{summary}");
-            } else {
-                println!(
-                    "{}",
-                    "No issue references found in spec frontmatter.".cyan()
-                );
-                println!(
-                    "Add `implements: [42]` or `tracks: [10]` to spec frontmatter to link issues."
-                );
+                    if let Some(summary) = issue_text_summary(
+                        references.len(),
+                        total_valid,
+                        total_closed,
+                        total_not_found,
+                        total_errors,
+                        inspection_findings.len(),
+                    ) {
+                        println!("{summary}");
+                    } else {
+                        println!(
+                            "{}",
+                            "No issue references found in spec frontmatter.".cyan()
+                        );
+                        println!(
+                            "Add `implements: [42]` or `tracks: [10]` to spec frontmatter to link issues."
+                        );
+                    }
+                }
             }
         }
     }
 
-    if total_not_found > 0 || total_errors > 0 || !inspection_findings.is_empty() {
+    if repository_error.is_some()
+        || total_not_found > 0
+        || total_errors > 0
+        || !inspection_findings.is_empty()
+    {
         process::exit(1);
     }
 }
@@ -1323,8 +1417,9 @@ mod tests {
     #[cfg(unix)]
     use super::{
         collect_snapshot_validation_with_hook, find_spec_snapshots_checked_with_hook,
-        find_spec_snapshots_checked_with_limits, is_spec_shaped_file_name, open_specs_directory,
-        snapshot_mapped_sources,
+        find_spec_snapshots_checked_with_limits, is_spec_shaped_file_name,
+        load_issues_config_checked_with_hooks, open_specs_directory,
+        open_specs_directory_from_project, open_verified_root, snapshot_mapped_sources,
     };
     use crate::github::{GitHubIssue, IssueVerification};
     #[cfg(unix)]
@@ -1400,6 +1495,118 @@ mod tests {
         assert!(!is_spec_shaped_file_name(&OsString::from_vec(
             b"opaque-\xff.md".to_vec()
         )));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_discovery_to_read_regular_file_replacement_is_rejected() {
+        let temporary = tempfile::TempDir::new().unwrap();
+        let root = temporary.path().join("project");
+        fs::create_dir_all(root.join("specs")).unwrap();
+        let config_path = root.join("specsync.json");
+        fs::write(
+            &config_path,
+            r#"{"specsDir":"original-specs","sourceDirs":["src"]}"#,
+        )
+        .unwrap();
+        let project = open_verified_root(&root).unwrap();
+
+        let result = load_issues_config_checked_with_hooks(
+            &project,
+            &root,
+            |_| {
+                fs::rename(&config_path, root.join("original-config.json")).unwrap();
+                fs::write(
+                    &config_path,
+                    r#"{"specsDir":"replacement-specs","sourceDirs":["src"]}"#,
+                )
+                .unwrap();
+            },
+            |_| {},
+        );
+
+        assert!(matches!(
+            result,
+            Err(finding) if finding == super::project_config_finding()
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_parser_uses_retained_bytes_after_snapshot_path_replacement() {
+        let temporary = tempfile::TempDir::new().unwrap();
+        let root = temporary.path().join("project");
+        fs::create_dir_all(root.join("specs")).unwrap();
+        let config_path = root.join("specsync.json");
+        fs::write(
+            &config_path,
+            r#"{"specsDir":"retained-specs","sourceDirs":["src"]}"#,
+        )
+        .unwrap();
+        let project = open_verified_root(&root).unwrap();
+
+        let config = load_issues_config_checked_with_hooks(
+            &project,
+            &root,
+            |_| {},
+            |_| {
+                fs::rename(&config_path, root.join("retained-config.json")).unwrap();
+                fs::write(
+                    &config_path,
+                    r#"{"specsDir":"replacement-specs","sourceDirs":["src"]}"#,
+                )
+                .unwrap();
+            },
+        )
+        .expect("the retained snapshot must remain parseable");
+
+        assert_eq!(config.specs_dir, "retained-specs");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_and_specs_share_the_original_retained_project_capability() {
+        use std::os::unix::fs::symlink;
+
+        let temporary = tempfile::TempDir::new().unwrap();
+        let original = temporary.path().join("original");
+        let replacement = temporary.path().join("replacement");
+        for (root, marker) in [(&original, "ORIGINAL"), (&replacement, "REPLACEMENT")] {
+            fs::create_dir_all(root.join("specs/auth")).unwrap();
+            fs::write(
+                root.join("specsync.json"),
+                r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+            )
+            .unwrap();
+            fs::write(
+                root.join("specs/auth/auth.spec.md"),
+                format!("---\nmodule: auth\n---\n\n# {marker}\n"),
+            )
+            .unwrap();
+        }
+        let active = temporary.path().join("active");
+        symlink(&original, &active).unwrap();
+        let project = open_verified_root(&active).unwrap();
+
+        let config = load_issues_config_checked_with_hooks(
+            &project,
+            &active,
+            |_| {},
+            |_| {
+                fs::rename(&active, temporary.path().join("original-link")).unwrap();
+                symlink(&replacement, &active).unwrap();
+            },
+        )
+        .unwrap();
+        let opened = open_specs_directory_from_project(project, &config.specs_dir)
+            .unwrap()
+            .expect("the original specs directory must remain available");
+        let (snapshots, findings) = super::find_spec_snapshots_checked(&opened);
+
+        assert!(findings.is_empty());
+        assert_eq!(snapshots.len(), 1);
+        assert!(snapshots[0].content.contains("ORIGINAL"));
+        assert!(!snapshots[0].content.contains("REPLACEMENT"));
     }
 
     #[cfg(unix)]

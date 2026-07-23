@@ -195,6 +195,168 @@ pub fn load_config_from_path(config_path: &Path, root: &Path) -> SpecSyncConfig 
     }
 }
 
+/// Parse a retained configuration snapshot without reopening its pathname.
+///
+/// The caller is responsible for obtaining the bytes from a trusted, bounded
+/// filesystem handle. This function validates and parses those exact bytes while
+/// preserving the normal JSON/TOML compatibility behavior.
+pub(crate) fn parse_config_content_checked(
+    config_path: &Path,
+    content: &str,
+    root: &Path,
+) -> Result<SpecSyncConfig, String> {
+    let content = content.trim_start_matches('\u{feff}');
+    let is_toml = config_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension == "toml");
+    let mut config = if is_toml {
+        let table = toml::from_str::<toml::Table>(content).map_err(|error| error.to_string())?;
+        validate_toml_config_types(&table)?;
+        parse_toml_config(content, root)
+    } else {
+        parse_json_config(content, root).map_err(|error| error.to_string())?
+    };
+    config.config_path = Some(config_path.to_path_buf());
+    Ok(config)
+}
+
+fn validate_toml_config_types(table: &toml::Table) -> Result<(), String> {
+    for key in [
+        "specs_dir",
+        "schema_dir",
+        "schema_pattern",
+        "export_level",
+        "parse_mode",
+        "parseMode",
+        "enforcement",
+    ] {
+        validate_toml_field(table, key, "a string", toml::Value::is_str)?;
+    }
+    for key in [
+        "source_dirs",
+        "required_sections",
+        "exclude_dirs",
+        "exclude_patterns",
+        "source_extensions",
+    ] {
+        validate_toml_field(table, key, "an array of strings", is_toml_string_array)?;
+    }
+    for key in ["include_extensionless", "require_draft_files"] {
+        validate_toml_field(table, key, "a boolean", toml::Value::is_bool)?;
+    }
+    validate_toml_field(
+        table,
+        "task_archive_days",
+        "an integer",
+        toml::Value::is_integer,
+    )?;
+
+    if let Some(github) = validate_toml_table(table, "github")? {
+        validate_toml_field(github, "repo", "a string", toml::Value::is_str)?;
+        validate_toml_field(
+            github,
+            "drift_labels",
+            "an array of strings",
+            is_toml_string_array,
+        )?;
+        validate_toml_field(github, "verify_issues", "a boolean", toml::Value::is_bool)?;
+    }
+    if let Some(rules) = validate_toml_table(table, "rules")? {
+        for key in [
+            "max_changelog_entries",
+            "min_invariants",
+            "max_spec_size_kb",
+        ] {
+            validate_toml_field(rules, key, "an integer", toml::Value::is_integer)?;
+        }
+        for key in ["require_behavioral_examples", "require_depends_on"] {
+            validate_toml_field(rules, key, "a boolean", toml::Value::is_bool)?;
+        }
+    }
+    if let Some(companions) = validate_toml_table(table, "companions")? {
+        validate_toml_field(companions, "design", "a boolean", toml::Value::is_bool)?;
+    }
+    if let Some(lifecycle) = validate_toml_table(table, "lifecycle")? {
+        for key in ["track_history", "trackHistory"] {
+            validate_toml_field(lifecycle, key, "a boolean", toml::Value::is_bool)?;
+        }
+        for key in ["allowed_statuses", "allowedStatuses"] {
+            validate_toml_field(lifecycle, key, "an array of strings", is_toml_string_array)?;
+        }
+        for key in ["max_age", "maxAge"] {
+            if let Some(max_age) = validate_toml_table(lifecycle, key)? {
+                for (status, value) in max_age {
+                    if !value.is_integer() {
+                        return Err(format!("`lifecycle.{key}.{status}` must be an integer"));
+                    }
+                }
+            }
+        }
+        if let Some(guards) = validate_toml_table(lifecycle, "guards")? {
+            for (transition, value) in guards {
+                let guard = value
+                    .as_table()
+                    .ok_or_else(|| format!("`lifecycle.guards.{transition}` must be a table"))?;
+                for key in ["min_score", "minScore", "stale_threshold", "staleThreshold"] {
+                    validate_toml_field(guard, key, "an integer", toml::Value::is_integer)?;
+                }
+                for key in ["no_stale", "noStale"] {
+                    validate_toml_field(guard, key, "a boolean", toml::Value::is_bool)?;
+                }
+                for key in ["require_sections", "requireSections"] {
+                    validate_toml_field(guard, key, "an array of strings", is_toml_string_array)?;
+                }
+                validate_toml_field(guard, "message", "a string", toml::Value::is_str)?;
+            }
+        }
+    }
+    if let Some(modules) = validate_toml_table(table, "modules")? {
+        for (name, value) in modules {
+            let module = value
+                .as_table()
+                .ok_or_else(|| format!("`modules.{name}` must be a table"))?;
+            for key in ["files", "depends_on", "dependsOn"] {
+                validate_toml_field(module, key, "an array of strings", is_toml_string_array)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_toml_table<'a>(
+    table: &'a toml::Table,
+    key: &str,
+) -> Result<Option<&'a toml::Table>, String> {
+    table
+        .get(key)
+        .map(|value| {
+            value
+                .as_table()
+                .ok_or_else(|| format!("`{key}` must be a table"))
+        })
+        .transpose()
+}
+
+fn validate_toml_field(
+    table: &toml::Table,
+    key: &str,
+    expected: &str,
+    predicate: fn(&toml::Value) -> bool,
+) -> Result<(), String> {
+    if table.get(key).is_some_and(|value| !predicate(value)) {
+        return Err(format!("`{key}` must be {expected}"));
+    }
+    Ok(())
+}
+
+fn is_toml_string_array(value: &toml::Value) -> bool {
+    value
+        .as_array()
+        .is_some_and(|items| items.iter().all(toml::Value::is_str))
+}
+
 /// 1. `.specsync/config.toml` (v4 TOML — canonical)
 /// 2. `.specsync/config.json` (v4 JSON — pre-TOML migration)
 /// 3. `.specsync.toml` (legacy root TOML)
@@ -720,13 +882,17 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
         }
     };
 
-    let mut raw = match serde_json::from_str::<serde_json::Value>(&content) {
-        Ok(raw) => raw,
+    match parse_json_config(&content, root) {
+        Ok(config) => config,
         Err(error) => {
             eprintln!("Warning: failed to parse specsync.json: {error}");
-            return SpecSyncConfig::default();
+            SpecSyncConfig::default()
         }
-    };
+    }
+}
+
+fn parse_json_config(content: &str, root: &Path) -> Result<SpecSyncConfig, serde_json::Error> {
+    let mut raw = serde_json::from_str::<serde_json::Value>(content)?;
     let source_dirs_configured = raw
         .as_object()
         .is_some_and(|config| config.contains_key("sourceDirs"));
@@ -743,20 +909,11 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
     }
     fail_closed_invalid_json_github_repo(&mut raw);
 
-    match serde_json::from_value::<SpecSyncConfig>(raw) {
-        Ok(config) => {
-            if !source_dirs_configured {
-                let mut config = config;
-                config.source_dirs = detect_source_dirs(root);
-                return config;
-            }
-            config
-        }
-        Err(e) => {
-            eprintln!("Warning: failed to parse specsync.json: {e}");
-            SpecSyncConfig::default()
-        }
+    let mut config = serde_json::from_value::<SpecSyncConfig>(raw)?;
+    if !source_dirs_configured {
+        config.source_dirs = detect_source_dirs(root);
     }
+    Ok(config)
 }
 
 /// Parse a TOML config file using zero-dependency parsing.
@@ -791,6 +948,10 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
         }
     };
 
+    parse_toml_config(&content, root)
+}
+
+fn parse_toml_config(content: &str, root: &Path) -> SpecSyncConfig {
     let mut config = SpecSyncConfig::default();
     let mut has_source_dirs = false;
     let mut current_section: Option<String> = None;

@@ -1113,6 +1113,7 @@ fn copy_snapshot_configuration(
         }
         let path = Path::new(relative);
         budget.charge_file(path, bytes.len() as u64)?;
+        validate_snapshot_configuration(relative, &bytes)?;
         if let Some(parent) = path.parent()
             && !parent.as_os_str().is_empty()
         {
@@ -1125,6 +1126,63 @@ fn copy_snapshot_configuration(
         })?;
         budget.copied_paths.insert(path.to_path_buf());
         break;
+    }
+    Ok(())
+}
+
+fn validate_snapshot_configuration(relative: &str, bytes: &[u8]) -> Result<(), String> {
+    let content = std::str::from_utf8(bytes)
+        .map_err(|_| format!("Selected MCP configuration {relative} is not valid UTF-8"))?;
+    let content = content.trim_start_matches('\u{feff}');
+    if Path::new(relative).extension().and_then(OsStr::to_str) == Some("toml") {
+        let config = toml::from_str::<toml::Value>(content)
+            .map_err(|_| format!("Selected MCP configuration {relative} is malformed TOML"))?;
+        validate_toml_snapshot_path_selectors(relative, &config)
+    } else {
+        let config = serde_json::from_str::<Value>(content)
+            .map_err(|_| format!("Selected MCP configuration {relative} is malformed JSON"))?;
+        validate_json_snapshot_path_selectors(relative, &config)
+    }
+}
+
+fn validate_json_snapshot_path_selectors(relative: &str, config: &Value) -> Result<(), String> {
+    if config
+        .get("specsDir")
+        .is_some_and(|value| !value.is_string())
+    {
+        return Err(format!(
+            "Selected MCP configuration {relative} path selector `specsDir` must be a string"
+        ));
+    }
+    if config.get("sourceDirs").is_some_and(|value| {
+        !value
+            .as_array()
+            .is_some_and(|entries| entries.iter().all(Value::is_string))
+    }) {
+        return Err(format!(
+            "Selected MCP configuration {relative} path selector `sourceDirs` must be an array of strings"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_toml_snapshot_path_selectors(
+    relative: &str,
+    config: &toml::Value,
+) -> Result<(), String> {
+    if config.get("specs_dir").is_some_and(|value| !value.is_str()) {
+        return Err(format!(
+            "Selected MCP configuration {relative} path selector `specs_dir` must be a string"
+        ));
+    }
+    if config.get("source_dirs").is_some_and(|value| {
+        !value
+            .as_array()
+            .is_some_and(|entries| entries.iter().all(toml::Value::is_str))
+    }) {
+        return Err(format!(
+            "Selected MCP configuration {relative} path selector `source_dirs` must be an array of strings"
+        ));
     }
     Ok(())
 }

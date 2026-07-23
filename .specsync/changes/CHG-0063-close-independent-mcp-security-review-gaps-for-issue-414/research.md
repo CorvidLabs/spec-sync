@@ -31,3 +31,8 @@ artifact: research
   MCP caller/path threat boundary.
 - Text scanning for TOML headers is unsafe because valid comments and strings can contain
   `[workspace]`. Parse bounded Cargo bytes as TOML and reject malformed workspace shapes.
+- Preflighting an ambient config pathname and later reopening it leaves a replacement interval.
+  Security-sensitive callers must parse the exact bytes read through the retained handle and
+  validate known field types before compatibility defaults can erase configured paths.
+- Early text-only returns violate caller-selected structured output contracts even when the exit
+  status is correct; terminal outcomes must flow through one format-aware renderer.

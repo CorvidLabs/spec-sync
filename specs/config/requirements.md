@@ -80,3 +80,16 @@ Acceptance Criteria
 - Missing, null, and string repository values preserve their established compatibility behavior.
 - Issue inspection validates the explicit invalid repository before missing-spec or no-reference
   success and does not consult Git metadata.
+
+### REQ-config-007
+
+Configuration SHALL provide a checked parser for exact retained JSON/TOML bytes used by
+security-sensitive callers.
+
+Acceptance Criteria
+
+- Parsing consumes the caller-supplied bytes and does not reopen the configuration pathname.
+- Leading UTF-8 BOM compatibility, precedence-selected format, and omitted-source autodetection are
+  preserved.
+- Malformed JSON/TOML and wrong-shaped known TOML fields return an error instead of silently
+  accepting parser defaults.

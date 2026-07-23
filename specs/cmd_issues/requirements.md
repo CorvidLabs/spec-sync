@@ -111,8 +111,12 @@ Acceptance Criteria
   project-relative, content-free, control/bidi/Zl/Zp-safe, and valid in its output format.
 - Windows finding paths use forward slashes while Unix literal backslashes remain filename data.
 - A present selected project configuration must be readable UTF-8 and syntactically valid JSON or
-  TOML before discovery; failure is a content-free configuration finding, suppresses no-spec and
-  no-reference success, and exits 1 without default-path fallback.
+  TOML before discovery. It is opened through the retained project capability, must be a regular
+  non-link entry, is identity-checked through one bounded 4 MiB same-handle read, and is parsed and
+  applied from those exact bytes. Invalid syntax, UTF-8, or known TOML field types is a
+  content-free configuration finding that exits 1 without ambient/default-path fallback.
+- Missing/empty specs and repository-resolution failures render through the selected format:
+  JSON stays parseable and Markdown/GitHub retain their structured report.
 - Markdown/GitHub code spans pad content when a path starts or ends with a backtick.
 - Exits 1 when any reference is not found (404), any verification error occurred, or any spec
   inspection finding exists; otherwise exits 0.

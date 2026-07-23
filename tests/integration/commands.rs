@@ -159,6 +159,186 @@ fn issues_fails_closed_when_config_is_not_readable_text() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn issues_rejects_symlinked_selected_config_without_reading_target() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    let config_path = root.join("specsync.json");
+    let outside_config = tmp.path().join("outside-config.json");
+    let outside_bytes =
+        br#"{"specsDir":"specs","sourceDirs":["src"],"github":{"repo":"CorvidLabs/spec-sync"}}"#;
+    fs::write(&outside_config, outside_bytes).unwrap();
+    fs::remove_file(&config_path).unwrap();
+    symlink(&outside_config, &config_path).unwrap();
+
+    let output = specsync()
+        .arg("issues")
+        .arg("--root")
+        .arg(&root)
+        .args(["--format", "json"])
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("config rejection must preserve structured JSON");
+    assert_eq!(json["inspection_findings"], 1);
+    assert_eq!(json["findings"][0]["kind"], "configuration_error");
+    assert_eq!(json["findings"][0]["spec"], "<project-config>");
+    assert_eq!(fs::read(outside_config).unwrap(), outside_bytes);
+}
+
+#[test]
+fn issues_bounds_selected_config_snapshots() {
+    const CONFIG_LIMIT: usize = 4 * 1024 * 1024;
+
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    let padding = "x".repeat(CONFIG_LIMIT);
+    fs::write(
+        root.join("specsync.json"),
+        format!("{{\"specsDir\":\"specs\",\"sourceDirs\":[\"src\"],\"padding\":\"{padding}\"}}"),
+    )
+    .unwrap();
+
+    let output = specsync()
+        .arg("issues")
+        .arg("--root")
+        .arg(&root)
+        .args(["--format", "json"])
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("bounded config failure must be structured JSON");
+    assert_eq!(json["inspection_findings"], 1);
+    assert_eq!(json["findings"][0]["kind"], "configuration_error");
+    assert_eq!(json["findings"][0]["spec"], "<project-config>");
+}
+
+#[test]
+fn issues_rejects_wrong_shaped_toml_path_fields_from_retained_snapshot() {
+    for malformed_field in [
+        "specs_dir = [\"specs\"]",
+        "source_dirs = \"src\"",
+        "schema_dir = [\"schema\"]",
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_minimal_project(&tmp);
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/config.toml"),
+            format!("{malformed_field}\n"),
+        )
+        .unwrap();
+
+        let output = specsync()
+            .arg("issues")
+            .arg("--root")
+            .arg(&root)
+            .args(["--format", "json"])
+            .assert()
+            .failure()
+            .get_output()
+            .stdout
+            .clone();
+        let json: serde_json::Value = serde_json::from_slice(&output)
+            .expect("wrong-shaped TOML path fields must produce structured JSON");
+        assert_eq!(json["inspection_findings"], 1);
+        assert_eq!(json["findings"][0]["kind"], "configuration_error");
+        assert_eq!(json["findings"][0]["spec"], "<project-config>");
+    }
+}
+
+#[test]
+fn issues_missing_or_empty_specs_use_selected_structured_renderer() {
+    for empty_directory in [false, true] {
+        for format in ["json", "markdown", "github"] {
+            let tmp = TempDir::new().unwrap();
+            let root = setup_minimal_project(&tmp);
+            fs::remove_dir_all(root.join("specs")).unwrap();
+            if empty_directory {
+                fs::create_dir_all(root.join("specs")).unwrap();
+            }
+
+            let output = specsync()
+                .arg("issues")
+                .arg("--root")
+                .arg(&root)
+                .args(["--format", format])
+                .assert()
+                .success()
+                .get_output()
+                .stdout
+                .clone();
+
+            if format == "json" {
+                let json: serde_json::Value = serde_json::from_slice(&output)
+                    .expect("missing specs must preserve structured JSON");
+                assert_eq!(json["valid"], 0);
+                assert_eq!(json["closed"], 0);
+                assert_eq!(json["not_found"], 0);
+                assert_eq!(json["errors"], 0);
+                assert_eq!(json["specs"].as_array().map(Vec::len), Some(0));
+            } else {
+                let rendered = String::from_utf8(output).unwrap();
+                assert!(rendered.contains("## Issue Verification"));
+                assert!(rendered.contains("No spec files found."));
+            }
+        }
+    }
+}
+
+#[test]
+fn issues_repository_resolution_failures_use_selected_structured_renderer() {
+    for format in ["json", "markdown", "github"] {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_minimal_project(&tmp);
+        let config_path = root.join("specsync.json");
+        let config = fs::read_to_string(&config_path).unwrap();
+        fs::write(
+            config_path,
+            config.replace(
+                "\n}",
+                ",\n  \"github\": { \"repo\": \"owner/repo/extra\" }\n}",
+            ),
+        )
+        .unwrap();
+
+        let output = specsync()
+            .arg("issues")
+            .arg("--root")
+            .arg(&root)
+            .args(["--format", format])
+            .assert()
+            .failure()
+            .get_output()
+            .stdout
+            .clone();
+
+        if format == "json" {
+            let json: serde_json::Value = serde_json::from_slice(&output)
+                .expect("repository failure must preserve structured JSON");
+            assert!(
+                json["error"]
+                    .as_str()
+                    .is_some_and(|error| error.contains("GitHub repository"))
+            );
+            assert_eq!(json["specs"].as_array().map(Vec::len), Some(0));
+        } else {
+            let rendered = String::from_utf8(output).unwrap();
+            assert!(rendered.contains("## Issue Verification"));
+            assert!(rendered.contains("GitHub repository"));
+        }
+    }
+}
+
 #[test]
 fn issues_validates_configured_repository_when_specs_are_missing_or_empty() {
     for empty_directory in [false, true] {

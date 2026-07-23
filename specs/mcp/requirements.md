@@ -82,6 +82,8 @@ Acceptance Criteria
 - Traversal, configured-path, and symlink escapes fail before filesystem access.
 - Project files are bounded to 8 MiB and actual project/config input to 64 MiB per operation;
   manifests are copied from the exact bytes charged during discovery.
+- Selected config bytes are validated before compatibility loading; invalid UTF-8, malformed
+  JSON/TOML, and wrong-typed specs/source path selectors fail closed for both tools and resources.
 - Cargo TOML path discovery follows only semantic target, dependency, workspace-dependency,
   target-specific dependency, patch, and replacement tables; unrelated metadata `path` keys do
   not authorize filesystem inputs. Comment/escape-aware shared Gradle workspace parsing preserves
@@ -127,3 +129,5 @@ Acceptance Criteria
   reason; they do not expose the server's absolute root, raw OS error text, or spec bytes.
 - MCP issue diagnostic paths normalize separators only on Windows; literal Unix filename
   backslashes remain data and cannot collide with a nested path identity.
+- MCP tools/resources reject invalid UTF-8, malformed JSON/TOML, and wrong-typed selected
+  specs/source path selectors before compatibility loading can substitute defaults.

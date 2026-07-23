@@ -15,3 +15,5 @@ spec: config.spec.md
 - [x] Add fallible checked source-directory and manifest discovery while retaining compatibility wrappers
 - [x] Fail closed when legacy JSON supplies `github.repo` with a non-string shape, without
   falling back to Git auto-detection or discarding otherwise valid configuration
+- [x] Parse retained exact-byte JSON/TOML snapshots with known TOML field-type validation for
+  capability-rooted callers

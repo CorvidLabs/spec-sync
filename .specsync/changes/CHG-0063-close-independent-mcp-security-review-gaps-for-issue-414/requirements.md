@@ -42,6 +42,9 @@ Acceptance Criteria
 - On Windows, an absolute child may use either original or canonical startup spelling after both
   spellings are bound to the same root identity; only the suffix is opened through the retained
   canonical capability, and sibling-prefix lookalikes fail.
+- MCP validates the exact bounded selected-config snapshot before compatibility loading. Invalid
+  UTF-8, malformed JSON/TOML, and wrong-typed specs/source path selectors make tools and resources
+  inconclusive rather than substituting an empty/default project.
 
 ### REQ-mcp-003
 
@@ -166,8 +169,11 @@ Acceptance Criteria
   `github.repo` is still syntax-validated before no-reference success, including when the specs
   directory is missing or contains no specs.
 - A present selected project config must be readable UTF-8 and syntactically valid JSON or TOML;
-  malformed or unreadable config is a structured content-free finding that exits 1 without
-  default-path fallback, no-spec success, or no-reference success.
+  it is opened through the retained project capability, rejected when linked or non-regular,
+  identity-checked through one bounded 4 MiB same-handle read, and parsed/applied from those exact
+  bytes. Malformed, invalid-UTF-8, wrong-shaped, replaced, or oversized config is a structured
+  content-free finding that exits 1 without default-path fallback, no-spec success, or
+  no-reference success.
 - Unreadable specs and malformed or missing frontmatter are retained as path-attributed,
   content-free inspection findings in text, JSON, Markdown, and GitHub output; they suppress
   no-reference guidance and make the command exit 1.
@@ -185,6 +191,8 @@ Acceptance Criteria
   Markdown/GitHub additionally preserve valid escaped table/code-span structure and pad code-span
   content when a path begins or ends with a backtick.
 - Windows finding paths use forward slashes, while literal Unix backslashes remain filename data.
+- Missing/empty specs and repository-resolution failures render through the selected format:
+  JSON remains parseable and Markdown/GitHub preserve their structured report.
 - `--create` performs normal drift validation from retained spec and mapped-source snapshots
   through `validate_spec_content_with_sources`, without reopening discovered paths or resolving
   supplied-content TypeScript wildcard imports through ambient paths.
@@ -306,6 +314,19 @@ Acceptance Criteria
   surrounding configuration or becoming repository auto-detection.
 - Missing, null, and string repository values preserve compatibility.
 - Issue inspection rejects the explicit invalid repository before no-spec/no-reference success.
+
+### REQ-config-007
+
+Configuration SHALL provide a checked parser for exact retained JSON/TOML bytes used by
+security-sensitive callers.
+
+Acceptance Criteria
+
+- Parsing consumes caller-supplied bytes without reopening the configuration pathname.
+- Leading UTF-8 BOM compatibility, selected-format behavior, and omitted-source autodetection are
+  preserved.
+- Malformed JSON/TOML and wrong-shaped known TOML fields return an error rather than silently
+  accepting compatibility defaults.
 
 ### REQ-validator-008
 

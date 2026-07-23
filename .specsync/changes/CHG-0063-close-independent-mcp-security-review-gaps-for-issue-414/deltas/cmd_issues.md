@@ -17,8 +17,10 @@ Acceptance Criteria
 - Repository/provider resolution occurs only after inspection. Empty-reference projects skip Git
   auto-detection and provider access, but configured repository syntax is still validated even
   when the specs directory is missing or contains no specs.
-- A present selected project config must be readable UTF-8 and syntactically valid JSON or TOML;
-  failures are structured content-free findings that exit 1 without default-path fallback.
+- A present selected project config is opened through the retained project capability, must be a
+  non-link regular entry, is identity-checked through one bounded 4 MiB same-handle read, and is
+  parsed/applied from those exact bytes. Invalid UTF-8, malformed JSON/TOML, or wrong-shaped known
+  TOML fields are structured content-free findings that exit 1 without fallback.
 - Unreadable specs and malformed or missing frontmatter are retained as path-attributed,
   content-free inspection findings in every output format, suppress no-reference guidance, and
   contribute to exit 1.
@@ -39,6 +41,8 @@ Acceptance Criteria
   Markdown/GitHub preserve valid escaped table rows and code spans, padding span content when a
   path begins or ends with a backtick.
 - Windows finding paths use forward slashes; Unix literal backslashes remain filename data.
+- Missing/empty specs and repository-resolution errors render through the selected output format;
+  JSON remains parseable and Markdown/GitHub remain structured.
 - `--create` validates retained spec and mapped-source snapshots through
   `validate_spec_content_with_sources` without reopening discovered paths or resolving
   supplied-content TypeScript wildcard imports through ambient paths, then preserves normal
@@ -66,6 +70,8 @@ Acceptance Criteria
     targets.
 12. Spec and mapped-source reads derive from one retained project capability, and recursive
     discovery examines no more than 100,000 total entries including non-spec entries.
-13. A malformed or unreadable selected config is a structured non-zero finding and cannot produce
-    fallback no-spec/no-reference success.
+13. Selected config is retained, same-handle identity-checked, bounded to 4 MiB, and parsed from
+    exact bytes; malformed, wrong-shaped, linked, non-regular, replaced, or oversized input cannot
+    produce fallback no-spec/no-reference success.
 14. Finding paths normalize separators only on Windows; Unix literal backslashes remain data.
+15. Missing/empty specs and repository-resolution failures use the selected structured renderer.

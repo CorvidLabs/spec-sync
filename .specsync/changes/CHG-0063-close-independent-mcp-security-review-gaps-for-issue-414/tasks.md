@@ -99,6 +99,9 @@ artifact: tasks
   retained-capability authority and sibling-prefix rejection.
 - [x] Close the final adversarial Unix-backslash diagnostic collision and malformed-config
   false-green with focused cross-platform and structured-output regressions.
+- [x] Close the renewed retained-config and early-rendering findings with bounded same-handle CLI
+  config snapshots, exact-byte/type-checked parsing, MCP pre-load config validation, and selected
+  JSON/Markdown/GitHub output on missing-spec/repository outcomes.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.
 - [ ] Obtain fresh definition reapproval after this material independent-review artifact amendment.

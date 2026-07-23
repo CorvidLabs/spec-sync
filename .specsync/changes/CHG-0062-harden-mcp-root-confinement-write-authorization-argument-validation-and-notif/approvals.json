@@ -55,6 +55,13 @@
       "timestamp": 1784761646,
       "digest": "51534a6766500a32269c6826e1f25c1eda803cbc072bc31c1af89d2ad7e930e5",
       "note": "User approved closing CHG-0062 after fresh verification on 2026-07-22."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784791894,
+      "digest": "5b309822352a406ad513a8965ddbe9a1e9afc8f005f80b6be7e56b7c26c294ba",
+      "note": "User approved closing CHG-0062 after fresh verification."
     }
   ],
   "reopenings": [

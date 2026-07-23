@@ -5,11 +5,11 @@
   "title": "Add capability-safe filesystem support for MCP security hardening",
   "description": "Add capability-safe filesystem support for MCP security hardening",
   "kind": "refactor",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "a0d993b7d10d177f9a4770f54fbe14045750221c",
   "created_at": 1784697116,
-  "updated_at": 1784782954,
+  "updated_at": 1784792208,
   "affected_specs": [],
   "affected_paths": [
     "Cargo.toml",

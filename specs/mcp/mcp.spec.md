@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 7
+version: 8
 status: stable
 files:
   - src/mcp.rs
@@ -49,7 +49,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 12. JSON-RPC input lines and responses are bounded to 1 MiB, and request IDs are bounded to 4 KiB.
 13. Generated output is limited to 1,000 specs and 64 MiB, preflighted before mutation, staged and
     synced beside each destination, and atomically published without overwriting existing files;
-    retained parent capabilities and inode identities preserve replacements at public transaction
+    retained parent capabilities and filesystem-plus-content identities preserve replacements at public transaction
     paths. Empty parent directories created during a failed batch may remain because no portable
     create-and-open directory primitive can prove ownership across a concurrent replacement.
     Processes already authorized to mutate the server root must not race private
@@ -175,3 +175,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-22 | CHG-0062-harden-mcp-root-confinement-write-authorization-argument-validation-and-notif: Harden MCP root confinement, write authorization, argument validation, and notification semantics for issue 414 |
 | 2026-07-22 | CHG-0063: Identity-bind roots and quarantine rollback, parse Cargo TOML and checked Gradle inputs, normalize Windows roots, and use bounded in-process GitHub verification |
 | 2026-07-22 | CHG-0063 defensive review: Skip ignored-name symlinks before traversal and compare Windows root components with native ordinal Unicode case semantics |
+| 2026-07-23 | CHG-0063 CI follow-up: Bind staged and rollback identities to exact bytes so immediate Unix inode reuse cannot authorize a replacement, with fail-closed bounded hashing |

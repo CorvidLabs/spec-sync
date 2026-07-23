@@ -31,7 +31,8 @@ spec: mcp.spec.md
 - Generation verifies every required destination, reports incomplete writes, returns relative
   project paths, bounds count/content/result size before mutation, stages and syncs content beside
   each destination, and atomically publishes without overwrite. Rollback preserves replacements
-  at public transaction paths. Empty parents created by a failed batch may remain because portable
+  at public transaction paths. File identities include bounded exact-byte digests so immediate inode reuse
+  or same-entry rewrites cannot authorize a replacement. Empty parents created by a failed batch may remain because portable
   filesystems provide no atomic create-and-open directory primitive. A same-user process already
   authorized to mutate the server root must not race private staging or quarantine names.
 - Root capability acquisition opens and identity-binds the requested root before canonicalization,

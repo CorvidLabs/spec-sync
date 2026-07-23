@@ -93,7 +93,9 @@ Acceptance Criteria
 - JSON-RPC lines larger than 1 MiB are drained and rejected with `-32700` before parsing; the next
   line remains independently processable.
 - Generation is limited to 1,000 specs and 64 MiB, atomically publishes through retained parent
-  capabilities, and rolls back only matching transaction identities.
+  capabilities, and rolls back only matching filesystem and exact-byte transaction identities,
+  including when a filesystem immediately reuses an inode. Exact-byte identity hashing is capped
+  at the generated-output limit and fails closed above it.
 - GitHub issue verification requires explicit `GITHUB_TOKEN`, performs reads in-process without a
   provider subprocess, prepares once, globally caps/deduplicates 100 IDs, includes authentication
   and repository preflight in its 30-second deadline, and revalidates access after an apparent

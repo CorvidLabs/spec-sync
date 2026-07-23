@@ -43,4 +43,6 @@ spec: mcp.spec.md
 - [x] Skip ignored and configured-exclusion symlink names before following their targets
 - [x] Use native Windows ordinal Unicode case comparison for confined absolute roots
 - [x] Pass independent defensive agent rereview with no high or medium findings
+- [x] Bind publication and rollback identity to exact staged bytes to reject immediate inode reuse
+- [x] Bound exact-byte identity hashing and fail closed on oversized replacement input
 - [ ] Pass fresh Windows reparse-point CI

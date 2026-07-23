@@ -10,9 +10,10 @@ use crate::validator::{
 use cap_std::ambient_authority;
 use cap_std::fs::{Dir, OpenOptions};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io::{self, BufRead, Read, Write};
+use std::io::{self, BufRead, Read, Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use walkdir::WalkDir;
@@ -263,7 +264,7 @@ fn open_server_root_capability(
 type DirectoryIdentity = (u64, u64);
 
 #[cfg(unix)]
-type FileIdentity = (u64, u64);
+type FileIdentity = (u64, u64, [u8; 32]);
 
 #[cfg(unix)]
 fn directory_identity(directory: &Dir) -> io::Result<DirectoryIdentity> {
@@ -278,14 +279,14 @@ fn file_identity(file: &cap_std::fs::File) -> io::Result<FileIdentity> {
     use cap_std::fs::MetadataExt;
 
     let metadata = file.metadata()?;
-    Ok((metadata.dev(), metadata.ino()))
+    Ok((metadata.dev(), metadata.ino(), file_content_digest(file)?))
 }
 
 #[cfg(windows)]
 type DirectoryIdentity = (u32, u64);
 
 #[cfg(windows)]
-type FileIdentity = (u32, u64);
+type FileIdentity = (u32, u64, [u8; 32]);
 
 #[cfg(windows)]
 fn directory_identity(directory: &Dir) -> io::Result<DirectoryIdentity> {
@@ -299,7 +300,8 @@ fn directory_identity(directory: &Dir) -> io::Result<DirectoryIdentity> {
 fn file_identity(file: &cap_std::fs::File) -> io::Result<FileIdentity> {
     use std::os::windows::io::AsRawHandle;
 
-    windows_handle_identity(file.as_raw_handle().cast())
+    let (volume, index) = windows_handle_identity(file.as_raw_handle().cast())?;
+    Ok((volume, index, file_content_digest(file)?))
 }
 
 #[cfg(windows)]
@@ -352,7 +354,7 @@ fn windows_handle_identity(handle: *mut std::ffi::c_void) -> io::Result<(u32, u6
 type DirectoryIdentity = (u64, Option<std::time::SystemTime>);
 
 #[cfg(not(any(unix, windows)))]
-type FileIdentity = (u64, Option<std::time::SystemTime>);
+type FileIdentity = (u64, Option<std::time::SystemTime>, [u8; 32]);
 
 #[cfg(not(any(unix, windows)))]
 fn directory_identity(directory: &Dir) -> io::Result<DirectoryIdentity> {
@@ -363,7 +365,41 @@ fn directory_identity(directory: &Dir) -> io::Result<DirectoryIdentity> {
 #[cfg(not(any(unix, windows)))]
 fn file_identity(file: &cap_std::fs::File) -> io::Result<FileIdentity> {
     let metadata = file.metadata()?;
-    Ok((metadata.len(), metadata.modified().ok()))
+    Ok((
+        metadata.len(),
+        metadata.modified().ok(),
+        file_content_digest(file)?,
+    ))
+}
+
+fn file_content_digest(file: &cap_std::fs::File) -> io::Result<[u8; 32]> {
+    file_content_digest_with_limit(file, MAX_GENERATED_OUTPUT_BYTES)
+}
+
+fn file_content_digest_with_limit(
+    file: &cap_std::fs::File,
+    maximum_bytes: u64,
+) -> io::Result<[u8; 32]> {
+    let mut reader = file.try_clone()?;
+    reader.seek(SeekFrom::Start(0))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 8 * 1024];
+    let mut total_bytes = 0_u64;
+    loop {
+        let read = reader.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        total_bytes = total_bytes.saturating_add(read as u64);
+        if total_bytes > maximum_bytes {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("file identity input exceeds the {maximum_bytes}-byte limit"),
+            ));
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(hasher.finalize().into())
 }
 
 fn validate_request_envelope(request: &Value) -> Result<Option<Value>, Value> {
@@ -3457,7 +3493,7 @@ where
         ));
         let temporary_display = parent_path.join(&temporary_name);
         let mut options = OpenOptions::new();
-        options.write(true).create_new(true);
+        options.read(true).write(true).create_new(true);
         let mut file = match parent.open_with(&temporary_name, &options) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
@@ -3469,30 +3505,14 @@ where
                 return Err(failure);
             }
         };
-        let identity = match file_identity(&file) {
-            Ok(identity) => identity,
-            Err(error) => {
-                let failure = format!(
-                    "Cannot identify confined MCP staged {label} {}: {error}",
-                    temporary_display.display()
-                );
-                let staged = StagedFile {
-                    parent,
-                    destination_name,
-                    destination_display: destination.to_path_buf(),
-                    temporary_name,
-                    temporary_display,
-                    identity: invalid_file_identity(),
-                    temporary_present: true,
-                    published: false,
-                };
-                return Err(rollback_staged_batch(&[staged], failure));
-            }
-        };
         let write_result = file
             .write_all(content)
             .and_then(|_| file.flush())
             .and_then(|_| file.sync_all());
+        let (identity, identity_error) = match file_identity(&file) {
+            Ok(identity) => (identity, None),
+            Err(error) => (invalid_file_identity(), Some(error)),
+        };
         drop(file);
         after_identity(&parent, &temporary_name);
         let staged = StagedFile {
@@ -3512,6 +3532,13 @@ where
             );
             return Err(rollback_staged_batch(&[staged], failure));
         }
+        if let Some(error) = identity_error {
+            let failure = format!(
+                "Cannot identify confined MCP staged {label} {}: {error}",
+                destination.display()
+            );
+            return Err(rollback_staged_batch(&[staged], failure));
+        }
         return Ok(staged);
     }
 
@@ -3522,14 +3549,19 @@ where
     Err(failure)
 }
 
-#[cfg(any(unix, windows))]
+#[cfg(unix)]
 fn invalid_file_identity() -> FileIdentity {
-    (u64::MAX as _, u64::MAX)
+    (u64::MAX, u64::MAX, [0_u8; 32])
+}
+
+#[cfg(windows)]
+fn invalid_file_identity() -> FileIdentity {
+    (u32::MAX, u64::MAX, [0_u8; 32])
 }
 
 #[cfg(not(any(unix, windows)))]
 fn invalid_file_identity() -> FileIdentity {
-    (u64::MAX, None)
+    (u64::MAX, None, [0_u8; 32])
 }
 
 fn create_confined_directories(directory: &Dir, parent: &Path, label: &str) -> Result<Dir, String> {
@@ -5159,6 +5191,32 @@ project(':override').projectDir = file('vendor/custom')
         assert!(error.contains("quarantined replacement was preserved"));
         assert!(!tmp.path().join("generated.spec.md").exists());
         assert!(quarantine_contains(&parent, b"replacement\n"));
+    }
+
+    #[test]
+    fn file_identity_rejects_changed_bytes_on_the_same_filesystem_entry() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("generated.spec.md"), "generated\n").unwrap();
+        let parent = open_test_directory(tmp.path());
+        let original = file_identity(&parent.open("generated.spec.md").unwrap()).unwrap();
+
+        fs::write(tmp.path().join("generated.spec.md"), "replacement\n").unwrap();
+        let replacement = file_identity(&parent.open("generated.spec.md").unwrap()).unwrap();
+
+        assert_ne!(original, replacement);
+    }
+
+    #[test]
+    fn file_identity_digest_fails_closed_at_the_generated_output_bound() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("oversized"), b"123456789").unwrap();
+        let parent = open_test_directory(tmp.path());
+        let file = parent.open("oversized").unwrap();
+
+        let error = file_content_digest_with_limit(&file, 8).unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains("8-byte limit"));
     }
 
     fn quarantine_contains(parent: &Dir, expected: &[u8]) -> bool {

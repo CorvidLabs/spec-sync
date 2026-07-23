@@ -47,6 +47,7 @@ spec: mcp.spec.md
 | GitHub inaccessible repository, post-404 access loss, timeout, or malformed API output | In-process REST access returns an inconclusive error, not successful zero/not-found counts; no provider subprocess exists |
 | Duplicate issue IDs across specs or more than 100 unique IDs | IDs are globally deduplicated; over-limit batches fail before provider access |
 | Public-entry replacement before quarantine during staging, publication, or file rollback | Atomic quarantine preserves the replacement and rejects the batch |
+| Replacement reuses the same Unix inode or rewrites the same filesystem entry | Exact-byte identity rejects and preserves the replacement instead of trusting inode identity alone; hashing fails closed above the 64 MiB output bound |
 | Same-user process races a private staging or quarantine name | Outside the MCP caller/path-confinement threat boundary; deployments must isolate server-root mutation |
 | Drive, extended-drive, and UNC Windows roots with case differences | Normalize to one identity and derive only confined relative suffixes |
 | Non-ASCII Windows root component with a case difference | Compare through native ordinal ignore-case semantics without lossy UTF-8 conversion |
@@ -55,7 +56,7 @@ spec: mcp.spec.md
 
 The adversarial integration matrix lives in `tests/integration/mcp.rs`; its local write-enabled
 process helper leaves the shared `mcp_request` helper and all existing read-only callers unchanged.
-The focused MCP suite contains 44 non-Windows integration tests and 78 MCP unit tests, including
+The focused MCP suite contains 44 non-Windows integration tests and 79 MCP unit tests, including
 exact envelope and resource validation, explicit Git repository configuration, generation-failure reporting,
 Windows read/write junctions, identity-bound capability acquisition, cycle/bound and actual-byte budgets, bounded
 input/output, configured-ignore exceptions, conservative Git scoring, rollback, and transport

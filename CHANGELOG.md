@@ -22,7 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   failed-batch file rollback while conservatively retaining ambiguous empty parents; startup captures
   the root handle and identity before canonicalization and rejects any mismatched canonical reopen;
   read-root selection and generation rollback stay bound to retained parent capabilities and exact
-  filesystem identities even when ambient paths are replaced.
+  filesystem identities even when ambient paths are replaced; generated-file identity also binds
+  exact staged bytes so immediate Unix inode reuse cannot authorize a replacement, with fail-closed
+  hashing bounded at the generated-output limit.
 - **MCP manifest and issue checks fail closed under adversarial input** — bounded Cargo workspace
   discovery uses real TOML, while shared checked Gradle discovery handles Groovy/Kotlin comments,
   escapes, includes, and supported project directories; malformed discovery is inconclusive for

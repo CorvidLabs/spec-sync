@@ -453,7 +453,9 @@ pub(crate) fn parse_gradle_settings(content: &str) -> Result<Vec<GradleSettingsM
         for value in parse_gradle_include_statement(&statement)? {
             let name = value.trim().trim_start_matches(':');
             if !name.is_empty() {
-                included.push(name.replace(':', "/"));
+                let name = name.replace(':', "/");
+                require_gradle_path_within_root(&name, "include module path")?;
+                included.push(name);
             }
         }
         index += 1;
@@ -523,7 +525,10 @@ fn parse_gradle_project_dir_overrides(content: &str) -> Result<HashMap<String, S
         };
 
         let module = module_values[0].trim_start_matches(':').replace(':', "/");
-        overrides.insert(module, path.replace('\\', "/"));
+        require_gradle_path_within_root(&module, "projectDir module name")?;
+        let path = path.replace('\\', "/");
+        require_gradle_path_within_root(&path, "projectDir path")?;
+        overrides.insert(module, path);
         search_start = project_dir_index + ".projectDir".len();
     }
 
@@ -604,6 +609,22 @@ fn parse_gradle_root_dir_file_arguments(arguments: &str) -> Result<String, Strin
         return Err("Gradle new File projectDir assignment must contain one path".to_string());
     }
     Ok(path_values[0].clone())
+}
+
+/// Fail closed when a Gradle module name or projectDir path would escape the
+/// project root: reject `..` components, rooted/absolute paths, and
+/// Windows-style drive or verbatim prefixes.
+fn require_gradle_path_within_root(value: &str, context: &str) -> Result<(), String> {
+    let normalized = value.replace('\\', "/");
+    let rooted = normalized.starts_with('/')
+        || normalized.starts_with('~')
+        || normalized.as_bytes().get(1) == Some(&b':');
+    if rooted || normalized.split('/').any(|component| component == "..") {
+        return Err(format!(
+            "Gradle {context} '{value}' must be a relative path within the project root"
+        ));
+    }
+    Ok(())
 }
 
 fn require_gradle_expression_end(remainder: &str) -> Result<(), String> {
@@ -1312,6 +1333,61 @@ project(":outside").projectDir = new File(rootDir.parentFile, "outside")
             let error = parse_gradle_settings(&settings).unwrap_err();
             assert!(error.contains("Unsupported trailing Gradle projectDir assignment expression"));
         }
+    }
+
+    #[test]
+    fn gradle_settings_reject_paths_escaping_the_project_root() {
+        let error = parse_gradle_settings("include(\":..:x\")\n").unwrap_err();
+        assert!(error.contains("include module path"));
+        assert!(error.contains("../x"));
+
+        for assignment in [
+            r#"file("../outside")"#,
+            r#"new File(rootDir, "../outside")"#,
+            r#"file("/etc")"#,
+            r#"file("C:/outside")"#,
+        ] {
+            let settings =
+                format!("include(\":safe\")\nproject(\":safe\").projectDir = {assignment}\n");
+            let error = parse_gradle_settings(&settings).unwrap_err();
+            assert!(
+                error.contains("projectDir path"),
+                "expected projectDir path rejection for {assignment}, got: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn gradle_manifest_discovery_fails_closed_for_escaping_settings() {
+        let tmp = tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("member/src/main/kotlin")).unwrap();
+        fs::write(
+            tmp.path().join("settings.gradle.kts"),
+            "include(\":member\")\nproject(\":member\").projectDir = file(\"../outside\")\n",
+        )
+        .unwrap();
+
+        let error = discover_from_manifests_checked(tmp.path()).unwrap_err();
+        assert!(error.contains("Cannot parse Gradle settings manifest"));
+        let result = discover_from_manifests(tmp.path());
+        assert!(result.modules.is_empty());
+        assert!(result.source_dirs.is_empty());
+    }
+
+    #[test]
+    fn gradle_settings_accept_nested_module_with_project_dir_override() {
+        let modules = parse_gradle_settings(
+            "include(\":parent:child\")\nproject(\":parent:child\").projectDir = file(\"modules/child\")\n",
+        )
+        .unwrap();
+
+        assert_eq!(
+            modules,
+            vec![GradleSettingsModule {
+                name: "parent/child".to_string(),
+                path: "modules/child".to_string(),
+            }]
+        );
     }
 
     #[test]

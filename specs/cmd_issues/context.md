@@ -55,6 +55,9 @@ spec: cmd_issues.spec.md
   hide a configured specs tree. Replacing the pathname after snapshot does not alter parsed input.
 - Missing/empty specs and repository-resolution errors reach the common renderer; JSON,
   Markdown, and GitHub outputs therefore remain structurally valid on these early outcomes.
+- When retained config omits source directories, issue inspection creates a bounded sparse
+  detection snapshot through the retained project capability and supplies those results to exact
+  config parsing; a replacement ambient root cannot influence source selection.
 
 ## Files to Read First
 
@@ -72,8 +75,9 @@ CHG-0063 verification remains active. Provider classification, global deduplicat
 malformed output, transport failure, timeout behavior, bounded capability-rooted same-handle
 spec/source snapshots, preserved snapshot-based `--create` validation, configured-repository
 syntax checks, checked real-YAML issue fields, checked configuration loading, confined traversal,
-exact-byte retained configuration, selected-format early outcomes, and renderer sanitization have
-focused evidence. Fresh CHG definition reapproval, Windows runtime after the separator/fixture
+exact-byte retained configuration, capability-bound omitted-source discovery, selected-format
+early outcomes, and renderer sanitization have focused evidence. Fresh CHG definition reapproval,
+Windows runtime after the separator/fixture
 repair, final independent rereview, trust/provenance, and GitHub CI remain open; live provider
 success remains integration-only.
 

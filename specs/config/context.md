@@ -16,6 +16,8 @@ spec: config.spec.md
 - Retained filesystem callers use the crate-private checked snapshot parser: JSON/TOML is parsed
   from exact supplied bytes, real TOML syntax and known field types are validated first, and no
   pathname is reopened.
+- Capability callers can supply source-directory discovery from their retained project handle, so
+  an omitted source list does not trigger ambient root traversal or observe a path replacement.
 
 ## Files to Read First
 
@@ -25,5 +27,5 @@ spec: config.spec.md
 ## Current Status
 
 Stable 5.0 secret-free configuration schema with checked discovery available to validation gates.
-CHG-0063 adds fail-closed legacy GitHub repository shape validation and exact-byte checked parsing
-for capability-rooted issue inspection.
+CHG-0063 adds fail-closed legacy GitHub repository shape validation, exact-byte checked parsing,
+and capability-supplied source discovery for issue inspection.

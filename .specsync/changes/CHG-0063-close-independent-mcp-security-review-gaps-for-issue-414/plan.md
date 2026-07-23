@@ -48,3 +48,7 @@ artifact: plan
     project capability, enforcing same-handle identity and a 4 MiB bound, parsing exact JSON/TOML
     bytes with known-field type checks, validating MCP selected configs before compatibility
     loading, and routing missing-spec/repository failures through the selected structured renderer.
+16. Close the final adversarial selected-config and omitted-source findings with non-blocking,
+    no-follow, identity-verified regular-file snapshots, complete checked parsing, and
+    capability-derived source detection; rerun the exact-tree independent reviews and every final
+    gate.

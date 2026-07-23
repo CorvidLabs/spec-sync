@@ -89,6 +89,8 @@ security-sensitive callers.
 Acceptance Criteria
 
 - Parsing consumes the caller-supplied bytes and does not reopen the configuration pathname.
+- Capability callers can supply source-directory discovery; omitted source fields use those
+  supplied values without consulting an ambient root pathname.
 - Leading UTF-8 BOM compatibility, precedence-selected format, and omitted-source autodetection are
   preserved.
 - Malformed JSON/TOML and wrong-shaped known TOML fields return an error instead of silently

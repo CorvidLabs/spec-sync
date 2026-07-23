@@ -1,6 +1,6 @@
 ---
 module: config
-version: 10
+version: 11
 status: stable
 files:
   - src/config.rs
@@ -36,6 +36,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | `config_to_toml_lossy_fields` | `config: &SpecSyncConfig` | `Vec<&'static str>` | List config fields `config_to_toml` cannot represent (e.g. `customRules`), so `migrate` can refuse rather than silently drop them |
 | `read_config_file` | `path: &Path` | `Option<String>` | Read a config file, dropping a leading UTF-8 BOM (lossless) so it does not attach to the first TOML key or break JSON parsing; shared by the loaders and `migrate` so config reads handle a BOM consistently. `None` if unreadable |
 | `parse_config_content_checked` | `config_path: &Path, content: &str, root: &Path` | `Result<SpecSyncConfig, String>` | Crate-private exact-byte JSON/TOML parser for retained callers; validates syntax and known TOML field types without reopening the path |
+| `parse_config_content_checked_with_source_dirs` | `config_path: &Path, content: &str, root: &Path, detected_source_dirs: Option<Vec<String>>` | `Result<SpecSyncConfig, String>` | Crate-private exact-byte parser that lets capability callers supply source discovery so omitted source directories never consult an ambient root path |
 
 ## Invariants
 
@@ -53,6 +54,9 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 12. Security-sensitive retained-snapshot callers parse JSON/TOML from caller-supplied exact bytes,
     preserve normal precedence/autodetection behavior, and reject wrong-shaped known TOML fields
     instead of accepting line-parser defaults.
+13. Capability callers may supply source-directory discovery derived from their retained project
+    handle; when present, omitted `source_dirs`/`sourceDirs` uses that supplied list and never
+    reopens or scans the ambient root pathname.
 
 ## Behavioral Examples
 
@@ -133,6 +137,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |
 | 2026-07-14 | CHG-0034-support-extensionless-source-discovery-through-an-explicit-include-extensionless: Support extensionless source discovery through an explicit include_extensionless setting while preserving omitted and empty source_extensions defaults, with parser, scanner, strict file coverage, LOC coverage, and wizard regressions for extensionless-only and mixed projects |
 | 2026-07-14 | CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str: Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts |
+| 2026-07-22 | CHG-0063 capability-source follow-up: Let exact-byte config callers supply retained-capability source discovery so omitted source dirs cannot consult a replaced ambient root |
 
 ## Config File Structure
 

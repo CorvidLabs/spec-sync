@@ -42,9 +42,12 @@ Acceptance Criteria
 - On Windows, an absolute child may use either original or canonical startup spelling after both
   spellings are bound to the same root identity; only the suffix is opened through the retained
   canonical capability, and sibling-prefix lookalikes fail.
-- MCP validates the exact bounded selected-config snapshot before compatibility loading. Invalid
-  UTF-8, malformed JSON/TOML, and wrong-typed specs/source path selectors make tools and resources
-  inconclusive rather than substituting an empty/default project.
+- MCP opens selected config through verified regular-directory and regular-file capabilities,
+  rejects symlink/reparse and special-file paths without blocking, binds identity through the
+  bounded read, and validates the exact retained bytes with the complete checked config parser
+  before compatibility loading. Non-object JSON, invalid UTF-8, malformed JSON/TOML, and
+  wrong-typed known fields make tools and resources inconclusive rather than substituting an
+  empty/default project.
 
 ### REQ-mcp-003
 
@@ -174,6 +177,9 @@ Acceptance Criteria
   bytes. Malformed, invalid-UTF-8, wrong-shaped, replaced, or oversized config is a structured
   content-free finding that exits 1 without default-path fallback, no-spec success, or
   no-reference success.
+- If selected config omits source directories, source detection is derived from a bounded sparse
+  snapshot built through the retained project capability and supplied to config parsing; ambient
+  project-root replacement cannot influence source selection.
 - Unreadable specs and malformed or missing frontmatter are retained as path-attributed,
   content-free inspection findings in text, JSON, Markdown, and GitHub output; they suppress
   no-reference guidance and make the command exit 1.
@@ -323,6 +329,8 @@ security-sensitive callers.
 Acceptance Criteria
 
 - Parsing consumes caller-supplied bytes without reopening the configuration pathname.
+- Capability callers may supply retained source-directory detection, which omitted source fields
+  consume without consulting an ambient root pathname.
 - Leading UTF-8 BOM compatibility, selected-format behavior, and omitted-source autodetection are
   preserved.
 - Malformed JSON/TOML and wrong-shaped known TOML fields return an error rather than silently

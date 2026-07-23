@@ -44,7 +44,8 @@ artifact: testing
 | Missing/empty specs with malformed configured `github.repo` | Repository syntax error before no-spec/no-reference success; no Git auto-detection or provider access |
 | Selected project config is malformed, invalid UTF-8, or unreadable | Structured `<project-config>` finding, exit 1, and no default-path no-spec/no-reference success |
 | Selected CLI config is linked, non-regular, replaced during read, over 4 MiB, or has wrong-shaped known TOML fields | Same content-free configuration finding; only exact same-handle retained bytes can configure the scan |
-| MCP selected config is malformed, invalid UTF-8, or has wrong-typed specs/source selectors | Every allow-empty tool/resource is inconclusive before compatibility fallback; valid BOM-prefixed config remains supported |
+| Selected CLI config omits source directories and the ambient root is replaced | Source discovery remains bound to the original retained project capability and selects only the original tree |
+| MCP selected config is linked/reparse-backed, non-regular, blocking, replaced, non-object JSON, malformed, invalid UTF-8, or has wrong-typed known fields | Every allow-empty tool/resource is inconclusive before compatibility fallback; FIFO acquisition returns within the regression timeout and valid BOM-prefixed config remains supported |
 | Missing/empty specs or repository failure under JSON/Markdown/GitHub | One valid selected-format report is rendered; JSON parses and failure exits remain non-zero |
 | Legacy JSON `github.repo` is a number, boolean, object, or list | Surrounding valid config remains, but repository resolution fails closed without Git auto-detection |
 | CLI/MCP scan encounters unreadable or malformed/missing-frontmatter spec | Inconclusive with safe path attribution; no spec bytes and no successful zero-reference result |
@@ -94,6 +95,12 @@ lane, trust verification, Attest provenance, and GitHub CI remain pending. The l
 run passes formatting, lint, 27 `issues_` integrations, four MCP selected-config integrations, 87
 config unit tests, and 14 config-filtered integrations; these are not substitutes for final-tree
 full-lane evidence.
+The subsequent adversarial pass found non-object JSON fallback and linked/special-file MCP config
+acquisition. Both are now characterized and fixed. The latest focused run passes lint, installed
+Windows GNU cross-target compilation, 100 MCP unit tests, and 52 MCP integration tests, including
+non-object JSON, symlink, and bounded FIFO regressions. The earlier full lane passed 1,857 unit and
+287 integration tests plus release build and strict 100% coverage, but it predates this final patch
+and must be rerun.
 
 - `REQ-mcp-002`: `mcp::tests::test_repeated_tree_scans_share_one_confinement_budget`,
   `mcp::tests::snapshot_copies_the_exact_manifest_bytes_charged_during_discovery`,
@@ -268,9 +275,10 @@ full-lane evidence.
   proves wrong-shaped legacy JSON repository values remain invalid without discarding valid
   surrounding configuration or falling back to Git auto-detection.
 - `REQ-config-007`: retained-config hook tests plus
-  `issues_rejects_wrong_shaped_toml_path_fields_from_retained_snapshot` prove exact-byte parsing,
-  same-capability authority, post-snapshot pathname replacement resistance, and known-field type
-  rejection.
+  `issues_rejects_wrong_shaped_toml_path_fields_from_retained_snapshot` and
+  `commands::issues::tests::omitted_source_dirs_are_detected_through_the_retained_project_capability`
+  prove exact-byte parsing, same-capability authority, post-snapshot pathname replacement
+  resistance, capability-bound omitted-source discovery, and known-field type rejection.
 - `REQ-validator-008`:
   `validator::tests::malformed_gradle_settings_make_coverage_inconclusive` proves checked coverage
   returns no partial report and the compatibility wrapper carries an inconclusive diagnostic.

@@ -1,6 +1,6 @@
 ---
 module: cmd_issues
-version: 7
+version: 8
 status: stable
 files:
   - src/commands/issues.rs
@@ -78,7 +78,10 @@ path replacement cannot redirect issue inspection or `--create` validation.
     when it is a symlink/reparse point or non-regular entry, identity-checked through the same
     handle, and read at most once into a 4 MiB snapshot. Parsing and all later configuration use
     those exact retained bytes; malformed UTF-8, JSON/TOML syntax, or known TOML field shapes are
-    structured, content-free findings and cannot fall back to ambient/default paths.
+    structured, content-free findings and cannot fall back to ambient/default paths. If the config
+    omits source directories, a bounded sparse detection snapshot is built through the retained
+    project capability and supplied to config parsing, so ambient root replacement cannot change
+    source selection.
 16. Missing/empty specs and repository-resolution failures are rendered through the selected output
     format. JSON remains parseable, and Markdown/GitHub retain their structured headings and
     diagnostics instead of leaking an early text-only exit.
@@ -159,3 +162,4 @@ path replacement cannot redirect issue inspection or `--create` validation.
 | 2026-07-22 | CHG-0063 Windows CI follow-up: Normalize Windows diagnostic path separators to forward slashes while preserving literal Unix filename backslashes, and repair junction fixtures to use native path joins |
 | 2026-07-22 | CHG-0063 adversarial follow-up: Fail closed when a selected project config is unreadable or malformed so configured specs cannot disappear behind default-path no-spec success |
 | 2026-07-22 | CHG-0063 final configuration follow-up: Read selected config through one retained, bounded, same-handle snapshot; reject special entries and wrong-shaped TOML fields; preserve structured early output |
+| 2026-07-22 | CHG-0063 capability-source follow-up: Detect omitted source directories through a bounded retained-capability snapshot rather than a replaceable ambient root |

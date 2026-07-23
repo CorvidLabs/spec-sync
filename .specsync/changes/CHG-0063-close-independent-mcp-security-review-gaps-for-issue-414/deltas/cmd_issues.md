@@ -21,6 +21,9 @@ Acceptance Criteria
   non-link regular entry, is identity-checked through one bounded 4 MiB same-handle read, and is
   parsed/applied from those exact bytes. Invalid UTF-8, malformed JSON/TOML, or wrong-shaped known
   TOML fields are structured content-free findings that exit 1 without fallback.
+- Omitted source directories are detected from a bounded sparse snapshot built through the
+  retained project capability and supplied to exact config parsing; ambient root replacement
+  cannot alter source selection.
 - Unreadable specs and malformed or missing frontmatter are retained as path-attributed,
   content-free inspection findings in every output format, suppress no-reference guidance, and
   contribute to exit 1.
@@ -75,3 +78,5 @@ Acceptance Criteria
     produce fallback no-spec/no-reference success.
 14. Finding paths normalize separators only on Windows; Unix literal backslashes remain data.
 15. Missing/empty specs and repository-resolution failures use the selected structured renderer.
+16. Omitted source directories are detected through a bounded sparse snapshot rooted in the
+    retained project capability, never through a replaceable ambient root pathname.

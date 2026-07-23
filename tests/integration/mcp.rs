@@ -830,6 +830,128 @@ fn mcp_allow_empty_tool_and_resource_reject_wrong_typed_selected_path_fields() {
 }
 
 #[test]
+fn mcp_allow_empty_tool_and_resource_reject_non_object_json_config() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::write(root.join("specsync.json"), "[]\n").unwrap();
+
+    assert_mcp_allow_empty_reads_reject_config(
+        root,
+        "malformed JSON",
+        "non-object JSON configuration",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn mcp_rejects_selected_config_symlinks_and_fifos_without_blocking() {
+    use std::io::Write;
+    use std::os::unix::fs::symlink;
+    use std::process::{Command, Stdio};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    let symlink_tmp = TempDir::new().unwrap();
+    let symlink_root = symlink_tmp.path();
+    fs::create_dir_all(symlink_root.join(".specsync")).unwrap();
+    fs::write(
+        symlink_root.join("real-config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    symlink(
+        symlink_root.join("real-config.toml"),
+        symlink_root.join(".specsync/config.toml"),
+    )
+    .unwrap();
+    let symlink_output = specsync()
+        .arg("mcp")
+        .arg("--root")
+        .arg(symlink_root)
+        .write_stdin(
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\
+             \"params\":{\"name\":\"specsync_list_specs\",\"arguments\":{}}}\n",
+        )
+        .output()
+        .expect("failed to run MCP symlink-config rejection");
+    assert!(symlink_output.status.success());
+    let symlink_response: serde_json::Value =
+        serde_json::from_slice(&symlink_output.stdout).unwrap();
+    assert_eq!(symlink_response["result"]["isError"], true);
+    assert!(
+        symlink_response["result"]["content"][0]["text"]
+            .as_str()
+            .is_some_and(|error| error.contains("regular file"))
+    );
+
+    let fifo_tmp = TempDir::new().unwrap();
+    let fifo_root = fifo_tmp.path();
+    fs::create_dir_all(fifo_root.join(".specsync")).unwrap();
+    let fifo = fifo_root.join(".specsync/config.toml");
+    let mkfifo_status = Command::new("mkfifo")
+        .arg(&fifo)
+        .status()
+        .expect("failed to invoke mkfifo");
+    assert!(mkfifo_status.success());
+
+    let binary = specsync().get_program().to_os_string();
+    let mut command = Command::new(binary);
+    command
+        .arg("mcp")
+        .arg("--root")
+        .arg(fifo_root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = command.spawn().expect("failed to spawn MCP FIFO probe");
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(
+            b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\
+              \"params\":{\"name\":\"specsync_list_specs\",\"arguments\":{}}}\n",
+        )
+        .unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        if child
+            .try_wait()
+            .expect("failed to poll MCP FIFO probe")
+            .is_some()
+        {
+            break;
+        }
+        if Instant::now() >= deadline {
+            child
+                .kill()
+                .expect("failed to terminate blocked MCP FIFO probe");
+            let output = child
+                .wait_with_output()
+                .expect("failed to collect blocked MCP FIFO probe");
+            panic!(
+                "MCP blocked while opening a selected FIFO config; stdout: {}; stderr: {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    let fifo_output = child
+        .wait_with_output()
+        .expect("failed to collect MCP FIFO rejection");
+    assert!(fifo_output.status.success());
+    let fifo_response: serde_json::Value = serde_json::from_slice(&fifo_output.stdout).unwrap();
+    assert_eq!(fifo_response["result"]["isError"], true);
+    assert!(
+        fifo_response["result"]["content"][0]["text"]
+            .as_str()
+            .is_some_and(|error| error.contains("regular file"))
+    );
+}
+
+#[test]
 fn mcp_allow_empty_tool_and_resource_preserve_valid_selected_config_compatibility() {
     for (relative_config, config) in [
         (

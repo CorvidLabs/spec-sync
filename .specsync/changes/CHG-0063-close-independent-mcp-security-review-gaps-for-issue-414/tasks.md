@@ -17,7 +17,8 @@ artifact: tasks
 - [x] Add the MCP semantic delta, companions, public documentation, and release changelog entry.
 - [x] Run the then-current focused MCP/unit/integration suites, build/type/docs gates, and Windows
   GNU cross-target compilation; do not treat those earlier counts as final-tree evidence.
-- [x] Replay the hardened MCP against the private `CorvidLabs/spec-sync-sandbox` testbed.
+- [ ] Replay the final hardened MCP revision against the private
+  `CorvidLabs/spec-sync-sandbox` testbed.
 - [x] Resolve the independent review's case-insensitive `.git` finding and obtain a clean rereview.
 - [x] Characterize and fix startup root replacement, snapshot omissions, atomic generation, output
   bounds, and Windows write-junction coverage from the second adversarial review.
@@ -102,6 +103,11 @@ artifact: tasks
 - [x] Close the renewed retained-config and early-rendering findings with bounded same-handle CLI
   config snapshots, exact-byte/type-checked parsing, MCP pre-load config validation, and selected
   JSON/Markdown/GitHub output on missing-spec/repository outcomes.
+- [x] Close the final adversarial selected-config findings by rejecting non-object JSON and
+  acquiring config through non-blocking, no-follow, identity-verified regular-file snapshots.
+- [x] Detect omitted CLI issue source directories through a bounded retained-capability snapshot
+  and supply them to exact config parsing without ambient root access.
+- [ ] Obtain a clean post-fix acceptance rereview and adversarial security/compatibility rereview.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.
 - [ ] Obtain fresh definition reapproval after this material independent-review artifact amendment.

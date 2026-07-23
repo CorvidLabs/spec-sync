@@ -29,6 +29,18 @@ const MAX_SPEC_SNAPSHOT_TOTAL_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_SPEC_SNAPSHOT_FILES: usize = 10_000;
 const MAX_SPEC_SNAPSHOT_ENTRIES: usize = 100_000;
 const MAX_CONFIG_SNAPSHOT_BYTES: u64 = 4 * 1024 * 1024;
+const SOURCE_DETECTION_MANIFESTS: &[&str] = &[
+    "Cargo.toml",
+    "Package.swift",
+    "settings.gradle",
+    "settings.gradle.kts",
+    "build.gradle",
+    "build.gradle.kts",
+    "package.json",
+    "pubspec.yaml",
+    "go.mod",
+    "pyproject.toml",
+];
 
 struct OpenedSpecsDirectory {
     project: Dir,
@@ -499,6 +511,147 @@ where
     Ok(Some(bytes))
 }
 
+fn source_detection_skips_directory(name: &OsStr) -> bool {
+    name.to_str().is_some_and(|name| {
+        name.starts_with('.')
+            || matches!(
+                name,
+                "node_modules"
+                    | "target"
+                    | "vendor"
+                    | "dist"
+                    | "build"
+                    | "out"
+                    | ".next"
+                    | ".nuxt"
+                    | ".output"
+                    | ".cache"
+                    | ".turbo"
+                    | "__pycache__"
+                    | ".mypy_cache"
+                    | ".pytest_cache"
+                    | ".tox"
+                    | ".venv"
+                    | "venv"
+                    | ".dart_tool"
+                    | ".gradle"
+                    | "bin"
+                    | "obj"
+            )
+    })
+}
+
+fn is_source_detection_manifest(name: &OsStr) -> bool {
+    name.to_str()
+        .is_some_and(|name| SOURCE_DETECTION_MANIFESTS.contains(&name))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn copy_source_detection_tree(
+    directory: &Dir,
+    destination_root: &Path,
+    relative: &Path,
+    entries_seen: &mut usize,
+    manifest_bytes: &mut u64,
+) -> Result<(), SpecInspectionFinding> {
+    let entries = directory.entries().map_err(|_| project_config_finding())?;
+    let mut names = Vec::<OsString>::new();
+    for entry in entries {
+        if *entries_seen >= MAX_SPEC_SNAPSHOT_ENTRIES {
+            return Err(project_config_finding());
+        }
+        *entries_seen += 1;
+        names.push(entry.map_err(|_| project_config_finding())?.file_name());
+    }
+    names.sort();
+
+    for name in names {
+        let metadata = directory
+            .symlink_metadata(&name)
+            .map_err(|_| project_config_finding())?;
+        if is_link_or_reparse_point(&metadata) {
+            return Err(project_config_finding());
+        }
+
+        let child_relative = relative.join(&name);
+        let child_destination = destination_root.join(&child_relative);
+        if metadata.is_dir() {
+            if source_detection_skips_directory(&name) {
+                continue;
+            }
+            let child =
+                open_verified_directory(directory, &name).map_err(|_| project_config_finding())?;
+            fs::create_dir_all(&child_destination).map_err(|_| project_config_finding())?;
+            copy_source_detection_tree(
+                &child,
+                destination_root,
+                &child_relative,
+                entries_seen,
+                manifest_bytes,
+            )?;
+            continue;
+        }
+        if !metadata.is_file() {
+            continue;
+        }
+
+        if let Some(parent) = child_destination.parent() {
+            fs::create_dir_all(parent).map_err(|_| project_config_finding())?;
+        }
+        if is_source_detection_manifest(&name) {
+            let identity = discovered_file_identity(directory, &name, &metadata)
+                .map_err(|_| project_config_finding())?;
+            let bytes = read_verified_bytes(directory, &name, identity, MAX_CONFIG_SNAPSHOT_BYTES)
+                .map_err(|_| project_config_finding())?;
+            *manifest_bytes = manifest_bytes
+                .checked_add(bytes.len() as u64)
+                .filter(|total| *total <= MAX_SPEC_SNAPSHOT_TOTAL_BYTES)
+                .ok_or_else(project_config_finding)?;
+            fs::write(child_destination, bytes).map_err(|_| project_config_finding())?;
+        } else {
+            fs::write(child_destination, []).map_err(|_| project_config_finding())?;
+        }
+    }
+    Ok(())
+}
+
+fn detect_source_dirs_from_project_capability(
+    project: &Dir,
+) -> Result<Vec<String>, SpecInspectionFinding> {
+    let snapshot = tempfile::Builder::new()
+        .prefix("specsync-issues-source-detection-")
+        .tempdir()
+        .map_err(|_| project_config_finding())?;
+    let mut entries_seen = 0usize;
+    let mut manifest_bytes = 0u64;
+    copy_source_detection_tree(
+        project,
+        snapshot.path(),
+        Path::new(""),
+        &mut entries_seen,
+        &mut manifest_bytes,
+    )?;
+    crate::config::detect_source_dirs_checked(snapshot.path()).map_err(|_| project_config_finding())
+}
+
+fn config_declares_source_dirs(
+    relative_path: &Path,
+    content: &str,
+) -> Result<bool, SpecInspectionFinding> {
+    if relative_path.extension().and_then(OsStr::to_str) == Some("toml") {
+        return toml::from_str::<toml::Table>(content)
+            .map(|table| table.contains_key("source_dirs"))
+            .map_err(|_| project_config_finding());
+    }
+    serde_json::from_str::<serde_json::Value>(content)
+        .map(|value| {
+            value
+                .as_object()
+                .is_some_and(|object| object.contains_key("sourceDirs"))
+        })
+        .map_err(|_| project_config_finding())
+}
+
 fn load_issues_config_checked(
     project: &Dir,
     root: &Path,
@@ -531,16 +684,22 @@ where
         };
         after_snapshot(relative_path);
         let content = String::from_utf8(bytes).map_err(|_| project_config_finding())?;
-        return crate::config::parse_config_content_checked(
+        let detected_source_dirs = if config_declares_source_dirs(relative_path, &content)? {
+            None
+        } else {
+            Some(detect_source_dirs_from_project_capability(project)?)
+        };
+        return crate::config::parse_config_content_checked_with_source_dirs(
             &root.join(relative_path),
             &content,
             root,
+            detected_source_dirs,
         )
         .map_err(|_| project_config_finding());
     }
 
     Ok(types::SpecSyncConfig {
-        source_dirs: crate::config::detect_source_dirs(root),
+        source_dirs: detect_source_dirs_from_project_capability(project)?,
         ..Default::default()
     })
 }
@@ -1607,6 +1766,46 @@ mod tests {
         assert_eq!(snapshots.len(), 1);
         assert!(snapshots[0].content.contains("ORIGINAL"));
         assert!(!snapshots[0].content.contains("REPLACEMENT"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn omitted_source_dirs_are_detected_through_the_retained_project_capability() {
+        use std::os::unix::fs::symlink;
+
+        let temporary = tempfile::TempDir::new().unwrap();
+        let original = temporary.path().join("original");
+        let replacement = temporary.path().join("replacement");
+        fs::create_dir_all(original.join("original-source")).unwrap();
+        fs::create_dir_all(replacement.join("replacement-source")).unwrap();
+        fs::write(
+            original.join("original-source/lib.rs"),
+            "pub fn original() {}\n",
+        )
+        .unwrap();
+        fs::write(
+            replacement.join("replacement-source/lib.rs"),
+            "pub fn replacement() {}\n",
+        )
+        .unwrap();
+        fs::write(original.join("specsync.json"), r#"{"specsDir":"specs"}"#).unwrap();
+        fs::write(replacement.join("specsync.json"), r#"{"specsDir":"specs"}"#).unwrap();
+
+        let active = temporary.path().join("active");
+        symlink(&original, &active).unwrap();
+        let project = open_verified_root(&active).unwrap();
+        let config = load_issues_config_checked_with_hooks(
+            &project,
+            &active,
+            |_| {},
+            |_| {
+                fs::rename(&active, temporary.path().join("original-link")).unwrap();
+                symlink(&replacement, &active).unwrap();
+            },
+        )
+        .expect("source discovery must remain bound to the retained project");
+
+        assert_eq!(config.source_dirs, vec!["original-source"]);
     }
 
     #[cfg(unix)]

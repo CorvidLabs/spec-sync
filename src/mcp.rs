@@ -1,4 +1,4 @@
-use crate::config::{detect_source_dirs, load_config};
+use crate::config::{detect_source_dirs, load_config, parse_config_content_checked};
 use crate::deps::build_dep_graph;
 use crate::generator::generate_specs_for_unspecced_modules_paths;
 use crate::manifest::parse_gradle_settings;
@@ -8,7 +8,7 @@ use crate::validator::{
     compute_coverage_checked, find_spec_files, get_schema_table_names, validate_spec,
 };
 use cap_std::ambient_authority;
-use cap_std::fs::{Dir, OpenOptions};
+use cap_std::fs::{Dir, Metadata, OpenOptions};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -597,7 +597,7 @@ impl ProjectSnapshot {
         let destination = Dir::open_ambient_dir(directory.path(), ambient_authority())
             .map_err(|error| format!("Cannot open MCP snapshot capability: {error}"))?;
         let mut budget = SnapshotBudget::default();
-        copy_snapshot_configuration(source, &destination, &mut budget)?;
+        copy_snapshot_configuration(source, &destination, directory.path(), &mut budget)?;
         let snapshot_config = load_config(directory.path());
         let configured_exclusions: HashSet<String> =
             snapshot_config.exclude_dirs.iter().cloned().collect();
@@ -1082,6 +1082,7 @@ fn snapshot_input_overlaps(input: &Path, child: &Path) -> bool {
 fn copy_snapshot_configuration(
     source: &Dir,
     destination: &Dir,
+    destination_root: &Path,
     budget: &mut SnapshotBudget,
 ) -> Result<(), String> {
     for relative in [
@@ -1090,30 +1091,12 @@ fn copy_snapshot_configuration(
         ".specsync.toml",
         "specsync.json",
     ] {
-        if !source.try_exists(relative).map_err(|error| {
-            format!(
-                "Cannot inspect MCP configuration {relative} through its root capability: {error}"
-            )
-        })? {
-            continue;
-        }
-        let input = source.open(relative).map_err(|error| {
-            format!("Cannot open MCP configuration {relative} through its root capability: {error}")
-        })?;
-        let mut bytes = Vec::new();
-        input
-            .take(MAX_PROJECT_FILE_BYTES + 1)
-            .read_to_end(&mut bytes)
-            .map_err(|error| format!("Cannot read MCP configuration {relative}: {error}"))?;
-        if bytes.len() as u64 > MAX_PROJECT_FILE_BYTES {
-            return Err(format!(
-                "MCP configuration exceeds the {} MiB per-file limit: {relative}",
-                MAX_PROJECT_FILE_BYTES / (1024 * 1024)
-            ));
-        }
         let path = Path::new(relative);
+        let Some(bytes) = read_snapshot_configuration(source, path)? else {
+            continue;
+        };
         budget.charge_file(path, bytes.len() as u64)?;
-        validate_snapshot_configuration(relative, &bytes)?;
+        validate_snapshot_configuration(destination_root, relative, &bytes)?;
         if let Some(parent) = path.parent()
             && !parent.as_os_str().is_empty()
         {
@@ -1130,19 +1113,372 @@ fn copy_snapshot_configuration(
     Ok(())
 }
 
-fn validate_snapshot_configuration(relative: &str, bytes: &[u8]) -> Result<(), String> {
+#[cfg(unix)]
+type SnapshotEntryIdentity = (u64, u64);
+
+#[cfg(windows)]
+type SnapshotEntryIdentity = (u32, u64);
+
+#[cfg(not(any(unix, windows)))]
+type SnapshotEntryIdentity = (u64, Option<std::time::SystemTime>);
+
+#[cfg(unix)]
+fn snapshot_metadata_identity(metadata: &Metadata) -> io::Result<SnapshotEntryIdentity> {
+    use cap_std::fs::MetadataExt;
+
+    Ok((metadata.dev(), metadata.ino()))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn snapshot_metadata_identity(metadata: &Metadata) -> io::Result<SnapshotEntryIdentity> {
+    Ok((metadata.len(), metadata.modified().ok()))
+}
+
+#[cfg(unix)]
+fn snapshot_file_identity(file: &cap_std::fs::File) -> io::Result<SnapshotEntryIdentity> {
+    snapshot_metadata_identity(&file.metadata()?)
+}
+
+#[cfg(windows)]
+fn snapshot_file_identity(file: &cap_std::fs::File) -> io::Result<SnapshotEntryIdentity> {
+    use std::os::windows::io::AsRawHandle;
+
+    windows_handle_identity(file.as_raw_handle().cast())
+}
+
+#[cfg(not(any(unix, windows)))]
+fn snapshot_file_identity(file: &cap_std::fs::File) -> io::Result<SnapshotEntryIdentity> {
+    snapshot_metadata_identity(&file.metadata()?)
+}
+
+#[cfg(windows)]
+fn snapshot_metadata_is_link(metadata: &Metadata) -> bool {
+    use cap_std::fs::MetadataExt;
+
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+    metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+#[cfg(not(windows))]
+fn snapshot_metadata_is_link(metadata: &Metadata) -> bool {
+    metadata.file_type().is_symlink()
+}
+
+#[cfg(not(windows))]
+fn open_snapshot_configuration_directory(
+    parent: &Dir,
+    name: &OsStr,
+    relative: &Path,
+) -> Result<Option<Dir>, String> {
+    let before = match parent.symlink_metadata(name) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(format!(
+                "Cannot inspect MCP configuration directory {}: {error}",
+                relative.display()
+            ));
+        }
+    };
+    if snapshot_metadata_is_link(&before) || !before.is_dir() {
+        return Err(format!(
+            "Selected MCP configuration {} must not traverse a symlink and must use regular directories",
+            relative.display()
+        ));
+    }
+    let expected = snapshot_metadata_identity(&before).map_err(|error| {
+        format!(
+            "Cannot identify MCP configuration directory {}: {error}",
+            relative.display()
+        )
+    })?;
+    let directory = parent.open_dir(name).map_err(|error| {
+        format!(
+            "Cannot open MCP configuration directory {}: {error}",
+            relative.display()
+        )
+    })?;
+    let opened =
+        snapshot_metadata_identity(&directory.dir_metadata().map_err(|error| {
+            format!("Cannot inspect opened MCP configuration directory: {error}")
+        })?)
+        .map_err(|error| format!("Cannot identify opened MCP configuration directory: {error}"))?;
+    let after = parent.symlink_metadata(name).map_err(|error| {
+        format!(
+            "Cannot re-inspect MCP configuration directory {}: {error}",
+            relative.display()
+        )
+    })?;
+    if snapshot_metadata_is_link(&after)
+        || !after.is_dir()
+        || snapshot_metadata_identity(&after).ok() != Some(expected)
+        || opened != expected
+    {
+        return Err(format!(
+            "Selected MCP configuration directory changed during inspection: {}",
+            relative.display()
+        ));
+    }
+    Ok(Some(directory))
+}
+
+#[cfg(windows)]
+fn open_snapshot_configuration_directory(
+    parent: &Dir,
+    name: &OsStr,
+    relative: &Path,
+) -> Result<Option<Dir>, String> {
+    let before = match parent.symlink_metadata(name) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(format!(
+                "Cannot inspect MCP configuration directory {}: {error}",
+                relative.display()
+            ));
+        }
+    };
+    if snapshot_metadata_is_link(&before) || !before.is_dir() {
+        return Err(format!(
+            "Selected MCP configuration {} must not traverse a reparse point and must use regular directories",
+            relative.display()
+        ));
+    }
+    let directory = parent.open_dir(name).map_err(|error| {
+        format!(
+            "Cannot open MCP configuration directory {}: {error}",
+            relative.display()
+        )
+    })?;
+    let expected = directory_identity(&directory)
+        .map_err(|error| format!("Cannot identify opened MCP configuration directory: {error}"))?;
+    let observed = parent.open_dir(name).map_err(|error| {
+        format!(
+            "Cannot re-open MCP configuration directory {}: {error}",
+            relative.display()
+        )
+    })?;
+    let after = parent.symlink_metadata(name).map_err(|error| {
+        format!(
+            "Cannot re-inspect MCP configuration directory {}: {error}",
+            relative.display()
+        )
+    })?;
+    if snapshot_metadata_is_link(&after)
+        || !after.is_dir()
+        || directory_identity(&observed).ok() != Some(expected)
+    {
+        return Err(format!(
+            "Selected MCP configuration directory changed during inspection: {}",
+            relative.display()
+        ));
+    }
+    Ok(Some(directory))
+}
+
+fn read_snapshot_configuration(source: &Dir, relative: &Path) -> Result<Option<Vec<u8>>, String> {
+    let components = relative.components().collect::<Vec<_>>();
+    let Some((file_name, parent_components)) = components.split_last() else {
+        return Err("Selected MCP configuration path is empty".to_string());
+    };
+    let Component::Normal(file_name) = file_name else {
+        return Err(format!(
+            "Selected MCP configuration path is not project-relative: {}",
+            relative.display()
+        ));
+    };
+
+    let mut parent = source
+        .try_clone()
+        .map_err(|error| format!("Cannot clone MCP server root capability: {error}"))?;
+    let mut traversed = PathBuf::new();
+    for component in parent_components {
+        let Component::Normal(name) = component else {
+            return Err(format!(
+                "Selected MCP configuration path is not project-relative: {}",
+                relative.display()
+            ));
+        };
+        traversed.push(name);
+        parent = match open_snapshot_configuration_directory(&parent, name, &traversed)? {
+            Some(directory) => directory,
+            None => return Ok(None),
+        };
+    }
+
+    let before = match parent.symlink_metadata(file_name) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(format!(
+                "Cannot inspect MCP configuration {}: {error}",
+                relative.display()
+            ));
+        }
+    };
+    if snapshot_metadata_is_link(&before) || !before.is_file() {
+        return Err(format!(
+            "Selected MCP configuration {} must be a regular file and must not be a symlink or reparse point",
+            relative.display()
+        ));
+    }
+
+    #[cfg(not(windows))]
+    let expected_metadata_identity =
+        Some(snapshot_metadata_identity(&before).map_err(|error| {
+            format!(
+                "Cannot identify MCP configuration {}: {error}",
+                relative.display()
+            )
+        })?);
+    let mut options = OpenOptions::new();
+    options.read(true)._cap_fs_ext_nonblock(true);
+    let mut file = parent.open_with(file_name, &options).map_err(|error| {
+        format!(
+            "Cannot open MCP configuration {} as a non-blocking regular file: {error}",
+            relative.display()
+        )
+    })?;
+    let opened_metadata = file.metadata().map_err(|error| {
+        format!(
+            "Cannot inspect opened MCP configuration {}: {error}",
+            relative.display()
+        )
+    })?;
+    if !opened_metadata.is_file() {
+        return Err(format!(
+            "Selected MCP configuration {} must be a regular file",
+            relative.display()
+        ));
+    }
+    let opened_identity = snapshot_file_identity(&file).map_err(|error| {
+        format!(
+            "Cannot identify opened MCP configuration {}: {error}",
+            relative.display()
+        )
+    })?;
+    let after_open = parent.symlink_metadata(file_name).map_err(|error| {
+        format!(
+            "Cannot re-inspect MCP configuration {}: {error}",
+            relative.display()
+        )
+    })?;
+    let metadata_changed = {
+        #[cfg(not(windows))]
+        {
+            expected_metadata_identity.is_some_and(|expected| {
+                snapshot_metadata_identity(&after_open).ok() != Some(expected)
+            })
+        }
+        #[cfg(windows)]
+        {
+            false
+        }
+    };
+    if snapshot_metadata_is_link(&after_open) || !after_open.is_file() || metadata_changed {
+        return Err(format!(
+            "Selected MCP configuration changed during inspection: {}",
+            relative.display()
+        ));
+    }
+    #[cfg(windows)]
+    {
+        let observed = parent.open(file_name).map_err(|error| {
+            format!(
+                "Cannot re-open MCP configuration {}: {error}",
+                relative.display()
+            )
+        })?;
+        if snapshot_file_identity(&observed).ok() != Some(opened_identity) {
+            return Err(format!(
+                "Selected MCP configuration changed during inspection: {}",
+                relative.display()
+            ));
+        }
+    }
+
+    let mut bytes = Vec::new();
+    Read::by_ref(&mut file)
+        .take(MAX_PROJECT_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            format!(
+                "Cannot read MCP configuration {}: {error}",
+                relative.display()
+            )
+        })?;
+    if bytes.len() as u64 > MAX_PROJECT_FILE_BYTES {
+        return Err(format!(
+            "MCP configuration exceeds the {} MiB per-file limit: {}",
+            MAX_PROJECT_FILE_BYTES / (1024 * 1024),
+            relative.display()
+        ));
+    }
+    let after_read = parent.symlink_metadata(file_name).map_err(|error| {
+        format!(
+            "Cannot re-inspect MCP configuration {} after reading: {error}",
+            relative.display()
+        )
+    })?;
+    let metadata_changed = {
+        #[cfg(not(windows))]
+        {
+            expected_metadata_identity.is_some_and(|expected| {
+                snapshot_metadata_identity(&after_read).ok() != Some(expected)
+            })
+        }
+        #[cfg(windows)]
+        {
+            false
+        }
+    };
+    if snapshot_metadata_is_link(&after_read)
+        || !after_read.is_file()
+        || metadata_changed
+        || snapshot_file_identity(&file).ok() != Some(opened_identity)
+    {
+        return Err(format!(
+            "Selected MCP configuration changed while it was being read: {}",
+            relative.display()
+        ));
+    }
+    Ok(Some(bytes))
+}
+
+fn validate_snapshot_configuration(
+    destination_root: &Path,
+    relative: &str,
+    bytes: &[u8],
+) -> Result<(), String> {
     let content = std::str::from_utf8(bytes)
         .map_err(|_| format!("Selected MCP configuration {relative} is not valid UTF-8"))?;
     let content = content.trim_start_matches('\u{feff}');
-    if Path::new(relative).extension().and_then(OsStr::to_str) == Some("toml") {
-        let config = toml::from_str::<toml::Value>(content)
-            .map_err(|_| format!("Selected MCP configuration {relative} is malformed TOML"))?;
-        validate_toml_snapshot_path_selectors(relative, &config)
+    if relative.ends_with(".toml") {
+        let value = toml::from_str::<toml::Value>(content).map_err(|error| {
+            format!("Selected MCP configuration {relative} is malformed TOML: {error}")
+        })?;
+        validate_toml_snapshot_path_selectors(relative, &value)?;
     } else {
-        let config = serde_json::from_str::<Value>(content)
-            .map_err(|_| format!("Selected MCP configuration {relative} is malformed JSON"))?;
-        validate_json_snapshot_path_selectors(relative, &config)
+        let value = serde_json::from_str::<Value>(content).map_err(|error| {
+            format!("Selected MCP configuration {relative} is malformed JSON: {error}")
+        })?;
+        if !value.is_object() {
+            return Err(format!(
+                "Selected MCP configuration {relative} is malformed JSON: root must be an object"
+            ));
+        }
+        validate_json_snapshot_path_selectors(relative, &value)?;
     }
+    parse_config_content_checked(&destination_root.join(relative), content, destination_root)
+        .map(|_| ())
+        .map_err(|error| {
+            let format = if relative.ends_with(".toml") {
+                "TOML"
+            } else {
+                "JSON"
+            };
+            format!("Selected MCP configuration {relative} is malformed {format}: {error}")
+        })
 }
 
 fn validate_json_snapshot_path_selectors(relative: &str, config: &Value) -> Result<(), String> {

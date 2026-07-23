@@ -71,9 +71,11 @@ spec: mcp.spec.md
   and a stable content-free reason.
 - Issue diagnostic path normalization is platform-specific: Windows separators render as `/`,
   while Unix literal backslashes remain filename bytes instead of being reinterpreted as hierarchy.
-- Selected configuration is validated directly from its already-bounded snapshot before
-  compatibility loading. Invalid UTF-8, malformed JSON/TOML, and wrong-typed specs/source path
-  selectors fail tools and resources instead of reverting to default paths.
+- Selected configuration is opened non-blocking through verified regular-directory and
+  regular-file capabilities, with symlink/reparse rejection and identity checks before and after
+  its bounded read. The exact retained bytes pass complete checked parsing before compatibility
+  loading, so non-object JSON, invalid UTF-8, malformed JSON/TOML, and wrong-typed known fields
+  fail tools and resources instead of reverting to default paths.
 - Windows confinement fixtures construct every path with native joins. The absolute-child read
   fixture is a valid one-file, fully covered project so its success proves root selection and
   downstream coverage execution; the junction fixture first proves that the reparse point targets
@@ -95,6 +97,7 @@ publication; and no embedded provider or credential surfaces. Shared real-YAML i
 checked top-level shapes, duplicate/global malformed rejection, checked traversal/non-UTF-8
 discovery, relative content-free diagnostics, Windows startup-alias absolute-child handling, and
 selected-config fail-closed validation now have focused implementation and regression coverage.
-The latest adversarial Unix-backslash diagnostic collision is fixed with an OS-specific
-regression. Fresh definition reapproval, Windows runtime CI, independent rereview, and final
+The latest adversarial config review found and closed non-object JSON fallback plus
+symlink/FIFO acquisition. The focused MCP suite and installed Windows cross-target compilation
+pass; fresh definition reapproval, Windows runtime CI, independent rereview, and final
 repository/trust/provenance/CI gates remain open.

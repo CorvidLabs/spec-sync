@@ -19,8 +19,12 @@ artifact: design
 - For CLI issues, retain one project capability for config and specs. Open the selected config as
   a non-link regular file, bind its discovered/open/read-complete identity, cap it at 4 MiB, and
   parse/apply only the retained bytes.
-- Validate MCP selected config bytes and specs/source selector types before the compatibility
-  loader can substitute defaults.
+- If CLI issue config omits source directories, build a bounded sparse detection snapshot through
+  that retained project capability and pass the detected list into exact-byte config parsing.
+- Open MCP selected config non-blocking through verified regular-directory and regular-file
+  capabilities, reject symlink/reparse and special-file paths, bind identity through the bounded
+  read, and pass the exact retained bytes through complete checked config parsing before the
+  compatibility loader can substitute defaults.
 
 ## Bounded I/O
 

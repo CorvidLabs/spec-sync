@@ -66,6 +66,9 @@ spec: cmd_issues.spec.md
   are reported as inconclusive inspection findings.
 - Must not reopen a discovered spec or mapped-source path for issue parsing or `--create`
   validation.
+- When selected config omits source directories, detection must run through the retained project
+  capability with deterministic file/byte bounds; it must not consult a replaceable ambient root
+  pathname.
 
 ## Out of Scope
 
@@ -120,3 +123,5 @@ Acceptance Criteria
 - Markdown/GitHub code spans pad content when a path starts or ends with a backtick.
 - Exits 1 when any reference is not found (404), any verification error occurred, or any spec
   inspection finding exists; otherwise exits 0.
+- Omitted source-directory discovery is derived from a bounded sparse snapshot built through the
+  retained project capability, and a post-config ambient root replacement cannot alter it.

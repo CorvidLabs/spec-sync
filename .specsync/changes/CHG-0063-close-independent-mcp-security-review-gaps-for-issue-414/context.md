@@ -153,3 +153,17 @@ selected JSON/Markdown/GitHub renderer. CHG-0062 and CHG-0064 are accepted/curre
 CHG-0063 approval and PASS verdicts predate this material artifact change, so fresh exact-digest
 approval, independent rereviews, repository/trust/provenance gates, private-sandbox replay, hosted
 Windows runtime, and GitHub CI remain required.
+
+The next adversarial pass found two medium MCP config gaps: generic JSON syntax validation accepted
+an array that the compatibility loader replaced with defaults, and ambient selected-config opens
+could follow a link or block indefinitely on a FIFO. MCP now traverses verified regular-directory
+capabilities, rejects symlink/reparse and non-regular endpoints, opens non-blocking, binds identity
+before and after the bounded read, and passes the exact retained bytes through the complete checked
+config parser. Focused MCP tests and installed Windows cross-target compilation pass; the final
+independent rereviews and exact-tree repository/trust/provenance/hosted-CI gates remain required.
+
+The acceptance audit additionally found that retained config parsing still invoked ambient
+source-directory autodetection when the source list was omitted. Issue inspection now builds a
+bounded sparse detection snapshot through the retained project capability and supplies the result
+to exact-byte config parsing. A regression swaps the ambient root after the config snapshot and
+proves that only the original capability's source tree is selected.

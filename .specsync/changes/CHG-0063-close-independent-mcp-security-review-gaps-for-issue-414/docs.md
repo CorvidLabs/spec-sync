@@ -57,7 +57,11 @@ artifact: docs
   repository/resource/number URL identity and raw duplicate checks before PR filtering.
 - Document that CLI issue config is one retained, same-handle, 4 MiB snapshot parsed from exact
   bytes; linked/non-regular/replaced/malformed/wrong-shaped config fails closed. MCP likewise
-  validates selected config bytes and path selectors before compatibility loading.
+  acquires selected config through a no-follow, non-blocking, identity-verified regular-file
+  snapshot and passes the exact bytes through complete checked parsing before compatibility
+  loading.
+- Document that omitted CLI issue source directories are detected through a bounded sparse
+  retained-capability snapshot rather than a replaceable ambient root path.
 - Document that missing/empty specs and repository-resolution failures use the selected
   JSON/Markdown/GitHub renderer instead of text-only early exits.
 - Keep fresh Windows runtime and final repository/trust/provenance evidence described as pending

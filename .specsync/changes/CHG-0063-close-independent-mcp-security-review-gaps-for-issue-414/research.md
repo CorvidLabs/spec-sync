@@ -33,6 +33,14 @@ artifact: research
   `[workspace]`. Parse bounded Cargo bytes as TOML and reject malformed workspace shapes.
 - Preflighting an ambient config pathname and later reopening it leaves a replacement interval.
   Security-sensitive callers must parse the exact bytes read through the retained handle and
-  validate known field types before compatibility defaults can erase configured paths.
+  validate the complete known shape before compatibility defaults can erase configured paths.
+- The final adversarial pass demonstrated that syntax-only parsing still accepted a JSON array and
+  that ambient config opens could follow links or block on a FIFO. Selected MCP config therefore
+  needs the same no-follow, regular-file, identity-through-read discipline as CLI issue config,
+  with non-blocking acquisition for special-file races.
+- Exact retained config bytes are insufficient if omitted source fields later invoke ambient
+  autodetection. Capability callers must supply discovery derived from the same retained project
+  identity; a bounded sparse snapshot preserves existing manifest/extension behavior without
+  reopening the root pathname.
 - Early text-only returns violate caller-selected structured output contracts even when the exit
   status is correct; terminal outcomes must flow through one format-aware renderer.

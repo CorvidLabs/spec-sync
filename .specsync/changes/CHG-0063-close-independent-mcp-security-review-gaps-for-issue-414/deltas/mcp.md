@@ -33,9 +33,11 @@ Acceptance Criteria
 - Absolute Windows children may use either original or canonical startup spelling after startup
   identity-binds both spellings; only the relative suffix is opened through the retained canonical
   capability, and sibling-prefix lookalikes are rejected.
-- Exact bounded selected-config bytes are validated before compatibility loading; invalid UTF-8,
-  malformed JSON/TOML, and wrong-typed specs/source path selectors make every tool/resource
-  inconclusive rather than selecting defaults.
+- Selected config is opened non-blocking through verified regular-directory and regular-file
+  capabilities, rejects symlink/reparse and special-file paths, binds identity through the bounded
+  read, and passes the exact retained bytes through complete checked parsing before compatibility
+  loading. Non-object JSON, invalid UTF-8, malformed JSON/TOML, and wrong-typed known fields make
+  every tool/resource inconclusive rather than selecting defaults.
 - Manifest-relative Cargo paths may normalize `..` across sibling crates when the normalized result
   remains beneath the retained root. Confined Windows-native backslashes normalize equivalently;
   drive, UNC, rooted, traversal, canonical, symlink, and junction escapes remain rejected.
@@ -129,5 +131,7 @@ Acceptance Criteria
     before JSON-RPC dispatch.
 24. MCP issue diagnostic paths normalize separators only on Windows; Unix literal backslashes
     remain filename data rather than hierarchy.
-25. Selected config is validated from exact bounded snapshot bytes before compatibility loading;
-    malformed/invalid-UTF-8/wrong-typed path selectors fail tools and resources closed.
+25. Selected config is acquired through no-follow, non-blocking, identity-verified regular-file
+    snapshots and validated from exact bounded bytes with the complete checked parser before
+    compatibility loading; non-object/malformed/invalid-UTF-8/wrong-typed configurations fail
+    tools and resources closed.

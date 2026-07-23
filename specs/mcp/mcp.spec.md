@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 12
+version: 13
 status: stable
 files:
   - src/mcp.rs
@@ -82,10 +82,12 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
     sanitized relative spec path and a content-free reason, never host-absolute paths, raw OS
     errors, or spec bytes. Windows diagnostic separators render as `/`; Unix literal backslashes
     remain filename data and are not conflated with nested paths.
-16. A selected MCP configuration is validated from the exact bounded snapshot bytes before any
-    compatibility loader runs. Invalid UTF-8, malformed JSON/TOML, and wrong-typed
-    `specsDir`/`sourceDirs` or `specs_dir`/`source_dirs` selectors make tools and resources
-    inconclusive instead of silently falling back to an empty/default project.
+16. A selected MCP configuration is acquired through verified regular-directory and regular-file
+    capabilities with no symlink/reparse traversal, non-blocking open, identity checks, and the
+    normal per-file bound. Its exact retained bytes pass the complete checked config parser before
+    any compatibility loader runs. Non-object JSON, invalid UTF-8, malformed JSON/TOML, and
+    wrong-typed known fields make tools and resources inconclusive instead of silently falling
+    back to an empty/default project.
 
 ## Behavioral Examples
 
@@ -164,7 +166,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | Unknown resource URI | JSON-RPC error -32602 "Unknown resource URI: {uri}" |
 | Spec module not found | JSON-RPC error -32602 "No spec found for module: {name}" |
 | No spec files found | Tool error with suggestion to run `specsync generate` |
-| Selected config is invalid UTF-8, malformed JSON/TOML, or has wrong-typed path selectors | Tool/resource error before compatibility loading; no default-path false success |
+| Selected config is linked/reparse-backed, non-regular, blocking, replaced, invalid UTF-8, structurally invalid or malformed JSON/TOML, or has wrong-typed known fields | Tool/resource error before compatibility loading; no path traversal, indefinite block, or default-path false success |
 | Retired AI/provider/model/credential/endpoint/command argument | JSON-RPC error -32602 with migration guidance; supplied values are not echoed |
 | Any parsed request without `id` | No response and no dispatch |
 | stdin EOF | Server exits gracefully |
@@ -175,7 +177,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 
 | Module | What is used |
 |--------|-------------|
-| config | `load_config`, `detect_source_dirs` |
+| config | `load_config`, `detect_source_dirs`, `parse_config_content_checked` |
 | validator | `validate_spec`, `find_spec_files`, `compute_coverage_checked`, `get_schema_table_names` |
 | generator | `generate_specs_for_unspecced_modules_paths` |
 | scoring | `score_spec`, `compute_project_score` |
@@ -208,3 +210,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-22 | CHG-0063 Windows CI follow-up: Accept absolute children beneath the identity-bound startup root when Windows expands an 8.3 alias, while continuing to open only through the retained canonical capability and reject sibling-prefix lookalikes |
 | 2026-07-22 | CHG-0063 adversarial follow-up: Preserve literal Unix backslashes in MCP issue diagnostic identities while normalizing separators only on Windows |
 | 2026-07-22 | CHG-0063 final config follow-up: Validate selected bounded config bytes and path-selector types before compatibility loading |
+| 2026-07-22 | CHG-0063 no-follow config follow-up: Reject linked/reparse, non-regular, blocking, replaced, and structurally invalid selected configs through an identity-verified bounded snapshot and the complete checked parser |

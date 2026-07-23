@@ -205,6 +205,19 @@ pub(crate) fn parse_config_content_checked(
     content: &str,
     root: &Path,
 ) -> Result<SpecSyncConfig, String> {
+    parse_config_content_checked_with_source_dirs(config_path, content, root, None)
+}
+
+/// Parse a retained configuration snapshot with caller-supplied source discovery.
+///
+/// Security-sensitive capability callers use this to avoid consulting an ambient
+/// root pathname when the config omits its source directory list.
+pub(crate) fn parse_config_content_checked_with_source_dirs(
+    config_path: &Path,
+    content: &str,
+    root: &Path,
+    detected_source_dirs: Option<Vec<String>>,
+) -> Result<SpecSyncConfig, String> {
     let content = content.trim_start_matches('\u{feff}');
     let is_toml = config_path
         .extension()
@@ -213,9 +226,10 @@ pub(crate) fn parse_config_content_checked(
     let mut config = if is_toml {
         let table = toml::from_str::<toml::Table>(content).map_err(|error| error.to_string())?;
         validate_toml_config_types(&table)?;
-        parse_toml_config(content, root)
+        parse_toml_config_with_source_dirs(content, root, detected_source_dirs.as_deref())
     } else {
-        parse_json_config(content, root).map_err(|error| error.to_string())?
+        parse_json_config_with_source_dirs(content, root, detected_source_dirs.as_deref())
+            .map_err(|error| error.to_string())?
     };
     config.config_path = Some(config_path.to_path_buf());
     Ok(config)
@@ -892,6 +906,14 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
 }
 
 fn parse_json_config(content: &str, root: &Path) -> Result<SpecSyncConfig, serde_json::Error> {
+    parse_json_config_with_source_dirs(content, root, None)
+}
+
+fn parse_json_config_with_source_dirs(
+    content: &str,
+    root: &Path,
+    detected_source_dirs: Option<&[String]>,
+) -> Result<SpecSyncConfig, serde_json::Error> {
     let mut raw = serde_json::from_str::<serde_json::Value>(content)?;
     let source_dirs_configured = raw
         .as_object()
@@ -911,7 +933,9 @@ fn parse_json_config(content: &str, root: &Path) -> Result<SpecSyncConfig, serde
 
     let mut config = serde_json::from_value::<SpecSyncConfig>(raw)?;
     if !source_dirs_configured {
-        config.source_dirs = detect_source_dirs(root);
+        config.source_dirs = detected_source_dirs
+            .map(<[String]>::to_vec)
+            .unwrap_or_else(|| detect_source_dirs(root));
     }
     Ok(config)
 }
@@ -952,6 +976,14 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
 }
 
 fn parse_toml_config(content: &str, root: &Path) -> SpecSyncConfig {
+    parse_toml_config_with_source_dirs(content, root, None)
+}
+
+fn parse_toml_config_with_source_dirs(
+    content: &str,
+    root: &Path,
+    detected_source_dirs: Option<&[String]>,
+) -> SpecSyncConfig {
     let mut config = SpecSyncConfig::default();
     let mut has_source_dirs = false;
     let mut current_section: Option<String> = None;
@@ -1125,7 +1157,9 @@ fn parse_toml_config(content: &str, root: &Path) -> SpecSyncConfig {
     }
 
     if !has_source_dirs {
-        config.source_dirs = detect_source_dirs(root);
+        config.source_dirs = detected_source_dirs
+            .map(<[String]>::to_vec)
+            .unwrap_or_else(|| detect_source_dirs(root));
     }
 
     config

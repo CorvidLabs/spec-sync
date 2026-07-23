@@ -63,4 +63,6 @@ spec: mcp.spec.md
 - [x] Preserve valid issue references in CRLF specs through the shared checked parser
 - [x] Reject malformed, invalid-UTF-8, or wrong-typed selected config snapshots before MCP
   compatibility loading, including allow-empty tools and resources
+- [x] Reject linked/reparse, non-regular, blocking, replaced, and non-object selected configs
+  before MCP tools or resources can return an allow-empty success
 - [ ] Pass fresh Windows reparse-point CI

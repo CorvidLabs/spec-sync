@@ -51,6 +51,8 @@ spec: cmd_issues.spec.md
 - [x] Share maintained real-YAML checked issue parsing with MCP, including duplicate/global
   malformed YAML rejection and valid comment/trailing-comma support.
 - [x] Preserve valid issue references in CRLF specs through the shared checked parser.
+- [x] Detect omitted config source directories through a bounded retained-capability snapshot so
+  ambient root replacement cannot influence source selection.
 
 ## Gaps
 

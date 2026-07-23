@@ -82,8 +82,10 @@ Acceptance Criteria
 - Traversal, configured-path, and symlink escapes fail before filesystem access.
 - Project files are bounded to 8 MiB and actual project/config input to 64 MiB per operation;
   manifests are copied from the exact bytes charged during discovery.
-- Selected config bytes are validated before compatibility loading; invalid UTF-8, malformed
-  JSON/TOML, and wrong-typed specs/source path selectors fail closed for both tools and resources.
+- Selected config is acquired through verified regular-directory and regular-file capabilities
+  without following symlink/reparse points or blocking on special files. Its exact bounded bytes
+  pass complete checked parsing before compatibility loading; non-object JSON, invalid UTF-8,
+  malformed JSON/TOML, and wrong-typed known fields fail closed for both tools and resources.
 - Cargo TOML path discovery follows only semantic target, dependency, workspace-dependency,
   target-specific dependency, patch, and replacement tables; unrelated metadata `path` keys do
   not authorize filesystem inputs. Comment/escape-aware shared Gradle workspace parsing preserves

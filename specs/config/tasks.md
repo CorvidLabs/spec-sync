@@ -17,3 +17,5 @@ spec: config.spec.md
   falling back to Git auto-detection or discarding otherwise valid configuration
 - [x] Parse retained exact-byte JSON/TOML snapshots with known TOML field-type validation for
   capability-rooted callers
+- [x] Accept capability-derived source-directory discovery when retained config omits its source
+  list, without scanning an ambient root pathname

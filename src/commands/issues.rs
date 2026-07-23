@@ -101,7 +101,7 @@ fn relative_path_finding(path: &Path, kind: SpecInspectionFindingKind) -> SpecIn
     SpecInspectionFinding {
         spec: path
             .to_str()
-            .map(str::to_owned)
+            .map(|path| path.replace('\\', "/"))
             .unwrap_or_else(|| "<non-utf8-spec-path>".to_string()),
         kind,
     }
@@ -693,7 +693,10 @@ fn collect_spec_snapshots<Hook>(
         if !is_spec_shaped_file_name(&name) {
             continue;
         }
-        let Some(relative_path) = project_relative.to_str().map(str::to_owned) else {
+        let Some(relative_path) = project_relative
+            .to_str()
+            .map(|path| path.replace('\\', "/"))
+        else {
             findings.push(non_utf8_spec_discovery_finding());
             continue;
         };

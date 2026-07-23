@@ -671,10 +671,36 @@ const LEGACY_AI_TOML_KEYS: &[&str] = &[
     "ai_timeout",
 ];
 
+const INVALID_JSON_GITHUB_REPO: &str = "invalid-github-repo-config";
+
 fn warn_retired_ai_key(key: &str) {
     eprintln!(
         "Warning: retired embedded-AI config key `{key}` is ignored. spec-sync 5.0 generates deterministic scaffolds; use your coding agent to enrich them."
     );
+}
+
+fn fail_closed_invalid_json_github_repo(raw: &mut serde_json::Value) {
+    let Some(github) = raw
+        .as_object_mut()
+        .and_then(|config| config.get_mut("github"))
+    else {
+        return;
+    };
+    let Some(repo) = github
+        .as_object_mut()
+        .and_then(|github| github.get_mut("repo"))
+    else {
+        return;
+    };
+    if repo.is_null() || repo.is_string() {
+        return;
+    }
+
+    eprintln!(
+        "Warning: failed to parse specsync.json: `github.repo` must be a string or null; \
+         repository resolution will fail closed"
+    );
+    *repo = serde_json::Value::String(INVALID_JSON_GITHUB_REPO.to_string());
 }
 
 fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
@@ -694,10 +720,19 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
         }
     };
 
-    // Warn about unknown keys
-    if let Ok(raw) = serde_json::from_str::<serde_json::Value>(&content)
-        && let Some(obj) = raw.as_object()
-    {
+    let mut raw = match serde_json::from_str::<serde_json::Value>(&content) {
+        Ok(raw) => raw,
+        Err(error) => {
+            eprintln!("Warning: failed to parse specsync.json: {error}");
+            return SpecSyncConfig::default();
+        }
+    };
+    let source_dirs_configured = raw
+        .as_object()
+        .is_some_and(|config| config.contains_key("sourceDirs"));
+
+    // Warn about unknown keys.
+    if let Some(obj) = raw.as_object() {
         for key in obj.keys() {
             if LEGACY_AI_JSON_KEYS.contains(&key.as_str()) {
                 warn_retired_ai_key(key);
@@ -706,10 +741,11 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
             }
         }
     }
+    fail_closed_invalid_json_github_repo(&mut raw);
 
-    match serde_json::from_str::<SpecSyncConfig>(&content) {
+    match serde_json::from_value::<SpecSyncConfig>(raw) {
         Ok(config) => {
-            if !content.contains("\"sourceDirs\"") {
+            if !source_dirs_configured {
                 let mut config = config;
                 config.source_dirs = detect_source_dirs(root);
                 return config;
@@ -1780,6 +1816,71 @@ mod tests {
 
         let config = load_config(tmp.path());
         assert_eq!(config.specs_dir, "specs"); // default
+    }
+
+    #[test]
+    fn json_github_repo_wrong_types_fail_closed_without_discarding_valid_config() {
+        for invalid_repo in [
+            serde_json::json!(42),
+            serde_json::json!(true),
+            serde_json::json!({"owner": "repo"}),
+            serde_json::json!(["owner/repo"]),
+        ] {
+            let tmp = TempDir::new().unwrap();
+            let config_path = tmp.path().join("specsync.json");
+            let raw = serde_json::json!({
+                "specsDir": "configured-specs",
+                "sourceDirs": ["configured-src"],
+                "github": {
+                    "repo": invalid_repo,
+                    "verifyIssues": false
+                }
+            });
+            fs::write(&config_path, serde_json::to_vec(&raw).unwrap()).unwrap();
+
+            let config = load_config(tmp.path());
+            assert_eq!(config.specs_dir, "configured-specs");
+            assert_eq!(config.source_dirs, ["configured-src"]);
+            let github = config
+                .github
+                .expect("a malformed configured repository must remain explicit");
+            assert!(!github.verify_issues);
+            assert_eq!(
+                github.repo.as_deref(),
+                Some(INVALID_JSON_GITHUB_REPO),
+                "wrongly typed repositories must not become auto-detection"
+            );
+            assert!(
+                crate::github::resolve_repo(github.repo.as_deref(), tmp.path()).is_err(),
+                "wrongly typed repositories must fail before no-reference success"
+            );
+        }
+    }
+
+    #[test]
+    fn json_github_repo_absent_null_and_string_remain_compatible() {
+        for (github, expected_repo) in [
+            (serde_json::json!({}), None),
+            (serde_json::json!({"repo": null}), None),
+            (
+                serde_json::json!({"repo": "CorvidLabs/spec-sync"}),
+                Some("CorvidLabs/spec-sync"),
+            ),
+        ] {
+            let tmp = TempDir::new().unwrap();
+            let config_path = tmp.path().join("specsync.json");
+            let raw = serde_json::json!({
+                "sourceDirs": ["src"],
+                "github": github
+            });
+            fs::write(&config_path, serde_json::to_vec(&raw).unwrap()).unwrap();
+
+            let config = load_config(tmp.path());
+            assert_eq!(
+                config.github.and_then(|github| github.repo).as_deref(),
+                expected_repo
+            );
+        }
     }
 
     #[test]

@@ -13,3 +13,5 @@ spec: config.spec.md
 - [x] Ignore legacy AI key names with value-safe migration guidance
 - [x] Auto-detect zero-config HTML, HTM, and CSS source directories
 - [x] Add fallible checked source-directory and manifest discovery while retaining compatibility wrappers
+- [x] Fail closed when legacy JSON supplies `github.repo` with a non-string shape, without
+  falling back to Git auto-detection or discarding otherwise valid configuration

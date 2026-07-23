@@ -16,10 +16,15 @@ Acceptance Criteria
   complete 30-second verification deadline.
 - Single and listed provider responses require numeric issue identity plus valid title, state,
   labels, and URL; list labels are encoded as query parameters and malformed PR markers fail closed.
-- Issue listing follows strict encoded `Link` pagination for at most 100 pages and fails on malformed
-  links, duplicate issue IDs, or a continuing next page at the cap instead of returning a truncated
-  batch import. Every next link must retain the requested repository issues endpoint and exact
-  open-state, page-size, label, and page query semantics.
+- Issue listing rejects raw provider pages above 100 entries before item parsing, including
+  pull-request entries. Every raw issue/pull-request item is fully validated before PR filtering:
+  marker shape, positive numeric identity, nonempty title, nonempty names for any labels, exact open state, and canonical
+  repository/resource/number URL identity must agree, including exact canonical decimal number
+  spelling with no leading zeros. Duplicate raw identities within or across
+  pages fail even when a duplicate would be filtered as a pull request. Listing follows strict
+  encoded `Link` pagination for at most 100 pages and fails on malformed links or a continuing next
+  page at the cap instead of returning a truncated batch import. Every next link must retain the
+  requested repository issues endpoint and exact open-state, page-size, label, and page semantics.
 - `gh` remains available only for the explicit `create_drift_issue` write path.
 
 ### SPEC SECTION Public API
@@ -58,6 +63,8 @@ Acceptance Criteria
    inconclusive errors rather than successful empty or not_found results.
 5. Legacy `gh` issue reads fail closed without process spawning; `gh` is reserved for explicit
    issue creation.
-6. Issue listing strictly paginates at most 100 pages, binds next links to the requested repository
-   issues endpoint and query semantics, and rejects malformed links, duplicate issue numbers, and
-   cap truncation.
+6. Issue listing rejects provider pages above 100 entries before parsing any item, strictly
+   validates every raw issue/pull-request item as open with exact URL identity before filtering,
+   rejects duplicate raw identities within/across pages, paginates at most 100 pages, binds next
+   links to the requested repository issues endpoint and query semantics, and rejects malformed
+   links and cap truncation.

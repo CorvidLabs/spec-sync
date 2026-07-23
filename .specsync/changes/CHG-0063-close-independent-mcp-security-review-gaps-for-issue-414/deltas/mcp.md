@@ -8,6 +8,9 @@ bound project-controlled inputs before downstream parsing.
 Acceptance Criteria
 
 - Absolute outside roots are rejected lexically before metadata or symlink resolution.
+- The real MCP CLI passes the user-requested root unchanged into startup, which opens and
+  identity-binds it before ambient canonicalization, then canonicalizes/reopens it and requires
+  the same identity before JSON-RPC dispatch.
 - The canonical server root is retained as a directory capability; reads execute from bounded
   snapshots and writes resolve only through the capability.
 - Project-controlled Git metadata is never used for MCP repository auto-detection; issue checks
@@ -21,12 +24,15 @@ Acceptance Criteria
 - Manifest discovery parses Cargo workspace membership as TOML and comment/escape-aware Gradle
   settings, charges deduplicated manifest bytes to the shared cumulative input budget, and copies
   the exact preflight buffers.
+- Cargo path discovery follows only semantic target, dependency, workspace-dependency,
+  target-specific dependency, patch, and replacement tables; unrelated metadata `path` keys are
+  ignored.
 - Unix symlink and Windows junction/reparse-point escapes fail before outside access.
 - Windows absolute-root components are compared with native ordinal Unicode ignore-case semantics
   without lossy UTF-8 conversion.
 - Manifest-relative Cargo paths may normalize `..` across sibling crates when the normalized result
-  remains beneath the retained root; lexical, canonical, symlink, and junction escapes remain
-  rejected.
+  remains beneath the retained root. Confined Windows-native backslashes normalize equivalently;
+  drive, UNC, rooted, traversal, canonical, symlink, and junction escapes remain rejected.
 
 ### REQUIREMENT REQ-mcp-003
 
@@ -46,6 +52,12 @@ Acceptance Criteria
   in-process without a provider subprocess, globally deduplicates/caps IDs, includes
   authentication/preflight in elapsed-time bounds, revalidates access after apparent absence, and
   treats provider failures as inconclusive.
+- Failed spec discovery, unreadable specs, and malformed or missing frontmatter make MCP issue
+  verification inconclusive instead of producing a successful zero-reference result.
+- Checked issue parsing uses maintained real-YAML semantics: duplicate/global malformed YAML and
+  blank/null/wrong-shaped known fields fail closed; comments/trailing commas remain valid; nested
+  extension and block-scalar lookalikes are ignored; LF and CRLF frontmatter delimiters are
+  accepted equivalently.
 - Windows transaction cleanup consumes the final quarantine directory capability before name-based
   removal so init, generation, and collision rollback do not fail with sharing violations.
 
@@ -88,9 +100,19 @@ Acceptance Criteria
     do not override configured exclusions.
 18. Windows absolute-root suffix derivation uses native path components and ordinal Unicode
     ignore-case comparison.
-19. Manifest-relative Cargo paths may normalize `..` across sibling crates only while the normalized
-    result remains beneath the retained root; lexical, canonical, symlink, and junction escapes are
-    rejected.
+19. Cargo filesystem inputs come only from semantic target, dependency, workspace-dependency,
+    target-specific dependency, patch, and replacement tables; unrelated metadata `path` keys are
+    ignored. Manifest-relative Cargo paths and confined Windows-native backslashes normalize only
+    while the result remains beneath the retained root; drive, UNC, rooted, traversal, canonical,
+    symlink, and junction escapes are rejected.
 20. Windows transaction cleanup consumes the final quarantine directory capability before
     name-based removal, preserving init, generation, and collision rollback behavior without
     weakening identity checks.
+21. MCP issue verification fails inconclusive when spec discovery, bounded reads, or frontmatter
+    parsing cannot complete; unreadable or malformed specs are never silently omitted.
+22. MCP issue fields are parsed by the shared maintained real-YAML checked parser; duplicate/global
+    malformed YAML and invalid known shapes fail closed while valid comments/trailing commas and
+    non-authoritative nested/block-scalar data remain supported.
+23. The real MCP CLI preserves the user-requested root until startup opens and identity-binds it;
+    canonicalization and capability reopening happen afterward, and any identity change fails
+    before JSON-RPC dispatch.

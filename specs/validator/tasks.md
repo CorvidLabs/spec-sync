@@ -28,6 +28,12 @@ spec: validator.spec.md
 - [x] Reject known unfilled companion scaffold markers in strict mode
 - [x] Reject every marker emitted by the built-in design companion template
 - [x] Add checked coverage and route CLI/MCP gates through inconclusive manifest-discovery errors
+- [x] Add crate-visible `validate_spec_content` and route path-based `validate_spec` through the
+  shared exact-byte validation core.
+- [x] Enable capability-rooted `issues --create` validation to consume immutable pre-read spec
+  snapshots without reopening discovered paths.
+- [x] Add crate-private `SourceSnapshot` and `validate_spec_content_with_sources` so exact
+  spec-and-source validation never falls back to ambient mapped-source reads.
 
 ## Gaps
 

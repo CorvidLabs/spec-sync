@@ -10,8 +10,9 @@ Acceptance Criteria
 - Single and batch GitHub imports require explicit `GITHUB_TOKEN` and execute typed in-process REST
   reads without consulting authenticated `gh` state.
 - Every GitHub REST operation is bounded to 10 seconds.
-- `--all-issues` follows strict encoded pagination for at most 100 pages of 100 issues and fails on
-  malformed links, duplicate issue IDs, or a continuing next page at the cap.
+- `--all-issues` follows strict encoded pagination for at most 100 pages of 100 provider entries,
+  rejects an oversized page before item parsing, and fails on malformed links, duplicate issue
+  IDs, or a continuing next page at the cap.
 - A pagination failure is an error, never a successful partial import.
 
 ### SPEC SECTION Invariants

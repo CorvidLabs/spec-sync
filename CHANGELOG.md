@@ -28,8 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MCP manifest and issue checks fail closed under adversarial input** — bounded Cargo workspace
   discovery uses real TOML, while shared checked Gradle discovery handles Groovy/Kotlin comments,
   escapes, includes, and supported project directories; malformed discovery is inconclusive for
-  gates. Manifest-relative sibling paths such as `../b` remain valid when normalization keeps them
-  beneath the retained server root, while true escapes still fail. Private quarantine cleanup
+  gates. Cargo snapshot paths come only from semantic target, workspace, and dependency tables;
+  unrelated metadata `path` keys are ignored. Manifest-relative sibling paths such as `../b` and
+  confined Windows-native forms such as `..\b` remain valid when normalization keeps them beneath
+  the retained server root, while drive, UNC, rooted, traversal, symlink, and junction escapes
+  still fail. Private quarantine cleanup
   consumes its final retained directory capability before removal so Windows does not turn
   successful init/generation into sharing-violation failures. Manifest discovery shares the 64 MiB
   input budget and snapshots exact preflighted bytes.
@@ -38,11 +41,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Verification globally deduplicates/caps IDs, includes repository preflight in the complete batch
   deadline, and revalidates repository access after apparent absence. Inaccessible repositories,
   authentication failures, timeouts, and malformed responses are inconclusive rather than
-  not_found; all-error CLI batches report their error count instead of claiming no references.
+  not_found; issue-list pages above 100 raw provider entries fail before item parsing. All-error
+  CLI batches report their error count instead of claiming no references, and CLI/MCP issue scans
+  now fail inconclusive with content-free path attribution when a discovered spec is unreadable or
+  has malformed/missing frontmatter. A maintained `serde-saphyr` checked parser validates complete
+  real-YAML frontmatter for issue references: duplicate keys or malformed YAML anywhere and
+  blank/null/wrong-shaped known fields fail closed, comments and valid trailing commas work, and
+  only top-level `implements`/`tracks` lists are authoritative while nested extension/block-scalar
+  lookalikes are ignored. Recursive traversal and non-UTF-8 filename failures cannot silently
+  disappear. CLI `specs_dir` is confined beneath the project, and specs are captured through
+  retained capability-rooted, same-handle identity checks. The crate-visible
+  `validate_spec_content` API lets `issues --create` preserve normal drift validation and issue
+  creation against those exact immutable bytes without reopening discovered paths. Configured
+  repository syntax is validated even with zero references while Git/provider access stays
+  skipped. Hostile diagnostics escape controls, bidirectional formatting, and Unicode line/
+  paragraph separators and use valid Markdown code spans; MCP errors expose only bounded relative
+  paths and stable content-free reasons. Issue-list `pull_request` markers must be objects when
+  present, so explicit `null` rejects the page instead of becoming an issue. Every raw issue or
+  pull-request item is validated as open with exact repository/resource/number URL identity, and
+  duplicate raw identities fail within/across pages before pull-request filtering.
   Single and batch GitHub imports use the same explicit-token typed REST path, with no authenticated
-  `gh` fallback. Batch import follows every valid page, bounded to 100 pages of 100 issues, and
-  fails on malformed links, duplicate issue IDs, or cap truncation rather than returning a partial
-  issue set.
+  `gh` fallback. Batch import follows every valid page, bounded to 100 pages of 100 raw provider
+  entries, and fails on oversized or malformed pages, malformed links, duplicate issue IDs, or cap
+  truncation rather than returning a partial issue set.
 
 ## [5.2.0] - 2026-07-19
 

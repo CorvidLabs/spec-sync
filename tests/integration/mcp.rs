@@ -470,10 +470,11 @@ fn mcp_write_tools_reject_windows_junction_destinations_without_touching_outside
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().join("server");
     let outside = tmp.path().join("outside");
+    let junction = root.join("specs").join("evil");
     fs::create_dir_all(root.join("src")).unwrap();
     fs::create_dir_all(root.join("specs")).unwrap();
     fs::create_dir_all(&outside).unwrap();
-    fs::write(root.join("src/evil.rs"), "pub fn evil() {}\n").unwrap();
+    fs::write(root.join("src").join("evil.rs"), "pub fn evil() {}\n").unwrap();
     fs::write(
         root.join("specsync.json"),
         r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
@@ -482,8 +483,16 @@ fn mcp_write_tools_reject_windows_junction_destinations_without_touching_outside
     let victim = outside.join("victim.bin");
     let victim_bytes = b"windows write-junction victim\0exact";
     fs::write(&victim, victim_bytes).unwrap();
-    create_windows_junction(&root.join("specs/evil"), &outside)
+    create_windows_junction(&junction, &outside)
         .unwrap_or_else(|error| panic!("failed to create Windows junction fixture: {error}"));
+    let canonical_outside = fs::canonicalize(&outside)
+        .unwrap_or_else(|error| panic!("failed to canonicalize outside fixture: {error}"));
+    assert_eq!(
+        fs::canonicalize(&junction)
+            .unwrap_or_else(|error| panic!("failed to canonicalize junction fixture: {error}")),
+        canonical_outside,
+        "Windows junction fixture does not target the outside directory"
+    );
 
     let responses = mcp_request_with_write(
         &root,
@@ -495,16 +504,54 @@ fn mcp_write_tools_reject_windows_junction_destinations_without_touching_outside
         })],
     );
 
-    assert_eq!(responses[0]["result"]["isError"], true);
-    assert_eq!(fs::read(&victim).unwrap(), victim_bytes);
-    assert!(!outside.join("evil.spec.md").exists());
-    assert!(fs::read_dir(&outside).unwrap().all(|entry| {
-        !entry
-            .unwrap()
-            .file_name()
-            .to_string_lossy()
-            .starts_with(".specsync-mcp-stage-")
-    }));
+    assert_eq!(
+        responses.len(),
+        1,
+        "unexpected write-enabled MCP responses: {responses:#?}"
+    );
+    let response = &responses[0];
+    assert_eq!(
+        response["result"]["isError"], true,
+        "generation unexpectedly accepted an outside junction destination: {response}"
+    );
+    let error = response["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap_or_else(|| panic!("generation rejection omitted diagnostic text: {response}"));
+    let normalized_error = error.replace('\\', "/");
+    let rejected_during_snapshot = normalized_error.contains("specs/evil")
+        && (normalized_error
+            .contains("Cannot inspect MCP project input specs/evil through its root capability")
+            || normalized_error.contains(
+                "Cannot read MCP project directory specs/evil through its root capability",
+            ));
+    let rejected_at_destination =
+        error.contains("generation destination escapes the configured server root");
+    assert!(
+        rejected_during_snapshot || rejected_at_destination,
+        "generation failed for the wrong reason: {response}"
+    );
+    assert_eq!(
+        fs::read(&victim).unwrap_or_else(|error| panic!(
+            "failed to read outside victim after rejection: {error}"
+        )),
+        victim_bytes,
+        "generation changed outside victim bytes through the junction"
+    );
+    let outside_entries: Vec<String> = fs::read_dir(&outside)
+        .unwrap_or_else(|error| panic!("failed to inspect outside directory: {error}"))
+        .map(|entry| {
+            entry
+                .unwrap_or_else(|error| panic!("failed to inspect outside entry: {error}"))
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    assert_eq!(
+        outside_entries,
+        vec!["victim.bin".to_string()],
+        "generation wrote through the junction or left staging debris outside the server root"
+    );
 }
 
 #[cfg(windows)]
@@ -542,7 +589,17 @@ fn mcp_windows_read_roots_accept_absolute_children_and_reject_ambiguous_prefixes
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().join("server");
     let child = root.join("child");
-    fs::create_dir_all(child.join("src")).unwrap();
+    let child_source = child.join("src").join("auth").join("service.ts");
+    let child_spec = child.join("specs").join("auth").join("auth.spec.md");
+    fs::create_dir_all(child_source.parent().unwrap()).unwrap();
+    fs::create_dir_all(child_spec.parent().unwrap()).unwrap();
+    write_config(&child, "specs", &["src"]);
+    fs::write(
+        &child_source,
+        "export function login() {}\nexport function logout() {}\n",
+    )
+    .unwrap();
+    fs::write(&child_spec, valid_spec("auth", &["src/auth/service.ts"])).unwrap();
 
     let responses = mcp_request(
         &root,
@@ -553,9 +610,49 @@ fn mcp_windows_read_roots_accept_absolute_children_and_reject_ambiguous_prefixes
         ],
     );
 
-    assert_eq!(responses[0]["result"]["isError"].as_bool(), None);
-    assert_eq!(responses[1]["result"]["isError"], true);
-    assert_eq!(responses[2]["result"]["isError"], true);
+    assert_eq!(
+        responses.len(),
+        3,
+        "unexpected Windows read-root responses: {responses:#?}"
+    );
+    let accepted = &responses[0];
+    assert_eq!(
+        accepted["result"]["isError"].as_bool(),
+        None,
+        "absolute child root should be accepted before coverage execution: {accepted}"
+    );
+    let coverage_text = accepted["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap_or_else(|| {
+            panic!("accepted child-root response omitted coverage text: {accepted}")
+        });
+    let coverage: serde_json::Value = serde_json::from_str(coverage_text)
+        .unwrap_or_else(|error| panic!("invalid child-root coverage JSON ({error}): {accepted}"));
+    assert_eq!(
+        coverage["files_total"], 1,
+        "coverage did not execute against the configured child project: {accepted}"
+    );
+    assert_eq!(
+        coverage["files_covered"], 1,
+        "child fixture should be fully covered: {accepted}"
+    );
+
+    for (label, response) in [
+        ("rooted path", &responses[1]),
+        ("drive-relative path", &responses[2]),
+    ] {
+        assert_eq!(
+            response["result"]["isError"], true,
+            "{label} unexpectedly passed Windows read-root validation: {response}"
+        );
+        let error = response["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{label} rejection omitted diagnostic text: {response}"));
+        assert!(
+            error.contains("must not use a rooted or drive-relative path"),
+            "{label} failed for the wrong reason: {response}"
+        );
+    }
 }
 
 #[test]
@@ -1867,6 +1964,94 @@ fn mcp_rejects_a_nonexistent_server_root() {
         String::from_utf8_lossy(&output.stderr).contains("does not exist or is not a directory")
     );
     assert!(!missing.exists());
+}
+
+#[cfg(all(unix, debug_assertions))]
+#[test]
+fn mcp_real_cli_rejects_requested_root_replacement_after_identity_binding() {
+    use std::io::Write;
+    use std::os::unix::fs::symlink;
+    use std::process::{Command, Stdio};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    const STARTUP_BARRIER_ENV: &str = "SPECSYNC_TEST_MCP_STARTUP_IDENTITY_BARRIER";
+
+    let tmp = TempDir::new().unwrap();
+    let requested_root = tmp.path().join("requested-root");
+    let original_root = tmp.path().join("original-root");
+    let replacement_root = tmp.path().join("replacement-root");
+    let barrier = tmp.path().join("startup-barrier");
+    fs::create_dir_all(&original_root).unwrap();
+    fs::create_dir_all(&replacement_root).unwrap();
+    fs::create_dir_all(&barrier).unwrap();
+    symlink(&original_root, &requested_root).unwrap();
+
+    let binary = specsync().get_program().to_os_string();
+    let mut command = Command::new(binary);
+    command
+        .arg("mcp")
+        .arg("--root")
+        .arg(&requested_root)
+        .env(STARTUP_BARRIER_ENV, &barrier)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    for (key, _) in std::env::vars() {
+        if key.starts_with("SPECSYNC_") && key != STARTUP_BARRIER_ENV {
+            command.env_remove(key);
+        }
+    }
+
+    let mut child = command.spawn().expect("failed to spawn real MCP CLI");
+    let mut stdin = child.stdin.take().expect("MCP CLI stdin was not piped");
+    stdin
+        .write_all(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n")
+        .unwrap();
+    drop(stdin);
+
+    let ready_path = barrier.join("identity-bound");
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !ready_path.is_file() {
+        if let Some(status) = child.try_wait().expect("failed to poll MCP CLI") {
+            let output = child
+                .wait_with_output()
+                .expect("failed to collect early MCP CLI output");
+            panic!(
+                "MCP CLI exited before identity binding with {status}; stdout: {}; stderr: {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        if Instant::now() >= deadline {
+            child.kill().expect("failed to terminate stalled MCP CLI");
+            let output = child
+                .wait_with_output()
+                .expect("failed to collect stalled MCP CLI output");
+            panic!(
+                "timed out waiting for MCP root identity binding; stdout: {}; stderr: {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+
+    fs::remove_file(&requested_root).unwrap();
+    symlink(&replacement_root, &requested_root).unwrap();
+    fs::write(barrier.join("resume"), b"resume\n").unwrap();
+
+    let output = child
+        .wait_with_output()
+        .expect("failed to collect MCP CLI output");
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("MCP server root changed while its identity was being resolved"),
+        "unexpected MCP startup rejection: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]

@@ -83,6 +83,35 @@ pub fn scan_exported_symbols_full(
     level: ExportLevel,
     parse_mode: ParseMode,
 ) -> ExportScan {
+    let content = match std::fs::read_to_string(file_path) {
+        Ok(content) => content,
+        Err(_) => return ExportScan::Unreadable,
+    };
+    scan_exported_symbols_content_internal(file_path, &content, level, parse_mode, true)
+}
+
+/// Extract symbols from caller-supplied source bytes without reopening the source
+/// path. TypeScript wildcard imports are intentionally not resolved through the
+/// ambient filesystem; snapshot callers must only validate bytes they retained.
+pub(super) fn get_exported_symbols_from_content(
+    file_path: &Path,
+    content: &str,
+    level: ExportLevel,
+    parse_mode: ParseMode,
+) -> Vec<String> {
+    match scan_exported_symbols_content_internal(file_path, content, level, parse_mode, false) {
+        ExportScan::Parsed(symbols) => symbols,
+        ExportScan::UnknownLanguage | ExportScan::Unreadable => Vec::new(),
+    }
+}
+
+fn scan_exported_symbols_content_internal(
+    file_path: &Path,
+    content: &str,
+    level: ExportLevel,
+    parse_mode: ParseMode,
+    resolve_typescript_imports: bool,
+) -> ExportScan {
     let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
     let lang = match Language::from_extension(ext) {
@@ -90,110 +119,115 @@ pub fn scan_exported_symbols_full(
         None => return ExportScan::UnknownLanguage,
     };
 
-    let content = match std::fs::read_to_string(file_path) {
-        Ok(c) => c,
-        Err(_) => return ExportScan::Unreadable,
-    };
-
     let symbols = if parse_mode == ParseMode::Ast {
         match lang {
             Language::TypeScript => {
-                let base_dir = file_path.parent().unwrap_or(Path::new(".")).to_path_buf();
-                let resolver = move |import_path: &str| resolve_ts_import(&base_dir, import_path);
-                let result =
-                    ast::typescript::extract_exports_with_resolver(&content, Some(&resolver));
+                let result = if resolve_typescript_imports {
+                    let base_dir = file_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+                    let resolver =
+                        move |import_path: &str| resolve_ts_import(&base_dir, import_path);
+                    ast::typescript::extract_exports_with_resolver(content, Some(&resolver))
+                } else {
+                    ast::typescript::extract_exports_with_resolver(content, None)
+                };
                 if result.is_empty() {
                     // Fallback to regex if AST returned nothing (parse failure)
-                    let base_dir2 = file_path.parent().unwrap_or(Path::new(".")).to_path_buf();
-                    let resolver2 =
-                        move |import_path: &str| resolve_ts_import(&base_dir2, import_path);
-                    typescript::extract_exports_with_resolver(&content, Some(&resolver2))
+                    if resolve_typescript_imports {
+                        let base_dir = file_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+                        let resolver =
+                            move |import_path: &str| resolve_ts_import(&base_dir, import_path);
+                        typescript::extract_exports_with_resolver(content, Some(&resolver))
+                    } else {
+                        typescript::extract_exports_with_resolver(content, None)
+                    }
                 } else {
                     result
                 }
             }
             Language::Python => {
-                let result = ast::python::extract_exports(&content);
+                let result = ast::python::extract_exports(content);
                 if result.is_empty() {
-                    python::extract_exports(&content)
+                    python::extract_exports(content)
                 } else {
                     result
                 }
             }
             Language::Rust => {
-                let result = ast::rust_lang::extract_exports(&content);
+                let result = ast::rust_lang::extract_exports(content);
                 if result.is_empty() {
-                    rust_lang::extract_exports(&content)
+                    rust_lang::extract_exports(content)
                 } else {
                     result
                 }
             }
             Language::C => {
-                let result = ast::c::extract_exports(&content);
+                let result = ast::c::extract_exports(content);
                 if result.is_empty() {
-                    c::extract_exports(&content)
+                    c::extract_exports(content)
                 } else {
                     result
                 }
             }
             Language::Cpp => {
-                let result = ast::cpp::extract_exports(&content);
+                let result = ast::cpp::extract_exports(content);
                 if result.is_empty() {
-                    cpp::extract_exports(&content)
+                    cpp::extract_exports(content)
                 } else {
                     result
                 }
             }
             Language::Scala => {
-                let result = ast::scala::extract_exports(&content);
+                let result = ast::scala::extract_exports(content);
                 if result.is_empty() {
-                    scala::extract_exports(&content)
+                    scala::extract_exports(content)
                 } else {
                     result
                 }
             }
             Language::Erlang => {
-                let result = ast::erlang::extract_exports(&content);
+                let result = ast::erlang::extract_exports(content);
                 if result.is_empty() {
-                    erlang::extract_exports(&content)
+                    erlang::extract_exports(content)
                 } else {
                     result
                 }
             }
             Language::Elixir => {
-                let result = ast::elixir::extract_exports(&content);
+                let result = ast::elixir::extract_exports(content);
                 if result.is_empty() {
-                    elixir::extract_exports(&content)
+                    elixir::extract_exports(content)
                 } else {
                     result
                 }
             }
             Language::Perl => {
-                let result = ast::perl::extract_exports(&content);
+                let result = ast::perl::extract_exports(content);
                 if result.is_empty() {
-                    perl::extract_exports(&content)
+                    perl::extract_exports(content)
                 } else {
                     result
                 }
             }
             Language::Lisp => {
-                let result = ast::lisp::extract_exports(&content, ext);
+                let result = ast::lisp::extract_exports(content, ext);
                 if result.is_empty() {
-                    lisp::extract_exports(&content)
+                    lisp::extract_exports(content)
                 } else {
                     result
                 }
             }
             // Nim and Crystal have no published tree-sitter grammar crate: fall back to regex
-            _ => extract_with_regex(&content, lang, file_path),
+            _ => extract_with_regex(content, lang, file_path),
         }
+    } else if lang == Language::TypeScript && !resolve_typescript_imports {
+        typescript::extract_exports_with_resolver(content, None)
     } else {
-        extract_with_regex(&content, lang, file_path)
+        extract_with_regex(content, lang, file_path)
     };
 
     // If type-level granularity, filter to only type declarations
     let symbols = if level == ExportLevel::Type {
-        filter_type_level_exports(&content, &symbols, lang)
+        filter_type_level_exports(content, &symbols, lang)
     } else {
         symbols
     };
@@ -629,7 +663,10 @@ mod configured_extension_tests {
 
 #[cfg(test)]
 mod scan_tests {
-    use super::{ExportScan, scan_exported_symbols, scan_exported_symbols_full};
+    use super::{
+        ExportScan, get_exported_symbols_from_content, scan_exported_symbols,
+        scan_exported_symbols_full,
+    };
     use crate::types::{ExportLevel, ParseMode};
     use std::io::Write;
 
@@ -717,5 +754,32 @@ mod scan_tests {
                 ExportScan::Parsed(vec!["Widget".to_string(), "Inline".to_string()])
             );
         }
+    }
+
+    #[test]
+    fn supplied_content_extraction_never_resolves_ambient_typescript_imports() {
+        let directory = tempfile::tempdir().unwrap();
+        let barrel = directory.path().join("index.ts");
+        let content = "export * from './outside';\n";
+        std::fs::write(&barrel, content).unwrap();
+        std::fs::write(
+            directory.path().join("outside.ts"),
+            "export const outsideSecret = true;\n",
+        )
+        .unwrap();
+
+        assert_eq!(
+            scan_exported_symbols(&barrel),
+            ExportScan::Parsed(vec!["outsideSecret".to_string()])
+        );
+        assert!(
+            get_exported_symbols_from_content(
+                &barrel,
+                content,
+                ExportLevel::Member,
+                ParseMode::Regex,
+            )
+            .is_empty()
+        );
     }
 }

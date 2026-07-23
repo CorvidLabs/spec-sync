@@ -67,3 +67,16 @@ Acceptance Criteria
 - `discover_manifest_modules` remains compatible with its infallible discovery return type.
 - Coverage and enforcement callers can use the checked variants to distinguish inconclusive
   discovery from successful empty discovery.
+
+### REQ-config-006
+
+Legacy JSON GitHub repository configuration SHALL fail closed when `github.repo` is present with a
+non-string, non-null type.
+
+Acceptance Criteria
+
+- Number, boolean, object, and list values remain explicitly invalid instead of discarding the surrounding
+  valid configuration or becoming repository auto-detection.
+- Missing, null, and string repository values preserve their established compatibility behavior.
+- Issue inspection validates the explicit invalid repository before missing-spec or no-reference
+  success and does not consult Git metadata.

@@ -15,8 +15,8 @@ artifact: tasks
 - [x] Make generation capability-relative and transactional across multi-file failures.
 - [x] Withhold MCP Git-freshness score credit because bounded snapshots intentionally exclude Git.
 - [x] Add the MCP semantic delta, companions, public documentation, and release changelog entry.
-- [x] Run 83 MCP unit tests, 44 MCP integration tests, the full 1,792-unit/260-integration suite,
-  build/type/docs gates, and Windows GNU cross-target compilation.
+- [x] Run the then-current focused MCP/unit/integration suites, build/type/docs gates, and Windows
+  GNU cross-target compilation; do not treat those earlier counts as final-tree evidence.
 - [x] Replay the hardened MCP against the private `CorvidLabs/spec-sync-sandbox` testbed.
 - [x] Resolve the independent review's case-insensitive `.git` finding and obtain a clean rereview.
 - [x] Characterize and fix startup root replacement, snapshot omissions, atomic generation, output
@@ -56,9 +56,48 @@ artifact: tasks
   paths that normalize inside the retained root while continuing to reject true escapes.
 - [x] Diagnose the Windows CI failures and consume the final quarantine directory capability before
   removal so init, generation, and collision rollback do not fail with sharing violations.
+- [x] Close the independent follow-up findings for raw issue-list page bounds, semantic-only Cargo
+  path discovery, confined Windows-native Cargo paths, and fail-inconclusive CLI/MCP spec
+  inspection.
+- [x] Repair the Windows junction and absolute-child fixtures with native path joins, a proved
+  reparse target, intended-diagnostic assertions, and a valid fully covered child project.
+- [x] Close the latest issue-inspection findings with checked top-level `implements`/`tracks` shapes,
+  checked traversal, hostile-path sanitization and safe code spans, relative content-free MCP read
+  diagnostics, confined CLI `specs_dir`, and strict rejection of `pull_request: null`.
+- [x] Add focused regressions for malformed issue-field shapes, checked discovery failures,
+  hostile terminal/Markdown paths, MCP absolute-root non-disclosure, and null PR markers.
+- [x] Add maintained real-YAML checked issue parsing with duplicate/global malformed rejection,
+  strict blank/null/wrong-shape handling, valid comments/trailing commas, and ignored nested/block
+  scalar lookalikes.
+- [x] Root CLI issue discovery in retained capabilities and immutable same-handle spec snapshots.
+- [x] Add `validate_spec_content_with_sources` and `SourceSnapshot`; preserve normal
+  `issues --create` validation/creation behavior against exact spec/source snapshots without
+  reopening paths or resolving ambient TypeScript wildcard imports.
+- [x] Bind CLI-discovered spec identity through read, cover regular/hardlink replacement, and cap
+  retention at 10,000 specs, 4 MiB per spec/source, and 64 MiB cumulative spec/source snapshots.
+- [x] Validate configured repository syntax even with missing/empty specs, escape bidi/Zl/Zp
+  characters, and pad edge-backtick Markdown code spans.
+- [x] Sanitize hostile drift-creation terminal diagnostics and GitHub issue title/body text.
+- [x] Validate every raw GitHub issue/pull-request item as open with exact URL identity and reject
+  duplicate raw identities before PR filtering.
+- [x] Add commands, exports, parser, and validator semantic deltas plus synchronized canonical
+  companions/docs.
+- [x] Bind real CLI MCP startup to the requested root before ambient canonicalization and prove
+  both internal and spawned-binary root-replacement rejection.
+- [x] Use one retained CLI project capability for specs and mapped sources, and bound the complete
+  recursive inventory including non-spec entries.
+- [x] Fail closed on non-string legacy JSON `github.repo` values and noncanonical provider URL
+  number spelling.
+- [x] Preserve the public rendered validation-vector API while routing exact structured path
+  attribution privately, including legal paths containing `": "`.
+- [x] Close renewed acceptance findings by accepting CRLF checked frontmatter, exercising the real
+  rendered-vector compatibility path, synchronizing late semantic facets across all definition
+  artifacts, and covering boolean legacy JSON repository values.
+- [x] Obtain a clean renewed independent acceptance rereview and separate defensive
+  security/compatibility rereview after the full final tree is available.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.
-- [x] Obtain fresh definition approval after the material reviewer-driven artifact amendment.
+- [ ] Obtain fresh definition reapproval after this material independent-review artifact amendment.
 - [ ] Finish lifecycle verification, complete repository lane, trust, provenance, independent
-  rereview, and GitHub CI evidence; local full-suite, build/docs, Windows, private-sandbox, strict
-  100% coverage, and all-spec score-100 gates pass.
+  rereview, and GitHub CI evidence; rerun final-tree full-suite/build/docs/coverage/spec-score gates
+  and preserve prior Windows GNU/private-sandbox evidence without presenting it as final runtime CI.

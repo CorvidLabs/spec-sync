@@ -15,10 +15,15 @@ spec: commands.spec.md
 - [x] `compute_exit_code` exit-code matrix covered by unit tests in `src/main.rs` (warn/enforce-new/strict + require-coverage)
 - [x] End-to-end enforcement and coverage flows covered in `tests/integration.rs`
 - [x] Register verified SDD command dispatch under the shared command surface
+- [x] Sanitize hostile repository, path, URL, and provider text in drift-creation terminal output
+  and preserve the GitHub helper's title/body sanitization boundary
+- [x] Preserve the public rendered `Vec<String>` validation API while retaining exact structured
+  spec-path attribution privately, including legal paths containing `": "`
 
 ## Gaps
 
-- `src/commands/mod.rs` has no `#[cfg(test)]` module; `filter_specs`/`filter_by_status`/`run_validation` are exercised only indirectly via integration tests
+- `filter_specs`/`filter_by_status` remain exercised indirectly; CHG-0063 adds focused inline
+  coverage for exact drift-path attribution and public API compatibility.
 
 ## Review Status
 

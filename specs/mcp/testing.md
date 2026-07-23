@@ -16,7 +16,8 @@ spec: mcp.spec.md
 | Configured or nested symlink escape | Rejected for reads and writes, including a dangling init destination |
 | Escaping spec frontmatter file mapping | Rejected before list/check/score consumers can read it |
 | Manifest workspace/member, Gradle module, Python package, cache, dependency, or metadata escape | Rejected before autodetection or downstream consumers access it; outside bytes remain identical |
-| Cargo dependency path `../sibling` normalizes inside the server root | Accepted and snapshotted; an additional parent component that escapes the root is rejected |
+| Cargo dependency path `../sibling` or `..\sibling` normalizes inside the server root | Accepted and snapshotted; drive, UNC, rooted, and traversal escapes are rejected |
+| Cargo package metadata contains an unrelated `path` key | Ignored for input discovery; semantic target/dependency paths are still snapshotted |
 | No-config source scan symlink escape | Rejected by a four-level, ignore-aware, bounded preflight |
 | Excluded subtree contains an outside symlink | Exclusion is honored; unrelated subtree does not reject the request |
 | Wrong argument type, unknown key, or malformed `tools/call` params | JSON-RPC -32602 before execution |
@@ -45,9 +46,15 @@ spec: mcp.spec.md
 | Redirected `.git` metadata without explicit `github.repo` | Rejected without Git auto-detection or outside metadata disclosure |
 | MCP score in a Git-backed project snapshot | Reports Git freshness unavailable and withholds five freshness points |
 | Transport reader or writer failure | Returned as an error; never reported as a successful server exit |
-| Windows junction/reparse-point read, generate, or init destination | Rejected on Windows CI; outside victim bytes remain exact and no staging debris remains |
+| Windows junction/reparse-point read, generate, or init destination | Native-join fixture proves the reparse target, then accepts rejection during either capability snapshot traversal or destination publication confinement; outside victim bytes remain exact and no staging debris remains |
+| Windows absolute child read root | A valid child project reaches coverage and reports 1/1 files; rooted and drive-relative lookalikes fail for the intended root-validation reason |
 | GitHub inaccessible repository, post-404 access loss, timeout, or malformed API output | In-process REST access returns an inconclusive error, not successful zero/not-found counts; no provider subprocess exists |
 | Duplicate issue IDs across specs or more than 100 unique IDs | IDs are globally deduplicated; over-limit batches fail before provider access |
+| MCP issue scan encounters unreadable bytes or malformed/missing frontmatter | Entire issue result is inconclusive with an attributed path; no zero-reference success |
+| MCP issue scan encounters a wrong `implements`/`tracks` shape or traversal error | Entire issue result is inconclusive; invalid IDs or undiscovered entries cannot be silently dropped |
+| MCP issue scan encounters duplicate keys or malformed YAML anywhere | Entire issue result is inconclusive with a stable content-free reason |
+| MCP issue YAML contains comments/trailing commas plus nested extension or block-scalar lookalikes | Valid top-level positive unsigned lists are accepted; nested/text lookalikes are ignored |
+| MCP spec read fails beneath a host-absolute root | Diagnostic contains only a sanitized relative path and content-free reason; no root, OS detail, or spec bytes |
 | Public-entry replacement before quarantine during staging, publication, or file rollback | Atomic quarantine preserves the replacement and rejects the batch |
 | Replacement reuses the same Unix inode or rewrites the same filesystem entry | Exact-byte identity rejects and preserves the replacement instead of trusting inode identity alone; hashing fails closed above the 64 MiB output bound |
 | Same-user process races a private staging or quarantine name | Outside the MCP caller/path-confinement threat boundary; deployments must isolate server-root mutation |
@@ -58,11 +65,24 @@ spec: mcp.spec.md
 
 The adversarial integration matrix lives in `tests/integration/mcp.rs`; its local write-enabled
 process helper leaves the shared `mcp_request` helper and all existing read-only callers unchanged.
-The focused MCP suite contains 44 non-Windows integration tests and 83 MCP unit tests, including
-exact envelope and resource validation, explicit Git repository configuration, generation-failure reporting,
+Focused MCP source and integration coverage includes exact envelope and resource validation,
+explicit Git repository configuration, generation-failure reporting,
 Windows read/write junctions, identity-bound capability acquisition, cycle/bound and actual-byte budgets, bounded
 input/output, configured-ignore exceptions, conservative Git scoring, rollback, and transport
-failure branches. `generation_rejects_cumulative_output_bytes_before_publication` proves the exact
+failure branches. `snapshot_ignores_nonsemantic_cargo_metadata_paths`,
+`snapshot_normalizes_confined_windows_native_cargo_paths`,
+`issue_tool_fails_inconclusive_for_malformed_frontmatter`, and
+`issue_tool_fails_inconclusive_for_unreadable_spec_text` cover the independent-review follow-up.
+`issue_tool_fails_inconclusive_for_malformed_known_issue_fields`,
+`issue_reference_field_validation_accepts_supported_list_forms`, and
+`issue_reference_field_validation_ignores_nested_extensions_and_block_scalars`,
+`issue_spec_file_name_rejects_non_utf8_spec_suffix`,
+`issue_tool_rejects_non_utf8_spec_filename_after_snapshot_copy`, and
+`issue_read_diagnostics_are_bounded_relative_and_content_free` cover strict top-level shapes,
+checked real-YAML behavior, lossy-name discovery, and diagnostic redaction. Final source-worker
+counts are intentionally not recorded here while the tree remains active; fresh Windows runtime
+and final repository/trust/provenance/CI evidence remain pending.
+`generation_rejects_cumulative_output_bytes_before_publication` proves the exact
 64 MiB cumulative boundary before publication, and
 `generation_rejects_an_oversized_result_during_response_preflight` proves the final response-size
 preflight. Windows-only generate/init junction cases compile in the cross-target lane and run

@@ -13,6 +13,18 @@ Acceptance Criteria
 - Coverage and enforcement callers can use the checked variants to distinguish inconclusive
   discovery from successful empty discovery.
 
+### REQUIREMENT REQ-config-006
+
+Legacy JSON GitHub repository configuration SHALL fail closed when `github.repo` is present with a
+non-string, non-null type.
+
+Acceptance Criteria
+
+- Number, boolean, object, and list values remain explicitly invalid instead of discarding the surrounding
+  valid configuration or becoming repository auto-detection.
+- Missing, null, and string repository values preserve compatibility.
+- Issue inspection rejects the explicit invalid repository before no-spec/no-reference success.
+
 ## MODIFIED
 
 ### SPEC SECTION Public API

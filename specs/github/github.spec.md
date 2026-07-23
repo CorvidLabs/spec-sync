@@ -1,6 +1,6 @@
 ---
 module: github
-version: 9
+version: 10
 status: stable
 files:
   - src/github.rs
@@ -64,10 +64,16 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
    malformed-provider failures remain errors.
 9. `gh` is invoked only by the explicit `create_drift_issue` write path; legacy
    `fetch_issue_gh` fails closed without spawning it.
-10. Issue listing strictly follows `Link` pagination for at most 100 pages. Every next link must
-    retain the requested `/repos/{owner}/{repo}/issues` endpoint and the exact open-state,
-    100-item, label, and next-page query semantics; malformed or redirected links, duplicate issue
-    numbers, and a continuing page after the cap fail instead of truncating.
+10. Issue listing rejects a provider page containing more than 100 entries before parsing any
+    item, including pull-request entries. Every raw item is then fully validated before pull-request
+    filtering: its marker shape, positive numeric identity, nonempty title, nonempty names for any labels, exact open state,
+    and canonical `https://github.com/{owner}/{repo}/issues/{number}` or
+    `/pull/{number}` URL identity must agree with its raw type. Duplicate raw identities are rejected
+    within and across pages even when one or both entries would later be filtered as pull requests.
+    Listing strictly follows `Link` pagination for at most 100 pages. Every next link must retain the
+    requested `/repos/{owner}/{repo}/issues` endpoint and exact open-state, 100-item, label, and
+    next-page query semantics; malformed or redirected links and a continuing page after the cap
+    fail instead of truncating.
 11. Action defaults and maintained consumer pins advance to an exact release version only through
     an accepted release change, and floating-ref promotion waits for supported-platform
     verification of the exact-version artifacts.
@@ -112,7 +118,10 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | More than 100 unique issue IDs | Verification fails before provider access |
 | Duplicate issue IDs across specs | Provider is queried once per unique issue in the batch |
 | Malformed REST response | Strict issue verification records an inconclusive provider error; never successful empty verification |
-| Duplicate issue across list pages | Entire listing fails; duplicates are not silently removed |
+| Issue-list entry has `pull_request: null` or another non-object marker | Entire listing fails as malformed provider data; null cannot masquerade as an ordinary issue |
+| Raw issue or pull-request item is closed, has malformed fields, or has mismatched repository/resource/number URL identity | Entire listing fails before pull-request filtering |
+| Duplicate raw item identity within or across list pages, including pull requests | Entire listing fails; filtered pull requests cannot hide duplicates |
+| Issue-list page contains 101 or more provider entries | Entire listing fails before parsing any entry, even if overflow entries are pull requests or malformed |
 | Issue listing still has a next page after 100 pages | Entire listing fails instead of truncating |
 
 ## Dependencies
@@ -144,3 +153,5 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | 2026-07-22 | CHG-0063: Fail closed on inaccessible repositories/provider failures and bound globally deduplicated issue verification |
 | 2026-07-22 | CHG-0063 follow-up: Move issue reads, listing, and verification to explicit-token in-process REST, strictly parse encoded issue listings, and disable `gh` read providers |
 | 2026-07-22 | CHG-0063 review fix: Bind every pagination link to the requested repository issues endpoint and query semantics |
+| 2026-07-22 | CHG-0063 independent-review follow-up: Bound raw issue-list pages and reject null or non-object pull-request markers before filtering |
+| 2026-07-22 | CHG-0063 final adversarial follow-up: Validate every raw issue/pull-request item as open with exact URL identity and canonical decimal number spelling, and reject raw duplicates before PR filtering |

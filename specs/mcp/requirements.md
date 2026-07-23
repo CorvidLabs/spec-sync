@@ -67,6 +67,9 @@ Acceptance Criteria
 - Default MCP mode omits mutating tools.
 - Direct mutator calls in default mode fail before execution.
 - Write mode is explicit and mutating tools cannot override the configured root.
+- MCP startup opens and identity-binds the user-requested root before ambient canonicalization,
+  then canonicalizes and reopens that path and requires the reopened identity to match; replacement
+  during acquisition fails before JSON-RPC request dispatch.
 - Read roots are lexical descendants opened only through the retained configured-root capability.
 - Configuration/metadata/cache files, manifest/autodetection paths, dependency references, module
   names/files, spec mappings, and nested symlink targets are confined before downstream filesystem
@@ -76,12 +79,15 @@ Acceptance Criteria
 - Traversal, configured-path, and symlink escapes fail before filesystem access.
 - Project files are bounded to 8 MiB and actual project/config input to 64 MiB per operation;
   manifests are copied from the exact bytes charged during discovery.
-- Cargo TOML and comment/escape-aware shared Gradle workspace parsing preserve explicitly declared
-  inputs beneath normally ignored names, including multiline includes and supported `projectDir`
-  overrides.
+- Cargo TOML path discovery follows only semantic target, dependency, workspace-dependency,
+  target-specific dependency, patch, and replacement tables; unrelated metadata `path` keys do
+  not authorize filesystem inputs. Comment/escape-aware shared Gradle workspace parsing preserves
+  explicitly declared inputs beneath normally ignored names, including multiline includes and
+  supported `projectDir` overrides.
 - Manifest-relative `..` components are resolved from the declaring manifest and accepted only
-  when the normalized target remains beneath the retained server root; true normalized escapes,
-  symlink escapes, and junction escapes still fail before downstream access.
+  when the normalized target remains beneath the retained server root. Confined Windows-native
+  backslashes are normalized equivalently; drive, UNC, rooted, traversal, symlink, and junction
+  escapes still fail before downstream access.
 
 ### REQ-mcp-003
 
@@ -105,3 +111,14 @@ Acceptance Criteria
   provider subprocess, prepares once, globally caps/deduplicates 100 IDs, includes authentication
   and repository preflight in its 30-second deadline, and revalidates access after an apparent
   missing issue.
+- GitHub issue verification treats unreadable specs, malformed or missing frontmatter, and failed
+  spec discovery as inconclusive tool errors instead of silently producing a zero-reference
+  success.
+- Recursive discovery and `implements`/`tracks` list shapes are checked rather than lossy; walker
+  failures, wrong shapes, and invalid issue IDs are inconclusive.
+- Checked issue parsing uses the shared maintained real-YAML parser: duplicate keys and malformed
+  YAML anywhere reject the operation; blank/null/scalar/mapping/mixed/non-positive/overflowing
+  top-level known fields are invalid; comments and valid trailing commas are accepted; nested
+  extension and block-scalar lookalikes are ignored; LF and CRLF delimiters are equivalent.
+- MCP read diagnostics expose only a sanitized project-relative spec path and a content-free
+  reason; they do not expose the server's absolute root, raw OS error text, or spec bytes.

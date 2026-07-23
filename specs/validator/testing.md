@@ -7,6 +7,7 @@ spec: validator.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/validator.rs` | cargo test validator:: | `test_is_cross_project_ref`, `test_parse_cross_project_ref`, `test_find_spec_files_empty_dir`, `test_find_spec_files_nonexistent`, `test_find_spec_files_with_specs`, `test_validate_spec_missing_frontmatter` |
+| `src/commands/issues.rs` | focused `snapshot_validation` command tests | `validate_spec_content_with_sources` consumes retained spec/source snapshots after ambient path replacement and does not disclose or validate replacement content |
 | `src/validator.rs` | cargo test validator::malformed_gradle_settings_make_coverage_inconclusive | Checked coverage returns the Gradle parse error; compatibility coverage carries an inconclusive zero-percent result |
 | `tests/integration.rs` | cargo test --test integration check_valid_project_passes | End-to-end fixture: `check_valid_project_passes` |
 | `tests/integration.rs` | cargo test --test integration check_missing_source_file_fails | End-to-end fixture: `check_missing_source_file_fails` |
@@ -26,12 +27,16 @@ spec: validator.spec.md
 | Undocumented code export | source code exports `helperFn` but the spec does not list it | `validate_spec` is called | warnings include "Export 'helperFn' not in spec (undocumented)" |
 | Cross-project dependency reference | a spec with `depends_on: ["corvid-labs/algochat@auth"]` | `validate_spec` is called locally | the cross-project ref is skipped (no error or warning) |
 | Malformed Gradle settings | a source tree with an unterminated Gradle `include` declaration | a CLI/MCP gate calls `compute_coverage_checked` | coverage is inconclusive and the caller fails instead of reporting partial totals |
+| Retained spec snapshot validation | valid pre-read spec bytes and a logical spec path replaced after the snapshot | `validate_spec_content` is called | validation uses the pre-read spec bytes and opens neither the replaced spec path nor adjacent companions; mapped sources retain normal path behavior |
+| Retained spec/source validation | retained spec bytes plus `SourceSnapshot` observations, with ambient paths replaced | `validate_spec_content_with_sources` is called | validation uses only supplied spec/source snapshots and ambient-free export extraction |
 
 ## Regression Matrix
 
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
 | Spec file unreadable | Error: "Cannot read spec" | Keep or add a focused assertion before changing this behavior |
+| `validate_spec_content` receives pre-read bytes | Validates those exact spec bytes; `spec_path` and adjacent companions are not opened, while mapped sources retain normal path behavior | Keep core spec-content tests |
+| `validate_spec_content_with_sources` receives spec/source snapshots | Treats `SourceSnapshot` observations as authoritative; no spec/source reopen or ambient wildcard resolution | Keep both issue-command replacement regressions and the exports supplied-content regression |
 | Missing frontmatter delimiters | Error: "Missing or malformed YAML frontmatter" | Keep or add a focused assertion before changing this behavior |
 | Source file not found | Error with fix suggestion (Levenshtein-based or removal) | Keep or add a focused assertion before changing this behavior |
 | DB table not in schema | Error: "DB table not found in schema" | Keep or add a focused assertion before changing this behavior |
@@ -47,4 +52,7 @@ spec: validator.spec.md
 - Run the narrow source command above before the full suite when changing `src/validator.rs`.
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
+- Preserve core-validation parity between `validate_spec` and `validate_spec_content`; path-based
+  validation additionally reads adjacent companion markers. Keep the stronger no-ambient-source
+  guarantee attached specifically to `validate_spec_content_with_sources`.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `./target/release/specsync score --all`.

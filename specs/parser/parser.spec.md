@@ -1,6 +1,6 @@
 ---
 module: parser
-version: 5
+version: 6
 status: stable
 files:
   - src/parser.rs
@@ -15,7 +15,11 @@ depends_on:
 
 ## Purpose
 
-Parses spec markdown files — extracts YAML frontmatter into structured data, extracts backtick-quoted symbol names from Public API tables, and checks for required markdown sections. Uses zero-dependency YAML parsing (regex-based, no YAML library).
+Parses spec markdown files — extracts supported frontmatter into structured data, extracts
+backtick-quoted symbol names from Public API tables, and checks for required markdown sections.
+The compatibility `parse_frontmatter` path retains its line-oriented supported-subset parser.
+Security-sensitive GitHub issue discovery uses a separate maintained `serde-saphyr` real-YAML
+parser that validates top-level issue-reference fields and rejects ambiguous or malformed YAML.
 
 ## Public API
 
@@ -30,6 +34,7 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `parse_frontmatter` | `content: &str` | `Option<ParsedSpec>` | Parse YAML frontmatter delimited by `---` from a spec file |
+| `parse_checked_issue_references` | `content: &str` | `Result<(Vec<u64>, Vec<u64>), String>` | Parse and strictly validate top-level `implements` and `tracks` issue-reference lists from real YAML frontmatter |
 | `get_spec_symbols` | `body: &str` | `Vec<String>` | Extract backtick-quoted symbol names from the `## Public API` section tables |
 | `get_missing_sections` | `body: &str, required_sections: &[String]` | `Vec<String>` | Check which required `##` sections are missing from the spec body |
 | `is_export_header` | `header: &str` | `bool` | Returns true if a `###` header denotes an exported-symbols subsection (e.g. `### Exported Functions`) |
@@ -47,9 +52,18 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 3. `get_spec_symbols` only extracts from `### Exported ...` subsections (allowlist) and top-level tables; skips non-export subsections (e.g., `### API Endpoints`, `### Route Handlers`, `### Configuration`) and `####` method/constructor/properties sub-tables
 4. Symbols are deduplicated while preserving order
 5. `get_missing_sections` uses regex matching for `## SectionName` headings — case-sensitive
-8. `get_near_miss_sections` only reports sections that are already in `get_missing_sections` — it does not flag sections that are present but close to another required name
 6. Frontmatter parsing handles both scalar fields (module, version, status) and list fields (files, db_tables, depends_on)
 7. Empty list syntax `[]` is handled correctly, producing an empty Vec
+8. `get_near_miss_sections` only reports sections that are already in `get_missing_sections` — it does not flag sections that are present but close to another required name
+9. `parse_checked_issue_references` parses the complete frontmatter as real YAML, permits comments
+   and valid trailing commas, and accepts only top-level `implements`/`tracks` sequences of positive
+   unsigned issue numbers.
+10. Blank, null, scalar, mapping, mixed, zero, negative, and overflowing known issue-reference
+    values are rejected with stable content-free errors.
+11. Duplicate `implements`/`tracks` keys, duplicate keys elsewhere in the YAML mapping tree, and
+    malformed YAML anywhere in frontmatter reject the complete issue-reference parse.
+12. Nested extension mappings/sequences and block-scalar text that contain issue-like key names are
+    valid YAML but do not contribute issue references.
 
 ## Behavioral Examples
 
@@ -77,12 +91,29 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 - **When** `get_spec_symbols(body)` is called
 - **Then** includes the complete symbol "inputs.working-directory" without truncating at punctuation
 
+### Scenario: Parse checked issue references
+
+- **Given** real YAML frontmatter containing `implements: [41,] # comment`, a block `tracks` list,
+  and nested extension data containing issue-like keys
+- **When** `parse_checked_issue_references(content)` is called
+- **Then** only the valid top-level positive unsigned issue IDs are returned
+
+### Scenario: Reject ambiguous issue-reference YAML
+
+- **Given** frontmatter with a duplicate key, malformed extension YAML, or a blank/null/wrong-shaped
+  top-level `implements` or `tracks`
+- **When** `parse_checked_issue_references(content)` is called
+- **Then** the complete parse fails with a stable content-free error
+
 ## Error Cases
 
 | Condition | Behavior |
 |-----------|----------|
 | No frontmatter delimiters | `parse_frontmatter` returns `None` |
-| Malformed YAML in frontmatter | Unknown keys silently ignored, missing fields remain as `None` |
+| Unsupported or malformed content on the compatibility path | `parse_frontmatter` preserves its supported-subset behavior; unknown keys are ignored and missing fields remain `None` |
+| Missing/malformed real-YAML frontmatter on the checked issue path | `parse_checked_issue_references` returns a stable content-free error |
+| Duplicate YAML key anywhere in checked frontmatter | Complete issue-reference parsing fails |
+| Blank, null, scalar, mapping, mixed, zero, negative, or overflowing known issue value | Complete issue-reference parsing fails |
 | No `## Public API` section | `get_spec_symbols` returns empty vector |
 | Empty, unterminated, later-column, or prose backtick span | No symbol is extracted |
 | Empty body | `get_missing_sections` reports all required sections as missing |
@@ -95,6 +126,8 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 |--------|-------------|
 | types | `Frontmatter` struct |
 | regex | `Regex`, `LazyLock` for compiled patterns |
+| serde | Checked issue-reference deserialization visitors |
+| serde-saphyr | Real-YAML parsing with duplicate-key rejection |
 
 **Consumed By**
 
@@ -103,7 +136,8 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 | validator | `parse_frontmatter`, `get_spec_symbols`, `get_missing_sections`, `get_near_miss_sections` |
 | scoring | `parse_frontmatter`, `get_spec_symbols`, `get_missing_sections` |
 | commands/check | `get_near_miss_sections` (via `fix_near_miss_required_headers`) |
-| mcp | `parse_frontmatter` (for listing specs) |
+| cmd_issues | `parse_checked_issue_references` for fail-closed CLI issue inspection |
+| mcp | `parse_frontmatter` for listing specs; `parse_checked_issue_references` for issue verification |
 
 **Frontmatter Synchronization**
 
@@ -118,3 +152,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Preserve complete punctuated symbols in Public API table rows |
 | 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Preserve punctuated Public API symbols across all export extractors |
+| 2026-07-22 | CHG-0063: Add maintained real-YAML checked issue-reference parsing with duplicate/malformed YAML rejection, strict top-level shapes, CRLF compatibility, and extension-safe semantics |

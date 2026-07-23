@@ -23,6 +23,12 @@ spec: github.spec.md
 - [x] `fetch_issue` / `verify_spec_issues` — classify `implements`/`tracks` references as valid/closed/not_found/error
 - [x] `list_issues` via encoded REST parameters, strict fields/links, PR filtering, bounded full pagination, and no silent duplicates/truncation
 - [x] Bind pagination links to the requested repository issues endpoint and exact query semantics
+- [x] Reject issue-list provider pages above 100 entries before parsing items, including pull-request entries
+- [x] Validate every raw issue/pull-request item before filtering, including open-only state and
+  exact repository/resource/number URL identity.
+- [x] Require provider item URL numbers to use exact canonical decimal spelling, rejecting leading
+  zeros even when they parse to the same numeric issue or pull-request ID.
+- [x] Reject duplicate raw identities within and across pages even when pull requests are filtered.
 - [x] Forbid `gh` construction in every read module on all platforms and prove Unix token-present
   read/list/verify/import paths never execute a PATH sentinel
 - [x] `create_drift_issue` — `gh`-only issue creation titled "Spec drift detected: {path}"
@@ -32,6 +38,8 @@ spec: github.spec.md
 
 ## Open
 
+- [x] Confirm focused evidence that `pull_request: null` and every non-object marker reject the
+  complete provider page before PR filtering.
 - [ ] After publishing each exact 5.x release, smoke-test the immutable Action ref on Linux,
   macOS, and Windows before creating or advancing the floating `v5` ref
 

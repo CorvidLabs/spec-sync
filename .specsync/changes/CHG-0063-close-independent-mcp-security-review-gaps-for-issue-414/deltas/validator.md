@@ -16,32 +16,85 @@ Acceptance Criteria
 
 ## MODIFIED
 
+### REQUIREMENT REQ-validator-001
+
+The validator SHALL enforce bidirectional code-contract, metadata, dependency, schema, and coverage
+rules while accumulating actionable findings, and SHALL support exact pre-read spec snapshots
+without reopening their logical paths.
+
+Acceptance Criteria
+
+- Bidirectional validation reports a documented-but-missing export as an error and an undocumented
+  code export as a warning.
+- Missing required frontmatter fields (`module`, `version`, `status`, `files`) are errors.
+- Cross-project references are recognized and skipped during local validation.
+- Coverage excludes test files and configured exclude patterns.
+- `find_spec_files` returns sorted results.
+- Schema validation uses the configured `schema_pattern`.
+- Missing source suggestions use Levenshtein distance with a maximum distance of three.
+- Flat source files are detected as modules while common entry points are excluded.
+- Source discovery respects configured `source_extensions`.
+- Requirements companions are validated when present and remain optional for technical/internal
+  modules under adaptive artifact policy.
+- `validate_spec_content` applies normal single-spec validation to caller-provided spec bytes.
+- `spec_path` remains the logical location for diagnostics and mapped-source resolution, but is not
+  reopened to obtain spec content; adjacent companion reads are deliberately skipped for the
+  pre-read spec-content API, while mapped sources retain normal path-based behavior.
+- CRLF normalization and spec-size policy are computed from the supplied content.
+- `validate_spec` preserves path-based compatibility by reading once and delegating the exact bytes
+  to `validate_spec_content`.
+- `SourceSnapshot` represents `Present`, `Missing`, `Rejected`, and `Unreadable` mapped-source
+  observations.
+- `validate_spec_content_with_sources` validates supplied spec bytes and supplied mapped-source
+  observations without reopening either through ambient project paths.
+- Supplied-content export extraction uses retained source bytes and does not resolve TypeScript
+  wildcard imports through ambient paths.
+
 ### SPEC SECTION Public API
+
+#### Exported Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `validate_spec` | `spec_path: &Path, root: &Path, schema_tables: &HashSet<String>, schema_columns: &HashMap<String, SchemaTable>, config: &SpecSyncConfig` | `ValidationResult` | Validate a single spec file: frontmatter, files, sections, API surface, dependencies |
-| `find_spec_files` | `dir: &Path` | `Vec<PathBuf>` | Recursively find all `*.spec.md` files in a directory |
-| `compute_coverage` | `root, spec_files, config` | `CoverageReport` | Compatibility coverage wrapper that records checked discovery failures as an inconclusive zero-percent report |
-| `compute_coverage_checked` | `root, spec_files, config` | `Result<CoverageReport, String>` | Compute coverage while surfacing malformed or unreadable manifest discovery as an inconclusive error for gate callers |
-| `get_schema_table_names` | `root, config` | `HashSet<String>` | Extract table names from SQL schema files using configurable regex |
-| `is_cross_project_ref` | `dep: &str` | `bool` | Check if a dependency string is a cross-project ref (`owner/repo@module`) |
-| `parse_cross_project_ref` | `dep: &str` | `Option<(&str, &str)>` | Parse cross-project ref into (owner/repo, module) tuple |
-| `normalize_source_mapping` | `file: &str` | `Option<String>` | Normalize a safe project-relative mapping by removing redundant current-directory segments and rejecting absolute, parent, or prefixed paths; callers also reject backslashes so ownership, validation, and coverage share one portable mapping contract |
-| `source_within_root` | `root: &Path, file: &str` | `bool` | Whether a `files:` entry or nearest existing ancestor resolves inside the project root; dangling or unreadable ancestors fail closed, and absolute, parent, or symlink-parent escapes are rejected |
+| `validate_spec` | `spec_path: &Path, root: &Path, schema_tables: &HashSet<String>, schema_columns: &HashMap<String, SchemaTable>, config: &SpecSyncConfig` | `ValidationResult` | Validate a single spec file: frontmatter, files, sections, API surface, and dependencies |
+| `validate_spec_content` | `spec_path: &Path, content: &str, root: &Path, schema_tables: &HashSet<String>, schema_columns: &HashMap<String, SchemaTable>, config: &SpecSyncConfig` | `ValidationResult` | Validate already-read spec bytes without reopening the spec or adjacent companions; mapped sources retain normal path-based behavior |
+| `find_spec_files` | `dir: &Path` | `Vec<PathBuf>` | Recursively find sorted `*.spec.md` files |
+| `compute_coverage` | `root, spec_files, config` | `CoverageReport` | Compatibility file and LOC coverage computation |
+| `compute_coverage_checked` | `root, spec_files, config` | `Result<CoverageReport, String>` | Checked coverage that surfaces malformed/unreadable manifest discovery |
+| `get_schema_table_names` | `root, config` | `HashSet<String>` | Extract schema table names through the configured pattern |
+| `is_cross_project_ref` | `dep: &str` | `bool` | Return whether a dependency is `owner/repo@module` |
+| `parse_cross_project_ref` | `dep: &str` | `Option<(&str, &str)>` | Parse a cross-project reference into repository and module |
+| `normalize_source_mapping` | `file: &str` | `Option<String>` | Normalize a safe portable project-relative source mapping |
+| `source_within_root` | `root: &Path, file: &str` | `bool` | Return whether a source mapping remains beneath the project root |
+
+#### Crate-Private Source-Snapshot API
+
+| Item | Parameters / Variants | Returns | Description |
+|------|------------------------|---------|-------------|
+| `SourceSnapshot` | `Present(Vec<u8>)`, `Missing`, `Rejected`, `Unreadable` | — | Capability-confined observation of a mapped source |
+| `validate_spec_content_with_sources` | `spec_path, content, root, schema_tables, schema_columns, config, sources: &HashMap<String, SourceSnapshot>` | `ValidationResult` | Validate supplied spec bytes and supplied mapped-source observations without ambient spec/source reopening |
 
 ### SPEC SECTION Invariants
 
-1. Validation is bidirectional: phantom documented exports are errors and undocumented code exports are warnings.
-2. Missing frontmatter fields are errors, not warnings.
-3. Cross-project refs are skipped during local validation and checked only by `specsync resolve`.
-4. Coverage excludes test files and configured exclude patterns, including supported simplified glob forms without panicking on `**/**`.
-5. Source discovery respects `source_extensions`; an empty list means all supported languages.
-6. `find_spec_files` returns sorted results.
-7. Schema extraction uses the configured `schema_pattern`.
-8. Missing-file suggestions use Levenshtein distance with a maximum of three.
-9. Flat source files are detected as modules except common entry points.
-10. Sections without substantive content are reported as unfinished draft text rather than template markers.
-11. `validate_spec` records parsed lifecycle status on `ValidationResult.status`, or `None` when frontmatter is unreadable.
-12. Requirements companions are validated when present but remain optional for technical/internal modules under adaptive policy.
-13. `compute_coverage_checked` propagates malformed or unreadable Gradle discovery instead of reporting partial coverage; the compatibility `compute_coverage` wrapper remains available, while CLI and MCP gates use the checked path.
+1. Validation is bidirectional: phantom documented exports are errors and undocumented code exports
+   are warnings.
+2. Missing required frontmatter fields are errors.
+3. Cross-project references are skipped during local validation.
+4. Coverage excludes tests and configured patterns.
+5. Source discovery honors configured extensions.
+6. Spec discovery is sorted.
+7. Schema extraction honors the configured pattern.
+8. Missing-file suggestions use bounded Levenshtein distance.
+9. Flat source-module detection excludes common entry points.
+10. Empty required sections are reported as unfinished content.
+11. Validation results retain parsed lifecycle status.
+12. Requirements companions are validated when present under adaptive artifact policy.
+13. Checked coverage propagates malformed/unreadable manifest discovery; compatibility coverage
+    remains available.
+14. `validate_spec_content` validates caller-provided bytes without reopening `spec_path` or
+    adjacent companions; the path remains logical diagnostic/source context and mapped sources
+    retain normal path behavior.
+15. `validate_spec` reads a path once and delegates the exact bytes to the shared content validator.
+16. `validate_spec_content_with_sources` treats its supplied `SourceSnapshot` map as authoritative
+    and does not reopen mapped sources or resolve supplied-content TypeScript wildcards through
+    ambient paths.

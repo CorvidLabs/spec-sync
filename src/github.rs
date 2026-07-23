@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 const GITHUB_COMMAND_DEADLINE: Duration = Duration::from_secs(10);
 const GITHUB_VERIFICATION_DEADLINE: Duration = Duration::from_secs(30);
 const MAX_VERIFIED_ISSUES: usize = 100;
+const MAX_ISSUE_LIST_PAGE_ENTRIES: usize = 100;
 const MAX_ISSUE_LIST_PAGES: usize = 100;
 
 #[derive(Debug, Clone)]
@@ -94,7 +95,7 @@ impl IssueBatchBackend for SystemIssueBatchBackend {
             let invocation_remaining = remaining()?;
             let recheck_deadline = operation_remaining.min(invocation_remaining);
             match self.token.as_deref() {
-                Some(token) => verify_api_repository(repo, token, recheck_deadline),
+                Some(token) => verify_api_repository(repo, token, recheck_deadline).map(|_| ()),
                 None => Err("GitHub issue provider was not prepared".to_string()),
             }
         })
@@ -164,20 +165,26 @@ struct GitHubLabelPayload {
 }
 
 #[derive(serde::Deserialize)]
-struct GitHubIssueListPayload {
-    #[serde(flatten)]
-    issue: GitHubIssuePayload,
-    pull_request: Option<serde_json::Map<String, serde_json::Value>>,
-}
-
-#[derive(serde::Deserialize)]
 struct GitHubRepositoryPayload {
+    id: u64,
     full_name: String,
 }
 
-struct GitHubIssueListPage {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct GitHubRepositoryIdentity {
+    id: u64,
+}
+
+#[derive(Debug)]
+struct ParsedGitHubIssueListPage {
+    raw_numbers: Vec<u64>,
     issues: Vec<GitHubIssue>,
-    has_next: bool,
+}
+
+struct GitHubIssueListPage {
+    raw_numbers: Vec<u64>,
+    issues: Vec<GitHubIssue>,
+    next_target: Option<String>,
 }
 
 /// Result of verifying issue references from spec frontmatter.
@@ -227,12 +234,14 @@ fn parse_repo_from_url(url: &str) -> Option<String> {
 
 /// Resolve the effective repo: explicit config > auto-detect from git.
 pub fn resolve_repo(config_repo: Option<&str>, root: &Path) -> Result<String, String> {
-    if let Some(repo) = config_repo {
-        return Ok(repo.to_string());
-    }
-    detect_repo(root).ok_or_else(|| {
-        "Cannot determine GitHub repo. Set `github.repo` in specsync.json or ensure a git remote is configured.".to_string()
-    })
+    let repo = match config_repo {
+        Some(repo) => repo.to_string(),
+        None => detect_repo(root).ok_or_else(|| {
+            "Cannot determine GitHub repo. Set `github.repo` in specsync.json or ensure a git remote is configured.".to_string()
+        })?,
+    };
+    validate_repo(&repo)?;
+    Ok(repo)
 }
 
 /// Check if the `gh` CLI is available and authenticated.
@@ -272,7 +281,7 @@ pub(crate) fn fetch_issue_details(repo: &str, number: u64) -> Result<GitHubIssue
             .ok_or_else(|| {
                 "GitHub repository recheck exceeded the issue operation deadline".to_string()
             })?;
-        verify_api_repository(repo, &token, recheck_deadline)
+        verify_api_repository(repo, &token, recheck_deadline).map(|_| ())
     })
     .map_err(|error| issue_fetch_error_message(repo, number, error))
 }
@@ -308,7 +317,11 @@ fn github_api_base() -> String {
     "https://api.github.com".to_string()
 }
 
-fn verify_api_repository(repo: &str, token: &str, deadline: Duration) -> Result<(), String> {
+fn verify_api_repository(
+    repo: &str,
+    token: &str,
+    deadline: Duration,
+) -> Result<GitHubRepositoryIdentity, String> {
     validate_repo(repo)?;
     let url = format!("{}/repos/{repo}", github_api_base());
     let mut response = github_api_agent(deadline)
@@ -338,7 +351,12 @@ fn verify_api_repository(repo: &str, token: &str, deadline: Duration) -> Result<
             "GitHub repository response did not confirm the requested repository {repo}"
         ));
     }
-    Ok(())
+    if body.id == 0 {
+        return Err(format!(
+            "GitHub repository response contained an invalid repository ID for {repo}"
+        ));
+    }
+    Ok(GitHubRepositoryIdentity { id: body.id })
 }
 
 fn fetch_issue_api_typed(
@@ -391,28 +409,44 @@ fn issue_from_payload(
     requested_number: u64,
     payload: GitHubIssuePayload,
 ) -> Result<GitHubIssue, String> {
+    issue_from_payload_for_resource(
+        repo,
+        requested_number,
+        payload,
+        "issues",
+        "GitHub issue response",
+    )
+}
+
+fn issue_from_payload_for_resource(
+    repo: &str,
+    requested_number: u64,
+    payload: GitHubIssuePayload,
+    resource: &str,
+    response_name: &str,
+) -> Result<GitHubIssue, String> {
     if payload.number != requested_number {
         return Err(format!(
-            "GitHub issue response returned #{} for requested issue #{requested_number}",
+            "{response_name} returned #{} for requested issue #{requested_number}",
             payload.number
         ));
     }
     let state = payload.state.to_ascii_lowercase();
     if state != "open" && state != "closed" {
-        return Err(format!("GitHub issue response has invalid state `{state}`"));
+        return Err(format!("{response_name} has an invalid state"));
     }
     if payload.title.trim().is_empty() {
-        return Err("GitHub issue response has an empty `title`".to_string());
+        return Err(format!("{response_name} has an empty `title`"));
     }
-    if !is_valid_github_issue_url(&payload.html_url, repo, requested_number) {
-        return Err("GitHub issue response has an invalid `html_url`".to_string());
+    if !is_valid_github_item_url(&payload.html_url, repo, resource, requested_number) {
+        return Err(format!("{response_name} has an invalid `html_url`"));
     }
     if payload
         .labels
         .iter()
         .any(|label| label.name.trim().is_empty())
     {
-        return Err("GitHub issue response contains an empty label name".to_string());
+        return Err(format!("{response_name} contains an empty label name"));
     }
     Ok(GitHubIssue {
         number: payload.number,
@@ -441,18 +475,19 @@ fn parse_issue_details_json(
     Ok(GitHubIssueDetails { issue, body })
 }
 
-fn is_valid_github_issue_url(url: &str, repo: &str, number: u64) -> bool {
+fn is_valid_github_item_url(url: &str, repo: &str, resource: &str, number: u64) -> bool {
     let Some(path) = url.strip_prefix("https://github.com/") else {
         return false;
     };
     let Some((expected_owner, expected_repository)) = repo.split_once('/') else {
         return false;
     };
+    let canonical_number = number.to_string();
     let mut segments = path.split('/');
     matches!(segments.next(), Some(owner) if owner.eq_ignore_ascii_case(expected_owner))
         && matches!(segments.next(), Some(repository) if repository.eq_ignore_ascii_case(expected_repository))
-        && segments.next() == Some("issues")
-        && segments.next().and_then(|value| value.parse::<u64>().ok()) == Some(number)
+        && segments.next() == Some(resource)
+        && segments.next() == Some(canonical_number.as_str())
         && segments.next().is_none()
 }
 
@@ -612,53 +647,108 @@ fn list_issues_api(repo: &str, label: Option<&str>) -> Result<Vec<GitHubIssue>, 
     validate_repo(repo)?;
     let token = std::env::var("GITHUB_TOKEN")
         .map_err(|_| "GITHUB_TOKEN is required for in-process GitHub REST access".to_string())?;
-    collect_issue_pages(|page| fetch_issue_list_page(repo, label, &token, page))
+    let repository = verify_api_repository(repo, &token, GITHUB_COMMAND_DEADLINE)?;
+    let mut next_target = None;
+    collect_issue_pages(|page| {
+        let result = fetch_issue_list_page(
+            repo,
+            repository,
+            label,
+            &token,
+            page,
+            next_target.as_deref(),
+        )?;
+        next_target.clone_from(&result.next_target);
+        Ok(result)
+    })
 }
 
-fn parse_issue_list_json(repo: &str, body: &serde_json::Value) -> Result<Vec<GitHubIssue>, String> {
+fn parse_issue_list_json(
+    repo: &str,
+    body: &serde_json::Value,
+) -> Result<ParsedGitHubIssueListPage, String> {
     let entries = body
         .as_array()
         .ok_or_else(|| "GitHub issue-list response must be a JSON array".to_string())?;
+    if entries.len() > MAX_ISSUE_LIST_PAGE_ENTRIES {
+        return Err(format!(
+            "GitHub issue-list response exceeds the {MAX_ISSUE_LIST_PAGE_ENTRIES}-entry page limit (received {} entries)",
+            entries.len()
+        ));
+    }
+    let mut seen = BTreeSet::new();
+    let mut raw_numbers = Vec::with_capacity(entries.len());
+    let mut issues = Vec::with_capacity(entries.len());
     for entry in entries {
-        match entry.get("pull_request") {
-            None | Some(serde_json::Value::Null | serde_json::Value::Object(_)) => {}
+        let is_pull_request = match entry.get("pull_request") {
+            None => false,
+            Some(serde_json::Value::Object(_)) => true,
             Some(_) => {
                 return Err(
                     "GitHub issue-list response has a malformed pull_request marker".to_string(),
                 );
             }
+        };
+        let payload: GitHubIssuePayload = serde_json::from_value(entry.clone())
+            .map_err(|error| format!("Malformed GitHub issue-list response: {error}"))?;
+        if payload.number == 0 {
+            return Err("GitHub issue-list response contains an invalid issue number".to_string());
+        }
+        if payload.state != "open" {
+            return Err(
+                "GitHub issue-list response contains an item whose raw state is not exactly `open`"
+                    .to_string(),
+            );
+        }
+        let number = payload.number;
+        let resource = if is_pull_request { "pull" } else { "issues" };
+        let issue = issue_from_payload_for_resource(
+            repo,
+            number,
+            payload,
+            resource,
+            "GitHub issue-list response",
+        )?;
+        if !seen.insert(number) {
+            return Err(format!(
+                "GitHub issue-list response contains duplicate or ambiguous item #{number}"
+            ));
+        }
+        raw_numbers.push(number);
+        if !is_pull_request {
+            issues.push(issue);
         }
     }
-    let payloads: Vec<GitHubIssueListPayload> = serde_json::from_value(body.clone())
-        .map_err(|error| format!("Malformed GitHub issue-list response: {error}"))?;
-    let mut issues = Vec::with_capacity(payloads.len());
-    for payload in payloads {
-        if payload.pull_request.is_some() {
-            continue;
-        }
-        let number = payload.issue.number;
-        issues.push(issue_from_payload(repo, number, payload.issue)?);
-    }
-    Ok(issues)
+    Ok(ParsedGitHubIssueListPage {
+        raw_numbers,
+        issues,
+    })
 }
 
 fn fetch_issue_list_page(
     repo: &str,
+    repository: GitHubRepositoryIdentity,
     label: Option<&str>,
     token: &str,
     page: usize,
+    next_target: Option<&str>,
 ) -> Result<GitHubIssueListPage, String> {
     let agent = github_api_agent(GITHUB_COMMAND_DEADLINE);
-    let url = format!("{}/repos/{repo}/issues", github_api_base());
-    let page_string = page.to_string();
-    let mut request = agent
-        .get(&url)
-        .query("state", "open")
-        .query("per_page", "100")
-        .query("page", &page_string);
-    if let Some(label) = label {
-        request = request.query("labels", label);
-    }
+    let request = if let Some(target) = next_target {
+        agent.get(target)
+    } else {
+        let url = format!("{}/repos/{repo}/issues", github_api_base());
+        let page_string = page.to_string();
+        let mut initial_request = agent
+            .get(&url)
+            .query("state", "open")
+            .query("per_page", "100")
+            .query("page", &page_string);
+        if let Some(label) = label {
+            initial_request = initial_request.query("labels", label);
+        }
+        initial_request
+    };
 
     let mut response = request
         .header("Authorization", &format!("Bearer {token}"))
@@ -673,25 +763,31 @@ fn fetch_issue_list_page(
         })?;
 
     classify_issue_list_status(repo, response.status().as_u16(), || {
-        verify_api_repository(repo, token, GITHUB_COMMAND_DEADLINE)
+        verify_api_repository(repo, token, GITHUB_COMMAND_DEADLINE).map(|_| ())
     })?;
-    let has_next = response
+    let next_target = response
         .headers()
         .get("link")
         .map(|value| {
             value
                 .to_str()
                 .map_err(|_| "GitHub issue-list Link header is not valid text".to_string())
-                .and_then(|header| parse_link_has_next(header, repo, label, page))
+                .and_then(|header| {
+                    parse_github_link_next_target(header, repo, repository, label, page)
+                })
         })
         .transpose()?
-        .unwrap_or(false);
+        .flatten();
     let body: serde_json::Value = response
         .body_mut()
         .read_json()
         .map_err(|error| format!("Failed to parse GitHub issue-list page {page}: {error}"))?;
-    let issues = parse_issue_list_json(repo, &body)?;
-    Ok(GitHubIssueListPage { issues, has_next })
+    let parsed = parse_issue_list_json(repo, &body)?;
+    Ok(GitHubIssueListPage {
+        raw_numbers: parsed.raw_numbers,
+        issues: parsed.issues,
+        next_target,
+    })
 }
 
 fn collect_issue_pages(
@@ -701,16 +797,15 @@ fn collect_issue_pages(
     let mut seen = BTreeSet::new();
     for page in 1..=MAX_ISSUE_LIST_PAGES {
         let result = fetch_page(page)?;
-        for issue in result.issues {
-            if !seen.insert(issue.number) {
+        for number in result.raw_numbers {
+            if !seen.insert(number) {
                 return Err(format!(
-                    "GitHub issue-list pagination returned duplicate issue #{}",
-                    issue.number
+                    "GitHub issue-list pagination returned duplicate or ambiguous item #{number}"
                 ));
             }
-            issues.push(issue);
         }
-        if !result.has_next {
+        issues.extend(result.issues);
+        if result.next_target.is_none() {
             return Ok(issues);
         }
     }
@@ -740,30 +835,48 @@ fn classify_issue_list_status(
     }
 }
 
-fn parse_link_has_next(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GitHubLinkPagination {
+    Page(usize),
+    After,
+    Before,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParsedGitHubLinkTarget {
+    target: String,
+    pagination: GitHubLinkPagination,
+}
+
+fn parse_github_link_next_target(
     header: &str,
     repo: &str,
+    repository: GitHubRepositoryIdentity,
     label: Option<&str>,
     current_page: usize,
-) -> Result<bool, String> {
+) -> Result<Option<String>, String> {
     if header.trim().is_empty() {
         return Err("GitHub issue-list Link header is empty".to_string());
     }
-    let mut has_next = false;
+    let mut next_target = None;
     for entry in header.split(',') {
         let mut parts = entry.trim().split(';');
         let target = parts.next().unwrap_or_default().trim();
-        let target_page = parse_github_link_target_page(target, repo, label)?;
+        let parsed_target = parse_github_link_target(target, repo, repository, label)?;
         let mut relation_seen = false;
+        let mut seen_parameters = BTreeSet::new();
         for parameter in parts {
             let Some((name, value)) = parameter.trim().split_once('=') else {
                 return Err("GitHub issue-list Link header has a malformed parameter".to_string());
             };
-            if !name.trim().eq_ignore_ascii_case("rel") {
-                continue;
+            let normalized_name = name.trim().to_ascii_lowercase();
+            if !seen_parameters.insert(normalized_name.clone()) {
+                return Err(format!(
+                    "GitHub issue-list Link header repeats the {normalized_name} parameter"
+                ));
             }
-            if relation_seen {
-                return Err("GitHub issue-list Link header repeats a relation".to_string());
+            if normalized_name != "rel" {
+                continue;
             }
             relation_seen = true;
             let raw_relations = value.trim();
@@ -783,51 +896,67 @@ fn parse_link_has_next(
                 .split_ascii_whitespace()
                 .any(|relation| relation == "next")
             {
-                if has_next {
+                if next_target.is_some() {
                     return Err("GitHub issue-list Link header repeats the next page".to_string());
                 }
-                let expected_page = current_page
-                    .checked_add(1)
-                    .ok_or_else(|| "GitHub issue-list pagination page overflowed".to_string())?;
-                if target_page != expected_page {
-                    return Err(format!(
-                        "GitHub issue-list Link header points to page {target_page} instead of expected page {expected_page}"
-                    ));
+                match parsed_target.pagination {
+                    GitHubLinkPagination::Page(target_page) => {
+                        let expected_page = current_page.checked_add(1).ok_or_else(|| {
+                            "GitHub issue-list pagination page overflowed".to_string()
+                        })?;
+                        if target_page != expected_page {
+                            return Err(format!(
+                                "GitHub issue-list Link header points to page {target_page} instead of expected page {expected_page}"
+                            ));
+                        }
+                    }
+                    GitHubLinkPagination::After => {}
+                    GitHubLinkPagination::Before => {
+                        return Err(
+                            "GitHub issue-list next link uses a backwards cursor".to_string()
+                        );
+                    }
                 }
-                has_next = true;
+                next_target = Some(parsed_target.target.clone());
             }
         }
         if !relation_seen {
             return Err("GitHub issue-list Link header is missing a relation".to_string());
         }
     }
-    Ok(has_next)
+    Ok(next_target)
 }
 
-fn parse_github_link_target_page(
+fn parse_github_link_target(
     target: &str,
     repo: &str,
+    repository: GitHubRepositoryIdentity,
     label: Option<&str>,
-) -> Result<usize, String> {
-    let target = target
+) -> Result<ParsedGitHubLinkTarget, String> {
+    let target_url = target
         .strip_prefix('<')
         .and_then(|value| value.strip_suffix('>'))
         .ok_or_else(|| "GitHub issue-list Link header has a malformed target".to_string())?;
-    let target = target
+    let target = target_url
         .strip_prefix("https://api.github.com/")
         .ok_or_else(|| {
             "GitHub issue-list Link header target is outside the GitHub API".to_string()
         })?;
+    if target.contains('#') {
+        return Err("GitHub issue-list Link header target contains a fragment".to_string());
+    }
     let (path, query) = target
         .split_once('?')
         .ok_or_else(|| "GitHub issue-list Link header target is missing a query".to_string())?;
-    let expected_path = format!("repos/{repo}/issues");
-    if path != expected_path {
-        return Err(format!(
-            "GitHub issue-list Link header target does not match the requested repository endpoint /{expected_path}"
-        ));
+    let named_path = format!("repos/{repo}/issues");
+    let numeric_path = format!("repositories/{}/issues", repository.id);
+    if path != named_path && path != numeric_path {
+        return Err(
+            "GitHub issue-list Link header target does not match the requested repository endpoint"
+                .to_string(),
+        );
     }
-    let mut page = None;
+    let mut pagination = None;
     let mut state_seen = false;
     let mut per_page_seen = false;
     let mut label_seen = false;
@@ -847,16 +976,41 @@ fn parse_github_link_target_page(
             "state" if value == "open" => state_seen = true,
             "per_page" if value == "100" => per_page_seen = true,
             "page" => {
+                if pagination.is_some() {
+                    return Err(
+                        "GitHub issue-list Link header target has multiple pagination queries"
+                            .to_string(),
+                    );
+                }
                 let parsed_page = value.parse::<usize>().map_err(|_| {
                     "GitHub issue-list Link header target has an invalid page query".to_string()
                 })?;
-                if parsed_page == 0 {
+                if parsed_page == 0 || parsed_page.to_string() != value {
                     return Err(
                         "GitHub issue-list Link header target has an invalid page query"
                             .to_string(),
                     );
                 }
-                page = Some(parsed_page);
+                pagination = Some(GitHubLinkPagination::Page(parsed_page));
+            }
+            "after" | "before" => {
+                if pagination.is_some() {
+                    return Err(
+                        "GitHub issue-list Link header target has multiple pagination queries"
+                            .to_string(),
+                    );
+                }
+                if value.is_empty() || value.chars().any(is_unsafe_github_untrusted_text_character)
+                {
+                    return Err(format!(
+                        "GitHub issue-list Link header target has an invalid {name} cursor"
+                    ));
+                }
+                pagination = Some(if name == "after" {
+                    GitHubLinkPagination::After
+                } else {
+                    GitHubLinkPagination::Before
+                });
             }
             "labels" if label.is_some_and(|expected| value == expected) => label_seen = true,
             "state" | "per_page" | "labels" => {
@@ -877,7 +1031,13 @@ fn parse_github_link_target_page(
                 .to_string(),
         );
     }
-    page.ok_or_else(|| "GitHub issue-list Link header target is missing the page query".to_string())
+    let pagination = pagination.ok_or_else(|| {
+        "GitHub issue-list Link header target is missing a pagination query".to_string()
+    })?;
+    Ok(ParsedGitHubLinkTarget {
+        target: target_url.to_string(),
+        pagination,
+    })
 }
 
 fn decode_github_query_component(component: &str) -> Result<String, String> {
@@ -920,6 +1080,51 @@ fn decode_hex_digit(byte: u8) -> Option<u8> {
     }
 }
 
+fn is_unsafe_github_untrusted_text_character(character: char) -> bool {
+    matches!(
+        character as u32,
+        0x0000..=0x001f
+            | 0x007f..=0x009f
+            | 0x00ad
+            | 0x061c
+            | 0x200b..=0x200f
+            | 0x2028..=0x202e
+            | 0x2060..=0x206f
+            | 0xfeff
+    )
+}
+
+fn push_visible_github_character(output: &mut String, character: char) {
+    if is_unsafe_github_untrusted_text_character(character) {
+        output.push_str(&format!("U+{:04X}", character as u32));
+    } else {
+        output.push(character);
+    }
+}
+
+fn sanitize_github_title_text(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    for character in input.chars() {
+        push_visible_github_character(&mut output, character);
+    }
+    output
+}
+
+fn sanitize_github_markdown_text(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    for character in input.chars() {
+        if is_unsafe_github_untrusted_text_character(character) {
+            push_visible_github_character(&mut output, character);
+        } else {
+            if character.is_ascii_punctuation() {
+                output.push('\\');
+            }
+            output.push(character);
+        }
+    }
+    output
+}
+
 /// Create a GitHub issue for spec drift using `gh` CLI.
 pub fn create_drift_issue(
     repo: &str,
@@ -931,16 +1136,18 @@ pub fn create_drift_issue(
         return Err("gh CLI is required to create issues".to_string());
     }
 
-    let title = format!("Spec drift detected: {spec_path}");
+    let title_path = sanitize_github_title_text(spec_path);
+    let markdown_path = sanitize_github_markdown_text(spec_path);
+    let title = format!("Spec drift detected: {title_path}");
     let body = format!(
         "## Spec Drift Detected\n\n\
-         **Spec:** `{spec_path}`\n\n\
+         **Spec:** {markdown_path}\n\n\
          ### Validation Errors\n\n{}\n\n\
          ---\n\
          *Auto-created by `specsync check --create-issues`*",
         errors
             .iter()
-            .map(|e| format!("- {e}"))
+            .map(|error| format!("- {}", sanitize_github_markdown_text(error)))
             .collect::<Vec<_>>()
             .join("\n")
     );
@@ -1054,6 +1261,25 @@ mod tests {
         }
     }
 
+    fn fake_issue_list_entry(number: u64, pull_request: bool) -> serde_json::Value {
+        let resource = if pull_request { "pull" } else { "issues" };
+        let mut entry = serde_json::json!({
+            "number": number,
+            "title": format!("Entry {number}"),
+            "state": "open",
+            "labels": [],
+            "html_url": format!("https://github.com/owner/repo/{resource}/{number}")
+        });
+        if pull_request {
+            entry["pull_request"] = serde_json::json!({});
+        }
+        entry
+    }
+
+    fn fake_repository_identity() -> GitHubRepositoryIdentity {
+        GitHubRepositoryIdentity { id: 1_300_192 }
+    }
+
     #[test]
     fn test_parse_repo_from_url_https() {
         assert_eq!(
@@ -1077,6 +1303,39 @@ mod tests {
     #[test]
     fn test_parse_repo_from_url_unknown() {
         assert_eq!(parse_repo_from_url("https://gitlab.com/foo/bar.git"), None);
+    }
+
+    #[test]
+    fn configured_repository_validation_is_stable_without_provider_access_or_references() {
+        let root = Path::new(".");
+        assert_eq!(
+            resolve_repo(Some("owner/repo"), root),
+            Ok("owner/repo".to_string())
+        );
+
+        for unsafe_repo in [
+            "owner/repo\ninjected",
+            "owner/repo?state=closed",
+            "owner/repo/extra",
+            "owner/repo\u{1b}[31m",
+        ] {
+            let error = resolve_repo(Some(unsafe_repo), root)
+                .expect_err("unsafe configured repositories must fail before provider access");
+            assert_eq!(
+                error,
+                "GitHub repository contains invalid owner or repository characters"
+            );
+            assert!(!error.contains(unsafe_repo));
+        }
+
+        let unsafe_repo = "owner\ninjected";
+        let error = resolve_repo(Some(unsafe_repo), root)
+            .expect_err("configured repositories must use owner/repository syntax");
+        assert_eq!(
+            error,
+            "GitHub repository must use the `owner/repository` form"
+        );
+        assert!(!error.contains(unsafe_repo));
     }
 
     #[test]
@@ -1108,10 +1367,11 @@ mod tests {
                 "pull_request": {}
             }
         ]);
-        let issues =
+        let parsed =
             parse_issue_list_json("owner/repo", &valid).expect("valid issue lists must parse");
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].number, 42);
+        assert_eq!(parsed.raw_numbers, [42, 43]);
+        assert_eq!(parsed.issues.len(), 1);
+        assert_eq!(parsed.issues[0].number, 42);
 
         let malformed_marker = serde_json::json!([
             {
@@ -1131,6 +1391,200 @@ mod tests {
 
         let malformed_issue = serde_json::json!([{ "number": 42, "state": "open" }]);
         assert!(parse_issue_list_json("owner/repo", &malformed_issue).is_err());
+    }
+
+    #[test]
+    fn issue_list_rejects_semantically_malformed_pull_requests_before_filtering() {
+        let mut zero_number = fake_issue_list_entry(43, true);
+        zero_number["number"] = serde_json::json!(0);
+        zero_number["html_url"] = serde_json::json!("https://github.com/owner/repo/pull/0");
+
+        let mut empty_title = fake_issue_list_entry(43, true);
+        empty_title["title"] = serde_json::json!(" \t");
+
+        let mut empty_label = fake_issue_list_entry(43, true);
+        empty_label["labels"] = serde_json::json!([{"name": ""}]);
+
+        for (entry, expected_error) in [
+            (zero_number, "invalid issue number"),
+            (empty_title, "empty `title`"),
+            (empty_label, "empty label name"),
+        ] {
+            let error = parse_issue_list_json("owner/repo", &serde_json::Value::Array(vec![entry]))
+                .expect_err("malformed pull requests must reject the complete page");
+            assert!(error.contains(expected_error), "{error}");
+        }
+    }
+
+    #[test]
+    fn issue_list_requires_exact_raw_open_state_for_issues_and_pull_requests() {
+        for pull_request in [false, true] {
+            for state in ["closed", "OPEN", "Open", "oPeN"] {
+                let mut entry = fake_issue_list_entry(42, pull_request);
+                entry["state"] = serde_json::json!(state);
+
+                let error =
+                    parse_issue_list_json("owner/repo", &serde_json::Value::Array(vec![entry]))
+                        .expect_err("the open-issue endpoint must require exact raw open state");
+                assert!(error.contains("raw state is not exactly `open`"), "{error}");
+            }
+        }
+    }
+
+    #[test]
+    fn issue_list_rejects_wrong_issue_and_pull_request_url_identity() {
+        let mut issue_with_pull_url = fake_issue_list_entry(42, false);
+        issue_with_pull_url["html_url"] =
+            serde_json::json!("https://github.com/owner/repo/pull/42");
+
+        let mut pull_request_with_issue_url = fake_issue_list_entry(43, true);
+        pull_request_with_issue_url["html_url"] =
+            serde_json::json!("https://github.com/owner/repo/issues/43");
+
+        let mut pull_request_with_wrong_number = fake_issue_list_entry(43, true);
+        pull_request_with_wrong_number["html_url"] =
+            serde_json::json!("https://github.com/owner/repo/pull/44");
+
+        for entry in [
+            issue_with_pull_url,
+            pull_request_with_issue_url,
+            pull_request_with_wrong_number,
+        ] {
+            let error = parse_issue_list_json("owner/repo", &serde_json::Value::Array(vec![entry]))
+                .expect_err("item kind and number must match the trusted GitHub URL");
+            assert!(error.contains("html_url"), "{error}");
+        }
+    }
+
+    #[test]
+    fn provider_item_urls_require_canonical_decimal_numbers_in_list_and_detail() {
+        for (number, pull_request, url) in [
+            (42, false, "https://github.com/owner/repo/issues/00042"),
+            (43, true, "https://github.com/owner/repo/pull/00043"),
+        ] {
+            let mut entry = fake_issue_list_entry(number, pull_request);
+            entry["html_url"] = serde_json::json!(url);
+            let error = parse_issue_list_json("owner/repo", &serde_json::Value::Array(vec![entry]))
+                .expect_err("noncanonical list item numbers must fail closed");
+            assert!(error.contains("html_url"), "{error}");
+        }
+
+        let details = serde_json::json!({
+            "number": 42,
+            "title": "Issue",
+            "state": "open",
+            "labels": [],
+            "html_url": "https://github.com/owner/repo/issues/00042",
+            "body": null
+        });
+        let error = parse_issue_details_json("owner/repo", 42, &details)
+            .expect_err("noncanonical detail item numbers must fail closed");
+        assert!(error.contains("html_url"), "{error}");
+    }
+
+    #[test]
+    fn issue_list_rejects_duplicate_identities_involving_pull_requests_before_filtering() {
+        for entries in [
+            vec![
+                fake_issue_list_entry(42, false),
+                fake_issue_list_entry(42, true),
+            ],
+            vec![
+                fake_issue_list_entry(42, true),
+                fake_issue_list_entry(42, true),
+            ],
+        ] {
+            let error = parse_issue_list_json("owner/repo", &serde_json::Value::Array(entries))
+                .expect_err("duplicate pull-request identities must reject the complete page");
+            assert!(error.contains("duplicate or ambiguous item #42"), "{error}");
+        }
+    }
+
+    #[test]
+    fn issue_list_filters_fully_valid_pull_requests_after_validation() {
+        let body = serde_json::json!([
+            fake_issue_list_entry(42, false),
+            fake_issue_list_entry(43, true)
+        ]);
+        let parsed = parse_issue_list_json("owner/repo", &body)
+            .expect("fully valid pull requests may be filtered");
+
+        assert_eq!(parsed.raw_numbers, [42, 43]);
+        assert_eq!(
+            parsed
+                .issues
+                .iter()
+                .map(|issue| issue.number)
+                .collect::<Vec<_>>(),
+            [42]
+        );
+    }
+
+    #[test]
+    fn issue_list_requires_present_pull_request_marker_to_be_an_object() {
+        let valid_object = serde_json::json!([{
+            "number": 43,
+            "title": "Pull request",
+            "state": "open",
+            "labels": [],
+            "html_url": "https://github.com/owner/repo/pull/43",
+            "pull_request": {}
+        }]);
+        let parsed = parse_issue_list_json("owner/repo", &valid_object)
+            .expect("object pull-request markers must be accepted");
+        assert_eq!(parsed.raw_numbers, [43]);
+        assert!(parsed.issues.is_empty());
+
+        let null_marker = serde_json::json!([
+            {
+                "number": 42,
+                "title": "Issue",
+                "state": "open",
+                "labels": [],
+                "html_url": "https://github.com/owner/repo/issues/42"
+            },
+            {
+                "number": 43,
+                "title": "Invalid pull request",
+                "state": "open",
+                "labels": [],
+                "html_url": "https://github.com/owner/repo/pull/43",
+                "pull_request": null
+            }
+        ]);
+        let error = parse_issue_list_json("owner/repo", &null_marker)
+            .expect_err("null pull-request markers must fail the whole page");
+        assert!(error.contains("pull_request"));
+    }
+
+    #[test]
+    fn issue_list_accepts_one_hundred_provider_entries_including_pull_requests() {
+        let mut entries = (1..MAX_ISSUE_LIST_PAGE_ENTRIES as u64)
+            .map(|number| fake_issue_list_entry(number, false))
+            .collect::<Vec<_>>();
+        entries.push(fake_issue_list_entry(100, true));
+
+        let parsed = parse_issue_list_json("owner/repo", &serde_json::Value::Array(entries))
+            .expect("a provider page with exactly 100 entries must parse");
+
+        assert_eq!(parsed.raw_numbers.len(), 100);
+        assert_eq!(parsed.issues.len(), 99);
+        assert_eq!(parsed.issues.first().map(|issue| issue.number), Some(1));
+        assert_eq!(parsed.issues.last().map(|issue| issue.number), Some(99));
+    }
+
+    #[test]
+    fn issue_list_rejects_one_hundred_one_entries_before_parsing_malformed_pull_request() {
+        let mut entries = (1..=MAX_ISSUE_LIST_PAGE_ENTRIES as u64)
+            .map(|number| fake_issue_list_entry(number, false))
+            .collect::<Vec<_>>();
+        entries.push(serde_json::json!({ "pull_request": {} }));
+
+        let error = parse_issue_list_json("owner/repo", &serde_json::Value::Array(entries))
+            .expect_err("a provider page with 101 entries must fail before item parsing");
+
+        assert!(error.contains("100-entry page limit"));
+        assert!(error.contains("received 101 entries"));
     }
 
     #[test]
@@ -1204,44 +1658,64 @@ mod tests {
             "<https://api.github.com/repos/owner/repo/issues?state=open&per_page=100&page=2>; rel=\"next\", ",
             "<https://api.github.com/repos/owner/repo/issues?page=4&per_page=100&state=open>; rel=\"last\""
         );
-        assert!(
-            parse_link_has_next(paginated, "owner/repo", None, 1)
-                .expect("GitHub Link header must parse")
+        let next = parse_github_link_next_target(
+            paginated,
+            "owner/repo",
+            fake_repository_identity(),
+            None,
+            1,
+        )
+        .expect("GitHub Link header must parse");
+        assert_eq!(
+            next.as_deref(),
+            Some("https://api.github.com/repos/owner/repo/issues?state=open&per_page=100&page=2")
         );
         assert!(
-            !parse_link_has_next(
+            parse_github_link_next_target(
                 "<https://api.github.com/repos/owner/repo/issues?state=open&per_page=100&page=1>; rel=\"prev\"",
                 "owner/repo",
+                fake_repository_identity(),
                 None,
                 2,
             )
             .expect("previous-only Link header must parse")
+            .is_none()
         );
         assert!(
-            parse_link_has_next(
+            parse_github_link_next_target(
                 "https://example.test/page/2; rel=\"next\"",
                 "owner/repo",
+                fake_repository_identity(),
                 None,
                 1,
             )
             .is_err()
         );
         assert!(
-            parse_link_has_next("<https://example.test/page/2>", "owner/repo", None, 1,).is_err()
+            parse_github_link_next_target(
+                "<https://example.test/page/2>",
+                "owner/repo",
+                fake_repository_identity(),
+                None,
+                1,
+            )
+            .is_err()
         );
         assert!(
-            parse_link_has_next(
+            parse_github_link_next_target(
                 "<https://example.test/page/2>; rel=\"next",
                 "owner/repo",
+                fake_repository_identity(),
                 None,
                 1,
             )
             .is_err()
         );
         assert!(
-            parse_link_has_next(
+            parse_github_link_next_target(
                 "<https://api.github.com/repos/owner/repo/issues?state=open&per_page=100&page=3>; rel=\"next\"",
                 "owner/repo",
+                fake_repository_identity(),
                 None,
                 1,
             )
@@ -1250,16 +1724,67 @@ mod tests {
     }
 
     #[test]
-    fn link_header_rejects_wrong_repository_or_resource_path() {
+    fn link_header_accepts_matching_numeric_repository_and_cursor() {
+        let target = concat!(
+            "https://api.github.com/repositories/1300192/issues?",
+            "state=open&per_page=100&after=Y3Vyc29yOnYyOpHO"
+        );
+        let header = format!("<{target}>; rel=\"next\"");
+        let parsed = parse_github_link_next_target(
+            &header,
+            "owner/repo",
+            fake_repository_identity(),
+            None,
+            1,
+        )
+        .expect("GitHub's canonical numeric repository path and cursor must be accepted");
+
+        assert_eq!(parsed.as_deref(), Some(target));
+    }
+
+    #[test]
+    fn link_header_rejects_wrong_or_malformed_repository_identity_and_resource() {
         for target in [
             "https://api.github.com/repos/other/repo/issues?state=open&per_page=100&page=2",
             "https://api.github.com/repos/owner/repo/pulls?state=open&per_page=100&page=2",
             "https://api.github.com/repositories/1/issues?state=open&per_page=100&page=2",
+            "https://api.github.com/repositories/0/issues?state=open&per_page=100&page=2",
+            "https://api.github.com/repositories/01300192/issues?state=open&per_page=100&page=2",
+            "https://api.github.com/repositories/not-a-number/issues?state=open&per_page=100&page=2",
+            "https://api.github.com/repositories/1300192/pulls?state=open&per_page=100&page=2",
         ] {
             let header = format!("<{target}>; rel=\"next\"");
-            let error = parse_link_has_next(&header, "owner/repo", None, 1)
-                .expect_err("Link targets must remain on the requested issue-list endpoint");
+            let error = parse_github_link_next_target(
+                &header,
+                "owner/repo",
+                fake_repository_identity(),
+                None,
+                1,
+            )
+            .expect_err("Link targets must remain on the authenticated repository endpoint");
             assert!(error.contains("requested repository endpoint"));
+        }
+    }
+
+    #[test]
+    fn link_header_rejects_untrusted_origins() {
+        for target in [
+            "http://api.github.com/repositories/1300192/issues?state=open&per_page=100&page=2",
+            "https://api.github.com.evil.test/repositories/1300192/issues?state=open&per_page=100&page=2",
+            "https://user@api.github.com/repositories/1300192/issues?state=open&per_page=100&page=2",
+            "https://api.github.com:443/repositories/1300192/issues?state=open&per_page=100&page=2",
+        ] {
+            let header = format!("<{target}>; rel=\"next\"");
+            assert!(
+                parse_github_link_next_target(
+                    &header,
+                    "owner/repo",
+                    fake_repository_identity(),
+                    None,
+                    1,
+                )
+                .is_err()
+            );
         }
     }
 
@@ -1270,10 +1795,25 @@ mod tests {
             "state=open&per_page=50&page=2",
             "state=open&per_page=100&page=2&sort=created",
             "state=open&per_page=100&page=2&labels=bug",
+            "state=open&per_page=100&page=2&since=2026-01-01",
+            "state=open&per_page=100&page=2&after=cursor",
+            "state=open&per_page=100&after=",
+            "state=open&per_page=100&after=cursor&after=other",
+            "state=open&per_page=100&page=2&%73tate=open",
+            "state=open&per_page=100&after=cursor%0Ainjected",
         ] {
             let header =
                 format!("<https://api.github.com/repos/owner/repo/issues?{query}>; rel=\"next\"");
-            assert!(parse_link_has_next(&header, "owner/repo", None, 1).is_err());
+            assert!(
+                parse_github_link_next_target(
+                    &header,
+                    "owner/repo",
+                    fake_repository_identity(),
+                    None,
+                    1,
+                )
+                .is_err()
+            );
         }
 
         let matching_label = concat!(
@@ -1281,8 +1821,15 @@ mod tests {
             "labels=needs%20triage&page=2&state=open&per_page=100>; rel=\"next\""
         );
         assert!(
-            parse_link_has_next(matching_label, "owner/repo", Some("needs triage"), 1)
-                .expect("the requested encoded label must be preserved")
+            parse_github_link_next_target(
+                matching_label,
+                "owner/repo",
+                fake_repository_identity(),
+                Some("needs triage"),
+                1,
+            )
+            .expect("the requested encoded label must be preserved")
+            .is_some()
         );
 
         let mismatched_label = concat!(
@@ -1290,7 +1837,14 @@ mod tests {
             "labels=bug&page=2&state=open&per_page=100>; rel=\"next\""
         );
         assert!(
-            parse_link_has_next(mismatched_label, "owner/repo", Some("needs triage"), 1).is_err()
+            parse_github_link_next_target(
+                mismatched_label,
+                "owner/repo",
+                fake_repository_identity(),
+                Some("needs triage"),
+                1,
+            )
+            .is_err()
         );
     }
 
@@ -1299,9 +1853,11 @@ mod tests {
         let mut requested_pages = Vec::new();
         let issues = collect_issue_pages(|page| {
             requested_pages.push(page);
+            let number = page as u64;
             Ok(GitHubIssueListPage {
-                issues: vec![fake_issue(page as u64, "open")],
-                has_next: page < 3,
+                raw_numbers: vec![number],
+                issues: vec![fake_issue(number, "open")],
+                next_target: (page < 3).then(|| "next".to_string()),
             })
         })
         .expect("all pages must be collected");
@@ -1316,9 +1872,11 @@ mod tests {
     #[test]
     fn issue_list_pagination_fails_instead_of_truncating_or_deduplicating() {
         let limit_error = collect_issue_pages(|page| {
+            let number = page as u64;
             Ok(GitHubIssueListPage {
-                issues: vec![fake_issue(page as u64, "open")],
-                has_next: true,
+                raw_numbers: vec![number],
+                issues: vec![fake_issue(number, "open")],
+                next_target: Some("next".to_string()),
             })
         })
         .expect_err("a next page beyond the cap must be explicit");
@@ -1326,12 +1884,34 @@ mod tests {
 
         let duplicate_error = collect_issue_pages(|page| {
             Ok(GitHubIssueListPage {
+                raw_numbers: vec![42],
                 issues: vec![fake_issue(42, "open")],
-                has_next: page == 1,
+                next_target: (page == 1).then(|| "next".to_string()),
             })
         })
         .expect_err("duplicate pages must fail closed");
-        assert!(duplicate_error.contains("duplicate issue #42"));
+        assert!(duplicate_error.contains("duplicate or ambiguous item #42"));
+    }
+
+    #[test]
+    fn issue_list_pagination_rejects_duplicates_hidden_by_pull_request_filtering() {
+        let error = collect_issue_pages(|page| {
+            if page == 1 {
+                return Ok(GitHubIssueListPage {
+                    raw_numbers: vec![42],
+                    issues: vec![fake_issue(42, "open")],
+                    next_target: Some("next".to_string()),
+                });
+            }
+            Ok(GitHubIssueListPage {
+                raw_numbers: vec![42],
+                issues: Vec::new(),
+                next_target: None,
+            })
+        })
+        .expect_err("a pull request cannot hide a duplicate identity across pages");
+
+        assert!(error.contains("duplicate or ambiguous item #42"), "{error}");
     }
 
     #[test]
@@ -1535,6 +2115,108 @@ mod tests {
         let message = inaccessible.unwrap_err().to_string();
         assert!(message.contains("could not be revalidated"));
         assert!(message.contains("HTTP 404"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn drift_issue_capture_sanitizes_untrusted_title_and_markdown_arguments() {
+        const CHILD_ENV: &str = "SPECSYNC_DRIFT_CAPTURE_CHILD";
+        const CAPTURE_ENV: &str = "SPECSYNC_DRIFT_CAPTURE_PATH";
+        const SPEC_PATH: &str = "specs/auth\n# [spoof](target)\u{202e}.spec.md";
+        const ERRORS: &[&str] = &[
+            "primary failure\n- injected [click](javascript:alert(1))\u{0085}<details>",
+            "*bold* | table\u{2028}next\u{2066}",
+        ];
+
+        if std::env::var_os(CHILD_ENV).is_some() {
+            let errors = ERRORS
+                .iter()
+                .map(|error| (*error).to_string())
+                .collect::<Vec<_>>();
+            let issue = create_drift_issue(
+                "owner/repo",
+                SPEC_PATH,
+                &errors,
+                &["spec-drift".to_string()],
+            )
+            .expect("the fake gh provider must capture the sanitized issue");
+            assert_eq!(issue.number, 42);
+            return;
+        }
+
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempfile::TempDir::new().unwrap();
+        let fake_gh = temp.path().join("gh");
+        let capture = temp.path().join("arguments");
+        std::fs::write(
+            &fake_gh,
+            concat!(
+                "#!/bin/sh\n",
+                "if [ \"$1\" = \"auth\" ] && [ \"$2\" = \"status\" ]; then exit 0; fi\n",
+                ": > \"$SPECSYNC_DRIFT_CAPTURE_PATH\"\n",
+                "for argument in \"$@\"; do\n",
+                "  printf '%s\\0' \"$argument\" >> \"$SPECSYNC_DRIFT_CAPTURE_PATH\"\n",
+                "done\n",
+                "printf '%s\\n' 'https://github.com/owner/repo/issues/42'\n",
+            ),
+        )
+        .unwrap();
+        let mut permissions = std::fs::metadata(&fake_gh).unwrap().permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&fake_gh, permissions).unwrap();
+
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "github::tests::drift_issue_capture_sanitizes_untrusted_title_and_markdown_arguments",
+                "--nocapture",
+            ])
+            .env(CHILD_ENV, "1")
+            .env(CAPTURE_ENV, &capture)
+            .env("PATH", temp.path())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "isolated drift capture failed:\nstdout={}\nstderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let captured = std::fs::read(&capture).unwrap();
+        let arguments = captured
+            .split(|byte| *byte == 0)
+            .filter(|argument| !argument.is_empty())
+            .map(|argument| String::from_utf8(argument.to_vec()).unwrap())
+            .collect::<Vec<_>>();
+        let value_after = |flag: &str| {
+            let index = arguments
+                .iter()
+                .position(|argument| argument == flag)
+                .unwrap();
+            arguments[index + 1].as_str()
+        };
+        let title = value_after("--title");
+        let body = value_after("--body");
+
+        assert_eq!(
+            title,
+            "Spec drift detected: specs/authU+000A# [spoof](target)U+202E.spec.md"
+        );
+        assert!(!title.chars().any(is_unsafe_github_untrusted_text_character));
+        assert!(body.contains("specs\\/authU+000A\\# \\[spoof\\]\\(target\\)U+202E\\.spec\\.md"));
+        assert!(body.contains("primary failureU+000A\\- injected"));
+        assert!(body.contains("\\[click\\]\\(javascript\\:alert\\(1\\)\\)"));
+        assert!(body.contains("U+0085\\<details\\>"));
+        assert!(body.contains("\\*bold\\* \\| tableU+2028nextU+2066"));
+        assert!(!body.contains("\n- injected"));
+        assert!(!body.contains("[click](javascript:alert(1))"));
+        assert!(!body.contains("<details>"));
+        assert!(!body.contains('\u{0085}'));
+        assert!(!body.contains('\u{2028}'));
+        assert!(!body.contains('\u{202e}'));
+        assert!(!body.contains('\u{2066}'));
     }
 
     #[test]

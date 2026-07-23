@@ -31,10 +31,15 @@ spec: github.spec.md
 - `create_drift_issue` creates issue titled "Spec drift detected: {path}" with formatted error list in body
 - Drift issues are created with configurable labels (default `["spec-drift"]`, set via `github.drift_labels`)
 - `list_issues` lists every open issue through in-process REST, requires `GITHUB_TOKEN`, skips pull
-  requests, follows strict GitHub `Link` pagination for at most 100 pages, and fails on malformed
-  links, duplicate issue numbers, or a page-limit truncation. Each next link must retain the
-  requested repository issues endpoint and exact `state=open`, `per_page=100`, label, and page
-  query semantics.
+  requests, rejects any provider page above 100 entries before item parsing, follows strict GitHub
+  `Link` pagination for at most 100 pages, and fails on malformed links, duplicate issue numbers,
+  or a page-limit truncation. Pull-request entries count toward the provider-page bound and every
+  raw item is validated before PR filtering: marker shape, positive identity, nonempty title,
+  nonempty names for any labels, exact
+  open state, and canonical repository/resource/number `html_url` identity must agree. Duplicate
+  raw identities within or across pages fail even if a duplicate is a filtered pull request. Each
+  next link must retain the requested repository issues endpoint and exact `state=open`,
+  `per_page=100`, label, and page query semantics.
 - Auth tokens (`GITHUB_TOKEN`) are redacted from REST request error messages via `redact_token` before being surfaced (defense-in-depth)
 
 ## Constraints
@@ -79,10 +84,16 @@ Acceptance Criteria
 - `create_drift_issue` creates issue titled "Spec drift detected: {path}" with formatted error list in body
 - Drift issues are created with configurable labels (default `["spec-drift"]`, set via `github.drift_labels`)
 - `list_issues` lists every open issue through in-process REST, requires `GITHUB_TOKEN`, skips pull
-  requests, follows strict GitHub `Link` pagination for at most 100 pages, and fails on malformed
-  links, duplicate issue numbers, or a page-limit truncation. Each next link must retain the
-  requested repository issues endpoint and exact `state=open`, `per_page=100`, label, and page
-  query semantics.
+  requests, rejects any provider page above 100 entries before item parsing, follows strict GitHub
+  `Link` pagination for at most 100 pages, and fails on malformed links, duplicate issue numbers,
+  or a page-limit truncation. Pull-request entries count toward the provider-page bound. Before PR
+  filtering, every raw item must have a valid marker shape, positive identity, nonempty title,
+  nonempty names for any labels, exact open state, and canonical repository/resource/number URL
+  identity; the number segment must exactly equal canonical decimal `u64` spelling, so leading
+  zeros are rejected. Duplicate raw
+  identities within or across pages fail even when pull requests would otherwise be filtered. Each
+  next link must retain the requested repository issues endpoint and exact `state=open`,
+  `per_page=100`, label, and page query semantics.
 - Auth tokens (`GITHUB_TOKEN`) are redacted from REST request error messages via `redact_token` before being surfaced (defense-in-depth)
 
 ### REQ-github-002

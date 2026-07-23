@@ -15,6 +15,13 @@ spec: validator.spec.md
 - **Coverage gates fail inconclusively on malformed manifests**: `compute_coverage_checked` propagates
   Gradle settings errors to CLI and MCP gate callers. The original `compute_coverage` API remains as
   a compatibility wrapper and produces a zero-percent report carrying an inconclusive diagnostic.
+- **Shared exact-byte validation core**: `validate_spec_content` accepts pre-read spec bytes and
+  never opens the logical `spec_path` or adjacent companions. The path still anchors diagnostics
+  and mapped-source checks, which retain normal path-based behavior.
+  `validate_spec_content_with_sources` is the crate-private stronger seam: callers provide a
+  `SourceSnapshot` map, and validation performs mapped-source checks and supplied-content export
+  extraction without ambient source-path access. `validate_spec` preserves existing callers,
+  including companion checks, by reading once and delegating to the shared core.
 
 ## Files to Read First
 
@@ -24,11 +31,20 @@ spec: validator.spec.md
 
 ## Current Status
 
-Fully implemented. The validator is the heart of spec-sync — it powers `specsync check`, `specsync coverage`, and is exposed via MCP. Coverage and enforcement callers now use checked discovery so malformed Gradle settings cannot produce partial or false-green coverage. Its in-file regression-test module intentionally precedes coverage helpers, so the narrow `items_after_test_module` Clippy allowance is localized to that test module rather than weakening project-wide lint policy.
+CHG-0063 implementation is present. The validator powers `specsync check`, coverage, and MCP;
+checked discovery prevents malformed Gradle settings from producing partial coverage, while
+`validate_spec_content_with_sources` lets confined callers validate exact spec-and-source
+snapshots without reopening paths.
+Fresh CHG definition reapproval and final independent/repository gates remain pending. Its in-file
+regression-test module intentionally precedes coverage helpers, so the narrow
+`items_after_test_module` Clippy allowance stays localized.
 
 ## Notes
 
 - SQL schema table extraction (`get_schema_table_names()`) supports `CREATE TABLE` statements for validating `db_tables` frontmatter fields. When `schema_columns` are supplied, `validate_spec` also cross-checks documented `### Schema:` column tables against migrations: a documented column absent from migrations is an ERROR, a migration column absent from the spec is a WARNING, and a type mismatch is a WARNING.
 - Status gates validation depth: `archived` specs skip all checks; `draft` specs check structure only; `review` specs check sections but skip Public API and API-surface validation; `active`/`stable`/`deprecated` get the full pass.
 - Non-draft, non-review specs warn when inline `## Requirements`/`## Acceptance Criteria` appear in the technical spec. A companion `requirements.md` is validated when present but is no longer mandatory for every module.
+- `validate_spec_content` skips ambient companion reads but retains ordinary mapped-source path
+  behavior; only `validate_spec_content_with_sources` treats supplied source observations as
+  authoritative and forbids ambient mapped-source reopening.
 - Exclude patterns use a simplified glob syntax: `**/dir/**` for directory exclusion, `**/*.ext` for extension exclusion.

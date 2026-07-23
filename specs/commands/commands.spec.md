@@ -1,6 +1,6 @@
 ---
 module: commands
-version: 8
+version: 9
 status: stable
 files:
   - src/commands/mod.rs
@@ -47,7 +47,7 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 | `run_validation` | `root: &Path, spec_files: &[PathBuf], ownership_spec_files: &[PathBuf], schema_tables: &HashSet<String>, schema_columns: &HashMap<String, schema::SchemaTable>, config: &types::SpecSyncConfig, collect: bool, explain: bool, ignore_rules: &IgnoreRules` | `(usize, usize, usize, usize, Vec<String>, Vec<String>, Vec<String>)` | Run validation on all spec files returning (errors, warnings, passed, total, error_strings, warning_strings, notice_strings); contains full text rendering logic |
 | `compute_exit_code` | `total_errors, total_warnings, strict, enforcement, coverage, require_coverage` | `i32` | Compute exit code without printing or exiting based on enforcement mode |
 | `exit_with_status` | `total_errors, total_warnings, strict, enforcement, coverage, require_coverage` | `!` | Same as `compute_exit_code` but prints messages and calls `process::exit()` |
-| `create_drift_issues` | `root, config, all_errors, format` | `()` | Create GitHub issues for specs with validation errors, grouping errors by spec path |
+| `create_drift_issues` | `root, config, all_errors, format` | `()` | Create GitHub issues for specs with validation errors, grouping errors by spec path; terminal diagnostics sanitize hostile repository, path, URL, and provider text before rendering, while the GitHub layer sanitizes issue title/body text |
 
 **Re-exported Submodules**
 
@@ -93,6 +93,9 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 4. Exit code logic by enforcement mode: Warn → always 0; EnforceNew → 1 if unspecced files; Strict → 1 on errors, also 1 on warnings when `--strict`
 5. `--require-coverage N` triggers exit 1 if file coverage percent < N regardless of enforcement mode. When `N > 0` but 0 source files were discovered (empty/misconfigured `source_dirs` or an over-broad `exclude_patterns`), the gate fails loud (exit 1) rather than passing on the vacuous 100% reported for an empty source tree
 6. `create_drift_issues` groups errors by spec path and creates one GitHub issue per spec, not per error
+7. Drift-creation terminal output never emits untrusted repository-resolution errors, spec paths,
+   issue URLs, or provider errors without diagnostic sanitization; delegated GitHub issue
+   title/body construction applies its own hostile-text sanitization
 
 ## Behavioral Examples
 
@@ -114,6 +117,14 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 - **When** `exit_with_status()` is called
 - **Then** prints count and exits with code 1
 
+### Scenario: Hostile drift-creation text
+
+- **Given** repository, spec-path, provider-error, or created-issue URL text contains terminal
+  controls, bidirectional formatting, or Unicode line/paragraph separators
+- **When** `create_drift_issues()` reports resolution, success, or failure
+- **Then** terminal output contains only sanitized diagnostics, and the delegated GitHub issue
+  title/body cannot preserve hostile formatting characters
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -121,8 +132,8 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 | No spec files found and `allow_empty` is false | Prints suggestion to run `specsync generate` and exits 0 |
 | Filter matches no specs | Prints warning listing unmatched filters, returns empty vec (cmd_check then exits 1) |
 | `schema_dir` not configured | `build_schema_columns` returns empty map (no error) |
-| GitHub repo unresolvable for drift issues | Prints error and returns without creating issues |
-| `gh` CLI fails to create issue | Prints per-spec error but continues with remaining specs |
+| GitHub repo unresolvable for drift issues | Prints a sanitized error and returns without creating issues |
+| `gh` CLI fails to create issue | Prints a sanitized per-spec error and continues with remaining specs |
 
 ## Dependencies
 
@@ -161,6 +172,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-07-22 | v9 / CHG-0063: sanitize hostile terminal diagnostics throughout drift creation, preserve the public rendered `Vec<String>` API, and use private structured exact-path attribution for GitHub drift creation |
 | 2026-07-01 | v4: Add `agents` submodule (native AI-tool skill/slash-command installation) |
 | 2026-07-10 | v5: Add `change` submodule for the verified SDD lifecycle |
 | 2026-06-11 | v3: Partial export-coverage summary ("N/M exports documented") prints as ⚠ — it is counted as a warning, so the summary's warning count now matches the printed ⚠ lines |

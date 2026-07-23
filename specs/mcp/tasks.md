@@ -47,4 +47,18 @@ spec: mcp.spec.md
 - [x] Bound exact-byte identity hashing and fail closed on oversized replacement input
 - [x] Preserve confined Cargo sibling dependencies that use manifest-relative parent components
 - [x] Consume the final quarantine directory capability before Windows cleanup
+- [x] Restrict Cargo snapshot paths to semantic target/workspace/dependency tables and ignore
+  unrelated metadata `path` keys
+- [x] Accept confined Windows-native Cargo backslashes while rejecting drive, UNC, rooted,
+  traversal, symlink, and junction escapes
+- [x] Fail MCP issue verification inconclusive on unreadable specs or malformed frontmatter
+- [x] Repair Windows junction/read-root fixtures with native joins and a valid child project
+- [x] Use checked spec traversal and checked top-level `implements`/`tracks` shapes in MCP issue
+  verification while ignoring nested extension keys and block-scalar text
+- [x] Return sanitized relative, content-free MCP diagnostics for spec discovery/read failures,
+  including walker failures and non-UTF-8 filenames
+- [x] Share maintained real-YAML issue parsing with CLI, rejecting duplicate/global malformed YAML
+  and blank/null/wrong shapes while accepting comments/trailing commas and ignoring nested
+  extension/block-scalar lookalikes
+- [x] Preserve valid issue references in CRLF specs through the shared checked parser
 - [ ] Pass fresh Windows reparse-point CI

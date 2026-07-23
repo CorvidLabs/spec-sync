@@ -30,6 +30,7 @@ pub mod wizard;
 
 use colored::Colorize;
 use std::collections::{HashMap, HashSet};
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -256,6 +257,78 @@ pub fn build_schema_columns(
 /// when `spec_files` is an incremental subset.
 /// When `collect` is true, diagnostics are collected into vectors instead of printing inline.
 /// When `explain` is true (text mode), shows per-category score breakdown for each spec.
+#[derive(Debug, Default)]
+struct ValidationErrors {
+    rendered: Vec<String>,
+    drift_by_spec: std::collections::BTreeMap<String, Vec<String>>,
+}
+
+impl ValidationErrors {
+    fn from_rendered(rendered: &[String], spec_paths: &[String]) -> Self {
+        let mut spec_paths = spec_paths.to_vec();
+        spec_paths.sort_by_key(|path| std::cmp::Reverse(path.len()));
+
+        let mut errors = Self {
+            rendered: rendered.to_vec(),
+            drift_by_spec: std::collections::BTreeMap::new(),
+        };
+        for entry in rendered {
+            let attributed = spec_paths.iter().find_map(|spec_path| {
+                entry
+                    .strip_prefix(spec_path)
+                    .and_then(|suffix| suffix.strip_prefix(": "))
+                    .map(|error| (spec_path, error))
+            });
+            let fallback = || entry.split_once(": ");
+            if let Some((spec_path, error)) = attributed
+                .map(|(spec_path, error)| (spec_path.as_str(), error))
+                .or_else(fallback)
+            {
+                errors
+                    .drift_by_spec
+                    .entry(spec_path.to_string())
+                    .or_default()
+                    .push(error.to_string());
+            }
+        }
+        errors
+    }
+
+    fn push_for_spec(&mut self, spec_path: &str, error: &str) {
+        self.rendered.push(format!("{spec_path}: {error}"));
+        self.drift_by_spec
+            .entry(spec_path.to_string())
+            .or_default()
+            .push(error.to_string());
+    }
+
+    fn push_unattributed(&mut self, error: String) {
+        self.rendered.push(error);
+    }
+
+    fn is_empty(&self) -> bool {
+        self.rendered.is_empty()
+    }
+
+    fn into_rendered(self) -> Vec<String> {
+        self.rendered
+    }
+}
+
+impl Deref for ValidationErrors {
+    type Target = [String];
+
+    fn deref(&self) -> &Self::Target {
+        &self.rendered
+    }
+}
+
+impl AsRef<[String]> for ValidationErrors {
+    fn as_ref(&self) -> &[String] {
+        &self.rendered
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn run_validation(
     root: &Path,
@@ -280,7 +353,7 @@ pub fn run_validation(
     let mut total_warnings = 0;
     let mut passed = 0;
     let mut drafts_skipped = 0;
-    let mut all_errors: Vec<String> = Vec::new();
+    let mut all_errors = ValidationErrors::default();
     let mut all_warnings: Vec<String> = Vec::new();
     let mut all_notices: Vec<String> = Vec::new();
     let mut file_owners: HashMap<String, Vec<String>> = HashMap::new();
@@ -361,7 +434,9 @@ pub fn run_validation(
 
         if collect {
             let prefix = &result.spec_path;
-            all_errors.extend(result.errors.iter().map(|e| format!("{prefix}: {e}")));
+            for error in &result.errors {
+                all_errors.push_for_spec(prefix, error);
+            }
             all_warnings.extend(filtered_warnings.iter().map(|w| format!("{prefix}: {w}")));
             all_notices.extend(
                 result
@@ -634,7 +709,7 @@ pub fn run_validation(
         for err in schema::schema_read_errors(&root.join(dir)) {
             total_errors += 1;
             if collect {
-                all_errors.push(err);
+                all_errors.push_unattributed(err);
             } else {
                 println!("\n{} {err}", "✗".red());
             }
@@ -653,7 +728,7 @@ pub fn run_validation(
         total_warnings,
         passed,
         spec_files.len(),
-        all_errors,
+        all_errors.into_rendered(),
         all_warnings,
         all_notices,
     )
@@ -788,12 +863,35 @@ pub fn create_drift_issues(
     all_errors: &[String],
     format: types::OutputFormat,
 ) {
+    let spec_paths = find_spec_files(&root.join(&config.specs_dir))
+        .into_iter()
+        .map(|path| {
+            path.strip_prefix(root)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    let diagnostics = ValidationErrors::from_rendered(all_errors, &spec_paths);
+    create_drift_issues_with_diagnostics(root, config, &diagnostics, format);
+}
+
+fn create_drift_issues_with_diagnostics(
+    root: &Path,
+    config: &types::SpecSyncConfig,
+    all_errors: &ValidationErrors,
+    format: types::OutputFormat,
+) {
     let repo_config = config.github.as_ref().and_then(|g| g.repo.as_deref());
     let repo = match crate::github::resolve_repo(repo_config, root) {
         Ok(r) => r,
         Err(e) => {
             if matches!(format, types::OutputFormat::Text) {
-                eprintln!("{} Cannot create issues: {e}", "error:".red().bold());
+                eprintln!(
+                    "{} Cannot create issues: {}",
+                    "error:".red().bold(),
+                    issues::safe_diagnostic(&e)
+                );
             }
             return;
         }
@@ -805,43 +903,34 @@ pub fn create_drift_issues(
         .map(|g| g.drift_labels.clone())
         .unwrap_or_else(|| vec!["spec-drift".to_string()]);
 
-    // Group errors by spec path (format: "spec/path: error message")
-    let mut errors_by_spec: std::collections::HashMap<String, Vec<String>> =
-        std::collections::HashMap::new();
-    for entry in all_errors {
-        if let Some((spec, error)) = entry.split_once(": ") {
-            errors_by_spec
-                .entry(spec.to_string())
-                .or_default()
-                .push(error.to_string());
-        }
-    }
-
     if matches!(format, types::OutputFormat::Text) {
         println!(
             "\n{} Creating GitHub issues for {} spec(s) with errors...",
             "⟳".cyan(),
-            errors_by_spec.len()
+            all_errors.drift_by_spec.len()
         );
     }
 
-    for (spec_path, errors) in &errors_by_spec {
+    for (spec_path, errors) in &all_errors.drift_by_spec {
         match crate::github::create_drift_issue(&repo, spec_path, errors, &labels) {
             Ok(issue) => {
                 if matches!(format, types::OutputFormat::Text) {
                     println!(
-                        "  {} Created issue #{} for {spec_path}: {}",
+                        "  {} Created issue #{} for {}: {}",
                         "✓".green(),
                         issue.number,
-                        issue.url
+                        issues::safe_diagnostic(spec_path),
+                        issues::safe_diagnostic(&issue.url)
                     );
                 }
             }
             Err(e) => {
                 if matches!(format, types::OutputFormat::Text) {
                     eprintln!(
-                        "  {} Failed to create issue for {spec_path}: {e}",
-                        "✗".red()
+                        "  {} Failed to create issue for {}: {}",
+                        "✗".red(),
+                        issues::safe_diagnostic(spec_path),
+                        issues::safe_diagnostic(&e)
                     );
                 }
             }
@@ -851,7 +940,36 @@ pub fn create_drift_issues(
 
 #[cfg(test)]
 mod tests {
-    use super::validate_module_name;
+    use super::{ValidationErrors, create_drift_issues, run_validation, validate_module_name};
+    use crate::ignore::IgnoreRules;
+    use crate::schema::SchemaTable;
+    use crate::types::{OutputFormat, SpecSyncConfig};
+    use std::collections::{HashMap, HashSet};
+    use std::path::{Path, PathBuf};
+
+    type RunValidationSignature = fn(
+        &Path,
+        &[PathBuf],
+        &[PathBuf],
+        &HashSet<String>,
+        &HashMap<String, SchemaTable>,
+        &SpecSyncConfig,
+        bool,
+        bool,
+        &IgnoreRules,
+    ) -> (
+        usize,
+        usize,
+        usize,
+        usize,
+        Vec<String>,
+        Vec<String>,
+        Vec<String>,
+    );
+    type CreateDriftIssuesSignature = fn(&Path, &SpecSyncConfig, &[String], OutputFormat);
+
+    const _: RunValidationSignature = run_validation;
+    const _: CreateDriftIssuesSignature = create_drift_issues;
 
     #[test]
     fn validate_module_name_accepts_plain_names() {
@@ -895,6 +1013,29 @@ mod tests {
                 name.escape_default()
             );
         }
+    }
+
+    #[test]
+    fn rendered_drift_errors_prefer_longest_discovered_spec_path() {
+        let colon_path = "specs/team: api/auth.spec.md";
+        let prefix_path = "specs/team";
+        let rendered = vec![
+            format!("{colon_path}: Missing required section: Purpose"),
+            format!("{prefix_path}: independent failure"),
+        ];
+        let discovered_spec_paths = vec![prefix_path.to_string(), colon_path.to_string()];
+        let errors = ValidationErrors::from_rendered(&rendered, &discovered_spec_paths);
+
+        assert_eq!(errors.drift_by_spec.len(), 2);
+        assert_eq!(
+            errors.drift_by_spec.get(colon_path),
+            Some(&vec!["Missing required section: Purpose".to_string()])
+        );
+        assert_eq!(
+            errors.drift_by_spec.get(prefix_path),
+            Some(&vec!["independent failure".to_string()])
+        );
+        assert_eq!(errors.as_ref(), rendered);
     }
 
     #[test]

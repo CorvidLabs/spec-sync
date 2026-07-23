@@ -72,7 +72,6 @@ fn run() {
         );
         process::exit(2);
     }
-    let root = root.canonicalize().unwrap_or(root);
 
     // --json flag is shorthand for --format json (backward compat)
     let format = if cli.json {
@@ -91,6 +90,14 @@ fn run() {
         stale: None,
         specs: vec![],
     });
+
+    // MCP must bind the user-requested directory identity before canonicalizing its path.
+    // Preserve the established canonical-root behavior for every other command.
+    let root = if matches!(&command, Command::Mcp { .. }) {
+        root
+    } else {
+        root.canonicalize().unwrap_or(root)
+    };
 
     if matches!(
         &command,

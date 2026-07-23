@@ -45,14 +45,30 @@ spec: mcp.spec.md
   workspace membership as TOML and shared Gradle settings with comment/escape-aware syntax,
   charges deduplicated manifest bytes to the operation budget, and copies those exact preflight
   buffers.
-- Manifest path fields are normalized relative to the manifest that declares them. Parent
-  components are valid for ordinary sibling dependencies when the normalized path remains beneath
-  the retained root; confinement rejects only actual lexical or resolved escapes.
+- Cargo snapshot inputs come only from semantic target, dependency, workspace-dependency,
+  target-specific dependency, patch, and replacement tables. An arbitrary metadata key named
+  `path` is data, not filesystem authority. Semantic manifest paths are normalized relative to the
+  declaring manifest; parent components and Windows-native backslashes are valid when the result
+  remains beneath the retained root, while drive, UNC, rooted, traversal, symlink, and junction
+  escapes remain rejected.
 - Windows absolute-root containment parses native path components without lossy UTF-8 conversion
   and compares them with Win32 ordinal ignore-case semantics, including non-ASCII case variants.
 - MCP issue verification requires explicit `GITHUB_TOKEN`, performs read/list/verify requests
   in-process without a provider subprocess, globally deduplicates/caps issue IDs, includes
-  authentication/preflight in the complete deadline, revalidates repository access after
+  authentication/preflight in the complete deadline, and revalidates repository access after
+  apparent absence. Discovery, bounded reads, and frontmatter parsing are part of the verification
+  trust decision: an unreadable or malformed spec makes the operation inconclusive rather than
+  disappearing from a successful zero-reference result.
+- The latest review extends that same contract to checked recursive discovery and exact issue-field
+  shapes through the shared maintained real-YAML parser. Duplicate/global malformed YAML and
+  blank/null/wrong known shapes fail closed; comments/trailing commas remain valid; nested
+  extension and block-scalar lookalikes are ignored. MCP diagnostic boundaries must not leak the
+  server's absolute root, raw OS errors, or spec bytes: callers receive a sanitized relative path
+  and a stable content-free reason.
+- Windows confinement fixtures construct every path with native joins. The absolute-child read
+  fixture is a valid one-file, fully covered project so its success proves root selection and
+  downstream coverage execution; the junction fixture first proves that the reparse point targets
+  the outside directory before asserting the intended confinement diagnostic and unchanged bytes.
 
 ## Files to Read First
 
@@ -62,8 +78,12 @@ spec: mcp.spec.md
 
 ## Current Status
 
-Under CHG-0063 verification as a read-only-by-default agent-native MCP integration with exact JSON-RPC envelope, argument,
-and resource validation; bounded capability snapshots and responses; retained-capability,
-configuration-, Git-metadata-, and autodetection-level confinement; explicit root-bound mutation;
-conservative unavailable-freshness scoring; atomic bounded generated-output publication; and no embedded
-provider or credential surfaces.
+Under CHG-0063 verification as a read-only-by-default agent-native MCP integration with exact
+JSON-RPC envelope, argument, and resource validation; bounded capability snapshots and responses;
+retained-capability, configuration-, Git-metadata-, and autodetection-level confinement; explicit
+root-bound mutation; conservative unavailable-freshness scoring; atomic bounded generated-output
+publication; and no embedded provider or credential surfaces. Shared real-YAML issue parsing,
+checked top-level shapes, duplicate/global malformed rejection, checked traversal/non-UTF-8
+discovery, and relative content-free diagnostics now have focused implementation and regression
+coverage. Fresh definition reapproval, Windows runtime CI, independent rereview, and final
+repository/trust/provenance/CI gates remain open.

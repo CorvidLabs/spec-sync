@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 9
+version: 10
 status: stable
 files:
   - src/mcp.rs
@@ -62,13 +62,22 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
     manifest discovery parses Cargo workspace
     membership as TOML plus comment/escape-aware shared Gradle settings; snapshots copy the exact
     manifest bytes charged to the shared cumulative byte budget.
-    Manifest-relative parent components are normalized from the declaring manifest and accepted
-    when their resolved target remains beneath the server root; only actual root escapes fail.
+    Cargo path discovery follows only semantic target, dependency, workspace-dependency,
+    target-specific dependency, patch, and replacement tables; unrelated metadata named `path`
+    is ignored. Manifest-relative parent components and confined Windows-native backslashes are
+    normalized from the declaring manifest and accepted when their resolved target remains beneath
+    the server root; drive, UNC, rooted, traversal, symlink, and junction escapes fail.
 15. GitHub issue verification requires explicit `GITHUB_TOKEN`, performs read/list/verify requests
     in-process without a provider subprocess, prepares once, globally deduplicates at most 100 IDs,
     includes authentication/preflight in the 30-second batch bound, and revalidates repository
     access before accepting not-found; provider failures remain inconclusive tool errors rather
-    than successful empty/not-found results.
+    than successful empty/not-found results. Spec discovery, reads, and frontmatter parsing must
+    also complete through checked traversal and the shared maintained real-YAML issue parser.
+    Duplicate keys or malformed YAML anywhere, plus blank/null/wrong-shaped top-level
+    `implements`/`tracks`, make verification inconclusive. Comments and valid trailing commas are
+    accepted; nested extension and block-scalar lookalikes are ignored. Read diagnostics use only a
+    sanitized relative spec path and a content-free reason, never host-absolute paths, raw OS
+    errors, or spec bytes.
 
 ## Behavioral Examples
 
@@ -135,12 +144,14 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | Non-object params/arguments, wrong argument type, or unknown key | JSON-RPC error -32602 before tool execution |
 | Read root outside the server root, nonexistent, traversing, symlink-escaped, or selected after ambient root replacement | Tool error with `isError: true`; retained authority never follows the replacement path |
 | Configured, manifest-derived, dependency/cache/schema, module, spec-mapping, or nested-symlink path escapes the root | Tool/resource error before downstream filesystem access; outside bytes remain unchanged |
-| Manifest-relative sibling path such as `../b` normalizes inside the root | Accepted and included in the bounded snapshot; true normalized escapes still fail |
+| Semantic Cargo sibling path such as `../b` or `..\b` normalizes inside the root | Accepted and included in the bounded snapshot; drive, UNC, rooted, traversal, symlink, and junction escapes still fail |
+| Unrelated Cargo metadata contains a `path` key | Ignored for snapshot input discovery; only semantic Cargo target/workspace/dependency path tables authorize an input |
 | Cumulative confinement or manifest preflight exceeds its deterministic entry bound | Tool/resource error before downstream filesystem access |
 | Generation exceeds 1,000 specs, 64 MiB, or its response budget | Tool error before publishing project files |
 | Generated destination exists, a public parent path is replaced, or a staged batch cannot publish completely | Tool error; identity-bound cleanup preserves public replacements; an empty parent created by the failed batch may remain |
 | Private quarantine cleanup on Windows | Final retained directory handle is consumed before removal; successful init/generate does not fail with a sharing violation |
-| GitHub issue provider tree, authentication, repository recheck, timeout, malformed output, or transport failure | Inconclusive tool error; no trustworthy zero-count or not-found result |
+| GitHub issue provider tree, authentication, repository recheck, timeout, malformed output, transport failure, traversal error, unreadable spec, malformed frontmatter, or invalid `implements`/`tracks` shape | Inconclusive tool error; no trustworthy zero-count or not-found result; read diagnostics remain relative and content-free |
+| Checked issue frontmatter has duplicate/global malformed YAML or blank/null/wrong-shaped known fields | Inconclusive tool error; comments/trailing commas remain valid and nested extension/block-scalar lookalikes do not become references |
 | Server root cannot be resolved | Server exits nonzero and writes an actionable diagnostic to stderr |
 | Unknown resource URI | JSON-RPC error -32602 "Unknown resource URI: {uri}" |
 | Spec module not found | JSON-RPC error -32602 "No spec found for module: {name}" |
@@ -159,7 +170,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | validator | `validate_spec`, `find_spec_files`, `compute_coverage_checked`, `get_schema_table_names` |
 | generator | `generate_specs_for_unspecced_modules_paths` |
 | scoring | `score_spec`, `compute_project_score` |
-| parser | `parse_frontmatter` |
+| parser | `parse_frontmatter`, `parse_checked_issue_references` |
 | types | `SpecSyncConfig` |
 | deps | `build_dep_graph`, `validate_deps`, `topological_sort` |
 
@@ -181,5 +192,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-22 | CHG-0062-harden-mcp-root-confinement-write-authorization-argument-validation-and-notif: Harden MCP root confinement, write authorization, argument validation, and notification semantics for issue 414 |
 | 2026-07-22 | CHG-0063: Identity-bind roots and quarantine rollback, parse Cargo TOML and checked Gradle inputs, normalize Windows roots, and use bounded in-process GitHub verification |
 | 2026-07-22 | CHG-0063 defensive review: Skip ignored-name symlinks before traversal and compare Windows root components with native ordinal Unicode case semantics |
-| 2026-07-23 | CHG-0063 CI follow-up: Bind staged and rollback identities to exact bytes so immediate Unix inode reuse cannot authorize a replacement, with fail-closed bounded hashing |
-| 2026-07-23 | CHG-0063 compatibility follow-up: Accept manifest-relative sibling paths that normalize inside the retained MCP root, reject true escapes, and consume private quarantine handles before Windows removal |
+| 2026-07-22 | CHG-0063 CI follow-up: Bind staged and rollback identities to exact bytes so immediate Unix inode reuse cannot authorize a replacement, with fail-closed bounded hashing |
+| 2026-07-22 | CHG-0063 compatibility follow-up: Accept manifest-relative sibling paths that normalize inside the retained MCP root, reject true escapes, and consume private quarantine handles before Windows removal |
+| 2026-07-22 | CHG-0063 independent-review follow-up: Restrict Cargo path discovery, normalize confined Windows-native paths, make checked issue discovery/field parsing fail closed with relative content-free diagnostics, and repair Windows fixtures |
+| 2026-07-22 | CHG-0063 final adversarial follow-up: Share maintained real-YAML checked issue parsing, reject duplicate/global malformed YAML and blank/null/wrong shapes, and preserve valid comments/trailing commas |

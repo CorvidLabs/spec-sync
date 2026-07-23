@@ -43,8 +43,17 @@ issue-creation write path outside read-only verification.
 
 Repository access changes, authentication failures, transport errors, timeouts, and malformed REST
 responses are inconclusive errors. Only a confirmed accessible-repository absence is classified as
-not found. A project with no issue references is reported directly without requiring repository or
-provider resolution.
+not found. Spec discovery is part of that trust decision: directory-walk failures, non-UTF-8 spec
+names, unreadable specs, malformed or missing frontmatter, and invalid top-level `implements` or
+`tracks` list shapes make the result inconclusive instead of producing a successful partial or
+zero-reference result. The shared maintained `serde-saphyr` checked parser rejects duplicate keys
+or malformed YAML anywhere, plus blank, null, scalar, mapping, mixed, non-positive, or overflowing
+known fields. YAML comments and valid trailing commas remain supported. Nested extension mappings,
+sequences, and block-scalar text named `implements` or `tracks` are not issue-reference fields. LF
+and CRLF frontmatter delimiters are accepted equivalently.
+Diagnostics contain only bounded, sanitized project-relative paths and content-free reason classes.
+A completely inspected project with no issue references is reported directly without requiring
+provider access.
 
 ## Manifest discovery
 
@@ -55,9 +64,12 @@ comment- and escape-aware parser for Groovy and Kotlin includes plus supported `
 overrides. Malformed Gradle discovery likewise fails gates instead of falling back to a partial or
 empty success.
 
-Cargo manifest-relative paths may normalize `..` across sibling crates when the normalized result
-remains beneath the configured server root. Lexical or canonical escapes, including escapes through
-symlinks or Windows junctions, are rejected.
+Cargo path authority comes only from semantic target, dependency, workspace-dependency,
+target-specific dependency, patch, and replacement tables. An arbitrary metadata key named `path`
+does not authorize snapshot input. Semantic manifest-relative paths may normalize parent components
+across sibling crates, and confined Windows-native backslashes are normalized equivalently, when
+the result remains beneath the configured server root. Drive-prefixed, UNC, rooted, traversal,
+canonical, symlink, and Windows-junction escapes are rejected.
 
 ## Generation and scoring
 

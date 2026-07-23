@@ -33,3 +33,9 @@ artifact: plan
     parent retention, staged-identity publication checks, real TOML Cargo workspace parsing, one
     Windows-aware root suffix routine, in-process GitHub reads, fail-closed Gradle parsing, and
     no-reference issue reporting before repository resolution.
+13. Close renewed acceptance findings by accepting CRLF checked frontmatter, testing the real
+    rendered-`Vec<String>` compatibility path, adding `REQ-config-006` for every malformed legacy
+    JSON repository type, retaining one project capability for specs and mapped sources, enforcing
+    the 100,000-total-entry bound, requiring canonical decimal provider URL spelling, and
+    synchronizing all six facets across definition artifacts; rerun both independent reviews and
+    all gates afterward.

@@ -28,6 +28,10 @@ Acceptance Criteria
   comments, escapes, and standard Groovy/Kotlin forms; malformed discovery is inconclusive for
   gates; and every manifest read is copied from the exact bytes charged to the shared cumulative
   budget so omission, growth, or discovery cannot produce a false-green result.
+- Cargo path discovery follows only semantic target, dependency, workspace-dependency,
+  target-specific dependency, patch, and replacement tables. Unrelated metadata `path` keys are
+  ignored. Confined Windows-native backslashes normalize from the declaring manifest, while
+  drive, UNC, rooted, traversal, symlink, and junction escapes remain rejected.
 - Generated files and rollback cleanup resolve through retained parent capabilities; publication
   verifies staged identities and rollback preserves replacements at public transaction paths.
   Failed batches may leave empty parents rather than claim ownership across a non-atomic
@@ -43,8 +47,9 @@ when protocol output or deterministic generation cannot complete safely.
 
 Acceptance Criteria
 
-- Missing/invalid `jsonrpc`, method, ID, params, or top-level request shapes return `-32600` before
-  dispatch and cannot mutate.
+- Missing/invalid `jsonrpc`, missing/invalid method, invalid present ID, wrongly typed present
+  params, or invalid top-level request shapes return `-32600` before dispatch and cannot mutate;
+  valid notifications may omit ID and params and remain silent.
 - `resources/read` rejects non-object, missing, wrongly typed, and unknown parameters with `-32602`.
 - Responses are bounded to 1 MiB; oversized responses become compact `-32603` errors preserving a
   bounded request ID and safely using `null` when an attacker-controlled ID cannot fit; stdin/stdout
@@ -63,6 +68,13 @@ Acceptance Criteria
   inconclusive tool error; only a confirmed absent issue is represented as not_found.
 - A missing issue result is revalidated against repository access within the same deadline before
   it can be represented as not_found.
+- MCP issue verification treats failed spec discovery, unreadable specs, and malformed or missing
+  frontmatter as inconclusive tool errors rather than silently omitting them from a successful
+  zero-reference result.
+- MCP issue verification uses the shared maintained real-YAML parser: duplicate/global malformed
+  YAML and blank/null/wrong-shaped known fields fail closed; comments/trailing commas remain valid;
+  nested extension and block-scalar lookalikes are ignored; LF and CRLF frontmatter delimiters are
+  parsed equivalently.
 - Release notes and public MCP guidance document all compatibility changes.
 
 ### REQ-github-001
@@ -79,10 +91,32 @@ Acceptance Criteria
 - Authentication, repository, transport, timeout, and malformed-provider failures are errors.
 - Read/list/verify paths require `GITHUB_TOKEN` and spawn no `gh` process; only explicit issue
   creation uses `gh`.
-- Issue listing follows strict encoded pagination for at most 100 pages of 100 issues and fails on
-  malformed links, duplicate IDs, or a continuing next page at the cap. Every next link retains
-  the requested repository issues endpoint and exact open-state, page-size, label, and page query
-  semantics.
+- Issue listing follows strict encoded pagination for at most 100 pages of 100 provider entries and fails on
+  malformed links, duplicate IDs, or a continuing next page at the cap. Every raw provider page
+  is rejected above 100 entries before item parsing, including pull-request entries. Before PR
+  filtering, every raw item is validated for marker shape, positive identity, nonempty title,
+  nonempty names for any labels, exact open state, canonical repository/resource/number URL
+  identity including exact canonical decimal number spelling without leading zeros, and duplicate
+  raw identity within/across pages. Every next link retains the requested repository issues
+  endpoint and exact open-state, page-size, label, and page query semantics.
+
+### REQ-parser-001
+
+The parser SHALL deterministically parse the supported frontmatter and Public API Markdown subset,
+SHALL identify required and stub sections, and SHALL provide fail-closed real-YAML parsing for
+security-sensitive GitHub issue references.
+
+Acceptance Criteria
+
+- Compatibility `parse_frontmatter` behavior remains available for the established metadata subset.
+- `parse_checked_issue_references` parses the complete frontmatter with maintained `serde-saphyr`
+  and rejects duplicate keys globally.
+- Malformed YAML anywhere and blank/null/scalar/mapping/mixed/non-positive/overflowing top-level
+  `implements`/`tracks` values fail the complete checked parse.
+- Comments and valid trailing commas are accepted.
+- LF and CRLF frontmatter delimiters are accepted equivalently.
+- Nested extension mappings/sequences and block-scalar text do not contribute issue references.
+- Surfaced checked-parser errors are stable and content-free.
 
 ### REQ-importer-001
 
@@ -107,8 +141,9 @@ Acceptance Criteria
 - Single and batch GitHub imports require explicit `GITHUB_TOKEN` and execute no provider read
   subprocess.
 - Every GitHub REST operation is bounded to 10 seconds.
-- Batch import follows strict pagination for at most 100 pages of 100 issues and fails on malformed
-  links, duplicate IDs, or cap truncation rather than reporting partial success.
+- Batch import follows strict pagination for at most 100 pages of 100 provider entries, rejects an
+  oversized page before item parsing, and fails on malformed links, duplicate IDs, or cap
+  truncation rather than reporting partial success.
 
 ### REQ-cmd-issues-001
 
@@ -122,8 +157,59 @@ Acceptance Criteria
 - Provider/batch errors contribute to the existing non-zero command outcome.
 - Text output distinguishes a project with no references from an all-error batch and includes the
   error count in its summary.
-- Projects with no references return no-reference guidance before repository or provider
-  resolution, with or without repository configuration.
+- Projects with no references skip Git auto-detection and provider access. A configured
+  `github.repo` is still syntax-validated before no-reference success, including when the specs
+  directory is missing or contains no specs.
+- Unreadable specs and malformed or missing frontmatter are retained as path-attributed,
+  content-free inspection findings in text, JSON, Markdown, and GitHub output; they suppress
+  no-reference guidance and make the command exit 1.
+- Discovery and reads are rooted in retained project/spec-directory capabilities; each immutable
+  spec snapshot keeps its discovered identity through read completion, rejecting symlink,
+  regular-file, and hardlink replacement.
+- One retained project capability supplies both spec discovery and mapped-source snapshots, so
+  ambient root replacement cannot mix project identities.
+- Spec snapshots are capped at 4 MiB each, 64 MiB cumulatively, and 10,000 files; mapped-source
+  snapshots used by `--create` are capped at 4 MiB each and 64 MiB cumulatively.
+- Recursive discovery examines at most 100,000 total entries, including non-spec entries, before
+  returning an inconclusive bounded finding.
+- Issue inspection uses the shared checked real-YAML parser.
+- Every renderer escapes controls, bidi formatting characters, and Unicode Zl/Zp separators;
+  Markdown/GitHub additionally preserve valid escaped table/code-span structure and pad code-span
+  content when a path begins or ends with a backtick.
+- `--create` performs normal drift validation from retained spec and mapped-source snapshots
+  through `validate_spec_content_with_sources`, without reopening discovered paths or resolving
+  supplied-content TypeScript wildcard imports through ambient paths.
+
+### REQ-commands-003
+
+Drift-issue creation SHALL render untrusted text safely at both the command terminal and GitHub
+issue boundaries.
+
+Acceptance Criteria
+
+- Repository-resolution failures, spec paths, returned issue URLs, and provider failures pass
+  through the shared safe diagnostic renderer before terminal output.
+- Terminal output does not preserve raw control characters, bidirectional formatting controls, or
+  Unicode line/paragraph separators from untrusted values.
+- The explicit GitHub creation helper sanitizes spec paths and validation errors separately for
+  title text and Markdown body text.
+- Sanitization preserves one attempted issue per spec and continuation after individual failures.
+- Public `run_validation` and `create_drift_issues` retain rendered `Vec<String>` compatibility;
+  private structured attribution and longest exact discovered-path matching preserve legal paths
+  containing `": "` without exporting new command types.
+
+### REQ-exports-005
+
+Snapshot export extraction SHALL parse caller-supplied source content without reopening logical
+paths or resolving TypeScript wildcard imports through ambient filesystem authority.
+
+Acceptance Criteria
+
+- `get_exported_symbols_from_content` accepts a logical path and caller-supplied UTF-8 content.
+- The logical path supplies language/type context but is never opened.
+- Regex and AST TypeScript snapshot extraction pass no wildcard resolver.
+- Local supplied-content exports retain normal ordering, deduplication, parse-mode, and export-level
+  behavior.
 
 ### REQ-cmd-check-001
 
@@ -200,6 +286,18 @@ Acceptance Criteria
 - Compatibility source-directory and manifest wrappers retain their existing return types.
 - Enforcement callers can distinguish inconclusive discovery from successful empty discovery.
 
+### REQ-config-006
+
+Legacy JSON GitHub repository configuration SHALL fail closed when `github.repo` is present with a
+non-string, non-null type.
+
+Acceptance Criteria
+
+- Number, boolean, object, and list values remain explicitly invalid instead of discarding valid
+  surrounding configuration or becoming repository auto-detection.
+- Missing, null, and string repository values preserve compatibility.
+- Issue inspection rejects the explicit invalid repository before no-spec/no-reference success.
+
 ### REQ-validator-008
 
 Coverage gates SHALL use fallible checked manifest discovery and SHALL report malformed or unreadable
@@ -210,6 +308,38 @@ Acceptance Criteria
 - `compute_coverage_checked` propagates discovery errors without a partial report.
 - CLI and MCP enforcement callers use checked coverage.
 - `compute_coverage` remains a compatibility wrapper carrying an inconclusive diagnostic.
+
+### REQ-validator-001
+
+The validator SHALL enforce bidirectional code-contract, metadata, dependency, schema, and coverage
+rules while accumulating actionable findings, and SHALL support exact pre-read spec snapshots
+without reopening their logical paths.
+
+Acceptance Criteria
+
+- Bidirectional validation reports a documented-but-missing export as an error and an undocumented
+  code export as a warning.
+- Missing required frontmatter fields are errors.
+- Cross-project references are skipped during local validation.
+- Coverage excludes test files and configured exclude patterns.
+- Spec discovery is sorted.
+- Schema validation uses the configured schema regex.
+- Missing-source suggestions use bounded Levenshtein distance.
+- Flat source files are detected while common entry points are excluded.
+- Source discovery respects configured extensions.
+- Requirements companions are validated when present and remain optional under adaptive policy.
+- `validate_spec_content` validates caller-provided spec bytes through the normal single-spec
+  validation core.
+- The logical `spec_path` remains diagnostic/source context, but neither it nor adjacent companions
+  are opened by pre-read spec-content validation; mapped sources retain normal path behavior.
+- `validate_spec` preserves path-based compatibility by reading once and delegating exact bytes.
+- CRLF normalization and size policy use the supplied content.
+- `SourceSnapshot` represents present, missing, rejected, and unreadable mapped-source
+  observations.
+- `validate_spec_content_with_sources` validates supplied spec bytes and supplied mapped-source
+  observations without reopening either through ambient project paths.
+- Supplied-source export extraction does not resolve TypeScript wildcard imports through ambient
+  paths.
 
 ### REQ-manifest-001
 

@@ -24,12 +24,21 @@ spec: validator.spec.md
 - Flat source files (not in subdirectories) are detected as modules, excluding common entry points (main.rs, lib.rs, mod.rs, index.ts, etc.)
 - Source discovery respects `source_extensions` config
 - Requirements companions are validated when present but remain optional for technical/internal modules under adaptive artifact policy.
+- `validate_spec_content` applies the normal single-spec validation contract to caller-provided
+  bytes without opening `spec_path` or adjacent companions; the path remains diagnostic/source
+  context, while mapped sources retain normal path-based behavior.
+- `validate_spec_content_with_sources` accepts a capability-confined `SourceSnapshot` map and
+  validates mapped sources without reopening their ambient paths.
+- `validate_spec` reads the spec once and delegates its exact bytes to the shared content validator.
 
 ## Constraints
 
 - Validation must be fast enough for watch mode (~500ms debounce between runs)
 - Must accumulate all errors before reporting (not fail-fast on first error)
 - Error messages must include file paths and specific symbol/section names for actionability
+- Pre-read content validation must not reopen the logical spec path for spec bytes.
+- Supplied-source validation must treat its `SourceSnapshot` map as authoritative and must not
+  reopen mapped source paths.
 
 ## Out of Scope
 
@@ -40,19 +49,36 @@ spec: validator.spec.md
 
 ### REQ-validator-001
 
-The validator SHALL enforce bidirectional code-contract, metadata, dependency, schema, and coverage rules while accumulating actionable findings.
+The validator SHALL enforce bidirectional code-contract, metadata, dependency, schema, and coverage
+rules while accumulating actionable findings, and SHALL support exact pre-read spec snapshots
+without reopening their logical paths.
 
 Acceptance Criteria
-- Bidirectional validation: spec documents non-existent export = ERROR; code exports undocumented symbol = WARNING
-- Missing frontmatter fields (module, version, status) produce errors, not warnings
-- Cross-project refs (`owner/repo@module` format) are detected and skipped during local validation
-- Coverage computation excludes test files and configured exclude patterns
-- `find_spec_files` returns results sorted by path
-- Schema validation uses configurable regex pattern via `schema_pattern` config
-- File path suggestions use Levenshtein distance with max distance of 3
-- Flat source files (not in subdirectories) are detected as modules, excluding common entry points (main.rs, lib.rs, mod.rs, index.ts, etc.)
-- Source discovery respects `source_extensions` config
-- Requirements companions are validated when present but remain optional for technical/internal modules under adaptive artifact policy.
+- Bidirectional validation reports a documented-but-missing export as an error and an undocumented
+  code export as a warning.
+- Missing required frontmatter fields (`module`, `version`, `status`, `files`) are errors.
+- Cross-project references are recognized and skipped during local validation.
+- Coverage excludes test files and configured exclude patterns.
+- `find_spec_files` returns sorted results.
+- Schema validation uses the configured `schema_pattern`.
+- Missing source suggestions use Levenshtein distance with a maximum distance of three.
+- Flat source files are detected as modules while common entry points are excluded.
+- Source discovery respects configured `source_extensions`.
+- Requirements companions are validated when present and remain optional for technical/internal
+  modules under adaptive artifact policy.
+- `validate_spec_content` applies normal single-spec validation to caller-provided spec bytes.
+- `spec_path` remains the logical location for diagnostics and mapped-source resolution, but is not
+  reopened to obtain spec content; adjacent companion reads are deliberately skipped for the
+  pre-read spec-content API.
+- CRLF normalization and spec-size policy are computed from the supplied content.
+- `validate_spec` preserves path-based compatibility by reading once and delegating the exact bytes
+  to `validate_spec_content`.
+- `SourceSnapshot` represents `Present`, `Missing`, `Rejected`, and `Unreadable` mapped-source
+  observations.
+- `validate_spec_content_with_sources` validates supplied spec bytes and supplied mapped-source
+  observations without reopening either through ambient project paths.
+- Supplied-content export extraction uses retained source bytes and does not resolve TypeScript
+  wildcard imports through ambient paths.
 
 ### REQ-validator-002
 

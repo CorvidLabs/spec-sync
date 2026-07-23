@@ -12,6 +12,7 @@ use cap_std::fs::{Dir, OpenOptions};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
+use std::ffi::OsStr;
 use std::fs;
 use std::io::{self, BufRead, Read, Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
@@ -32,6 +33,11 @@ const MAX_JSON_RPC_ID_BYTES: usize = 4 * 1024;
 const MAX_GENERATED_SPECS: usize = 1_000;
 const MAX_GENERATED_OUTPUT_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_TOOL_CONTENT_RESPONSE_BYTES: usize = MAX_JSON_RPC_RESPONSE_BYTES - 16 * 1024;
+const MAX_ISSUE_DIAGNOSTIC_PATH_CHARS: usize = 240;
+#[cfg(debug_assertions)]
+const MCP_STARTUP_TEST_BARRIER_ENV: &str = "SPECSYNC_TEST_MCP_STARTUP_IDENTITY_BARRIER";
+#[cfg(debug_assertions)]
+const MCP_STARTUP_TEST_BARRIER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 static STAGED_FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 const SNAPSHOT_IGNORED_DIRS: &[&str] = &[
     ".git",
@@ -98,7 +104,11 @@ const AUTODETECT_IGNORED_DIRS: &[&str] = &[
 
 /// Run the MCP server on stdio.
 pub fn run_mcp_server(root: &Path, allow_write: bool) -> Result<(), String> {
-    let (server_root, server_directory) = open_server_root_capability(root, || {})?;
+    let (server_root, server_directory) = open_server_root_capability(root, || {
+        #[cfg(debug_assertions)]
+        wait_for_mcp_startup_test_barrier()?;
+        Ok(())
+    })?;
     let stdin = io::stdin();
     let mut stdin = stdin.lock();
     let stdout = io::stdout();
@@ -198,7 +208,7 @@ pub fn run_mcp_server(root: &Path, allow_write: bool) -> Result<(), String> {
 
 fn open_server_root_capability(
     root: &Path,
-    before_confined_open: impl FnOnce(),
+    after_identity_bound: impl FnOnce() -> Result<(), String>,
 ) -> Result<(PathBuf, Dir), String> {
     let server_directory = Dir::open_ambient_dir(root, ambient_authority()).map_err(|error| {
         if error.kind() == io::ErrorKind::NotADirectory {
@@ -216,7 +226,7 @@ fn open_server_root_capability(
             root.display()
         )
     })?;
-    before_confined_open();
+    after_identity_bound()?;
 
     let server_root = root
         .canonicalize()
@@ -258,6 +268,45 @@ fn open_server_root_capability(
     }
 
     Ok((server_root, server_directory))
+}
+
+#[cfg(debug_assertions)]
+fn wait_for_mcp_startup_test_barrier() -> Result<(), String> {
+    let Some(barrier_directory) = std::env::var_os(MCP_STARTUP_TEST_BARRIER_ENV) else {
+        return Ok(());
+    };
+    let barrier_directory = PathBuf::from(barrier_directory);
+    let ready_path = barrier_directory.join("identity-bound");
+    let resume_path = barrier_directory.join("resume");
+    let mut ready_file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&ready_path)
+        .map_err(|error| format!("Cannot create MCP startup test barrier marker: {error}"))?;
+    ready_file
+        .write_all(b"identity-bound\n")
+        .map_err(|error| format!("Cannot write MCP startup test barrier marker: {error}"))?;
+    drop(ready_file);
+
+    let started = std::time::Instant::now();
+    loop {
+        match fs::metadata(&resume_path) {
+            Ok(metadata) if metadata.is_file() => return Ok(()),
+            Ok(_) => {
+                return Err("MCP startup test barrier resume marker is not a file".to_string());
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "Cannot inspect MCP startup test barrier resume marker: {error}"
+                ));
+            }
+        }
+        if started.elapsed() >= MCP_STARTUP_TEST_BARRIER_TIMEOUT {
+            return Err("Timed out waiting for MCP startup test barrier".to_string());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
 }
 
 #[cfg(unix)]
@@ -827,7 +876,6 @@ fn parse_cargo_snapshot_manifest(
         None => Vec::new(),
     };
     let mut paths = Vec::new();
-    let document = toml::Value::Table(document);
     collect_cargo_manifest_paths(&document, manifest, &mut paths)?;
     Ok(CargoSnapshotManifest {
         workspace_members,
@@ -836,29 +884,87 @@ fn parse_cargo_snapshot_manifest(
 }
 
 fn collect_cargo_manifest_paths(
+    document: &toml::Table,
+    manifest: &Path,
+    paths: &mut Vec<String>,
+) -> Result<(), String> {
+    for target in ["lib", "bin", "example", "test", "bench"] {
+        if let Some(value) = document.get(target) {
+            collect_cargo_path_fields(value, manifest, paths)?;
+        }
+    }
+
+    for dependencies in ["dependencies", "dev-dependencies", "build-dependencies"] {
+        if let Some(value) = document.get(dependencies) {
+            collect_cargo_dependency_paths(value, manifest, paths)?;
+        }
+    }
+
+    if let Some(workspace) = document.get("workspace").and_then(toml::Value::as_table)
+        && let Some(dependencies) = workspace.get("dependencies")
+    {
+        collect_cargo_dependency_paths(dependencies, manifest, paths)?;
+    }
+
+    if let Some(targets) = document.get("target").and_then(toml::Value::as_table) {
+        for target in targets.values().filter_map(toml::Value::as_table) {
+            for dependencies in ["dependencies", "dev-dependencies", "build-dependencies"] {
+                if let Some(value) = target.get(dependencies) {
+                    collect_cargo_dependency_paths(value, manifest, paths)?;
+                }
+            }
+        }
+    }
+
+    if let Some(patches) = document.get("patch").and_then(toml::Value::as_table) {
+        for registry in patches.values() {
+            collect_cargo_dependency_paths(registry, manifest, paths)?;
+        }
+    }
+
+    if let Some(replacements) = document.get("replace") {
+        collect_cargo_dependency_paths(replacements, manifest, paths)?;
+    }
+
+    Ok(())
+}
+
+fn collect_cargo_dependency_paths(
+    dependencies: &toml::Value,
+    manifest: &Path,
+    paths: &mut Vec<String>,
+) -> Result<(), String> {
+    let Some(dependencies) = dependencies.as_table() else {
+        return Ok(());
+    };
+    for dependency in dependencies.values() {
+        if dependency.is_table() {
+            collect_cargo_path_fields(dependency, manifest, paths)?;
+        }
+    }
+    Ok(())
+}
+
+fn collect_cargo_path_fields(
     value: &toml::Value,
     manifest: &Path,
     paths: &mut Vec<String>,
 ) -> Result<(), String> {
     match value {
         toml::Value::Table(table) => {
-            for (key, value) in table {
-                if key == "path" {
-                    let path = value.as_str().ok_or_else(|| {
-                        format!(
-                            "MCP Cargo workspace manifest {} has a non-string `path` value",
-                            manifest.display()
-                        )
-                    })?;
-                    paths.push(path.to_string());
-                } else {
-                    collect_cargo_manifest_paths(value, manifest, paths)?;
-                }
+            if let Some(value) = table.get("path") {
+                let path = value.as_str().ok_or_else(|| {
+                    format!(
+                        "MCP Cargo workspace manifest {} has a non-string `path` value",
+                        manifest.display()
+                    )
+                })?;
+                paths.push(path.to_string());
             }
         }
         toml::Value::Array(values) => {
             for value in values {
-                collect_cargo_manifest_paths(value, manifest, paths)?;
+                collect_cargo_path_fields(value, manifest, paths)?;
             }
         }
         _ => {}
@@ -914,13 +1020,18 @@ fn read_capability_text_if_exists(
 }
 
 fn snapshot_manifest_input(base: &Path, configured: &str, label: &str) -> Result<PathBuf, String> {
-    let path = Path::new(configured);
     let bytes = configured.as_bytes();
     let has_windows_drive_prefix =
         bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':';
-    if configured.contains('\\')
-        || has_windows_drive_prefix
-        || path.is_absolute()
+    if has_windows_drive_prefix || configured.starts_with('\\') || configured.starts_with('/') {
+        return Err(format!(
+            "MCP {label} must use a safe project-relative path: {configured}"
+        ));
+    }
+
+    let portable = configured.replace('\\', "/");
+    let path = Path::new(&portable);
+    if path.is_absolute()
         || path
             .components()
             .any(|component| matches!(component, Component::RootDir | Component::Prefix(_)))
@@ -1665,7 +1776,7 @@ fn windows_ordinal_ignore_case(left: &std::ffi::OsStr, right: &std::ffi::OsStr) 
     unsafe { CompareStringOrdinal(left.as_ptr(), left_len, right.as_ptr(), right_len, 1) == 2 }
 }
 
-#[cfg(any(windows, test))]
+#[cfg(test)]
 fn windows_relative_suffix_text(root: &str, candidate: &str) -> Option<PathBuf> {
     let root = parse_windows_absolute_path(root)?;
     let candidate = parse_windows_absolute_path(candidate)?;
@@ -1686,18 +1797,18 @@ fn windows_relative_suffix_text(root: &str, candidate: &str) -> Option<PathBuf> 
     )
 }
 
-#[cfg(any(windows, test))]
+#[cfg(test)]
 fn windows_text_ignore_case(left: &str, right: &str) -> bool {
     left.to_lowercase() == right.to_lowercase()
 }
 
-#[cfg(any(windows, test))]
+#[cfg(test)]
 struct WindowsAbsolutePath {
     prefix: String,
     components: Vec<String>,
 }
 
-#[cfg(any(windows, test))]
+#[cfg(test)]
 fn parse_windows_absolute_path(path: &str) -> Option<WindowsAbsolutePath> {
     let mut path = path.replace('/', "\\");
     if let Some(without_prefix) = strip_ascii_case_prefix(&path, r"\\?\UNC\") {
@@ -1730,7 +1841,7 @@ fn parse_windows_absolute_path(path: &str) -> Option<WindowsAbsolutePath> {
     })
 }
 
-#[cfg(any(windows, test))]
+#[cfg(test)]
 fn strip_ascii_case_prefix<'a>(value: &'a str, prefix: &str) -> Option<&'a str> {
     let candidate = value.get(..prefix.len())?;
     candidate
@@ -4079,37 +4190,13 @@ fn mcp_letter_grade(score: u32) -> &'static str {
 
 fn tool_issues(root: &Path) -> Result<Value, String> {
     use crate::github;
-    use crate::parser::parse_frontmatter;
 
-    let (config, spec_files) = load_and_discover(root, false)?;
+    let (config, references) = discover_issue_references(root)?;
 
     let mut results: Vec<Value> = Vec::new();
     let mut total_valid = 0usize;
     let mut total_closed = 0usize;
     let mut total_not_found = 0usize;
-    let mut references = Vec::new();
-
-    for spec_path in &spec_files {
-        let content = read_file_bounded(root, spec_path, "spec file")?;
-
-        let parsed = match parse_frontmatter(&content) {
-            Some(p) => p,
-            None => continue,
-        };
-
-        let fm = &parsed.frontmatter;
-        if fm.implements.is_empty() && fm.tracks.is_empty() {
-            continue;
-        }
-
-        let rel_path = spec_path
-            .strip_prefix(root)
-            .unwrap_or(spec_path)
-            .to_string_lossy()
-            .to_string();
-
-        references.push((rel_path, fm.implements.clone(), fm.tracks.clone()));
-    }
 
     if references.is_empty() {
         return Ok(json!({
@@ -4161,6 +4248,190 @@ fn tool_issues(root: &Path) -> Result<Value, String> {
         "total_not_found": total_not_found,
         "specs": results,
     }))
+}
+
+type IssueReferences = (String, Vec<u64>, Vec<u64>);
+
+fn is_issue_spec_file_name(name: &OsStr) -> Result<bool, ()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+
+        let bytes = name.as_bytes();
+        if !bytes.ends_with(b".spec.md") {
+            return Ok(false);
+        }
+        if name.to_str().is_none() {
+            return Err(());
+        }
+        Ok(!bytes.starts_with(b"_"))
+    }
+
+    #[cfg(not(unix))]
+    {
+        Ok(name
+            .to_str()
+            .is_some_and(|name| name.ends_with(".spec.md") && !name.starts_with('_')))
+    }
+}
+
+fn find_issue_spec_files_checked(root: &Path, specs_dir: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut spec_files = Vec::new();
+    for result in WalkDir::new(specs_dir)
+        .follow_links(false)
+        .sort_by_file_name()
+    {
+        let entry = result.map_err(|error| {
+            let rel_path = issue_relative_spec_path(root, error.path().unwrap_or(specs_dir));
+            format!(
+                "MCP specsync_issues issue discovery is inconclusive for {rel_path}: spec directory entry could not be inspected"
+            )
+        })?;
+        let is_spec = is_issue_spec_file_name(entry.file_name()).map_err(|()| {
+            let rel_path = issue_relative_spec_path(root, entry.path());
+            format!(
+                "MCP specsync_issues issue discovery is inconclusive for {rel_path}: spec filename is not valid UTF-8"
+            )
+        })?;
+        if !is_spec {
+            continue;
+        }
+        if !entry.file_type().is_file() {
+            let rel_path = issue_relative_spec_path(root, entry.path());
+            return Err(format!(
+                "MCP specsync_issues issue discovery is inconclusive for {rel_path}: spec path is not a regular file"
+            ));
+        }
+        spec_files.push(entry.into_path());
+    }
+    spec_files.sort();
+    Ok(spec_files)
+}
+
+fn discover_issue_references(
+    root: &Path,
+) -> Result<(SpecSyncConfig, Vec<IssueReferences>), String> {
+    let config = load_confined_config(root).map_err(|error| {
+        format!(
+            "MCP specsync_issues issue discovery is inconclusive: {}",
+            issue_project_error_reason(&error)
+        )
+    })?;
+    let specs_dir = root.join(&config.specs_dir);
+    let spec_files = find_issue_spec_files_checked(root, &specs_dir)?;
+
+    if spec_files.is_empty() {
+        return Err(
+            "MCP specsync_issues issue discovery is inconclusive: no spec files were found"
+                .to_string(),
+        );
+    }
+
+    let mut references = Vec::new();
+    for spec_path in &spec_files {
+        let rel_path = issue_relative_spec_path(root, spec_path);
+        let content = read_file_bounded(root, spec_path, "spec file").map_err(|error| {
+            format!(
+                "MCP specsync_issues issue discovery is inconclusive for {rel_path}: {}",
+                issue_spec_read_error_reason(&error)
+            )
+        })?;
+        let (implements, tracks) = crate::parser::parse_checked_issue_references(&content)
+            .map_err(|reason| {
+                format!(
+                    "MCP specsync_issues issue discovery is inconclusive for {rel_path}: {reason}"
+                )
+            })?;
+
+        if !implements.is_empty() || !tracks.is_empty() {
+            references.push((rel_path, implements, tracks));
+        }
+    }
+
+    validate_spec_file_mappings(root, &spec_files, &config.exclude_dirs).map_err(|error| {
+        format!(
+            "MCP specsync_issues issue discovery is inconclusive: {}",
+            issue_project_error_reason(&error)
+        )
+    })?;
+
+    Ok((config, references))
+}
+
+fn is_unsafe_issue_diagnostic_character(character: char) -> bool {
+    character.is_control()
+        || matches!(
+            character,
+            '\u{061c}'
+                | '\u{200e}'
+                | '\u{200f}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202a}'..='\u{202e}'
+                | '\u{2066}'..='\u{2069}'
+        )
+}
+
+fn issue_relative_spec_path(root: &Path, spec_path: &Path) -> String {
+    let Some(relative) = spec_path.strip_prefix(root).ok() else {
+        return "<spec>".to_string();
+    };
+    let relative = relative.to_string_lossy();
+    let mut sanitized = String::with_capacity(relative.len());
+    for character in relative.chars() {
+        if is_unsafe_issue_diagnostic_character(character) {
+            sanitized.push_str(&format!("\\u{{{:04X}}}", character as u32));
+        } else if character == '\\' {
+            sanitized.push('/');
+        } else {
+            sanitized.push(character);
+        }
+    }
+    if sanitized.chars().count() <= MAX_ISSUE_DIAGNOSTIC_PATH_CHARS {
+        return sanitized;
+    }
+
+    let mut bounded: String = sanitized
+        .chars()
+        .take(MAX_ISSUE_DIAGNOSTIC_PATH_CHARS.saturating_sub(3))
+        .collect();
+    bounded.push_str("...");
+    bounded
+}
+
+fn issue_spec_read_error_reason(error: &str) -> &'static str {
+    if error.contains("not valid UTF-8") {
+        "spec file is not valid UTF-8"
+    } else if error.contains("exceeds") {
+        "spec file exceeds the configured size limit"
+    } else if error.contains("not a file") {
+        "spec path is not a regular file"
+    } else if error.contains("Cannot inspect") {
+        "spec file metadata could not be inspected"
+    } else if error.contains("Cannot read") {
+        "spec file could not be read"
+    } else {
+        "spec path failed safety validation"
+    }
+}
+
+fn issue_project_error_reason(error: &str) -> &'static str {
+    if error.contains("exceeds") || error.contains("limit") {
+        "project input exceeds a configured safety limit"
+    } else if error.contains("Cannot read") || error.contains("not valid UTF-8") {
+        "project metadata could not be read"
+    } else if error.contains("Cannot inspect") {
+        "project metadata could not be inspected"
+    } else if error.contains("escape")
+        || error.contains("outside")
+        || error.contains("symlink")
+        || error.contains("junction")
+        || error.contains("relative path")
+    {
+        "project input failed confinement validation"
+    } else {
+        "project discovery failed safety validation"
+    }
 }
 
 fn ensure_issue_verification_complete(
@@ -4269,6 +4540,352 @@ mod tests {
         assert!(error.contains("100-issue invocation limit"));
     }
 
+    #[test]
+    fn issue_tool_fails_inconclusive_for_malformed_frontmatter() {
+        let tmp = setup_project_with_spec("malformed", "# Missing frontmatter\n");
+
+        let error = tool_issues(tmp.path())
+            .expect_err("malformed frontmatter must not produce a zero-reference success");
+
+        assert_eq!(
+            error,
+            "MCP specsync_issues issue discovery is inconclusive for specs/malformed/malformed.spec.md: missing or malformed YAML frontmatter"
+        );
+    }
+
+    #[test]
+    fn issue_tool_fails_inconclusive_for_unreadable_spec_text() {
+        let tmp = setup_project();
+        let spec_dir = tmp.path().join("specs").join("unreadable");
+        fs::create_dir_all(&spec_dir).unwrap();
+        let spec_path = spec_dir.join("unreadable.spec.md");
+        fs::write(&spec_path, [0xff]).unwrap();
+
+        let error = tool_issues(tmp.path())
+            .expect_err("unreadable spec text must not produce a zero-reference success");
+
+        assert_eq!(
+            error,
+            "MCP specsync_issues issue discovery is inconclusive for specs/unreadable/unreadable.spec.md: spec file is not valid UTF-8"
+        );
+        assert!(!error.contains(&tmp.path().to_string_lossy().to_string()));
+    }
+
+    #[test]
+    fn issue_tool_fails_inconclusive_for_malformed_known_issue_fields() {
+        let cases = [
+            ("implements:", "`implements` must be a list"),
+            ("implements: null", "`implements` must be a list"),
+            ("implements: nope", "`implements` must be a list"),
+            ("tracks: 42", "`tracks` must be a list"),
+            ("implements : [nope]", "`implements` contains an invalid"),
+            ("implements: [0]", "`implements` contains an invalid"),
+            ("implements: [-1]", "`implements` contains an invalid"),
+            (
+                "implements: [18446744073709551616]",
+                "`implements` contains an invalid",
+            ),
+            (
+                "implements: [41, not-a-number, 42]",
+                "`implements` contains an invalid unsigned issue number",
+            ),
+            (
+                "tracks:\n  - 41\n  - nope\n  - 42",
+                "`tracks` contains an invalid unsigned issue number",
+            ),
+            (
+                "tracks:\n- 41\n- nope",
+                "`tracks` contains an invalid unsigned issue number",
+            ),
+        ];
+
+        for (field, expected_reason) in cases {
+            let spec = format!(
+                "---\nmodule: malformed\nversion: 1\nstatus: draft\nfiles: []\n{field}\n---\n\n# Purpose\nTest\n"
+            );
+            let tmp = setup_project_with_spec("malformed", &spec);
+
+            let error = tool_issues(tmp.path()).expect_err(
+                "malformed known issue fields must not produce a zero-reference success",
+            );
+
+            assert!(
+                error.contains(expected_reason),
+                "unexpected error for {field}: {error}"
+            );
+            assert!(!error.contains(&tmp.path().to_string_lossy().to_string()));
+        }
+    }
+
+    #[test]
+    fn issue_reference_field_validation_accepts_supported_list_forms() {
+        let content = "---\nmodule: valid\nimplements: [41, 42]\ntracks:\n  - 43\n  - 44 # retained comment\n---\n\n# Purpose\nTest\n";
+
+        assert_eq!(
+            crate::parser::parse_checked_issue_references(content).unwrap(),
+            (vec![41, 42], vec![43, 44])
+        );
+    }
+
+    #[test]
+    fn issue_discovery_accepts_yaml_trailing_comma_and_inline_comment() {
+        let content = "---\nmodule: valid\nversion: 1\nstatus: draft\nfiles: []\nimplements: [42,] # valid YAML\n---\n\n# Purpose\nTest\n";
+        let tmp = setup_project_with_spec("valid", content);
+
+        let (_, references) = discover_issue_references(tmp.path()).unwrap();
+
+        assert_eq!(
+            references,
+            vec![(
+                "specs/valid/valid.spec.md".to_string(),
+                vec![42],
+                Vec::new()
+            )]
+        );
+    }
+
+    #[test]
+    fn issue_discovery_accepts_crlf_frontmatter_and_retains_references() {
+        let content = "---\r\nmodule: crlf\r\nversion: 1\r\nstatus: draft\r\nfiles: []\r\nimplements: [41, 42]\r\ntracks:\r\n  - 43\r\n---\r\n\r\n# Purpose\r\nTest\r\n";
+        let tmp = setup_project_with_spec("crlf", content);
+
+        let (_, references) = discover_issue_references(tmp.path()).unwrap();
+
+        assert_eq!(
+            references,
+            vec![(
+                "specs/crlf/crlf.spec.md".to_string(),
+                vec![41, 42],
+                vec![43],
+            )]
+        );
+    }
+
+    #[test]
+    fn issue_reference_field_validation_ignores_nested_extensions_and_block_scalars() {
+        let content = "\
+---
+module: valid
+extensions:
+  implements: [900]
+  nested:
+    tracks: invalid
+extension_sequence:
+  - implements: [901]
+    tracks: [902]
+notes: |
+  implements: invalid
+  tracks:
+    - 903
+folded: >
+  tracks: [904]
+implements: [41, 42]
+tracks:
+  - 43
+  - 44
+---
+
+# Purpose
+Test
+";
+
+        assert_eq!(
+            crate::parser::parse_checked_issue_references(content).unwrap(),
+            (vec![41, 42], vec![43, 44])
+        );
+    }
+
+    #[test]
+    fn issue_reference_field_validation_keeps_top_level_known_fields_strict() {
+        let content = "\
+---
+module: invalid
+extensions:
+  implements: [900]
+implements:
+  nested: invalid
+---
+
+# Purpose
+Test
+";
+
+        assert_eq!(
+            crate::parser::parse_checked_issue_references(content).unwrap_err(),
+            "`implements` must be a list of unsigned issue numbers"
+        );
+    }
+
+    #[test]
+    fn issue_tool_rejects_duplicate_issue_reference_keys() {
+        let content = "---\nmodule: invalid\nversion: 1\nstatus: draft\nfiles: []\nimplements: [41]\nimplements: [42]\n---\n\n# Purpose\nTest\n";
+        let tmp = setup_project_with_spec("invalid", content);
+
+        let error = tool_issues(tmp.path()).unwrap_err();
+
+        assert_eq!(
+            error,
+            "MCP specsync_issues issue discovery is inconclusive for specs/invalid/invalid.spec.md: duplicate `implements` issue-reference field"
+        );
+    }
+
+    #[test]
+    fn issue_tool_rejects_reviewer_reproducer_without_leaking_content() {
+        let content = "\
+---
+module: invalid
+version: 1
+status: draft
+files: []
+implements:
+private_extension:
+  secret: [reviewer-reproducer
+---
+
+# Purpose
+Test
+";
+        let tmp = setup_project_with_spec("invalid", content);
+
+        let error = tool_issues(tmp.path()).unwrap_err();
+
+        assert!(error.contains("issue discovery is inconclusive"));
+        assert!(
+            error.contains("invalid YAML frontmatter")
+                || error.contains("`implements` must be a list")
+        );
+        assert!(!error.contains("reviewer-reproducer"));
+        assert!(!error.contains("private_extension"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn issue_spec_file_name_rejects_non_utf8_spec_suffix() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let mut file_name = b"hidden-".to_vec();
+        file_name.push(0xff);
+        file_name.extend_from_slice(b".spec.md");
+
+        assert_eq!(
+            is_issue_spec_file_name(&OsString::from_vec(file_name)),
+            Err(())
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn issue_tool_rejects_non_utf8_spec_filename_after_snapshot_copy() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let tmp = setup_project();
+        let spec_dir = tmp.path().join("specs").join("hostile");
+        fs::create_dir_all(&spec_dir).unwrap();
+        let mut file_name = b"hidden-".to_vec();
+        file_name.push(0xff);
+        file_name.extend_from_slice(b".spec.md");
+        let spec_path = spec_dir.join(OsString::from_vec(file_name));
+        fs::write(
+            &spec_path,
+            "---\nmodule: hostile\nversion: 1\nstatus: draft\nfiles: []\n---\n\n# Purpose\nTest\n",
+        )
+        .unwrap();
+
+        let snapshot = ProjectSnapshot::create(tmp.path()).unwrap();
+        let error = tool_issues(snapshot.root())
+            .expect_err("a non-UTF-8 spec filename must make issue discovery inconclusive");
+
+        assert!(error.contains("spec filename is not valid UTF-8"));
+        assert!(error.contains("specs/hostile/hidden-"));
+        assert!(!error.contains(&tmp.path().to_string_lossy().to_string()));
+        assert!(!error.contains("# Purpose"));
+        assert!(error.chars().count() < 400);
+    }
+
+    #[test]
+    fn issue_read_diagnostics_are_bounded_relative_and_content_free() {
+        let tmp = setup_project();
+        let long_name = "x".repeat(MAX_ISSUE_DIAGNOSTIC_PATH_CHARS + 80);
+        let path = tmp.path().join("specs").join(long_name);
+
+        let relative = issue_relative_spec_path(tmp.path(), &path);
+        let reason = issue_spec_read_error_reason(&format!(
+            "Cannot read MCP spec file {}: secret operating system detail",
+            path.display()
+        ));
+
+        assert!(relative.chars().count() <= MAX_ISSUE_DIAGNOSTIC_PATH_CHARS);
+        assert!(!relative.contains(&tmp.path().to_string_lossy().to_string()));
+        assert_eq!(reason, "spec file could not be read");
+        assert!(!reason.contains("secret"));
+    }
+
+    #[test]
+    fn issue_relative_spec_path_escapes_every_unsafe_display_character() {
+        let root = Path::new("project");
+        let dangerous_code_points = (0x0000u32..=0x001f)
+            .chain(0x007f..=0x009f)
+            .chain([0x061c, 0x200e, 0x200f, 0x2028, 0x2029])
+            .chain(0x202a..=0x202e)
+            .chain(0x2066..=0x2069);
+
+        for code_point in dangerous_code_points {
+            let character =
+                char::from_u32(code_point).expect("test code point must be valid Unicode");
+            let path = root
+                .join("specs")
+                .join(format!("before{character}after.spec.md"));
+            let escaped = format!("\\u{{{code_point:04X}}}");
+
+            assert_eq!(
+                issue_relative_spec_path(root, &path),
+                format!("specs/before{escaped}after.spec.md"),
+                "unsafe diagnostic character U+{code_point:04X} was not escaped"
+            );
+        }
+
+        assert_eq!(
+            issue_relative_spec_path(root, &root.join(r"specs\windows\path.spec.md")),
+            "specs/windows/path.spec.md"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn issue_tool_escapes_adversarial_filename_formatting_in_diagnostic() {
+        let tmp = setup_project();
+        let spec_dir = tmp.path().join("specs").join("hostile");
+        fs::create_dir_all(&spec_dir).unwrap();
+        let dangerous_characters = [
+            '\n', '\u{001b}', '\u{009b}', '\u{061c}', '\u{200e}', '\u{200f}', '\u{2028}',
+            '\u{2029}', '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}', '\u{202e}', '\u{2066}',
+            '\u{2067}', '\u{2068}', '\u{2069}',
+        ];
+        let hostile: String = dangerous_characters.iter().copied().collect();
+        let filename = format!(r"segment\before{hostile}after.spec.md");
+        fs::write(spec_dir.join(filename), "# Missing frontmatter\n").unwrap();
+
+        let error = tool_issues(tmp.path())
+            .expect_err("unsafe filename formatting must not produce a successful issue result");
+
+        assert!(error.contains("specs/hostile/segment/before"));
+        for character in dangerous_characters {
+            assert!(
+                error.contains(&format!("\\u{{{:04X}}}", character as u32)),
+                "diagnostic omitted escape for U+{:04X}",
+                character as u32
+            );
+            assert!(
+                !error.contains(character),
+                "diagnostic retained unsafe character U+{:04X}",
+                character as u32
+            );
+        }
+        assert!(error.ends_with("after.spec.md: missing or malformed YAML frontmatter"));
+    }
+
     #[cfg(unix)]
     #[test]
     fn server_root_capability_rejects_a_root_replaced_before_canonicalization() {
@@ -4284,9 +4901,9 @@ mod tests {
         let error = open_server_root_capability(&root, || {
             fs::rename(&root, &moved).unwrap();
             symlink(&outside, &root).unwrap();
+            Ok(())
         })
-        .err()
-        .expect("a swapped root must be rejected");
+        .expect_err("a swapped root must be rejected");
 
         assert!(error.contains("root") || error.contains("capability"));
     }
@@ -4482,6 +5099,58 @@ mod tests {
     }
 
     #[test]
+    fn snapshot_normalizes_confined_windows_native_cargo_paths() {
+        let tmp = setup_project();
+        fs::create_dir_all(tmp.path().join("crates/a/src")).unwrap();
+        fs::create_dir_all(tmp.path().join("crates/b/src")).unwrap();
+        fs::write(
+            tmp.path().join("Cargo.toml"),
+            "[workspace]\nmembers = ['crates\\a']\n",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join("crates/a/Cargo.toml"),
+            "[package]\nname = \"a\"\nversion = \"0.1.0\"\n\n[dependencies]\nb = { path = '..\\b' }\n",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join("crates/b/Cargo.toml"),
+            "[package]\nname = \"b\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+        fs::write(tmp.path().join("crates/a/src/lib.rs"), "pub fn a() {}\n").unwrap();
+        fs::write(tmp.path().join("crates/b/src/lib.rs"), "pub fn b() {}\n").unwrap();
+
+        let snapshot = ProjectSnapshot::create(tmp.path()).unwrap();
+
+        assert!(snapshot.root().join("crates/a/src/lib.rs").is_file());
+        assert!(snapshot.root().join("crates/b/src/lib.rs").is_file());
+    }
+
+    #[test]
+    fn snapshot_ignores_nonsemantic_cargo_metadata_paths() {
+        let tmp = setup_project();
+        fs::create_dir_all(tmp.path().join("vendor")).unwrap();
+        fs::write(
+            tmp.path().join("Cargo.toml"),
+            "[package]\nname = \"metadata-path\"\nversion = \"0.1.0\"\n\n[lib]\npath = \"vendor/lib.rs\"\n\n[package.metadata.example]\npath = \"/benign/absolute/metadata/value\"\n",
+        )
+        .unwrap();
+        fs::write(tmp.path().join("src/lib.rs"), "pub fn value() {}\n").unwrap();
+        fs::write(
+            tmp.path().join("vendor/lib.rs"),
+            "pub fn custom_target() {}\n",
+        )
+        .unwrap();
+
+        let snapshot = ProjectSnapshot::create(tmp.path())
+            .expect("non-semantic Cargo metadata paths must not affect snapshot discovery");
+
+        assert!(snapshot.root().join("src/lib.rs").is_file());
+        assert!(snapshot.root().join("vendor/lib.rs").is_file());
+    }
+
+    #[test]
     fn snapshot_manifest_input_rejects_true_root_and_cross_platform_lexical_escapes() {
         let error = snapshot_manifest_input(
             Path::new("crates/a"),
@@ -4496,7 +5165,7 @@ mod tests {
             "C:/outside",
             "C:outside",
             r"\\server\share\outside",
-            r"..\b",
+            r"\outside",
         ] {
             let error =
                 snapshot_manifest_input(Path::new("crates/a"), configured, "Cargo target path")
@@ -4505,6 +5174,14 @@ mod tests {
                     );
             assert!(error.contains("safe project-relative path"));
         }
+
+        let error = snapshot_manifest_input(
+            Path::new("crates/a"),
+            r"..\..\..\outside",
+            "Cargo target path",
+        )
+        .expect_err("Windows-native traversal beyond the retained root must be rejected");
+        assert!(error.contains("escapes the configured server root"));
     }
 
     #[cfg(unix)]
@@ -4523,7 +5200,7 @@ mod tests {
         .unwrap();
         fs::write(
             tmp.path().join("crates/a/Cargo.toml"),
-            "[package]\nname = \"a\"\nversion = \"0.1.0\"\n\n[dependencies]\nb = { path = \"../b\" }\n",
+            "[package]\nname = \"a\"\nversion = \"0.1.0\"\n\n[dependencies]\nb = { path = '..\\b' }\n",
         )
         .unwrap();
         fs::write(

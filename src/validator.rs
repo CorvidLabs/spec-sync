@@ -1,5 +1,8 @@
 use crate::config::{default_schema_pattern, discover_manifest_modules_checked};
-use crate::exports::{get_exported_symbols_full, has_configured_extension, is_test_file};
+use crate::exports::{
+    get_exported_symbols_from_content, get_exported_symbols_full, has_configured_extension,
+    is_test_file,
+};
 use crate::parser::{
     body_has_section, find_section_offset, find_stub_sections, get_missing_sections,
     get_near_miss_sections, get_spec_symbols, parse_frontmatter,
@@ -162,6 +165,15 @@ fn has_coverage_extension(path: &Path, config: &SpecSyncConfig) -> bool {
 
 // ─── Single Spec Validation ──────────────────────────────────────────────
 
+/// A capability-confined source-file observation supplied by a snapshot caller.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SourceSnapshot {
+    Present(Vec<u8>),
+    Missing,
+    Rejected,
+    Unreadable,
+}
+
 /// Validate a single spec file against source code.
 pub fn validate_spec(
     spec_path: &Path,
@@ -170,6 +182,92 @@ pub fn validate_spec(
     schema_columns: &HashMap<String, SchemaTable>,
     config: &SpecSyncConfig,
 ) -> ValidationResult {
+    let content = match fs::read_to_string(spec_path) {
+        Ok(content) => content,
+        Err(error) => {
+            let rel_path = spec_path
+                .strip_prefix(root)
+                .unwrap_or(spec_path)
+                .to_string_lossy()
+                .to_string();
+            let mut result = ValidationResult::new(rel_path);
+            result.errors.push(format!("Cannot read spec: {error}"));
+            return result;
+        }
+    };
+
+    validate_spec_content_internal(
+        spec_path,
+        &content,
+        root,
+        schema_tables,
+        schema_columns,
+        config,
+        true,
+        None,
+    )
+}
+
+/// Validate already-read spec content against source code.
+///
+/// `spec_path` is used only as the logical location for diagnostics. Neither the
+/// spec nor adjacent companion files are opened, allowing callers with a confined
+/// snapshot to validate without crossing back into ambient path resolution.
+#[allow(dead_code)]
+pub fn validate_spec_content(
+    spec_path: &Path,
+    content: &str,
+    root: &Path,
+    schema_tables: &HashSet<String>,
+    schema_columns: &HashMap<String, SchemaTable>,
+    config: &SpecSyncConfig,
+) -> ValidationResult {
+    validate_spec_content_internal(
+        spec_path,
+        content,
+        root,
+        schema_tables,
+        schema_columns,
+        config,
+        false,
+        None,
+    )
+}
+
+/// Validate supplied spec bytes and supplied source observations without reopening
+/// either through ambient project paths.
+pub(crate) fn validate_spec_content_with_sources(
+    spec_path: &Path,
+    content: &str,
+    root: &Path,
+    schema_tables: &HashSet<String>,
+    schema_columns: &HashMap<String, SchemaTable>,
+    config: &SpecSyncConfig,
+    sources: &HashMap<String, SourceSnapshot>,
+) -> ValidationResult {
+    validate_spec_content_internal(
+        spec_path,
+        content,
+        root,
+        schema_tables,
+        schema_columns,
+        config,
+        false,
+        Some(sources),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_spec_content_internal(
+    spec_path: &Path,
+    content: &str,
+    root: &Path,
+    schema_tables: &HashSet<String>,
+    schema_columns: &HashMap<String, SchemaTable>,
+    config: &SpecSyncConfig,
+    validate_companions: bool,
+    source_snapshots: Option<&HashMap<String, SourceSnapshot>>,
+) -> ValidationResult {
     let rel_path = spec_path
         .strip_prefix(root)
         .unwrap_or(spec_path)
@@ -177,16 +275,15 @@ pub fn validate_spec(
         .to_string();
 
     let mut result = ValidationResult::new(rel_path);
-
-    let content = match fs::read_to_string(spec_path) {
-        Ok(c) => c.replace("\r\n", "\n"),
-        Err(e) => {
-            result.errors.push(format!("Cannot read spec: {e}"));
-            return result;
-        }
+    let content_size = content.len() as u64;
+    let normalized = if content.contains("\r\n") {
+        std::borrow::Cow::Owned(content.replace("\r\n", "\n"))
+    } else {
+        std::borrow::Cow::Borrowed(content)
     };
+    let content = normalized.as_ref();
 
-    let parsed = match parse_frontmatter(&content) {
+    let parsed = match parse_frontmatter(content) {
         Some(p) => p,
         None => {
             result.errors.push(
@@ -203,13 +300,11 @@ pub fn validate_spec(
     // File size guard: warn if the spec exceeds the configurable limit (default 512 KB)
     {
         let limit_kb = config.rules.max_spec_size_kb.unwrap_or(512) as u64;
-        if let Ok(meta) = std::fs::metadata(spec_path) {
-            let size_kb = meta.len() / 1024;
-            if size_kb > limit_kb {
-                result.warnings.push(format!(
-                    "Spec file is {size_kb} KB — exceeds limit of {limit_kb} KB, consider splitting into smaller specs"
-                ));
-            }
+        let size_kb = content_size / 1024;
+        if size_kb > limit_kb {
+            result.warnings.push(format!(
+                "Spec file is {size_kb} KB — exceeds limit of {limit_kb} KB, consider splitting into smaller specs"
+            ));
         }
     }
 
@@ -219,7 +314,9 @@ pub fn validate_spec(
         return result;
     }
 
-    validate_companion_scaffold_markers(spec_path, root, &mut result);
+    if validate_companions {
+        validate_companion_scaffold_markers(spec_path, root, &mut result);
+    }
 
     let config_hint = config
         .config_path
@@ -299,7 +396,12 @@ pub fn validate_spec(
     for file in &fm.files {
         let full_path = root.join(file);
         let safe_project_relative = planned_source_path_is_safe(file);
-        if full_path.exists() && !source_within_root(root, file) {
+        let snapshot = source_snapshots.and_then(|sources| sources.get(file));
+        let ambient_existing_escape =
+            source_snapshots.is_none() && full_path.exists() && !source_within_root(root, file);
+        let confined_rejection = matches!(snapshot, Some(SourceSnapshot::Rejected))
+            || (source_snapshots.is_none() && !source_within_root(root, file));
+        if ambient_existing_escape || (safe_project_relative && confined_rejection) {
             result.errors.push(format!(
                 "Source file `{file}` resolves outside the project root and is ignored for security"
             ));
@@ -313,14 +415,17 @@ pub fn validate_spec(
             result.fixes.push(format!(
                 "Use a safe project-relative path for `{file}` (no absolute paths, `..`, drive prefixes, or backslashes)"
             ));
-        } else if !source_within_root(root, file) {
+        } else if matches!(snapshot, Some(SourceSnapshot::Unreadable)) {
             result.errors.push(format!(
-                "Source file `{file}` resolves outside the project root and is ignored for security"
+                "Source file `{file}` could not be read for validation"
             ));
             result.fixes.push(format!(
-                "Use a path inside the project (no absolute paths, `..` escapes, or symlinks that leave the project), or remove `{file}` from the files list"
+                "Remove `{file}` from the files list or fix permissions"
             ));
-        } else if !full_path.exists() {
+        } else if (source_snapshots.is_some() && snapshot.is_none())
+            || matches!(snapshot, Some(SourceSnapshot::Missing))
+            || (source_snapshots.is_none() && !full_path.exists())
+        {
             let planned_draft_mapping =
                 spec_status == Some(crate::types::SpecStatus::Draft) && !config.require_draft_files;
             if planned_draft_mapping {
@@ -329,7 +434,9 @@ pub fn validate_spec(
                 ));
             } else {
                 result.errors.push(format!("Source file not found: {file}"));
-                if let Some(suggestion) = suggest_similar_file(root, file) {
+                if source_snapshots.is_none()
+                    && let Some(suggestion) = suggest_similar_file(root, file)
+                {
                     result.fixes.push(format!(
                         "Did you mean `{suggestion}`? Update the path in frontmatter"
                     ));
@@ -339,7 +446,18 @@ pub fn validate_spec(
                     ));
                 }
             }
-        } else if full_path.is_file() {
+        } else if let Some(SourceSnapshot::Present(bytes)) = snapshot {
+            let ext = full_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            let is_supported = crate::types::Language::from_extension(ext).is_some();
+            if is_supported && std::str::from_utf8(bytes).is_err() {
+                result.errors.push(format!(
+                    "Source file `{file}` could not be read as UTF-8 for validation"
+                ));
+                result.fixes.push(format!(
+                    "Re-save `{file}` as UTF-8 (specsync validates UTF-8 source), or remove it from the files list"
+                ));
+            }
+        } else if source_snapshots.is_none() && full_path.is_file() {
             let ext = full_path.extension().and_then(|e| e.to_str()).unwrap_or("");
             let is_supported = crate::types::Language::from_extension(ext).is_some();
             if is_supported {
@@ -493,12 +611,26 @@ pub fn validate_spec(
             // Never extract exports from a path that escapes the project root — it
             // would leak arbitrary host-file identifiers. The files-exist check
             // above already reports such entries as errors.
-            if !source_within_root(root, file) {
-                continue;
-            }
             let full_path = root.join(file);
-            let exports =
-                get_exported_symbols_full(&full_path, config.export_level, config.parse_mode);
+            let exports = if let Some(sources) = source_snapshots {
+                let Some(SourceSnapshot::Present(bytes)) = sources.get(file) else {
+                    continue;
+                };
+                let Ok(content) = std::str::from_utf8(bytes) else {
+                    continue;
+                };
+                get_exported_symbols_from_content(
+                    &full_path,
+                    content,
+                    config.export_level,
+                    config.parse_mode,
+                )
+            } else {
+                if !source_within_root(root, file) {
+                    continue;
+                }
+                get_exported_symbols_full(&full_path, config.export_level, config.parse_mode)
+            };
             for sym in &exports {
                 exports_by_file.push((sym.clone(), file.clone()));
             }
@@ -762,7 +894,7 @@ fn apply_custom_rules(
 ) {
     let rules = &config.rules;
 
-    // max_spec_size_kb check is now handled in validate_spec() to avoid duplicate warnings
+    // max_spec_size_kb check is handled by the shared validation core to avoid duplicate warnings
 
     // max_changelog_entries: warn if Change Log has too many rows
     if let Some(max_entries) = rules.max_changelog_entries {
@@ -1192,6 +1324,105 @@ mod tests {
                 .warnings
                 .iter()
                 .any(|warning| warning.contains("requirements.md"))
+        );
+    }
+
+    #[test]
+    fn content_validation_skips_companions_while_path_validation_preserves_them() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let directory = root.join("specs/auth");
+        fs::create_dir_all(&directory).unwrap();
+        let spec_path = directory.join("auth.spec.md");
+        let content =
+            "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n";
+        fs::write(&spec_path, content).unwrap();
+        fs::write(
+            directory.join("context.md"),
+            "<!-- Describe the context and motivation for this module. -->\n",
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/auth.rs"), "pub fn authenticate() {}\n").unwrap();
+        let schema_tables = HashSet::new();
+        let schema_columns = HashMap::new();
+        let config = SpecSyncConfig::default();
+
+        let path_result = validate_spec(&spec_path, root, &schema_tables, &schema_columns, &config);
+        let content_result = validate_spec_content(
+            &spec_path,
+            content,
+            root,
+            &schema_tables,
+            &schema_columns,
+            &config,
+        );
+
+        assert!(
+            path_result
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("Unfilled companion scaffold marker"))
+        );
+        assert!(
+            content_result
+                .warnings
+                .iter()
+                .all(|warning| !warning.contains("Unfilled companion scaffold marker"))
+        );
+    }
+
+    #[test]
+    fn supplied_content_validation_normalizes_crlf_identically() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/auth.rs"), "pub fn authenticate() {}\n").unwrap();
+        let path = root.join("specs/auth/auth.spec.md");
+        let lf = "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n";
+        let crlf = lf.replace('\n', "\r\n");
+        let tables = HashSet::new();
+        let columns = HashMap::new();
+        let config = SpecSyncConfig::default();
+
+        let lf_result = validate_spec_content(&path, lf, root, &tables, &columns, &config);
+        let crlf_result = validate_spec_content(&path, &crlf, root, &tables, &columns, &config);
+
+        assert_eq!(crlf_result.errors, lf_result.errors);
+        assert_eq!(crlf_result.warnings, lf_result.warnings);
+        assert_eq!(crlf_result.notices, lf_result.notices);
+    }
+
+    #[test]
+    fn supplied_content_size_policy_uses_supplied_bytes_not_path_bytes() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/auth.rs"), "pub fn authenticate() {}\n").unwrap();
+        let path = root.join("specs/auth/auth.spec.md");
+        let content = format!(
+            "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles:\n  - src/auth.rs\n---\n\n{}\n",
+            "x".repeat(3 * 1024)
+        );
+        let mut config = SpecSyncConfig::default();
+        config.rules.max_spec_size_kb = Some(1);
+
+        let result = validate_spec_content(
+            &path,
+            &content,
+            root,
+            &HashSet::new(),
+            &HashMap::new(),
+            &config,
+        );
+
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("exceeds limit of 1 KB")),
+            "{:?}",
+            result.warnings
         );
     }
 

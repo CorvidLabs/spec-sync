@@ -115,7 +115,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 
 | Date | Change |
 |------|--------|
-| 2026-07-22 | v9: add checked source-directory and manifest discovery APIs so malformed Gradle settings remain explicit errors while compatibility wrappers stay infallible |
+| 2026-07-22 | v9 / CHG-0063: add checked source-directory and manifest discovery APIs so malformed Gradle settings remain explicit errors while compatibility wrappers stay infallible; fail closed on non-string legacy JSON `github.repo` shapes |
 | 2026-07-10 | v3: keep configuration round-trip tests warning-free under current stable Clippy |
 | 2026-03-25 | Initial spec |
 | 2026-03-28 | Document discover_manifest_modules |

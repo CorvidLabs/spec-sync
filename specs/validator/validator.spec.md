@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 14
+version: 15
 status: stable
 files:
   - src/validator.rs
@@ -61,9 +61,10 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 12. Requirements companions are validated when present but optional for technical/internal modules under the adaptive 5.0 artifact model
 13. `compute_coverage_checked` propagates malformed, unreadable, unsupported, or unconfined Gradle
     discovery instead of reporting partial coverage. This includes raw drive-qualified module
-    identities, unsupported/dynamic project-directory mutators, and symlink/reparse components in
-    derived directories. The compatibility `compute_coverage` wrapper remains available, while CLI
-    and MCP gates use the checked path.
+    identities, unescaped interpolation and encoded traversal, unsupported/dynamic
+    project-directory mutators, linked/reparse-backed or oversized Gradle manifests, and
+    symlink/reparse components in derived directories. The compatibility `compute_coverage`
+    wrapper remains available, while CLI and MCP gates use the checked path.
 14. `validate_spec_content` validates the caller-provided bytes, including CRLF normalization and
     size policy, without reopening `spec_path`; the path remains the logical location for
     diagnostics and mapped-source resolution, while adjacent companion checks are skipped.
@@ -108,11 +109,18 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 
 ### Scenario: Gradle-derived source root is not confined
 
-- **Given** Gradle settings contain a raw drive-qualified module identity, an unsupported dynamic
-  `setProjectDir`, or an effective directory with a symlink/reparse component
+- **Given** Gradle settings contain a raw drive-qualified module identity, unescaped interpolation,
+  encoded traversal, an unsupported dynamic `setProjectDir`, or an effective directory with a
+  symlink/reparse component
 - **When** `compute_coverage_checked` is called by a CLI or MCP gate
 - **Then** it returns an error before source traversal and the caller reports an inconclusive
   outcome instead of accepting partial or outside coverage
+
+### Scenario: Gradle manifest is not confined
+
+- **Given** a present Gradle build/settings manifest is linked, reparse-backed, non-regular, or oversized
+- **When** `compute_coverage_checked` is called by a CLI or MCP gate
+- **Then** it returns an error before referent reads and the caller reports an inconclusive outcome
 
 ### Scenario: Validate a retained spec snapshot
 
@@ -142,7 +150,7 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 | DB table not in schema | Error: "DB table not found in schema" |
 | Missing required section | Error: "Missing required section: ## SectionName" |
 | Dependency spec not found | Error: "Dependency spec not found" |
-| Malformed, unreadable, unsupported, or unconfined Gradle discovery during checked coverage | Returns `Err`; CLI/MCP gate callers report an inconclusive failure rather than coverage success or outside traversal |
+| Malformed, unreadable, unsupported, or unconfined Gradle discovery during checked coverage, including unsafe Gradle manifest entries | Returns `Err`; CLI/MCP gate callers report an inconclusive failure rather than coverage success, referent reads, or outside traversal |
 
 ## Dependencies
 
@@ -176,6 +184,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-22 | v12: add checked coverage so malformed Gradle discovery fails CLI and MCP gates as inconclusive while retaining the compatibility report wrapper |
 | 2026-07-22 | v13 / CHG-0063: add `validate_spec_content` so capability-rooted callers validate exact pre-read snapshots without reopening spec paths |
 | 2026-07-23 | v14 / CHG-0063 independent review: keep raw drive-qualified modules, unsupported `setProjectDir` forms, and linked/reparse-backed Gradle source roots inconclusive across CLI and MCP gates |
+| 2026-07-23 | v15 / CHG-0063 adversarial rereview: keep linked/reparse-backed Gradle manifests plus interpolated or encoded Gradle paths inconclusive across checked gates |
 | 2026-07-10 | v5: keep coverage regression fixtures warning-free under current stable Clippy and document the intentionally in-file test-module layout |
 | 2026-07-10 | v5: make canonical requirements companions adaptive rather than empty mandatory ceremony |
 | 2026-07-02 | v4: add `source_within_root` — shared guard rejecting `files:` paths that escape the project root (absolute/`..`/symlink); applied in `validate_spec` and every export-extraction site (score, check --fix, diff, new) to close an out-of-root identifier-disclosure vector |

@@ -67,3 +67,7 @@ artifact: plan
     Add parser, CLI/MCP false-green, Unix symlink, and hosted-Windows reparse regressions; then
     obtain fresh definition approval, rerun both independent reviews and every exact-tree
     repository/CI/trust/provenance gate, and refresh the private sandbox receipt.
+20. Close the exact-commit interpolation finding by rejecting unescaped or encoded dynamic dollars
+    after Gradle escape decoding, preserving explicit literal-dollar forms, and adding assignment,
+    setter, include, CLI, and MCP regressions. Acquire Gradle build/settings manifests as bounded
+    regular non-link files through the same retained root capability before the final rereviews.

@@ -221,3 +221,12 @@ retained project-root capability. This documentation amendment does not establis
 or test completion. Fresh definition approval, focused and full final-tree reruns, two clean
 independent reviews, hosted-Windows runtime, private-sandbox refresh, repository/CI, trust, and
 Attest provenance remain pending.
+
+The exact-commit acceptance rereview then found a fourth false-green omission: Gradle
+double-quoted strings containing `$name` or `${expression}` were treated as literal paths even
+though Gradle resolves them dynamically. The amended parser rejects unescaped interpolation,
+rejects dollars reconstructed through Unicode/octal escapes, preserves explicit escaped dollars
+and Groovy single-quoted literals, and decodes supported path escapes before confinement.
+Adversarial follow-up also moved Gradle build/settings selection to bounded regular non-link reads
+through the retained root capability. Focused local parser and CLI/MCP regressions pass; a clean
+exact-tree rereview and every final lifecycle/platform/trust gate remain pending.

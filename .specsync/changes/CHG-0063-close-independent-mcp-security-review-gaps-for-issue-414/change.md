@@ -39,9 +39,12 @@ Close independent MCP security review gaps for issue 414
   colon mapping; parses and confines only literal `setProjectDir(file(...))` and
   `setProjectDir(new File(rootDir, ...))` calls while dynamic or unsupported mutations fail closed;
   and checks every derived directory component no-follow through the retained project capability,
-  rejecting Unix symlinks and Windows reparse points before CLI/MCP probing or traversal. Fresh
-  focused/full reruns, two independent reviews, hosted-Windows runtime, definition approval,
-  repository/CI, trust, and Attest evidence are required for this amendment.
+  rejecting Unix symlinks and Windows reparse points before CLI/MCP probing or traversal.
+  Double-quoted interpolation, including encoded dollar spellings, is dynamic and rejects before
+  discovery while escaped literal dollars and Groovy single-quoted literals remain compatible.
+  Present Gradle build/settings manifests are bounded regular non-link files read through the
+  retained capability. Fresh focused/full reruns, two independent reviews, hosted-Windows runtime,
+  definition approval, repository/CI, trust, and Attest evidence are required for this amendment.
 
 ## No-spec Rationale
 

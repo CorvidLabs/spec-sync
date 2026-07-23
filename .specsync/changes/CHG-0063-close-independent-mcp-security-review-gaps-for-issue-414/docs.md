@@ -79,5 +79,8 @@ artifact: docs
   `setProjectDir(file(...))` / `setProjectDir(new File(rootDir, ...))` share one confined parser;
   dynamic or unsupported mutations fail closed; and each derived directory component is checked
   no-follow through the retained root capability before CLI/MCP source traversal.
+- Document that unescaped or Unicode/octal-encoded interpolation in double-quoted Gradle strings
+  fails closed, explicit literal-dollar forms remain compatible, and present Gradle build/settings
+  files are bounded regular non-link reads through the retained root capability.
 - Keep fresh Windows runtime and final repository/trust/provenance evidence described as pending
   until those gates actually pass.

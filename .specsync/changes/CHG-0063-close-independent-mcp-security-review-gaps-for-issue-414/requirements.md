@@ -32,9 +32,15 @@ Acceptance Criteria
   rooted, UNC, and parent-escaping forms before colon notation is mapped to filesystem separators.
   Assignment-style `projectDir` and method-style `setProjectDir` accept only
   `file(<literal>)` or `new File(rootDir, <literal>)`; dynamic or unsupported mutation fails closed.
+- Double-quoted Gradle interpolation (`$name` or `${expression}`), including a dollar reconstructed
+  by Unicode or octal decoding, is dynamic and rejects before partial discovery. Escaped literal
+  dollars and Groovy single-quoted literal dollars remain supported.
 - Every component of a Gradle-derived effective directory is checked no-follow through a retained
   project-root capability before source probing or traversal. Unix symlinks and Windows reparse
   points make CLI/MCP checked discovery inconclusive without reading the referent.
+- Present Gradle build/settings manifests are retained-capability reads of regular non-link files,
+  bounded to 4 MiB; linked, reparse-backed, non-regular, oversized, unreadable, or invalid-UTF-8
+  inputs make checked discovery inconclusive without reading an outside referent.
 - Cargo path discovery follows only semantic target, dependency, workspace-dependency,
   target-specific dependency, patch, and replacement tables. Unrelated metadata `path` keys are
   ignored. Confined Windows-native backslashes normalize from the declaring manifest, while
@@ -409,15 +415,19 @@ Acceptance Criteria
 - Both `.projectDir = ...` and `.setProjectDir(...)` accept exactly `file(<literal>)` or
   `new File(rootDir, <literal>)`; dynamic values, alternate bases, extra arguments, trailing
   expressions, and unsupported project-directory mutators fail closed.
+- Double-quoted `$name` and `${expression}` interpolation, including Unicode/octal-encoded dollar
+  spellings, fails closed; explicit escaped dollars and single-quoted Groovy dollars remain literal.
 - Every component of an effective Gradle directory is resolved no-follow through one retained
   project-root capability before probing or traversal; Unix symlinks and Windows reparse points
   reject without exposing referent content.
+- Present Gradle build/settings manifests must be regular non-link entries read through the
+  retained capability, are bounded to 4 MiB, and reject invalid UTF-8 without partial discovery.
 - General module discovery and MCP snapshot preflight use the same effective Gradle module paths.
 - MCP Cargo workspace discovery parses bounded manifests as real TOML.
 - Malformed MCP Cargo TOML/workspace shapes make MCP operations inconclusive; malformed Gradle
-  comments, escapes, strings, parentheses, overrides, raw identities, and derived directory
-  components make every checked coverage gate inconclusive without returning partial module
-  results.
+  comments, escapes, interpolation, strings, parentheses, overrides, raw identities, manifest
+  endpoints, and derived directory components make every checked coverage gate inconclusive
+  without returning partial module results.
 
 ### REQ-review-amendment-001
 

@@ -1337,6 +1337,49 @@ fn gradle_set_project_dir_escapes_are_inconclusive_for_coverage_gating_commands(
     }
 }
 
+#[test]
+fn gradle_interpolated_project_dirs_are_inconclusive_for_coverage_gating_commands() {
+    for (label, override_statement) in [
+        (
+            "assignment-unbraced",
+            r#"project(":member").projectDir = file("$outside")"#,
+        ),
+        (
+            "setter-unbraced",
+            r#"project(":member").setProjectDir(file("$outside"))"#,
+        ),
+        (
+            "assignment-braced",
+            r#"project(":member").projectDir = file("${outside}")"#,
+        ),
+        (
+            "setter-braced",
+            r#"project(":member").setProjectDir(file("${outside}"))"#,
+        ),
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().join("project");
+        let outside_source = tmp.path().join("outside/src/main/kotlin/Secret.kt");
+        setup_minimal_project_at(&root);
+        fs::create_dir_all(outside_source.parent().unwrap()).unwrap();
+        let outside_bytes = format!("const val SECRET = \"GRADLE_INTERPOLATION_{label}\"\n");
+        fs::write(&outside_source, outside_bytes.as_bytes()).unwrap();
+        fs::write(
+            root.join("settings.gradle.kts"),
+            format!("val outside = \"../outside\"\ninclude(\":member\")\n{override_statement}\n"),
+        )
+        .unwrap();
+
+        assert_gradle_discovery_is_inconclusive(
+            &root,
+            &outside_source,
+            outside_bytes.as_bytes(),
+            "member",
+            label,
+        );
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn gradle_symlink_module_escape_is_inconclusive_for_coverage_gating_commands() {
@@ -1359,6 +1402,65 @@ fn gradle_symlink_module_escape_is_inconclusive_for_coverage_gating_commands() {
         "linked",
         "symlink",
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn gradle_symlinked_manifests_are_inconclusive_without_reading_outside_bytes() {
+    use std::os::unix::fs::symlink;
+
+    for manifest_name in ["build.gradle.kts", "settings.gradle.kts"] {
+        let project_tmp = TempDir::new().unwrap();
+        let outside_tmp = TempDir::new().unwrap();
+        let root = setup_minimal_project(&project_tmp);
+        let outside_manifest = outside_tmp.path().join(manifest_name);
+        let outside_bytes = b"include(\":GRADLE_MANIFEST_SECRET\")\n";
+        fs::write(&outside_manifest, outside_bytes).unwrap();
+        symlink(&outside_manifest, root.join(manifest_name)).unwrap();
+
+        for command in ["check", "coverage", "generate", "report", "score"] {
+            let output = specsync()
+                .arg(command)
+                .arg("--root")
+                .arg(&root)
+                .args(["--format", "json"])
+                .assert()
+                .failure()
+                .get_output()
+                .stdout
+                .clone();
+            let json: serde_json::Value =
+                serde_json::from_slice(&output).unwrap_or_else(|error| {
+                    panic!(
+                        "{command} must emit valid JSON for a linked Gradle manifest: {error}; stdout={}",
+                        String::from_utf8_lossy(&output)
+                    )
+                });
+            assert_eq!(
+                json["inconclusive"], true,
+                "unexpected {command} JSON for {manifest_name}: {json}"
+            );
+            assert!(
+                json["error"]
+                    .as_str()
+                    .is_some_and(|message| message.contains("symlink or reparse point")),
+                "unexpected {command} error for {manifest_name}: {json}"
+            );
+            assert!(
+                !String::from_utf8_lossy(&output).contains("GRADLE_MANIFEST_SECRET"),
+                "{command} disclosed outside Gradle manifest bytes"
+            );
+            assert!(
+                !root.join("specs/GRADLE_MANIFEST_SECRET").exists(),
+                "{command} mutated output after rejecting {manifest_name}"
+            );
+            assert_eq!(
+                fs::read(&outside_manifest).unwrap(),
+                outside_bytes,
+                "{command} changed outside Gradle manifest bytes"
+            );
+        }
+    }
 }
 
 #[cfg(windows)]

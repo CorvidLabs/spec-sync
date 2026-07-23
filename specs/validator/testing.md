@@ -27,7 +27,7 @@ spec: validator.spec.md
 | Undocumented code export | source code exports `helperFn` but the spec does not list it | `validate_spec` is called | warnings include "Export 'helperFn' not in spec (undocumented)" |
 | Cross-project dependency reference | a spec with `depends_on: ["corvid-labs/algochat@auth"]` | `validate_spec` is called locally | the cross-project ref is skipped (no error or warning) |
 | Malformed Gradle settings | a source tree with an unterminated Gradle `include` declaration | a CLI/MCP gate calls `compute_coverage_checked` | coverage is inconclusive and the caller fails instead of reporting partial totals |
-| Unconfined Gradle source root | raw drive-qualified module identity, unsupported/dynamic `setProjectDir`, or symlink/reparse component | a CLI/MCP gate calls `compute_coverage_checked` | the caller fails inconclusively before source traversal, partial totals, or generation |
+| Unconfined Gradle source root | raw drive-qualified module identity, interpolated/encoded path, unsafe Gradle manifest, unsupported/dynamic `setProjectDir`, or symlink/reparse component | a CLI/MCP gate calls `compute_coverage_checked` | the caller fails inconclusively before source traversal, partial totals, or generation |
 | Retained spec snapshot validation | valid pre-read spec bytes and a logical spec path replaced after the snapshot | `validate_spec_content` is called | validation uses the pre-read spec bytes and opens neither the replaced spec path nor adjacent companions; mapped sources retain normal path behavior |
 | Retained spec/source validation | retained spec bytes plus `SourceSnapshot` observations, with ambient paths replaced | `validate_spec_content_with_sources` is called | validation uses only supplied spec/source snapshots and ambient-free export extraction |
 
@@ -47,7 +47,7 @@ spec: validator.spec.md
 | Generated companion marker | Warning includes artifact path and source line; strict mode fails | Cover every supported artifact plus fenced and similar-prose negatives |
 | Built-in design markers | Layout, Components, Tokens, and Assets placeholders each produce a distinct warning | Keep the generated template lines and validator marker table in parity |
 | Malformed or unreadable Gradle settings | Checked coverage returns an error; compatibility coverage remains callable with a zero-percent inconclusive report | Keep gate callers on `compute_coverage_checked` and cover text/JSON or MCP failure output when it changes |
-| Unsupported or unconfined Gradle discovery | Checked coverage returns an error before source probing/traversal; all CLI/MCP gates remain non-success and content-free | Cover raw drive identifiers, dynamic/unsupported `setProjectDir`, Unix symlink, and hosted-Windows reparse fixtures with unchanged outside sentinels |
+| Unsupported or unconfined Gradle discovery | Checked coverage returns an error before source probing/traversal; all CLI/MCP gates remain non-success and content-free | Cover raw drive identifiers, interpolation, encoded traversal, unsafe recognized manifests, dynamic/unsupported `setProjectDir`, Unix symlink, and hosted-Windows reparse fixtures with unchanged outside sentinels |
 
 ## Reviewer Checklist
 

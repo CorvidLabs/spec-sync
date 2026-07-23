@@ -164,8 +164,9 @@ Acceptance Criteria
   non-zero with an inconclusive diagnostic.
 - MCP coverage, check, score, and generation flows use checked coverage and return a tool or
   resource error rather than a false-green result.
-- Raw drive-qualified Gradle module identities, unsupported or dynamic project-directory mutators,
-  and symlink/reparse components in Gradle-derived directories propagate as checked-discovery
-  failures before source probing or traversal.
+- Raw drive-qualified Gradle module identities, unescaped double-quoted interpolation, encoded
+  traversal, unsupported or dynamic project-directory mutators, unsafe recognized Gradle manifest
+  entries, and symlink/reparse components in Gradle-derived directories propagate as
+  checked-discovery failures before source probing or traversal.
 - `compute_coverage` remains available for compatibility and returns a zero-percent report carrying
   an inconclusive module diagnostic when checked discovery fails.

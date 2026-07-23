@@ -41,6 +41,8 @@ spec: validator.spec.md
   `setProjectDir` forms, and linked/reparse-backed derived directories remain inconclusive.
 - [x] Verify CLI and MCP checked gates return non-success without partial totals, outside bytes, or
   generated output for every new Gradle confinement failure.
+- [x] Keep interpolated/encoded Gradle paths and linked/special Gradle manifests inconclusive
+  across checked CLI/MCP gates.
 - [ ] Obtain fresh exact-tree full reruns, independent reviews, hosted-Windows runtime,
   repository/CI, trust, and Attest evidence.
 

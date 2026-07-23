@@ -14,13 +14,18 @@ spec: manifest.spec.md
 - **Fail-closed Gradle subset**: Include arguments must be complete string literals. Supported
   assignment-style `projectDir` and method-style `setProjectDir` expressions are exactly
   `file(<literal>)` and `new File(rootDir, <literal>)` with no trailing expression; dynamic
-  arguments, alternate bases, extra arguments, and unsupported mutators reject the parse.
+  arguments, unescaped double-quoted interpolation, alternate bases, extra arguments, and
+  unsupported mutators reject the parse. Escaped/single-quoted dollars stay literal, and
+  Unicode/octal escapes are decoded before path confinement.
 - **Raw identity validation precedes colon mapping**: Drive-qualified, rooted, UNC, and
   parent-escaping include identities and project selectors reject before Gradle `:` separators are
   converted to `/`; ordinary nested Gradle identities remain compatible.
 - **Capability-confined Gradle probing**: Effective Gradle directories are walked component by
   component through a retained project-root capability with no-follow metadata. Symlinks and
   Windows reparse points fail checked discovery before source probing or traversal.
+- **Capability-confined Gradle manifests**: Present Gradle build/settings manifests are selected
+  through that retained capability, rejected when linked/reparse-backed or non-regular, bounded to
+  4 MiB, and parsed from retained bytes instead of an ambient path read.
 - **Swift test target exclusion**: `.testTarget()` entries are explicitly skipped to avoid polluting the module list with test infrastructure.
 - **Python priority**: `[project]` section is checked before `[tool.poetry]` in pyproject.toml, reflecting the ecosystem's migration toward PEP 621.
 
@@ -34,6 +39,8 @@ Implemented for all 7 manifest formats. Gate callers use `discover_from_manifest
 malformed Gradle discovery is inconclusive instead of a compatibility fallback. The CHG-0063
 independent-review contract additionally requires raw module validation before colon mapping,
 literal assignment/method project-directory parsing, and retained no-follow component confinement.
+Gradle build/settings selection and reads are likewise bounded and capability-confined; unescaped
+double-quoted interpolation rejects and encoded path escapes are decoded before confinement.
 Fresh implementation verification, independent rereviews, Windows runtime, repository/CI, trust,
 and provenance evidence remain pending. MCP Cargo workspace paths come from validated TOML values.
 

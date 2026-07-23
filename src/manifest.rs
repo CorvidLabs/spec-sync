@@ -4,12 +4,24 @@
 //! build.gradle.kts, package.json, etc.) to discover targets, source paths,
 //! and module names instead of relying on directory scanning alone.
 
+use cap_primitives::fs::FollowSymlinks;
 use cap_std::ambient_authority;
-use cap_std::fs::{Dir, Metadata};
+use cap_std::fs::{Dir, Metadata, OpenOptions};
 use std::collections::HashMap;
 use std::fs;
-use std::io;
+use std::io::{self, Read};
 use std::path::{Component, Path};
+
+const MAX_GRADLE_MANIFEST_BYTES: u64 = 4 * 1024 * 1024;
+
+fn gradle_read_only_nofollow_options() -> OpenOptions {
+    let mut options = OpenOptions::new();
+    options
+        .read(true)
+        ._cap_fs_ext_nonblock(true)
+        ._cap_fs_ext_follow(FollowSymlinks::No);
+    options
+}
 
 /// A module discovered from a manifest file.
 #[derive(Debug, Clone)]
@@ -329,45 +341,24 @@ fn parse_gradle_checked(root: &Path) -> Result<Option<ManifestDiscovery>, String
     })?;
     // Try Kotlin DSL first, then Groovy. A settings manifest is independently sufficient for a
     // multi-project Gradle workspace; do not require a root build script before parsing it.
-    let build_path = if root.join("build.gradle.kts").exists() {
-        Some(root.join("build.gradle.kts"))
-    } else if root.join("build.gradle").exists() {
-        Some(root.join("build.gradle"))
-    } else {
-        None
+    let build = match gradle_confined_manifest_text(&project_root, "build.gradle.kts", "build")? {
+        Some(content) => Some(("build.gradle.kts", content)),
+        None => gradle_confined_manifest_text(&project_root, "build.gradle", "build")?
+            .map(|content| ("build.gradle", content)),
     };
-    let settings_path = if root.join("settings.gradle.kts").exists() {
-        Some(root.join("settings.gradle.kts"))
-    } else if root.join("settings.gradle").exists() {
-        Some(root.join("settings.gradle"))
-    } else {
-        None
-    };
-    if build_path.is_none() && settings_path.is_none() {
+    let settings =
+        match gradle_confined_manifest_text(&project_root, "settings.gradle.kts", "settings")? {
+            Some(content) => Some(("settings.gradle.kts", content)),
+            None => gradle_confined_manifest_text(&project_root, "settings.gradle", "settings")?
+                .map(|content| ("settings.gradle", content)),
+        };
+    if build.is_none() && settings.is_none() {
         return Ok(None);
     }
-    let content = if let Some(path) = build_path {
-        fs::read_to_string(&path).map_err(|error| {
-            format!(
-                "Cannot read Gradle build manifest {}: {error}",
-                path.display()
-            )
-        })?
-    } else {
-        String::new()
-    };
-    let modules = if let Some(settings_path) = settings_path {
-        let settings = fs::read_to_string(&settings_path).map_err(|error| {
-            format!(
-                "Cannot read Gradle settings manifest {}: {error}",
-                settings_path.display()
-            )
-        })?;
+    let content = build.map_or_else(String::new, |(_, content)| content);
+    let modules = if let Some((settings_name, settings)) = settings {
         parse_gradle_settings(&settings).map_err(|error| {
-            format!(
-                "Cannot parse Gradle settings manifest {}: {error}",
-                settings_path.display()
-            )
+            format!("Cannot parse Gradle settings manifest {settings_name}: {error}")
         })?
     } else {
         Vec::new()
@@ -673,6 +664,74 @@ fn gradle_metadata_is_link(metadata: &Metadata) -> bool {
     metadata.file_type().is_symlink()
 }
 
+fn gradle_confined_manifest_text(
+    root: &Dir,
+    name: &str,
+    label: &str,
+) -> Result<Option<String>, String> {
+    let before = match root.symlink_metadata(name) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(format!(
+                "Cannot inspect confined Gradle {label} manifest {name}: {error}"
+            ));
+        }
+    };
+    if gradle_metadata_is_link(&before) {
+        return Err(format!(
+            "Gradle {label} manifest {name} must not be a symlink or reparse point"
+        ));
+    }
+    if !before.is_file() {
+        return Err(format!(
+            "Gradle {label} manifest {name} must be a regular file"
+        ));
+    }
+
+    let options = gradle_read_only_nofollow_options();
+    let mut file = root.open_with(name, &options).map_err(|error| {
+        format!(
+            "Cannot open confined Gradle {label} manifest {name} as a non-blocking regular file: {error}"
+        )
+    })?;
+    let opened = file.metadata().map_err(|error| {
+        format!("Cannot inspect opened Gradle {label} manifest {name}: {error}")
+    })?;
+    let after_open = root
+        .symlink_metadata(name)
+        .map_err(|error| format!("Cannot re-inspect Gradle {label} manifest {name}: {error}"))?;
+    if !opened.is_file() || gradle_metadata_is_link(&after_open) || !after_open.is_file() {
+        return Err(format!(
+            "Gradle {label} manifest {name} changed during confined open"
+        ));
+    }
+
+    let mut bytes = Vec::new();
+    file.by_ref()
+        .take(MAX_GRADLE_MANIFEST_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("Cannot read Gradle {label} manifest {name}: {error}"))?;
+    if bytes.len() as u64 > MAX_GRADLE_MANIFEST_BYTES {
+        return Err(format!(
+            "Gradle {label} manifest {name} exceeds the {} byte limit",
+            MAX_GRADLE_MANIFEST_BYTES
+        ));
+    }
+    let after_read = root.symlink_metadata(name).map_err(|error| {
+        format!("Cannot re-inspect Gradle {label} manifest {name} after read: {error}")
+    })?;
+    if gradle_metadata_is_link(&after_read) || !after_read.is_file() {
+        return Err(format!(
+            "Gradle {label} manifest {name} changed during confined read"
+        ));
+    }
+
+    String::from_utf8(bytes)
+        .map(Some)
+        .map_err(|_| format!("Gradle {label} manifest {name} is not valid UTF-8"))
+}
+
 fn gradle_confined_directory_exists(root: &Dir, relative: &str) -> Result<bool, String> {
     let mut directory = root
         .try_clone()
@@ -973,34 +1032,80 @@ fn gradle_string_literal(value: &str) -> Result<(String, &str), String> {
         return Err("Unsupported or dynamic Gradle expression".to_string());
     };
     let mut parsed = String::new();
-    let mut escaped = false;
-    for (index, character) in value[delimiter.len_utf8()..].char_indices() {
-        if escaped {
-            match character {
-                '\\' | '\'' | '"' => parsed.push(character),
-                'n' => parsed.push('\n'),
-                'r' => parsed.push('\r'),
-                't' => parsed.push('\t'),
-                _ => {
-                    parsed.push('\\');
-                    parsed.push(character);
-                }
-            }
-            escaped = false;
-        } else if character == '\\' {
-            escaped = true;
-        } else if character == delimiter {
+    let body = &value[delimiter.len_utf8()..];
+    let mut characters = body.char_indices().peekable();
+    while let Some((index, character)) = characters.next() {
+        if character == delimiter {
             let end = delimiter.len_utf8() + index + character.len_utf8();
             return Ok((parsed, &value[end..]));
-        } else {
+        }
+        if delimiter == '"' && character == '$' {
+            return Err("Unsupported or dynamic Gradle expression".to_string());
+        }
+        if character != '\\' {
             parsed.push(character);
+            continue;
+        }
+
+        let Some((_, escaped)) = characters.next() else {
+            return Err("Gradle settings contain a dangling string escape".to_string());
+        };
+        match escaped {
+            '\\' | '\'' | '"' | '$' => parsed.push(escaped),
+            'n' => parsed.push('\n'),
+            'r' => parsed.push('\r'),
+            't' => parsed.push('\t'),
+            'b' => parsed.push('\u{0008}'),
+            'f' => parsed.push('\u{000c}'),
+            'u' => {
+                let mut value = 0u32;
+                for _ in 0..4 {
+                    let Some((_, digit)) = characters.next() else {
+                        return Err(
+                            "Gradle settings contain an incomplete Unicode escape".to_string()
+                        );
+                    };
+                    let Some(digit) = digit.to_digit(16) else {
+                        return Err("Gradle settings contain an invalid Unicode escape".to_string());
+                    };
+                    value = value * 16 + digit;
+                }
+                let Some(decoded) = char::from_u32(value) else {
+                    return Err("Gradle settings contain an invalid Unicode escape".to_string());
+                };
+                if delimiter == '"' && decoded == '$' {
+                    return Err("Unsupported or dynamic Gradle expression".to_string());
+                }
+                parsed.push(decoded);
+            }
+            '0'..='7' => {
+                let mut value = escaped.to_digit(8).unwrap_or_default();
+                for _ in 0..2 {
+                    let Some((_, digit)) = characters.peek().copied() else {
+                        break;
+                    };
+                    let Some(digit) = digit.to_digit(8) else {
+                        break;
+                    };
+                    characters.next();
+                    value = value * 8 + digit;
+                }
+                let Some(decoded) = char::from_u32(value) else {
+                    return Err("Gradle settings contain an invalid octal escape".to_string());
+                };
+                if delimiter == '"' && decoded == '$' {
+                    return Err("Unsupported or dynamic Gradle expression".to_string());
+                }
+                parsed.push(decoded);
+            }
+            _ => {
+                return Err(format!(
+                    "Gradle settings contain an unsupported string escape: \\{escaped}"
+                ));
+            }
         }
     }
-    if escaped {
-        Err("Gradle settings contain a dangling string escape".to_string())
-    } else {
-        Err("Gradle settings contain an unterminated quoted string".to_string())
-    }
+    Err("Gradle settings contain an unterminated quoted string".to_string())
 }
 
 // ─── package.json (TypeScript/JavaScript) ────────────────────────────────
@@ -1488,6 +1593,32 @@ project(":second").projectDir = new File(rootDir, "modules/second")
     }
 
     #[test]
+    fn gradle_manifest_discovery_rejects_non_regular_oversized_and_non_utf8_manifests() {
+        let directory_manifest = tempdir().unwrap();
+        fs::create_dir(directory_manifest.path().join("settings.gradle.kts")).unwrap();
+        let error = discover_from_manifests_checked(directory_manifest.path()).unwrap_err();
+        assert!(error.contains("must be a regular file"));
+
+        let oversized_manifest = tempdir().unwrap();
+        fs::write(
+            oversized_manifest.path().join("settings.gradle.kts"),
+            vec![b'a'; MAX_GRADLE_MANIFEST_BYTES as usize + 1],
+        )
+        .unwrap();
+        let error = discover_from_manifests_checked(oversized_manifest.path()).unwrap_err();
+        assert!(error.contains("exceeds the"));
+
+        let non_utf8_manifest = tempdir().unwrap();
+        fs::write(
+            non_utf8_manifest.path().join("settings.gradle.kts"),
+            [0xff, 0xfe],
+        )
+        .unwrap();
+        let error = discover_from_manifests_checked(non_utf8_manifest.path()).unwrap_err();
+        assert!(error.contains("not valid UTF-8"));
+    }
+
+    #[test]
     fn gradle_settings_reject_unsupported_project_dir_bases_and_suffixes() {
         let outside_base = parse_gradle_settings(
             r#"
@@ -1528,22 +1659,30 @@ project(":outside").setProjectDir(file("../outside"))
 "#,
             r#"include(":..:outside")"#,
             r#"include("C:/outside")"#,
-            r#"include(":C:\outside")"#,
+            r#"include(":C:\\outside")"#,
             r#"
 include(":outside")
 project(":outside").projectDir = file("safe/../../outside")
 "#,
             r#"
 include(":outside")
-project(":outside").projectDir = file("C:\outside")
+project(":outside").projectDir = file("C:\\outside")
 "#,
             r#"
 include(":outside")
-project(":outside").projectDir = file("\\server\share")
+project(":outside").projectDir = file("\\\\server\\share")
 "#,
             r#"
 include(":safe")
 project("C:/outside").projectDir = file("modules/safe")
+"#,
+            r#"
+include(":outside")
+project(":outside").setProjectDir(file("\u002e\u002e/outside"))
+"#,
+            r#"
+include(":outside")
+project(":outside").setProjectDir(file("\056\056/outside"))
 "#,
         ] {
             let error = parse_gradle_settings(settings).unwrap_err();
@@ -1586,16 +1725,59 @@ project(":second").setProjectDir(new File(rootDir, "modules/second"))
             r#"project(":member").setProjectDir(projectDirProvider.get())"#,
             r#"project(":member").setProjectDir(file("modules/member"), file("other"))"#,
             r#"project(":member").setProjectDir(file("modules/member")).parentFile"#,
+            r#"project(":member").setProjectDir(file("$outside"))"#,
+            r#"project(":member").setProjectDir(file("${outside}"))"#,
+            r#"project(":member").projectDir = file("$outside")"#,
+            r#"project(":member").projectDir = file("\u0024outside")"#,
+            r#"project(":member").projectDir = file("\044outside")"#,
         ] {
             let settings = format!("include(\":member\")\n{setter}\n");
             let error = parse_gradle_settings(&settings).unwrap_err();
             assert!(
                 error.contains("Unsupported Gradle projectDir assignment")
+                    || error.contains("Unsupported or dynamic Gradle expression")
                     || error.contains("must contain one path")
                     || error.contains("Unsupported trailing Gradle projectDir assignment"),
                 "unexpected setProjectDir parser error: {error}"
             );
         }
+    }
+
+    #[test]
+    fn gradle_settings_reject_interpolated_includes_without_partial_modules() {
+        for include in [r#"include(":$module")"#, r#"include(":${module}")"#] {
+            let error = parse_gradle_settings(include).unwrap_err();
+            assert!(
+                error.contains("Unsupported or dynamic Gradle expression"),
+                "unexpected interpolated include error: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn gradle_settings_preserve_literal_dollars() {
+        let modules = parse_gradle_settings(
+            r#"
+include(':literal$module', ":escaped\$module")
+project(':literal$module').setProjectDir(file('modules/$literal'))
+project(":escaped\$module").setProjectDir(file("modules/escaped\$literal"))
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            modules,
+            vec![
+                GradleSettingsModule {
+                    name: "escaped$module".to_string(),
+                    path: "modules/escaped$literal".to_string(),
+                },
+                GradleSettingsModule {
+                    name: "literal$module".to_string(),
+                    path: "modules/$literal".to_string(),
+                },
+            ]
+        );
     }
 
     #[test]

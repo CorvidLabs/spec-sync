@@ -72,3 +72,9 @@ artifact: research
   Windows reparse point. Gradle-derived source directories require component-by-component
   no-follow inspection through a retained root capability before either CLI coverage or MCP
   snapshot traversal receives the path.
+- Gradle double-quoted strings interpolate `$name` and `${expression}`. Treating those bytes as a
+  literal path omits the effective project directory and can false-green coverage; escape decoding
+  must also reject Unicode/octal spellings that reconstruct an unescaped dollar.
+- Ambiently probing or reading a Gradle build/settings manifest reintroduces link/reparse and
+  replacement ambiguity before checked parsing. The retained project capability must select a
+  bounded regular non-link file and the opened bytes must be authoritative.

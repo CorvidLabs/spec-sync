@@ -24,7 +24,9 @@ spec: manifest.spec.md
   escape-decoded, parenthesized or bare multiline `include` declarations, nested colon paths, and
   assignment-style `projectDir` and method-style `setProjectDir` overrides.
 - Every Gradle `include` argument is a complete quoted literal; dynamic or mixed expressions reject
-  checked discovery instead of returning a partial module set.
+  checked discovery instead of returning a partial module set. Unescaped `$name`/`${expression}`
+  interpolation in double-quoted strings is dynamic; escaped or single-quoted literal dollars
+  remain data.
 - Supported assignment and method values are exactly `file(<literal>)` or
   `new File(rootDir, <literal>)`; dynamic values, alternate bases, extra arguments, unsupported
   mutators, and trailing expressions reject checked discovery.
@@ -32,10 +34,13 @@ spec: manifest.spec.md
   rooted, UNC, or parent-escaping before colon notation is converted to a filesystem path.
 - Included module names and effective `projectDir` values must normalize beneath the project root;
   rooted, drive-qualified, UNC, and parent-escaping paths reject checked discovery without partial
-  modules.
+  modules. Unicode and Groovy octal escapes are decoded before this confinement decision.
 - Every component of a Gradle-derived effective directory is checked no-follow through a retained
   project-root capability before probing or traversal; symlink and Windows reparse-point components
   reject checked discovery without reading the referent.
+- Present Gradle build/settings manifests are read through the retained project-root capability,
+  must be regular non-link entries, and are bounded to 4 MiB; linked, reparse-backed, non-regular,
+  oversized, unreadable, or invalid-UTF-8 manifests reject checked discovery without partial output.
 - General metadata extraction remains string/regex based; MCP Cargo workspace security discovery parses bounded manifests as real TOML
 - `ManifestDiscovery::default()` returns empty collections (safe fallback)
 - Checked discovery surfaces malformed Gradle comments, escapes, strings, parentheses, and overrides so coverage gates remain inconclusive
@@ -68,7 +73,9 @@ Acceptance Criteria
   escape-decoded, parenthesized or bare multiline `include` declarations, nested colon paths, and
   assignment-style `projectDir` and method-style `setProjectDir` overrides.
 - Every Gradle `include` argument is a complete quoted literal; dynamic or mixed expressions reject
-  checked discovery instead of returning a partial module set.
+  checked discovery instead of returning a partial module set. Unescaped `$name`/`${expression}`
+  interpolation in double-quoted strings is dynamic; escaped or single-quoted literal dollars
+  remain data.
 - Supported assignment and method values are exactly `file(<literal>)` or
   `new File(rootDir, <literal>)`; dynamic values, alternate bases, extra arguments, unsupported
   mutators, and trailing expressions reject checked discovery.
@@ -76,10 +83,13 @@ Acceptance Criteria
   rooted, UNC, or parent-escaping before colon notation is converted to a filesystem path.
 - Included module names and effective `projectDir` values must normalize beneath the project root;
   rooted, drive-qualified, UNC, and parent-escaping paths reject checked discovery without partial
-  modules.
+  modules. Unicode and Groovy octal escapes are decoded before this confinement decision.
 - Every component of a Gradle-derived effective directory is checked no-follow through a retained
   project-root capability before probing or traversal; symlink and Windows reparse-point components
   reject checked discovery without reading the referent.
+- Present Gradle build/settings manifests are read through the retained project-root capability,
+  must be regular non-link entries, and are bounded to 4 MiB; linked, reparse-backed, non-regular,
+  oversized, unreadable, or invalid-UTF-8 manifests reject checked discovery without partial output.
 - General metadata extraction remains string/regex based; MCP Cargo workspace security discovery parses bounded manifests as real TOML
 - `ManifestDiscovery::default()` returns empty collections (safe fallback)
 - Checked discovery surfaces malformed Gradle comments, escapes, strings, parentheses, and overrides so coverage gates remain inconclusive

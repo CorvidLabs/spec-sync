@@ -19,6 +19,9 @@ Acceptance Criteria
   `new File(rootDir, <literal>)`.
 - Dynamic include arguments, alternate `new File` bases, extra arguments, and trailing assignment
   or method expressions fail checked discovery without returning partial modules.
+- Double-quoted `$name` and `${expression}` interpolation fails checked discovery, including when
+  Unicode or octal escape decoding reconstructs the dollar. Explicit `\$` and Groovy
+  single-quoted dollar literals remain compatible.
 - Gradle module identities and `projectDir` literals are confined to project-relative paths:
   rooted, drive-qualified, UNC, and parent-underflow forms fail before source probing, while safe
   literal spellings retain compatibility.
@@ -26,6 +29,9 @@ Acceptance Criteria
 - Every component of a Gradle-derived effective directory is checked no-follow through a retained
   project-root capability before source probing/traversal; Unix symlink and Windows reparse-point
   components fail checked discovery without reading their referents.
+- Present Gradle build/settings manifests are read as regular non-link entries through the retained
+  root capability, capped at 4 MiB, and rejected when linked, reparse-backed, non-regular,
+  oversized, unreadable, invalid UTF-8, or changed in type during acquisition.
 - A present `settings.gradle[.kts]` is parsed and validated even when no root
   `build.gradle[.kts]` exists.
 - MCP Cargo workspace snapshot and confinement discovery parse bounded manifests as real TOML.
@@ -60,14 +66,18 @@ Acceptance Criteria
    to one deterministic effective project-relative directory per module.
 4. Dynamic includes and unsupported `projectDir`/`setProjectDir` bases, arity, or suffixes fail
    without partial discovery.
-5. Checked discovery reports malformed Gradle input; compatibility discovery may return an empty
+5. Double-quoted Gradle interpolation is rejected after escape decoding; explicit escaped-dollar
+   and Groovy single-quoted literal-dollar forms remain deterministic literals.
+6. Checked discovery reports malformed Gradle input; compatibility discovery may return an empty
    result, but gate callers remain inconclusive.
-6. Checked Gradle discovery merges the exact single-read parse result.
-7. MCP Cargo workspace discovery trusts only structurally parsed TOML members and target paths.
-8. Settings-only Gradle workspaces discover included modules, while malformed settings remain an
+7. Checked Gradle discovery merges the exact single-read parse result.
+8. MCP Cargo workspace discovery trusts only structurally parsed TOML members and target paths.
+9. Settings-only Gradle workspaces discover included modules, while malformed settings remain an
    inconclusive checked-discovery error.
-9. Gradle module and effective project-directory paths cannot traverse above the project root or
+10. Gradle module and effective project-directory paths cannot traverse above the project root or
    select rooted, drive-qualified, or UNC locations; rejection occurs before partial discovery or
    filesystem probing.
-10. Every Gradle-derived directory component is inspected no-follow through the retained root
+11. Every Gradle-derived directory component is inspected no-follow through the retained root
     capability; symlink and reparse-point components reject before source probing or traversal.
+12. Present Gradle build/settings manifests are bounded regular non-link retained-capability reads;
+    malformed endpoints or bytes reject before partial discovery.

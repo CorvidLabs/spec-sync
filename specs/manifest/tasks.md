@@ -36,6 +36,10 @@ spec: manifest.spec.md
 - [x] Verify literal `setProjectDir(file(...))` and `setProjectDir(new File(rootDir, ...))` support,
   plus dynamic, unsupported, traversal, drive, and UNC rejection.
 - [x] Verify Unix symlink rejection before outside source probing or traversal.
+- [x] Reject unescaped double-quoted Gradle interpolation while preserving escaped and
+  single-quoted literal dollars; decode Unicode/octal escapes before path confinement.
+- [x] Reject linked/reparse-backed, non-regular, oversized, unreadable, and invalid-UTF-8 Gradle
+  build/settings manifests through bounded retained-capability reads.
 - [ ] Verify hosted-Windows junction/reparse-point rejection before outside source probing or
   traversal.
 - [ ] Obtain fresh exact-tree independent reviews, full repository/CI, trust, and Attest evidence.

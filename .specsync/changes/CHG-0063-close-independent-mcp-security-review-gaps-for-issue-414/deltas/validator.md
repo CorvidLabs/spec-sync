@@ -15,6 +15,8 @@ Acceptance Criteria
 - Raw drive-qualified module identities, dynamic/unsupported project-directory mutators, and
   symlink/reparse components in Gradle-derived directories propagate as checked errors before
   source probing, traversal, partial totals, or generation.
+- Interpolated/encoded-dynamic Gradle strings and unsafe or oversized Gradle manifest endpoints
+  propagate as checked errors before partial totals, outside reads, or generation.
 - `compute_coverage` remains available for compatibility and returns a zero-percent report carrying
   an inconclusive module diagnostic when checked discovery fails.
 

@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 7
+version: 8
 status: stable
 files:
   - src/manifest.rs
@@ -53,9 +53,10 @@ member or target paths.
 
 1. Parsers are tried in a fixed order: Cargo.toml → Package.swift → build.gradle → package.json → pubspec.yaml → go.mod → pyproject.toml
 2. Multiple manifest types can coexist — results are merged (first module name wins on conflict)
-3. Missing or unreadable ordinary manifest files are skipped; Gradle settings independently
-   identify settings-only multi-project workspaces, and checked discovery returns an error when
-   present Gradle settings cannot be read or parsed.
+3. Missing ordinary manifest files are skipped. Present Gradle build/settings manifests are opened
+   through the retained project-root capability, must be regular non-link entries, are bounded to
+   4 MiB, and are parsed from the exact retained bytes. Linked, reparse-backed, non-regular,
+   oversized, unreadable, or invalid-UTF-8 Gradle manifests fail checked discovery.
 4. Cargo workspace members are parsed recursively, with source paths prefixed by the member directory
 5. Swift `.testTarget()` declarations are excluded from modules
 6. Swift balanced-paren extraction handles nested parentheses correctly
@@ -65,8 +66,10 @@ member or target paths.
    `.projectDir = ...`, and method-style `.setProjectDir(...)`.
 9. Supported assignment and method arguments are exactly `file(<literal>)` and
    `new File(rootDir, <literal>)`. Every include argument and project-directory argument must be a
-   complete literal expression; dynamic arguments, alternate `new File` bases, extra arguments,
-   unsupported mutators, and trailing expressions fail checked discovery.
+   complete literal expression; unescaped interpolation in double-quoted strings, dynamic
+   arguments, alternate `new File` bases, extra arguments, unsupported mutators, and trailing
+   expressions fail checked discovery. Escaped literal dollars remain data, while Unicode and
+   Groovy octal escapes are decoded before confinement checks.
 10. Raw included module identities and raw `project(...)` selectors are checked for rooted,
     drive-qualified, UNC, and parent-escaping forms before Gradle colon separators are mapped to
     path separators. Valid nested identities such as `:service:api` remain supported.
@@ -146,6 +149,20 @@ member or target paths.
 - **Then** discovery returns an error before source probing or traversal and does not inspect the
   link target
 
+### Scenario: Gradle manifest is a link
+
+- **Given** `build.gradle[.kts]` or `settings.gradle[.kts]` is a symlink or Windows reparse point
+- **When** checked manifest discovery is called
+- **Then** discovery returns an inconclusive error without reading or disclosing referent bytes
+
+### Scenario: Gradle path uses interpolation or encoded traversal
+
+- **Given** a Gradle include or project-directory expression uses `$name`, `${expression}`,
+  `\u002e`, or Groovy octal escapes
+- **When** checked manifest discovery is called
+- **Then** interpolation is rejected as dynamic and decoded traversal is rejected before partial
+  discovery, source probing, or generation
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -153,7 +170,8 @@ member or target paths.
 | Manifest file missing | Parser returns `None`, skipped silently |
 | Manifest file unreadable | Parser returns `None` (fs::read_to_string fails gracefully) |
 | Malformed non-Gradle manifest content | Best-effort extraction; missing fields result in defaults or skipped entries |
-| Malformed or dynamic Gradle include, unsupported assignment/method project-directory form, rooted/drive/UNC/parent-escaping raw module identity or effective path, or broken comments/escapes/parentheses | Checked discovery returns `Err`; compatibility discovery returns an empty result and gates stay inconclusive |
+| Linked, reparse-backed, non-regular, oversized, unreadable, or invalid-UTF-8 Gradle build/settings manifest | Checked discovery returns `Err` without reading a link referent or returning partial discovery; compatibility discovery returns an empty result |
+| Malformed or dynamic Gradle include, unescaped double-quoted interpolation, unsupported assignment/method project-directory form, rooted/drive/UNC/parent-escaping raw module identity or decoded effective path, or broken comments/escapes/parentheses | Checked discovery returns `Err`; compatibility discovery returns an empty result and gates stay inconclusive |
 | Gradle-derived directory contains a symlink or Windows reparse-point component | Checked discovery returns `Err` before source probing/traversal; compatibility discovery returns an empty result and gates stay inconclusive |
 | Workspace member directory doesn't exist | Skipped (Cargo.toml existence check) |
 | No parsers produce results | Returns default empty `ManifestDiscovery` |
@@ -164,7 +182,7 @@ member or target paths.
 
 | Module | What is used |
 |--------|-------------|
-| cap-std | Retained project-root directory capability and no-follow component inspection for Gradle-derived source roots |
+| cap-std | Retained project-root capability for bounded no-follow Gradle manifest reads and component inspection of derived source roots |
 | regex | Locate bounded Gradle assignment-style and method-style project-directory forms |
 
 ### Consumed By
@@ -185,3 +203,4 @@ member or target paths.
 | 2026-07-22 | CHG-0063 defensive review: Discover settings-only Gradle workspaces and fail closed on malformed settings without requiring a root build script |
 | 2026-07-23 | CHG-0063 human review: Reject rooted, drive-qualified, UNC, and parent-escaping Gradle module and `projectDir` paths before CLI discovery can inspect outside the project |
 | 2026-07-23 | v7 / CHG-0063 independent review: Validate raw drive-qualified module identities before colon mapping, confine literal `setProjectDir` forms, and reject symlink/reparse components through the retained root capability |
+| 2026-07-23 | v8 / CHG-0063 adversarial rereview: Acquire Gradle build/settings manifests as bounded regular non-link files, reject unescaped interpolation, and decode Unicode/octal path escapes before confinement |

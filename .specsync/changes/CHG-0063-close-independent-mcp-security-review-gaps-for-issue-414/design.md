@@ -98,3 +98,9 @@ artifact: design
 - Preserve fail-closed compatibility: checked discovery returns the confinement/parser error;
   compatibility discovery may return empty, but every CLI/MCP gate must use the checked path and
   report an inconclusive non-success outcome.
+- Parse Gradle string escapes before path authorization. Reject every unescaped dollar in
+  double-quoted literals, including dollars produced by Unicode or octal decoding; decode an
+  explicit `\$` as a literal dollar and preserve single-quoted Groovy dollar literals.
+- Select and read present Gradle build/settings files through the retained root capability. Require
+  regular non-link entries, cap each file at 4 MiB, parse the exact opened bytes, and fail checked
+  discovery on links, reparse points, special files, invalid UTF-8, or replacement/type changes.

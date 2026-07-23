@@ -1651,7 +1651,63 @@ fn mcp_gradle_set_project_dir_escapes_fail_closed_without_outside_access() {
         )
         .unwrap();
 
-        assert_mcp_gradle_discovery_rejected(&root, &outside_source, outside_bytes, label);
+        assert_mcp_gradle_discovery_rejected(
+            &root,
+            &outside_source,
+            outside_bytes,
+            "outside",
+            label,
+        );
+    }
+}
+
+#[test]
+fn mcp_gradle_interpolated_project_dirs_fail_closed_without_outside_access() {
+    let tmp = TempDir::new().unwrap();
+    let outside_source = tmp.path().join("outside/src/main/kotlin/Secret.kt");
+    fs::create_dir_all(outside_source.parent().unwrap()).unwrap();
+    let outside_bytes = b"const val SECRET = \"MCP_GRADLE_INTERPOLATION_ESCAPE\"\n";
+    fs::write(&outside_source, outside_bytes).unwrap();
+
+    for (label, override_statement) in [
+        (
+            "assignment-unbraced",
+            r#"project(":member").projectDir = file("$outside")"#,
+        ),
+        (
+            "setter-unbraced",
+            r#"project(":member").setProjectDir(file("$outside"))"#,
+        ),
+        (
+            "assignment-braced",
+            r#"project(":member").projectDir = file("${outside}")"#,
+        ),
+        (
+            "setter-braced",
+            r#"project(":member").setProjectDir(file("${outside}"))"#,
+        ),
+    ] {
+        let root = tmp.path().join(format!("{label}-server"));
+        setup_minimal_mcp_project_at(&root);
+        fs::write(root.join("build.gradle.kts"), "plugins {}\n").unwrap();
+        fs::write(
+            root.join("settings.gradle.kts"),
+            format!("val outside = \"../outside\"\ninclude(\":member\")\n{override_statement}\n"),
+        )
+        .unwrap();
+        fs::write(
+            root.join("specsync.json"),
+            r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+        )
+        .unwrap();
+
+        assert_mcp_gradle_discovery_rejected(
+            &root,
+            &outside_source,
+            outside_bytes,
+            "member",
+            label,
+        );
     }
 }
 
@@ -1676,13 +1732,30 @@ fn mcp_gradle_symlink_module_escape_fails_closed_without_outside_access() {
     )
     .unwrap();
 
-    assert_mcp_gradle_discovery_rejected(root, &outside_source, outside_bytes, "symlink");
+    assert_mcp_gradle_discovery_rejected(root, &outside_source, outside_bytes, "linked", "symlink");
+}
+
+fn setup_minimal_mcp_project_at(root: &std::path::Path) {
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    write_config(root, "specs", &["src"]);
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\nexport function logout() {}\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
 }
 
 fn assert_mcp_gradle_discovery_rejected(
     root: &std::path::Path,
     outside_source: &std::path::Path,
     outside_bytes: &[u8],
+    module: &str,
     label: &str,
 ) {
     let responses = mcp_request_with_write(
@@ -1741,8 +1814,8 @@ fn assert_mcp_gradle_discovery_rejected(
         );
     }
     assert!(
-        !root.join("specs").exists(),
-        "Gradle {label} rejection allowed MCP generation to mutate the project"
+        !root.join("specs").join(module).exists(),
+        "Gradle {label} rejection allowed MCP generation to create partial output"
     );
     assert_eq!(
         fs::read(outside_source).unwrap(),

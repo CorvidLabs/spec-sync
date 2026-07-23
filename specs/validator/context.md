@@ -14,10 +14,11 @@ spec: validator.spec.md
 - **Generated companion markers fail strict**: Every known artifact-specific scaffold prompt emitted by the built-in templates, including all Layout, Components, Tokens, and Assets design bullets, emits a path-and-line warning outside fenced examples; strict mode promotes those warnings to errors.
 - **Coverage gates fail inconclusively on malformed manifests**: `compute_coverage_checked` propagates
   malformed, unreadable, unsupported, or unconfined Gradle errors to CLI and MCP gate callers.
-  Raw drive-qualified module identities, unsupported/dynamic project-directory methods, and
-  symlink/reparse components in derived directories therefore cannot become partial or outside
-  coverage. The original `compute_coverage` API remains as a compatibility wrapper and produces a
-  zero-percent report carrying an inconclusive diagnostic.
+  Raw drive-qualified module identities, interpolated/encoded paths, unsafe recognized Gradle
+  manifests, unsupported/dynamic project-directory methods, and symlink/reparse components in
+  derived directories therefore cannot become partial or outside coverage. The original
+  `compute_coverage` API remains as a compatibility wrapper and produces a zero-percent report
+  carrying an inconclusive diagnostic.
 - **Shared exact-byte validation core**: `validate_spec_content` accepts pre-read spec bytes and
   never opens the logical `spec_path` or adjacent companions. The path still anchors diagnostics
   and mapped-source checks, which retain normal path-based behavior.

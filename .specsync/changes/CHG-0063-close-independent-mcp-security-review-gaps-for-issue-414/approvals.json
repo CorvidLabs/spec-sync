@@ -83,6 +83,13 @@
       "timestamp": 1784818465,
       "digest": "4bc13eb06e151b31c0cbbf08fa293c5b4e560cd49032a37861464251cd32c663",
       "note": "User approved exact digest 4bc13eb06e151b31c0cbbf08fa293c5b4e560cd49032a37861464251cd32c663"
+    },
+    {
+      "gate": "definition",
+      "actor": "Leif",
+      "timestamp": 1784823965,
+      "digest": "2f9537c57c8bad9ebced63218a852dfd3f11404a703009880794ccb2576a0f46",
+      "note": "User approved exact digest 2f9537c57c8bad9ebced63218a852dfd3f11404a703009880794ccb2576a0f46."
     }
   ],
   "reopenings": []

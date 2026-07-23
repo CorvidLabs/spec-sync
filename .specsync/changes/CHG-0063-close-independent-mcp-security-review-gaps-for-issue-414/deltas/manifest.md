@@ -14,6 +14,9 @@ Acceptance Criteria
   names, and exactly `file(<literal>)` or `new File(rootDir, <literal>)` project directories.
 - Dynamic include arguments, alternate `new File` bases, extra arguments, and trailing assignment
   expressions fail checked discovery without returning partial modules.
+- Gradle module identities and `projectDir` literals are confined to project-relative paths:
+  rooted, drive-qualified, UNC, and parent-underflow forms fail before source probing, while safe
+  literal spellings retain compatibility.
 - General module discovery and MCP snapshot preflight use the same effective Gradle module paths.
 - A present `settings.gradle[.kts]` is parsed and validated even when no root
   `build.gradle[.kts]` exists.
@@ -53,3 +56,6 @@ Acceptance Criteria
 6. MCP Cargo workspace discovery trusts only structurally parsed TOML members and target paths.
 7. Settings-only Gradle workspaces discover included modules, while malformed settings remain an
    inconclusive checked-discovery error.
+8. Gradle module and effective project-directory paths cannot traverse above the project root or
+   select rooted, drive-qualified, or UNC locations; rejection occurs before partial discovery or
+   filesystem probing.

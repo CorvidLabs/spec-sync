@@ -199,3 +199,11 @@ testbed commit `758c144808d80169a44a740660b0d73c5b2f6ddd`, and the real private 
 Fresh exact-digest approval, two clean independent rereviews, audited CHG-0062/CHG-0064 evidence
 refresh, final repository/trust/provenance gates, hosted Windows runtime, and GitHub CI remain
 required.
+
+A subsequent human PR review confirmed the MCP issue contract but found one medium CLI-adjacent
+escape: Gradle `include` names and `projectDir` literals could normalize outside the project and
+feed those source directories to coverage/check. The shared Gradle parser now rejects rooted,
+drive-qualified, UNC, and parent-underflow paths before discovery. Focused parser and
+multi-command structured-gate regressions pass without reading or mutating an outside fixture.
+This artifact amendment supersedes the preceding approval digest and requires one fresh exact
+definition approval after the concurrent independent reviews are reconciled.

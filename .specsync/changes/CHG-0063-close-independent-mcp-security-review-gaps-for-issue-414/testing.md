@@ -351,10 +351,16 @@ superseded by the hash-bound exact-commit replay below.
   `manifest::tests::gradle_settings_reject_unsupported_project_dir_bases_and_suffixes`, and
   `manifest::tests::gradle_manifest_discovery_accepts_comments_and_escaped_paths` prove shared,
   normalized, checked Gradle discovery.
+  `manifest::tests::gradle_settings_reject_project_root_escapes` and
+  `manifest::tests::gradle_manifest_discovery_rejects_project_root_escape_without_partial_modules`
+  prove rooted, drive-qualified, UNC, and parent-underflow paths are rejected before discovery.
 - `REQ-cmd-check-001`, `REQ-cmd-comment-003`, `REQ-cmd-coverage-001`,
   `REQ-cmd-generate-001`, `REQ-cmd-report-001`, and `REQ-cmd-score-001`:
   `malformed_gradle_is_inconclusive_for_coverage_gating_commands` proves every command rejects
   malformed discovery, preserves parseable JSON where supported, and prevents mutation/reporting.
+  `commands::gradle_root_escape_is_inconclusive_for_coverage_gating_commands` proves
+  project-root escapes return nonzero structured inconclusive outcomes across check, coverage,
+  generate, report, and score without reading outside bytes or mutating either tree.
 - `REQ-config-005`: `config::tests::checked_source_detection_surfaces_malformed_gradle_settings`
   proves checked errors and compatibility fallback separation.
 - `REQ-config-006`:

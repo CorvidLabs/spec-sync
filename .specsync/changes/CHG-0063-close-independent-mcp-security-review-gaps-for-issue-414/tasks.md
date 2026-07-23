@@ -119,6 +119,9 @@ artifact: tasks
 - [x] Add exact non-object `github`, object/null/scalar PR-marker, and manifest-replacement tests.
 - [x] Replace the prior non-reproducible sandbox receipt with an exact-commit build plus binary,
   drill, and fixture hashes.
+- [x] Resolve the human PR review's Gradle project-root escape by rejecting rooted,
+  drive-qualified, UNC, and parent-underflow module/projectDir paths before discovery, with
+  parser and structured command-gate regressions.
 - [ ] Obtain a clean post-fix acceptance rereview and adversarial security/compatibility rereview.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.

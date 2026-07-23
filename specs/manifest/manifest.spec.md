@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 5
+version: 6
 status: stable
 files:
   - src/manifest.rs
@@ -65,15 +65,18 @@ member or target paths.
    `projectDir` overrides through `file(...)` or `new File(rootDir, ...)`.
 9. Every include argument must be a complete quoted literal; dynamic arguments, alternate
    `new File` bases, extra arguments, and trailing assignment expressions fail checked discovery.
-10. `discover_from_manifests_checked` returns an error for malformed or unsupported Gradle forms so
+10. Included module names and effective `projectDir` values normalize only while they remain
+    project-relative; rooted, drive-qualified, UNC, and parent traversal escapes fail checked
+    discovery without returning partial modules.
+11. `discover_from_manifests_checked` returns an error for malformed or unsupported Gradle forms so
     coverage gates remain inconclusive; it merges the result parsed from that same read instead of
     validating and rereading the path.
-11. package.json workspaces support both array form (`["packages/*"]`) and object form (`{ "packages": [...] }`)
-12. Go module name uses the last path segment of the module path (e.g. `github.com/user/repo` → `repo`)
-13. Python project name resolution tries `[project]` before `[tool.poetry]`
-14. General module metadata extraction remains string-based; MCP Cargo workspace preflight uses the
+12. package.json workspaces support both array form (`["packages/*"]`) and object form (`{ "packages": [...] }`)
+13. Go module name uses the last path segment of the module path (e.g. `github.com/user/repo` → `repo`)
+14. Python project name resolution tries `[project]` before `[tool.poetry]`
+15. General module metadata extraction remains string-based; MCP Cargo workspace preflight uses the
     real TOML parser and rejects malformed workspace shapes without partial discovery.
-15. `ManifestDiscovery::default()` returns empty modules and source_dirs
+16. `ManifestDiscovery::default()` returns empty modules and source_dirs
 
 ## Behavioral Examples
 
@@ -126,7 +129,7 @@ member or target paths.
 | Manifest file missing | Parser returns `None`, skipped silently |
 | Manifest file unreadable | Parser returns `None` (fs::read_to_string fails gracefully) |
 | Malformed non-Gradle manifest content | Best-effort extraction; missing fields result in defaults or skipped entries |
-| Malformed or dynamic Gradle include, unsupported `projectDir` base/arity/suffix, or broken comments/escapes/parentheses | Checked discovery returns `Err`; compatibility discovery returns an empty result and gates stay inconclusive |
+| Malformed or dynamic Gradle include, unsupported `projectDir` base/arity/suffix, rooted/drive/UNC/parent-escaping module path, or broken comments/escapes/parentheses | Checked discovery returns `Err`; compatibility discovery returns an empty result and gates stay inconclusive |
 | Workspace member directory doesn't exist | Skipped (Cargo.toml existence check) |
 | No parsers produce results | Returns default empty `ManifestDiscovery` |
 
@@ -154,3 +157,4 @@ member or target paths.
 | 2026-07-22 | CHG-0063: Parse standard Groovy/Kotlin Gradle module declarations and effective project directories through one shared parser |
 | 2026-07-22 | CHG-0063 follow-up: Add checked, comment/escape-aware Gradle discovery and document real-TOML MCP Cargo workspace preflight |
 | 2026-07-22 | CHG-0063 defensive review: Discover settings-only Gradle workspaces and fail closed on malformed settings without requiring a root build script |
+| 2026-07-23 | CHG-0063 human review: Reject rooted, drive-qualified, UNC, and parent-escaping Gradle module and `projectDir` paths before CLI discovery can inspect outside the project |

@@ -36,6 +36,7 @@ spec: manifest.spec.md
 | Malformed Gradle comments, escapes, strings, parentheses, or override | Checked discovery returns `Err` and coverage gates remain inconclusive | Exercise each malformed class without partial module results; checked discovery merges the same parsed read rather than rereading |
 | Missing root Gradle build script with present settings | Settings remain authoritative | Exercise valid and malformed settings-only workspaces |
 | Dynamic Gradle include or unsupported `projectDir` base/arity/suffix | Checked discovery returns `Err` without partial modules | Exercise mixed literal/dynamic includes, `rootDir.parentFile`, extra arguments, and trailing expressions |
+| Rooted, drive-qualified, UNC, or parent-escaping Gradle module/`projectDir` path | Checked discovery returns `Err` without inspecting outside the project or returning partial modules | Exercise `file("../outside")`, `include(":..:x")`, nested traversal, drive paths, and UNC paths |
 | Malformed MCP Cargo TOML or workspace shape | Snapshot/confinement discovery is inconclusive | Exercise syntax errors, non-table workspace, and non-string members |
 | Workspace member directory doesn't exist | Skipped (Cargo.toml existence check) | Keep or add a focused assertion before changing this behavior |
 | No parsers produce results | Returns default empty `ManifestDiscovery` | Keep or add a focused assertion before changing this behavior |

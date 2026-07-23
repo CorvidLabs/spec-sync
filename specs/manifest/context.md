@@ -13,7 +13,8 @@ spec: manifest.spec.md
 - **Workspace/monorepo support**: Cargo workspaces, package.json workspaces, and Gradle multi-module projects are handled. Cargo security preflight uses real TOML; Gradle settings use one comment/escape-aware parser for Groovy/Kotlin include forms and effective `projectDir` mappings so MCP preflight and general discovery agree.
 - **Fail-closed Gradle subset**: Include arguments must be complete string literals. Supported
   `projectDir` expressions are exactly `file(<literal>)` and `new File(rootDir, <literal>)` with no
-  trailing expression; dynamic arguments, alternate bases, or extra arguments reject the parse.
+  trailing expression; dynamic arguments, alternate bases, extra arguments, and any rooted,
+  drive-qualified, UNC, or parent-escaping normalized module path reject the parse.
 - **Swift test target exclusion**: `.testTarget()` entries are explicitly skipped to avoid polluting the module list with test infrastructure.
 - **Python priority**: `[project]` section is checked before `[tool.poetry]` in pyproject.toml, reflecting the ecosystem's migration toward PEP 621.
 
@@ -23,7 +24,7 @@ spec: manifest.spec.md
 
 ## Current Status
 
-Implemented for all 7 manifest formats. Gate callers use `discover_from_manifests_checked()` so malformed Gradle discovery is inconclusive instead of a compatibility fallback. Gradle module paths are normalized from colon notation and custom project directories before source probing, including settings-only workspaces; MCP Cargo workspace paths come from validated TOML values.
+Implemented for all 7 manifest formats. Gate callers use `discover_from_manifests_checked()` so malformed Gradle discovery is inconclusive instead of a compatibility fallback. Gradle module paths are normalized from colon notation and custom project directories before source probing, including settings-only workspaces, and normalization fails before discovery when a path would escape the project root; MCP Cargo workspace paths come from validated TOML values.
 
 ## Notes
 

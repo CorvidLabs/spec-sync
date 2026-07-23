@@ -19,6 +19,8 @@ spec: manifest.spec.md
 - [x] Shared Gradle settings parser for Groovy/Kotlin comments, escapes, quoting, multiline includes, nested names, and `projectDir` overrides
 - [x] Checked Gradle discovery that keeps malformed inputs inconclusive for coverage gates
 - [x] Reject dynamic Gradle includes and unsupported `projectDir` bases, arguments, or suffixes without partial discovery
+- [x] Reject rooted, drive-qualified, UNC, and parent-escaping Gradle module and `projectDir` paths
+  before shared CLI discovery can inspect outside the project
 - [x] Discover and validate settings-only Gradle multi-project workspaces without requiring a root build script
 - [x] Real-TOML Cargo workspace discovery for MCP snapshot and confinement preflight
 - [x] package.json parser (workspaces, monorepo support)

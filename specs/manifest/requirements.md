@@ -27,6 +27,9 @@ spec: manifest.spec.md
   checked discovery instead of returning a partial module set.
 - Supported `projectDir` values are exactly `file(<literal>)` or `new File(rootDir, <literal>)`;
   alternate bases, extra arguments, and trailing expressions reject checked discovery.
+- Included module names and effective `projectDir` values must normalize beneath the project root;
+  rooted, drive-qualified, UNC, and parent-escaping paths reject checked discovery without partial
+  modules.
 - General metadata extraction remains string/regex based; MCP Cargo workspace security discovery parses bounded manifests as real TOML
 - `ManifestDiscovery::default()` returns empty collections (safe fallback)
 - Checked discovery surfaces malformed Gradle comments, escapes, strings, parentheses, and overrides so coverage gates remain inconclusive
@@ -62,6 +65,9 @@ Acceptance Criteria
   checked discovery instead of returning a partial module set.
 - Supported `projectDir` values are exactly `file(<literal>)` or `new File(rootDir, <literal>)`;
   alternate bases, extra arguments, and trailing expressions reject checked discovery.
+- Included module names and effective `projectDir` values must normalize beneath the project root;
+  rooted, drive-qualified, UNC, and parent-escaping paths reject checked discovery without partial
+  modules.
 - General metadata extraction remains string/regex based; MCP Cargo workspace security discovery parses bounded manifests as real TOML
 - `ManifestDiscovery::default()` returns empty collections (safe fallback)
 - Checked discovery surfaces malformed Gradle comments, escapes, strings, parentheses, and overrides so coverage gates remain inconclusive

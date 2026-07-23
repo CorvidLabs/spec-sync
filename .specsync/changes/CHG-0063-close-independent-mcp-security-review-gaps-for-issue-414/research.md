@@ -58,3 +58,7 @@ artifact: research
   authority; subsequent path opens are observations, not authority.
 - A passing private replay is not reproducible when its executable and untracked drill/fixtures are
   mutable. Exact commit IDs must be paired with content digests for every executed input.
+- Confined MCP roots are insufficient if a shared manifest parser can emit ambient source paths
+  outside the project to CLI coverage/check callers. Gradle module identities and `projectDir`
+  literals must be normalized lexically and rejected on root, drive, UNC, or parent underflow
+  before any source probing or partial discovery.

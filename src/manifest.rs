@@ -451,9 +451,13 @@ pub(crate) fn parse_gradle_settings(content: &str) -> Result<Vec<GradleSettingsM
             return Err("Gradle include declaration has unbalanced parentheses".to_string());
         }
         for value in parse_gradle_include_statement(&statement)? {
-            let name = value.trim().trim_start_matches(':');
+            let name = value.trim().trim_start_matches(':').replace(':', "/");
             if !name.is_empty() {
-                included.push(name.replace(':', "/"));
+                included.push(normalize_gradle_project_relative_path(
+                    &name,
+                    "module path",
+                    false,
+                )?);
             }
         }
         index += 1;
@@ -522,12 +526,75 @@ fn parse_gradle_project_dir_overrides(content: &str) -> Result<HashMap<String, S
             return Err("Unsupported Gradle projectDir assignment".to_string());
         };
 
-        let module = module_values[0].trim_start_matches(':').replace(':', "/");
-        overrides.insert(module, path.replace('\\', "/"));
+        let module = normalize_gradle_project_relative_path(
+            &module_values[0].trim_start_matches(':').replace(':', "/"),
+            "projectDir module path",
+            false,
+        )?;
+        let path = normalize_gradle_project_relative_path(&path, "projectDir path", true)?;
+        overrides.insert(module, path);
         search_start = project_dir_index + ".projectDir".len();
     }
 
     Ok(overrides)
+}
+
+fn normalize_gradle_project_relative_path(
+    value: &str,
+    label: &str,
+    allow_project_root: bool,
+) -> Result<String, String> {
+    let normalized = value.replace('\\', "/");
+    if normalized.starts_with('/') {
+        return Err(format!(
+            "Gradle {label} must remain beneath the project root"
+        ));
+    }
+
+    let mut components = Vec::new();
+    let mut requires_normalization = false;
+    for component in normalized.split('/') {
+        if component.is_empty() {
+            continue;
+        }
+        if component == "." {
+            requires_normalization = true;
+            continue;
+        }
+        if component == ".." {
+            requires_normalization = true;
+            if components.pop().is_none() {
+                return Err(format!(
+                    "Gradle {label} must remain beneath the project root"
+                ));
+            }
+            continue;
+        }
+        if components.is_empty()
+            && component.as_bytes().get(1) == Some(&b':')
+            && component
+                .as_bytes()
+                .first()
+                .is_some_and(u8::is_ascii_alphabetic)
+        {
+            return Err(format!(
+                "Gradle {label} must remain beneath the project root"
+            ));
+        }
+        components.push(component);
+    }
+
+    if components.is_empty() {
+        if allow_project_root {
+            return Ok(".".to_string());
+        }
+        return Err(format!("Gradle {label} must identify a project path"));
+    }
+    Ok(if requires_normalization {
+        components.join("/")
+    } else {
+        normalized
+    })
 }
 
 fn find_gradle_project_call(content: &str) -> Option<usize> {
@@ -1303,6 +1370,12 @@ project(":outside").projectDir = new File(rootDir.parentFile, "outside")
         .unwrap_err();
         assert!(outside_base.contains("base must be exactly rootDir"));
 
+        let project_root = parse_gradle_settings(
+            "include(\":root\")\nproject(\":root\").projectDir = file(\".\")\n",
+        )
+        .unwrap();
+        assert_eq!(project_root[0].path, ".");
+
         for assignment in [
             r#"file("modules/safe").parentFile"#,
             r#"new File(rootDir, "modules/safe") + "/outside""#,
@@ -1312,6 +1385,55 @@ project(":outside").projectDir = new File(rootDir.parentFile, "outside")
             let error = parse_gradle_settings(&settings).unwrap_err();
             assert!(error.contains("Unsupported trailing Gradle projectDir assignment expression"));
         }
+    }
+
+    #[test]
+    fn gradle_settings_reject_project_root_escapes() {
+        for settings in [
+            r#"
+include(":outside")
+project(":outside").projectDir = file("../outside")
+"#,
+            r#"include(":..:outside")"#,
+            r#"
+include(":outside")
+project(":outside").projectDir = file("safe/../../outside")
+"#,
+            r#"
+include(":outside")
+project(":outside").projectDir = file("C:\outside")
+"#,
+            r#"
+include(":outside")
+project(":outside").projectDir = file("\\server\share")
+"#,
+        ] {
+            let error = parse_gradle_settings(settings).unwrap_err();
+            assert!(
+                error.contains("must remain beneath the project root"),
+                "unexpected Gradle confinement error: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn gradle_manifest_discovery_rejects_project_root_escape_without_partial_modules() {
+        let tmp = tempdir().unwrap();
+        let project = tmp.path().join("project");
+        let outside = tmp.path().join("outside/src/main/kotlin");
+        fs::create_dir_all(&project).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(
+            project.join("settings.gradle.kts"),
+            "include(\":outside\")\nproject(\":outside\").projectDir = file(\"../outside\")\n",
+        )
+        .unwrap();
+
+        let error = discover_from_manifests_checked(&project).unwrap_err();
+        assert!(error.contains("must remain beneath the project root"));
+        let compatibility_result = discover_from_manifests(&project);
+        assert!(compatibility_result.modules.is_empty());
+        assert!(compatibility_result.source_dirs.is_empty());
     }
 
     #[test]

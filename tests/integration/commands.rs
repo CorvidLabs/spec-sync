@@ -1250,6 +1250,62 @@ fn malformed_gradle_is_inconclusive_for_coverage_gating_commands() {
 }
 
 #[test]
+fn gradle_root_escape_is_inconclusive_for_coverage_gating_commands() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    let outside_source = tmp.path().join("outside/src/main/kotlin/Secret.kt");
+    fs::create_dir_all(outside_source.parent().unwrap()).unwrap();
+    fs::write(&outside_source, "const val SECRET = \"DO_NOT_SCAN\"\n").unwrap();
+    fs::write(
+        root.join("settings.gradle.kts"),
+        "include(\":outside\")\nproject(\":outside\").projectDir = file(\"../outside\")\n",
+    )
+    .unwrap();
+
+    for command in ["check", "coverage", "generate", "report", "score"] {
+        let output = specsync()
+            .arg(command)
+            .arg("--root")
+            .arg(&root)
+            .args(["--format", "json"])
+            .assert()
+            .failure()
+            .get_output()
+            .stdout
+            .clone();
+        let json: serde_json::Value = serde_json::from_slice(&output).unwrap_or_else(|error| {
+            panic!(
+                "{command} must emit valid JSON for a rejected Gradle escape: {error}; stdout={}",
+                String::from_utf8_lossy(&output)
+            )
+        });
+        assert_eq!(
+            json["inconclusive"], true,
+            "unexpected {command} JSON: {json}"
+        );
+        assert!(
+            json["error"]
+                .as_str()
+                .is_some_and(|message| message.contains("must remain beneath the project root")),
+            "unexpected {command} error: {json}"
+        );
+        assert!(
+            !String::from_utf8_lossy(&output).contains("DO_NOT_SCAN"),
+            "{command} disclosed outside source bytes"
+        );
+        assert!(
+            !root.join("specs/outside").exists(),
+            "{command} mutated output after rejecting the Gradle escape"
+        );
+    }
+
+    assert_eq!(
+        fs::read_to_string(outside_source).unwrap(),
+        "const val SECRET = \"DO_NOT_SCAN\"\n"
+    );
+}
+
+#[test]
 fn coverage_full_reports_100() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);

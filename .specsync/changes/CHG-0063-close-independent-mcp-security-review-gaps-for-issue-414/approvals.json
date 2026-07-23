@@ -55,6 +55,13 @@
       "timestamp": 1784791548,
       "digest": "0da4b01ad4ce3f26b9afb679533d223a9493b27b59e0761077f86ff686414951",
       "note": "Recorded from the user's explicit reapproval of view digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed after final artifact stabilization and two independent PASS rereviews."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784798512,
+      "digest": "111c69c754342f66d075667c081156e477ac68c87e74b61097395f4201a00bd9",
+      "note": "User explicitly reapproved CHG-0063 digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed."
     }
   ],
   "reopenings": []

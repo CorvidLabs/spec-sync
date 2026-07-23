@@ -401,3 +401,21 @@ Acceptance Criteria
 - Malformed MCP Cargo TOML/workspace shapes make MCP operations inconclusive; malformed Gradle
   comments, escapes, strings, parentheses, and overrides make every checked coverage gate
   inconclusive without returning partial module results.
+
+### REQ-review-amendment-001
+
+Final reviewer findings SHALL be closed with platform-independent acquisition, portable import
+paths, truthful batch outcomes, exact characterization coverage, and reproducible sandbox evidence.
+
+Acceptance Criteria
+
+- Config and manifest files are opened no-follow and non-blocking before replaceable path state is
+  trusted; opened regular-file identity remains authoritative through read on Windows and Unix.
+- Imported GitHub, Jira, Confluence, and directory module candidates satisfy the shared portable
+  component contract before any filesystem write.
+- Batch import continues after item errors, preserves successful items, reports exact counts, and
+  exits 1 when any error occurred.
+- Focused tests cover manifest replacement, non-object JSON `github`, and object/null/scalar direct
+  pull-request markers.
+- The private sandbox receipt records the exact implementation commit, testbed revision, binary
+  digest, and immutable digests for every untracked drill/fixture input.

@@ -18,3 +18,16 @@ Acceptance Criteria
 - Public validation retains its rendered `Vec<String>` diagnostics contract. Private structured
   attribution and longest exact discovered-path matching preserve legal paths containing `": "`
   without exporting new command types.
+
+### REQUIREMENT REQ-commands-004
+
+Shared module-name validation SHALL enforce one portable generated-spec component contract on every
+host.
+
+Acceptance Criteria
+
+- Reject Windows reserved device basenames case-insensitively, including before extensions.
+- Reject Windows-invalid component characters on every host.
+- Reject trailing spaces/dots and names longer than 247 UTF-8 bytes so `<name>.spec.md` remains at
+  most 255 bytes.
+- Preserve valid ASCII and multibyte names exactly at the 247-byte boundary.

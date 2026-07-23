@@ -112,6 +112,13 @@ artifact: tasks
   recognized manifests to pre-open identities, reject special manifests without blocking, reject
   wrong-shaped exact JSON GitHub fields, share source-detection ignores, reject direct-detail
   pull-request payloads, and reject empty GitHub import slugs.
+- [x] Make no-follow, non-blocking retained handles authoritative for MCP and CLI config/manifests
+  on Windows and Unix, with replacement and FIFO race regressions.
+- [x] Reject non-portable imported module candidates before writes and make partial batch errors
+  return exit 1 after processing later items.
+- [x] Add exact non-object `github`, object/null/scalar PR-marker, and manifest-replacement tests.
+- [ ] Replace the prior non-reproducible sandbox receipt with an exact-commit build plus binary,
+  drill, and fixture hashes.
 - [ ] Obtain a clean post-fix acceptance rereview and adversarial security/compatibility rereview.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.

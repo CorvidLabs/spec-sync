@@ -44,7 +44,7 @@ spec: github.spec.md
 | Raw issue/PR URL uses the wrong repo, resource kind, or number | Entire listing fails before PR filtering | Covered by `issue_list_rejects_wrong_issue_and_pull_request_url_identity` |
 | Raw issue/PR URL number has leading zeros | Entire listing fails before PR filtering even when the numeric value matches | Covered by `provider_item_urls_require_canonical_decimal_numbers_in_list_and_detail` |
 | Duplicate raw identity involves one or more pull requests | Entire page/pagination traversal fails before filtering can hide the collision | Covered by the raw duplicate regressions within and across pages |
-| Direct issue-detail payload carries `pull_request` | Reject as provider data for a pull request; do not verify or import it as an issue | Covered by `issue_details_require_typed_identity_body_and_url` |
+| Direct issue-detail payload carries object, null, or scalar `pull_request` | Reject every marker shape as provider data for a pull request; do not verify or import it as an issue | Covered by `issue_details_reject_pull_request_markers_of_any_shape` |
 | Issue-list page has exactly 100 provider entries, including a pull request | Page is accepted and the pull request is filtered only after the page bound is established | Covered by `issue_list_accepts_one_hundred_provider_entries_including_pull_requests` |
 | Issue-list page has 101 provider entries | Entire listing fails before parsing the malformed overflow item | Covered by `issue_list_rejects_one_hundred_one_entries_before_parsing_malformed_pull_request` |
 | Duplicate issue across pages or next link after page 100 | Entire listing fails instead of deduplicating or truncating | Covered by `issue_list_pagination_fails_instead_of_truncating_or_deduplicating` |

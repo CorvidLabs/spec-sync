@@ -1,6 +1,6 @@
 ---
 module: commands
-version: 9
+version: 10
 status: stable
 files:
   - src/commands/mod.rs
@@ -40,7 +40,7 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `load_and_discover` | `root: &Path, allow_empty: bool` | `(SpecSyncConfig, Vec<PathBuf>)` | Load config and discover all spec files (excluding `_`-prefixed); exits if empty and `allow_empty` is false |
-| `validate_module_name` | `module_name: &str` | `Result<(), String>` | Validate a user-supplied module name for the scaffolding commands (`new`, `add-spec`, `scaffold`, `wizard`): must be a single plain path segment (one `Component::Normal`, no separators/`.`/`..`/absolute/drive-relative/control chars), preventing path traversal outside the project |
+| `validate_module_name` | `module_name: &str` | `Result<(), String>` | Validate a user-supplied module name as one portable path segment: reject traversal/control/Windows-invalid characters, trailing spaces/dots, Windows reserved device basenames (including before extensions), and names whose `<name>.spec.md` filename exceeds 255 UTF-8 bytes |
 | `filter_specs` | `root: &Path, spec_files: &[PathBuf], filters: &[String]` | `Vec<PathBuf>` | Filter spec files by user-provided names/paths (exact path, relative path, filename, module name); returns all if filters is empty |
 | `filter_by_status` | `spec_files: &[PathBuf], exclude: &[String], only: &[String]` | `Vec<PathBuf>` | Filter spec files by their frontmatter status field; supports exclude-list and allow-list modes |
 | `build_schema_columns` | `root: &Path, config: &SpecSyncConfig` | `HashMap<String, SchemaTable>` | Build column-level schema from migration files if `schema_dir` is configured |
@@ -96,6 +96,9 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 7. Drift-creation terminal output never emits untrusted repository-resolution errors, spec paths,
    issue URLs, or provider errors without diagnostic sanitization; delegated GitHub issue
    title/body construction applies its own hostile-text sanitization
+8. `validate_module_name` is platform-independent: every host rejects Windows-invalid characters,
+   reserved device basenames, trailing spaces/dots, and module names longer than 247 UTF-8 bytes so
+   generated spec filenames remain portable 255-byte path components.
 
 ## Behavioral Examples
 
@@ -134,6 +137,7 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 | `schema_dir` not configured | `build_schema_columns` returns empty map (no error) |
 | GitHub repo unresolvable for drift issues | Prints a sanitized error and returns without creating issues |
 | `gh` CLI fails to create issue | Prints a sanitized per-spec error and continues with remaining specs |
+| Module name is non-portable, reserved, or too long | Returns an actionable `Err` before any output path is joined or created |
 
 ## Dependencies
 
@@ -173,6 +177,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | Date | Change |
 |------|--------|
 | 2026-07-22 | v9 / CHG-0063: sanitize hostile terminal diagnostics throughout drift creation, preserve the public rendered `Vec<String>` API, and use private structured exact-path attribution for GitHub drift creation |
+| 2026-07-23 | v10 / CHG-0063: enforce portable module components, Windows reserved-name rules, and the 255-byte generated spec filename limit on every platform |
 | 2026-07-01 | v4: Add `agents` submodule (native AI-tool skill/slash-command installation) |
 | 2026-07-10 | v5: Add `change` submodule for the verified SDD lifecycle |
 | 2026-06-11 | v3: Partial export-coverage summary ("N/M exports documented") prints as ⚠ — it is counted as a warning, so the summary's warning count now matches the printed ⚠ lines |

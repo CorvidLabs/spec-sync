@@ -7,6 +7,7 @@ spec: cmd_import.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/commands/import.rs` | cargo test --test integration import_ | Directory-import and no-args paths plus single/batch GitHub missing-token failures are covered end-to-end; live fetch success remains network/recording dependent. |
+| Portable batch outcomes | cargo test commands::import::tests | Unsafe provider/directory names create no path, valid later items still import, summary counts both, and the command exits 1 |
 | `src/github.rs` | cargo test github::tests | Typed issue parsing; complete strict pagination; malformed Link, duplicate-ID, page-cap, 404 revalidation, and no-read-subprocess failures. |
 | `src/importer.rs` | cargo test importer::tests | GitHub issue detail conversion delegates to the shared typed REST contract; rendering and non-GitHub import parsing remain stable. |
 | `tests/integration.rs` | cargo test --test integration import_without_args_or_flags_shows_error | Missing source/id with no batch flag fails with "SOURCE is required". |
@@ -39,6 +40,7 @@ spec: cmd_import.spec.md
 | `GITHUB_TOKEN` missing | Single and batch GitHub imports fail with explicit-token guidance, never consult `gh`, and create no output | Covered by `single_github_import_fails_closed_without_a_rest_token_or_output`, `batch_github_import_fails_closed_without_a_rest_token_or_output`, and shared provider regressions. |
 | Paginated list contains malformed Link data or duplicate IDs | Batch import fails instead of importing a partial/ambiguous issue set | Covered by `link_header_parsing_detects_next_and_rejects_malformed_values` and `issue_list_pagination_fails_instead_of_truncating_or_deduplicating`. |
 | Page 100 still advertises a next page | Batch import fails instead of silently truncating | Covered by `issue_list_pagination_fails_instead_of_truncating_or_deduplicating`. |
+| One batch item has an unsafe output name | Count error, create no unsafe path, continue later items, preserve valid output, then exit 1 | Covered by both `commands::import::tests` regressions. |
 
 ## Reviewer Checklist
 

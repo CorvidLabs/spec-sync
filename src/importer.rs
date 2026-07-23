@@ -193,6 +193,13 @@ pub fn slugify(title: &str) -> String {
         .join("-")
 }
 
+fn validated_slug(source: &str, title: &str) -> Result<String, String> {
+    let module_name = slugify(title);
+    crate::commands::validate_module_name(&module_name)
+        .map_err(|error| format!("{source} title cannot produce a safe module name: {error}"))?;
+    Ok(module_name)
+}
+
 // ─── GitHub Issues Importer ────────────────────────────────────────────
 
 /// Fetch a GitHub issue and convert it to an `ImportedItem`.
@@ -214,13 +221,10 @@ fn import_github_issue_details(
     details: crate::github::GitHubIssueDetails,
 ) -> Result<ImportedItem, String> {
     let requirements = extract_requirements(&details.body);
-    let module_name = slugify(&details.issue.title);
-    if module_name.is_empty() {
-        return Err(format!(
-            "GitHub issue #{} title cannot produce a safe module name",
-            details.issue.number
-        ));
-    }
+    let module_name = validated_slug(
+        &format!("GitHub issue #{}", details.issue.number),
+        &details.issue.title,
+    )?;
 
     Ok(ImportedItem {
         module_name,
@@ -316,9 +320,10 @@ fn parse_jira_json(
     let requirements = extract_requirements(&description);
 
     let browse_url = format!("{}/browse/{issue_key}", base_url.trim_end_matches('/'));
+    let module_name = validated_slug(&format!("Jira issue {issue_key}"), &summary)?;
 
     Ok(ImportedItem {
-        module_name: slugify(&summary),
+        module_name,
         purpose: summary,
         requirements,
         labels,
@@ -448,9 +453,10 @@ fn parse_confluence_json(
             format!("{base}{webui}")
         })
         .unwrap_or_else(|| format!("{}/pages/{page_id}", base_url.trim_end_matches('/')));
+    let module_name = validated_slug(&format!("Confluence page {page_id}"), &title)?;
 
     Ok(ImportedItem {
-        module_name: slugify(&title),
+        module_name,
         purpose,
         requirements,
         labels: Vec::new(),
@@ -771,6 +777,49 @@ mod tests {
         .expect_err("punctuation-only titles must not produce an empty output path");
 
         assert!(error.contains("safe module name"), "{error}");
+    }
+
+    #[test]
+    fn test_external_imports_reject_nonportable_slugs() {
+        let github_details = crate::github::GitHubIssueDetails {
+            issue: crate::github::GitHubIssue {
+                number: 8,
+                title: "CON".to_string(),
+                state: "open".to_string(),
+                labels: Vec::new(),
+                url: "https://github.com/org/repo/issues/8".to_string(),
+            },
+            body: String::new(),
+        };
+        assert!(import_github_issue_details(github_details).is_err());
+
+        let overlong_github_details = crate::github::GitHubIssueDetails {
+            issue: crate::github::GitHubIssue {
+                number: 9,
+                title: "a".repeat(248),
+                state: "open".to_string(),
+                labels: Vec::new(),
+                url: "https://github.com/org/repo/issues/9".to_string(),
+            },
+            body: String::new(),
+        };
+        assert!(import_github_issue_details(overlong_github_details).is_err());
+
+        let jira = serde_json::json!({
+            "fields": {
+                "summary": "LPT9",
+                "description": null,
+                "labels": []
+            }
+        });
+        assert!(parse_jira_json(&jira, "PROJ-9", "https://jira.example.com").is_err());
+
+        let confluence = serde_json::json!({
+            "title": "NUL",
+            "body": {"storage": {"value": "<p>Unsafe title</p>"}},
+            "_links": {}
+        });
+        assert!(parse_confluence_json(&confluence, "10", "https://wiki.example.com/wiki").is_err());
     }
 
     #[test]

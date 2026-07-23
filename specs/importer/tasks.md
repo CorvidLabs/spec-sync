@@ -24,6 +24,8 @@ spec: importer.spec.md
 - [x] Exercise the GitHub importer entry path through its typed provider seam for success and
   failure without producing an item on provider error
 - [x] Reject GitHub issue titles that cannot produce a safe non-empty module name
+- [x] Reject non-portable GitHub, Jira, and Confluence slugs, including Windows reserved device
+  basenames and overlong generated spec filenames, before producing an imported item
 
 ## Gaps
 

@@ -11,6 +11,8 @@ spec: commands.spec.md
 - As a team using GitHub, I want validation errors turned into one issue per drifted spec so that drift gets tracked without flooding the tracker
 - As a terminal and GitHub user, I want hostile drift paths and provider text rendered safely so
   that validation data cannot inject terminal or issue formatting
+- As a cross-platform user, I want every module name validated against portable component rules so
+  that a spec created on Unix cannot fail, alias a device, or exceed component limits on Windows.
 
 ## Acceptance Criteria
 
@@ -28,6 +30,9 @@ spec: commands.spec.md
 - `create_drift_issues` sanitizes untrusted repository-resolution failures, spec paths, created
   issue URLs, and provider failures before terminal rendering; delegated GitHub issue titles and
   bodies are sanitized independently
+- `validate_module_name` rejects path traversal/control/Windows-invalid characters, trailing
+  spaces/dots, case-insensitive Windows device basenames (including before an extension), and names
+  over 247 UTF-8 bytes; 247-byte ASCII and multibyte boundaries remain valid.
 
 ## Constraints
 
@@ -38,6 +43,7 @@ spec: commands.spec.md
 - Drift-creation renderers must not emit raw terminal controls, bidirectional formatting controls,
   or Unicode line/paragraph separators from repository, path, URL, or provider text
 - Output rendering must respect the requested `OutputFormat` (text vs collected JSON/markdown/GitHub)
+- Generated `<module>.spec.md` filenames must fit within one portable 255-byte component.
 
 ## Out of Scope
 

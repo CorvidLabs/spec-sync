@@ -23,6 +23,7 @@ spec: commands.spec.md
 | Flow | Fixture / Setup | Action | Expected Result |
 |------|-----------------|--------|-----------------|
 | Filter by module name | specs exist at `specs/auth/auth.spec.md` and `specs/api/api.spec.md` | `filter_specs(root, specs, &["auth"])` is called | returns only `specs/auth/auth.spec.md` |
+| Portable module validation | reserved names, trailing spaces/dots, and 247/248-byte ASCII or multibyte names | `cargo test commands::tests::validate_module_name` | reserved/non-portable/248-byte names fail; 247-byte boundaries pass |
 | Strict mode with warnings | enforcement is `Strict`, `--strict` is set, validation has 0 errors but 3 warnings | `compute_exit_code()` is called | returns 1 (warnings treated as errors) |
 | EnforceNew with unspecced files | enforcement is `EnforceNew`, coverage shows 2 unspecced files | `exit_with_status()` is called | prints count and exits with code 1 |
 | Hostile drift-creation text | repository/path/URL/provider values contain controls, bidi, or Zl/Zp characters | `create_drift_issues()` reports resolution, success, or failure | terminal diagnostics are sanitized and GitHub title/body arguments contain no hostile formatting characters |

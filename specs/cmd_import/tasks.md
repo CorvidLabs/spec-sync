@@ -21,6 +21,9 @@ spec: cmd_import.spec.md
 - [x] Require explicit-token in-process GitHub reads for single and batch import; remove authenticated `gh` read fallback.
 - [x] Follow strict bounded GitHub pagination and fail closed on malformed links, duplicate issue IDs, or cap truncation.
 - [x] Prove single and batch GitHub imports fail without a token and create no spec output.
+- [x] Validate every single/batch output module name before filesystem writes
+- [x] Continue batch imports after item failures while returning exit 1 for any error, with partial
+  success and unsafe-path regression coverage
 
 ## Review Status
 

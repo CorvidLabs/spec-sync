@@ -1591,6 +1591,31 @@ mod tests {
     }
 
     #[test]
+    fn issue_details_reject_pull_request_markers_of_any_shape() {
+        let valid = serde_json::json!({
+            "number": 42,
+            "title": "Issue",
+            "state": "open",
+            "labels": [{"name": "security"}],
+            "html_url": "https://github.com/owner/repo/issues/42",
+            "body": null
+        });
+
+        for (shape, marker) in [
+            ("object", serde_json::json!({})),
+            ("null", serde_json::Value::Null),
+            ("scalar", serde_json::json!("not-an-object")),
+        ] {
+            let mut pull_request = valid.clone();
+            pull_request["pull_request"] = marker;
+
+            let error = parse_issue_details_json("owner/repo", 42, &pull_request)
+                .expect_err("the issue endpoint must reject every pull request marker shape");
+            assert!(error.contains("pull request"), "{shape}: {error}");
+        }
+    }
+
+    #[test]
     fn issue_details_require_typed_identity_body_and_url() {
         let valid = serde_json::json!({
             "number": 42,

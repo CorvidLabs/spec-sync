@@ -72,3 +72,12 @@ artifact: design
   repository or contacts GitHub.
 - Route missing-spec and repository-resolution outcomes through the selected JSON/Markdown/GitHub
   renderer before selecting the exit status.
+
+## Final retained-handle and import amendment
+
+- Treat the first no-follow, non-blocking regular-file handle as authority. Compare all later path
+  observations to that handle identity before and after bounded reads, including on Windows.
+- Apply one portable module-name validator before every import output join. Batch orchestration
+  returns structured counts so the outer command can continue items yet exit 1 after any error.
+- Make evidence reproducible by building from the cited implementation commit and hashing the
+  executable plus every drill/fixture input used by the private sandbox.

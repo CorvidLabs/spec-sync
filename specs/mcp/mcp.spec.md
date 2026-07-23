@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 14
+version: 15
 status: stable
 files:
   - src/mcp.rs
@@ -43,17 +43,18 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 6. Mutating tools require write mode, reject root overrides, and use the configured root.
 7. Tool argument schemas and runtime validation reject unknown properties and wrong types.
 8. Tool-domain errors use `isError`; JSON-RPC shape errors use protocol error objects.
-9. Selected configuration and recognized manifest inputs must remain regular files with the same
-   pre-open identity through their bounded reads; special files fail before any blocking read, and
-   replacement identities are rejected before bytes are parsed.
-9. Every notification, including unknown methods, receives no response and cannot mutate state.
-10. Config/metadata/cache files and paths, manifest/autodetection paths, dependency references,
+9. Selected configuration and recognized manifest inputs are first acquired as retained regular
+   file handles through explicit no-follow, non-blocking opens. Opened-handle metadata and identity
+   remain authoritative across bounded reads; path observations must resolve to that identity, so
+   links/reparse points, special files, and replacement identities fail before bytes are parsed.
+10. Every notification, including unknown methods, receives no response and cannot mutate state.
+11. Config/metadata/cache files and paths, manifest/autodetection paths, dependency references,
     module names/files, spec mappings, nested symlinks, and write destinations are validated against
     the canonical root before use.
-11. Recursive checks canonicalize only symlinks, honor ignored/configured exclusions, and share
+12. Recursive checks canonicalize only symlinks, honor ignored/configured exclusions, and share
     deterministic cumulative bounds across configured paths and spec mappings.
-12. JSON-RPC input lines and responses are bounded to 1 MiB, and request IDs are bounded to 4 KiB.
-13. Generated output is limited to 1,000 specs and 64 MiB, preflighted before mutation, staged and
+13. JSON-RPC input lines and responses are bounded to 1 MiB, and request IDs are bounded to 4 KiB.
+14. Generated output is limited to 1,000 specs and 64 MiB, preflighted before mutation, staged and
     synced beside each destination, and atomically published without overwriting existing files;
     retained parent capabilities and filesystem-plus-content identities preserve replacements at public transaction
     paths. Empty parent directories created during a failed batch may remain because no portable
@@ -62,7 +63,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
     does not retain a sharing-blocking handle.
     Processes already authorized to mutate the server root must not race private
     `.specsync-mcp-stage-*` or `.specsync-mcp-quarantine-*` names.
-14. Explicit root-wide and manifest-derived inputs remain present in bounded snapshots even when
+15. Explicit root-wide and manifest-derived inputs remain present in bounded snapshots even when
     they cross normally ignored directory names; ignored or configured-exclusion symlink names
     are skipped before following targets unless an explicit configured input names them or a descendant;
     manifest discovery parses Cargo workspace
@@ -73,7 +74,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
     is ignored. Manifest-relative parent components and confined Windows-native backslashes are
     normalized from the declaring manifest and accepted when their resolved target remains beneath
     the server root; drive, UNC, rooted, traversal, symlink, and junction escapes fail.
-15. GitHub issue verification requires explicit `GITHUB_TOKEN`, performs read/list/verify requests
+16. GitHub issue verification requires explicit `GITHUB_TOKEN`, performs read/list/verify requests
     in-process without a provider subprocess, prepares once, globally deduplicates at most 100 IDs,
     includes authentication/preflight in the 30-second batch bound, and revalidates repository
     access before accepting not-found; provider failures remain inconclusive tool errors rather
@@ -85,7 +86,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
     sanitized relative spec path and a content-free reason, never host-absolute paths, raw OS
     errors, or spec bytes. Windows diagnostic separators render as `/`; Unix literal backslashes
     remain filename data and are not conflated with nested paths.
-16. A selected MCP configuration is acquired through verified regular-directory and regular-file
+17. A selected MCP configuration is acquired through verified regular-directory and regular-file
     capabilities with no symlink/reparse traversal, non-blocking open, identity checks, and the
     normal per-file bound. Its exact retained bytes pass the complete checked config parser before
     any compatibility loader runs. Non-object JSON, invalid UTF-8, malformed JSON/TOML, and
@@ -216,3 +217,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-22 | CHG-0063 final config follow-up: Validate selected bounded config bytes and path-selector types before compatibility loading |
 | 2026-07-22 | CHG-0063 no-follow config follow-up: Reject linked/reparse, non-regular, blocking, replaced, and structurally invalid selected configs through an identity-verified bounded snapshot and the complete checked parser |
 | 2026-07-22 | CHG-0063 final agent-review follow-up: Bind selected configs to their pre-open identity and reject special-file manifests before blocking reads |
+| 2026-07-22 | CHG-0063 retained-handle follow-up: Acquire selected configs and manifests with no-follow, non-blocking handles on every platform; validate opened metadata and reject path replacement before and after bounded reads |

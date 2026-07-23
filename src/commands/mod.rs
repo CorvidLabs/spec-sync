@@ -74,13 +74,16 @@ pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConf
 /// unvalidated name containing a path separator, `.`/`..`, or an absolute/drive-relative
 /// path would let scaffolding create files anywhere on disk (path traversal).
 ///
-/// A valid name is a single plain path segment: exactly one `Component::Normal`, with no
-/// raw path separator and no control characters. The component check is platform-aware —
-/// it also rejects Windows drive-relative prefixes like `C:foo` that `Path::is_absolute`
-/// misses. Control characters are rejected so a name cannot inject into the generated
-/// YAML frontmatter or create a control-char directory. Returns `Err` (to be printed and
-/// exited on) rather than writing outside the project.
+/// A valid name is a single portable path segment: exactly one `Component::Normal`, with no
+/// raw path separator, control characters, trailing spaces/dots, or Windows reserved device
+/// basename. The generated `<name>.spec.md` component must also fit within the portable 255-byte
+/// limit. The component check is platform-aware — it also rejects Windows drive-relative prefixes
+/// like `C:foo` that `Path::is_absolute` misses. Returns `Err` (to be printed and exited on) rather
+/// than writing outside the project.
 pub fn validate_module_name(module_name: &str) -> Result<(), String> {
+    const SPEC_SUFFIX: &str = ".spec.md";
+    const MAX_COMPONENT_BYTES: usize = 255;
+
     let single_normal_segment = {
         let mut components = Path::new(module_name).components();
         matches!(components.next(), Some(std::path::Component::Normal(_)))
@@ -88,15 +91,50 @@ pub fn validate_module_name(module_name: &str) -> Result<(), String> {
     };
     let clean = !module_name.contains('/')
         && !module_name.contains('\\')
+        && !module_name
+            .chars()
+            .any(|character| matches!(character, '<' | '>' | ':' | '"' | '|' | '?' | '*'))
         && !module_name.chars().any(char::is_control);
-    if single_normal_segment && clean {
-        return Ok(());
+    if !single_normal_segment || !clean {
+        return Err(format!(
+            "invalid module name `{}`: use a single plain name — no path separators (`/`, `\\`), \
+             Windows-invalid characters (`<`, `>`, `:`, `\"`, `|`, `?`, `*`), `.`/`..`, drive \
+             prefixes, absolute paths, or control characters",
+            module_name.escape_default()
+        ));
     }
-    Err(format!(
-        "invalid module name `{}`: use a single plain name — no path separators (`/`, `\\`), \
-         `.`/`..`, drive prefixes, absolute paths, or control characters",
-        module_name.escape_default()
-    ))
+
+    if module_name.ends_with(' ') || module_name.ends_with('.') {
+        return Err(format!(
+            "invalid module name `{}`: trailing spaces and dots are not portable",
+            module_name.escape_default()
+        ));
+    }
+
+    if module_name.len() + SPEC_SUFFIX.len() > MAX_COMPONENT_BYTES {
+        return Err(format!(
+            "invalid module name `{}`: UTF-8 name must not exceed {} bytes so `{SPEC_SUFFIX}` fits \
+             within a {MAX_COMPONENT_BYTES}-byte path component",
+            module_name.escape_default(),
+            MAX_COMPONENT_BYTES - SPEC_SUFFIX.len()
+        ));
+    }
+
+    let basename = module_name.split('.').next().unwrap_or_default();
+    let uppercase_basename = basename.to_ascii_uppercase();
+    let numbered_device = uppercase_basename.len() == 4
+        && (uppercase_basename.starts_with("COM") || uppercase_basename.starts_with("LPT"))
+        && matches!(uppercase_basename.as_bytes()[3], b'1'..=b'9');
+    let reserved_device =
+        matches!(uppercase_basename.as_str(), "CON" | "PRN" | "AUX" | "NUL") || numbered_device;
+    if reserved_device {
+        return Err(format!(
+            "invalid module name `{}`: `{basename}` is a Windows reserved device basename",
+            module_name.escape_default()
+        ));
+    }
+
+    Ok(())
 }
 
 /// Filter spec files by user-provided spec names/paths.
@@ -1013,6 +1051,97 @@ mod tests {
                 name.escape_default()
             );
         }
+    }
+
+    #[test]
+    fn validate_module_name_rejects_windows_invalid_characters_portably() {
+        for name in [
+            "auth<api",
+            "auth>api",
+            "auth:api",
+            "auth\"api",
+            "auth|api",
+            "auth?api",
+            "auth*api",
+        ] {
+            assert!(
+                validate_module_name(name).is_err(),
+                "`{name}` must be rejected on every host"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_module_name_rejects_windows_reserved_basenames_portably() {
+        for name in [
+            "CON",
+            "con",
+            "Con.txt",
+            "PRN",
+            "prn.backup",
+            "AUX",
+            "aux.rs",
+            "NUL",
+            "nul.spec",
+            "COM1",
+            "com9.log",
+            "LPT1",
+            "lPt9.anything",
+        ] {
+            assert!(
+                validate_module_name(name).is_err(),
+                "`{name}` must be rejected as a Windows reserved basename"
+            );
+        }
+        for number in 1..=9 {
+            for prefix in ["COM", "LPT"] {
+                let bare = format!("{prefix}{number}");
+                let with_extension = format!("{}.txt", bare.to_ascii_lowercase());
+                assert!(
+                    validate_module_name(&bare).is_err(),
+                    "`{bare}` must be rejected"
+                );
+                assert!(
+                    validate_module_name(&with_extension).is_err(),
+                    "`{with_extension}` must be rejected"
+                );
+            }
+        }
+
+        for name in ["console", "com0", "com10", "lpt0", "lpt10", "module.con"] {
+            assert!(
+                validate_module_name(name).is_ok(),
+                "`{name}` is not a Windows reserved basename"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_module_name_rejects_trailing_spaces_and_dots() {
+        for name in ["auth ", "auth.", "auth. ", "Módulo."] {
+            assert!(
+                validate_module_name(name).is_err(),
+                "`{name}` must be rejected because Windows strips trailing spaces/dots"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_module_name_enforces_portable_spec_filename_byte_limit() {
+        let ascii_boundary = "a".repeat(247);
+        let ascii_too_long = "a".repeat(248);
+        let multibyte_boundary = format!("{}a", "é".repeat(123));
+        let multibyte_too_long = "é".repeat(124);
+
+        assert_eq!(ascii_boundary.len(), 247);
+        assert!(validate_module_name(&ascii_boundary).is_ok());
+        assert_eq!(ascii_too_long.len(), 248);
+        assert!(validate_module_name(&ascii_too_long).is_err());
+
+        assert_eq!(multibyte_boundary.len(), 247);
+        assert!(validate_module_name(&multibyte_boundary).is_ok());
+        assert_eq!(multibyte_too_long.len(), 248);
+        assert!(validate_module_name(&multibyte_too_long).is_err());
     }
 
     #[test]

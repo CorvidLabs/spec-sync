@@ -16,9 +16,10 @@ spec: importer.spec.md
 - Confluence importer strips HTML and extracts plain text requirements
 - All imported specs have valid frontmatter and all required sections
 - Requirements are automatically extracted from checkboxes and "Acceptance Criteria" / "Requirements" / "Definition of Done" sections
-- Module names are properly slugified from titles (lowercased, non-alphanumerics collapsed to single `-`)
-- A GitHub title with no alphanumeric characters fails before an `ImportedItem` or filesystem path
-  is produced.
+- Module names are slugified from titles and then validated against the shared portable component
+  contract, including Windows device basenames and generated spec filename length.
+- A GitHub, Jira, or Confluence title that cannot produce a portable module name fails before an
+  `ImportedItem` or filesystem path is produced.
 - `render_spec` emits `implements: [n]` when an issue number is present and `implements: []` otherwise (Jira/Confluence)
 - Auth tokens (`JIRA_TOKEN`, `CONFLUENCE_TOKEN`, `GITHUB_TOKEN`) are redacted from REST error messages via `redact_secret` before being surfaced
 
@@ -44,6 +45,7 @@ Acceptance Criteria
 - Confluence importer strips HTML and extracts plain text requirements
 - All imported specs have valid frontmatter and all required sections
 - Requirements are automatically extracted from checkboxes and "Acceptance Criteria" / "Requirements" / "Definition of Done" sections
-- Module names are properly slugified from titles (lowercased, non-alphanumerics collapsed to single `-`)
+- Module names are slugified from titles and validated against the shared portable module-name
+  contract before an imported item exists.
 - `render_spec` emits `implements: [n]` when an issue number is present and `implements: []` otherwise (Jira/Confluence)
 - Auth tokens (`JIRA_TOKEN`, `CONFLUENCE_TOKEN`, `GITHUB_TOKEN`) are redacted from REST error messages via `redact_secret` before being surfaced

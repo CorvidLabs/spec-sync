@@ -21,11 +21,16 @@ spec: cmd_import.spec.md
 - After writing a spec, companions are generated via `generator::generate_companion_files_for_spec` with `companions.design` from config controlling whether `design.md` is created.
 - Batch modes print a `[n/total]` progress line per item and a final summary of imported/skipped/error counts; directory mode scans `.md` files one level deep, sorted.
 - Markdown directory items derive: title from the first `# ` heading (else filename), purpose from the first non-empty paragraph after the title, requirements via `importer::extract_requirements_pub`, and module name via `importer::slugify(filename)`.
+- Every derived module name is validated against the shared portable component contract before any
+  path is joined or created.
+- Batch modes continue after item failures, preserve successful imports, print the complete
+  imported/skipped/error summary, and exit 1 when the error count is nonzero.
 
 ## Constraints
 
 - GitHub issue `id` must parse as `u64`; a non-numeric id exits 1 (single import).
-- Must not panic on unreadable files or fetch failures: single import exits 1; batch modes count the failure and continue.
+- Must not panic on unreadable files or fetch failures: single import exits 1; batch modes count the
+  failure, continue, and ultimately exit 1.
 - Directory scan is non-recursive (one level deep).
 
 ## Out of Scope
@@ -49,4 +54,5 @@ Acceptance Criteria
 - After writing a spec, companions are generated via `generator::generate_companion_files_for_spec` with `companions.design` from config controlling whether `design.md` is created.
 - Batch modes print a `[n/total]` progress line per item and a final summary of imported/skipped/error counts; directory mode scans `.md` files one level deep, sorted.
 - Markdown directory items derive: title from the first `# ` heading (else filename), purpose from the first non-empty paragraph after the title, requirements via `importer::extract_requirements_pub`, and module name via `importer::slugify(filename)`.
-
+- Every imported module candidate passes shared portable validation before filesystem output.
+- A batch with one or more errors continues remaining items but exits 1 after its truthful summary.

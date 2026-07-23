@@ -1,6 +1,6 @@
 ---
 module: cmd_issues
-version: 9
+version: 10
 status: stable
 files:
   - src/commands/issues.rs
@@ -74,14 +74,15 @@ path replacement cannot redirect issue inspection or `--create` validation.
 14. Spec discovery retains no more than 10,000 snapshots, reads at most 4 MiB per spec, and retains
     at most 64 MiB of spec bytes cumulatively. Mapped-source snapshotting likewise limits each
     source observation to 4 MiB and retained source bytes to 64 MiB cumulatively.
-15. A present selected project config is opened through the retained project capability, rejected
-    when it is a symlink/reparse point or non-regular entry, identity-checked through the same
-    handle, and read at most once into a 4 MiB snapshot. Parsing and all later configuration use
-    those exact retained bytes; malformed UTF-8, JSON/TOML syntax, or known TOML field shapes are
-    structured, content-free findings and cannot fall back to ambient/default paths. If the config
-    omits source directories, a bounded sparse detection snapshot is built through the retained
-    project capability and supplied to config parsing, so ambient root replacement cannot change
-    source selection.
+15. A present selected project config and recognized source-detection manifest is acquired through
+    an explicit no-follow, non-blocking regular-file open under the retained project capability.
+    Opened-handle metadata and identity remain authoritative across the at-most-4-MiB read, and
+    path replacement, symlink/reparse, or special-file substitution is rejected on Windows and
+    Unix. Parsing and all later configuration use those exact retained bytes; malformed UTF-8,
+    JSON/TOML syntax, or known TOML field shapes are structured, content-free findings and cannot
+    fall back to ambient/default paths. If the config omits source directories, a bounded sparse
+    detection snapshot is built through the retained project capability and supplied to config
+    parsing, so ambient root replacement cannot change source selection.
 16. Missing/empty specs and repository-resolution failures are rendered through the selected output
     format. JSON remains parseable, and Markdown/GitHub retain their structured headings and
     diagnostics instead of leaking an early text-only exit.
@@ -169,3 +170,4 @@ path replacement cannot redirect issue inspection or `--create` validation.
 | 2026-07-22 | CHG-0063 final configuration follow-up: Read selected config through one retained, bounded, same-handle snapshot; reject special entries and wrong-shaped TOML fields; preserve structured early output |
 | 2026-07-22 | CHG-0063 capability-source follow-up: Detect omitted source directories through a bounded retained-capability snapshot rather than a replaceable ambient root |
 | 2026-07-22 | CHG-0063 final agent-review follow-up: align retained ignored-directory behavior and reject special-file manifests as inconclusive |
+| 2026-07-23 | CHG-0063 retained-handle follow-up: use no-follow, non-blocking config/manifest acquisition and reject regular-file replacement or FIFO substitution between discovery and read |

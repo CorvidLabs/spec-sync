@@ -65,10 +65,13 @@ artifact: docs
   the shared ignored-directory policy before metadata inspection and reports recognized
   non-regular manifests as inconclusive.
 - Record that selected config and recognized manifest files must remain regular and identity-stable
-  from inspection through their non-blocking bounded reads; exact checked JSON validates the
-  `github` object and `github.repo` type before compatibility substitution.
+  through explicit no-follow, non-blocking retained-handle reads on Windows and Unix; exact checked
+  JSON validates the `github` object and `github.repo` type before compatibility substitution.
 - Record that direct issue-detail reads reject pull-request payloads and imports reject issue
-  titles that cannot produce a nonempty safe module name.
+  titles that cannot produce a portable module name. Batch imports continue later items but exit 1
+  after any error.
+- Record the exact implementation/testbed revisions plus executable, drill, and fixture hashes for
+  every private-sandbox replay; do not treat mutable untracked inputs as reproducible evidence.
 - Document that missing/empty specs and repository-resolution failures use the selected
   JSON/Markdown/GitHub renderer instead of text-only early exits.
 - Keep fresh Windows runtime and final repository/trust/provenance evidence described as pending

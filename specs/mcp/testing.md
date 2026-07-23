@@ -45,8 +45,8 @@ spec: mcp.spec.md
 | Root path replaced after the initial handle but before canonicalization/reopen | Startup fails; no outside capability is retained |
 | Duplicate/overlapping configured tree scans | One cumulative 100,000-entry confinement budget is enforced |
 | Redirected `.git` metadata without explicit `github.repo` | Rejected without Git auto-detection or outside metadata disclosure |
-| FIFO/device at a recognized manifest name | Rejected as non-regular before a blocking read |
-| Selected config identity changes between metadata discovery and open | Rejected before any replacement bytes are parsed |
+| FIFO/device replaces a recognized manifest or selected config after discovery | Explicit no-follow, non-blocking retained-handle acquisition rejects it without waiting |
+| Selected config or manifest path changes after the retained handle is opened | Path-to-handle identity comparison rejects replacement bytes on Windows and Unix |
 | MCP score in a Git-backed project snapshot | Reports Git freshness unavailable and withholds five freshness points |
 | Transport reader or writer failure | Returned as an error; never reported as a successful server exit |
 | Windows junction/reparse-point read, generate, or init destination | Native-join fixture proves the reparse target, then accepts rejection during either capability snapshot traversal or destination publication confinement; outside victim bytes remain exact and no staging debris remains |

@@ -48,9 +48,11 @@ artifact: testing
 | Selected CLI config is linked, non-regular, replaced during read, over 4 MiB, or has wrong-shaped known TOML fields | Same content-free configuration finding; only exact same-handle retained bytes can configure the scan |
 | Selected CLI config omits source directories and the ambient root is replaced | Source discovery remains bound to the original retained project capability and selects only the original tree |
 | MCP selected config is linked/reparse-backed, non-regular, blocking, replaced, non-object JSON, malformed, invalid UTF-8, or has wrong-typed known fields | Every allow-empty tool/resource is inconclusive before compatibility fallback; FIFO acquisition returns within the regression timeout and valid BOM-prefixed config remains supported |
-| Selected config pathname is replaced between metadata inspection and open | Opened identity differs before any bytes are read; the request fails inconclusive |
-| Recognized snapshot manifest is a FIFO/special file or is replaced before open | Rejected without blocking or parsing unverified bytes |
+| Selected config or manifest path is replaced after retained open | No-follow opened-handle identity remains authoritative; later path observation mismatch fails on Windows and Unix |
+| Recognized snapshot manifest/config becomes a FIFO or special file | Non-blocking no-follow acquisition rejects it without waiting or parsing bytes |
 | Exact checked JSON has non-object `github` or non-string/non-null `github.repo` | Rejected before compatibility sentinel/default substitution |
+| Direct issue detail contains object, null, or scalar `pull_request` marker | Every marker shape is rejected as a pull request |
+| Imported title is reserved/non-portable/overlong | No output path is created; batch processing continues later valid items and exits 1 after its summary |
 | Omitted-source scan sees an ignored-name symlink or recognized special manifest | Ignored entry is skipped before metadata; recognized special manifest is a structured inconclusive finding |
 | Missing/empty specs or repository failure under JSON/Markdown/GitHub | One valid selected-format report is rendered; JSON parses and failure exits remain non-zero |
 | Legacy JSON `github.repo` is a number, boolean, object, or list | Surrounding valid config remains, but repository resolution fails closed without Git auto-detection |
@@ -110,12 +112,14 @@ and must be rerun.
 The renewed independent reviews then found a selected-config pre-open identity interval, blocking
 or silently skipped special manifests, checked-JSON GitHub shape substitution, retained-source
 ignore divergence, direct-detail pull-request acceptance, and punctuation-only import titles.
-Focused regressions for all six facets pass: 1,864 unit and 290 integration tests are present in
-the tree. `fledge run test` completed the full current-tree test task with all 1,864 unit and 290
-integration tests passing. This is not yet the complete repository verification lane. The private
-sandbox replay passed; two clean rereviews and all final exact-tree gates remain pending.
+Focused regressions for the original six facets passed on the prior tree. The newest reviewer
+amendment adds retained-handle replacement/FIFO races, non-object `github`, all direct PR-marker
+shapes, portable provider/directory slugs, and nonzero partial-batch outcomes. Focused local tests
+pass, but the complete exact-tree repository lane remains pending. The prior sandbox PASS used an
+unversioned workspace binary and unhashed untracked inputs, so it is superseded until the
+hash-bound exact-commit replay below is refreshed.
 
-## Private sandbox receipt
+## Superseded private sandbox receipt
 
 - Time: `2026-07-23T11:31:42Z`
 - SpecSync implementation: `f6bb7a3b1aaf570b20a3a669ee2ecf46202d1f7b`
@@ -126,6 +130,14 @@ sandbox replay passed; two clean rereviews and all final exact-tree gates remain
 - Result: `PASS: MCP accepts a manifest-relative sibling dependency confined beneath its server root`
 - Testbed status disclosed two preserved untracked audit inputs: `drills/024-mcp-confined-sibling.sh`
   and `drills/fixtures/`; neither was modified or deleted by the replay.
+- Reproducibility verdict: superseded because the executable and untracked inputs were not hashed.
+
+## Required replacement sandbox receipt
+
+- Build the executable from the final cited implementation commit in an isolated checkout.
+- Record SHA-256 for the executable, `drills/024-mcp-confined-sibling.sh`, and every fixture file.
+- Replay with that exact executable against the cited private testbed revision and record stdout,
+  exit status, clean/tracked state, and any intentionally preserved untracked inputs.
 
 - `REQ-mcp-002`: `mcp::tests::test_repeated_tree_scans_share_one_confinement_budget`,
   `mcp::tests::snapshot_copies_the_exact_manifest_bytes_charged_during_discovery`,
@@ -265,13 +277,22 @@ sandbox replay passed; two clean rereviews and all final exact-tree gates remain
   rendered-vector compatibility route with overlapping paths and a legal `": "` path; compile-time
   function-pointer assertions in the same test module bind the public `run_validation` return
   channels and `create_drift_issues(&[String])` parameter.
+- `REQ-commands-004`:
+  `commands::tests::validate_module_name_rejects_windows_reserved_basenames_portably`,
+  `commands::tests::validate_module_name_rejects_windows_invalid_characters_portably`,
+  `commands::tests::validate_module_name_rejects_trailing_spaces_and_dots`, and
+  `commands::tests::validate_module_name_enforces_portable_spec_filename_byte_limit` prove the
+  shared validator rejects portable device/character/suffix hazards and preserves valid ASCII and
+  multibyte names at the exact 247-byte boundary on every host.
 - `REQ-importer-001`:
   `importer::tests::test_import_github_issue_entry_path_converts_shared_typed_details`,
   `importer::tests::test_import_github_issue_entry_path_returns_no_item_on_provider_failure`,
   `importer::tests::test_import_github_issue_details_full`, and
   `importer::tests::test_import_github_issue_details_empty_body` prove the importer entry seam,
-  failure non-production, and complete typed detail conversion while the shared GitHub regressions
-  prove explicit-token, no-subprocess, timeout, and 404 revalidation behavior.
+  failure non-production, and complete typed detail conversion while
+  `importer::tests::test_external_imports_reject_nonportable_slugs` proves GitHub, Jira, and
+  Confluence all reject reserved or overlong output names before producing an item; the shared
+  GitHub regressions prove explicit-token, no-subprocess, timeout, and 404 revalidation behavior.
 - `REQ-cmd-import-001`: `github::tests::issue_list_pagination_collects_every_page_in_order`,
   `github::tests::issue_list_accepts_one_hundred_provider_entries_including_pull_requests`,
   `github::tests::issue_list_rejects_one_hundred_one_entries_before_parsing_malformed_pull_request`,
@@ -280,7 +301,12 @@ sandbox replay passed; two clean rereviews and all final exact-tree gates remain
   bounded batch traversal and fail-closed partial-list handling;
   `single_github_import_fails_closed_without_a_rest_token_or_output` and
   `batch_github_import_fails_closed_without_a_rest_token_or_output` prove both real CLI entry paths
-  fail before creating output when explicit REST authorization is absent.
+  fail before creating output when explicit REST authorization is absent;
+  `commands::import::tests::github_batch_continues_after_unsafe_item_and_requires_nonzero_exit`
+  and
+  `commands::import::tests::directory_batch_imports_valid_item_but_command_exits_nonzero_for_unsafe_item`
+  prove unsafe entries create no output, later valid entries still import, and every partial-error
+  batch exits 1 after its truthful summary.
 - `REQ-manifest-001`:
   `manifest::tests::gradle_settings_support_groovy_kotlin_multiline_and_project_dir_overrides`,
   `manifest::tests::gradle_settings_ignore_comments_and_decode_escaped_values`,

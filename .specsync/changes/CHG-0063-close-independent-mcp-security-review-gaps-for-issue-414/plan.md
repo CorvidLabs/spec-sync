@@ -58,3 +58,6 @@ artifact: plan
     rejecting direct-detail pull-request payloads, and refusing empty import slugs. Add focused
     regressions, synchronize every affected contract, and rerun sandbox, independent, repository,
     trust, provenance, Windows, and CI gates on the final tree.
+18. Close the final acceptance/defensive findings with retained-handle-first no-follow acquisition,
+    portable provider/directory import names, nonzero partial-batch outcomes, exact missing
+    characterization tests, and a hash-bound sandbox replay built from the cited commit.

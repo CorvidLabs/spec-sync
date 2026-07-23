@@ -7,6 +7,7 @@ use crate::types::SpecSyncConfig;
 use crate::validator::{
     compute_coverage_checked, find_spec_files, get_schema_table_names, validate_spec,
 };
+use cap_primitives::fs::FollowSymlinks;
 use cap_std::ambient_authority;
 use cap_std::fs::{Dir, Metadata, OpenOptions};
 use serde_json::{Value, json};
@@ -101,6 +102,15 @@ const AUTODETECT_IGNORED_DIRS: &[&str] = &[
     "bin",
     "obj",
 ];
+
+fn read_only_nofollow_options() -> OpenOptions {
+    let mut options = OpenOptions::new();
+    options
+        .read(true)
+        ._cap_fs_ext_nonblock(true)
+        ._cap_fs_ext_follow(FollowSymlinks::No);
+    options
+}
 
 /// Run the MCP server on stdio.
 pub fn run_mcp_server(root: &Path, allow_write: bool) -> Result<(), String> {
@@ -978,6 +988,15 @@ fn read_capability_text_if_exists(
     relative: &Path,
     budget: &mut SnapshotBudget,
 ) -> Result<Option<String>, String> {
+    read_capability_text_if_exists_with_hook(source, relative, budget, || {})
+}
+
+fn read_capability_text_if_exists_with_hook(
+    source: &Dir,
+    relative: &Path,
+    budget: &mut SnapshotBudget,
+    after_retained_open: impl FnOnce(),
+) -> Result<Option<String>, String> {
     let before = match source.symlink_metadata(relative) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
@@ -1002,14 +1021,25 @@ fn read_capability_text_if_exists(
         )
     })?;
 
-    let mut options = OpenOptions::new();
-    options.read(true)._cap_fs_ext_nonblock(true);
+    let options = read_only_nofollow_options();
     let mut file = source.open_with(relative, &options).map_err(|error| {
         format!(
             "Cannot open MCP snapshot manifest {} through its root capability: {error}",
             relative.display()
         )
     })?;
+    let opened_metadata = file.metadata().map_err(|error| {
+        format!(
+            "Cannot inspect opened MCP snapshot manifest {}: {error}",
+            relative.display()
+        )
+    })?;
+    if snapshot_metadata_is_link(&opened_metadata) || !opened_metadata.is_file() {
+        return Err(format!(
+            "MCP snapshot manifest must be a regular file and must not be a symlink or reparse point: {}",
+            relative.display()
+        ));
+    }
     let opened_identity = snapshot_file_identity(&file).map_err(|error| {
         format!(
             "Cannot identify opened MCP snapshot manifest {}: {error}",
@@ -1023,6 +1053,7 @@ fn read_capability_text_if_exists(
             relative.display()
         ));
     }
+    after_retained_open();
     let after_open = source.symlink_metadata(relative).map_err(|error| {
         format!(
             "Cannot re-inspect MCP snapshot manifest {}: {error}",
@@ -1044,8 +1075,7 @@ fn read_capability_text_if_exists(
     }
     #[cfg(windows)]
     {
-        let mut observed_options = OpenOptions::new();
-        observed_options.read(true)._cap_fs_ext_nonblock(true);
+        let observed_options = read_only_nofollow_options();
         let observed = source
             .open_with(relative, &observed_options)
             .map_err(|error| {
@@ -1055,6 +1085,18 @@ fn read_capability_text_if_exists(
                 )
             })?;
         if snapshot_file_identity(&observed).ok() != Some(opened_identity) {
+            return Err(format!(
+                "MCP snapshot manifest changed during inspection: {}",
+                relative.display()
+            ));
+        }
+        let observed_metadata = observed.metadata().map_err(|error| {
+            format!(
+                "Cannot inspect re-opened MCP snapshot manifest {}: {error}",
+                relative.display()
+            )
+        })?;
+        if snapshot_metadata_is_link(&observed_metadata) || !observed_metadata.is_file() {
             return Err(format!(
                 "MCP snapshot manifest changed during inspection: {}",
                 relative.display()
@@ -1100,6 +1142,33 @@ fn read_capability_text_if_exists(
             "MCP snapshot manifest changed while it was being read: {}",
             relative.display()
         ));
+    }
+    #[cfg(windows)]
+    {
+        let observed_options = read_only_nofollow_options();
+        let observed = source
+            .open_with(relative, &observed_options)
+            .map_err(|error| {
+                format!(
+                    "Cannot re-open MCP snapshot manifest {} after reading: {error}",
+                    relative.display()
+                )
+            })?;
+        let observed_metadata = observed.metadata().map_err(|error| {
+            format!(
+                "Cannot inspect re-opened MCP snapshot manifest {} after reading: {error}",
+                relative.display()
+            )
+        })?;
+        if snapshot_metadata_is_link(&observed_metadata)
+            || !observed_metadata.is_file()
+            || snapshot_file_identity(&observed).ok() != Some(opened_identity)
+        {
+            return Err(format!(
+                "MCP snapshot manifest changed while it was being read: {}",
+                relative.display()
+            ));
+        }
     }
     let normalized = normalize_snapshot_input(relative);
     budget.charge_file(&normalized, bytes.len() as u64)?;
@@ -1376,7 +1445,7 @@ fn read_snapshot_configuration(source: &Dir, relative: &Path) -> Result<Option<V
 fn read_snapshot_configuration_with_hook(
     source: &Dir,
     relative: &Path,
-    before_open: impl FnOnce(),
+    after_retained_open: impl FnOnce(),
 ) -> Result<Option<Vec<u8>>, String> {
     let components = relative.components().collect::<Vec<_>>();
     let Some((file_name, parent_components)) = components.split_last() else {
@@ -1432,9 +1501,7 @@ fn read_snapshot_configuration_with_hook(
                 relative.display()
             )
         })?);
-    before_open();
-    let mut options = OpenOptions::new();
-    options.read(true)._cap_fs_ext_nonblock(true);
+    let options = read_only_nofollow_options();
     let mut file = parent.open_with(file_name, &options).map_err(|error| {
         format!(
             "Cannot open MCP configuration {} as a non-blocking regular file: {error}",
@@ -1447,9 +1514,9 @@ fn read_snapshot_configuration_with_hook(
             relative.display()
         )
     })?;
-    if !opened_metadata.is_file() {
+    if snapshot_metadata_is_link(&opened_metadata) || !opened_metadata.is_file() {
         return Err(format!(
-            "Selected MCP configuration {} must be a regular file",
+            "Selected MCP configuration {} must be a regular file and must not be a symlink or reparse point",
             relative.display()
         ));
     }
@@ -1466,6 +1533,7 @@ fn read_snapshot_configuration_with_hook(
             relative.display()
         ));
     }
+    after_retained_open();
     let after_open = parent.symlink_metadata(file_name).map_err(|error| {
         format!(
             "Cannot re-inspect MCP configuration {}: {error}",
@@ -1492,12 +1560,15 @@ fn read_snapshot_configuration_with_hook(
     }
     #[cfg(windows)]
     {
-        let observed = parent.open(file_name).map_err(|error| {
-            format!(
-                "Cannot re-open MCP configuration {}: {error}",
-                relative.display()
-            )
-        })?;
+        let observed_options = read_only_nofollow_options();
+        let observed = parent
+            .open_with(file_name, &observed_options)
+            .map_err(|error| {
+                format!(
+                    "Cannot re-open MCP configuration {}: {error}",
+                    relative.display()
+                )
+            })?;
         if snapshot_file_identity(&observed).ok() != Some(opened_identity) {
             return Err(format!(
                 "Selected MCP configuration changed during inspection: {}",
@@ -1550,6 +1621,33 @@ fn read_snapshot_configuration_with_hook(
             "Selected MCP configuration changed while it was being read: {}",
             relative.display()
         ));
+    }
+    #[cfg(windows)]
+    {
+        let observed_options = read_only_nofollow_options();
+        let observed = parent
+            .open_with(file_name, &observed_options)
+            .map_err(|error| {
+                format!(
+                    "Cannot re-open MCP configuration {} after reading: {error}",
+                    relative.display()
+                )
+            })?;
+        let observed_metadata = observed.metadata().map_err(|error| {
+            format!(
+                "Cannot inspect re-opened MCP configuration {} after reading: {error}",
+                relative.display()
+            )
+        })?;
+        if snapshot_metadata_is_link(&observed_metadata)
+            || !observed_metadata.is_file()
+            || snapshot_file_identity(&observed).ok() != Some(opened_identity)
+        {
+            return Err(format!(
+                "Selected MCP configuration changed while it was being read: {}",
+                relative.display()
+            ));
+        }
     }
     Ok(Some(bytes))
 }
@@ -5949,9 +6047,37 @@ Test
         assert!(started.elapsed() < Duration::from_secs(2));
     }
 
-    #[cfg(unix)]
     #[test]
-    fn selected_config_open_binds_the_preopen_file_identity() {
+    fn snapshot_manifest_reader_binds_the_retained_file_identity() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::write(root.join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
+        fs::write(
+            root.join("replacement.toml"),
+            "[workspace]\nmembers = [\"outside\"]\n",
+        )
+        .unwrap();
+        let source = open_test_directory(root);
+        let mut budget = SnapshotBudget::default();
+
+        let result = read_capability_text_if_exists_with_hook(
+            &source,
+            Path::new("Cargo.toml"),
+            &mut budget,
+            || {
+                fs::rename(root.join("Cargo.toml"), root.join("original.toml")).unwrap();
+                fs::rename(root.join("replacement.toml"), root.join("Cargo.toml")).unwrap();
+            },
+        );
+
+        assert!(
+            result.is_err(),
+            "a manifest path replaced after the retained open must be rejected"
+        );
+    }
+
+    #[test]
+    fn selected_config_open_binds_the_retained_file_identity() {
         let tmp = TempDir::new().unwrap();
         let root = tmp.path();
         fs::write(

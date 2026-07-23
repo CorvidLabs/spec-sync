@@ -78,10 +78,12 @@ syntax checks, checked real-YAML issue fields, checked configuration loading, co
 exact-byte retained configuration, capability-bound omitted-source discovery, selected-format
 early outcomes, shared ignored-name handling, special-manifest rejection, and renderer sanitization
 have focused evidence. Retained source discovery skips ignored names before metadata inspection and
-turns a recognized non-regular manifest into a structured inconclusive finding instead of silently
-continuing. Fresh CHG definition reapproval, private-sandbox replay, Windows runtime after the
-separator/fixture repair, final independent rereview, trust/provenance, and GitHub CI remain open;
-live provider success remains integration-only.
+acquires selected config/manifests through no-follow, non-blocking retained handles; regular-file
+replacement and FIFO substitution become structured inconclusive findings instead of silently
+continuing or blocking. An earlier private-sandbox replay passed but did not bind its untracked
+inputs, so a hash-bound exact-tree replay remains open alongside fresh CHG definition approval,
+Windows runtime after the separator/fixture repair, final independent rereview, trust/provenance,
+and GitHub CI; live provider success remains integration-only.
 
 ## Notes
 

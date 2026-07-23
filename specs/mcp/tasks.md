@@ -67,4 +67,6 @@ spec: mcp.spec.md
   before MCP tools or resources can return an allow-empty success
 - [x] Reject special-file manifests without blocking and bind selected config handles to their
   pre-open identity before reading bytes
+- [x] Make the retained opened handle authoritative on Windows and Unix, use explicit no-follow
+  acquisition, and cover config/manifest replacement plus FIFO races
 - [ ] Pass fresh Windows reparse-point CI

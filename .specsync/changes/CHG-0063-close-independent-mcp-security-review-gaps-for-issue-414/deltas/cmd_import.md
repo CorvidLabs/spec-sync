@@ -14,6 +14,10 @@ Acceptance Criteria
   rejects an oversized page before item parsing, and fails on malformed links, duplicate issue
   IDs, or a continuing next page at the cap.
 - A pagination failure is an error, never a successful partial import.
+- Every single and batch output module name passes shared portable validation before filesystem
+  paths are joined or created.
+- Batch item errors do not stop later items, but the final truthful summary is followed by exit 1
+  whenever any error occurred.
 
 ### SPEC SECTION Invariants
 
@@ -22,3 +26,5 @@ Acceptance Criteria
 3. Batch imports use strict, bounded, complete pagination.
 4. Missing tokens, malformed responses, inaccessible repositories, transport failures, timeouts,
    pagination ambiguity, and cap truncation fail closed.
+5. Unsafe/reserved/overlong output names create no directory or file.
+6. Partial batch success never produces a false-green exit status.

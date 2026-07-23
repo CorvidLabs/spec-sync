@@ -1,5 +1,6 @@
+use cap_primitives::fs::FollowSymlinks;
 use cap_std::ambient_authority;
-use cap_std::fs::{Dir, Metadata};
+use cap_std::fs::{Dir, Metadata, OpenOptions};
 use colored::Colorize;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
@@ -41,6 +42,15 @@ const SOURCE_DETECTION_MANIFESTS: &[&str] = &[
     "go.mod",
     "pyproject.toml",
 ];
+
+fn read_only_nofollow_options() -> OpenOptions {
+    let mut options = OpenOptions::new();
+    options
+        .read(true)
+        ._cap_fs_ext_nonblock(true)
+        ._cap_fs_ext_follow(FollowSymlinks::No);
+    options
+}
 
 struct OpenedSpecsDirectory {
     project: Dir,
@@ -334,11 +344,20 @@ fn discovered_file_identity(
     if is_reparse_point(metadata) || !metadata.is_file() {
         return Err(invalid_entry_type());
     }
-    let file = parent.open(name)?;
+    let options = read_only_nofollow_options();
+    let file = parent.open_with(name, &options)?;
+    let opened_metadata = file.metadata()?;
+    if is_reparse_point(&opened_metadata) || !opened_metadata.is_file() {
+        return Err(invalid_entry_type());
+    }
     let identity = file_identity(&file)?;
-    let observed = parent.open(name)?;
+    let observed_options = read_only_nofollow_options();
+    let observed = parent.open_with(name, &observed_options)?;
+    let observed_metadata = observed.metadata()?;
     let after_observed = parent.symlink_metadata(name)?;
-    if is_reparse_point(&after_observed)
+    if is_reparse_point(&observed_metadata)
+        || !observed_metadata.is_file()
+        || is_reparse_point(&after_observed)
         || !after_observed.is_file()
         || file_identity(&observed)? != identity
     {
@@ -370,8 +389,13 @@ fn read_verified_bytes(
         return Err(invalid_entry_type());
     }
 
-    let mut file = parent.open(name)?;
-    let opened_identity = metadata_identity(&file.metadata()?)?;
+    let options = read_only_nofollow_options();
+    let mut file = parent.open_with(name, &options)?;
+    let opened_metadata = file.metadata()?;
+    if opened_metadata.file_type().is_symlink() || !opened_metadata.is_file() {
+        return Err(invalid_entry_type());
+    }
+    let opened_identity = metadata_identity(&opened_metadata)?;
     let after_open = parent.symlink_metadata(name)?;
     if after_open.file_type().is_symlink()
         || !after_open.is_file()
@@ -411,7 +435,12 @@ fn read_verified_bytes(
         return Err(invalid_entry_type());
     }
 
-    let mut file = parent.open(name)?;
+    let options = read_only_nofollow_options();
+    let mut file = parent.open_with(name, &options)?;
+    let opened_metadata = file.metadata()?;
+    if is_reparse_point(&opened_metadata) || !opened_metadata.is_file() {
+        return Err(invalid_entry_type());
+    }
     let opened_identity = file_identity(&file)?;
     if opened_identity != expected_identity {
         return Err(invalid_entry_type());
@@ -420,9 +449,13 @@ fn read_verified_bytes(
     if is_reparse_point(&after_open) || !after_open.is_file() {
         return Err(invalid_entry_type());
     }
-    let observed = parent.open(name)?;
+    let observed_options = read_only_nofollow_options();
+    let observed = parent.open_with(name, &observed_options)?;
+    let observed_metadata = observed.metadata()?;
     let after_observed = parent.symlink_metadata(name)?;
-    if is_reparse_point(&after_observed)
+    if is_reparse_point(&observed_metadata)
+        || !observed_metadata.is_file()
+        || is_reparse_point(&after_observed)
         || !after_observed.is_file()
         || file_identity(&observed)? != opened_identity
     {
@@ -439,9 +472,13 @@ fn read_verified_bytes(
     if is_reparse_point(&after_read) || !after_read.is_file() {
         return Err(invalid_entry_type());
     }
-    let observed = parent.open(name)?;
+    let observed_options = read_only_nofollow_options();
+    let observed = parent.open_with(name, &observed_options)?;
+    let observed_metadata = observed.metadata()?;
     let after_observed = parent.symlink_metadata(name)?;
-    if is_reparse_point(&after_observed)
+    if is_reparse_point(&observed_metadata)
+        || !observed_metadata.is_file()
+        || is_reparse_point(&after_observed)
         || !after_observed.is_file()
         || file_identity(&observed)? != opened_identity
         || file_identity(&file)? != opened_identity
@@ -1547,22 +1584,24 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
 #[cfg(test)]
 mod tests {
     use super::{
-        SpecInspectionFinding, SpecInspectionFindingKind, SpecSnapshot, inspect_spec,
-        issue_text_summary, issue_verification_json, markdown_code_span, safe_diagnostic,
-        slash_normalized_relative_path,
+        MAX_CONFIG_SNAPSHOT_BYTES, SpecInspectionFinding, SpecInspectionFindingKind, SpecSnapshot,
+        discovered_file_identity, inspect_spec, issue_text_summary, issue_verification_json,
+        load_issues_config_checked_with_hooks, markdown_code_span, open_verified_root,
+        read_verified_bytes, safe_diagnostic, slash_normalized_relative_path,
     };
     #[cfg(unix)]
     use super::{
         collect_snapshot_validation_with_hook, find_spec_snapshots_checked_with_hook,
         find_spec_snapshots_checked_with_limits, is_spec_shaped_file_name,
-        load_issues_config_checked, load_issues_config_checked_with_hooks, open_specs_directory,
-        open_specs_directory_from_project, open_verified_root, project_config_finding,
-        snapshot_mapped_sources,
+        load_issues_config_checked, open_specs_directory, open_specs_directory_from_project,
+        project_config_finding, snapshot_mapped_sources,
     };
     use crate::github::{GitHubIssue, IssueVerification};
     #[cfg(unix)]
     use crate::validator::SourceSnapshot;
-    #[cfg(unix)]
+    use cap_std::ambient_authority;
+    use cap_std::fs::Dir;
+    use std::ffi::OsStr;
     use std::fs;
 
     #[test]
@@ -1635,7 +1674,6 @@ mod tests {
         )));
     }
 
-    #[cfg(unix)]
     #[test]
     fn config_discovery_to_read_regular_file_replacement_is_rejected() {
         let temporary = tempfile::TempDir::new().unwrap();
@@ -1667,6 +1705,100 @@ mod tests {
             result,
             Err(finding) if finding == super::project_config_finding()
         ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_discovery_to_read_fifo_replacement_is_rejected_without_blocking() {
+        use std::process::Command;
+        use std::time::{Duration, Instant};
+
+        let temporary = tempfile::TempDir::new().unwrap();
+        let root = temporary.path().join("project");
+        fs::create_dir_all(root.join("specs")).unwrap();
+        let config_path = root.join("specsync.json");
+        fs::write(
+            &config_path,
+            r#"{"specsDir":"original-specs","sourceDirs":["src"]}"#,
+        )
+        .unwrap();
+        let project = open_verified_root(&root).unwrap();
+        let started = Instant::now();
+
+        let result = load_issues_config_checked_with_hooks(
+            &project,
+            &root,
+            |_| {
+                fs::remove_file(&config_path).unwrap();
+                assert!(
+                    Command::new("mkfifo")
+                        .arg(&config_path)
+                        .status()
+                        .unwrap()
+                        .success()
+                );
+            },
+            |_| {},
+        );
+
+        assert!(matches!(
+            result,
+            Err(finding) if finding == super::project_config_finding()
+        ));
+        assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
+    #[test]
+    fn source_manifest_discovery_to_read_replacement_is_rejected() {
+        let temporary = tempfile::TempDir::new().unwrap();
+        let manifest_path = temporary.path().join("Cargo.toml");
+        fs::write(&manifest_path, "[package]\nname = \"original\"\n").unwrap();
+        fs::write(
+            temporary.path().join("replacement.toml"),
+            "[package]\nname = \"replacement\"\n",
+        )
+        .unwrap();
+        let directory = Dir::open_ambient_dir(temporary.path(), ambient_authority()).unwrap();
+        let name = OsStr::new("Cargo.toml");
+        let metadata = directory.symlink_metadata(name).unwrap();
+        let identity = discovered_file_identity(&directory, name, &metadata).unwrap();
+
+        fs::rename(&manifest_path, temporary.path().join("original.toml")).unwrap();
+        fs::rename(temporary.path().join("replacement.toml"), &manifest_path).unwrap();
+
+        assert!(
+            read_verified_bytes(&directory, name, identity, MAX_CONFIG_SNAPSHOT_BYTES).is_err(),
+            "a source manifest replaced after discovery must not be read"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn source_manifest_discovery_to_read_fifo_replacement_is_rejected_without_blocking() {
+        use std::process::Command;
+        use std::time::{Duration, Instant};
+
+        let temporary = tempfile::TempDir::new().unwrap();
+        let manifest_path = temporary.path().join("Cargo.toml");
+        fs::write(&manifest_path, "[package]\nname = \"original\"\n").unwrap();
+        let directory = Dir::open_ambient_dir(temporary.path(), ambient_authority()).unwrap();
+        let name = OsStr::new("Cargo.toml");
+        let metadata = directory.symlink_metadata(name).unwrap();
+        let identity = discovered_file_identity(&directory, name, &metadata).unwrap();
+        fs::remove_file(&manifest_path).unwrap();
+        assert!(
+            Command::new("mkfifo")
+                .arg(&manifest_path)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let started = Instant::now();
+
+        let result = read_verified_bytes(&directory, name, identity, MAX_CONFIG_SNAPSHOT_BYTES);
+
+        assert!(result.is_err());
+        assert!(started.elapsed() < Duration::from_secs(2));
     }
 
     #[cfg(unix)]

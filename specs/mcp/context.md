@@ -71,9 +71,10 @@ spec: mcp.spec.md
   and a stable content-free reason.
 - Issue diagnostic path normalization is platform-specific: Windows separators render as `/`,
   while Unix literal backslashes remain filename bytes instead of being reinterpreted as hierarchy.
-- Selected configuration is opened non-blocking through verified regular-directory and
-  regular-file capabilities, with symlink/reparse rejection and identity checks before and after
-  its bounded read. The exact retained bytes pass complete checked parsing before compatibility
+- Selected configuration and recognized manifests are acquired through explicit no-follow,
+  non-blocking retained regular-file handles. Opened-handle metadata and identity are authoritative,
+  with path-to-handle identity checks before and after bounded reads on Windows and Unix. The exact
+  retained bytes pass complete checked parsing before compatibility
   loading, so non-object JSON, invalid UTF-8, malformed JSON/TOML, and wrong-typed known fields
   fail tools and resources instead of reverting to default paths.
 - Windows confinement fixtures construct every path with native joins. The absolute-child read
@@ -97,9 +98,10 @@ publication; and no embedded provider or credential surfaces. Shared real-YAML i
 checked top-level shapes, duplicate/global malformed rejection, checked traversal/non-UTF-8
 discovery, relative content-free diagnostics, Windows startup-alias absolute-child handling, and
 selected-config fail-closed validation now have focused implementation and regression coverage.
-The latest independent reviews additionally closed selected-config pre-open identity substitution,
-wrong-shaped legacy GitHub fields, and blocking/special-file snapshot manifests. Configuration and
-manifest acquisition now binds the opened regular file to the inspected identity before reading,
-uses bounded non-blocking reads, and rechecks identity afterward. Focused regressions pass; fresh
-definition reapproval, private-sandbox replay, Windows runtime CI, independent rereview, and final
-repository/trust/provenance/CI gates remain open.
+The latest independent reviews additionally closed selected-config substitution, wrong-shaped
+legacy GitHub fields, and blocking/special-file snapshot manifests. Configuration and manifest
+acquisition now makes the no-follow opened regular-file handle authoritative, uses bounded
+non-blocking reads, and rechecks path identity afterward. Focused regressions pass. An earlier
+private-sandbox replay passed but its untracked inputs were not reproducible from the cited
+revisions, so a hash-bound exact-tree replay is required with fresh definition approval, Windows
+runtime CI, independent rereview, and final repository/trust/provenance/CI gates.

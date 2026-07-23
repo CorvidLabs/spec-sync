@@ -69,8 +69,10 @@ spec: cmd_issues.spec.md
 - When selected config omits source directories, detection must run through the retained project
   capability with deterministic file/byte bounds; it must not consult a replaceable ambient root
   pathname.
-- Retained detection skips the same ignored directory names before inspecting links and rejects a
-  recognized non-regular manifest as an inconclusive configuration finding without blocking.
+- Retained detection skips the same ignored directory names before inspecting links. Selected
+  config and recognized manifests use no-follow, non-blocking opens whose retained-handle identity
+  remains authoritative; non-regular entries and replacement/FIFO races become inconclusive
+  configuration findings without blocking.
 
 ## Out of Scope
 
@@ -116,10 +118,11 @@ Acceptance Criteria
   project-relative, content-free, control/bidi/Zl/Zp-safe, and valid in its output format.
 - Windows finding paths use forward slashes while Unix literal backslashes remain filename data.
 - A present selected project configuration must be readable UTF-8 and syntactically valid JSON or
-  TOML before discovery. It is opened through the retained project capability, must be a regular
-  non-link entry, is identity-checked through one bounded 4 MiB same-handle read, and is parsed and
-  applied from those exact bytes. Invalid syntax, UTF-8, or known TOML field types is a
-  content-free configuration finding that exits 1 without ambient/default-path fallback.
+  TOML before discovery. It and recognized manifests are acquired through no-follow, non-blocking
+  opens under the retained project capability, must be regular non-link/reparse entries, and are
+  identity-checked against path observations through one bounded 4 MiB retained-handle read.
+  Invalid syntax, UTF-8, known TOML field types, or replacement identities produce a content-free
+  configuration finding that exits 1 without ambient/default-path fallback.
 - Missing/empty specs and repository-resolution failures render through the selected format:
   JSON stays parseable and Markdown/GitHub retain their structured report.
 - Markdown/GitHub code spans pad content when a path starts or ends with a backtick.

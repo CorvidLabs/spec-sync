@@ -55,6 +55,8 @@ spec: cmd_issues.spec.md
   ambient root replacement cannot influence source selection.
 - [x] Match normal ignored-directory behavior before link inspection and reject recognized
   special-file manifests as structured inconclusive findings.
+- [x] Acquire selected config and source-detection manifests with no-follow, non-blocking handles
+  and reject regular-file/FIFO replacement races on every platform.
 
 ## Gaps
 

@@ -184,3 +184,12 @@ remain required. The private sandbox replay is now captured against implementati
 `f6bb7a3b1aaf570b20a3a669ee2ecf46202d1f7b` and testbed commit
 `758c144808d80169a44a740660b0d73c5b2f6ddd`; it passed the confined sibling drill. Fresh approval,
 independent rereviews, and the remaining final gates are still required.
+
+The next independent acceptance/defensive pass found four additional medium implementation gaps
+and one evidence gap: Windows acquisition was not handle-first/no-follow, CLI config/manifests had
+blocking/substitution intervals, provider-derived names could remain non-portable, partial batch
+errors exited zero, and the sandbox receipt depended on an unversioned binary plus unhashed
+untracked inputs. The implementation now uses retained no-follow/non-blocking handles on every
+platform, validates portable names before output, returns nonzero partial-batch outcomes, and adds
+the exact missing characterization tests. The earlier sandbox PASS is superseded until an
+exact-commit binary and every drill/fixture input are hash-bound and replayed.

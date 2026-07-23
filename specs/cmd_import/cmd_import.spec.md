@@ -1,6 +1,6 @@
 ---
 module: cmd_import
-version: 4
+version: 5
 status: stable
 files:
   - src/commands/import.rs
@@ -37,6 +37,10 @@ Implements the `specsync import` command. Imports specs from external systems (G
 6. Creates spec and companion files (tasks.md, context.md, requirements.md, testing.md); design.md is generated only when `companions.design` is enabled in config
 7. Will not overwrite existing spec
 8. Success guidance tells users to validate and complete imported details, not to fill template markers
+9. Every single and batch item passes shared portable module-name validation before any output
+   directory or filename is joined or created.
+10. Batch modes continue past per-item failures and print the complete summary, but exit 1 when
+    any item errored; partial successful imports are reported truthfully.
 
 ## Behavioral Examples
 
@@ -55,6 +59,8 @@ Implements the `specsync import` command. Imports specs from external systems (G
 | Fetch fails | Exits 1 with error |
 | `GITHUB_TOKEN` missing for GitHub import | Exits 1 with explicit-token guidance; does not consult `gh` |
 | GitHub issue pagination is malformed, duplicated, or exceeds 100 pages | Batch import fails closed without reporting a truncated issue set |
+| Imported item has an unsafe/reserved/overlong module name | Fails before creating its output path; batch continues with later items |
+| Any batch item errors | Summary includes imported/skipped/error counts and the command exits 1 |
 
 ## Dependencies
 
@@ -80,5 +86,6 @@ Implements the `specsync import` command. Imports specs from external systems (G
 | 2026-06-07 | Update import success guidance for guided imported specs |
 | 2026-04-09 | Initial spec |
 | 2026-07-22 | CHG-0063: Require explicit-token in-process GitHub REST reads and fail closed on partial pagination |
+| 2026-07-23 | CHG-0063 portable batch follow-up: validate every output name before writes, continue batch processing, and exit nonzero when any item fails |
 | 2026-04-13 | Document testing.md and conditional design.md in companion generation |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

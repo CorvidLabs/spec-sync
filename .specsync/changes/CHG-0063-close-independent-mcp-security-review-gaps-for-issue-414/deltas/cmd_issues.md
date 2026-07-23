@@ -85,3 +85,6 @@ Acceptance Criteria
     retained project capability, never through a replaceable ambient root pathname.
 17. Retained discovery skips shared ignored names before metadata inspection and never silently
     omits a recognized non-regular manifest.
+18. Selected config and recognized manifests use no-follow, non-blocking retained handles;
+    regular-file replacement and FIFO substitution between discovery and read are structured
+    inconclusive findings on Windows and Unix.

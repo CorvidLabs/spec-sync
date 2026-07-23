@@ -83,11 +83,14 @@ Acceptance Criteria
 - Project files are bounded to 8 MiB and actual project/config input to 64 MiB per operation;
   manifests are copied from the exact bytes charged during discovery.
 - Selected config is acquired through verified regular-directory and regular-file capabilities
-  without following symlink/reparse points or blocking on special files. Its exact bounded bytes
-  pass complete checked parsing before compatibility loading; non-object JSON, invalid UTF-8,
-  malformed JSON/TOML, and wrong-typed known fields fail closed for both tools and resources.
-- Recognized manifest inputs must also remain identity-stable regular files; FIFOs, devices,
-  links/reparse points, and replacement identities fail before parsing or blocking reads.
+  with an explicit no-follow, non-blocking open before any replaceable path observation is trusted.
+  The retained handle's regular-file metadata and identity are authoritative through the bounded
+  read. Its exact bytes pass complete checked parsing before compatibility loading; non-object
+  JSON, invalid UTF-8, malformed JSON/TOML, and wrong-typed known fields fail closed for both tools
+  and resources.
+- Recognized manifest inputs use the same retained-handle acquisition contract; FIFOs, devices,
+  links/reparse points, and replacement identities fail before parsing or blocking reads on every
+  platform.
 - Cargo TOML path discovery follows only semantic target, dependency, workspace-dependency,
   target-specific dependency, patch, and replacement tables; unrelated metadata `path` keys do
   not authorize filesystem inputs. Comment/escape-aware shared Gradle workspace parsing preserves

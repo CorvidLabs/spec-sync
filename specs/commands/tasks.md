@@ -19,6 +19,8 @@ spec: commands.spec.md
   and preserve the GitHub helper's title/body sanitization boundary
 - [x] Preserve the public rendered `Vec<String>` validation API while retaining exact structured
   spec-path attribution privately, including legal paths containing `": "`
+- [x] Enforce portable module names, Windows reserved basenames, trailing-space/dot rejection, and
+  the generated spec filename byte limit with ASCII and multibyte boundary tests
 
 ## Gaps
 

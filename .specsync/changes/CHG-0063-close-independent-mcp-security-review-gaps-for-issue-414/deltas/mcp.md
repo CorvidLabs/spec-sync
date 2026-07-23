@@ -137,5 +137,6 @@ Acceptance Criteria
     snapshots and validated from exact bounded bytes with the complete checked parser before
     compatibility loading; non-object/malformed/invalid-UTF-8/wrong-typed configurations fail
     tools and resources closed.
-26. Selected config and recognized manifest opens must match their pre-open inspected identities
-    before any bytes are read; special manifests are rejected without blocking.
+26. Selected config and recognized manifests are acquired through explicit no-follow, non-blocking
+    retained regular-file handles. Opened-handle metadata and native identity remain authoritative
+    through bounded reads; later path observations must match on Windows and Unix.

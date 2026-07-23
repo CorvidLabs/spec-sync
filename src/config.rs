@@ -2092,6 +2092,19 @@ mod tests {
     }
 
     #[test]
+    fn checked_json_config_rejects_non_object_github() {
+        let tmp = TempDir::new().unwrap();
+        let error = parse_config_content_checked(
+            &tmp.path().join("specsync.json"),
+            r#"{"specsDir":"specs","sourceDirs":["src"],"github":42}"#,
+            tmp.path(),
+        )
+        .expect_err("retained config parsing must reject a non-object GitHub section");
+
+        assert!(error.contains("`github` must be an object"), "{error}");
+    }
+
+    #[test]
     fn json_github_repo_absent_null_and_string_remain_compatible() {
         for (github, expected_repo) in [
             (serde_json::json!({}), None),

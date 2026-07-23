@@ -53,3 +53,8 @@ artifact: research
   slug; both conditions must be rejected before importer output construction.
 - Early text-only returns violate caller-selected structured output contracts even when the exit
   status is correct; terminal outcomes must flow through one format-aware renderer.
+- Windows path metadata cannot provide a trustworthy pre-open file identity for this contract.
+  Opening no-follow/non-blocking first and retaining that handle makes its native file identity the
+  authority; subsequent path opens are observations, not authority.
+- A passing private replay is not reproducible when its executable and untracked drill/fixtures are
+  mutable. Exact commit IDs must be paired with content digests for every executed input.

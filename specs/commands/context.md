@@ -26,6 +26,9 @@ spec: commands.spec.md
 
 ## Current Status
 
+Shared module-name validation now applies one portable contract on every host, including Windows
+reserved-device basenames, trailing space/dot behavior, and the generated filename byte ceiling.
+
 Fully implemented and stable. `compute_exit_code` is unit-tested in `src/main.rs`; the surrounding
 flow is exercised by `tests/integration.rs`. CHG-0063 hardens drift-creation rendering at both the
 command terminal and GitHub title/body boundaries while preserving the public rendered-vector API

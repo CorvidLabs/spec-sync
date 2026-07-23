@@ -113,7 +113,19 @@ ignore divergence, direct-detail pull-request acceptance, and punctuation-only i
 Focused regressions for all six facets pass: 1,864 unit and 290 integration tests are present in
 the tree. `fledge run test` completed the full current-tree test task with all 1,864 unit and 290
 integration tests passing. This is not yet the complete repository verification lane. The private
-sandbox replay, two clean rereviews, and all final exact-tree gates remain pending.
+sandbox replay passed; two clean rereviews and all final exact-tree gates remain pending.
+
+## Private sandbox receipt
+
+- Time: `2026-07-23T11:31:42Z`
+- SpecSync implementation: `f6bb7a3b1aaf570b20a3a669ee2ecf46202d1f7b`
+- Private testbed: `CorvidLabs/spec-sync-sandbox` at
+  `758c144808d80169a44a740660b0d73c5b2f6ddd`
+- Command:
+  `SS=/Users/leif/Development/_CorvidLabs/spec-sync/target/debug/specsync bash drills/024-mcp-confined-sibling.sh`
+- Result: `PASS: MCP accepts a manifest-relative sibling dependency confined beneath its server root`
+- Testbed status disclosed two preserved untracked audit inputs: `drills/024-mcp-confined-sibling.sh`
+  and `drills/fixtures/`; neither was modified or deleted by the replay.
 
 - `REQ-mcp-002`: `mcp::tests::test_repeated_tree_scans_share_one_confinement_budget`,
   `mcp::tests::snapshot_copies_the_exact_manifest_bytes_charged_during_discovery`,

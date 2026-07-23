@@ -180,4 +180,7 @@ manifests as structured findings, and rejects both direct-detail pull requests a
 slugs. Focused regressions pass. The prior approval digest and reviewer verdicts predate this
 material amendment, so fresh exact-digest approval, two clean independent rereviews, private
 sandbox evidence, final repository/trust/provenance gates, hosted Windows runtime, and GitHub CI
-remain required.
+remain required. The private sandbox replay is now captured against implementation commit
+`f6bb7a3b1aaf570b20a3a669ee2ecf46202d1f7b` and testbed commit
+`758c144808d80169a44a740660b0d73c5b2f6ddd`; it passed the confined sibling drill. Fresh approval,
+independent rereviews, and the remaining final gates are still required.

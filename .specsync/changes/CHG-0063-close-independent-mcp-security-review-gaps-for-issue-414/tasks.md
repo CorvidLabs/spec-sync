@@ -17,8 +17,9 @@ artifact: tasks
 - [x] Add the MCP semantic delta, companions, public documentation, and release changelog entry.
 - [x] Run the then-current focused MCP/unit/integration suites, build/type/docs gates, and Windows
   GNU cross-target compilation; do not treat those earlier counts as final-tree evidence.
-- [ ] Replay the final hardened MCP revision against the private
-  `CorvidLabs/spec-sync-sandbox` testbed.
+- [x] Replay implementation commit `f6bb7a3b1aaf570b20a3a669ee2ecf46202d1f7b` against private
+  `CorvidLabs/spec-sync-sandbox` testbed commit
+  `758c144808d80169a44a740660b0d73c5b2f6ddd`; confined sibling drill passed.
 - [x] Resolve the independent review's case-insensitive `.git` finding and obtain a clean rereview.
 - [x] Characterize and fix startup root replacement, snapshot omissions, atomic generation, output
   bounds, and Windows write-junction coverage from the second adversarial review.

@@ -62,6 +62,13 @@
       "timestamp": 1784798512,
       "digest": "111c69c754342f66d075667c081156e477ac68c87e74b61097395f4201a00bd9",
       "note": "User explicitly reapproved CHG-0063 digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784800943,
+      "digest": "3bb2942747356febd5dcb116ca3680abb9df37e08519b0b88c2c3f4e85def52e",
+      "note": "User explicitly reapproved CHG-0063 digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed."
     }
   ],
   "reopenings": []

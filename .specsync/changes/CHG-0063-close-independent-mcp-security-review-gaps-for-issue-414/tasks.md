@@ -15,7 +15,7 @@ artifact: tasks
 - [x] Make generation capability-relative and transactional across multi-file failures.
 - [x] Withhold MCP Git-freshness score credit because bounded snapshots intentionally exclude Git.
 - [x] Add the MCP semantic delta, companions, public documentation, and release changelog entry.
-- [x] Run 78 MCP unit tests, 44 MCP integration tests, the full 1,787-unit/260-integration suite,
+- [x] Run 83 MCP unit tests, 44 MCP integration tests, the full 1,792-unit/260-integration suite,
   build/type/docs gates, and Windows GNU cross-target compilation.
 - [x] Replay the hardened MCP against the private `CorvidLabs/spec-sync-sandbox` testbed.
 - [x] Resolve the independent review's case-insensitive `.git` finding and obtain a clean rereview.
@@ -52,6 +52,10 @@ artifact: tasks
   with no in-scope high or medium findings.
 - [x] Reconcile CHG-0063's unsigned definition after CHG-0062/CHG-0064 reacceptance by removing
   obsolete successor obligations while preserving all immutable approval and reopening evidence.
+- [x] Resolve the final compatibility review finding by accepting manifest-relative Cargo sibling
+  paths that normalize inside the retained root while continuing to reject true escapes.
+- [x] Diagnose the Windows CI failures and consume the final quarantine directory capability before
+  removal so init, generation, and collision rollback do not fail with sharing violations.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.
 - [x] Obtain fresh definition approval after the material reviewer-driven artifact amendment.

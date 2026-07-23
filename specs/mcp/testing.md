@@ -16,6 +16,7 @@ spec: mcp.spec.md
 | Configured or nested symlink escape | Rejected for reads and writes, including a dangling init destination |
 | Escaping spec frontmatter file mapping | Rejected before list/check/score consumers can read it |
 | Manifest workspace/member, Gradle module, Python package, cache, dependency, or metadata escape | Rejected before autodetection or downstream consumers access it; outside bytes remain identical |
+| Cargo dependency path `../sibling` normalizes inside the server root | Accepted and snapshotted; an additional parent component that escapes the root is rejected |
 | No-config source scan symlink escape | Rejected by a four-level, ignore-aware, bounded preflight |
 | Excluded subtree contains an outside symlink | Exclusion is honored; unrelated subtree does not reject the request |
 | Wrong argument type, unknown key, or malformed `tools/call` params | JSON-RPC -32602 before execution |
@@ -23,6 +24,7 @@ spec: mcp.spec.md
 | Malformed or extended `resources/read` params | JSON-RPC -32602 before resource access |
 | Generate | Deterministic local scaffold |
 | Generate destination collision, public-parent replacement, or incomplete write | Tool error; retained capabilities preserve public replacements; empty parents created by the failed batch may remain |
+| Successful init/generate and collision rollback on Windows | Quarantine cleanup consumes its final handle; success remains success and collision errors retain their intended publication diagnostic |
 | Generate count over 1,000, cumulative content over 64 MiB, or oversized result | Rejected before any destination is published |
 | Legacy inference argument | JSON-RPC -32602 migration error, value not echoed |
 | Notification, including mutating and unknown methods | No response and no dispatch |
@@ -56,7 +58,7 @@ spec: mcp.spec.md
 
 The adversarial integration matrix lives in `tests/integration/mcp.rs`; its local write-enabled
 process helper leaves the shared `mcp_request` helper and all existing read-only callers unchanged.
-The focused MCP suite contains 44 non-Windows integration tests and 79 MCP unit tests, including
+The focused MCP suite contains 44 non-Windows integration tests and 83 MCP unit tests, including
 exact envelope and resource validation, explicit Git repository configuration, generation-failure reporting,
 Windows read/write junctions, identity-bound capability acquisition, cycle/bound and actual-byte budgets, bounded
 input/output, configured-ignore exceptions, conservative Git scoring, rollback, and transport

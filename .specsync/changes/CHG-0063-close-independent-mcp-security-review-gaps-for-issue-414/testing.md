@@ -19,6 +19,8 @@ artifact: testing
 | Explicit normally ignored root | Included when configured and still bounded/confined |
 | Root-wide source or manifest-derived workspace beneath ignored name | Included and budgeted; commented Cargo headers and multiline/commented/escaped Gradle members cannot be omitted |
 | Manifest grows after discovery | Snapshot copies only the exact bytes charged during discovery and remains within 64 MiB |
+| Cargo dependency path `../sibling` normalizes inside the server root | Accepted and included; a path whose normalized target escapes the root remains rejected |
+| Windows quarantine cleanup after init, generation, or collision rollback | Final directory capability is consumed before removal; no sharing violation changes the outcome |
 | Manifest discovery exceeds the 64 MiB cumulative budget | Rejected before parsing further manifests or snapshot copying |
 | Root replaced after the initial handle but before canonicalization | Identity/capability error before serving requests |
 | Response >1 MiB or request ID >4 KiB | Compact bounded error; oversized ID is rejected before dispatch |
@@ -43,9 +45,9 @@ artifact: testing
 
 Focused evidence lives in `src/mcp.rs`, `src/manifest.rs`, `src/github.rs`, `src/importer.rs`,
 `src/commands/issues.rs`, `tests/integration/commands.rs`, and `tests/integration/mcp.rs`. The
-current inventory includes 78 MCP unit tests, 23 GitHub unit tests, 14 manifest unit tests, 26
+current inventory includes 83 MCP unit tests, 23 GitHub unit tests, 14 manifest unit tests, 26
 importer unit tests, focused command unit/integration regressions, and 44 non-Windows MCP
-integration tests. The final post-defensive-review repository evidence passes 1,787 unit tests and
+integration tests. The final post-defensive-review repository evidence passes 1,792 unit tests and
 260 integration tests, including both no-subprocess amendments and the refined configured-input
 precedence. The amended tree also passes
 formatting, linting, type checking, and Windows GNU test cross-target checking; repository evidence

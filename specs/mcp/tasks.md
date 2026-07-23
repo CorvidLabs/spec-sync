@@ -45,4 +45,6 @@ spec: mcp.spec.md
 - [x] Pass independent defensive agent rereview with no high or medium findings
 - [x] Bind publication and rollback identity to exact staged bytes to reject immediate inode reuse
 - [x] Bound exact-byte identity hashing and fail closed on oversized replacement input
+- [x] Preserve confined Cargo sibling dependencies that use manifest-relative parent components
+- [x] Consume the final quarantine directory capability before Windows cleanup
 - [ ] Pass fresh Windows reparse-point CI

@@ -79,6 +79,9 @@ Acceptance Criteria
 - Cargo TOML and comment/escape-aware shared Gradle workspace parsing preserve explicitly declared
   inputs beneath normally ignored names, including multiline includes and supported `projectDir`
   overrides.
+- Manifest-relative `..` components are resolved from the declaring manifest and accepted only
+  when the normalized target remains beneath the retained server root; true normalized escapes,
+  symlink escapes, and junction escapes still fail before downstream access.
 
 ### REQ-mcp-003
 
@@ -96,6 +99,8 @@ Acceptance Criteria
   capabilities, and rolls back only matching filesystem and exact-byte transaction identities,
   including when a filesystem immediately reuses an inode. Exact-byte identity hashing is capped
   at the generated-output limit and fails closed above it.
+- Quarantine cleanup validates its retained directory identity and consumes the final directory
+  capability before removal, avoiding Windows sharing violations without reopening an ambient path.
 - GitHub issue verification requires explicit `GITHUB_TOKEN`, performs reads in-process without a
   provider subprocess, prepares once, globally caps/deduplicates 100 IDs, includes authentication
   and repository preflight in its 30-second deadline, and revalidates access after an apparent

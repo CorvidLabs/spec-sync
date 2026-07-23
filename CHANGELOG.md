@@ -28,7 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MCP manifest and issue checks fail closed under adversarial input** — bounded Cargo workspace
   discovery uses real TOML, while shared checked Gradle discovery handles Groovy/Kotlin comments,
   escapes, includes, and supported project directories; malformed discovery is inconclusive for
-  gates. Manifest discovery shares the 64 MiB input budget and snapshots exact preflighted bytes.
+  gates. Manifest-relative sibling paths such as `../b` remain valid when normalization keeps them
+  beneath the retained server root, while true escapes still fail. Private quarantine cleanup
+  consumes its final retained directory capability before removal so Windows does not turn
+  successful init/generation into sharing-violation failures. Manifest discovery shares the 64 MiB
+  input budget and snapshots exact preflighted bytes.
   Issue reads, listing, and verification require `GITHUB_TOKEN`, use in-process GitHub REST, and
   never spawn a `gh` provider process; `gh` remains only the explicit issue-creation write path.
   Verification globally deduplicates/caps IDs, includes repository preflight in the complete batch

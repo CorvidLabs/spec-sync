@@ -915,19 +915,41 @@ fn read_capability_text_if_exists(
 
 fn snapshot_manifest_input(base: &Path, configured: &str, label: &str) -> Result<PathBuf, String> {
     let path = Path::new(configured);
-    if path.is_absolute()
-        || path.components().any(|component| {
-            matches!(
-                component,
-                Component::ParentDir | Component::RootDir | Component::Prefix(_)
-            )
-        })
+    let bytes = configured.as_bytes();
+    let has_windows_drive_prefix =
+        bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':';
+    if configured.contains('\\')
+        || has_windows_drive_prefix
+        || path.is_absolute()
+        || path
+            .components()
+            .any(|component| matches!(component, Component::RootDir | Component::Prefix(_)))
     {
         return Err(format!(
-            "MCP {label} must be a project-relative path without traversal: {configured}"
+            "MCP {label} must use a safe project-relative path: {configured}"
         ));
     }
-    Ok(normalize_snapshot_input(&base.join(path)))
+
+    let mut normalized = normalize_snapshot_input(base);
+    for component in path.components() {
+        match component {
+            Component::Normal(part) => normalized.push(part),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !normalized.pop() {
+                    return Err(format!(
+                        "MCP {label} escapes the configured server root: {configured}"
+                    ));
+                }
+            }
+            Component::RootDir | Component::Prefix(_) => {
+                return Err(format!(
+                    "MCP {label} must use a safe project-relative path: {configured}"
+                ));
+            }
+        }
+    }
+    Ok(normalized)
 }
 
 fn normalize_snapshot_input(path: &Path) -> PathBuf {
@@ -3684,7 +3706,7 @@ where
             staged.destination_display.display()
         );
         return match cleanup_quarantined_file(
-            &quarantined,
+            quarantined,
             staged.identity,
             &staged.temporary_display,
         ) {
@@ -3715,7 +3737,7 @@ where
         ));
     }
     drop(destination);
-    cleanup_quarantined_file(&quarantined, staged.identity, &staged.temporary_display)
+    cleanup_quarantined_file(quarantined, staged.identity, &staged.temporary_display)
 }
 
 fn validate_confined_relative(relative: &Path, label: &str) -> Result<(), String> {
@@ -3797,7 +3819,7 @@ where
         ));
     }
     drop(file);
-    cleanup_quarantined_file(&quarantined, expected, display)
+    cleanup_quarantined_file(quarantined, expected, display)
 }
 
 struct QuarantinedEntry {
@@ -3872,7 +3894,7 @@ fn quarantine_entry(
 }
 
 fn cleanup_quarantined_file(
-    quarantined: &QuarantinedEntry,
+    quarantined: QuarantinedEntry,
     expected: FileIdentity,
     display: &Path,
 ) -> Result<(), String> {
@@ -3901,7 +3923,7 @@ fn cleanup_quarantined_file(
 }
 
 fn cleanup_quarantine_directory(
-    quarantined: &QuarantinedEntry,
+    quarantined: QuarantinedEntry,
     display: &Path,
 ) -> Result<(), String> {
     let observed = directory_identity(&quarantined.directory).map_err(|error| {
@@ -3916,22 +3938,12 @@ fn cleanup_quarantine_directory(
             display.display()
         ));
     }
-    quarantined
-        .directory
-        .try_clone()
-        .map_err(|error| {
-            format!(
-                "Cannot retain rollback quarantine for handle-relative removal of {}: {error}",
-                display.display()
-            )
-        })?
-        .remove_open_dir()
-        .map_err(|error| {
-            format!(
-                "Cannot remove rollback quarantine for {}: {error}",
-                display.display()
-            )
-        })
+    quarantined.directory.remove_open_dir().map_err(|error| {
+        format!(
+            "Cannot remove rollback quarantine for {}: {error}",
+            display.display()
+        )
+    })
 }
 
 fn rollback_staged_batch(staged: &[StagedFile], error: String) -> String {
@@ -4171,6 +4183,20 @@ mod tests {
 
     fn open_test_directory(path: &Path) -> Dir {
         Dir::open_ambient_dir(path, ambient_authority()).unwrap()
+    }
+
+    fn assert_no_mcp_transaction_debris(root: &Path) {
+        assert!(
+            WalkDir::new(root)
+                .into_iter()
+                .filter_map(Result::ok)
+                .all(|entry| {
+                    let name = entry.file_name().to_string_lossy();
+                    !name.starts_with(".specsync-mcp-stage-")
+                        && !name.starts_with(".specsync-mcp-quarantine-")
+                }),
+            "successful MCP publication must remove private staging and quarantine entries"
+        );
     }
 
     fn setup_project() -> TempDir {
@@ -4428,6 +4454,92 @@ mod tests {
     }
 
     #[test]
+    fn snapshot_normalizes_confined_cargo_sibling_dependency() {
+        let tmp = setup_project();
+        fs::create_dir_all(tmp.path().join("crates/a/src")).unwrap();
+        fs::create_dir_all(tmp.path().join("crates/b/src")).unwrap();
+        fs::write(
+            tmp.path().join("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/a\"]\n",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join("crates/a/Cargo.toml"),
+            "[package]\nname = \"a\"\nversion = \"0.1.0\"\n\n[dependencies]\nb = { path = \"../b\" }\n",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join("crates/b/Cargo.toml"),
+            "[package]\nname = \"b\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+        fs::write(tmp.path().join("crates/a/src/lib.rs"), "pub fn a() {}\n").unwrap();
+        fs::write(tmp.path().join("crates/b/src/lib.rs"), "pub fn b() {}\n").unwrap();
+
+        let snapshot = ProjectSnapshot::create(tmp.path()).unwrap();
+
+        assert!(snapshot.root().join("crates/b/src/lib.rs").is_file());
+    }
+
+    #[test]
+    fn snapshot_manifest_input_rejects_true_root_and_cross_platform_lexical_escapes() {
+        let error = snapshot_manifest_input(
+            Path::new("crates/a"),
+            "../../../outside",
+            "Cargo target path",
+        )
+        .expect_err("parent traversal beyond the retained root must be rejected");
+        assert!(error.contains("escapes the configured server root"));
+
+        for configured in [
+            "/outside",
+            "C:/outside",
+            "C:outside",
+            r"\\server\share\outside",
+            r"..\b",
+        ] {
+            let error =
+                snapshot_manifest_input(Path::new("crates/a"), configured, "Cargo target path")
+                    .expect_err(
+                        "absolute, drive, UNC, and backslash paths must be rejected portably",
+                    );
+            assert!(error.contains("safe project-relative path"));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn snapshot_rejects_confined_sibling_dependency_symlink_escape() {
+        use std::os::unix::fs::symlink;
+
+        let tmp = setup_project();
+        let outside = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join("crates/a/src")).unwrap();
+        fs::create_dir_all(outside.path().join("src")).unwrap();
+        fs::write(
+            tmp.path().join("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/a\"]\n",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join("crates/a/Cargo.toml"),
+            "[package]\nname = \"a\"\nversion = \"0.1.0\"\n\n[dependencies]\nb = { path = \"../b\" }\n",
+        )
+        .unwrap();
+        fs::write(
+            outside.path().join("Cargo.toml"),
+            "[package]\nname = \"b\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+        fs::write(outside.path().join("src/lib.rs"), "pub fn outside() {}\n").unwrap();
+        symlink(outside.path(), tmp.path().join("crates/b")).unwrap();
+
+        ProjectSnapshot::create(tmp.path())
+            .err()
+            .expect("a normalized sibling dependency must not follow a symlink outside root");
+    }
+
+    #[test]
     fn snapshot_includes_multiline_cargo_members_beneath_ignored_directories() {
         let tmp = setup_project();
         fs::create_dir_all(tmp.path().join("vendor/member/src")).unwrap();
@@ -4451,7 +4563,7 @@ mod tests {
             .expect("a multiline workspace member must remain visible and bounded");
 
         assert!(error.contains("per-file limit"));
-        assert!(error.contains("vendor/member/src/lib.rs"));
+        assert!(error.contains(&Path::new("vendor/member/src/lib.rs").display().to_string()));
     }
 
     #[test]
@@ -4795,10 +4907,14 @@ project(':override').projectDir = file('vendor/custom')
 
         let directory = open_test_directory(tmp.path());
         let result = tool_init(tmp.path(), &directory);
-        assert!(result.is_ok());
+        assert!(
+            result.is_ok(),
+            "unexpected initialization error: {result:?}"
+        );
         let val = result.unwrap();
         assert_eq!(val["created"], true);
         assert!(tmp.path().join("specsync.json").exists());
+        assert_no_mcp_transaction_debris(tmp.path());
     }
 
     #[test]
@@ -5002,7 +5118,7 @@ project(':override').projectDir = file('vendor/custom')
         let snapshot = ProjectSnapshot::create(tmp.path()).unwrap();
         let directory = open_test_directory(tmp.path());
         let result = tool_generate(snapshot.root(), &directory, &json!({}));
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "unexpected generation error: {result:?}");
         let val = result.unwrap();
         assert_eq!(val["count"].as_u64(), Some(1));
         let generated = val["generated"].as_array().unwrap();
@@ -5017,6 +5133,7 @@ project(':override').projectDir = file('vendor/custom')
                     .join("auth.spec.md")
             )
         );
+        assert_no_mcp_transaction_debris(tmp.path());
     }
 
     #[test]
@@ -5045,7 +5162,10 @@ project(':override').projectDir = file('vendor/custom')
         )
         .unwrap_err();
 
-        assert!(error.contains("Cannot atomically publish confined MCP generated spec"));
+        assert!(
+            error.contains("Cannot atomically publish confined MCP generated spec"),
+            "unexpected publication error: {error}"
+        );
         assert!(!tmp.path().join("specs/created/created.spec.md").exists());
         assert!(tmp.path().join("specs/created").is_dir());
         assert!(
@@ -5058,15 +5178,7 @@ project(':override').projectDir = file('vendor/custom')
             fs::read_to_string(tmp.path().join("specs/blocked/blocked.spec.md")).unwrap(),
             "existing\n"
         );
-        assert!(
-            WalkDir::new(tmp.path())
-                .into_iter()
-                .filter_map(Result::ok)
-                .all(|entry| !entry
-                    .file_name()
-                    .to_string_lossy()
-                    .starts_with(".specsync-mcp-stage-"))
-        );
+        assert_no_mcp_transaction_debris(tmp.path());
     }
 
     #[cfg(unix)]

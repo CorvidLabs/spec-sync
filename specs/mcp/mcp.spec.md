@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 8
+version: 9
 status: stable
 files:
   - src/mcp.rs
@@ -52,6 +52,8 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
     retained parent capabilities and filesystem-plus-content identities preserve replacements at public transaction
     paths. Empty parent directories created during a failed batch may remain because no portable
     create-and-open directory primitive can prove ownership across a concurrent replacement.
+    Private quarantine cleanup consumes its final directory capability before removal so Windows
+    does not retain a sharing-blocking handle.
     Processes already authorized to mutate the server root must not race private
     `.specsync-mcp-stage-*` or `.specsync-mcp-quarantine-*` names.
 14. Explicit root-wide and manifest-derived inputs remain present in bounded snapshots even when
@@ -60,6 +62,8 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
     manifest discovery parses Cargo workspace
     membership as TOML plus comment/escape-aware shared Gradle settings; snapshots copy the exact
     manifest bytes charged to the shared cumulative byte budget.
+    Manifest-relative parent components are normalized from the declaring manifest and accepted
+    when their resolved target remains beneath the server root; only actual root escapes fail.
 15. GitHub issue verification requires explicit `GITHUB_TOKEN`, performs read/list/verify requests
     in-process without a provider subprocess, prepares once, globally deduplicates at most 100 IDs,
     includes authentication/preflight in the 30-second batch bound, and revalidates repository
@@ -131,9 +135,11 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | Non-object params/arguments, wrong argument type, or unknown key | JSON-RPC error -32602 before tool execution |
 | Read root outside the server root, nonexistent, traversing, symlink-escaped, or selected after ambient root replacement | Tool error with `isError: true`; retained authority never follows the replacement path |
 | Configured, manifest-derived, dependency/cache/schema, module, spec-mapping, or nested-symlink path escapes the root | Tool/resource error before downstream filesystem access; outside bytes remain unchanged |
+| Manifest-relative sibling path such as `../b` normalizes inside the root | Accepted and included in the bounded snapshot; true normalized escapes still fail |
 | Cumulative confinement or manifest preflight exceeds its deterministic entry bound | Tool/resource error before downstream filesystem access |
 | Generation exceeds 1,000 specs, 64 MiB, or its response budget | Tool error before publishing project files |
 | Generated destination exists, a public parent path is replaced, or a staged batch cannot publish completely | Tool error; identity-bound cleanup preserves public replacements; an empty parent created by the failed batch may remain |
+| Private quarantine cleanup on Windows | Final retained directory handle is consumed before removal; successful init/generate does not fail with a sharing violation |
 | GitHub issue provider tree, authentication, repository recheck, timeout, malformed output, or transport failure | Inconclusive tool error; no trustworthy zero-count or not-found result |
 | Server root cannot be resolved | Server exits nonzero and writes an actionable diagnostic to stderr |
 | Unknown resource URI | JSON-RPC error -32602 "Unknown resource URI: {uri}" |
@@ -176,3 +182,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-22 | CHG-0063: Identity-bind roots and quarantine rollback, parse Cargo TOML and checked Gradle inputs, normalize Windows roots, and use bounded in-process GitHub verification |
 | 2026-07-22 | CHG-0063 defensive review: Skip ignored-name symlinks before traversal and compare Windows root components with native ordinal Unicode case semantics |
 | 2026-07-23 | CHG-0063 CI follow-up: Bind staged and rollback identities to exact bytes so immediate Unix inode reuse cannot authorize a replacement, with fail-closed bounded hashing |
+| 2026-07-23 | CHG-0063 compatibility follow-up: Accept manifest-relative sibling paths that normalize inside the retained MCP root, reject true escapes, and consume private quarantine handles before Windows removal |

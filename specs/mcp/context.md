@@ -35,6 +35,8 @@ spec: mcp.spec.md
   or same-entry rewrites cannot authorize a replacement. Empty parents created by a failed batch may remain because portable
   filesystems provide no atomic create-and-open directory primitive. A same-user process already
   authorized to mutate the server root must not race private staging or quarantine names.
+- Quarantine cleanup consumes the final identity-checked directory capability before removal;
+  cloning that capability leaves a sharing-blocking original handle on Windows.
 - Root capability acquisition opens and identity-binds the requested root before canonicalization,
   reopens the canonical path through its parent capability, and compares filesystem identities,
   closing the full startup replacement interval.
@@ -43,6 +45,9 @@ spec: mcp.spec.md
   workspace membership as TOML and shared Gradle settings with comment/escape-aware syntax,
   charges deduplicated manifest bytes to the operation budget, and copies those exact preflight
   buffers.
+- Manifest path fields are normalized relative to the manifest that declares them. Parent
+  components are valid for ordinary sibling dependencies when the normalized path remains beneath
+  the retained root; confinement rejects only actual lexical or resolved escapes.
 - Windows absolute-root containment parses native path components without lossy UTF-8 conversion
   and compares them with Win32 ordinal ignore-case semantics, including non-ASCII case variants.
 - MCP issue verification requires explicit `GITHUB_TOKEN`, performs read/list/verify requests

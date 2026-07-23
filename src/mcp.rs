@@ -1660,9 +1660,7 @@ fn resolve_read_root(server_root: &Path, requested_root: Option<&str>) -> Result
     }
 
     let relative = if requested_path.is_absolute() {
-        let resolved_requested_path = fs::canonicalize(requested_path)
-            .map_err(|_| "Read root override escapes the configured server root".to_string())?;
-        relative_read_root_suffix(server_root, &resolved_requested_path)
+        relative_read_root_suffix(server_root, requested_path)
             .ok_or_else(|| "Read root override escapes the configured server root".to_string())?
     } else {
         requested_path.to_path_buf()

@@ -604,7 +604,14 @@ fn mcp_windows_read_roots_accept_absolute_children_and_reject_ambiguous_prefixes
     let responses = mcp_request(
         &root,
         &[
-            coverage_request(1, serde_json::json!(child.to_string_lossy())),
+            coverage_request(
+                1,
+                serde_json::json!(
+                    fs::canonicalize(&child)
+                        .expect("failed to canonicalize Windows child-root fixture")
+                        .to_string_lossy()
+                ),
+            ),
             coverage_request(2, serde_json::json!(r"\Windows")),
             coverage_request(3, serde_json::json!(r"C:relative")),
         ],

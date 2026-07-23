@@ -76,6 +76,13 @@
       "timestamp": 1784800913,
       "digest": "eae43deb28db27e2e24fd50a735f066a9457ccd730bef67458c790ca801110f8",
       "note": "User approved closing CHG-0062 after fresh verification; refreshed against final retained-config review fixes."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784803466,
+      "digest": "ced86b9ae44b9f2793d40559d5169acbeffb1f471afbe0e8b070304f25e4d53c",
+      "note": "User approved closing CHG-0062 after fresh verification; applied after the final MCP capability review gate passed at c20ae27."
     }
   ],
   "reopenings": [

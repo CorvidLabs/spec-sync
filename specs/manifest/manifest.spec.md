@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 8
+version: 9
 status: stable
 files:
   - src/manifest.rs
@@ -16,6 +16,12 @@ depends_on: []
 Manifest-aware module detection for multi-language projects. Parses language-specific manifest/build files (Cargo.toml, Package.swift, build.gradle.kts, package.json, pubspec.yaml, go.mod, pyproject.toml) to discover targets, source paths, module names, and dependencies — replacing pure directory scanning with structured project metadata.
 
 ## Public API
+
+### Exported Constants
+
+| Constant | Type | Description |
+|----------|------|-------------|
+| `MAX_GRADLE_MANIFEST_BYTES` | `u64` | Crate-visible 4 MiB ceiling shared by retained Gradle manifest readers |
 
 ### Exported Structs
 
@@ -63,16 +69,19 @@ member or target paths.
 7. Gradle parser distinguishes Android projects (checks `android {` block) from standard Kotlin/Java layouts
 8. Gradle multi-module projects support comment-aware Groovy/Kotlin quoting, decoded escapes,
    parenthesized or bare multiline `include` declarations, nested colon names, assignment-style
-   `.projectDir = ...`, and method-style `.setProjectDir(...)`.
+   `.projectDir = ...`, and method-style `.setProjectDir(...)`. Triple-quoted Groovy/Kotlin
+   documentation and nested block comments are inert.
 9. Supported assignment and method arguments are exactly `file(<literal>)` and
    `new File(rootDir, <literal>)`. Every include argument and project-directory argument must be a
-   complete literal expression; unescaped interpolation in double-quoted strings, dynamic
-   arguments, alternate `new File` bases, extra arguments, unsupported mutators, and trailing
-   expressions fail checked discovery. Escaped literal dollars remain data, while Unicode and
-   Groovy octal escapes are decoded before confinement checks.
+   complete literal expression; `new File` requires a real token boundary. Unescaped interpolation
+   in double-quoted strings, dynamic arguments, alternate bases, extra arguments, aliased,
+   qualified, conditional, block-scoped, compound, or otherwise unsupported mutations, and
+   trailing expressions fail checked discovery. Escaped literal dollars remain data, while Unicode
+   and Groovy octal escapes are decoded before confinement checks.
 10. Raw included module identities and raw `project(...)` selectors are checked for rooted,
-    drive-qualified, UNC, and parent-escaping forms before Gradle colon separators are mapped to
-    path separators. Valid nested identities such as `:service:api` remain supported.
+    drive-qualified (including drive-relative `C:member`), UNC, and parent-escaping forms before
+    Gradle colon separators are mapped to path separators. Valid rooted nested identities such as
+    `:service:api` and `:C:member` remain supported.
 11. Included module names and effective project-directory values normalize only while they remain
     project-relative; rooted, drive-qualified, UNC, and parent traversal escapes fail checked
     discovery without returning partial modules.
@@ -204,3 +213,4 @@ member or target paths.
 | 2026-07-23 | CHG-0063 human review: Reject rooted, drive-qualified, UNC, and parent-escaping Gradle module and `projectDir` paths before CLI discovery can inspect outside the project |
 | 2026-07-23 | v7 / CHG-0063 independent review: Validate raw drive-qualified module identities before colon mapping, confine literal `setProjectDir` forms, and reject symlink/reparse components through the retained root capability |
 | 2026-07-23 | v8 / CHG-0063 adversarial rereview: Acquire Gradle build/settings manifests as bounded regular non-link files, reject unescaped interpolation, and decode Unicode/octal path escapes before confinement |
+| 2026-07-23 | v9 / CHG-0063 final security rereview: Reject indirect/conditional Gradle mutations, mask multiline literals and nested comments, require the `new File` token boundary, and preserve only explicitly rooted Gradle names that resemble drive-relative paths |

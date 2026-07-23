@@ -417,32 +417,28 @@ superseded by the hash-bound exact-commit replay below.
   output, while the `mcp_allow_empty_tool_and_resource_*selected_config*` group proves MCP
   malformed/UTF-8/type rejection and valid BOM compatibility.
 
-## Pending final-tree evidence for the Gradle amendment
+## Current final-tree evidence for the Gradle amendment
 
 - No historical test, reviewer, Windows cross-target, sandbox, trust, Attest, or CI result is
   evidence for the reviewer-driven Gradle fixes documented in this amendment.
 - Exact commit `d05896b` passed the full local lane: 1,882 unit tests and 296 integration tests,
   plus `fledge run fmt`, `fledge run lint`, and the release `fledge run build`. That evidence
   predates the interpolation/encoded-escape amendment and is not final-tree evidence.
-- Characterization reproduced the interpolation false green. After the complete amendment, 21
-  focused Gradle unit tests and 12 focused Gradle integration tests pass; formatting, diff checks,
-  `fledge run lint`, and the release `fledge run build` pass. Windows GNU test-target compilation
-  also passes with the unchanged cfg-specific warning in `src/change.rs`.
+- Characterization reproduced the interpolation, indirect-directive, multiline-literal/comment,
+  constructor-token, MCP build-manifest, drive-relative, and post-discovery source-swap false
+  greens. Focused parser, CLI, MCP tool/resource, FIFO/socket/link/size/race, and retained coverage
+  snapshot tests pass without outside disclosure or partial generation.
+- The complete amended code tree passed `fledge run test`: 1,892 unit tests and 302 integration
+  tests in 276.8 seconds. `fledge run fmt`, `fledge run lint`, focused coverage tests, and all
+  focused Gradle tests pass.
 - `cargo check --target x86_64-pc-windows-gnu --tests` passed; it emitted the existing cfg-specific
   unused-variable warning in `src/change.rs`, outside this amendment. Cross-target compilation is
   not a substitute for hosted-Windows junction runtime.
-- Pending: hosted-Windows junction/reparse runtime and a final-tree rerun after the definition is
-  approved.
-- Pending: full repository lane, strict coverage and score gates, two independent clean reviews,
+- The hosted-Windows post-discovery junction and build-manifest reparse fixtures compile under the
+  Windows GNU test target but remain pending hosted-Windows runtime CI.
+- Pending: release build, docs, strict coverage and score gates, two independent clean reviews,
   private-sandbox refresh, fresh exact-digest definition approval, GitHub CI, `fledge trust verify`,
   Attest provenance, lifecycle verification, and closing approval.
-- The final `725a50b` rereview confirmed the interpolation and retained-manifest fixes but
-  characterized `newFile(rootDir, "...")` as a false-green constructor lookalike. Pending focused
-  evidence must cover assignment and setter forms in the parser and every CLI/MCP checked gate,
-  preserving outside bytes and producing no partial output.
-- A concurrent scanner patch passes its focused inert multiline-string/comment test, but static
-  rereview found two still-unproven branches: triple-quoted arguments can collapse into empty
-  includes, and line-leading directives inside multiline conditional blocks remain accepted.
   Pending characterization and post-fix evidence must cover top-level compatibility; inert quoted
   and nested-comment content; aliased/qualified/compound directives; same-line and multiline
   conditional blocks; unsupported triple-quoted include/project-directory arguments; all CLI/MCP

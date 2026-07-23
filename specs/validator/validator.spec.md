@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 15
+version: 16
 status: stable
 files:
   - src/validator.rs
@@ -19,7 +19,7 @@ depends_on:
 
 ## Purpose
 
-Core validation engine for spec-sync. Validates individual specs and selected companion artifacts against source code, discovers configured and zero-config source files including static HTML, HTM, and CSS content, rejects every known generated companion marker outside fenced examples, extracts schema table names from SQL migrations, computes non-vacuous file and LOC coverage metrics, preserves malformed or unconstrained manifest discovery as an inconclusive checked error for gates, and resolves cross-project dependency references.
+Core validation engine for spec-sync. Validates individual specs and selected companion artifacts against source code, discovers configured and zero-config source files including static HTML, HTM, and CSS content, rejects every known generated companion marker outside fenced examples, extracts schema table names from SQL migrations, computes non-vacuous file and LOC coverage metrics from retained no-follow source snapshots, preserves malformed or unconstrained manifest discovery as an inconclusive checked error for gates, and resolves cross-project dependency references.
 
 ## Public API
 
@@ -74,6 +74,10 @@ Core validation engine for spec-sync. Validates individual specs and selected co
     point. Its supplied `SourceSnapshot` map is authoritative for mapped-source existence,
     readability, containment rejection, UTF-8 validation, and export extraction; it does not fall
     back to ambient source-path reads.
+17. Checked coverage opens configured source roots and files through retained no-follow
+    capabilities, binds identities before and after reads, and derives file, LOC,
+    immediate-directory, and flat-file module results from one immutable observation. Symlink,
+    reparse, or identity replacement is inconclusive before outside reads or partial totals.
 
 ## Behavioral Examples
 
@@ -185,6 +189,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-22 | v13 / CHG-0063: add `validate_spec_content` so capability-rooted callers validate exact pre-read snapshots without reopening spec paths |
 | 2026-07-23 | v14 / CHG-0063 independent review: keep raw drive-qualified modules, unsupported `setProjectDir` forms, and linked/reparse-backed Gradle source roots inconclusive across CLI and MCP gates |
 | 2026-07-23 | v15 / CHG-0063 adversarial rereview: keep linked/reparse-backed Gradle manifests plus interpolated or encoded Gradle paths inconclusive across checked gates |
+| 2026-07-23 | v16 / CHG-0063 final security rereview: snapshot coverage roots and bytes through retained no-follow handles so post-discovery symlink/junction replacement is inconclusive before outside reads |
 | 2026-07-10 | v5: keep coverage regression fixtures warning-free under current stable Clippy and document the intentionally in-file test-module layout |
 | 2026-07-10 | v5: make canonical requirements companions adaptive rather than empty mandatory ceremony |
 | 2026-07-02 | v4: add `source_within_root` — shared guard rejecting `files:` paths that escape the project root (absolute/`..`/symlink); applied in `validate_spec` and every export-extraction site (score, check --fix, diff, new) to close an out-of-root identifier-disclosure vector |

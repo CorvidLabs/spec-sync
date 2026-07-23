@@ -245,3 +245,15 @@ and still accepted line-leading directives nested under a multiline conditional 
 changes remain uncommitted and are not completion evidence. The final definition therefore binds
 directive context explicitly: inert quoted/comment content is ignored, only supported top-level
 statements are interpreted, and every indirect or unsupported directive form fails closed.
+
+The next adversarial pass found two high authority gaps and three medium parser/preflight gaps.
+MCP now preloads every Gradle build/settings variant exactly once through its retained no-follow,
+non-blocking reader at the shared 4 MiB limit before parsing or probing; tools and resources reject
+special, linked/reparse-backed, replaced, oversized, or invalid inputs. Checked CLI coverage now
+opens source roots and reads bytes through retained capabilities, binds identities across
+traversal, and derives file, LOC, directory-module, and flat-module results without ambient
+reopening. Deterministic Unix and hosted-Windows barriers replace an observed Gradle module with a
+symlink/junction before traversal and require every coverage gate to fail inconclusive without
+outside bytes or partial generation. Parser closure also rejects indirect/conditional/compound
+mutations, `newFile` token confusion, and unrooted drive-relative identities while masking
+triple-quoted documentation and nested comments.

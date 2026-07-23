@@ -1356,6 +1356,35 @@ fn gradle_interpolated_project_dirs_are_inconclusive_for_coverage_gating_command
             "setter-braced",
             r#"project(":member").setProjectDir(file("${outside}"))"#,
         ),
+        (
+            "indirect-assignment",
+            "val member = project(\":member\")\nmember.projectDir = file(\"../outside\")",
+        ),
+        (
+            "indirect-setter",
+            "val member = project(\":member\")\nmember.setProjectDir(file(\"../outside\"))",
+        ),
+        (
+            "closure-assignment",
+            "project(\":member\") {\nprojectDir = file(\"../outside\")\n}",
+        ),
+        (
+            "whitespace-setter",
+            "project(\":member\") . setProjectDir(file(\"../outside\"))",
+        ),
+        (
+            "concatenated-constructor",
+            "project(\":member\").projectDir = newFile(rootDir, \"../outside\")",
+        ),
+        (
+            "drive-relative-selector",
+            "project(\"C:outside\").projectDir = file(\"modules/member\")",
+        ),
+        (
+            "multiline-conditional-include",
+            "if (enabled) {\ninclude(\":member\")\n}",
+        ),
+        ("triple-quoted-include", "include(\"\"\":member\"\"\")"),
     ] {
         let tmp = TempDir::new().unwrap();
         let root = tmp.path().join("project");
@@ -1402,6 +1431,91 @@ fn gradle_symlink_module_escape_is_inconclusive_for_coverage_gating_commands() {
         "linked",
         "symlink",
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn gradle_post_discovery_symlink_swap_is_inconclusive_for_every_coverage_gate() {
+    use std::os::unix::fs::symlink;
+    use std::process::{Command as ProcessCommand, Stdio};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    const BARRIER_ENV: &str = "SPECSYNC_TEST_COVERAGE_SNAPSHOT_IDENTITY_BARRIER";
+    for command_name in ["check", "coverage", "generate", "report", "score"] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().join("project");
+        let outside = tmp.path().join("outside");
+        let barrier = tmp.path().join("barrier");
+        fs::create_dir_all(root.join("member/src/main/kotlin")).unwrap();
+        fs::create_dir_all(outside.join("src/main/kotlin")).unwrap();
+        fs::create_dir_all(&barrier).unwrap();
+        fs::write(
+            root.join("member/src/main/kotlin/Local.kt"),
+            "const val LOCAL = 1\n",
+        )
+        .unwrap();
+        fs::write(root.join("settings.gradle.kts"), "include(\":member\")\n").unwrap();
+        let outside_source = outside.join("src/main/kotlin/Secret.kt");
+        let outside_bytes = b"const val SECRET = \"POST_DISCOVERY_SWAP\"\n";
+        fs::write(&outside_source, outside_bytes).unwrap();
+
+        let binary = specsync().get_program().to_os_string();
+        let mut process = ProcessCommand::new(binary);
+        process
+            .arg(command_name)
+            .arg("--root")
+            .arg(&root)
+            .args(["--format", "json"]);
+        if command_name == "score" {
+            process.args(["--require-coverage", "100"]);
+        }
+        let mut child = process
+            .env(BARRIER_ENV, &barrier)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let ready = barrier.join("root-retained");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ready.is_file() {
+            assert!(
+                child.try_wait().unwrap().is_none(),
+                "{command_name} exited before the coverage barrier"
+            );
+            assert!(
+                Instant::now() < deadline,
+                "{command_name} did not reach the coverage barrier"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        fs::rename(root.join("member"), root.join("original-member")).unwrap();
+        symlink(&outside, root.join("member")).unwrap();
+        fs::write(barrier.join("resume"), b"resume\n").unwrap();
+        let output = child.wait_with_output().unwrap();
+
+        assert!(!output.status.success(), "{command_name} false green");
+        let json: serde_json::Value =
+            serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
+                panic!(
+                    "{command_name} must emit JSON after a post-discovery swap: {error}; stdout={}",
+                    String::from_utf8_lossy(&output.stdout)
+                )
+            });
+        assert_eq!(json["inconclusive"], true, "{command_name}: {json}");
+        assert!(
+            json["error"]
+                .as_str()
+                .is_some_and(|error| error.contains("symlink or reparse point")),
+            "{command_name}: {json}"
+        );
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("POST_DISCOVERY_SWAP"));
+        assert!(!root.join("specs/member").exists());
+        assert_eq!(fs::read(&outside_source).unwrap(), outside_bytes);
+    }
 }
 
 #[cfg(unix)]
@@ -1484,6 +1598,92 @@ fn gradle_junction_module_escape_is_inconclusive_for_coverage_gating_commands() 
         "linked",
         "junction",
     );
+}
+
+#[cfg(windows)]
+#[test]
+fn gradle_post_discovery_junction_swap_is_inconclusive_for_every_coverage_gate() {
+    use std::process::{Command as ProcessCommand, Stdio};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    const BARRIER_ENV: &str = "SPECSYNC_TEST_COVERAGE_SNAPSHOT_IDENTITY_BARRIER";
+    for command_name in ["check", "coverage", "generate", "report", "score"] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().join("project");
+        let outside = tmp.path().join("outside");
+        let barrier = tmp.path().join("barrier");
+        fs::create_dir_all(root.join("member/src/main/kotlin")).unwrap();
+        fs::create_dir_all(outside.join("src/main/kotlin")).unwrap();
+        fs::create_dir_all(&barrier).unwrap();
+        fs::write(
+            root.join("member/src/main/kotlin/Local.kt"),
+            "const val LOCAL = 1\n",
+        )
+        .unwrap();
+        fs::write(root.join("settings.gradle.kts"), "include(\":member\")\n").unwrap();
+        let outside_source = outside.join("src/main/kotlin/Secret.kt");
+        let outside_bytes = b"const val SECRET = \"POST_DISCOVERY_JUNCTION_SWAP\"\n";
+        fs::write(&outside_source, outside_bytes).unwrap();
+
+        let binary = specsync().get_program().to_os_string();
+        let mut process = ProcessCommand::new(binary);
+        process
+            .arg(command_name)
+            .arg("--root")
+            .arg(&root)
+            .args(["--format", "json"]);
+        if command_name == "score" {
+            process.args(["--require-coverage", "100"]);
+        }
+        let mut child = process
+            .env(BARRIER_ENV, &barrier)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let ready = barrier.join("root-retained");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ready.is_file() {
+            assert!(
+                child.try_wait().unwrap().is_none(),
+                "{command_name} exited before the coverage barrier"
+            );
+            assert!(
+                Instant::now() < deadline,
+                "{command_name} did not reach the coverage barrier"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        fs::rename(root.join("member"), root.join("original-member")).unwrap();
+        create_windows_junction(&root.join("member"), &outside).unwrap_or_else(|error| {
+            panic!("failed to create post-discovery Gradle junction fixture: {error}")
+        });
+        fs::write(barrier.join("resume"), b"resume\n").unwrap();
+        let output = child.wait_with_output().unwrap();
+
+        assert!(!output.status.success(), "{command_name} false green");
+        let json: serde_json::Value =
+            serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
+                panic!(
+                    "{command_name} must emit JSON after a junction swap: {error}; stdout={}",
+                    String::from_utf8_lossy(&output.stdout)
+                )
+            });
+        assert_eq!(json["inconclusive"], true, "{command_name}: {json}");
+        assert!(
+            json["error"]
+                .as_str()
+                .is_some_and(|error| error.contains("symlink or reparse point")),
+            "{command_name}: {json}"
+        );
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("POST_DISCOVERY_JUNCTION_SWAP"));
+        assert!(!root.join("specs/member").exists());
+        assert_eq!(fs::read(&outside_source).unwrap(), outside_bytes);
+    }
 }
 
 fn setup_minimal_project_at(root: &std::path::Path) {

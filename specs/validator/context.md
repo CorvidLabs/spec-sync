@@ -4,6 +4,9 @@ spec: validator.spec.md
 
 ## Key Decisions
 
+- **Retained coverage snapshot**: Checked coverage opens configured source roots and files through
+  retained no-follow capabilities, binds identities across reads, and derives file/LOC/module
+  results from exact bytes. Post-discovery path replacement is inconclusive before outside access.
 - **Bidirectional validation**: Spec documents non-existent export = ERROR (spec is wrong). Code exports undocumented symbol = WARNING (spec is incomplete). This asymmetry reflects that incorrect docs are worse than incomplete docs.
 - **Missing frontmatter fields are errors**: `module`, `version`, `status`, and `files` are all required. Missing any of these is an error, not a warning, because downstream modules depend on them.
 - **Cross-project refs skipped locally**: References in `owner/repo@module` format are silently skipped during `specsync check`. They're only validated with `specsync resolve --remote`.
@@ -37,7 +40,9 @@ spec: validator.spec.md
 
 CHG-0063 implementation is present. The validator powers `specsync check`, coverage, and MCP;
 checked discovery prevents malformed or unconfined Gradle settings from producing partial
-coverage, while
+coverage. Post-discovery source enumeration and reads stay bound to one retained root capability
+with no-follow, non-blocking, identity-checked access, so path replacement and special entries
+make all coverage gates inconclusive before totals or mutation, while
 `validate_spec_content_with_sources` lets confined callers validate exact spec-and-source
 snapshots without reopening paths.
 Fresh CHG definition reapproval, focused final-tree reruns, independent reviews, hosted-Windows

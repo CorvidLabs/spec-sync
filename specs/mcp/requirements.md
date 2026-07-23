@@ -77,6 +77,10 @@ Acceptance Criteria
 - Configuration/metadata/cache files, manifest/autodetection paths, dependency references, module
   names/files, spec mappings, and nested symlink targets are confined before downstream filesystem
   access.
+- All four Gradle build/settings variants are acquired as retained regular non-link files, capped
+  at 4 MiB before parsing or source probing, copied from exact retained bytes once, and rejected
+  for tools and resources when special, linked/reparse-backed, replaced, oversized, or invalid
+  UTF-8.
 - Recursive confinement uses cumulative deterministic budgets across configured paths and spec
   mappings and honors ignored/configured exclusions.
 - Traversal, configured-path, and symlink escapes fail before filesystem access.

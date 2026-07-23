@@ -40,6 +40,10 @@ spec: manifest.spec.md
   single-quoted literal dollars; decode Unicode/octal escapes before path confinement.
 - [x] Reject linked/reparse-backed, non-regular, oversized, unreadable, and invalid-UTF-8 Gradle
   build/settings manifests through bounded retained-capability reads.
+- [x] Reject indirect, qualified, conditional, block-scoped, whitespace-separated, and compound
+  Gradle project-directory mutations; ignore triple-quoted documentation and nested comments.
+- [x] Require the whitespace-delimited `new File` constructor and reject unrooted drive-relative
+  identities while preserving genuine rooted nested Gradle identities.
 - [ ] Verify hosted-Windows junction/reparse-point rejection before outside source probing or
   traversal.
 - [ ] Obtain fresh exact-tree independent reviews, full repository/CI, trust, and Attest evidence.

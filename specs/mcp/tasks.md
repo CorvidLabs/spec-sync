@@ -35,6 +35,8 @@ spec: mcp.spec.md
 - [x] Parse Cargo workspace members as TOML and charge manifest discovery to the shared budget
 - [x] Fail closed and bound globally deduplicated GitHub issue verification
 - [x] Copy immutable preflighted manifests and parse comment/escape-aware Gradle settings through one shared parser
+- [x] Preflight all four Gradle build/settings candidates through retained no-follow handles with
+  a 4 MiB per-file ceiling before manifest-derived traversal
 - [x] Bind generated publication/rollback to retained parent capabilities and filesystem identities
 - [x] Eliminate issue-read provider subprocesses and revalidate repository access after ambiguous not-found responses
 - [x] Preserve public replacement entries across staging, publication, and rollback quarantine
@@ -69,4 +71,6 @@ spec: mcp.spec.md
   pre-open identity before reading bytes
 - [x] Make the retained opened handle authoritative on Windows and Unix, use explicit no-follow
   acquisition, and cover config/manifest replacement plus FIFO races
+- [x] Preflight all four Gradle build/settings names at 4 MiB before parsing or source probing,
+  copy exact retained bytes once, and reject special/linked/replaced inputs for tools and resources
 - [ ] Pass fresh Windows reparse-point CI

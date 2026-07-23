@@ -77,6 +77,12 @@ spec: mcp.spec.md
   retained bytes pass complete checked parsing before compatibility
   loading, so non-object JSON, invalid UTF-8, malformed JSON/TOML, and wrong-typed known fields
   fail tools and resources instead of reverting to default paths.
+- Every present Gradle build/settings candidate is preflighted through those retained handles with
+  a 4 MiB per-file ceiling before any manifest-derived traversal, including candidates that would
+  not otherwise be selected for parsing.
+- Every present Gradle build/settings variant is preflighted through that reader at the shared
+  4 MiB limit before settings parsing or source probing. The exact retained bytes are charged and
+  copied once, and generic snapshot traversal skips those paths.
 - Windows confinement fixtures construct every path with native joins. The absolute-child read
   fixture is a valid one-file, fully covered project so its success proves root selection and
   downstream coverage execution; the junction fixture first proves that the reparse point targets

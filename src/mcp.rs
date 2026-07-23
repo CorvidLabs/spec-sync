@@ -1,7 +1,7 @@
 use crate::config::{detect_source_dirs, load_config, parse_config_content_checked};
 use crate::deps::build_dep_graph;
 use crate::generator::generate_specs_for_unspecced_modules_paths;
-use crate::manifest::parse_gradle_settings;
+use crate::manifest::{MAX_GRADLE_MANIFEST_BYTES, parse_gradle_settings};
 use crate::scoring;
 use crate::types::SpecSyncConfig;
 use crate::validator::{
@@ -669,6 +669,10 @@ fn collect_snapshot_manifest_inputs(
     configured_inputs: &mut Vec<PathBuf>,
     budget: &mut SnapshotBudget,
 ) -> Result<(), String> {
+    let gradle_modules = preload_gradle_manifests(source, budget)?
+        .map(|content| parse_gradle_settings(&content))
+        .transpose()?
+        .unwrap_or_default();
     let mut cargo_manifests = vec![PathBuf::from("Cargo.toml")];
     let mut seen = HashSet::new();
     while let Some(manifest) = cargo_manifests.pop() {
@@ -769,19 +773,12 @@ fn collect_snapshot_manifest_inputs(
         }
     }
 
-    for settings in ["settings.gradle.kts", "settings.gradle"] {
-        let Some(content) = read_capability_text_if_exists(source, Path::new(settings), budget)?
-        else {
-            continue;
-        };
-        for module in parse_gradle_settings(&content)? {
-            configured_inputs.push(snapshot_manifest_input(
-                Path::new(""),
-                &module.path,
-                "Gradle module",
-            )?);
-        }
-        break;
+    for module in gradle_modules {
+        configured_inputs.push(snapshot_manifest_input(
+            Path::new(""),
+            &module.path,
+            "Gradle module",
+        )?);
     }
 
     if read_capability_text_if_exists(source, Path::new("pubspec.yaml"), budget)?.is_some() {
@@ -840,6 +837,30 @@ fn collect_snapshot_manifest_inputs(
         ));
     }
     Ok(())
+}
+
+fn preload_gradle_manifests(
+    source: &Dir,
+    budget: &mut SnapshotBudget,
+) -> Result<Option<String>, String> {
+    let mut selected_settings = None;
+    for name in [
+        "build.gradle.kts",
+        "build.gradle",
+        "settings.gradle.kts",
+        "settings.gradle",
+    ] {
+        let content = read_capability_text_if_exists_with_limit(
+            source,
+            Path::new(name),
+            budget,
+            MAX_GRADLE_MANIFEST_BYTES,
+        )?;
+        if selected_settings.is_none() && name.starts_with("settings.") {
+            selected_settings = content;
+        }
+    }
+    Ok(selected_settings)
 }
 
 struct CargoSnapshotManifest {
@@ -988,13 +1009,45 @@ fn read_capability_text_if_exists(
     relative: &Path,
     budget: &mut SnapshotBudget,
 ) -> Result<Option<String>, String> {
-    read_capability_text_if_exists_with_hook(source, relative, budget, || {})
+    read_capability_text_if_exists_with_limit_and_hook(
+        source,
+        relative,
+        budget,
+        MAX_PROJECT_FILE_BYTES,
+        || {},
+    )
 }
 
+#[cfg(test)]
 fn read_capability_text_if_exists_with_hook(
     source: &Dir,
     relative: &Path,
     budget: &mut SnapshotBudget,
+    after_retained_open: impl FnOnce(),
+) -> Result<Option<String>, String> {
+    read_capability_text_if_exists_with_limit_and_hook(
+        source,
+        relative,
+        budget,
+        MAX_PROJECT_FILE_BYTES,
+        after_retained_open,
+    )
+}
+
+fn read_capability_text_if_exists_with_limit(
+    source: &Dir,
+    relative: &Path,
+    budget: &mut SnapshotBudget,
+    max_bytes: u64,
+) -> Result<Option<String>, String> {
+    read_capability_text_if_exists_with_limit_and_hook(source, relative, budget, max_bytes, || {})
+}
+
+fn read_capability_text_if_exists_with_limit_and_hook(
+    source: &Dir,
+    relative: &Path,
+    budget: &mut SnapshotBudget,
+    max_bytes: u64,
     after_retained_open: impl FnOnce(),
 ) -> Result<Option<String>, String> {
     let before = match source.symlink_metadata(relative) {
@@ -1106,7 +1159,7 @@ fn read_capability_text_if_exists_with_hook(
 
     let mut bytes = Vec::new();
     Read::by_ref(&mut file)
-        .take(MAX_PROJECT_FILE_BYTES + 1)
+        .take(max_bytes + 1)
         .read_to_end(&mut bytes)
         .map_err(|error| {
             format!(
@@ -1114,10 +1167,10 @@ fn read_capability_text_if_exists_with_hook(
                 relative.display()
             )
         })?;
-    if bytes.len() as u64 > MAX_PROJECT_FILE_BYTES {
+    if bytes.len() as u64 > max_bytes {
         return Err(format!(
             "MCP snapshot manifest exceeds the {} MiB per-file limit: {}",
-            MAX_PROJECT_FILE_BYTES / (1024 * 1024),
+            max_bytes / (1024 * 1024),
             relative.display()
         ));
     }
@@ -6044,6 +6097,116 @@ Test
             .expect_err("special-file manifests must fail before a blocking open");
 
         assert!(error.contains("regular file"), "{error}");
+        assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn snapshot_preflight_rejects_special_and_linked_gradle_manifests_without_blocking() {
+        use std::os::unix::fs::symlink;
+        use std::os::unix::net::UnixListener;
+        use std::process::Command;
+        use std::time::{Duration, Instant};
+
+        let fifo = TempDir::new().unwrap();
+        assert!(
+            Command::new("mkfifo")
+                .arg(fifo.path().join("build.gradle.kts"))
+                .status()
+                .unwrap()
+                .success()
+        );
+        let started = Instant::now();
+        let error = ProjectSnapshot::create(fifo.path())
+            .err()
+            .expect("a Gradle FIFO must fail before a blocking snapshot open");
+        assert!(error.contains("regular file"), "{error}");
+        assert!(started.elapsed() < Duration::from_secs(2));
+
+        let socket = TempDir::new().unwrap();
+        match UnixListener::bind(socket.path().join("settings.gradle.kts")) {
+            Ok(_listener) => {
+                let error = ProjectSnapshot::create(socket.path())
+                    .err()
+                    .expect("a Gradle socket must fail snapshot preflight");
+                assert!(error.contains("regular file"), "{error}");
+            }
+            Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {}
+            Err(error) => panic!("cannot create Gradle socket fixture: {error}"),
+        }
+
+        for manifest in ["build.gradle.kts", "settings.gradle.kts"] {
+            let linked = TempDir::new().unwrap();
+            fs::write(linked.path().join("real.gradle"), "plugins {}\n").unwrap();
+            symlink(
+                linked.path().join("real.gradle"),
+                linked.path().join(manifest),
+            )
+            .unwrap();
+            let error = ProjectSnapshot::create(linked.path())
+                .err()
+                .expect("a linked Gradle manifest must fail snapshot preflight");
+            assert!(error.contains("symlink or reparse point"), "{error}");
+        }
+    }
+
+    #[test]
+    fn snapshot_preflight_applies_the_gradle_limit_before_discovery() {
+        for manifest in [
+            "build.gradle.kts",
+            "build.gradle",
+            "settings.gradle.kts",
+            "settings.gradle",
+        ] {
+            let tmp = TempDir::new().unwrap();
+            fs::write(
+                tmp.path().join(manifest),
+                vec![b' '; MAX_GRADLE_MANIFEST_BYTES as usize + 1],
+            )
+            .unwrap();
+
+            let error = ProjectSnapshot::create(tmp.path())
+                .err()
+                .expect("an oversized Gradle manifest must fail snapshot preflight");
+            assert!(error.contains("4 MiB"), "{manifest}: {error}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn gradle_manifest_path_replacement_cannot_block_or_change_preloaded_bytes() {
+        use std::process::Command;
+        use std::time::{Duration, Instant};
+
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::write(root.join("build.gradle.kts"), "plugins {}\n").unwrap();
+        let source = open_test_directory(root);
+        let mut budget = SnapshotBudget::default();
+        let started = Instant::now();
+
+        let result = read_capability_text_if_exists_with_limit_and_hook(
+            &source,
+            Path::new("build.gradle.kts"),
+            &mut budget,
+            MAX_GRADLE_MANIFEST_BYTES,
+            || {
+                fs::rename(
+                    root.join("build.gradle.kts"),
+                    root.join("original.gradle.kts"),
+                )
+                .unwrap();
+                assert!(
+                    Command::new("mkfifo")
+                        .arg(root.join("build.gradle.kts"))
+                        .status()
+                        .unwrap()
+                        .success()
+                );
+            },
+        );
+
+        assert!(result.is_err());
         assert!(started.elapsed() < Duration::from_secs(2));
     }
 

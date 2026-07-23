@@ -12,7 +12,7 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::{Component, Path};
 
-const MAX_GRADLE_MANIFEST_BYTES: u64 = 4 * 1024 * 1024;
+pub(crate) const MAX_GRADLE_MANIFEST_BYTES: u64 = 4 * 1024 * 1024;
 
 fn gradle_read_only_nofollow_options() -> OpenOptions {
     let mut options = OpenOptions::new();
@@ -429,6 +429,9 @@ fn parse_gradle_checked(root: &Path) -> Result<Option<ManifestDiscovery>, String
 /// overrides with `file(...)` / `new File(rootDir, ...)` path expressions.
 pub(crate) fn parse_gradle_settings(content: &str) -> Result<Vec<GradleSettingsModule>, String> {
     let content = strip_gradle_comments(content)?;
+    reject_non_leading_gradle_includes(&content)?;
+    reject_unsupported_gradle_project_dir_mutations(&content)?;
+    reject_gradle_control_flow_with_directives(&content)?;
     let mut included = Vec::new();
     let lines: Vec<&str> = content.lines().collect();
     let mut index = 0usize;
@@ -482,24 +485,39 @@ fn parse_gradle_project_dir_overrides(content: &str) -> Result<HashMap<String, S
         find_next_gradle_project_dir_override(content, search_start)
     {
         let marker = syntax.marker();
-        let before = &content[..project_dir_index];
-        let Some(project_index) = find_gradle_project_call(before) else {
+        let after_marker = content[project_dir_index + marker.len()..].trim_start();
+        if matches!(syntax, GradleProjectDirSyntax::Assignment)
+            && !is_gradle_simple_assignment(after_marker)?
+        {
             search_start = project_dir_index + marker.len();
             continue;
+        }
+        let before = &content[..project_dir_index];
+        let Some(project_index) = find_gradle_project_call(before) else {
+            return Err("Unsupported indirect Gradle projectDir mutation".to_string());
         };
+        let line_start = before[..project_index]
+            .rfind('\n')
+            .map_or(0, |index| index + 1);
+        if !before[line_start..project_index].trim().is_empty() {
+            return Err(
+                "Unsupported qualified or conditional Gradle projectDir mutation".to_string(),
+            );
+        }
+        if gradle_brace_depth(before)? != 0 {
+            return Err("Unsupported block-scoped Gradle projectDir mutation".to_string());
+        }
 
         let project_call = before[project_index + "project".len()..].trim_start();
         let (project_arguments, project_remainder) = gradle_parenthesized(project_call)?;
         if !project_remainder.trim().is_empty() {
-            search_start = project_dir_index + marker.len();
-            continue;
+            return Err("Unsupported indirect Gradle projectDir mutation".to_string());
         }
         let module_values = gradle_string_arguments(project_arguments)?;
         if module_values.len() != 1 {
             return Err("Gradle projectDir assignment must identify one module".to_string());
         }
 
-        let after_marker = content[project_dir_index + marker.len()..].trim_start();
         let expression = match syntax {
             GradleProjectDirSyntax::Assignment => {
                 let Some(right_hand_side) = after_marker.strip_prefix('=') else {
@@ -539,6 +557,27 @@ impl GradleProjectDirSyntax {
     }
 }
 
+fn is_gradle_simple_assignment(after_marker: &str) -> Result<bool, String> {
+    if let Some(remainder) = after_marker.strip_prefix('=') {
+        return Ok(!remainder.starts_with('=') && !remainder.starts_with('~'));
+    }
+    let mutation_prefix = after_marker
+        .chars()
+        .take_while(|character| !character.is_whitespace())
+        .collect::<String>();
+    if mutation_prefix.ends_with('=')
+        && mutation_prefix.chars().any(|character| {
+            matches!(
+                character,
+                '+' | '-' | '*' | '/' | '%' | '?' | '&' | '|' | '^'
+            )
+        })
+    {
+        return Err("Unsupported Gradle projectDir mutation operator".to_string());
+    }
+    Ok(false)
+}
+
 fn find_next_gradle_project_dir_override(
     content: &str,
     search_start: usize,
@@ -549,9 +588,8 @@ fn find_next_gradle_project_dir_override(
     ]
     .into_iter()
     .filter_map(|syntax| {
-        content[search_start..]
-            .find(syntax.marker())
-            .map(|relative| (search_start + relative, syntax))
+        find_unquoted_gradle_fragment(content, syntax.marker(), search_start)
+            .map(|index| (index, syntax))
     })
     .min_by_key(|(index, _)| *index)
 }
@@ -566,6 +604,13 @@ fn parse_gradle_project_dir_path(expression: &str) -> Result<String, String> {
         }
         Ok(path_values[0].clone())
     } else if let Some(file_call) = expression.strip_prefix("new") {
+        if file_call
+            .chars()
+            .next()
+            .is_none_or(|character| !character.is_whitespace())
+        {
+            return Err("Unsupported Gradle projectDir assignment".to_string());
+        }
         let Some(file_call) = file_call.trim_start().strip_prefix("File") else {
             return Err("Unsupported Gradle projectDir assignment".to_string());
         };
@@ -578,13 +623,16 @@ fn parse_gradle_project_dir_path(expression: &str) -> Result<String, String> {
 }
 
 fn normalize_gradle_module_path(value: &str, label: &str) -> Result<String, String> {
-    let value = value.trim().trim_start_matches(':');
+    let trimmed = value.trim();
+    let rooted_gradle_identity = trimmed.starts_with(':');
+    let value = trimmed.trim_start_matches(':');
     let bytes = value.as_bytes();
     if bytes.get(1) == Some(&b':')
         && bytes.first().is_some_and(u8::is_ascii_alphabetic)
-        && bytes
-            .get(2)
-            .is_some_and(|byte| matches!(byte, b'/' | b'\\'))
+        && (!rooted_gradle_identity
+            || bytes
+                .get(2)
+                .is_some_and(|byte| matches!(byte, b'/' | b'\\')))
     {
         return Err(format!(
             "Gradle {label} must remain beneath the project root"
@@ -785,14 +833,24 @@ fn gradle_confined_directory_exists(root: &Dir, relative: &str) -> Result<bool, 
 }
 
 fn find_gradle_project_call(content: &str) -> Option<usize> {
-    content.rmatch_indices("project").find_map(|(index, _)| {
+    let mut search_start = 0usize;
+    let mut found = None;
+    while let Some(index) = find_unquoted_gradle_fragment(content, "project", search_start) {
         let before_is_boundary = content[..index]
             .chars()
             .next_back()
             .is_none_or(|character| !character.is_alphanumeric() && character != '_');
         let after = content[index + "project".len()..].trim_start();
-        (before_is_boundary && after.starts_with('(')).then_some(index)
-    })
+        let after_is_boundary = content[index + "project".len()..]
+            .chars()
+            .next()
+            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+        if before_is_boundary && after_is_boundary && after.starts_with('(') {
+            found = Some(index);
+        }
+        search_start = index + "project".len();
+    }
+    found
 }
 
 fn gradle_parenthesized(value: &str) -> Result<(&str, &str), String> {
@@ -836,14 +894,18 @@ fn parse_gradle_include_statement(statement: &str) -> Result<Vec<String>, String
         return Err("Gradle include declaration is missing 'include'".to_string());
     };
     let arguments = arguments.trim_start();
-    if arguments.starts_with('(') {
+    let values = if arguments.starts_with('(') {
         let (arguments, remainder) = gradle_parenthesized(arguments)?;
         require_gradle_complete_remainder(remainder, "include declaration")?;
         gradle_string_arguments(arguments)
     } else {
         let arguments = strip_gradle_statement_terminator(arguments, "include declaration")?;
         gradle_string_arguments(arguments)
+    }?;
+    if values.is_empty() {
+        return Err("Gradle include declaration must contain a literal module".to_string());
     }
+    Ok(values)
 }
 
 fn parse_gradle_root_dir_file_arguments(arguments: &str) -> Result<String, String> {
@@ -892,13 +954,172 @@ fn strip_gradle_statement_terminator<'a>(
 
 fn strip_gradle_comments(content: &str) -> Result<String, String> {
     let mut cleaned = String::with_capacity(content.len());
-    let mut characters = content.chars().peekable();
+    let characters = content.chars().collect::<Vec<_>>();
+    let mut index = 0usize;
+
+    while index < characters.len() {
+        let character = characters[index];
+        if matches!(character, '\'' | '"')
+            && characters.get(index + 1) == Some(&character)
+            && characters.get(index + 2) == Some(&character)
+        {
+            cleaned.extend([' ', ' ', ' ']);
+            index += 3;
+            let mut terminated = false;
+            while index < characters.len() {
+                if characters.get(index) == Some(&character)
+                    && characters.get(index + 1) == Some(&character)
+                    && characters.get(index + 2) == Some(&character)
+                {
+                    cleaned.extend([' ', ' ', ' ']);
+                    index += 3;
+                    terminated = true;
+                    break;
+                }
+                cleaned.push(if characters[index] == '\n' { '\n' } else { ' ' });
+                index += 1;
+            }
+            if !terminated {
+                return Err("Gradle settings contain an unterminated multiline string".to_string());
+            }
+            continue;
+        }
+        if matches!(character, '\'' | '"') {
+            let delimiter = character;
+            let mut escaped = false;
+            let mut terminated = false;
+            cleaned.push(character);
+            index += 1;
+            while index < characters.len() {
+                let quoted = characters[index];
+                cleaned.push(quoted);
+                index += 1;
+                if escaped {
+                    escaped = false;
+                } else if quoted == '\\' {
+                    escaped = true;
+                } else if quoted == delimiter {
+                    terminated = true;
+                    break;
+                }
+            }
+            if escaped {
+                return Err("Gradle settings contain a dangling string escape".to_string());
+            }
+            if !terminated {
+                return Err("Gradle settings contain an unterminated quoted string".to_string());
+            }
+            continue;
+        }
+        if character == '/' && characters.get(index + 1) == Some(&'/') {
+            index += 2;
+            while index < characters.len() {
+                let comment_character = characters[index];
+                index += 1;
+                if comment_character == '\n' {
+                    cleaned.push('\n');
+                    break;
+                }
+            }
+            continue;
+        }
+        if character == '/' && characters.get(index + 1) == Some(&'*') {
+            index += 2;
+            cleaned.push(' ');
+            let mut depth = 1usize;
+            while index < characters.len() && depth > 0 {
+                if characters.get(index) == Some(&'/') && characters.get(index + 1) == Some(&'*') {
+                    depth += 1;
+                    cleaned.extend([' ', ' ']);
+                    index += 2;
+                } else if characters.get(index) == Some(&'*')
+                    && characters.get(index + 1) == Some(&'/')
+                {
+                    depth -= 1;
+                    cleaned.extend([' ', ' ']);
+                    index += 2;
+                } else {
+                    cleaned.push(if characters[index] == '\n' { '\n' } else { ' ' });
+                    index += 1;
+                }
+            }
+            if depth != 0 {
+                return Err("Gradle settings contain an unterminated block comment".to_string());
+            }
+            continue;
+        }
+        cleaned.push(character);
+        index += 1;
+    }
+
+    Ok(cleaned)
+}
+
+fn reject_non_leading_gradle_includes(content: &str) -> Result<(), String> {
+    let mut search_start = 0usize;
+    while let Some(index) = find_unquoted_gradle_fragment(content, "include", search_start) {
+        let before_is_boundary = content[..index]
+            .chars()
+            .next_back()
+            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+        let after_is_boundary = content[index + "include".len()..]
+            .chars()
+            .next()
+            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+        if before_is_boundary && after_is_boundary {
+            let line_start = content[..index].rfind('\n').map_or(0, |line| line + 1);
+            if !content[line_start..index].trim().is_empty() {
+                return Err("Unsupported qualified or conditional Gradle include".to_string());
+            }
+            if gradle_brace_depth(&content[..index])? != 0 {
+                return Err("Unsupported block-scoped Gradle include".to_string());
+            }
+        }
+        search_start = index + "include".len();
+    }
+    Ok(())
+}
+
+fn reject_gradle_control_flow_with_directives(content: &str) -> Result<(), String> {
+    let has_directive = ["include", "projectDir", "setProjectDir"]
+        .into_iter()
+        .any(|keyword| contains_unquoted_gradle_keyword(content, keyword));
+    if has_directive
+        && ["if", "when", "for", "while", "switch"]
+            .into_iter()
+            .any(|keyword| contains_unquoted_gradle_keyword(content, keyword))
+    {
+        return Err("Unsupported conditional Gradle directive context".to_string());
+    }
+    Ok(())
+}
+
+fn contains_unquoted_gradle_keyword(content: &str, keyword: &str) -> bool {
+    let mut search_start = 0usize;
+    while let Some(index) = find_unquoted_gradle_fragment(content, keyword, search_start) {
+        let before_is_boundary = content[..index]
+            .chars()
+            .next_back()
+            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+        let after_index = index + keyword.len();
+        let after_is_boundary = content[after_index..]
+            .chars()
+            .next()
+            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+        if before_is_boundary && after_is_boundary {
+            return true;
+        }
+        search_start = after_index;
+    }
+    false
+}
+
+fn gradle_brace_depth(content: &str) -> Result<i32, String> {
+    let mut depth = 0i32;
     let mut quote = None;
     let mut escaped = false;
-
-    while let Some(character) = characters.next() {
+    for character in content.chars() {
         if let Some(delimiter) = quote {
-            cleaned.push(character);
             if escaped {
                 escaped = false;
             } else if character == '\\' {
@@ -910,54 +1131,92 @@ fn strip_gradle_comments(content: &str) -> Result<String, String> {
         }
         if matches!(character, '\'' | '"') {
             quote = Some(character);
-            cleaned.push(character);
-            continue;
+        } else if character == '{' {
+            depth += 1;
+        } else if character == '}' {
+            depth -= 1;
+            if depth < 0 {
+                return Err("Gradle settings contain an unmatched closing brace".to_string());
+            }
         }
-        if character != '/' {
-            cleaned.push(character);
-            continue;
-        }
+    }
+    Ok(depth)
+}
 
-        match characters.peek().copied() {
-            Some('/') => {
-                characters.next();
-                for comment_character in characters.by_ref() {
-                    if comment_character == '\n' {
-                        cleaned.push('\n');
-                        break;
-                    }
-                }
+fn reject_unsupported_gradle_project_dir_mutations(content: &str) -> Result<(), String> {
+    let mut search_start = 0usize;
+    while let Some(index) = find_unquoted_gradle_fragment(content, "projectDir", search_start) {
+        let before_is_boundary = content[..index]
+            .chars()
+            .next_back()
+            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+        let after_index = index + "projectDir".len();
+        let after_is_boundary = content[after_index..]
+            .chars()
+            .next()
+            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+        let directly_dotted = content[..index].ends_with('.');
+        if before_is_boundary && after_is_boundary && !directly_dotted {
+            let after = content[after_index..].trim_start();
+            if is_gradle_simple_assignment(after)?.then_some(()).is_some() {
+                return Err("Unsupported indirect Gradle projectDir mutation".to_string());
             }
-            Some('*') => {
-                characters.next();
-                cleaned.push(' ');
-                let mut previous = None;
-                let mut terminated = false;
-                for comment_character in characters.by_ref() {
-                    if comment_character == '\n' {
-                        cleaned.push('\n');
-                    }
-                    if previous == Some('*') && comment_character == '/' {
-                        terminated = true;
-                        break;
-                    }
-                    previous = Some(comment_character);
-                }
-                if !terminated {
-                    return Err("Gradle settings contain an unterminated block comment".to_string());
-                }
-            }
-            _ => cleaned.push(character),
         }
+        search_start = after_index;
     }
 
-    if quote.is_some() {
-        return Err("Gradle settings contain an unterminated quoted string".to_string());
+    search_start = 0;
+    while let Some(index) = find_unquoted_gradle_fragment(content, "setProjectDir", search_start) {
+        let before_is_boundary = content[..index]
+            .chars()
+            .next_back()
+            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+        let after_index = index + "setProjectDir".len();
+        let after_is_boundary = content[after_index..]
+            .chars()
+            .next()
+            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+        let directly_dotted = content[..index].ends_with('.');
+        if before_is_boundary
+            && after_is_boundary
+            && !directly_dotted
+            && content[after_index..].trim_start().starts_with('(')
+        {
+            return Err("Unsupported indirect Gradle setProjectDir mutation".to_string());
+        }
+        search_start = after_index;
     }
-    if escaped {
-        return Err("Gradle settings contain a dangling string escape".to_string());
+    Ok(())
+}
+
+fn find_unquoted_gradle_fragment(
+    content: &str,
+    fragment: &str,
+    search_start: usize,
+) -> Option<usize> {
+    let mut quote = None;
+    let mut escaped = false;
+    for (relative, character) in content[search_start..].char_indices() {
+        let index = search_start + relative;
+        if let Some(delimiter) = quote {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == delimiter {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(character, '\'' | '"') {
+            quote = Some(character);
+            continue;
+        }
+        if content[index..].starts_with(fragment) {
+            return Some(index);
+        }
     }
-    Ok(cleaned)
+    None
 }
 
 fn is_gradle_include_start(line: &str) -> bool {
@@ -1659,6 +1918,7 @@ project(":outside").setProjectDir(file("../outside"))
 "#,
             r#"include(":..:outside")"#,
             r#"include("C:/outside")"#,
+            r#"include("C:outside")"#,
             r#"include(":C:\\outside")"#,
             r#"
 include(":outside")
@@ -1677,6 +1937,10 @@ include(":safe")
 project("C:/outside").projectDir = file("modules/safe")
 "#,
             r#"
+include(":safe")
+project("C:outside").projectDir = file("modules/safe")
+"#,
+            r#"
 include(":outside")
 project(":outside").setProjectDir(file("\u002e\u002e/outside"))
 "#,
@@ -1691,6 +1955,24 @@ project(":outside").setProjectDir(file("\056\056/outside"))
                 "unexpected Gradle confinement error: {error}"
             );
         }
+    }
+
+    #[test]
+    fn gradle_settings_preserve_rooted_nested_names_that_resemble_drive_relative_paths() {
+        let modules = parse_gradle_settings(
+            r#"
+include(":C:member")
+project(":C:member").projectDir = file("modules/member")
+"#,
+        )
+        .unwrap();
+        assert_eq!(
+            modules,
+            vec![GradleSettingsModule {
+                name: "C/member".to_string(),
+                path: "modules/member".to_string(),
+            }]
+        );
     }
 
     #[test]
@@ -1730,6 +2012,8 @@ project(":second").setProjectDir(new File(rootDir, "modules/second"))
             r#"project(":member").projectDir = file("$outside")"#,
             r#"project(":member").projectDir = file("\u0024outside")"#,
             r#"project(":member").projectDir = file("\044outside")"#,
+            r#"project(":member").projectDir = newFile(rootDir, "../outside")"#,
+            r#"project(":member").setProjectDir(newFile(rootDir, "../outside"))"#,
         ] {
             let settings = format!("include(\":member\")\n{setter}\n");
             let error = parse_gradle_settings(&settings).unwrap_err();
@@ -1741,6 +2025,111 @@ project(":second").setProjectDir(new File(rootDir, "modules/second"))
                 "unexpected setProjectDir parser error: {error}"
             );
         }
+    }
+
+    #[test]
+    fn gradle_settings_reject_indirect_or_conditional_mutations_but_allow_reads() {
+        for settings in [
+            r#"
+include(":member")
+val member = project(":member")
+member.setProjectDir(file("../outside"))
+"#,
+            r#"
+include(":member")
+val member = project(":member")
+member.projectDir = file("../outside")
+"#,
+            r#"if (enabled) include(":member")"#,
+            "if (enabled)\ninclude(\":member\")",
+            "if (enabled) {\ninclude(\":member\")\n}",
+            r#"settings.include(":member")"#,
+            r#"
+include(":member")
+if (enabled) project(":member").projectDir = file("modules/member")
+"#,
+            r#"
+include(":member")
+project(":member").projectDir += file("modules/member")
+"#,
+            r#"
+include(":member")
+project(":member") {
+    projectDir = file("../outside")
+}
+"#,
+            r#"
+include(":member")
+project(":member") {
+    setProjectDir(file("../outside"))
+}
+"#,
+            r#"
+include(":member")
+project(":member") . setProjectDir(file("../outside"))
+"#,
+            r#"
+include(":member")
+if (enabled) {
+    project(":member").projectDir = file("modules/member")
+}
+"#,
+            r#"include(""":member""")"#,
+        ] {
+            let error = parse_gradle_settings(settings).unwrap_err();
+            assert!(
+                error.contains("Unsupported") || error.contains("must contain a literal module"),
+                "unexpected indirect Gradle mutation error: {error}"
+            );
+        }
+
+        let modules = parse_gradle_settings(
+            r#"
+include(":member")
+println(project(":member").projectDir)
+val unchanged = project(":member").projectDir == file("modules/member")
+"#,
+        )
+        .unwrap();
+        assert_eq!(
+            modules,
+            vec![GradleSettingsModule {
+                name: "member".to_string(),
+                path: "member".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn gradle_settings_ignore_multiline_literals_and_nested_comments() {
+        let modules = parse_gradle_settings(
+            r#"
+val kotlinDocumentation = """
+include(":kotlin-phantom")
+project(":real").projectDir = file("../outside")
+"""
+def groovyDocumentation = '''
+include(":groovy-phantom")
+project(":real").setProjectDir(file("../outside"))
+'''
+/*
+  include(":outer-comment-phantom")
+  /* include(":nested-comment-phantom") */
+  project(":real").projectDir = file("../outside")
+*/
+val regularDocumentation = ".projectDir include(\":quoted-phantom\")"
+include(":real")
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            modules,
+            vec![GradleSettingsModule {
+                name: "real".to_string(),
+                path: "real".to_string(),
+            }]
+        );
     }
 
     #[test]

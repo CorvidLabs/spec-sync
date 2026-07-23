@@ -14,7 +14,8 @@ Acceptance Criteria
   names, assignment-style `.projectDir = ...`, and method-style `.setProjectDir(...)`.
 - Raw include identities and raw `project(...)` selectors are checked before Gradle colon notation
   is mapped to path separators; drive-qualified, rooted, UNC, and parent-escaping spellings reject
-  while valid nested identities remain supported.
+  while valid explicitly rooted nested identities remain supported. Unrooted drive-relative
+  spellings such as `C:member` reject before colon mapping.
 - Assignment and method project-directory values accept exactly `file(<literal>)` or
   whitespace-delimited `new File(rootDir, <literal>)`; concatenated/dynamic lookalikes such as
   `newFile(...)` are unsupported and fail closed.
@@ -45,6 +46,12 @@ Acceptance Criteria
   declarations make checked coverage gates inconclusive without partial module results.
 
 ### SPEC SECTION Public API
+
+#### Exported Constants
+
+| Constant | Type | Description |
+|----------|------|-------------|
+| `MAX_GRADLE_MANIFEST_BYTES` | `u64` | Crate-visible 4 MiB ceiling shared by retained Gradle manifest readers |
 
 #### Exported Structs
 

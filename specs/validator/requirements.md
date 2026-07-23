@@ -59,6 +59,9 @@ Acceptance Criteria
 - Missing required frontmatter fields (`module`, `version`, `status`, `files`) are errors.
 - Cross-project references are recognized and skipped during local validation.
 - Coverage excludes test files and configured exclude patterns.
+- Checked coverage snapshots source roots and file bytes through retained no-follow handles;
+  symlink, reparse, or identity replacement fails inconclusive before partial totals or outside
+  reads.
 - `find_spec_files` returns sorted results.
 - Schema validation uses the configured `schema_pattern`.
 - Missing source suggestions use Levenshtein distance with a maximum distance of three.

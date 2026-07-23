@@ -968,6 +968,71 @@ fn mcp_rejects_selected_config_symlinks_and_fifos_without_blocking() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn mcp_tools_and_resources_reject_unsafe_gradle_build_manifests() {
+    use std::os::unix::fs::symlink;
+    use std::process::Command;
+
+    for case in ["symlink", "fifo", "oversized"] {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_minimal_project(&tmp);
+        match case {
+            "symlink" => {
+                let outside = tmp.path().join("outside-build.gradle.kts");
+                fs::write(&outside, "plugins { id(\"GRADLE_BUILD_SECRET\") }\n").unwrap();
+                symlink(&outside, root.join("build.gradle.kts")).unwrap();
+            }
+            "fifo" => {
+                assert!(
+                    Command::new("mkfifo")
+                        .arg(root.join("build.gradle.kts"))
+                        .status()
+                        .unwrap()
+                        .success()
+                );
+            }
+            "oversized" => {
+                fs::write(
+                    root.join("build.gradle.kts"),
+                    vec![b' '; 4 * 1024 * 1024 + 1],
+                )
+                .unwrap();
+            }
+            _ => unreachable!(),
+        }
+
+        let responses = mcp_request(
+            &root,
+            &[
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": { "name": "specsync_list_specs", "arguments": {} }
+                }),
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "resources/read",
+                    "params": { "uri": "specsync:///config" }
+                }),
+            ],
+        );
+
+        assert_eq!(responses[0]["result"]["isError"], true, "{case}");
+        assert_eq!(responses[1]["error"]["code"], -32602, "{case}");
+        let rendered = serde_json::to_string(&responses).unwrap();
+        assert!(rendered.contains("manifest"), "{case}: {rendered}");
+        assert!(!rendered.contains("GRADLE_BUILD_SECRET"));
+        if case == "oversized" {
+            assert!(rendered.contains("4 MiB"), "{rendered}");
+        } else {
+            assert!(rendered.contains("regular file"), "{rendered}");
+        }
+    }
+}
+
 #[test]
 fn mcp_allow_empty_tool_and_resource_preserve_valid_selected_config_compatibility() {
     for (relative_config, config) in [
@@ -1686,6 +1751,35 @@ fn mcp_gradle_interpolated_project_dirs_fail_closed_without_outside_access() {
             "setter-braced",
             r#"project(":member").setProjectDir(file("${outside}"))"#,
         ),
+        (
+            "indirect-assignment",
+            "val member = project(\":member\")\nmember.projectDir = file(\"../outside\")",
+        ),
+        (
+            "indirect-setter",
+            "val member = project(\":member\")\nmember.setProjectDir(file(\"../outside\"))",
+        ),
+        (
+            "closure-assignment",
+            "project(\":member\") {\nprojectDir = file(\"../outside\")\n}",
+        ),
+        (
+            "whitespace-setter",
+            "project(\":member\") . setProjectDir(file(\"../outside\"))",
+        ),
+        (
+            "concatenated-constructor",
+            "project(\":member\").projectDir = newFile(rootDir, \"../outside\")",
+        ),
+        (
+            "drive-relative-selector",
+            "project(\"C:outside\").projectDir = file(\"modules/member\")",
+        ),
+        (
+            "multiline-conditional-include",
+            "if (enabled) {\ninclude(\":member\")\n}",
+        ),
+        ("triple-quoted-include", "include(\"\"\":member\"\"\")"),
     ] {
         let root = tmp.path().join(format!("{label}-server"));
         setup_minimal_mcp_project_at(&root);
@@ -1850,6 +1944,70 @@ fn mcp_gradle_preflight_rejects_malformed_settings_without_partial_results() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn mcp_gradle_preflight_rejects_in_root_manifest_symlinks() {
+    use std::os::unix::fs::symlink;
+
+    for manifest in ["build.gradle.kts", "settings.gradle.kts"] {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_minimal_project(&tmp);
+        let real_manifest = root.join("real-gradle-manifest");
+        fs::write(&real_manifest, "plugins {}\n").unwrap();
+        symlink(&real_manifest, root.join(manifest)).unwrap();
+
+        let responses = mcp_request(
+            &root,
+            &[serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": { "name": "specsync_coverage", "arguments": {} }
+            })],
+        );
+
+        assert_eq!(responses[0]["result"]["isError"], true);
+        assert!(
+            responses[0]["result"]["content"][0]["text"]
+                .as_str()
+                .is_some_and(|error| error.contains("symlink or reparse point")),
+            "{manifest}: {responses:#?}"
+        );
+    }
+}
+
+#[test]
+fn mcp_gradle_preflight_rejects_every_manifest_above_four_mib() {
+    for manifest in [
+        "build.gradle.kts",
+        "build.gradle",
+        "settings.gradle.kts",
+        "settings.gradle",
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_minimal_project(&tmp);
+        fs::write(root.join(manifest), vec![b' '; 4 * 1024 * 1024 + 1]).unwrap();
+
+        let responses = mcp_request(
+            &root,
+            &[serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": { "name": "specsync_coverage", "arguments": {} }
+            })],
+        );
+
+        assert_eq!(responses[0]["result"]["isError"], true);
+        assert!(
+            responses[0]["result"]["content"][0]["text"]
+                .as_str()
+                .is_some_and(|error| error.contains("4 MiB")),
+            "{manifest}: {responses:#?}"
+        );
+    }
+}
+
 #[test]
 fn mcp_gradle_preflight_accepts_comments_and_escaped_paths() {
     let tmp = TempDir::new().unwrap();
@@ -1858,7 +2016,19 @@ fn mcp_gradle_preflight_accepts_comments_and_escaped_paths() {
     fs::write(root.join("build.gradle.kts"), "plugins {}\n").unwrap();
     fs::write(
         root.join("settings.gradle.kts"),
-        r#"include(":member") // ignored unterminated quote: "
+        r#"val kotlinDocumentation = """
+include(":phantom")
+project(":member").projectDir = file("../outside")
+"""
+def groovyDocumentation = '''
+include(":groovy-phantom")
+project(":member").setProjectDir(file("../outside"))
+'''
+/* outer ignored directive:
+   include(":outer-phantom")
+   /* include(":nested-phantom") */
+*/
+include(":member") // ignored unterminated quote: "
 project(":member").projectDir = file("modules\\member") /* ignored: ' */
 "#,
     )

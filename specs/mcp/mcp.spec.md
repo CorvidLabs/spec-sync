@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 15
+version: 16
 status: stable
 files:
   - src/mcp.rs
@@ -47,6 +47,9 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
    file handles through explicit no-follow, non-blocking opens. Opened-handle metadata and identity
    remain authoritative across bounded reads; path observations must resolve to that identity, so
    links/reparse points, special files, and replacement identities fail before bytes are parsed.
+   All four Gradle build/settings names are preflighted this way with the shared 4 MiB limit before
+   settings parsing or manifest-derived source probing; exact retained bytes are charged and copied
+   once, so generic snapshot traversal never reopens them.
 10. Every notification, including unknown methods, receives no response and cannot mutate state.
 11. Config/metadata/cache files and paths, manifest/autodetection paths, dependency references,
     module names/files, spec mappings, nested symlinks, and write destinations are validated against
@@ -218,3 +221,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-22 | CHG-0063 no-follow config follow-up: Reject linked/reparse, non-regular, blocking, replaced, and structurally invalid selected configs through an identity-verified bounded snapshot and the complete checked parser |
 | 2026-07-22 | CHG-0063 final agent-review follow-up: Bind selected configs to their pre-open identity and reject special-file manifests before blocking reads |
 | 2026-07-22 | CHG-0063 retained-handle follow-up: Acquire selected configs and manifests with no-follow, non-blocking handles on every platform; validate opened metadata and reject path replacement before and after bounded reads |
+| 2026-07-23 | v16 / CHG-0063 final security rereview: Preflight every Gradle build/settings variant once through the retained no-follow reader, enforce 4 MiB before parsing/probing, and reject special, linked, replaced, or oversized inputs for tools and resources |

@@ -12,9 +12,13 @@ use crate::types::{
     CoverageReport, CustomRuleType, Frontmatter, RuleSeverity, SpecSyncConfig, ValidationResult,
 };
 use crate::util::{levenshtein, safe_regex};
+use cap_primitives::fs::FollowSymlinks;
+use cap_std::ambient_authority;
+use cap_std::fs::{Dir, Metadata, OpenOptions};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use walkdir::WalkDir;
@@ -25,6 +29,11 @@ static FILE_REF_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\|\s*`([^`]+\.\w+)`\s*\|").unwrap());
 static NUMBERED_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^\d+\.\s+\S").unwrap());
 const STATIC_COVERAGE_EXTENSIONS: &[&str] = &["html", "htm", "css"];
+#[cfg(debug_assertions)]
+const COVERAGE_SNAPSHOT_TEST_BARRIER_ENV: &str = "SPECSYNC_TEST_COVERAGE_SNAPSHOT_IDENTITY_BARRIER";
+#[cfg(debug_assertions)]
+const COVERAGE_SNAPSHOT_TEST_BARRIER_TIMEOUT: std::time::Duration =
+    std::time::Duration::from_secs(30);
 
 /// Check if a dependency reference is a cross-project reference.
 /// Cross-project refs use the format `owner/repo@module` (e.g. `corvid-labs/algochat@auth`).
@@ -114,37 +123,525 @@ pub fn find_spec_files(dir: &Path) -> Vec<PathBuf> {
     results
 }
 
-/// Find source files in a directory, respecting exclusions.
-fn find_source_files(
-    dir: &Path,
-    exclude_dirs: &HashSet<String>,
-    config: &SpecSyncConfig,
+#[derive(Debug)]
+struct CoverageSourceFile {
+    relative_path: String,
+    loc: usize,
+}
+
+#[derive(Debug, Default)]
+struct CoverageSourceSnapshot {
+    files: Vec<CoverageSourceFile>,
+    immediate_modules: HashMap<String, Vec<String>>,
+}
+
+fn snapshot_coverage_sources(
     root: &Path,
-) -> Vec<PathBuf> {
-    let mut results = Vec::new();
-    if !dir.exists() {
-        return results;
-    }
+    config: &SpecSyncConfig,
+    exclude_dirs: &HashSet<String>,
+) -> Result<CoverageSourceSnapshot, String> {
+    snapshot_coverage_sources_with_hook(root, config, exclude_dirs, || {})
+}
 
-    for entry in WalkDir::new(dir)
-        .into_iter()
-        .filter_entry(|e| {
-            if e.file_type().is_dir() {
-                let name = e.file_name().to_str().unwrap_or("");
-                !exclude_dirs.contains(name)
-            } else {
-                true
+fn snapshot_coverage_sources_with_hook(
+    root: &Path,
+    config: &SpecSyncConfig,
+    exclude_dirs: &HashSet<String>,
+    after_retained_root: impl FnOnce(),
+) -> Result<CoverageSourceSnapshot, String> {
+    let project = Dir::open_ambient_dir(root, ambient_authority()).map_err(|error| {
+        format!(
+            "Cannot open coverage project root {} as a retained directory: {error}",
+            root.display()
+        )
+    })?;
+    after_retained_root();
+    coverage_snapshot_test_barrier()?;
+    let mut snapshot = CoverageSourceSnapshot::default();
+    for configured in &config.source_dirs {
+        let normalized = if configured == "." {
+            String::new()
+        } else {
+            normalize_source_mapping(configured).ok_or_else(|| {
+                format!(
+                    "Coverage source directory must remain beneath the project root: {configured}"
+                )
+            })?
+        };
+        let Some(directory) = open_coverage_directory(&project, Path::new(&normalized))? else {
+            continue;
+        };
+        let mut immediate_modules = Vec::new();
+        let mut accumulator = CoverageSourceAccumulator {
+            exclude_dirs,
+            config,
+            root,
+            immediate_modules: &mut immediate_modules,
+            files: &mut snapshot.files,
+        };
+        snapshot_coverage_directory(&directory, Path::new(&normalized), true, &mut accumulator)?;
+        immediate_modules.sort();
+        immediate_modules.dedup();
+        snapshot
+            .immediate_modules
+            .insert(configured.clone(), immediate_modules);
+        verify_coverage_directory_edge(&project, Path::new(&normalized), &directory)?;
+    }
+    snapshot
+        .files
+        .sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    snapshot
+        .files
+        .dedup_by(|left, right| left.relative_path == right.relative_path);
+    Ok(snapshot)
+}
+
+#[cfg(debug_assertions)]
+fn coverage_snapshot_test_barrier() -> Result<(), String> {
+    let Some(directory) = std::env::var_os(COVERAGE_SNAPSHOT_TEST_BARRIER_ENV) else {
+        return Ok(());
+    };
+    let directory = PathBuf::from(directory);
+    fs::write(directory.join("root-retained"), b"root-retained\n")
+        .map_err(|error| format!("Cannot create coverage snapshot test barrier: {error}"))?;
+    let resume = directory.join("resume");
+    let started = std::time::Instant::now();
+    loop {
+        match fs::symlink_metadata(&resume) {
+            Ok(metadata) if metadata.is_file() => return Ok(()),
+            Ok(_) => {
+                return Err(
+                    "Coverage snapshot test barrier resume marker is not a file".to_string()
+                );
             }
-        })
-        .filter_map(|e| e.ok())
-    {
-        let path = entry.path();
-        if path.is_file() && has_coverage_extension(path, config) && !is_test_file(path, root) {
-            results.push(path.to_path_buf());
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "Cannot inspect coverage snapshot test barrier resume marker: {error}"
+                ));
+            }
         }
+        if started.elapsed() >= COVERAGE_SNAPSHOT_TEST_BARRIER_TIMEOUT {
+            return Err("Timed out waiting for coverage snapshot test barrier".to_string());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn coverage_snapshot_test_barrier() -> Result<(), String> {
+    Ok(())
+}
+
+struct CoverageSourceAccumulator<'a> {
+    exclude_dirs: &'a HashSet<String>,
+    config: &'a SpecSyncConfig,
+    root: &'a Path,
+    immediate_modules: &'a mut Vec<String>,
+    files: &'a mut Vec<CoverageSourceFile>,
+}
+
+fn snapshot_coverage_directory(
+    directory: &Dir,
+    relative: &Path,
+    source_root: bool,
+    accumulator: &mut CoverageSourceAccumulator<'_>,
+) -> Result<(), String> {
+    let entries = directory.read_dir(".").map_err(|error| {
+        format!(
+            "Cannot read retained coverage source directory {}: {error}",
+            display_coverage_path(relative)
+        )
+    })?;
+    for entry in entries {
+        let entry = entry.map_err(|error| {
+            format!(
+                "Cannot inspect retained coverage source beneath {}: {error}",
+                display_coverage_path(relative)
+            )
+        })?;
+        let name = entry.file_name();
+        let name_text = name.to_string_lossy().into_owned();
+        let child = relative.join(&name);
+        let metadata = directory.symlink_metadata(&name).map_err(|error| {
+            format!(
+                "Cannot inspect retained coverage source {}: {error}",
+                child.display()
+            )
+        })?;
+        if coverage_metadata_is_link(&metadata) {
+            return Err(format!(
+                "Coverage source {} must not traverse a symlink or reparse point",
+                child.display()
+            ));
+        }
+        if metadata.is_dir() {
+            if accumulator.exclude_dirs.contains(&name_text) {
+                continue;
+            }
+            if source_root {
+                accumulator.immediate_modules.push(name_text);
+            }
+            let child_directory = open_coverage_child_directory(directory, &name, &child)?;
+            snapshot_coverage_directory(&child_directory, &child, false, accumulator)?;
+            verify_coverage_child_directory(directory, &name, &child, &child_directory)?;
+            continue;
+        }
+        if !metadata.is_file() {
+            return Err(format!(
+                "Coverage source {} must be a regular file or directory",
+                child.display()
+            ));
+        }
+        let logical_path = accumulator.root.join(&child);
+        if !has_coverage_extension(&logical_path, accumulator.config)
+            || is_test_file(&logical_path, accumulator.root)
+        {
+            continue;
+        }
+        let bytes = read_coverage_file(directory, &name, &child)?;
+        let loc = std::str::from_utf8(&bytes)
+            .map(|content| content.lines().count())
+            .unwrap_or(0);
+        accumulator.files.push(CoverageSourceFile {
+            relative_path: child.to_string_lossy().replace('\\', "/"),
+            loc,
+        });
+    }
+    Ok(())
+}
+
+fn open_coverage_directory(root: &Dir, relative: &Path) -> Result<Option<Dir>, String> {
+    if relative.as_os_str().is_empty() {
+        return root
+            .try_clone()
+            .map(Some)
+            .map_err(|error| format!("Cannot retain coverage project root: {error}"));
+    }
+    let mut directory = root
+        .try_clone()
+        .map_err(|error| format!("Cannot retain coverage project root: {error}"))?;
+    let mut inspected = PathBuf::new();
+    for component in relative.components() {
+        let std::path::Component::Normal(name) = component else {
+            return Err(format!(
+                "Coverage source directory must remain beneath the project root: {}",
+                relative.display()
+            ));
+        };
+        inspected.push(name);
+        let before = match directory.symlink_metadata(name) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => {
+                return Err(format!(
+                    "Cannot inspect coverage source directory {}: {error}",
+                    inspected.display()
+                ));
+            }
+        };
+        if coverage_metadata_is_link(&before) {
+            return Err(format!(
+                "Coverage source directory {} must not traverse a symlink or reparse point",
+                inspected.display()
+            ));
+        }
+        if !before.is_dir() {
+            return Ok(None);
+        }
+        directory = open_coverage_child_directory(&directory, name, &inspected)?;
+    }
+    Ok(Some(directory))
+}
+
+fn open_coverage_child_directory(
+    parent: &Dir,
+    name: &std::ffi::OsStr,
+    display: &Path,
+) -> Result<Dir, String> {
+    let child = parent.open_dir(name).map_err(|error| {
+        format!(
+            "Cannot open retained coverage source directory {}: {error}",
+            display.display()
+        )
+    })?;
+    verify_coverage_child_directory(parent, name, display, &child)?;
+    Ok(child)
+}
+
+fn verify_coverage_directory_edge(
+    project: &Dir,
+    relative: &Path,
+    expected: &Dir,
+) -> Result<(), String> {
+    if relative.as_os_str().is_empty() {
+        let observed = project
+            .try_clone()
+            .map_err(|error| format!("Cannot re-open coverage project root: {error}"))?;
+        let observed_identity = coverage_directory_identity(&observed)
+            .map_err(|error| format!("Cannot identify re-opened coverage project root: {error}"))?;
+        let expected_identity = coverage_directory_identity(expected)
+            .map_err(|error| format!("Cannot identify retained coverage project root: {error}"))?;
+        if observed_identity != expected_identity {
+            return Err("Coverage project root changed during retained traversal".to_string());
+        }
+        return Ok(());
+    }
+    let parent = relative.parent().unwrap_or_else(|| Path::new(""));
+    let name = relative
+        .file_name()
+        .ok_or_else(|| "Coverage source directory has no terminal component".to_string())?;
+    let Some(parent_directory) = open_coverage_directory(project, parent)? else {
+        return Err(format!(
+            "Coverage source directory {} changed during retained traversal",
+            relative.display()
+        ));
+    };
+    verify_coverage_child_directory(&parent_directory, name, relative, expected)
+}
+
+fn verify_coverage_child_directory(
+    parent: &Dir,
+    name: &std::ffi::OsStr,
+    display: &Path,
+    expected: &Dir,
+) -> Result<(), String> {
+    let metadata = parent.symlink_metadata(name).map_err(|error| {
+        format!(
+            "Cannot re-inspect coverage source directory {}: {error}",
+            display.display()
+        )
+    })?;
+    if coverage_metadata_is_link(&metadata) || !metadata.is_dir() {
+        return Err(format!(
+            "Coverage source directory {} changed during retained traversal",
+            display.display()
+        ));
+    }
+    let observed = parent.open_dir(name).map_err(|error| {
+        format!(
+            "Cannot re-open coverage source directory {}: {error}",
+            display.display()
+        )
+    })?;
+    let observed_identity = coverage_directory_identity(&observed).map_err(|error| {
+        format!(
+            "Cannot identify re-opened coverage source directory {}: {error}",
+            display.display()
+        )
+    })?;
+    let expected_identity = coverage_directory_identity(expected).map_err(|error| {
+        format!(
+            "Cannot identify retained coverage source directory {}: {error}",
+            display.display()
+        )
+    })?;
+    if observed_identity != expected_identity {
+        return Err(format!(
+            "Coverage source directory {} changed during retained traversal",
+            display.display()
+        ));
+    }
+    Ok(())
+}
+
+fn read_coverage_file(
+    directory: &Dir,
+    name: &std::ffi::OsStr,
+    display: &Path,
+) -> Result<Vec<u8>, String> {
+    let mut options = OpenOptions::new();
+    options
+        .read(true)
+        ._cap_fs_ext_nonblock(true)
+        ._cap_fs_ext_follow(FollowSymlinks::No);
+    let mut file = directory.open_with(name, &options).map_err(|error| {
+        format!(
+            "Cannot open retained coverage source file {}: {error}",
+            display.display()
+        )
+    })?;
+    let identity = coverage_file_identity(&file).map_err(|error| {
+        format!(
+            "Cannot identify retained coverage source file {}: {error}",
+            display.display()
+        )
+    })?;
+    verify_coverage_file_edge(directory, name, display, identity)?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes).map_err(|error| {
+        format!(
+            "Cannot read retained coverage source file {}: {error}",
+            display.display()
+        )
+    })?;
+    if coverage_file_identity(&file).ok() != Some(identity) {
+        return Err(format!(
+            "Coverage source file {} changed while it was being read",
+            display.display()
+        ));
+    }
+    verify_coverage_file_edge(directory, name, display, identity)?;
+    Ok(bytes)
+}
+
+fn verify_coverage_file_edge(
+    directory: &Dir,
+    name: &std::ffi::OsStr,
+    display: &Path,
+    expected: CoverageEntryIdentity,
+) -> Result<(), String> {
+    let metadata = directory.symlink_metadata(name).map_err(|error| {
+        format!(
+            "Cannot re-inspect coverage source file {}: {error}",
+            display.display()
+        )
+    })?;
+    if coverage_metadata_is_link(&metadata) || !metadata.is_file() {
+        return Err(format!(
+            "Coverage source file {} changed during retained traversal",
+            display.display()
+        ));
+    }
+    let mut options = OpenOptions::new();
+    options
+        .read(true)
+        ._cap_fs_ext_nonblock(true)
+        ._cap_fs_ext_follow(FollowSymlinks::No);
+    let observed = directory.open_with(name, &options).map_err(|error| {
+        format!(
+            "Cannot re-open coverage source file {}: {error}",
+            display.display()
+        )
+    })?;
+    if coverage_file_identity(&observed).ok() != Some(expected) {
+        return Err(format!(
+            "Coverage source file {} changed during retained traversal",
+            display.display()
+        ));
+    }
+    Ok(())
+}
+
+fn display_coverage_path(path: &Path) -> String {
+    if path.as_os_str().is_empty() {
+        ".".to_string()
+    } else {
+        path.display().to_string()
+    }
+}
+
+#[cfg(unix)]
+type CoverageEntryIdentity = (u64, u64);
+
+#[cfg(windows)]
+type CoverageEntryIdentity = (u32, u64);
+
+#[cfg(not(any(unix, windows)))]
+type CoverageEntryIdentity = (u64, Option<std::time::SystemTime>);
+
+#[cfg(unix)]
+fn coverage_directory_identity(directory: &Dir) -> io::Result<CoverageEntryIdentity> {
+    use cap_std::fs::MetadataExt;
+
+    let metadata = directory.dir_metadata()?;
+    Ok((metadata.dev(), metadata.ino()))
+}
+
+#[cfg(windows)]
+fn coverage_directory_identity(directory: &Dir) -> io::Result<CoverageEntryIdentity> {
+    use std::os::windows::io::AsRawHandle;
+
+    let file = directory.try_clone()?.into_std_file();
+    coverage_windows_handle_identity(file.as_raw_handle().cast())
+}
+
+#[cfg(not(any(unix, windows)))]
+fn coverage_directory_identity(directory: &Dir) -> io::Result<CoverageEntryIdentity> {
+    let metadata = directory.dir_metadata()?;
+    Ok((metadata.len(), metadata.modified().ok()))
+}
+
+#[cfg(unix)]
+fn coverage_file_identity(file: &cap_std::fs::File) -> io::Result<CoverageEntryIdentity> {
+    use cap_std::fs::MetadataExt;
+
+    let metadata = file.metadata()?;
+    Ok((metadata.dev(), metadata.ino()))
+}
+
+#[cfg(windows)]
+fn coverage_file_identity(file: &cap_std::fs::File) -> io::Result<CoverageEntryIdentity> {
+    use std::os::windows::io::AsRawHandle;
+
+    coverage_windows_handle_identity(file.as_raw_handle().cast())
+}
+
+#[cfg(not(any(unix, windows)))]
+fn coverage_file_identity(file: &cap_std::fs::File) -> io::Result<CoverageEntryIdentity> {
+    let metadata = file.metadata()?;
+    Ok((metadata.len(), metadata.modified().ok()))
+}
+
+#[cfg(windows)]
+fn coverage_windows_handle_identity(
+    handle: *mut std::ffi::c_void,
+) -> io::Result<CoverageEntryIdentity> {
+    use std::ffi::c_void;
+    use std::mem::MaybeUninit;
+
+    #[repr(C)]
+    struct FileTime {
+        low: u32,
+        high: u32,
     }
 
-    results
+    #[repr(C)]
+    struct ByHandleFileInformation {
+        file_attributes: u32,
+        creation_time: FileTime,
+        last_access_time: FileTime,
+        last_write_time: FileTime,
+        volume_serial_number: u32,
+        file_size_high: u32,
+        file_size_low: u32,
+        number_of_links: u32,
+        file_index_high: u32,
+        file_index_low: u32,
+    }
+
+    unsafe extern "system" {
+        fn GetFileInformationByHandle(
+            file: *mut c_void,
+            information: *mut ByHandleFileInformation,
+        ) -> i32;
+    }
+
+    let mut information = MaybeUninit::<ByHandleFileInformation>::uninit();
+    // SAFETY: `handle` is owned by the live retained file/directory for the duration of the call,
+    // and `information` has the exact writable Win32 structure layout.
+    let success = unsafe { GetFileInformationByHandle(handle, information.as_mut_ptr()) };
+    if success == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: a successful GetFileInformationByHandle call initializes every field.
+    let information = unsafe { information.assume_init() };
+    let file_index =
+        (u64::from(information.file_index_high) << 32) | u64::from(information.file_index_low);
+    Ok((information.volume_serial_number, file_index))
+}
+
+#[cfg(windows)]
+fn coverage_metadata_is_link(metadata: &Metadata) -> bool {
+    use cap_std::fs::MetadataExt;
+
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+    metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+#[cfg(not(windows))]
+fn coverage_metadata_is_link(metadata: &Metadata) -> bool {
+    metadata.file_type().is_symlink()
 }
 
 fn has_coverage_extension(path: &Path, config: &SpecSyncConfig) -> bool {
@@ -1237,6 +1734,40 @@ mod tests {
         assert!(report.unspecced_modules[0].contains("inconclusive"));
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn retained_coverage_snapshot_rejects_post_discovery_symlink_replacement() {
+        use std::os::unix::fs::symlink;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("project");
+        let outside = tmp.path().join("outside");
+        fs::create_dir_all(root.join("member/src/main/kotlin")).unwrap();
+        fs::create_dir_all(outside.join("src/main/kotlin")).unwrap();
+        let outside_source = outside.join("src/main/kotlin/Secret.kt");
+        let sentinel = b"const val SECRET = \"RETAINED_COVERAGE_SENTINEL\"\n";
+        fs::write(
+            root.join("member/src/main/kotlin/Local.kt"),
+            "const val LOCAL = 1\n",
+        )
+        .unwrap();
+        fs::write(&outside_source, sentinel).unwrap();
+        let config = SpecSyncConfig {
+            source_dirs: vec!["member/src/main/kotlin".to_string()],
+            ..SpecSyncConfig::default()
+        };
+
+        let error = snapshot_coverage_sources_with_hook(&root, &config, &HashSet::new(), || {
+            fs::rename(root.join("member"), root.join("original-member")).unwrap();
+            symlink(&outside, root.join("member")).unwrap();
+        })
+        .unwrap_err();
+
+        assert!(error.contains("symlink or reparse point"), "{error}");
+        assert!(!error.contains("RETAINED_COVERAGE_SENTINEL"));
+        assert_eq!(fs::read(outside_source).unwrap(), sentinel);
+    }
+
     #[test]
     fn configured_static_html_has_non_vacuous_coverage() {
         let tmp = tempfile::tempdir().unwrap();
@@ -1875,29 +2406,6 @@ fn collect_specced_files(spec_files: &[PathBuf]) -> HashSet<String> {
     specced
 }
 
-fn get_module_dirs(dir: &Path, exclude_dirs: &HashSet<String>) -> Vec<String> {
-    let mut modules = Vec::new();
-    if !dir.exists() {
-        return modules;
-    }
-
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            if let Ok(ft) = entry.file_type()
-                && ft.is_dir()
-            {
-                let name = entry.file_name().to_string_lossy().to_string();
-                if !exclude_dirs.contains(&name) {
-                    modules.push(name);
-                }
-            }
-        }
-    }
-
-    modules.sort();
-    modules
-}
-
 /// Get spec module directories that actually contain a .spec.md file.
 /// Empty directories (e.g. from a failed prior generation) are ignored.
 fn get_spec_module_dirs(dir: &Path) -> Vec<String> {
@@ -1964,67 +2472,36 @@ pub fn compute_coverage_checked(
 ) -> Result<CoverageReport, String> {
     let specced_files = collect_specced_files(spec_files);
     let exclude_dirs: HashSet<String> = config.exclude_dirs.iter().cloned().collect();
+    let manifest = discover_manifest_modules_checked(root)?;
+    let source_snapshot = snapshot_coverage_sources(root, config, &exclude_dirs)?;
 
     let mut all_source_files: Vec<String> = Vec::new();
-    for src_dir in &config.source_dirs {
-        let full_dir = root.join(src_dir);
-        let files: Vec<String> = find_source_files(&full_dir, &exclude_dirs, config, root)
-            .into_iter()
-            .filter_map(|f| {
-                let rel = f.strip_prefix(root).ok()?;
-                let rel_str = rel.to_string_lossy().replace('\\', "/");
-                // Check exclude patterns (simple glob matching)
-                for pattern in &config.exclude_patterns {
-                    // **/dir/** — matches path containing dir
-                    if pattern.starts_with("**/") && pattern.ends_with("/**") {
-                        // Strip the `**/` … `/**` wrapper. A naive `pattern[3..len-3]`
-                        // panics on a degenerate `**/**` (len 5), where the prefix and
-                        // suffix overlap and the range reverses. Peeling both ends yields
-                        // an empty `dir_part`, which `contains` matches against any path —
-                        // the correct meaning of `**/**` (match everything).
-                        let dir_part = pattern
-                            .strip_prefix("**/")
-                            .and_then(|rest| rest.strip_suffix("/**"))
-                            .unwrap_or("");
-                        if rel_str.contains(dir_part) {
-                            return None;
-                        }
-                    }
-                    // **/*.ext or **/filename — matches suffix/filename
-                    else if let Some(suffix) = pattern.strip_prefix("**/") {
-                        if let Some(ext) = suffix.strip_prefix('*') {
-                            // **/*.test.ts -> .test.ts
-                            if rel_str.ends_with(ext) {
-                                return None;
-                            }
-                        } else {
-                            // **/index.ts -> matches any path ending in /index.ts or equal to index.ts
-                            if rel_str.ends_with(&format!("/{suffix}")) || rel_str == *suffix {
-                                return None;
-                            }
-                        }
-                    }
-                    // Literal contains match as fallback
-                    else if rel_str.contains(pattern.as_str()) {
-                        return None;
-                    }
+    let mut file_loc: HashMap<String, usize> = HashMap::new();
+    for file in &source_snapshot.files {
+        let rel_str = &file.relative_path;
+        let excluded = config.exclude_patterns.iter().any(|pattern| {
+            if pattern.starts_with("**/") && pattern.ends_with("/**") {
+                let dir_part = pattern
+                    .strip_prefix("**/")
+                    .and_then(|rest| rest.strip_suffix("/**"))
+                    .unwrap_or("");
+                rel_str.contains(dir_part)
+            } else if let Some(suffix) = pattern.strip_prefix("**/") {
+                if let Some(ext) = suffix.strip_prefix('*') {
+                    rel_str.ends_with(ext)
+                } else {
+                    rel_str.ends_with(&format!("/{suffix}")) || rel_str == suffix
                 }
-                Some(rel_str)
-            })
-            .collect();
-        all_source_files.extend(files);
+            } else {
+                rel_str.contains(pattern.as_str())
+            }
+        });
+        if excluded {
+            continue;
+        }
+        all_source_files.push(rel_str.clone());
+        file_loc.insert(rel_str.clone(), file.loc);
     }
-
-    // Count lines of code per file
-    let file_loc: std::collections::HashMap<&str, usize> = all_source_files
-        .iter()
-        .map(|f| {
-            let loc = fs::read_to_string(root.join(f))
-                .map(|c| c.lines().count())
-                .unwrap_or(0);
-            (f.as_str(), loc)
-        })
-        .collect();
 
     let total_loc: usize = file_loc.values().sum();
     let specced_loc: usize = all_source_files
@@ -2062,7 +2539,6 @@ pub fn compute_coverage_checked(
     }
 
     // Then: detect modules from manifest files (Package.swift, Cargo.toml, etc.)
-    let manifest = discover_manifest_modules_checked(root)?;
     for name in manifest.modules.keys() {
         if !spec_modules.contains(name) && seen_modules.insert(name.clone()) {
             unspecced_modules.push(name.clone());
@@ -2071,8 +2547,13 @@ pub fn compute_coverage_checked(
 
     // Detect subdirectory-based modules
     for src_dir in &config.source_dirs {
-        let full_dir = root.join(src_dir);
-        for module in get_module_dirs(&full_dir, &exclude_dirs) {
+        for module in source_snapshot
+            .immediate_modules
+            .get(src_dir)
+            .into_iter()
+            .flatten()
+            .cloned()
+        {
             if !spec_modules.contains(&module) && seen_modules.insert(module.clone()) {
                 unspecced_modules.push(module);
             }
@@ -2084,26 +2565,29 @@ pub fn compute_coverage_checked(
         .into_iter()
         .collect();
     for src_dir in &config.source_dirs {
-        let full_dir = root.join(src_dir);
-        if let Ok(entries) = fs::read_dir(&full_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if !path.is_file()
-                    || !has_coverage_extension(&path, config)
-                    || is_test_file(&path, root)
-                {
-                    continue;
-                }
-                let stem = match path.file_stem().and_then(|s| s.to_str()) {
-                    Some(s) => s.to_string(),
-                    None => continue,
-                };
-                if skip_stems.contains(stem.as_str()) {
-                    continue;
-                }
-                if !spec_modules.contains(&stem) && seen_modules.insert(stem.clone()) {
-                    unspecced_modules.push(stem);
-                }
+        let normalized = if src_dir == "." {
+            PathBuf::new()
+        } else {
+            PathBuf::from(src_dir)
+        };
+        for file in source_snapshot.files.iter().filter(|file| {
+            Path::new(&file.relative_path)
+                .parent()
+                .unwrap_or_else(|| Path::new(""))
+                == normalized
+        }) {
+            let Some(stem) = Path::new(&file.relative_path)
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .map(str::to_string)
+            else {
+                continue;
+            };
+            if skip_stems.contains(stem.as_str()) {
+                continue;
+            }
+            if !spec_modules.contains(&stem) && seen_modules.insert(stem.clone()) {
+                unspecced_modules.push(stem);
             }
         }
     }

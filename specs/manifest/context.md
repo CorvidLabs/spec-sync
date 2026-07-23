@@ -17,6 +17,10 @@ spec: manifest.spec.md
   arguments, unescaped double-quoted interpolation, alternate bases, extra arguments, and
   unsupported mutators reject the parse. Escaped/single-quoted dollars stay literal, and
   Unicode/octal escapes are decoded before path confinement.
+- **Executable-directive subset**: Triple-quoted documentation and nested comments are masked
+  before parsing. Include and project-directory mutations must use the supported top-level direct
+  syntax; aliases, qualification, conditionals, closure/block scope, spacing tricks, compound
+  assignment, and concatenated `newFile` lookalikes fail closed.
 - **Raw identity validation precedes colon mapping**: Drive-qualified, rooted, UNC, and
   parent-escaping include identities and project selectors reject before Gradle `:` separators are
   converted to `/`; ordinary nested Gradle identities remain compatible.
@@ -41,6 +45,8 @@ independent-review contract additionally requires raw module validation before c
 literal assignment/method project-directory parsing, and retained no-follow component confinement.
 Gradle build/settings selection and reads are likewise bounded and capability-confined; unescaped
 double-quoted interpolation rejects and encoded path escapes are decoded before confinement.
+The final parser amendment also rejects indirect executable mutations and drive-relative raw
+identities while preserving rooted nested Gradle names.
 Fresh implementation verification, independent rereviews, Windows runtime, repository/CI, trust,
 and provenance evidence remain pending. MCP Cargo workspace paths come from validated TOML values.
 

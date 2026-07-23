@@ -28,8 +28,11 @@ spec: manifest.spec.md
   interpolation in double-quoted strings is dynamic; escaped or single-quoted literal dollars
   remain data.
 - Supported assignment and method values are exactly `file(<literal>)` or
-  `new File(rootDir, <literal>)`; dynamic values, alternate bases, extra arguments, unsupported
+  whitespace-delimited `new File(rootDir, <literal>)`; dynamic values, alternate bases, extra
+  arguments, concatenated `newFile`, indirect/qualified/conditional/block-scoped/compound
   mutators, and trailing expressions reject checked discovery.
+- Triple-quoted Groovy/Kotlin documentation and nested comments are inert; unsupported multiline
+  values used as directives fail closed instead of creating phantom modules.
 - Raw Gradle include identities and raw `project(...)` selectors are rejected when drive-qualified,
   rooted, UNC, or parent-escaping before colon notation is converted to a filesystem path.
 - Included module names and effective `projectDir` values must normalize beneath the project root;
@@ -77,8 +80,11 @@ Acceptance Criteria
   interpolation in double-quoted strings is dynamic; escaped or single-quoted literal dollars
   remain data.
 - Supported assignment and method values are exactly `file(<literal>)` or
-  `new File(rootDir, <literal>)`; dynamic values, alternate bases, extra arguments, unsupported
+  whitespace-delimited `new File(rootDir, <literal>)`; dynamic values, alternate bases, extra
+  arguments, concatenated `newFile`, indirect/qualified/conditional/block-scoped/compound
   mutators, and trailing expressions reject checked discovery.
+- Triple-quoted Groovy/Kotlin documentation and nested comments are inert; unsupported multiline
+  values used as directives fail closed instead of creating phantom modules.
 - Raw Gradle include identities and raw `project(...)` selectors are rejected when drive-qualified,
   rooted, UNC, or parent-escaping before colon notation is converted to a filesystem path.
 - Included module names and effective `projectDir` values must normalize beneath the project root;

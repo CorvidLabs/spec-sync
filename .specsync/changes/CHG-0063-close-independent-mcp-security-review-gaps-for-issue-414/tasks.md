@@ -139,13 +139,18 @@ artifact: tasks
   setter forms; reject Unicode/octal-encoded dollars while preserving explicit literal dollars.
 - [x] Acquire present Gradle build/settings manifests through bounded retained-capability regular
   non-link reads and reject linked, reparse-backed, special, oversized, or invalid-UTF-8 inputs.
-- [ ] Require a whitespace token boundary for official `new File(...)`; characterize and reject
+- [x] Require a whitespace token boundary for official `new File(...)`; characterize and reject
   concatenated/dynamic `newFile(...)` in parser, CLI, and MCP assignment/setter paths without
   outside access, disclosure, mutation, or partial output.
-- [ ] Reconcile the concurrent Gradle directive scanner: ignore directives inside ordinary/triple
+- [x] Reconcile the concurrent Gradle directive scanner: ignore directives inside ordinary/triple
   strings and nested comments; reject aliased, qualified, same-line or block-scoped conditional,
   compound, and indirect directives; reject unsupported triple-quoted directive arguments rather
   than accepting an empty include; cover parser and every CLI/MCP checked gate.
+- [x] Preflight all four MCP Gradle build/settings names through one retained no-follow,
+  non-blocking 4 MiB reader before parsing/probing; reject FIFO/socket/link/reparse/replacement and
+  make tools/resources fail without generic snapshot reopening.
+- [x] Replace ambient CLI coverage walks/LOC reads with retained source snapshots and prove
+  post-discovery Unix symlink plus hosted-Windows junction swaps are inconclusive for every gate.
 - [ ] Obtain a clean post-fix acceptance rereview and adversarial security/compatibility rereview.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.

@@ -17,6 +17,14 @@ Acceptance Criteria
   source probing, traversal, partial totals, or generation.
 - Interpolated/encoded-dynamic Gradle strings and unsafe or oversized Gradle manifest endpoints
   propagate as checked errors before partial totals, outside reads, or generation.
+- After checked manifest discovery, every configured or manifest-derived source tree is traversed
+  through one retained project-root capability with no-follow directory opens and non-blocking,
+  identity-checked regular-file reads. Post-discovery replacement, links/reparse points, and
+  special files fail every coverage gate before totals, disclosure, or generated output.
+- Checked coverage acquires configured source roots and source bytes through retained no-follow
+  handles, binds directory/file identity before and after traversal, and derives file, LOC,
+  immediate-directory, and flat-file module results from that snapshot. Post-discovery
+  symlink/junction replacement fails inconclusive for every coverage gate before outside reads.
 - `compute_coverage` remains available for compatibility and returns a zero-percent report carrying
   an inconclusive module diagnostic when checked discovery fails.
 
@@ -96,7 +104,9 @@ Acceptance Criteria
 11. Validation results retain parsed lifecycle status.
 12. Requirements companions are validated when present under adaptive artifact policy.
 13. Checked coverage propagates malformed, unreadable, unsupported, or unconfined manifest
-    discovery; compatibility coverage remains available.
+    discovery; compatibility coverage remains available. Coverage source enumeration and content
+    reads remain bound to one retained project-root capability after manifest discovery, and any
+    replacement or non-regular endpoint makes the checked result inconclusive.
 14. `validate_spec_content` validates caller-provided bytes without reopening `spec_path` or
     adjacent companions; the path remains logical diagnostic/source context and mapped sources
     retain normal path behavior.
@@ -104,3 +114,5 @@ Acceptance Criteria
 16. `validate_spec_content_with_sources` treats its supplied `SourceSnapshot` map as authoritative
     and does not reopen mapped sources or resolve supplied-content TypeScript wildcards through
     ambient paths.
+17. Checked coverage uses retained no-follow source snapshots; symlink, reparse, or identity
+    replacement fails before outside reads, partial totals, or generation.

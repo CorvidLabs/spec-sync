@@ -43,6 +43,10 @@ spec: validator.spec.md
   generated output for every new Gradle confinement failure.
 - [x] Keep interpolated/encoded Gradle paths and linked/special Gradle manifests inconclusive
   across checked CLI/MCP gates.
+- [x] Bind post-manifest coverage source traversal and reads to one retained root capability so
+  path replacement, links/reparse points, and special entries fail every coverage gate.
+- [x] Replace ambient coverage walks and LOC reopens with retained no-follow source snapshots,
+  including deterministic post-discovery Unix symlink and hosted-Windows junction race fixtures.
 - [ ] Obtain fresh exact-tree full reruns, independent reviews, hosted-Windows runtime,
   repository/CI, trust, and Attest evidence.
 

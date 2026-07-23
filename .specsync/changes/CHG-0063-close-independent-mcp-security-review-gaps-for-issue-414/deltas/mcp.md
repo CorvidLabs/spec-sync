@@ -24,6 +24,15 @@ Acceptance Criteria
 - Manifest discovery parses Cargo workspace membership as TOML and comment/escape-aware Gradle
   settings, charges deduplicated manifest bytes to the shared cumulative input budget, and copies
   the exact preflight buffers.
+- Before any manifest-derived traversal, every present `build.gradle`, `build.gradle.kts`,
+  `settings.gradle`, and `settings.gradle.kts` candidate is opened no-follow and non-blocking
+  through the retained root capability, required to remain a regular non-link file with stable
+  identity, and bounded to 4 MiB. An unsafe or oversized candidate fails the operation even when
+  another candidate would otherwise be selected.
+- All four Gradle build/settings names are acquired once through retained no-follow, non-blocking
+  regular-file handles with the shared 4 MiB limit before parsing or source probing. Special,
+  linked/reparse-backed, replaced, oversized, or invalid-UTF-8 inputs reject tools and resources;
+  generic snapshot traversal never reopens the preloaded paths.
 - Cargo path discovery follows only semantic target, dependency, workspace-dependency,
   target-specific dependency, patch, and replacement tables; unrelated metadata `path` keys are
   ignored.
@@ -140,3 +149,9 @@ Acceptance Criteria
 26. Selected config and recognized manifests are acquired through explicit no-follow, non-blocking
     retained regular-file handles. Opened-handle metadata and native identity remain authoritative
     through bounded reads; later path observations must match on Windows and Unix.
+27. All four recognized Gradle build/settings candidates are preflighted through retained handles
+    with a 4 MiB per-file ceiling before manifest-derived traversal; no unsafe unselected candidate
+    is silently ignored.
+27. Every present Gradle build/settings variant is preflighted at 4 MiB before settings parsing or
+    manifest-derived source probing, charged/copied from exact retained bytes once, and excluded
+    from generic snapshot reopening.

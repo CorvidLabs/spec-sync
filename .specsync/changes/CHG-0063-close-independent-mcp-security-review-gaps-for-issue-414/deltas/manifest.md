@@ -20,6 +20,11 @@ Acceptance Criteria
   `newFile(...)` are unsupported and fail closed.
 - Dynamic include arguments, alternate `new File` bases, extra arguments, and trailing assignment
   or method expressions fail checked discovery without returning partial modules.
+- Include and project-directory directives are recognized only as top-level executable statements:
+  directives inside single-, double-, or triple-quoted strings and nested block/line comments are
+  inert, while qualified, aliased, conditional/block-scoped, compound-assignment, and otherwise
+  indirect mutations fail closed. Unsupported multiline literals used as directive arguments fail
+  rather than disappearing into an empty include.
 - Double-quoted `$name` and `${expression}` interpolation fails checked discovery, including when
   Unicode or octal escape decoding reconstructs the dollar. Explicit `\$` and Groovy
   single-quoted dollar literals remain compatible.
@@ -65,8 +70,9 @@ Acceptance Criteria
    parent-escaping forms before colon-to-path conversion.
 3. Nested colon names and the supported literal assignment/method project-directory forms resolve
    to one deterministic effective project-relative directory per module.
-4. Dynamic includes and unsupported `projectDir`/`setProjectDir` bases, arity, or suffixes fail
-   without partial discovery.
+4. Dynamic, qualified, aliased, conditional/block-scoped, or otherwise indirect includes and
+   `projectDir`/`setProjectDir` mutations, unsupported bases/arity/suffixes, compound assignments,
+   and unsupported multiline directive arguments fail without partial discovery.
 5. Double-quoted Gradle interpolation is rejected after escape decoding; explicit escaped-dollar
    and Groovy single-quoted literal-dollar forms remain deterministic literals.
 6. Checked discovery reports malformed Gradle input; compatibility discovery may return an empty

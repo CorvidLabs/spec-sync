@@ -142,6 +142,10 @@ artifact: tasks
 - [ ] Require a whitespace token boundary for official `new File(...)`; characterize and reject
   concatenated/dynamic `newFile(...)` in parser, CLI, and MCP assignment/setter paths without
   outside access, disclosure, mutation, or partial output.
+- [ ] Reconcile the concurrent Gradle directive scanner: ignore directives inside ordinary/triple
+  strings and nested comments; reject aliased, qualified, same-line or block-scoped conditional,
+  compound, and indirect directives; reject unsupported triple-quoted directive arguments rather
+  than accepting an empty include; cover parser and every CLI/MCP checked gate.
 - [ ] Obtain a clean post-fix acceptance rereview and adversarial security/compatibility rereview.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.

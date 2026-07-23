@@ -75,3 +75,8 @@ artifact: plan
     Gradle `new` and `File`, rejecting dynamic `newFile(...)` lookalikes in assignment and setter
     forms, and proving every CLI/MCP checked-discovery gate remains inconclusive without outside
     reads, disclosure, mutation, or partial generation.
+22. Reconcile the concurrent directive scanner by treating ordinary/triple-quoted literals and
+    nested comments as inert, requiring supported directives to be top-level executable
+    statements, rejecting aliased/qualified/conditional/block-scoped/compound mutations, and
+    ensuring unsupported multiline directive arguments cannot collapse into empty successful
+    includes. Add parser plus CLI/MCP false-green regressions for every branch.

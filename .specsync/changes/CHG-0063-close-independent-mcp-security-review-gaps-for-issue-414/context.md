@@ -237,3 +237,11 @@ without requiring whitespace, so dynamic `newFile(rootDir, ...)` could impersona
 `new File(rootDir, ...)` constructor and produce a false-green effective directory. The definition
 now requires a real token boundary and focused parser plus CLI/MCP assignment/setter regressions.
 Implementation remains pending fresh exact-digest definition approval.
+
+While approval was pending, a concurrent agent patch attempted to recognize indirect/conditional
+directives and ignore directives embedded in multiline strings or nested comments. Review found
+that the same scanner could erase an unsupported triple-quoted include argument into `include()`
+and still accepted line-leading directives nested under a multiline conditional block. Those
+changes remain uncommitted and are not completion evidence. The final definition therefore binds
+directive context explicitly: inert quoted/comment content is ignored, only supported top-level
+statements are interpreted, and every indirect or unsupported directive form fails closed.

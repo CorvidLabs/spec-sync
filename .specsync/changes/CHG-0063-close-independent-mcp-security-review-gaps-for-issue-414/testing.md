@@ -440,3 +440,10 @@ superseded by the hash-bound exact-commit replay below.
   characterized `newFile(rootDir, "...")` as a false-green constructor lookalike. Pending focused
   evidence must cover assignment and setter forms in the parser and every CLI/MCP checked gate,
   preserving outside bytes and producing no partial output.
+- A concurrent scanner patch passes its focused inert multiline-string/comment test, but static
+  rereview found two still-unproven branches: triple-quoted arguments can collapse into empty
+  includes, and line-leading directives inside multiline conditional blocks remain accepted.
+  Pending characterization and post-fix evidence must cover top-level compatibility; inert quoted
+  and nested-comment content; aliased/qualified/compound directives; same-line and multiline
+  conditional blocks; unsupported triple-quoted include/project-directory arguments; all CLI/MCP
+  checked gates; and unchanged outside bytes with no partial output.

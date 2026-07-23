@@ -33,6 +33,10 @@ Acceptance Criteria
   Assignment-style `projectDir` and method-style `setProjectDir` accept only
   `file(<literal>)` or whitespace-delimited `new File(rootDir, <literal>)`; concatenated
   `newFile(...)`, dynamic, or otherwise unsupported mutation fails closed.
+- Directives inside ordinary/triple-quoted strings and nested block/line comments are inert.
+  Qualified, aliased, conditional/block-scoped, compound-assignment, or otherwise indirect include
+  and project-directory mutations fail closed; an unsupported multiline literal used as a
+  directive argument cannot collapse into an accepted empty include.
 - Double-quoted Gradle interpolation (`$name` or `${expression}`), including a dollar reconstructed
   by Unicode or octal decoding, is dynamic and rejects before partial discovery. Escaped literal
   dollars and Groovy single-quoted literal dollars remain supported.
@@ -417,6 +421,11 @@ Acceptance Criteria
   whitespace-delimited `new File(rootDir, <literal>)`; concatenated `newFile(...)`, dynamic values,
   alternate bases, extra arguments, trailing expressions, and unsupported project-directory
   mutators fail closed.
+- Include and project-directory directives are recognized only as top-level executable statements.
+  Ordinary/triple-quoted strings and nested block/line comments are inert; qualified, aliased,
+  conditional/block-scoped, compound-assignment, and otherwise indirect forms reject without
+  partial discovery. Unsupported multiline literals used as directive arguments reject instead of
+  becoming empty includes.
 - Double-quoted `$name` and `${expression}` interpolation, including Unicode/octal-encoded dollar
   spellings, fails closed; explicit escaped dollars and single-quoted Groovy dollars remain literal.
 - Every component of an effective Gradle directory is resolved no-follow through one retained

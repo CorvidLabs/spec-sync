@@ -139,6 +139,9 @@ artifact: tasks
   setter forms; reject Unicode/octal-encoded dollars while preserving explicit literal dollars.
 - [x] Acquire present Gradle build/settings manifests through bounded retained-capability regular
   non-link reads and reject linked, reparse-backed, special, oversized, or invalid-UTF-8 inputs.
+- [ ] Require a whitespace token boundary for official `new File(...)`; characterize and reject
+  concatenated/dynamic `newFile(...)` in parser, CLI, and MCP assignment/setter paths without
+  outside access, disclosure, mutation, or partial output.
 - [ ] Obtain a clean post-fix acceptance rereview and adversarial security/compatibility rereview.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.

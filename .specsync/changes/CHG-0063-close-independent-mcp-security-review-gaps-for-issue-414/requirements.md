@@ -31,7 +31,8 @@ Acceptance Criteria
 - Raw Gradle include identities and `project(...)` selectors are checked for drive-qualified,
   rooted, UNC, and parent-escaping forms before colon notation is mapped to filesystem separators.
   Assignment-style `projectDir` and method-style `setProjectDir` accept only
-  `file(<literal>)` or `new File(rootDir, <literal>)`; dynamic or unsupported mutation fails closed.
+  `file(<literal>)` or whitespace-delimited `new File(rootDir, <literal>)`; concatenated
+  `newFile(...)`, dynamic, or otherwise unsupported mutation fails closed.
 - Double-quoted Gradle interpolation (`$name` or `${expression}`), including a dollar reconstructed
   by Unicode or octal decoding, is dynamic and rejects before partial discovery. Escaped literal
   dollars and Groovy single-quoted literal dollars remain supported.
@@ -413,8 +414,9 @@ Acceptance Criteria
   conversion; drive-qualified, rooted, UNC, and parent-escaping values reject without partial
   modules, while valid nested identities remain compatible.
 - Both `.projectDir = ...` and `.setProjectDir(...)` accept exactly `file(<literal>)` or
-  `new File(rootDir, <literal>)`; dynamic values, alternate bases, extra arguments, trailing
-  expressions, and unsupported project-directory mutators fail closed.
+  whitespace-delimited `new File(rootDir, <literal>)`; concatenated `newFile(...)`, dynamic values,
+  alternate bases, extra arguments, trailing expressions, and unsupported project-directory
+  mutators fail closed.
 - Double-quoted `$name` and `${expression}` interpolation, including Unicode/octal-encoded dollar
   spellings, fails closed; explicit escaped dollars and single-quoted Groovy dollars remain literal.
 - Every component of an effective Gradle directory is resolved no-follow through one retained

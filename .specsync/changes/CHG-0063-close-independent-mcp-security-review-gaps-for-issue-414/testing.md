@@ -436,3 +436,7 @@ superseded by the hash-bound exact-commit replay below.
 - Pending: full repository lane, strict coverage and score gates, two independent clean reviews,
   private-sandbox refresh, fresh exact-digest definition approval, GitHub CI, `fledge trust verify`,
   Attest provenance, lifecycle verification, and closing approval.
+- The final `725a50b` rereview confirmed the interpolation and retained-manifest fixes but
+  characterized `newFile(rootDir, "...")` as a false-green constructor lookalike. Pending focused
+  evidence must cover assignment and setter forms in the parser and every CLI/MCP checked gate,
+  preserving outside bytes and producing no partial output.

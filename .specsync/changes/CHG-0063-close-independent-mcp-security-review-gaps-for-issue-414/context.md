@@ -230,3 +230,10 @@ and Groovy single-quoted literals, and decodes supported path escapes before con
 Adversarial follow-up also moved Gradle build/settings selection to bounded regular non-link reads
 through the retained root capability. Focused local parser and CLI/MCP regressions pass; a clean
 exact-tree rereview and every final lifecycle/platform/trust gate remain pending.
+
+The final read-only rereview of `725a50b` confirmed interpolation and retained-manifest acquisition
+but found one medium constructor-token ambiguity: the parser stripped `new` and then `File`
+without requiring whitespace, so dynamic `newFile(rootDir, ...)` could impersonate the official
+`new File(rootDir, ...)` constructor and produce a false-green effective directory. The definition
+now requires a real token boundary and focused parser plus CLI/MCP assignment/setter regressions.
+Implementation remains pending fresh exact-digest definition approval.

@@ -71,3 +71,7 @@ artifact: plan
     after Gradle escape decoding, preserving explicit literal-dollar forms, and adding assignment,
     setter, include, CLI, and MCP regressions. Acquire Gradle build/settings manifests as bounded
     regular non-link files through the same retained root capability before the final rereviews.
+21. Close the final constructor-token finding by requiring a real whitespace boundary between
+    Gradle `new` and `File`, rejecting dynamic `newFile(...)` lookalikes in assignment and setter
+    forms, and proving every CLI/MCP checked-discovery gate remains inconclusive without outside
+    reads, disclosure, mutation, or partial generation.

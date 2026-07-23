@@ -16,7 +16,8 @@ Acceptance Criteria
   is mapped to path separators; drive-qualified, rooted, UNC, and parent-escaping spellings reject
   while valid nested identities remain supported.
 - Assignment and method project-directory values accept exactly `file(<literal>)` or
-  `new File(rootDir, <literal>)`.
+  whitespace-delimited `new File(rootDir, <literal>)`; concatenated/dynamic lookalikes such as
+  `newFile(...)` are unsupported and fail closed.
 - Dynamic include arguments, alternate `new File` bases, extra arguments, and trailing assignment
   or method expressions fail checked discovery without returning partial modules.
 - Double-quoted `$name` and `${expression}` interpolation fails checked discovery, including when

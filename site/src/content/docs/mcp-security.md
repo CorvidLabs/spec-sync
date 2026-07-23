@@ -55,6 +55,10 @@ comment- and escape-aware parser for Groovy and Kotlin includes plus supported `
 overrides. Malformed Gradle discovery likewise fails gates instead of falling back to a partial or
 empty success.
 
+Cargo manifest-relative paths may normalize `..` across sibling crates when the normalized result
+remains beneath the configured server root. Lexical or canonical escapes, including escapes through
+symlinks or Windows junctions, are rejected.
+
 ## Generation and scoring
 
 Generation fails on destination collisions or incomplete writes. Multi-file publication is
@@ -62,6 +66,10 @@ transactional: transaction-owned staged files are identity-bound, and rollback p
 replacements at public destination and staging paths. A failed batch may leave an empty parent
 directory that it created; SpecSync deliberately does not claim ownership after the non-atomic
 create/open interval.
+
+On Windows, transaction cleanup consumes the final quarantine directory capability before
+name-based removal. This keeps init, generation, and collision rollback from failing with directory
+sharing violations without weakening the quarantine identity checks.
 
 The boundary protects MCP callers and project-controlled paths. It does not protect against a
 same-user process already authorized to mutate the server root racing private transaction names.

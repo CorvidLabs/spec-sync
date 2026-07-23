@@ -22,3 +22,7 @@ artifact: docs
   CLI page. Document explicit-token single/batch imports, no authenticated-`gh` fallback, the
   10-second per-operation bound, strict 100-by-100 pagination, and fail-closed malformed,
   duplicate, or cap-truncated page traversal.
+- Record the compatibility amendment that confined Cargo manifest paths may normalize `..` across
+  sibling crates while lexical, canonical, symlink, and junction escapes remain rejected.
+- Document that Windows transaction cleanup consumes the final quarantine directory capability
+  before name-based removal so init, generation, and collision rollback avoid sharing violations.

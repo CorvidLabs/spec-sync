@@ -24,6 +24,9 @@ Acceptance Criteria
 - Unix symlink and Windows junction/reparse-point escapes fail before outside access.
 - Windows absolute-root components are compared with native ordinal Unicode ignore-case semantics
   without lossy UTF-8 conversion.
+- Manifest-relative Cargo paths may normalize `..` across sibling crates when the normalized result
+  remains beneath the retained root; lexical, canonical, symlink, and junction escapes remain
+  rejected.
 
 ### REQUIREMENT REQ-mcp-003
 
@@ -43,6 +46,8 @@ Acceptance Criteria
   in-process without a provider subprocess, globally deduplicates/caps IDs, includes
   authentication/preflight in elapsed-time bounds, revalidates access after apparent absence, and
   treats provider failures as inconclusive.
+- Windows transaction cleanup consumes the final quarantine directory capability before name-based
+  removal so init, generation, and collision rollback do not fail with sharing violations.
 
 ### SPEC SECTION Invariants
 
@@ -83,3 +88,9 @@ Acceptance Criteria
     do not override configured exclusions.
 18. Windows absolute-root suffix derivation uses native path components and ordinal Unicode
     ignore-case comparison.
+19. Manifest-relative Cargo paths may normalize `..` across sibling crates only while the normalized
+    result remains beneath the retained root; lexical, canonical, symlink, and junction escapes are
+    rejected.
+20. Windows transaction cleanup consumes the final quarantine directory capability before
+    name-based removal, preserving init, generation, and collision rollback behavior without
+    weakening identity checks.

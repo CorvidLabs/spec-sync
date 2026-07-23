@@ -4563,7 +4563,13 @@ mod tests {
             .expect("a multiline workspace member must remain visible and bounded");
 
         assert!(error.contains("per-file limit"));
-        assert!(error.contains(&Path::new("vendor/member/src/lib.rs").display().to_string()));
+        let expected_path = PathBuf::from("vendor")
+            .join("member")
+            .join("src")
+            .join("lib.rs")
+            .display()
+            .to_string();
+        assert!(error.contains(&expected_path));
     }
 
     #[test]

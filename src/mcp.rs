@@ -176,6 +176,7 @@ pub fn run_mcp_server(root: &Path, allow_write: bool) -> Result<(), String> {
                     id,
                     &params,
                     &server_root,
+                    root,
                     &server_directory,
                     allow_write,
                 ))
@@ -1457,13 +1458,21 @@ fn handle_tools_call(
             );
         }
     };
-    handle_tools_call_with_directory(id, params, server_root, &server_directory, allow_write)
+    handle_tools_call_with_directory(
+        id,
+        params,
+        server_root,
+        server_root,
+        &server_directory,
+        allow_write,
+    )
 }
 
 fn handle_tools_call_with_directory(
     id: Option<Value>,
     params: &Value,
     server_root: &Path,
+    requested_server_root: &Path,
     server_directory: &Dir,
     allow_write: bool,
 ) -> Value {
@@ -1523,7 +1532,11 @@ fn handle_tools_call_with_directory(
             }
         }
     } else {
-        match resolve_read_root(server_root, arguments.get("root").and_then(Value::as_str)) {
+        match resolve_read_root(
+            server_root,
+            requested_server_root,
+            arguments.get("root").and_then(Value::as_str),
+        ) {
             Ok(relative) => match server_directory.open_dir(&relative) {
                 Ok(directory) => directory,
                 Err(error) => {
@@ -1642,7 +1655,11 @@ fn validate_tool_arguments(
     Ok(())
 }
 
-fn resolve_read_root(server_root: &Path, requested_root: Option<&str>) -> Result<PathBuf, String> {
+fn resolve_read_root(
+    server_root: &Path,
+    requested_server_root: &Path,
+    requested_root: Option<&str>,
+) -> Result<PathBuf, String> {
     let Some(requested_root) = requested_root else {
         return Ok(PathBuf::from("."));
     };
@@ -1660,7 +1677,7 @@ fn resolve_read_root(server_root: &Path, requested_root: Option<&str>) -> Result
     }
 
     let relative = if requested_path.is_absolute() {
-        relative_read_root_suffix(server_root, requested_path)
+        relative_read_root_suffix_from_aliases(server_root, requested_server_root, requested_path)
             .ok_or_else(|| "Read root override escapes the configured server root".to_string())?
     } else {
         requested_path.to_path_buf()
@@ -1670,6 +1687,18 @@ fn resolve_read_root(server_root: &Path, requested_root: Option<&str>) -> Result
     } else {
         relative
     })
+}
+
+fn relative_read_root_suffix_from_aliases(
+    canonical_root: &Path,
+    requested_root: &Path,
+    candidate: &Path,
+) -> Option<PathBuf> {
+    // Windows canonicalization can expand an operator-supplied DOS 8.3 root spelling. Accept the
+    // candidate beneath either startup spelling, but never canonicalize the candidate before
+    // authorization. The derived suffix is still opened only through the retained root capability.
+    relative_read_root_suffix(canonical_root, candidate)
+        .or_else(|| relative_read_root_suffix(requested_root, candidate))
 }
 
 #[cfg(not(windows))]
@@ -4939,6 +4968,36 @@ Test
         );
     }
 
+    #[test]
+    fn read_root_suffix_accepts_the_identity_bound_startup_alias_only_as_a_prefix() {
+        #[cfg(windows)]
+        let canonical_root = Path::new(r"C:\Users\runneradmin\AppData\Local\Temp\server");
+        #[cfg(windows)]
+        let requested_root = Path::new(r"C:\Users\RUNNER~1\AppData\Local\Temp\server");
+        #[cfg(windows)]
+        let child = r"C:\Users\RUNNER~1\AppData\Local\Temp\server\child";
+        #[cfg(windows)]
+        let sibling = r"C:\Users\RUNNER~1\AppData\Local\Temp\server-sibling\child";
+
+        #[cfg(not(windows))]
+        let canonical_root = Path::new("/resolved/temp/server");
+        #[cfg(not(windows))]
+        let requested_root = Path::new("/startup-alias/temp/server");
+        #[cfg(not(windows))]
+        let child = "/startup-alias/temp/server/child";
+        #[cfg(not(windows))]
+        let sibling = "/startup-alias/temp/server-sibling/child";
+
+        assert_eq!(
+            resolve_read_root(canonical_root, requested_root, Some(child)).unwrap(),
+            PathBuf::from("child")
+        );
+        assert_eq!(
+            resolve_read_root(canonical_root, requested_root, Some(sibling)).unwrap_err(),
+            "Read root override escapes the configured server root"
+        );
+    }
+
     #[cfg(windows)]
     #[test]
     fn windows_read_root_accepts_runtime_absolute_variants() {
@@ -4950,11 +5009,11 @@ Test
         let case_varied = ordinary.to_ascii_uppercase();
 
         assert_eq!(
-            resolve_read_root(&canonical, Some(&ordinary)).unwrap(),
+            resolve_read_root(&canonical, &canonical, Some(&ordinary)).unwrap(),
             PathBuf::from("Child")
         );
         assert_eq!(
-            resolve_read_root(&canonical, Some(&case_varied)).unwrap(),
+            resolve_read_root(&canonical, &canonical, Some(&case_varied)).unwrap(),
             PathBuf::from("CHILD")
         );
 
@@ -4965,7 +5024,7 @@ Test
             .to_string_lossy()
             .replace("Ärger", "ärger");
         assert_eq!(
-            resolve_read_root(&unicode_root, Some(&unicode_candidate)).unwrap(),
+            resolve_read_root(&unicode_root, &unicode_root, Some(&unicode_candidate)).unwrap(),
             PathBuf::from("Child")
         );
     }
@@ -6313,6 +6372,7 @@ project(':override').projectDir = file('vendor/custom')
                 "arguments": {}
             }),
             &root,
+            &root,
             &directory,
             true,
         );
@@ -6354,6 +6414,7 @@ project(':override').projectDir = file('vendor/custom')
                 "arguments": { "root": "child" }
             }),
             &root,
+            &root,
             &directory,
             false,
         );
@@ -6366,6 +6427,7 @@ project(':override').projectDir = file('vendor/custom')
                 "arguments": { "root": "probe" }
             }),
             &root,
+            &root,
             &directory,
             false,
         );
@@ -6377,6 +6439,7 @@ project(':override').projectDir = file('vendor/custom')
                 "name": "specsync_coverage",
                 "arguments": { "root": "probe" }
             }),
+            &root,
             &root,
             &directory,
             false,

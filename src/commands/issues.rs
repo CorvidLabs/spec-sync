@@ -97,11 +97,21 @@ fn issue_text_summary(
     })
 }
 
+fn slash_normalized_relative_path(path: &Path) -> Option<String> {
+    let path = path.to_str()?;
+    #[cfg(windows)]
+    {
+        Some(path.replace('\\', "/"))
+    }
+    #[cfg(not(windows))]
+    {
+        Some(path.to_string())
+    }
+}
+
 fn relative_path_finding(path: &Path, kind: SpecInspectionFindingKind) -> SpecInspectionFinding {
     SpecInspectionFinding {
-        spec: path
-            .to_str()
-            .map(str::to_owned)
+        spec: slash_normalized_relative_path(path)
             .unwrap_or_else(|| "<non-utf8-spec-path>".to_string()),
         kind,
     }
@@ -693,7 +703,7 @@ fn collect_spec_snapshots<Hook>(
         if !is_spec_shaped_file_name(&name) {
             continue;
         }
-        let Some(relative_path) = project_relative.to_str().map(str::to_owned) else {
+        let Some(relative_path) = slash_normalized_relative_path(&project_relative) else {
             findings.push(non_utf8_spec_discovery_finding());
             continue;
         };
@@ -1256,6 +1266,7 @@ mod tests {
     use super::{
         SpecInspectionFinding, SpecInspectionFindingKind, SpecSnapshot, inspect_spec,
         issue_text_summary, issue_verification_json, markdown_code_span, safe_diagnostic,
+        slash_normalized_relative_path,
     };
     #[cfg(unix)]
     use super::{
@@ -1755,5 +1766,17 @@ mod tests {
     fn markdown_code_spans_pad_leading_and_trailing_backticks() {
         assert_eq!(markdown_code_span("`spec.md"), "`` `spec.md ``");
         assert_eq!(markdown_code_span("spec.md`"), "`` spec.md` ``");
+    }
+
+    #[test]
+    fn relative_paths_use_slashes_on_every_platform() {
+        let path = std::path::Path::new("specs")
+            .join("adversarial")
+            .join("bad``tick.spec.md");
+
+        assert_eq!(
+            slash_normalized_relative_path(&path).as_deref(),
+            Some("specs/adversarial/bad``tick.spec.md")
+        );
     }
 }

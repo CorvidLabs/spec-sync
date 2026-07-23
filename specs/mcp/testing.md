@@ -47,7 +47,7 @@ spec: mcp.spec.md
 | MCP score in a Git-backed project snapshot | Reports Git freshness unavailable and withholds five freshness points |
 | Transport reader or writer failure | Returned as an error; never reported as a successful server exit |
 | Windows junction/reparse-point read, generate, or init destination | Native-join fixture proves the reparse target, then accepts rejection during either capability snapshot traversal or destination publication confinement; outside victim bytes remain exact and no staging debris remains |
-| Windows absolute child read root | A valid child project reaches coverage and reports 1/1 files; rooted and drive-relative lookalikes fail for the intended root-validation reason |
+| Windows absolute child read root | A valid child project reaches coverage and reports 1/1 files when the child uses either identity-bound startup spelling; sibling-prefix, rooted, and drive-relative lookalikes fail for the intended root-validation reason |
 | GitHub inaccessible repository, post-404 access loss, timeout, or malformed API output | In-process REST access returns an inconclusive error, not successful zero/not-found counts; no provider subprocess exists |
 | Duplicate issue IDs across specs or more than 100 unique IDs | IDs are globally deduplicated; over-limit batches fail before provider access |
 | MCP issue scan encounters unreadable bytes or malformed/missing frontmatter | Entire issue result is inconclusive with an attributed path; no zero-reference success |
@@ -87,3 +87,6 @@ and final repository/trust/provenance/CI evidence remain pending.
 `generation_rejects_an_oversized_result_during_response_preflight` proves the final response-size
 preflight. Windows-only generate/init junction cases compile in the cross-target lane and run
 on Windows CI.
+`read_root_suffix_accepts_the_identity_bound_startup_alias_only_as_a_prefix` and
+`mcp_windows_read_roots_accept_absolute_children_and_reject_ambiguous_prefixes` cover canonical
+8.3 expansion, original-spelling absolute children, and sibling-prefix rejection.

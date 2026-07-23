@@ -1,6 +1,6 @@
 ---
 module: cmd_issues
-version: 5
+version: 6
 status: stable
 files:
   - src/commands/issues.rs
@@ -64,7 +64,9 @@ path replacement cannot redirect issue inspection or `--create` validation.
     ignoring nested extension or block-scalar lookalikes.
 12. Every renderer escapes control characters, bidirectional formatting controls, and Unicode line
     and paragraph separators (Zl/Zp); Markdown/GitHub additionally preserve one valid escaped table
-    row and code span, padding the span content when a path begins or ends with a backtick.
+    row and code span, padding the span content when a path begins or ends with a backtick. Safe
+    relative paths use forward slashes on Windows while Unix preserves literal backslashes in
+    filenames as data.
 13. `--create` runs validation from immutable capability-rooted spec and mapped-source snapshots
     through `validate_spec_content_with_sources`; neither discovered spec paths nor mapped source
     paths are reopened for validation, and supplied-content TypeScript export extraction does not
@@ -143,3 +145,4 @@ path replacement cannot redirect issue inspection or `--create` validation.
 | 2026-07-22 | CHG-0063: Skip repository and provider resolution when no issue references are present |
 | 2026-07-22 | CHG-0063 independent-review follow-up: Fail closed on unreadable/malformed specs, invalid issue-field shapes, traversal errors, and hostile diagnostic paths |
 | 2026-07-22 | CHG-0063 final adversarial follow-up: Use one retained project capability for bounded same-handle spec/source snapshots and `--create` validation, cap all recursive entries, reject regular/hardlink replacement, validate configured repo syntax even with missing/empty specs, pad edge-backtick code spans, and sanitize hostile renderer input |
+| 2026-07-22 | CHG-0063 Windows CI follow-up: Normalize Windows diagnostic path separators to forward slashes while preserving literal Unix filename backslashes, and repair junction fixtures to use native path joins |

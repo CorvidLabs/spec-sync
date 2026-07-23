@@ -46,6 +46,8 @@ spec: cmd_issues.spec.md
   renderer, and Markdown/GitHub table cells choose a safe code-span delimiter while escaping
   table-breaking characters. Code-span content is padded when a path begins or ends with a
   backtick so CommonMark does not misparse the edge delimiter.
+- Relative diagnostic paths are normalized component-wise for display: Windows separators become
+  `/`, while Unix keeps literal `\` bytes in filenames as escaped data.
 
 ## Files to Read First
 
@@ -63,8 +65,8 @@ CHG-0063 verification remains active. Provider classification, global deduplicat
 malformed output, transport failure, timeout behavior, bounded capability-rooted same-handle
 spec/source snapshots, preserved snapshot-based `--create` validation, configured-repository
 syntax checks, checked real-YAML issue fields, confined traversal, and renderer sanitization have
-focused evidence. Fresh
-CHG definition reapproval, Windows runtime, final independent rereview, trust/provenance, and
+focused evidence. Fresh CHG definition reapproval, Windows runtime after the separator/fixture
+repair, final independent rereview, trust/provenance, and
 GitHub CI remain open; live provider success remains integration-only.
 
 ## Notes

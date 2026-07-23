@@ -71,6 +71,9 @@ Acceptance Criteria
   then canonicalizes and reopens that path and requires the reopened identity to match; replacement
   during acquisition fails before JSON-RPC request dispatch.
 - Read roots are lexical descendants opened only through the retained configured-root capability.
+- On Windows, absolute read roots may be spelled beneath either the original startup path or its
+  canonical equivalent when both were identity-bound at startup; the derived suffix is still
+  opened only through the retained canonical capability, and sibling-prefix lookalikes fail.
 - Configuration/metadata/cache files, manifest/autodetection paths, dependency references, module
   names/files, spec mappings, and nested symlink targets are confined before downstream filesystem
   access.

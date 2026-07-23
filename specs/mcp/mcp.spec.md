@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 10
+version: 11
 status: stable
 files:
   - src/mcp.rs
@@ -36,7 +36,10 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 4. The requested root is opened and identity-bound before canonicalization; the canonical path is
    reopened and must identify the same directory, so startup replacement cannot redirect authority.
 5. Read tools lexically validate a relative descendant and open it only through the retained server
-   root capability, so replacement of the ambient root path cannot redirect selection.
+   root capability, so replacement of the ambient root path cannot redirect selection. On Windows,
+   an absolute child may use either the original startup spelling or the canonical spelling of that
+   same identity-bound root; only its lexical suffix is consumed through the retained canonical
+   capability, and sibling-prefix lookalikes remain rejected.
 6. Mutating tools require write mode, reject root overrides, and use the configured root.
 7. Tool argument schemas and runtime validation reject unknown properties and wrong types.
 8. Tool-domain errors use `isError`; JSON-RPC shape errors use protocol error objects.
@@ -196,3 +199,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-22 | CHG-0063 compatibility follow-up: Accept manifest-relative sibling paths that normalize inside the retained MCP root, reject true escapes, and consume private quarantine handles before Windows removal |
 | 2026-07-22 | CHG-0063 independent-review follow-up: Restrict Cargo path discovery, normalize confined Windows-native paths, make checked issue discovery/field parsing fail closed with relative content-free diagnostics, and repair Windows fixtures |
 | 2026-07-22 | CHG-0063 final adversarial follow-up: Share maintained real-YAML checked issue parsing, reject duplicate/global malformed YAML and blank/null/wrong shapes, and preserve valid comments/trailing commas |
+| 2026-07-22 | CHG-0063 Windows CI follow-up: Accept absolute children beneath the identity-bound startup root when Windows expands an 8.3 alias, while continuing to open only through the retained canonical capability and reject sibling-prefix lookalikes |

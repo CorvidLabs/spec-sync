@@ -52,7 +52,8 @@ spec: cmd_issues.spec.md
   plus bidirectional formatting controls and Unicode Zl/Zp separators are not emitted raw, JSON
   remains parseable, and Markdown/GitHub escapes table syntax and uses a valid code-span delimiter
   for filenames containing backticks, padding span content when a filename begins or ends with a
-  backtick.
+  backtick. Windows path separators render as forward slashes; literal backslashes in Unix
+  filenames remain escaped data rather than path separators.
 - Exits 1 when any reference is not found (404), any verification error occurred, or any spec
   inspection finding exists; otherwise exits 0.
 
@@ -108,6 +109,7 @@ Acceptance Criteria
   content-free inspection findings and suppress no-reference guidance.
 - Checked traversal failures are retained as findings, and every rendered finding path is
   project-relative, content-free, control/bidi/Zl/Zp-safe, and valid in its output format.
+- Windows finding paths use forward slashes while Unix literal backslashes remain filename data.
 - Markdown/GitHub code spans pad content when a path starts or ends with a backtick.
 - Exits 1 when any reference is not found (404), any verification error occurred, or any spec
   inspection finding exists; otherwise exits 0.

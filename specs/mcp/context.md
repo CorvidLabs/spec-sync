@@ -53,6 +53,10 @@ spec: mcp.spec.md
   escapes remain rejected.
 - Windows absolute-root containment parses native path components without lossy UTF-8 conversion
   and compares them with Win32 ordinal ignore-case semantics, including non-ASCII case variants.
+- Windows may canonicalize the requested temporary-directory root from an 8.3 spelling to its long
+  spelling. Absolute read roots therefore derive a lexical suffix from either identity-bound
+  startup spelling, but that suffix is always opened through the retained canonical capability;
+  the ambient candidate path is never canonicalized or trusted as authority.
 - MCP issue verification requires explicit `GITHUB_TOKEN`, performs read/list/verify requests
   in-process without a provider subprocess, globally deduplicates/caps issue IDs, includes
   authentication/preflight in the complete deadline, and revalidates repository access after
@@ -84,6 +88,6 @@ retained-capability, configuration-, Git-metadata-, and autodetection-level conf
 root-bound mutation; conservative unavailable-freshness scoring; atomic bounded generated-output
 publication; and no embedded provider or credential surfaces. Shared real-YAML issue parsing,
 checked top-level shapes, duplicate/global malformed rejection, checked traversal/non-UTF-8
-discovery, and relative content-free diagnostics now have focused implementation and regression
-coverage. Fresh definition reapproval, Windows runtime CI, independent rereview, and final
+discovery, relative content-free diagnostics, and Windows startup-alias absolute-child handling now
+have focused implementation and regression coverage. Fresh definition reapproval, Windows runtime CI, independent rereview, and final
 repository/trust/provenance/CI gates remain open.

@@ -638,7 +638,7 @@ fn issues_rejects_windows_junction_without_reading_target_bytes() {
     let outside_spec = outside.join("outside.spec.md");
     let outside_bytes = b"WINDOWS_JUNCTION_SECRET_DO_NOT_READ\xff";
     fs::write(&outside_spec, outside_bytes).unwrap();
-    let junction = root.join("specs/escape");
+    let junction = root.join("specs").join("escape");
     create_windows_junction(&junction, &outside)
         .unwrap_or_else(|error| panic!("failed to create Windows junction fixture: {error}"));
     assert_eq!(

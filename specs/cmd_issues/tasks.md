@@ -20,6 +20,8 @@ spec: cmd_issues.spec.md
   access.
 - [x] Escape bidi formatting controls and Unicode line/paragraph separators across renderers.
 - [x] Pad Markdown/GitHub code-span content when hostile paths begin or end with backticks.
+- [x] Normalize Windows finding paths to forward slashes without rewriting literal Unix filename
+  backslashes.
 
 ## Post-5.0 Test Debt
 

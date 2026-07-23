@@ -600,6 +600,7 @@ fn mcp_windows_read_roots_accept_absolute_children_and_reject_ambiguous_prefixes
     )
     .unwrap();
     fs::write(&child_spec, valid_spec("auth", &["src/auth/service.ts"])).unwrap();
+    let absolute_sibling_prefix = root.with_file_name("server-sibling").join("child");
 
     let responses = mcp_request(
         &root,
@@ -607,12 +608,16 @@ fn mcp_windows_read_roots_accept_absolute_children_and_reject_ambiguous_prefixes
             coverage_request(1, serde_json::json!(child.to_string_lossy())),
             coverage_request(2, serde_json::json!(r"\Windows")),
             coverage_request(3, serde_json::json!(r"C:relative")),
+            coverage_request(
+                4,
+                serde_json::json!(absolute_sibling_prefix.to_string_lossy()),
+            ),
         ],
     );
 
     assert_eq!(
         responses.len(),
-        3,
+        4,
         "unexpected Windows read-root responses: {responses:#?}"
     );
     let accepted = &responses[0];
@@ -653,6 +658,19 @@ fn mcp_windows_read_roots_accept_absolute_children_and_reject_ambiguous_prefixes
             "{label} failed for the wrong reason: {response}"
         );
     }
+
+    let sibling_response = &responses[3];
+    assert_eq!(
+        sibling_response["result"]["isError"], true,
+        "absolute sibling-prefix path unexpectedly passed Windows read-root validation: \
+         {sibling_response}"
+    );
+    assert!(
+        sibling_response["result"]["content"][0]["text"]
+            .as_str()
+            .is_some_and(|error| error.contains("escapes the configured server root")),
+        "absolute sibling-prefix path failed for the wrong reason: {sibling_response}"
+    );
 }
 
 #[test]

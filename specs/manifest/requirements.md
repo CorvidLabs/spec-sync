@@ -22,14 +22,20 @@ spec: manifest.spec.md
 - Python tries `[project]` before `[tool.poetry]` in pyproject.toml
 - Gradle multi-module detection accepts comment-aware Groovy/Kotlin single- and double-quoted,
   escape-decoded, parenthesized or bare multiline `include` declarations, nested colon paths, and
-  `projectDir` overrides.
+  assignment-style `projectDir` and method-style `setProjectDir` overrides.
 - Every Gradle `include` argument is a complete quoted literal; dynamic or mixed expressions reject
   checked discovery instead of returning a partial module set.
-- Supported `projectDir` values are exactly `file(<literal>)` or `new File(rootDir, <literal>)`;
-  alternate bases, extra arguments, and trailing expressions reject checked discovery.
+- Supported assignment and method values are exactly `file(<literal>)` or
+  `new File(rootDir, <literal>)`; dynamic values, alternate bases, extra arguments, unsupported
+  mutators, and trailing expressions reject checked discovery.
+- Raw Gradle include identities and raw `project(...)` selectors are rejected when drive-qualified,
+  rooted, UNC, or parent-escaping before colon notation is converted to a filesystem path.
 - Included module names and effective `projectDir` values must normalize beneath the project root;
   rooted, drive-qualified, UNC, and parent-escaping paths reject checked discovery without partial
   modules.
+- Every component of a Gradle-derived effective directory is checked no-follow through a retained
+  project-root capability before probing or traversal; symlink and Windows reparse-point components
+  reject checked discovery without reading the referent.
 - General metadata extraction remains string/regex based; MCP Cargo workspace security discovery parses bounded manifests as real TOML
 - `ManifestDiscovery::default()` returns empty collections (safe fallback)
 - Checked discovery surfaces malformed Gradle comments, escapes, strings, parentheses, and overrides so coverage gates remain inconclusive
@@ -60,14 +66,20 @@ Acceptance Criteria
 - Python tries `[project]` before `[tool.poetry]` in pyproject.toml
 - Gradle multi-module detection accepts comment-aware Groovy/Kotlin single- and double-quoted,
   escape-decoded, parenthesized or bare multiline `include` declarations, nested colon paths, and
-  `projectDir` overrides.
+  assignment-style `projectDir` and method-style `setProjectDir` overrides.
 - Every Gradle `include` argument is a complete quoted literal; dynamic or mixed expressions reject
   checked discovery instead of returning a partial module set.
-- Supported `projectDir` values are exactly `file(<literal>)` or `new File(rootDir, <literal>)`;
-  alternate bases, extra arguments, and trailing expressions reject checked discovery.
+- Supported assignment and method values are exactly `file(<literal>)` or
+  `new File(rootDir, <literal>)`; dynamic values, alternate bases, extra arguments, unsupported
+  mutators, and trailing expressions reject checked discovery.
+- Raw Gradle include identities and raw `project(...)` selectors are rejected when drive-qualified,
+  rooted, UNC, or parent-escaping before colon notation is converted to a filesystem path.
 - Included module names and effective `projectDir` values must normalize beneath the project root;
   rooted, drive-qualified, UNC, and parent-escaping paths reject checked discovery without partial
   modules.
+- Every component of a Gradle-derived effective directory is checked no-follow through a retained
+  project-root capability before probing or traversal; symlink and Windows reparse-point components
+  reject checked discovery without reading the referent.
 - General metadata extraction remains string/regex based; MCP Cargo workspace security discovery parses bounded manifests as real TOML
 - `ManifestDiscovery::default()` returns empty collections (safe fallback)
 - Checked discovery surfaces malformed Gradle comments, escapes, strings, parentheses, and overrides so coverage gates remain inconclusive

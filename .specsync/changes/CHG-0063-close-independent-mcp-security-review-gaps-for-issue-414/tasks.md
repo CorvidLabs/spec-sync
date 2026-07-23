@@ -122,6 +122,19 @@ artifact: tasks
 - [x] Resolve the human PR review's Gradle project-root escape by rejecting rooted,
   drive-qualified, UNC, and parent-underflow module/projectDir paths before discovery, with
   parser and structured command-gate regressions.
+- [x] Amend canonical manifest/validator contracts and CHG-0063 artifacts for raw drive-prefix
+  validation, literal official `setProjectDir` parsing, and retained no-follow derived-directory
+  confinement.
+- [x] Characterize and implement raw drive-qualified include/project-selector rejection before
+  Gradle colon mapping while preserving valid nested module identities.
+- [x] Characterize and implement literal `setProjectDir(file(...))` and
+  `setProjectDir(new File(rootDir, ...))`; reject dynamic, unsupported, traversal, drive, and UNC
+  forms without partial discovery.
+- [x] Characterize and implement retained no-follow component checks for every Gradle-derived
+  directory, including Unix symlink and Windows junction/reparse-point fixtures with unchanged
+  outside sentinels.
+- [x] Verify every CLI and MCP checked-discovery gate fails inconclusively without partial
+  coverage, outside traversal, disclosure, or generation.
 - [ ] Obtain a clean post-fix acceptance rereview and adversarial security/compatibility rereview.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.

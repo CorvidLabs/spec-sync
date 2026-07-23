@@ -1306,6 +1306,151 @@ fn gradle_root_escape_is_inconclusive_for_coverage_gating_commands() {
 }
 
 #[test]
+fn gradle_set_project_dir_escapes_are_inconclusive_for_coverage_gating_commands() {
+    for (label, project_dir) in [
+        ("traversal", "../outside"),
+        ("drive", "C:/outside"),
+        ("unc", "//server/share/outside"),
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().join("project");
+        let outside_source = tmp.path().join("outside/src/main/kotlin/Secret.kt");
+        setup_minimal_project_at(&root);
+        fs::create_dir_all(outside_source.parent().unwrap()).unwrap();
+        let outside_bytes = format!("const val SECRET = \"SET_PROJECT_DIR_{label}\"\n");
+        fs::write(&outside_source, outside_bytes.as_bytes()).unwrap();
+        fs::write(
+            root.join("settings.gradle.kts"),
+            format!(
+                "include(\":outside\")\nproject(\":outside\").setProjectDir(file(\"{project_dir}\"))\n"
+            ),
+        )
+        .unwrap();
+
+        assert_gradle_discovery_is_inconclusive(
+            &root,
+            &outside_source,
+            outside_bytes.as_bytes(),
+            "outside",
+            label,
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn gradle_symlink_module_escape_is_inconclusive_for_coverage_gating_commands() {
+    use std::os::unix::fs::symlink;
+
+    let project_tmp = TempDir::new().unwrap();
+    let outside_tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&project_tmp);
+    let outside_source = outside_tmp.path().join("src/main/kotlin/Secret.kt");
+    fs::create_dir_all(outside_source.parent().unwrap()).unwrap();
+    let outside_bytes = b"const val SECRET = \"GRADLE_SYMLINK_ESCAPE\"\n";
+    fs::write(&outside_source, outside_bytes).unwrap();
+    symlink(outside_tmp.path(), root.join("linked")).unwrap();
+    fs::write(root.join("settings.gradle.kts"), "include(\":linked\")\n").unwrap();
+
+    assert_gradle_discovery_is_inconclusive(
+        &root,
+        &outside_source,
+        outside_bytes,
+        "linked",
+        "symlink",
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn gradle_junction_module_escape_is_inconclusive_for_coverage_gating_commands() {
+    let project_tmp = TempDir::new().unwrap();
+    let outside_tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&project_tmp);
+    let outside_source = outside_tmp.path().join("src/main/kotlin/Secret.kt");
+    fs::create_dir_all(outside_source.parent().unwrap()).unwrap();
+    let outside_bytes = b"const val SECRET = \"GRADLE_JUNCTION_ESCAPE\"\n";
+    fs::write(&outside_source, outside_bytes).unwrap();
+    create_windows_junction(&root.join("linked"), outside_tmp.path())
+        .unwrap_or_else(|error| panic!("failed to create Gradle module junction fixture: {error}"));
+    fs::write(root.join("settings.gradle.kts"), "include(\":linked\")\n").unwrap();
+
+    assert_gradle_discovery_is_inconclusive(
+        &root,
+        &outside_source,
+        outside_bytes,
+        "linked",
+        "junction",
+    );
+}
+
+fn setup_minimal_project_at(root: &std::path::Path) {
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    write_config(root, "specs", &["src"]);
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\nexport function logout() {}\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+}
+
+fn assert_gradle_discovery_is_inconclusive(
+    root: &std::path::Path,
+    outside_source: &std::path::Path,
+    outside_bytes: &[u8],
+    module: &str,
+    label: &str,
+) {
+    for command in ["check", "coverage", "generate", "report", "score"] {
+        let output = specsync()
+            .arg(command)
+            .arg("--root")
+            .arg(root)
+            .args(["--format", "json"])
+            .assert()
+            .failure()
+            .get_output()
+            .stdout
+            .clone();
+        let json: serde_json::Value = serde_json::from_slice(&output).unwrap_or_else(|error| {
+            panic!(
+                "{command} must emit valid JSON for rejected Gradle {label} discovery: {error}; stdout={}",
+                String::from_utf8_lossy(&output)
+            )
+        });
+        assert_eq!(
+            json["inconclusive"], true,
+            "unexpected {command} JSON for Gradle {label} discovery: {json}"
+        );
+        assert!(
+            json["error"]
+                .as_str()
+                .is_some_and(|message| message.contains("Gradle")),
+            "unexpected {command} error for Gradle {label} discovery: {json}"
+        );
+        assert!(
+            !String::from_utf8_lossy(&output).contains("SECRET"),
+            "{command} disclosed outside source bytes for Gradle {label} discovery"
+        );
+        assert!(
+            !root.join("specs").join(module).exists(),
+            "{command} mutated output after rejecting Gradle {label} discovery"
+        );
+        assert_eq!(
+            fs::read(outside_source).unwrap(),
+            outside_bytes,
+            "{command} changed outside bytes for Gradle {label} discovery"
+        );
+    }
+}
+
+#[test]
 fn coverage_full_reports_100() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);

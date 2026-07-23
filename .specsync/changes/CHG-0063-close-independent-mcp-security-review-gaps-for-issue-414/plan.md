@@ -61,3 +61,9 @@ artifact: plan
 18. Close the final acceptance/defensive findings with retained-handle-first no-follow acquisition,
     portable provider/directory import names, nonzero partial-batch outcomes, exact missing
     characterization tests, and a hash-bound sandbox replay built from the cited commit.
+19. Close the reconciled Gradle review findings by validating raw drive-qualified module identities
+    before colon mapping, parsing/confining only the two literal official `setProjectDir` forms,
+    and checking every derived directory component no-follow through one retained root capability.
+    Add parser, CLI/MCP false-green, Unix symlink, and hosted-Windows reparse regressions; then
+    obtain fresh definition approval, rerun both independent reviews and every exact-tree
+    repository/CI/trust/provenance gate, and refresh the private sandbox receipt.

@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 13
+version: 14
 status: stable
 files:
   - src/validator.rs
@@ -19,7 +19,7 @@ depends_on:
 
 ## Purpose
 
-Core validation engine for spec-sync. Validates individual specs and selected companion artifacts against source code, discovers configured and zero-config source files including static HTML, HTM, and CSS content, rejects every known generated companion marker outside fenced examples, extracts schema table names from SQL migrations, computes non-vacuous file and LOC coverage metrics, preserves malformed manifest discovery as an inconclusive checked error for gates, and resolves cross-project dependency references.
+Core validation engine for spec-sync. Validates individual specs and selected companion artifacts against source code, discovers configured and zero-config source files including static HTML, HTM, and CSS content, rejects every known generated companion marker outside fenced examples, extracts schema table names from SQL migrations, computes non-vacuous file and LOC coverage metrics, preserves malformed or unconstrained manifest discovery as an inconclusive checked error for gates, and resolves cross-project dependency references.
 
 ## Public API
 
@@ -59,7 +59,11 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 10. Sections with no substantive content are reported as unfinished draft text rather than as template markers
 11. `validate_spec` records the spec's parsed lifecycle status on `ValidationResult.status` (None when frontmatter is unreadable) so reporters can surface status-based skips, e.g. drafts skipping section and export checks
 12. Requirements companions are validated when present but optional for technical/internal modules under the adaptive 5.0 artifact model
-13. `compute_coverage_checked` propagates malformed or unreadable Gradle discovery instead of reporting partial coverage; the compatibility `compute_coverage` wrapper remains available, while CLI and MCP gates use the checked path
+13. `compute_coverage_checked` propagates malformed, unreadable, unsupported, or unconfined Gradle
+    discovery instead of reporting partial coverage. This includes raw drive-qualified module
+    identities, unsupported/dynamic project-directory mutators, and symlink/reparse components in
+    derived directories. The compatibility `compute_coverage` wrapper remains available, while CLI
+    and MCP gates use the checked path.
 14. `validate_spec_content` validates the caller-provided bytes, including CRLF normalization and
     size policy, without reopening `spec_path`; the path remains the logical location for
     diagnostics and mapped-source resolution, while adjacent companion checks are skipped.
@@ -102,6 +106,14 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 - **When** `compute_coverage_checked` is called by a CLI or MCP gate
 - **Then** it returns an error and the caller reports coverage as inconclusive instead of accepting partial totals
 
+### Scenario: Gradle-derived source root is not confined
+
+- **Given** Gradle settings contain a raw drive-qualified module identity, an unsupported dynamic
+  `setProjectDir`, or an effective directory with a symlink/reparse component
+- **When** `compute_coverage_checked` is called by a CLI or MCP gate
+- **Then** it returns an error before source traversal and the caller reports an inconclusive
+  outcome instead of accepting partial or outside coverage
+
 ### Scenario: Validate a retained spec snapshot
 
 - **Given** a caller already read spec bytes through a confined capability and the ambient
@@ -130,7 +142,7 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 | DB table not in schema | Error: "DB table not found in schema" |
 | Missing required section | Error: "Missing required section: ## SectionName" |
 | Dependency spec not found | Error: "Dependency spec not found" |
-| Malformed or unreadable Gradle settings during checked coverage | Returns `Err`; CLI/MCP gate callers report an inconclusive failure rather than coverage success |
+| Malformed, unreadable, unsupported, or unconfined Gradle discovery during checked coverage | Returns `Err`; CLI/MCP gate callers report an inconclusive failure rather than coverage success or outside traversal |
 
 ## Dependencies
 
@@ -163,6 +175,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 |------|--------|
 | 2026-07-22 | v12: add checked coverage so malformed Gradle discovery fails CLI and MCP gates as inconclusive while retaining the compatibility report wrapper |
 | 2026-07-22 | v13 / CHG-0063: add `validate_spec_content` so capability-rooted callers validate exact pre-read snapshots without reopening spec paths |
+| 2026-07-23 | v14 / CHG-0063 independent review: keep raw drive-qualified modules, unsupported `setProjectDir` forms, and linked/reparse-backed Gradle source roots inconclusive across CLI and MCP gates |
 | 2026-07-10 | v5: keep coverage regression fixtures warning-free under current stable Clippy and document the intentionally in-file test-module layout |
 | 2026-07-10 | v5: make canonical requirements companions adaptive rather than empty mandatory ceremony |
 | 2026-07-02 | v4: add `source_within_root` — shared guard rejecting `files:` paths that escape the project root (absolute/`..`/symlink); applied in `validate_spec` and every export-extraction site (score, check --fix, diff, new) to close an out-of-root identifier-disclosure vector |

@@ -207,3 +207,17 @@ drive-qualified, UNC, and parent-underflow paths before discovery. Focused parse
 multi-command structured-gate regressions pass without reading or mutating an outside fixture.
 This artifact amendment supersedes the preceding approval digest and requires one fresh exact
 definition approval after the concurrent independent reviews are reconciled.
+
+The reconciled independent reviews identified three additional Gradle authority gaps. First, a
+drive-qualified raw module identity could lose its drive marker when Gradle colon notation was
+converted before validation. Second, the official method form
+`project(...).setProjectDir(...)` was ignored, allowing the real project directory to disappear
+from coverage. Third, a lexically confined Gradle-derived directory could still traverse a Unix
+symlink or Windows reparse point during source probing. The amended contract validates raw include
+and project-selector identities before colon mapping, accepts only literal
+`setProjectDir(file(...))` and `setProjectDir(new File(rootDir, ...))`, fails closed on dynamic or
+unsupported mutations, and resolves every derived directory component no-follow through a
+retained project-root capability. This documentation amendment does not establish implementation
+or test completion. Fresh definition approval, focused and full final-tree reruns, two clean
+independent reviews, hosted-Windows runtime, private-sandbox refresh, repository/CI, trust, and
+Attest provenance remain pending.

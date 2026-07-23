@@ -8,7 +8,7 @@ spec: validator.spec.md
 |------|---------|---------------------|
 | `src/validator.rs` | cargo test validator:: | `test_is_cross_project_ref`, `test_parse_cross_project_ref`, `test_find_spec_files_empty_dir`, `test_find_spec_files_nonexistent`, `test_find_spec_files_with_specs`, `test_validate_spec_missing_frontmatter` |
 | `src/commands/issues.rs` | focused `snapshot_validation` command tests | `validate_spec_content_with_sources` consumes retained spec/source snapshots after ambient path replacement and does not disclose or validate replacement content |
-| `src/validator.rs` | cargo test validator::malformed_gradle_settings_make_coverage_inconclusive | Checked coverage returns the Gradle parse error; compatibility coverage carries an inconclusive zero-percent result |
+| `src/validator.rs` | cargo test validator::malformed_gradle_settings_make_coverage_inconclusive | Checked coverage returns malformed or unconfined Gradle errors; compatibility coverage carries an inconclusive zero-percent result |
 | `tests/integration.rs` | cargo test --test integration check_valid_project_passes | End-to-end fixture: `check_valid_project_passes` |
 | `tests/integration.rs` | cargo test --test integration check_missing_source_file_fails | End-to-end fixture: `check_missing_source_file_fails` |
 | `tests/integration.rs` | cargo test --test integration check_undocumented_export_warns | End-to-end fixture: `check_undocumented_export_warns` |
@@ -27,6 +27,7 @@ spec: validator.spec.md
 | Undocumented code export | source code exports `helperFn` but the spec does not list it | `validate_spec` is called | warnings include "Export 'helperFn' not in spec (undocumented)" |
 | Cross-project dependency reference | a spec with `depends_on: ["corvid-labs/algochat@auth"]` | `validate_spec` is called locally | the cross-project ref is skipped (no error or warning) |
 | Malformed Gradle settings | a source tree with an unterminated Gradle `include` declaration | a CLI/MCP gate calls `compute_coverage_checked` | coverage is inconclusive and the caller fails instead of reporting partial totals |
+| Unconfined Gradle source root | raw drive-qualified module identity, unsupported/dynamic `setProjectDir`, or symlink/reparse component | a CLI/MCP gate calls `compute_coverage_checked` | the caller fails inconclusively before source traversal, partial totals, or generation |
 | Retained spec snapshot validation | valid pre-read spec bytes and a logical spec path replaced after the snapshot | `validate_spec_content` is called | validation uses the pre-read spec bytes and opens neither the replaced spec path nor adjacent companions; mapped sources retain normal path behavior |
 | Retained spec/source validation | retained spec bytes plus `SourceSnapshot` observations, with ambient paths replaced | `validate_spec_content_with_sources` is called | validation uses only supplied spec/source snapshots and ambient-free export extraction |
 
@@ -46,6 +47,7 @@ spec: validator.spec.md
 | Generated companion marker | Warning includes artifact path and source line; strict mode fails | Cover every supported artifact plus fenced and similar-prose negatives |
 | Built-in design markers | Layout, Components, Tokens, and Assets placeholders each produce a distinct warning | Keep the generated template lines and validator marker table in parity |
 | Malformed or unreadable Gradle settings | Checked coverage returns an error; compatibility coverage remains callable with a zero-percent inconclusive report | Keep gate callers on `compute_coverage_checked` and cover text/JSON or MCP failure output when it changes |
+| Unsupported or unconfined Gradle discovery | Checked coverage returns an error before source probing/traversal; all CLI/MCP gates remain non-success and content-free | Cover raw drive identifiers, dynamic/unsupported `setProjectDir`, Unix symlink, and hosted-Windows reparse fixtures with unchanged outside sentinels |
 
 ## Reviewer Checklist
 
@@ -56,3 +58,5 @@ spec: validator.spec.md
   validation additionally reads adjacent companion markers. Keep the stronger no-ambient-source
   guarantee attached specifically to `validate_spec_content_with_sources`.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `./target/release/specsync score --all`.
+- Do not treat historical Gradle, Windows cross-target, independent-review, trust, or CI results as
+  evidence for the CHG-0063 amendment; rerun every required gate on the final exact tree.

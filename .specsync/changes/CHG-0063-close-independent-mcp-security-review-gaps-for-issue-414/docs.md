@@ -74,5 +74,10 @@ artifact: docs
   every private-sandbox replay; do not treat mutable untracked inputs as reproducible evidence.
 - Document that missing/empty specs and repository-resolution failures use the selected
   JSON/Markdown/GitHub renderer instead of text-only early exits.
+- Document the Gradle compatibility/security amendment: raw drive-qualified module identities are
+  rejected before colon mapping; assignment-style `projectDir` and official literal
+  `setProjectDir(file(...))` / `setProjectDir(new File(rootDir, ...))` share one confined parser;
+  dynamic or unsupported mutations fail closed; and each derived directory component is checked
+  no-follow through the retained root capability before CLI/MCP source traversal.
 - Keep fresh Windows runtime and final repository/trust/provenance evidence described as pending
   until those gates actually pass.

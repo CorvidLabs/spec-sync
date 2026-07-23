@@ -1623,6 +1623,135 @@ fn mcp_manifest_autodetection_rejects_gradle_and_python_path_escapes() {
 }
 
 #[test]
+fn mcp_gradle_set_project_dir_escapes_fail_closed_without_outside_access() {
+    let tmp = TempDir::new().unwrap();
+    let outside_source = tmp.path().join("outside/src/main/kotlin/Secret.kt");
+    fs::create_dir_all(outside_source.parent().unwrap()).unwrap();
+    let outside_bytes = b"const val SECRET = \"MCP_SET_PROJECT_DIR_ESCAPE\"\n";
+    fs::write(&outside_source, outside_bytes).unwrap();
+
+    for (label, project_dir) in [
+        ("traversal", "../outside"),
+        ("drive", "C:/outside"),
+        ("unc", "//server/share/outside"),
+    ] {
+        let root = tmp.path().join(format!("{label}-server"));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("build.gradle.kts"), "plugins {}\n").unwrap();
+        fs::write(
+            root.join("settings.gradle.kts"),
+            format!(
+                "include(\":outside\")\nproject(\":outside\").setProjectDir(file(\"{project_dir}\"))\n"
+            ),
+        )
+        .unwrap();
+        fs::write(
+            root.join("specsync.json"),
+            r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+        )
+        .unwrap();
+
+        assert_mcp_gradle_discovery_rejected(&root, &outside_source, outside_bytes, label);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn mcp_gradle_symlink_module_escape_fails_closed_without_outside_access() {
+    use std::os::unix::fs::symlink;
+
+    let project_tmp = TempDir::new().unwrap();
+    let outside_tmp = TempDir::new().unwrap();
+    let root = project_tmp.path();
+    let outside_source = outside_tmp.path().join("src/main/kotlin/Secret.kt");
+    fs::create_dir_all(outside_source.parent().unwrap()).unwrap();
+    let outside_bytes = b"const val SECRET = \"MCP_GRADLE_SYMLINK_ESCAPE\"\n";
+    fs::write(&outside_source, outside_bytes).unwrap();
+    symlink(outside_tmp.path(), root.join("linked")).unwrap();
+    fs::write(root.join("build.gradle.kts"), "plugins {}\n").unwrap();
+    fs::write(root.join("settings.gradle.kts"), "include(\":linked\")\n").unwrap();
+    fs::write(
+        root.join("specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+    )
+    .unwrap();
+
+    assert_mcp_gradle_discovery_rejected(root, &outside_source, outside_bytes, "symlink");
+}
+
+fn assert_mcp_gradle_discovery_rejected(
+    root: &std::path::Path,
+    outside_source: &std::path::Path,
+    outside_bytes: &[u8],
+    label: &str,
+) {
+    let responses = mcp_request_with_write(
+        root,
+        &[
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": { "name": "specsync_check", "arguments": {} }
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": { "name": "specsync_coverage", "arguments": {} }
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": { "name": "specsync_score", "arguments": {} }
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": { "name": "specsync_generate", "arguments": {} }
+            }),
+        ],
+    );
+
+    assert_eq!(
+        responses.len(),
+        4,
+        "Gradle {label} discovery returned incomplete MCP responses: {responses:#?}"
+    );
+    for response in &responses {
+        assert_eq!(
+            response["result"]["isError"], true,
+            "Gradle {label} discovery produced an MCP false green: {response}"
+        );
+        let text = response["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap_or_default();
+        assert!(
+            text.contains("Gradle")
+                || text.contains("root capability")
+                || text.contains("symlink")
+                || text.contains("reparse point"),
+            "Gradle {label} rejection did not explicitly identify manifest or path confinement: {response}"
+        );
+        assert!(
+            !text.contains("SECRET"),
+            "Gradle {label} rejection disclosed outside source bytes: {response}"
+        );
+    }
+    assert!(
+        !root.join("specs").exists(),
+        "Gradle {label} rejection allowed MCP generation to mutate the project"
+    );
+    assert_eq!(
+        fs::read(outside_source).unwrap(),
+        outside_bytes,
+        "Gradle {label} rejection changed outside source bytes"
+    );
+}
+
+#[test]
 fn mcp_gradle_preflight_rejects_malformed_settings_without_partial_results() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);

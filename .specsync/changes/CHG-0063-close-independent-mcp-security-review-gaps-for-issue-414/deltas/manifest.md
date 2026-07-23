@@ -11,13 +11,21 @@ Acceptance Criteria
   gates rather than returning partial discovery, and merges the exact parse from that same read
   instead of validating then rereading a mutable path.
 - One parser handles Groovy/Kotlin comments, escapes, literal multiline includes, nested colon
-  names, and exactly `file(<literal>)` or `new File(rootDir, <literal>)` project directories.
+  names, assignment-style `.projectDir = ...`, and method-style `.setProjectDir(...)`.
+- Raw include identities and raw `project(...)` selectors are checked before Gradle colon notation
+  is mapped to path separators; drive-qualified, rooted, UNC, and parent-escaping spellings reject
+  while valid nested identities remain supported.
+- Assignment and method project-directory values accept exactly `file(<literal>)` or
+  `new File(rootDir, <literal>)`.
 - Dynamic include arguments, alternate `new File` bases, extra arguments, and trailing assignment
-  expressions fail checked discovery without returning partial modules.
+  or method expressions fail checked discovery without returning partial modules.
 - Gradle module identities and `projectDir` literals are confined to project-relative paths:
   rooted, drive-qualified, UNC, and parent-underflow forms fail before source probing, while safe
   literal spellings retain compatibility.
 - General module discovery and MCP snapshot preflight use the same effective Gradle module paths.
+- Every component of a Gradle-derived effective directory is checked no-follow through a retained
+  project-root capability before source probing/traversal; Unix symlink and Windows reparse-point
+  components fail checked discovery without reading their referents.
 - A present `settings.gradle[.kts]` is parsed and validated even when no root
   `build.gradle[.kts]` exists.
 - MCP Cargo workspace snapshot and confinement discovery parse bounded manifests as real TOML.
@@ -40,22 +48,26 @@ Acceptance Criteria
 |----------|-----------|---------|-------------|
 | `discover_from_manifests` | `root: &Path` | `ManifestDiscovery` | Compatibility discovery that returns an empty result when checked discovery is malformed |
 | `discover_from_manifests_checked` | `root: &Path` | `Result<ManifestDiscovery, String>` | Discover modules while surfacing unreadable or malformed Gradle settings to gate callers |
-| `parse_gradle_settings` | `content: &str` | `Result<Vec<GradleSettingsModule>, String>` | Crate-visible shared parser for Groovy/Kotlin includes and project-directory overrides |
+| `parse_gradle_settings` | `content: &str` | `Result<Vec<GradleSettingsModule>, String>` | Crate-visible shared parser for Groovy/Kotlin includes plus assignment-style and method-style literal project-directory overrides |
 
 ### SPEC SECTION Invariants
 
 1. Gradle settings parsing is comment- and escape-aware and supports literal Groovy/Kotlin multiline
    include declarations.
-2. Nested colon names and the supported literal `projectDir` forms resolve to one deterministic
-   effective project-relative directory per module.
-3. Dynamic includes and unsupported `projectDir` bases, arity, or suffixes fail without partial
-   discovery.
-4. Checked discovery reports malformed Gradle input; compatibility discovery may return an empty
+2. Raw include identities and project selectors reject drive-qualified, rooted, UNC, and
+   parent-escaping forms before colon-to-path conversion.
+3. Nested colon names and the supported literal assignment/method project-directory forms resolve
+   to one deterministic effective project-relative directory per module.
+4. Dynamic includes and unsupported `projectDir`/`setProjectDir` bases, arity, or suffixes fail
+   without partial discovery.
+5. Checked discovery reports malformed Gradle input; compatibility discovery may return an empty
    result, but gate callers remain inconclusive.
-5. Checked Gradle discovery merges the exact single-read parse result.
-6. MCP Cargo workspace discovery trusts only structurally parsed TOML members and target paths.
-7. Settings-only Gradle workspaces discover included modules, while malformed settings remain an
+6. Checked Gradle discovery merges the exact single-read parse result.
+7. MCP Cargo workspace discovery trusts only structurally parsed TOML members and target paths.
+8. Settings-only Gradle workspaces discover included modules, while malformed settings remain an
    inconclusive checked-discovery error.
-8. Gradle module and effective project-directory paths cannot traverse above the project root or
+9. Gradle module and effective project-directory paths cannot traverse above the project root or
    select rooted, drive-qualified, or UNC locations; rejection occurs before partial discovery or
    filesystem probing.
+10. Every Gradle-derived directory component is inspected no-follow through the retained root
+    capability; symlink and reparse-point components reject before source probing or traversal.

@@ -81,6 +81,9 @@ artifact: testing
 | Raw GitHub duplicate involves a filtered pull request within/across pages | Entire page/traversal fails; filtering cannot hide the duplicate identity |
 | Windows ordinary, extended-drive, UNC, ASCII/non-ASCII case-varied confined root | Same normalized relative suffix through native ordinal comparison; confined root accepted |
 | Valid or malformed settings-only Gradle workspace | Modules discovered or checked discovery fails closed without a root build script |
+| Raw drive-qualified Gradle include or `project(...)` selector | Rejected before colon mapping; valid nested colon identities remain supported |
+| Literal official `setProjectDir` forms | `file(<literal>)` and `new File(rootDir, <literal>)` are parsed/confined; dynamic or unsupported forms fail closed |
+| Gradle-derived Unix symlink or Windows reparse component | Checked discovery is inconclusive before CLI/MCP source probing or traversal; outside sentinel bytes remain unchanged |
 | Ignored/configured-exclusion name is a symlink | Skipped before target metadata is followed unless explicitly configured |
 | Public rendered drift errors include overlapping paths and `": "` in a legal spec path | Longest exact discovered path receives the errors; public `Vec<String>` signatures remain unchanged |
 | Valid notification | No output and no dispatch |
@@ -354,6 +357,13 @@ superseded by the hash-bound exact-commit replay below.
   `manifest::tests::gradle_settings_reject_project_root_escapes` and
   `manifest::tests::gradle_manifest_discovery_rejects_project_root_escape_without_partial_modules`
   prove rooted, drive-qualified, UNC, and parent-underflow paths are rejected before discovery.
+  The amended implementation tree includes
+  `manifest::tests::gradle_settings_support_literal_set_project_dir_forms`,
+  `manifest::tests::gradle_settings_reject_dynamic_or_ambiguous_set_project_dir_forms`, expanded
+  `manifest::tests::gradle_settings_reject_project_root_escapes`, and
+  `manifest::tests::gradle_manifest_discovery_rejects_symlinked_module_directories`. The focused
+  local Gradle run passed all 18 selected unit tests on 2026-07-23; hosted-Windows reparse-point
+  runtime remains a separate required gate.
 - `REQ-cmd-check-001`, `REQ-cmd-comment-003`, `REQ-cmd-coverage-001`,
   `REQ-cmd-generate-001`, `REQ-cmd-report-001`, and `REQ-cmd-score-001`:
   `malformed_gradle_is_inconclusive_for_coverage_gating_commands` proves every command rejects
@@ -361,6 +371,14 @@ superseded by the hash-bound exact-commit replay below.
   `commands::gradle_root_escape_is_inconclusive_for_coverage_gating_commands` proves
   project-root escapes return nonzero structured inconclusive outcomes across check, coverage,
   generate, report, and score without reading outside bytes or mutating either tree.
+  The amended implementation tree includes
+  `gradle_set_project_dir_escapes_are_inconclusive_for_coverage_gating_commands`,
+  `gradle_symlink_module_escape_is_inconclusive_for_coverage_gating_commands`,
+  `gradle_junction_module_escape_is_inconclusive_for_coverage_gating_commands`,
+  `mcp_gradle_set_project_dir_escapes_fail_closed_without_outside_access`, and
+  `mcp_gradle_symlink_module_escape_fails_closed_without_outside_access`. The focused local Gradle
+  integration run passed all 9 selected tests, proving non-success without partial totals, outside
+  disclosure/traversal, or generated output on this Unix host.
 - `REQ-config-005`: `config::tests::checked_source_detection_surfaces_malformed_gradle_settings`
   proves checked errors and compatibility fallback separation.
 - `REQ-config-006`:
@@ -391,3 +409,19 @@ superseded by the hash-bound exact-commit replay below.
   `issues_repository_resolution_failures_use_selected_structured_renderer` prove early selected
   output, while the `mcp_allow_empty_tool_and_resource_*selected_config*` group proves MCP
   malformed/UTF-8/type rejection and valid BOM compatibility.
+
+## Pending final-tree evidence for the Gradle amendment
+
+- No historical test, reviewer, Windows cross-target, sandbox, trust, Attest, or CI result is
+  evidence for the three reviewer-driven Gradle fixes documented in this amendment.
+- Local evidence on 2026-07-23: 18 focused Gradle unit tests and 9 focused Gradle integration tests
+  passed; Unix symlink, CLI/MCP false-green, and unchanged outside-sentinel assertions passed;
+  `fledge run fmt`, `fledge run lint`, and the release `fledge run build` passed.
+- `cargo check --target x86_64-pc-windows-gnu --tests` passed; it emitted the existing cfg-specific
+  unused-variable warning in `src/change.rs`, outside this amendment. Cross-target compilation is
+  not a substitute for hosted-Windows junction runtime.
+- Pending: hosted-Windows junction/reparse runtime and a final-tree rerun after the definition is
+  approved.
+- Pending: full repository lane, strict coverage and score gates, two independent clean reviews,
+  private-sandbox refresh, fresh exact-digest definition approval, GitHub CI, `fledge trust verify`,
+  Attest provenance, lifecycle verification, and closing approval.

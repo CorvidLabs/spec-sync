@@ -4,9 +4,12 @@
 //! build.gradle.kts, package.json, etc.) to discover targets, source paths,
 //! and module names instead of relying on directory scanning alone.
 
+use cap_std::ambient_authority;
+use cap_std::fs::{Dir, Metadata};
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::io;
+use std::path::{Component, Path};
 
 /// A module discovered from a manifest file.
 #[derive(Debug, Clone)]
@@ -318,6 +321,12 @@ fn parse_gradle(root: &Path) -> Option<ManifestDiscovery> {
 }
 
 fn parse_gradle_checked(root: &Path) -> Result<Option<ManifestDiscovery>, String> {
+    let project_root = Dir::open_ambient_dir(root, ambient_authority()).map_err(|error| {
+        format!(
+            "Cannot open Gradle project root {} as a confined directory: {error}",
+            root.display()
+        )
+    })?;
     // Try Kotlin DSL first, then Groovy. A settings manifest is independently sufficient for a
     // multi-project Gradle workspace; do not require a root build script before parsing it.
     let build_path = if root.join("build.gradle.kts").exists() {
@@ -376,14 +385,14 @@ fn parse_gradle_checked(root: &Path) -> Result<Option<ManifestDiscovery>, String
             "src/main/java",
             "src/main/kotlin",
         ] {
-            if root.join(dir).exists() {
+            if gradle_confined_directory_exists(&project_root, dir)? {
                 discovery.source_dirs.push(dir.to_string());
             }
         }
     } else {
         // Standard Gradle: src/main/kotlin or src/main/java
         for dir in &["src/main/kotlin", "src/main/java", "src/main/scala"] {
-            if root.join(dir).exists() {
+            if gradle_confined_directory_exists(&project_root, dir)? {
                 discovery.source_dirs.push(dir.to_string());
             }
         }
@@ -391,13 +400,12 @@ fn parse_gradle_checked(root: &Path) -> Result<Option<ManifestDiscovery>, String
 
     for module in modules {
         let module_src = format!("{}/src/main", module.path);
-        let source_path = if root
-            .join(format!("{}/src/main/kotlin", module.path))
-            .exists()
-        {
-            format!("{}/src/main/kotlin", module.path)
-        } else if root.join(format!("{}/src/main/java", module.path)).exists() {
-            format!("{}/src/main/java", module.path)
+        let kotlin_source = format!("{}/src/main/kotlin", module.path);
+        let java_source = format!("{}/src/main/java", module.path);
+        let source_path = if gradle_confined_directory_exists(&project_root, &kotlin_source)? {
+            kotlin_source
+        } else if gradle_confined_directory_exists(&project_root, &java_source)? {
+            java_source
         } else {
             module_src
         };
@@ -426,7 +434,8 @@ fn parse_gradle_checked(root: &Path) -> Result<Option<ManifestDiscovery>, String
 ///
 /// Supports parenthesized and bare `include` forms, single or double quotes,
 /// multiline declarations, nested `:module:name` paths, and the common
-/// `project(...).projectDir = file(...)` / `new File(rootDir, ...)` overrides.
+/// `project(...).projectDir = ...` and `project(...).setProjectDir(...)`
+/// overrides with `file(...)` / `new File(rootDir, ...)` path expressions.
 pub(crate) fn parse_gradle_settings(content: &str) -> Result<Vec<GradleSettingsModule>, String> {
     let content = strip_gradle_comments(content)?;
     let mut included = Vec::new();
@@ -451,13 +460,8 @@ pub(crate) fn parse_gradle_settings(content: &str) -> Result<Vec<GradleSettingsM
             return Err("Gradle include declaration has unbalanced parentheses".to_string());
         }
         for value in parse_gradle_include_statement(&statement)? {
-            let name = value.trim().trim_start_matches(':').replace(':', "/");
-            if !name.is_empty() {
-                included.push(normalize_gradle_project_relative_path(
-                    &name,
-                    "module path",
-                    false,
-                )?);
+            if !value.trim().trim_start_matches(':').is_empty() {
+                included.push(normalize_gradle_module_path(&value, "module path")?);
             }
         }
         index += 1;
@@ -483,18 +487,20 @@ fn parse_gradle_project_dir_overrides(content: &str) -> Result<HashMap<String, S
     let mut overrides = HashMap::new();
     let mut search_start = 0usize;
 
-    while let Some(relative_index) = content[search_start..].find(".projectDir") {
-        let project_dir_index = search_start + relative_index;
+    while let Some((project_dir_index, syntax)) =
+        find_next_gradle_project_dir_override(content, search_start)
+    {
+        let marker = syntax.marker();
         let before = &content[..project_dir_index];
         let Some(project_index) = find_gradle_project_call(before) else {
-            search_start = project_dir_index + ".projectDir".len();
+            search_start = project_dir_index + marker.len();
             continue;
         };
 
         let project_call = before[project_index + "project".len()..].trim_start();
         let (project_arguments, project_remainder) = gradle_parenthesized(project_call)?;
         if !project_remainder.trim().is_empty() {
-            search_start = project_dir_index + ".projectDir".len();
+            search_start = project_dir_index + marker.len();
             continue;
         }
         let module_values = gradle_string_arguments(project_arguments)?;
@@ -502,41 +508,98 @@ fn parse_gradle_project_dir_overrides(content: &str) -> Result<HashMap<String, S
             return Err("Gradle projectDir assignment must identify one module".to_string());
         }
 
-        let assignment = content[project_dir_index + ".projectDir".len()..].trim_start();
-        let Some(right_hand_side) = assignment.strip_prefix('=') else {
-            return Err("Gradle projectDir assignment is missing '='".to_string());
-        };
-        let right_hand_side = right_hand_side.trim_start();
-        let path = if let Some(file_call) = right_hand_side.strip_prefix("file") {
-            let (arguments, remainder) = gradle_parenthesized(file_call.trim_start())?;
-            require_gradle_expression_end(remainder)?;
-            let path_values = gradle_string_arguments(arguments)?;
-            if path_values.len() != 1 {
-                return Err("Gradle projectDir assignment must contain one path".to_string());
+        let after_marker = content[project_dir_index + marker.len()..].trim_start();
+        let expression = match syntax {
+            GradleProjectDirSyntax::Assignment => {
+                let Some(right_hand_side) = after_marker.strip_prefix('=') else {
+                    return Err("Gradle projectDir assignment is missing '='".to_string());
+                };
+                right_hand_side.trim_start()
             }
-            path_values[0].clone()
-        } else if let Some(file_call) = right_hand_side.strip_prefix("new") {
-            let Some(file_call) = file_call.trim_start().strip_prefix("File") else {
-                return Err("Unsupported Gradle projectDir assignment".to_string());
-            };
-            let (arguments, remainder) = gradle_parenthesized(file_call.trim_start())?;
-            require_gradle_expression_end(remainder)?;
-            parse_gradle_root_dir_file_arguments(arguments)?
-        } else {
-            return Err("Unsupported Gradle projectDir assignment".to_string());
+            GradleProjectDirSyntax::Setter => {
+                let (arguments, remainder) = gradle_parenthesized(after_marker)?;
+                require_gradle_expression_end(remainder)?;
+                arguments.trim()
+            }
         };
+        let path = parse_gradle_project_dir_path(expression)?;
 
-        let module = normalize_gradle_project_relative_path(
-            &module_values[0].trim_start_matches(':').replace(':', "/"),
-            "projectDir module path",
-            false,
-        )?;
+        let module = normalize_gradle_module_path(&module_values[0], "projectDir module path")?;
         let path = normalize_gradle_project_relative_path(&path, "projectDir path", true)?;
         overrides.insert(module, path);
-        search_start = project_dir_index + ".projectDir".len();
+        search_start = project_dir_index + marker.len();
     }
 
     Ok(overrides)
+}
+
+#[derive(Clone, Copy)]
+enum GradleProjectDirSyntax {
+    Assignment,
+    Setter,
+}
+
+impl GradleProjectDirSyntax {
+    fn marker(self) -> &'static str {
+        match self {
+            Self::Assignment => ".projectDir",
+            Self::Setter => ".setProjectDir",
+        }
+    }
+}
+
+fn find_next_gradle_project_dir_override(
+    content: &str,
+    search_start: usize,
+) -> Option<(usize, GradleProjectDirSyntax)> {
+    [
+        GradleProjectDirSyntax::Assignment,
+        GradleProjectDirSyntax::Setter,
+    ]
+    .into_iter()
+    .filter_map(|syntax| {
+        content[search_start..]
+            .find(syntax.marker())
+            .map(|relative| (search_start + relative, syntax))
+    })
+    .min_by_key(|(index, _)| *index)
+}
+
+fn parse_gradle_project_dir_path(expression: &str) -> Result<String, String> {
+    if let Some(file_call) = expression.strip_prefix("file") {
+        let (arguments, remainder) = gradle_parenthesized(file_call.trim_start())?;
+        require_gradle_expression_end(remainder)?;
+        let path_values = gradle_string_arguments(arguments)?;
+        if path_values.len() != 1 {
+            return Err("Gradle projectDir assignment must contain one path".to_string());
+        }
+        Ok(path_values[0].clone())
+    } else if let Some(file_call) = expression.strip_prefix("new") {
+        let Some(file_call) = file_call.trim_start().strip_prefix("File") else {
+            return Err("Unsupported Gradle projectDir assignment".to_string());
+        };
+        let (arguments, remainder) = gradle_parenthesized(file_call.trim_start())?;
+        require_gradle_expression_end(remainder)?;
+        parse_gradle_root_dir_file_arguments(arguments)
+    } else {
+        Err("Unsupported Gradle projectDir assignment".to_string())
+    }
+}
+
+fn normalize_gradle_module_path(value: &str, label: &str) -> Result<String, String> {
+    let value = value.trim().trim_start_matches(':');
+    let bytes = value.as_bytes();
+    if bytes.get(1) == Some(&b':')
+        && bytes.first().is_some_and(u8::is_ascii_alphabetic)
+        && bytes
+            .get(2)
+            .is_some_and(|byte| matches!(byte, b'/' | b'\\'))
+    {
+        return Err(format!(
+            "Gradle {label} must remain beneath the project root"
+        ));
+    }
+    normalize_gradle_project_relative_path(&value.replace(':', "/"), label, false)
 }
 
 fn normalize_gradle_project_relative_path(
@@ -595,6 +658,71 @@ fn normalize_gradle_project_relative_path(
     } else {
         normalized
     })
+}
+
+#[cfg(windows)]
+fn gradle_metadata_is_link(metadata: &Metadata) -> bool {
+    use cap_std::fs::MetadataExt;
+
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+    metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+#[cfg(not(windows))]
+fn gradle_metadata_is_link(metadata: &Metadata) -> bool {
+    metadata.file_type().is_symlink()
+}
+
+fn gradle_confined_directory_exists(root: &Dir, relative: &str) -> Result<bool, String> {
+    let mut directory = root
+        .try_clone()
+        .map_err(|error| format!("Cannot retain the Gradle project root: {error}"))?;
+    let mut inspected = Vec::new();
+
+    for component in Path::new(relative).components() {
+        let name = match component {
+            Component::CurDir => continue,
+            Component::Normal(name) => name,
+            _ => {
+                return Err(format!(
+                    "Gradle source directory {relative} must remain beneath the project root"
+                ));
+            }
+        };
+        inspected.push(name.to_string_lossy().into_owned());
+        let display = inspected.join("/");
+        let before = match directory.symlink_metadata(name) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+            Err(error) => {
+                return Err(format!(
+                    "Cannot inspect confined Gradle source directory {display}: {error}"
+                ));
+            }
+        };
+        if gradle_metadata_is_link(&before) {
+            return Err(format!(
+                "Gradle source directory {display} must not traverse a symlink or reparse point"
+            ));
+        }
+        if !before.is_dir() {
+            return Ok(false);
+        }
+        let next = directory.open_dir(name).map_err(|error| {
+            format!("Cannot open confined Gradle source directory {display}: {error}")
+        })?;
+        let after = directory.symlink_metadata(name).map_err(|error| {
+            format!("Cannot re-inspect confined Gradle source directory {display}: {error}")
+        })?;
+        if gradle_metadata_is_link(&after) || !after.is_dir() {
+            return Err(format!(
+                "Gradle source directory {display} changed during confined inspection"
+            ));
+        }
+        directory = next;
+    }
+
+    Ok(true)
 }
 
 fn find_gradle_project_call(content: &str) -> Option<usize> {
@@ -1394,7 +1522,13 @@ project(":outside").projectDir = new File(rootDir.parentFile, "outside")
 include(":outside")
 project(":outside").projectDir = file("../outside")
 "#,
+            r#"
+include(":outside")
+project(":outside").setProjectDir(file("../outside"))
+"#,
             r#"include(":..:outside")"#,
+            r#"include("C:/outside")"#,
+            r#"include(":C:\outside")"#,
             r#"
 include(":outside")
 project(":outside").projectDir = file("safe/../../outside")
@@ -1407,11 +1541,59 @@ project(":outside").projectDir = file("C:\outside")
 include(":outside")
 project(":outside").projectDir = file("\\server\share")
 "#,
+            r#"
+include(":safe")
+project("C:/outside").projectDir = file("modules/safe")
+"#,
         ] {
             let error = parse_gradle_settings(settings).unwrap_err();
             assert!(
                 error.contains("must remain beneath the project root"),
                 "unexpected Gradle confinement error: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn gradle_settings_support_literal_set_project_dir_forms() {
+        let modules = parse_gradle_settings(
+            r#"
+include(":first", ":second")
+project(":first").setProjectDir(file("modules/first"))
+project(":second").setProjectDir(new File(rootDir, "modules/second"))
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            modules,
+            vec![
+                GradleSettingsModule {
+                    name: "first".to_string(),
+                    path: "modules/first".to_string(),
+                },
+                GradleSettingsModule {
+                    name: "second".to_string(),
+                    path: "modules/second".to_string(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn gradle_settings_reject_dynamic_or_ambiguous_set_project_dir_forms() {
+        for setter in [
+            r#"project(":member").setProjectDir(projectDirProvider.get())"#,
+            r#"project(":member").setProjectDir(file("modules/member"), file("other"))"#,
+            r#"project(":member").setProjectDir(file("modules/member")).parentFile"#,
+        ] {
+            let settings = format!("include(\":member\")\n{setter}\n");
+            let error = parse_gradle_settings(&settings).unwrap_err();
+            assert!(
+                error.contains("Unsupported Gradle projectDir assignment")
+                    || error.contains("must contain one path")
+                    || error.contains("Unsupported trailing Gradle projectDir assignment"),
+                "unexpected setProjectDir parser error: {error}"
             );
         }
     }
@@ -1434,6 +1616,30 @@ project(":outside").projectDir = file("\\server\share")
         let compatibility_result = discover_from_manifests(&project);
         assert!(compatibility_result.modules.is_empty());
         assert!(compatibility_result.source_dirs.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn gradle_manifest_discovery_rejects_symlinked_module_directories() {
+        use std::os::unix::fs::symlink;
+
+        let tmp = tempdir().unwrap();
+        let project = tmp.path().join("project");
+        let outside = tmp.path().join("outside");
+        fs::create_dir_all(&project).unwrap();
+        fs::create_dir_all(outside.join("src/main/kotlin")).unwrap();
+        symlink(&outside, project.join("linked")).unwrap();
+        fs::write(
+            project.join("settings.gradle.kts"),
+            "include(\":linked\")\n",
+        )
+        .unwrap();
+
+        let error = discover_from_manifests_checked(&project).unwrap_err();
+        assert!(
+            error.contains("must not traverse a symlink or reparse point"),
+            "unexpected Gradle symlink rejection: {error}"
+        );
     }
 
     #[test]

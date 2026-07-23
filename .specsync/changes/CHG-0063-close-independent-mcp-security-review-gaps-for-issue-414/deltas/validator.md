@@ -2,8 +2,9 @@
 
 ### REQUIREMENT REQ-validator-008
 
-Coverage gates SHALL use fallible checked manifest discovery and SHALL report malformed or unreadable
-Gradle settings as inconclusive instead of accepting partial coverage.
+Coverage gates SHALL use fallible checked manifest discovery and SHALL report malformed, unreadable,
+unsupported, or unconfined Gradle discovery as inconclusive instead of accepting partial coverage
+or traversing outside the retained project root.
 
 Acceptance Criteria
 
@@ -11,6 +12,9 @@ Acceptance Criteria
   partial `CoverageReport`.
 - CLI and MCP coverage/enforcement callers use checked coverage and fail with an inconclusive
   diagnostic.
+- Raw drive-qualified module identities, dynamic/unsupported project-directory mutators, and
+  symlink/reparse components in Gradle-derived directories propagate as checked errors before
+  source probing, traversal, partial totals, or generation.
 - `compute_coverage` remains available for compatibility and returns a zero-percent report carrying
   an inconclusive module diagnostic when checked discovery fails.
 
@@ -89,8 +93,8 @@ Acceptance Criteria
 10. Empty required sections are reported as unfinished content.
 11. Validation results retain parsed lifecycle status.
 12. Requirements companions are validated when present under adaptive artifact policy.
-13. Checked coverage propagates malformed/unreadable manifest discovery; compatibility coverage
-    remains available.
+13. Checked coverage propagates malformed, unreadable, unsupported, or unconfined manifest
+    discovery; compatibility coverage remains available.
 14. `validate_spec_content` validates caller-provided bytes without reopening `spec_path` or
     adjacent companions; the path remains logical diagnostic/source context and mapped sources
     retain normal path behavior.

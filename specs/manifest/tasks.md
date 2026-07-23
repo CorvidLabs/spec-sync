@@ -28,6 +28,18 @@ spec: manifest.spec.md
 - [x] go.mod parser (module name + standard dirs)
 - [x] pyproject.toml parser (project and poetry support)
 
+## CHG-0063 Independent-Review Amendment
+
+- [x] Amend the canonical contract for raw drive-prefix validation, literal `setProjectDir`
+  support, and retained no-follow Gradle directory confinement.
+- [x] Verify focused parser coverage for drive-qualified raw include and project-selector values.
+- [x] Verify literal `setProjectDir(file(...))` and `setProjectDir(new File(rootDir, ...))` support,
+  plus dynamic, unsupported, traversal, drive, and UNC rejection.
+- [x] Verify Unix symlink rejection before outside source probing or traversal.
+- [ ] Verify hosted-Windows junction/reparse-point rejection before outside source probing or
+  traversal.
+- [ ] Obtain fresh exact-tree independent reviews, full repository/CI, trust, and Attest evidence.
+
 ## Gaps
 
 - No support for Bazel BUILD files or Meson build definitions

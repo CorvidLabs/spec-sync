@@ -28,6 +28,13 @@ Acceptance Criteria
   comments, escapes, and standard Groovy/Kotlin forms; malformed discovery is inconclusive for
   gates; and every manifest read is copied from the exact bytes charged to the shared cumulative
   budget so omission, growth, or discovery cannot produce a false-green result.
+- Raw Gradle include identities and `project(...)` selectors are checked for drive-qualified,
+  rooted, UNC, and parent-escaping forms before colon notation is mapped to filesystem separators.
+  Assignment-style `projectDir` and method-style `setProjectDir` accept only
+  `file(<literal>)` or `new File(rootDir, <literal>)`; dynamic or unsupported mutation fails closed.
+- Every component of a Gradle-derived effective directory is checked no-follow through a retained
+  project-root capability before source probing or traversal. Unix symlinks and Windows reparse
+  points make CLI/MCP checked discovery inconclusive without reading the referent.
 - Cargo path discovery follows only semantic target, dependency, workspace-dependency,
   target-specific dependency, patch, and replacement tables. Unrelated metadata `path` keys are
   ignored. Confined Windows-native backslashes normalize from the declaring manifest, while
@@ -396,11 +403,21 @@ Acceptance Criteria
 - One checked parser handles Groovy/Kotlin single and double quotes, parenthesized and bare
   multiline Gradle includes, comments, escapes, nested colon names, and supported `projectDir`
   overrides.
+- Raw include identities and raw `project(...)` selectors are validated before colon-to-path
+  conversion; drive-qualified, rooted, UNC, and parent-escaping values reject without partial
+  modules, while valid nested identities remain compatible.
+- Both `.projectDir = ...` and `.setProjectDir(...)` accept exactly `file(<literal>)` or
+  `new File(rootDir, <literal>)`; dynamic values, alternate bases, extra arguments, trailing
+  expressions, and unsupported project-directory mutators fail closed.
+- Every component of an effective Gradle directory is resolved no-follow through one retained
+  project-root capability before probing or traversal; Unix symlinks and Windows reparse points
+  reject without exposing referent content.
 - General module discovery and MCP snapshot preflight use the same effective Gradle module paths.
 - MCP Cargo workspace discovery parses bounded manifests as real TOML.
 - Malformed MCP Cargo TOML/workspace shapes make MCP operations inconclusive; malformed Gradle
-  comments, escapes, strings, parentheses, and overrides make every checked coverage gate
-  inconclusive without returning partial module results.
+  comments, escapes, strings, parentheses, overrides, raw identities, and derived directory
+  components make every checked coverage gate inconclusive without returning partial module
+  results.
 
 ### REQ-review-amendment-001
 

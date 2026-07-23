@@ -81,3 +81,20 @@ artifact: design
   returns structured counts so the outer command can continue items yet exit 1 after any error.
 - Make evidence reproducible by building from the cited implementation commit and hashing the
   executable plus every drill/fixture input used by the private sandbox.
+
+## Gradle discovery authority amendment
+
+- Validate each raw `include` identity and raw `project(...)` selector before replacing Gradle
+  colon separators with filesystem separators. Reject drive-qualified, rooted, UNC, and
+  parent-escaping spellings while preserving ordinary nested identities such as `:service:api`.
+- Treat assignment-style `.projectDir = ...` and method-style `.setProjectDir(...)` as the same
+  security boundary. Accept exactly `file(<literal>)` and `new File(rootDir, <literal>)`; reject
+  variables, interpolation, alternate bases, extra arguments, trailing expressions, and
+  unsupported project-directory mutators before returning any module.
+- Retain one project-root directory capability for Gradle discovery. Resolve every component of
+  each effective module directory with no-follow metadata/open semantics before source probing,
+  reject Unix symlinks and Windows reparse points at any depth, and never hand an unchecked
+  ambient path to CLI coverage or MCP snapshot traversal.
+- Preserve fail-closed compatibility: checked discovery returns the confinement/parser error;
+  compatibility discovery may return empty, but every CLI/MCP gate must use the checked path and
+  report an inconclusive non-success outcome.

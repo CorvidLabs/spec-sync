@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 6
+version: 7
 status: stable
 files:
   - src/manifest.rs
@@ -31,7 +31,7 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 |----------|-----------|---------|-------------|
 | `discover_from_manifests` | `root: &Path` | `ManifestDiscovery` | Compatibility discovery that returns an empty result when checked discovery is malformed |
 | `discover_from_manifests_checked` | `root: &Path` | `Result<ManifestDiscovery, String>` | Discover modules while surfacing unreadable or malformed Gradle settings to gate callers |
-| `parse_gradle_settings` | `content: &str` | `Result<Vec<GradleSettingsModule>, String>` | Crate-visible shared parser for Groovy/Kotlin includes and project-directory overrides |
+| `parse_gradle_settings` | `content: &str` | `Result<Vec<GradleSettingsModule>, String>` | Crate-visible shared parser for Groovy/Kotlin includes plus assignment-style and method-style literal project-directory overrides |
 
 ### Supported Manifest Types
 
@@ -39,7 +39,7 @@ Seven language ecosystems are supported, each with a dedicated internal parser:
 
 - **Cargo.toml** (Rust) — extracts `[package]` name, `[[bin]]` targets, `[workspace]` members (recursive), `[dependencies]`
 - **Package.swift** (Swift) — parses `.target()`, `.executableTarget()` declarations; skips `.testTarget()`; extracts name, path, dependencies params
-- **build.gradle.kts / build.gradle** (Kotlin/Java) — detects Android vs standard layout; parses Groovy/Kotlin `include` declarations and `projectDir` overrides from settings.gradle for multi-module projects
+- **build.gradle.kts / build.gradle** (Kotlin/Java) — detects Android vs standard layout; parses Groovy/Kotlin `include` declarations plus assignment-style and method-style literal project-directory overrides from settings.gradle for multi-module projects
 - **package.json** (TypeScript/JS) — handles `workspaces` (array or object form) with glob expansion; detects `src/` or `lib/` or `main` field
 - **pubspec.yaml** (Dart/Flutter) — extracts `name:` field; defaults source to `lib/`
 - **go.mod** (Go) — uses last segment of module path as name; scans for `cmd/`, `internal/`, `pkg/`, `api/` dirs
@@ -61,22 +61,31 @@ member or target paths.
 6. Swift balanced-paren extraction handles nested parentheses correctly
 7. Gradle parser distinguishes Android projects (checks `android {` block) from standard Kotlin/Java layouts
 8. Gradle multi-module projects support comment-aware Groovy/Kotlin quoting, decoded escapes,
-   parenthesized or bare multiline `include` declarations, nested colon names, and literal
-   `projectDir` overrides through `file(...)` or `new File(rootDir, ...)`.
-9. Every include argument must be a complete quoted literal; dynamic arguments, alternate
-   `new File` bases, extra arguments, and trailing assignment expressions fail checked discovery.
-10. Included module names and effective `projectDir` values normalize only while they remain
+   parenthesized or bare multiline `include` declarations, nested colon names, assignment-style
+   `.projectDir = ...`, and method-style `.setProjectDir(...)`.
+9. Supported assignment and method arguments are exactly `file(<literal>)` and
+   `new File(rootDir, <literal>)`. Every include argument and project-directory argument must be a
+   complete literal expression; dynamic arguments, alternate `new File` bases, extra arguments,
+   unsupported mutators, and trailing expressions fail checked discovery.
+10. Raw included module identities and raw `project(...)` selectors are checked for rooted,
+    drive-qualified, UNC, and parent-escaping forms before Gradle colon separators are mapped to
+    path separators. Valid nested identities such as `:service:api` remain supported.
+11. Included module names and effective project-directory values normalize only while they remain
     project-relative; rooted, drive-qualified, UNC, and parent traversal escapes fail checked
     discovery without returning partial modules.
-11. `discover_from_manifests_checked` returns an error for malformed or unsupported Gradle forms so
+12. Every filesystem component of a Gradle-derived effective directory is resolved through the
+    retained project-root capability with no-follow semantics before source probing or traversal.
+    A symlink or Windows reparse point at any component makes checked discovery inconclusive; its
+    referent is never used as a source root.
+13. `discover_from_manifests_checked` returns an error for malformed or unsupported Gradle forms so
     coverage gates remain inconclusive; it merges the result parsed from that same read instead of
     validating and rereading the path.
-12. package.json workspaces support both array form (`["packages/*"]`) and object form (`{ "packages": [...] }`)
-13. Go module name uses the last path segment of the module path (e.g. `github.com/user/repo` → `repo`)
-14. Python project name resolution tries `[project]` before `[tool.poetry]`
-15. General module metadata extraction remains string-based; MCP Cargo workspace preflight uses the
+14. package.json workspaces support both array form (`["packages/*"]`) and object form (`{ "packages": [...] }`)
+15. Go module name uses the last path segment of the module path (e.g. `github.com/user/repo` → `repo`)
+16. Python project name resolution tries `[project]` before `[tool.poetry]`
+17. General module metadata extraction remains string-based; MCP Cargo workspace preflight uses the
     real TOML parser and rejects malformed workspace shapes without partial discovery.
-16. `ManifestDiscovery::default()` returns empty modules and source_dirs
+18. `ManifestDiscovery::default()` returns empty modules and source_dirs
 
 ## Behavioral Examples
 
@@ -122,6 +131,21 @@ member or target paths.
 - **When** `discover_from_manifests(root)` is called
 - **Then** the module is named `vendor/member` and its source paths are rooted at `vendor/custom`
 
+### Scenario: Gradle uses the official project-directory mutator
+
+- **Given** settings include `:vendor:member` and call
+  `project(":vendor:member").setProjectDir(file("vendor/custom"))`
+- **When** `discover_from_manifests_checked(root)` is called
+- **Then** the module is named `vendor/member` and its source paths are rooted at `vendor/custom`
+
+### Scenario: Gradle-derived directory contains a link
+
+- **Given** a Gradle module resolves through a symlink or Windows reparse point beneath the project
+  root
+- **When** checked manifest discovery is called
+- **Then** discovery returns an error before source probing or traversal and does not inspect the
+  link target
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -129,7 +153,8 @@ member or target paths.
 | Manifest file missing | Parser returns `None`, skipped silently |
 | Manifest file unreadable | Parser returns `None` (fs::read_to_string fails gracefully) |
 | Malformed non-Gradle manifest content | Best-effort extraction; missing fields result in defaults or skipped entries |
-| Malformed or dynamic Gradle include, unsupported `projectDir` base/arity/suffix, rooted/drive/UNC/parent-escaping module path, or broken comments/escapes/parentheses | Checked discovery returns `Err`; compatibility discovery returns an empty result and gates stay inconclusive |
+| Malformed or dynamic Gradle include, unsupported assignment/method project-directory form, rooted/drive/UNC/parent-escaping raw module identity or effective path, or broken comments/escapes/parentheses | Checked discovery returns `Err`; compatibility discovery returns an empty result and gates stay inconclusive |
+| Gradle-derived directory contains a symlink or Windows reparse-point component | Checked discovery returns `Err` before source probing/traversal; compatibility discovery returns an empty result and gates stay inconclusive |
 | Workspace member directory doesn't exist | Skipped (Cargo.toml existence check) |
 | No parsers produce results | Returns default empty `ManifestDiscovery` |
 
@@ -139,7 +164,8 @@ member or target paths.
 
 | Module | What is used |
 |--------|-------------|
-| regex | Parse bounded Gradle `projectDir` assignment forms |
+| cap-std | Retained project-root directory capability and no-follow component inspection for Gradle-derived source roots |
+| regex | Locate bounded Gradle assignment-style and method-style project-directory forms |
 
 ### Consumed By
 
@@ -158,3 +184,4 @@ member or target paths.
 | 2026-07-22 | CHG-0063 follow-up: Add checked, comment/escape-aware Gradle discovery and document real-TOML MCP Cargo workspace preflight |
 | 2026-07-22 | CHG-0063 defensive review: Discover settings-only Gradle workspaces and fail closed on malformed settings without requiring a root build script |
 | 2026-07-23 | CHG-0063 human review: Reject rooted, drive-qualified, UNC, and parent-escaping Gradle module and `projectDir` paths before CLI discovery can inspect outside the project |
+| 2026-07-23 | v7 / CHG-0063 independent review: Validate raw drive-qualified module identities before colon mapping, confine literal `setProjectDir` forms, and reject symlink/reparse components through the retained root capability |

@@ -62,3 +62,13 @@ artifact: research
   outside the project to CLI coverage/check callers. Gradle module identities and `projectDir`
   literals must be normalized lexically and rejected on root, drive, UNC, or parent underflow
   before any source probing or partial discovery.
+- Gradle colon notation is not a filesystem normalization primitive. Mapping `:` to `/` before
+  checking a raw value can transform a drive-qualified identity such as `C:/outside` into a
+  non-drive spelling; raw include identities and project selectors must be authorized first.
+- Gradle exposes both property assignment and the official `setProjectDir(File)` method. Parsing
+  only `.projectDir = ...` creates a false-green omission. The shared parser must recognize the two
+  literal confined method arguments or fail closed on unsupported/dynamic mutation syntax.
+- Lexical containment does not authorize filesystem traversal through an in-root symlink or
+  Windows reparse point. Gradle-derived source directories require component-by-component
+  no-follow inspection through a retained root capability before either CLI coverage or MCP
+  snapshot traversal receives the path.

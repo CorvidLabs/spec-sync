@@ -35,6 +35,15 @@ spec: validator.spec.md
 - [x] Add crate-private `SourceSnapshot` and `validate_spec_content_with_sources` so exact
   spec-and-source validation never falls back to ambient mapped-source reads.
 
+## CHG-0063 Independent-Review Amendment
+
+- [x] Amend checked-coverage contracts so raw Gradle drive identifiers, unsupported
+  `setProjectDir` forms, and linked/reparse-backed derived directories remain inconclusive.
+- [x] Verify CLI and MCP checked gates return non-success without partial totals, outside bytes, or
+  generated output for every new Gradle confinement failure.
+- [ ] Obtain fresh exact-tree full reruns, independent reviews, hosted-Windows runtime,
+  repository/CI, trust, and Attest evidence.
+
 ## Gaps
 
 - No incremental/cached validation — every run re-validates all specs from scratch

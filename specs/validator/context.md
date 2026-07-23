@@ -13,8 +13,11 @@ spec: validator.spec.md
 - **Static coverage is non-vacuous**: HTML, HTM, and CSS files participate in default source discovery even though they expose no API symbols.
 - **Generated companion markers fail strict**: Every known artifact-specific scaffold prompt emitted by the built-in templates, including all Layout, Components, Tokens, and Assets design bullets, emits a path-and-line warning outside fenced examples; strict mode promotes those warnings to errors.
 - **Coverage gates fail inconclusively on malformed manifests**: `compute_coverage_checked` propagates
-  Gradle settings errors to CLI and MCP gate callers. The original `compute_coverage` API remains as
-  a compatibility wrapper and produces a zero-percent report carrying an inconclusive diagnostic.
+  malformed, unreadable, unsupported, or unconfined Gradle errors to CLI and MCP gate callers.
+  Raw drive-qualified module identities, unsupported/dynamic project-directory methods, and
+  symlink/reparse components in derived directories therefore cannot become partial or outside
+  coverage. The original `compute_coverage` API remains as a compatibility wrapper and produces a
+  zero-percent report carrying an inconclusive diagnostic.
 - **Shared exact-byte validation core**: `validate_spec_content` accepts pre-read spec bytes and
   never opens the logical `spec_path` or adjacent companions. The path still anchors diagnostics
   and mapped-source checks, which retain normal path-based behavior.
@@ -32,10 +35,12 @@ spec: validator.spec.md
 ## Current Status
 
 CHG-0063 implementation is present. The validator powers `specsync check`, coverage, and MCP;
-checked discovery prevents malformed Gradle settings from producing partial coverage, while
+checked discovery prevents malformed or unconfined Gradle settings from producing partial
+coverage, while
 `validate_spec_content_with_sources` lets confined callers validate exact spec-and-source
 snapshots without reopening paths.
-Fresh CHG definition reapproval and final independent/repository gates remain pending. Its in-file
+Fresh CHG definition reapproval, focused final-tree reruns, independent reviews, hosted-Windows
+runtime, repository/CI, trust, and Attest evidence remain pending. Its in-file
 regression-test module intentionally precedes coverage helpers, so the narrow
 `items_after_test_module` Clippy allowance stays localized.
 

@@ -83,6 +83,13 @@
       "timestamp": 1784803466,
       "digest": "ced86b9ae44b9f2793d40559d5169acbeffb1f471afbe0e8b070304f25e4d53c",
       "note": "User approved closing CHG-0062 after fresh verification; applied after the final MCP capability review gate passed at c20ae27."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "User",
+      "timestamp": 1784806769,
+      "digest": "3463b4147bd48e5744b54e017a9f01813e55c7bc2ce0d13de0ce45ef3306db1d",
+      "note": "User approved closing CHG-0062 after fresh verification; applied after 1,864 unit and 290 integration tests plus release/runtime validation passed at 388c742."
     }
   ],
   "reopenings": [

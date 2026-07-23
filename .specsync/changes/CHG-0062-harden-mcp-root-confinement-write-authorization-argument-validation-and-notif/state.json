@@ -5,11 +5,11 @@
   "title": "Harden MCP root confinement, write authorization, argument validation, and notification semantics for issue 414",
   "description": "Harden MCP root confinement, write authorization, argument validation, and notification semantics for issue 414",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "ce669736042b46a04b14cf8f86312ba75cb52c33",
   "created_at": 1784675510,
-  "updated_at": 1784806252,
+  "updated_at": 1784806769,
   "affected_specs": [
     "mcp",
     "cli_args",

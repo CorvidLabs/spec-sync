@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 64,
-  "id": "CHG-0064-add-capability-safe-filesystem-support-for-mcp-security-hardening",
+  "sequence": 65,
+  "id": "CHG-0065-unify-checked-frontmatter-parsing-confined-dependency-references-real-toml-reg",
   "acknowledged_collisions": [
     {
       "sequence": 16,

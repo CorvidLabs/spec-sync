@@ -1,0 +1,19 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784774931,
+      "digest": "1d4dfdc990a55db51ab100da14504a60a9eda0dff0d207a5de239c8b43198fc9",
+      "note": "User approved digest 3ef701f52d9dc02d3b93106ba564d11fecf09ba9e24478f2d1b18b0723b4a16c; semantic-delta syntax was validated without changing that digest."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784776942,
+      "digest": "0eace9b585762e243bcd1cf922582b11bcd03ece44f4f331a45c67b999e03c5c",
+      "note": "User reapproved CHG-0065 digest 3ef701f52d9dc02d3b93106ba564d11fecf09ba9e24478f2d1b18b0723b4a16c after the explicit CHG-0063 dependency was added."
+    }
+  ],
+  "reopenings": []
+}

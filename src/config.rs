@@ -48,6 +48,10 @@ const IGNORED_DIRS: &[&str] = &[
 ];
 const DEFAULT_STATIC_SOURCE_EXTENSIONS: &[&str] = &["html", "htm", "css"];
 
+pub(crate) fn source_detection_ignores_directory(name: &str) -> bool {
+    name.starts_with('.') || IGNORED_DIRS.contains(&name)
+}
+
 /// Auto-detect source directories by first checking manifest files
 /// (Cargo.toml, Package.swift, build.gradle.kts, package.json, etc.),
 /// then falling back to scanning the project root for files with supported
@@ -101,7 +105,7 @@ fn detect_source_dirs_by_scan(root: &Path) -> Vec<String> {
         let name = entry.file_name().to_string_lossy().to_string();
 
         // Skip hidden dirs and ignored dirs
-        if name.starts_with('.') || ignored.contains(name.as_str()) {
+        if source_detection_ignores_directory(&name) {
             continue;
         }
 
@@ -228,11 +232,33 @@ pub(crate) fn parse_config_content_checked_with_source_dirs(
         validate_toml_config_types(&table)?;
         parse_toml_config_with_source_dirs(content, root, detected_source_dirs.as_deref())
     } else {
+        let value = serde_json::from_str::<serde_json::Value>(content)
+            .map_err(|error| error.to_string())?;
+        validate_checked_json_config_types(&value)?;
         parse_json_config_with_source_dirs(content, root, detected_source_dirs.as_deref())
             .map_err(|error| error.to_string())?
     };
     config.config_path = Some(config_path.to_path_buf());
     Ok(config)
+}
+
+fn validate_checked_json_config_types(value: &serde_json::Value) -> Result<(), String> {
+    let root = value
+        .as_object()
+        .ok_or_else(|| "configuration root must be an object".to_string())?;
+    let Some(github) = root.get("github") else {
+        return Ok(());
+    };
+    let github = github
+        .as_object()
+        .ok_or_else(|| "`github` must be an object".to_string())?;
+    if github
+        .get("repo")
+        .is_some_and(|repo| !repo.is_null() && !repo.is_string())
+    {
+        return Err("`github.repo` must be a string or null".to_string());
+    }
+    Ok(())
 }
 
 fn validate_toml_config_types(table: &toml::Table) -> Result<(), String> {
@@ -2050,6 +2076,19 @@ mod tests {
                 "wrongly typed repositories must fail before no-reference success"
             );
         }
+    }
+
+    #[test]
+    fn checked_json_config_rejects_wrong_typed_github_repo() {
+        let tmp = TempDir::new().unwrap();
+        let error = parse_config_content_checked(
+            &tmp.path().join("specsync.json"),
+            r#"{"specsDir":"specs","sourceDirs":["src"],"github":{"repo":42}}"#,
+            tmp.path(),
+        )
+        .expect_err("retained config parsing must reject a wrong-typed repository");
+
+        assert!(error.contains("github.repo"), "{error}");
     }
 
     #[test]

@@ -95,3 +95,5 @@ Acceptance Criteria
   preserved.
 - Malformed JSON/TOML and wrong-shaped known TOML fields return an error instead of silently
   accepting parser defaults.
+- Checked JSON rejects a non-object root or `github` section and rejects non-string/non-null
+  `github.repo` rather than exposing compatibility sentinel/default success.

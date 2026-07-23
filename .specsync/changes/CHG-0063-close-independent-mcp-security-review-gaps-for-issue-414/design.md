@@ -22,9 +22,15 @@ artifact: design
 - If CLI issue config omits source directories, build a bounded sparse detection snapshot through
   that retained project capability and pass the detected list into exact-byte config parsing.
 - Open MCP selected config non-blocking through verified regular-directory and regular-file
-  capabilities, reject symlink/reparse and special-file paths, bind identity through the bounded
-  read, and pass the exact retained bytes through complete checked config parsing before the
-  compatibility loader can substitute defaults.
+  capabilities, reject symlink/reparse and special-file paths, require the opened identity to
+  equal the pre-open inspected identity before reading, recheck after the bounded read, and pass
+  the exact retained bytes through complete checked config parsing before the compatibility loader
+  can substitute defaults.
+- Open recognized snapshot manifests non-blocking, reject non-regular entries before parsing, and
+  bind the opened identity to the inspected identity so replacement or special-file inputs cannot
+  block or contribute unverified bytes.
+- Apply the shared source-detection ignore policy before retained metadata inspection; a recognized
+  non-regular manifest is an explicit configuration finding rather than an omitted source tree.
 
 ## Bounded I/O
 
@@ -60,6 +66,8 @@ artifact: design
   most 100 globally deduplicated issue IDs through in-process REST, revalidate access after an
   absent-issue response, strictly validate responses, and enforce authentication, preflight,
   operation, and whole-batch deadlines without spawning a provider subprocess.
+- Reject pull-request markers from direct issue-detail responses and reject imported issue titles
+  whose safe module slug is empty before constructing output.
 - Gather issue references before repository selection so an empty project never resolves a
   repository or contacts GitHub.
 - Route missing-spec and repository-resolution outcomes through the selected JSON/Markdown/GitHub

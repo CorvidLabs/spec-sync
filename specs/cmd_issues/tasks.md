@@ -53,6 +53,8 @@ spec: cmd_issues.spec.md
 - [x] Preserve valid issue references in CRLF specs through the shared checked parser.
 - [x] Detect omitted config source directories through a bounded retained-capability snapshot so
   ambient root replacement cannot influence source selection.
+- [x] Match normal ignored-directory behavior before link inspection and reject recognized
+  special-file manifests as structured inconclusive findings.
 
 ## Gaps
 

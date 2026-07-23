@@ -1,6 +1,6 @@
 ---
 module: github
-version: 10
+version: 11
 status: stable
 files:
   - src/github.rs
@@ -77,6 +77,8 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 11. Action defaults and maintained consumer pins advance to an exact release version only through
     an accepted release change, and floating-ref promotion waits for supported-platform
     verification of the exact-version artifacts.
+12. Direct issue-detail reads reject any payload carrying GitHub's `pull_request` marker; a pull
+    request cannot be verified or imported as an issue through the shared detail endpoint.
 
 ## Behavioral Examples
 
@@ -118,6 +120,7 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | More than 100 unique issue IDs | Verification fails before provider access |
 | Duplicate issue IDs across specs | Provider is queried once per unique issue in the batch |
 | Malformed REST response | Strict issue verification records an inconclusive provider error; never successful empty verification |
+| Direct issue-detail response contains a `pull_request` marker | Returns a provider error; verification/import does not treat the pull request as an issue |
 | Issue-list entry has `pull_request: null` or another non-object marker | Entire listing fails as malformed provider data; null cannot masquerade as an ordinary issue |
 | Raw issue or pull-request item is closed, has malformed fields, or has mismatched repository/resource/number URL identity | Entire listing fails before pull-request filtering |
 | Duplicate raw item identity within or across list pages, including pull requests | Entire listing fails; filtered pull requests cannot hide duplicates |
@@ -155,3 +158,4 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | 2026-07-22 | CHG-0063 review fix: Bind every pagination link to the requested repository issues endpoint and query semantics |
 | 2026-07-22 | CHG-0063 independent-review follow-up: Bound raw issue-list pages and reject null or non-object pull-request markers before filtering |
 | 2026-07-22 | CHG-0063 final adversarial follow-up: Validate every raw issue/pull-request item as open with exact URL identity and canonical decimal number spelling, and reject raw duplicates before PR filtering |
+| 2026-07-22 | CHG-0063 final agent review: reject pull-request payloads from direct issue-detail reads |

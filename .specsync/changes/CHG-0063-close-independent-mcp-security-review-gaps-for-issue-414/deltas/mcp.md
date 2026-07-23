@@ -34,10 +34,12 @@ Acceptance Criteria
   identity-binds both spellings; only the relative suffix is opened through the retained canonical
   capability, and sibling-prefix lookalikes are rejected.
 - Selected config is opened non-blocking through verified regular-directory and regular-file
-  capabilities, rejects symlink/reparse and special-file paths, binds identity through the bounded
-  read, and passes the exact retained bytes through complete checked parsing before compatibility
-  loading. Non-object JSON, invalid UTF-8, malformed JSON/TOML, and wrong-typed known fields make
-  every tool/resource inconclusive rather than selecting defaults.
+  capabilities, rejects symlink/reparse and special-file paths, requires the opened identity to
+  match the pre-open inspected identity before reading, rechecks after the bounded read, and passes
+  the exact retained bytes through complete checked parsing before compatibility loading.
+  Recognized snapshot manifests follow the same non-blocking regular-file and pre-open identity
+  rule. Non-object JSON, invalid UTF-8, malformed JSON/TOML, and wrong-typed known fields make every
+  tool/resource inconclusive rather than selecting defaults.
 - Manifest-relative Cargo paths may normalize `..` across sibling crates when the normalized result
   remains beneath the retained root. Confined Windows-native backslashes normalize equivalently;
   drive, UNC, rooted, traversal, canonical, symlink, and junction escapes remain rejected.
@@ -135,3 +137,5 @@ Acceptance Criteria
     snapshots and validated from exact bounded bytes with the complete checked parser before
     compatibility loading; non-object/malformed/invalid-UTF-8/wrong-typed configurations fail
     tools and resources closed.
+26. Selected config and recognized manifest opens must match their pre-open inspected identities
+    before any bytes are read; special manifests are rejected without blocking.

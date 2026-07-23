@@ -40,6 +40,7 @@ spec: importer.spec.md
 | Issue/page not found (404) | Each importer returns `Err("{type} not found")` | Keep or add a focused assertion before changing this behavior |
 | Network timeout | Returns `Err` with connection details | Keep or add a focused assertion before changing this behavior |
 | Invalid issue number for GitHub | CLI rejects before calling importer | Keep or add a focused assertion before changing this behavior |
+| GitHub title slugifies to an empty string | Import returns `Err` before an item or output path exists | Covered by `test_import_github_issue_rejects_title_without_a_safe_module_name` |
 | Auth token echoed in a REST error | `redact_secret` replaces the verbatim token with `[REDACTED]` before the `Err` is surfaced | Keep or add a focused assertion before changing this behavior |
 
 ## Reviewer Checklist

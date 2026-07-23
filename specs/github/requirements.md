@@ -41,6 +41,8 @@ spec: github.spec.md
   next link must retain the requested repository issues endpoint and exact `state=open`,
   `per_page=100`, label, and page query semantics.
 - Auth tokens (`GITHUB_TOKEN`) are redacted from REST request error messages via `redact_token` before being surfaced (defense-in-depth)
+- Direct issue-detail reads reject payloads carrying a `pull_request` marker before verification
+  or import conversion.
 
 ## Constraints
 

@@ -29,6 +29,7 @@ spec: github.spec.md
 - [x] Require provider item URL numbers to use exact canonical decimal spelling, rejecting leading
   zeros even when they parse to the same numeric issue or pull-request ID.
 - [x] Reject duplicate raw identities within and across pages even when pull requests are filtered.
+- [x] Reject pull-request markers returned by the direct issue-detail endpoint.
 - [x] Forbid `gh` construction in every read module on all platforms and prove Unix token-present
   read/list/verify/import paths never execute a PATH sentinel
 - [x] `create_drift_issue` — `gh`-only issue creation titled "Spec drift detected: {path}"

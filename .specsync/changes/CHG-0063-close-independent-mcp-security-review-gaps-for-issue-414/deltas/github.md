@@ -16,6 +16,7 @@ Acceptance Criteria
   complete 30-second verification deadline.
 - Single and listed provider responses require numeric issue identity plus valid title, state,
   labels, and URL; list labels are encoded as query parameters and malformed PR markers fail closed.
+- Direct issue-detail responses reject any `pull_request` marker before returning importer data.
 - Issue listing rejects raw provider pages above 100 entries before item parsing, including
   pull-request entries. Every raw issue/pull-request item is fully validated before PR filtering:
   marker shape, positive numeric identity, nonempty title, nonempty names for any labels, exact open state, and canonical
@@ -68,3 +69,4 @@ Acceptance Criteria
    rejects duplicate raw identities within/across pages, paginates at most 100 pages, binds next
    links to the requested repository issues endpoint and query semantics, and rejects malformed
    links and cap truncation.
+7. Direct issue details are issue-only and reject pull-request markers.

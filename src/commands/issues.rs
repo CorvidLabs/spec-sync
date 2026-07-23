@@ -512,33 +512,8 @@ where
 }
 
 fn source_detection_skips_directory(name: &OsStr) -> bool {
-    name.to_str().is_some_and(|name| {
-        name.starts_with('.')
-            || matches!(
-                name,
-                "node_modules"
-                    | "target"
-                    | "vendor"
-                    | "dist"
-                    | "build"
-                    | "out"
-                    | ".next"
-                    | ".nuxt"
-                    | ".output"
-                    | ".cache"
-                    | ".turbo"
-                    | "__pycache__"
-                    | ".mypy_cache"
-                    | ".pytest_cache"
-                    | ".tox"
-                    | ".venv"
-                    | "venv"
-                    | ".dart_tool"
-                    | ".gradle"
-                    | "bin"
-                    | "obj"
-            )
-    })
+    name.to_str()
+        .is_some_and(crate::config::source_detection_ignores_directory)
 }
 
 fn is_source_detection_manifest(name: &OsStr) -> bool {
@@ -566,6 +541,9 @@ fn copy_source_detection_tree(
     names.sort();
 
     for name in names {
+        if source_detection_skips_directory(&name) {
+            continue;
+        }
         let metadata = directory
             .symlink_metadata(&name)
             .map_err(|_| project_config_finding())?;
@@ -576,9 +554,6 @@ fn copy_source_detection_tree(
         let child_relative = relative.join(&name);
         let child_destination = destination_root.join(&child_relative);
         if metadata.is_dir() {
-            if source_detection_skips_directory(&name) {
-                continue;
-            }
             let child =
                 open_verified_directory(directory, &name).map_err(|_| project_config_finding())?;
             fs::create_dir_all(&child_destination).map_err(|_| project_config_finding())?;
@@ -592,6 +567,9 @@ fn copy_source_detection_tree(
             continue;
         }
         if !metadata.is_file() {
+            if is_source_detection_manifest(&name) {
+                return Err(project_config_finding());
+            }
             continue;
         }
 
@@ -1577,8 +1555,9 @@ mod tests {
     use super::{
         collect_snapshot_validation_with_hook, find_spec_snapshots_checked_with_hook,
         find_spec_snapshots_checked_with_limits, is_spec_shaped_file_name,
-        load_issues_config_checked_with_hooks, open_specs_directory,
-        open_specs_directory_from_project, open_verified_root, snapshot_mapped_sources,
+        load_issues_config_checked, load_issues_config_checked_with_hooks, open_specs_directory,
+        open_specs_directory_from_project, open_verified_root, project_config_finding,
+        snapshot_mapped_sources,
     };
     use crate::github::{GitHubIssue, IssueVerification};
     #[cfg(unix)]
@@ -1806,6 +1785,57 @@ mod tests {
         .expect("source discovery must remain bound to the retained project");
 
         assert_eq!(config.source_dirs, vec!["original-source"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn omitted_source_detection_skips_ignored_symlinks_before_inspection() {
+        use std::os::unix::fs::symlink;
+
+        let temporary = tempfile::TempDir::new().unwrap();
+        let root = temporary.path().join("project");
+        let outside = temporary.path().join("outside");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn ready() {}\n").unwrap();
+        fs::write(outside.join("secret.rs"), "pub fn outside() {}\n").unwrap();
+        fs::write(root.join("specsync.json"), r#"{"specsDir":"specs"}"#).unwrap();
+        symlink(&outside, root.join("node_modules")).unwrap();
+
+        let project = open_verified_root(&root).unwrap();
+        let config = load_issues_config_checked(&project, &root)
+            .expect("ignored directory names must be skipped before link inspection");
+
+        assert_eq!(config.source_dirs, vec!["src"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn omitted_source_detection_rejects_special_file_manifests_without_blocking() {
+        use std::process::Command;
+        use std::time::{Duration, Instant};
+
+        let temporary = tempfile::TempDir::new().unwrap();
+        let root = temporary.path().join("project");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("specsync.json"), r#"{"specsDir":"specs"}"#).unwrap();
+        assert!(
+            Command::new("mkfifo")
+                .arg(root.join("Cargo.toml"))
+                .status()
+                .unwrap()
+                .success()
+        );
+
+        let project = open_verified_root(&root).unwrap();
+        let started = Instant::now();
+        let result = load_issues_config_checked(&project, &root);
+
+        assert!(matches!(
+            result,
+            Err(finding) if finding == project_config_finding()
+        ));
+        assert!(started.elapsed() < Duration::from_secs(2));
     }
 
     #[cfg(unix)]

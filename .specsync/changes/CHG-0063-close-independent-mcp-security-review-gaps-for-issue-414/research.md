@@ -42,5 +42,14 @@ artifact: research
   autodetection. Capability callers must supply discovery derived from the same retained project
   identity; a bounded sparse snapshot preserves existing manifest/extension behavior without
   reopening the root pathname.
+- Inspecting a regular pathname and then opening it still leaves an identity-substitution interval.
+  Compare the opened file to the pre-open identity before reading, reject special files
+  non-blocking, and recheck after the read. The same rule applies to recognized manifests.
+- Compatibility sentinels cannot replace checked shape validation: exact JSON must reject a
+  non-object `github` value and non-string/non-null `github.repo` before compatibility loading.
+- Retained source detection must reuse normal ignored-name policy before metadata inspection, but
+  recognized non-regular manifests must remain visible as inconclusive configuration evidence.
+- A typed issue-details endpoint is issue-only, and safe-name normalization may return an empty
+  slug; both conditions must be rejected before importer output construction.
 - Early text-only returns violate caller-selected structured output contracts even when the exit
   status is correct; terminal outcomes must flow through one format-aware renderer.

@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 13
+version: 14
 status: stable
 files:
   - src/mcp.rs
@@ -43,6 +43,9 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 6. Mutating tools require write mode, reject root overrides, and use the configured root.
 7. Tool argument schemas and runtime validation reject unknown properties and wrong types.
 8. Tool-domain errors use `isError`; JSON-RPC shape errors use protocol error objects.
+9. Selected configuration and recognized manifest inputs must remain regular files with the same
+   pre-open identity through their bounded reads; special files fail before any blocking read, and
+   replacement identities are rejected before bytes are parsed.
 9. Every notification, including unknown methods, receives no response and cannot mutate state.
 10. Config/metadata/cache files and paths, manifest/autodetection paths, dependency references,
     module names/files, spec mappings, nested symlinks, and write destinations are validated against
@@ -157,6 +160,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | Semantic Cargo sibling path such as `../b` or `..\b` normalizes inside the root | Accepted and included in the bounded snapshot; drive, UNC, rooted, traversal, symlink, and junction escapes still fail |
 | Unrelated Cargo metadata contains a `path` key | Ignored for snapshot input discovery; only semantic Cargo target/workspace/dependency path tables authorize an input |
 | Cumulative confinement or manifest preflight exceeds its deterministic entry bound | Tool/resource error before downstream filesystem access |
+| Selected config or recognized manifest is a FIFO, device, symlink/reparse point, or replaced identity | Tool/resource error before parsing; the server does not block or consume replacement bytes |
 | Generation exceeds 1,000 specs, 64 MiB, or its response budget | Tool error before publishing project files |
 | Generated destination exists, a public parent path is replaced, or a staged batch cannot publish completely | Tool error; identity-bound cleanup preserves public replacements; an empty parent created by the failed batch may remain |
 | Private quarantine cleanup on Windows | Final retained directory handle is consumed before removal; successful init/generate does not fail with a sharing violation |
@@ -211,3 +215,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-22 | CHG-0063 adversarial follow-up: Preserve literal Unix backslashes in MCP issue diagnostic identities while normalizing separators only on Windows |
 | 2026-07-22 | CHG-0063 final config follow-up: Validate selected bounded config bytes and path-selector types before compatibility loading |
 | 2026-07-22 | CHG-0063 no-follow config follow-up: Reject linked/reparse, non-regular, blocking, replaced, and structurally invalid selected configs through an identity-verified bounded snapshot and the complete checked parser |
+| 2026-07-22 | CHG-0063 final agent-review follow-up: Bind selected configs to their pre-open identity and reject special-file manifests before blocking reads |

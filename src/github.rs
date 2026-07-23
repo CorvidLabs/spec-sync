@@ -462,6 +462,9 @@ fn parse_issue_details_json(
     requested_number: u64,
     json: &serde_json::Value,
 ) -> Result<GitHubIssueDetails, String> {
+    if json.get("pull_request").is_some() {
+        return Err("GitHub issue response identifies a pull request".to_string());
+    }
     if !json
         .get("body")
         .is_some_and(|body| body.is_null() || body.is_string())
@@ -1602,6 +1605,16 @@ mod tests {
         assert_eq!(details.issue.number, 42);
         assert_eq!(details.issue.labels, ["security"]);
         assert!(details.body.is_empty());
+
+        let mut pull_request = valid.clone();
+        pull_request["pull_request"] = serde_json::json!({
+            "url": "https://api.github.com/repos/owner/repo/pulls/42"
+        });
+        assert!(
+            parse_issue_details_json("owner/repo", 42, &pull_request)
+                .expect_err("the issue endpoint must not accept pull requests")
+                .contains("pull request")
+        );
 
         let mut malformed = valid.clone();
         malformed["body"] = serde_json::json!(["not", "text"]);

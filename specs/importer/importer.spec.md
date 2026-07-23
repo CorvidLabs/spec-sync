@@ -1,6 +1,6 @@
 ---
 module: importer
-version: 4
+version: 5
 status: active
 files:
   - src/importer.rs
@@ -42,7 +42,8 @@ Generates spec files from external project management systems. Supports importin
    `GITHUB_TOKEN`, revalidates repository access after ambiguous 404, and never launches `gh`.
 2. Jira importer handles both ADF (Atlassian Document Format) and plain text descriptions
 3. Confluence importer strips HTML tags to extract plain text from storage format
-4. `slugify` always produces a valid, non-empty module name from non-empty input (lowercase, no special chars)
+4. `slugify` produces a lowercase hyphenated candidate and may return empty for titles containing
+   no alphanumeric characters; GitHub import rejects that candidate before producing an item.
 5. `render_spec` always produces valid spec frontmatter with all required fields
 6. Requirements are extracted from markdown checkboxes, "Acceptance Criteria" sections, and "Definition of Done" sections
 7. Jira auth supports both Cloud (email:token basic auth) and Server/DC (bearer token)
@@ -95,6 +96,7 @@ Generates spec files from external project management systems. Supports importin
 | Issue/page not found (404) | Each importer returns `Err("{type} not found")` |
 | Network timeout | Returns `Err` with connection details |
 | Invalid issue number for GitHub | CLI rejects before calling importer |
+| GitHub issue title has no alphanumeric characters | `import_github_issue` returns `Err` before any spec path or file is created |
 
 ## Dependencies
 
@@ -118,5 +120,6 @@ Generates spec files from external project management systems. Supports importin
 |------|--------|
 | 2026-06-07 | Replace imported-spec unfinished-work markers with guided requirement prompts |
 | 2026-07-22 | CHG-0063: Move GitHub imports to explicit-token typed REST and remove `gh issue view` reads |
+| 2026-07-22 | CHG-0063 final agent review: reject GitHub titles that cannot produce a safe non-empty module name |
 | 2026-04-07 | Initial implementation — GitHub, Jira, Confluence importers (#97) |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

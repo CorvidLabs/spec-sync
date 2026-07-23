@@ -97,7 +97,9 @@ publication; and no embedded provider or credential surfaces. Shared real-YAML i
 checked top-level shapes, duplicate/global malformed rejection, checked traversal/non-UTF-8
 discovery, relative content-free diagnostics, Windows startup-alias absolute-child handling, and
 selected-config fail-closed validation now have focused implementation and regression coverage.
-The latest adversarial config review found and closed non-object JSON fallback plus
-symlink/FIFO acquisition. The focused MCP suite and installed Windows cross-target compilation
-pass; fresh definition reapproval, Windows runtime CI, independent rereview, and final
+The latest independent reviews additionally closed selected-config pre-open identity substitution,
+wrong-shaped legacy GitHub fields, and blocking/special-file snapshot manifests. Configuration and
+manifest acquisition now binds the opened regular file to the inspected identity before reading,
+uses bounded non-blocking reads, and rechecks identity afterward. Focused regressions pass; fresh
+definition reapproval, private-sandbox replay, Windows runtime CI, independent rereview, and final
 repository/trust/provenance/CI gates remain open.

@@ -21,8 +21,8 @@ uses conservative Git-freshness scoring, and rolls back partial generation. CHG-
 `cap-std` capability dependency wiring and remains accepted/current. CHG-0063 owns the `serde-saphyr`
 checked-YAML dependency, review-driven behavior, tests, MCP/parser/validator contract amendments,
 public docs, and release note. The current protected docs retain the intended read-only default,
-write opt-in, confinement, and migration guidance while CHG-0062 awaits fresh verification and
-acceptance. Expanded limits and failure semantics live in the new
+write opt-in, confinement, and migration guidance. CHG-0062 has been freshly verified and accepted
+after its audited reopen. Expanded limits and failure semantics live in the new
 `site/src/content/docs/mcp-security.md` reference.
 
 A second adversarial review found a startup root-acquisition interval, ignored-directory snapshot
@@ -167,3 +167,17 @@ source-directory autodetection when the source list was omitted. Issue inspectio
 bounded sparse detection snapshot through the retained project capability and supplies the result
 to exact-byte config parsing. A regression swaps the ambient root after the config snapshot and
 proves that only the original capability's source tree is selected.
+
+The latest acceptance and defensive reviews found six remaining implementation/evidence gaps:
+selected config could be substituted between metadata inspection and open; recognized manifests
+could block on special files or be silently skipped; checked JSON could accept wrong-shaped
+`github.repo` through a compatibility sentinel; retained source detection diverged from the shared
+ignored-name policy; direct issue details accepted pull-request payloads; and punctuation-only
+issue titles produced an empty import module name. The implementation now compares opened config
+and manifest identities before reading, uses non-blocking regular-file-only acquisition, validates
+exact GitHub shapes before compatibility loading, shares ignore classification, surfaces special
+manifests as structured findings, and rejects both direct-detail pull requests and empty import
+slugs. Focused regressions pass. The prior approval digest and reviewer verdicts predate this
+material amendment, so fresh exact-digest approval, two clean independent rereviews, private
+sandbox evidence, final repository/trust/provenance gates, hosted Windows runtime, and GitHub CI
+remain required.

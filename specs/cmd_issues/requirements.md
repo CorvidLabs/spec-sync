@@ -69,6 +69,8 @@ spec: cmd_issues.spec.md
 - When selected config omits source directories, detection must run through the retained project
   capability with deterministic file/byte bounds; it must not consult a replaceable ambient root
   pathname.
+- Retained detection skips the same ignored directory names before inspecting links and rejects a
+  recognized non-regular manifest as an inconclusive configuration finding without blocking.
 
 ## Out of Scope
 

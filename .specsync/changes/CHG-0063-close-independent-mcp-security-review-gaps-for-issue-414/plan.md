@@ -52,3 +52,9 @@ artifact: plan
     no-follow, identity-verified regular-file snapshots, complete checked parsing, and
     capability-derived source detection; rerun the exact-tree independent reviews and every final
     gate.
+17. Close the renewed dual-review findings by binding selected-config and recognized-manifest opens
+    to their pre-open identities, rejecting special manifests without blocking, validating exact
+    legacy GitHub shapes before compatibility substitution, sharing ignored-directory policy,
+    rejecting direct-detail pull-request payloads, and refusing empty import slugs. Add focused
+    regressions, synchronize every affected contract, and rerun sandbox, independent, repository,
+    trust, provenance, Windows, and CI gates on the final tree.

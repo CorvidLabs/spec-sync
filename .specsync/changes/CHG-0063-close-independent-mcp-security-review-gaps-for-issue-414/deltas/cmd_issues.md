@@ -24,6 +24,9 @@ Acceptance Criteria
 - Omitted source directories are detected from a bounded sparse snapshot built through the
   retained project capability and supplied to exact config parsing; ambient root replacement
   cannot alter source selection.
+- Retained source detection applies the shared ignored-directory policy before metadata
+  inspection. Ignored symlinks are skipped, while recognized non-regular manifests produce a
+  structured inconclusive configuration finding.
 - Unreadable specs and malformed or missing frontmatter are retained as path-attributed,
   content-free inspection findings in every output format, suppress no-reference guidance, and
   contribute to exit 1.
@@ -80,3 +83,5 @@ Acceptance Criteria
 15. Missing/empty specs and repository-resolution failures use the selected structured renderer.
 16. Omitted source directories are detected through a bounded sparse snapshot rooted in the
     retained project capability, never through a replaceable ambient root pathname.
+17. Retained discovery skips shared ignored names before metadata inspection and never silently
+    omits a recognized non-regular manifest.

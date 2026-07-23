@@ -44,10 +44,11 @@ Acceptance Criteria
   canonical capability, and sibling-prefix lookalikes fail.
 - MCP opens selected config through verified regular-directory and regular-file capabilities,
   rejects symlink/reparse and special-file paths without blocking, binds identity through the
-  bounded read, and validates the exact retained bytes with the complete checked config parser
-  before compatibility loading. Non-object JSON, invalid UTF-8, malformed JSON/TOML, and
-  wrong-typed known fields make tools and resources inconclusive rather than substituting an
-  empty/default project.
+  bounded read including the pre-open identity, and validates the exact retained bytes with the
+  complete checked config parser before compatibility loading. Recognized snapshot manifests are
+  likewise non-blocking, regular-file-only, and identity-bound before parsing. Non-object JSON,
+  invalid UTF-8, malformed JSON/TOML, and wrong-typed known fields make tools and resources
+  inconclusive rather than substituting an empty/default project.
 
 ### REQ-mcp-003
 
@@ -110,6 +111,7 @@ Acceptance Criteria
   identity including exact canonical decimal number spelling without leading zeros, and duplicate
   raw identity within/across pages. Every next link retains the requested repository issues
   endpoint and exact open-state, page-size, label, and page query semantics.
+- Direct issue-detail responses reject any pull-request marker before importer conversion.
 
 ### REQ-parser-001
 
@@ -141,6 +143,8 @@ Acceptance Criteria
 - An ambiguous issue 404 is classified only after repository access is revalidated.
 - Missing tokens, malformed payloads, inaccessible repositories, transport failures, and timeouts
   fail without producing a partial imported item.
+- A GitHub issue title that cannot normalize to a nonempty safe module name fails before an
+  imported item or output path is created.
 
 ### REQ-cmd-import-001
 
@@ -180,6 +184,9 @@ Acceptance Criteria
 - If selected config omits source directories, source detection is derived from a bounded sparse
   snapshot built through the retained project capability and supplied to config parsing; ambient
   project-root replacement cannot influence source selection.
+- Retained source detection applies the shared ignored-directory policy before metadata
+  inspection; ignored symlinks are skipped, while a recognized non-regular project manifest is a
+  structured inconclusive finding instead of a silent omission.
 - Unreadable specs and malformed or missing frontmatter are retained as path-attributed,
   content-free inspection findings in text, JSON, Markdown, and GitHub output; they suppress
   no-reference guidance and make the command exit 1.

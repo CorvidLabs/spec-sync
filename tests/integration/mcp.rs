@@ -842,6 +842,23 @@ fn mcp_allow_empty_tool_and_resource_reject_non_object_json_config() {
     );
 }
 
+#[test]
+fn mcp_allow_empty_reads_reject_wrong_typed_github_repo() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::write(
+        root.join("specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["src"],"github":{"repo":42}}"#,
+    )
+    .unwrap();
+
+    assert_mcp_allow_empty_reads_reject_config(
+        root,
+        "github.repo",
+        "wrong-typed GitHub repository configuration",
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn mcp_rejects_selected_config_symlinks_and_fifos_without_blocking() {

@@ -75,6 +75,8 @@ deadlines, transport failures, and rejection of legacy `gh` reads without proces
 focused source regressions. Raw-page coverage validates every issue and pull-request item before
 filtering, including open-only state, exact URL identity, object-only markers, and duplicate raw
 identities within/across pages; exact URL identity includes canonical decimal number spelling.
+Direct issue-detail responses are also issue-only: any pull-request marker is rejected before an
+import can consume the payload.
 Live network paths remain integration-only. The 5.1.1 release
 candidate adds deterministic Action/runtime distribution checks, while
 external exact/floating ref smoke tests remain publication-time gates.

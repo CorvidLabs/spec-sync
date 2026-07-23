@@ -19,3 +19,4 @@ spec: config.spec.md
   capability-rooted callers
 - [x] Accept capability-derived source-directory discovery when retained config omits its source
   list, without scanning an ambient root pathname
+- [x] Reject wrong-shaped `github` and `github.repo` values in exact-byte checked JSON parsing

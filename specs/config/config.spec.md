@@ -1,6 +1,6 @@
 ---
 module: config
-version: 11
+version: 12
 status: stable
 files:
   - src/config.rs
@@ -28,6 +28,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | `load_config_from_path` | `config_path: &Path, root: &Path` | `SpecSyncConfig` | Load config from a specific file path (JSON or TOML based on extension), used by migration |
 | `detect_source_dirs` | `root: &Path` | `Vec<String>` | Compatibility source-directory discovery; falls back to scan-based detection when checked manifest discovery fails |
 | `detect_source_dirs_checked` | `root: &Path` | `Result<Vec<String>, String>` | Auto-detect source directories while surfacing malformed or unreadable Gradle settings instead of returning partial manifest discovery |
+| `source_detection_ignores_directory` | `name: &str` | `bool` | Crate-visible shared classification for hidden and configured source-detection ignore names |
 | `default_schema_pattern` | — | `&'static str` | Returns the default regex for SQL CREATE TABLE extraction |
 | `discover_manifest_modules` | `root: &Path` | `ManifestDiscovery` | Compatibility manifest discovery that preserves the infallible return type |
 | `discover_manifest_modules_checked` | `root: &Path` | `Result<ManifestDiscovery, String>` | Discover modules from manifest files while surfacing malformed or unreadable Gradle settings |
@@ -57,6 +58,8 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 13. Capability callers may supply source-directory discovery derived from their retained project
     handle; when present, omitted `source_dirs`/`sourceDirs` uses that supplied list and never
     reopens or scans the ambient root pathname.
+14. Exact-byte checked JSON parsing rejects a non-object root, a non-object `github` section, and
+    non-string/non-null `github.repo`; compatibility loading may preserve its sentinel behavior.
 
 ## Behavioral Examples
 
@@ -98,6 +101,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | Config file absent | Silently uses `SpecSyncConfig::default()` with auto-detected source dirs (expected) |
 | Malformed JSON config | Prints warning to stderr, falls back to defaults |
 | Malformed retained JSON/TOML snapshot or wrong-shaped known TOML field | Checked snapshot parsing returns `Err`; the caller can fail closed without reopening the pathname |
+| Retained JSON has a wrong-shaped `github` section or `github.repo` | Checked snapshot parsing returns `Err`; no sentinel/default success is exposed to the capability caller |
 | Malformed or unreadable Gradle settings passed to checked discovery | Returns `Err`; compatibility wrappers preserve their infallible signatures |
 | Empty project root | Returns `["src"]` as source dirs |
 
@@ -125,6 +129,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | Date | Change |
 |------|--------|
 | 2026-07-22 | v9 / CHG-0063: add checked source-directory and manifest discovery APIs so malformed Gradle settings remain explicit errors while compatibility wrappers stay infallible; fail closed on non-string legacy JSON `github.repo` shapes |
+| 2026-07-22 | v12 / CHG-0063 final agent review: reject wrong-shaped GitHub repository fields in exact-byte checked JSON parsing |
 | 2026-07-22 | v10 / CHG-0063: add exact-byte checked config parsing for retained callers with real TOML syntax and known-field type validation |
 | 2026-07-10 | v3: keep configuration round-trip tests warning-free under current stable Clippy |
 | 2026-03-25 | Initial spec |

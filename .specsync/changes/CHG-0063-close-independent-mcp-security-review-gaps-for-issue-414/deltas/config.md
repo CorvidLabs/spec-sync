@@ -35,6 +35,8 @@ Acceptance Criteria
 - Parsing consumes supplied bytes without reopening the pathname.
 - Leading BOM compatibility and omitted-source autodetection remain supported.
 - Malformed syntax and wrong-shaped known TOML fields return an error instead of defaults.
+- Checked JSON rejects a non-object `github` value and non-string/non-null `github.repo` before the
+  compatibility parser can substitute a sentinel or defaults.
 
 ## MODIFIED
 
@@ -46,6 +48,7 @@ Acceptance Criteria
 | `load_config_from_path` | `config_path: &Path, root: &Path` | `SpecSyncConfig` | Load config from a specific file path (JSON or TOML based on extension), used by migration |
 | `detect_source_dirs` | `root: &Path` | `Vec<String>` | Compatibility source-directory discovery; falls back to scan-based detection when checked manifest discovery fails |
 | `detect_source_dirs_checked` | `root: &Path` | `Result<Vec<String>, String>` | Auto-detect source directories while surfacing malformed or unreadable Gradle settings instead of returning partial manifest discovery |
+| `source_detection_ignores_directory` | `name: &str` | `bool` | Crate-visible shared classification for hidden and configured source-detection ignore names |
 | `default_schema_pattern` | — | `&'static str` | Returns the default regex for SQL CREATE TABLE extraction |
 | `discover_manifest_modules` | `root: &Path` | `ManifestDiscovery` | Compatibility manifest discovery that preserves the infallible return type |
 | `discover_manifest_modules_checked` | `root: &Path` | `Result<ManifestDiscovery, String>` | Discover manifest modules while surfacing malformed or unreadable Gradle settings |

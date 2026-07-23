@@ -11,6 +11,8 @@ Acceptance Criteria
   path.
 - GitHub imports revalidate repository access after an ambiguous issue 404 and never launch a
   `gh issue view` subprocess.
+- GitHub issue titles that normalize to an empty safe module name are rejected before an imported
+  item or output path is constructed.
 - Jira and Confluence behavior remains unchanged.
 
 ### SPEC SECTION Invariants
@@ -21,3 +23,4 @@ Acceptance Criteria
 3. The issue identity, title, body, labels, state, and URL are parsed through the shared typed GitHub
    response contract.
 4. `gh` remains outside the importer read path.
+5. Imported GitHub module names are nonempty after safe-name normalization.

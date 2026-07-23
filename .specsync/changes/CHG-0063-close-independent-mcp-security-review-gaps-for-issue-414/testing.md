@@ -37,6 +37,8 @@ artifact: testing
 | GitHub batch import spans pages or encounters malformed/duplicate/cap-truncated pagination | Every valid page is returned in order; ambiguity or truncation is an error |
 | GitHub issue-list page contains exactly 100 or more than 100 raw entries | Exactly 100 is accepted before pull-request filtering; 101 fails before parsing any item |
 | Single GitHub import is invoked | Uses explicit-token shared typed REST details; no `gh issue view` subprocess exists |
+| Direct issue detail contains a pull-request marker | Rejected before importer conversion |
+| GitHub issue title normalizes to an empty module slug | Import fails before constructing an item or output path |
 | Issue lookup returns 404 after repository access changes | Access is rechecked inside the operation/batch deadline; inaccessible is inconclusive, still-accessible is not_found |
 | Duplicate IDs across specs or more than 100 unique IDs | Globally deduplicated; over-limit batch fails before provider access |
 | All references fail verification | Text summary reports the error count and does not print no-reference guidance |
@@ -46,6 +48,10 @@ artifact: testing
 | Selected CLI config is linked, non-regular, replaced during read, over 4 MiB, or has wrong-shaped known TOML fields | Same content-free configuration finding; only exact same-handle retained bytes can configure the scan |
 | Selected CLI config omits source directories and the ambient root is replaced | Source discovery remains bound to the original retained project capability and selects only the original tree |
 | MCP selected config is linked/reparse-backed, non-regular, blocking, replaced, non-object JSON, malformed, invalid UTF-8, or has wrong-typed known fields | Every allow-empty tool/resource is inconclusive before compatibility fallback; FIFO acquisition returns within the regression timeout and valid BOM-prefixed config remains supported |
+| Selected config pathname is replaced between metadata inspection and open | Opened identity differs before any bytes are read; the request fails inconclusive |
+| Recognized snapshot manifest is a FIFO/special file or is replaced before open | Rejected without blocking or parsing unverified bytes |
+| Exact checked JSON has non-object `github` or non-string/non-null `github.repo` | Rejected before compatibility sentinel/default substitution |
+| Omitted-source scan sees an ignored-name symlink or recognized special manifest | Ignored entry is skipped before metadata; recognized special manifest is a structured inconclusive finding |
 | Missing/empty specs or repository failure under JSON/Markdown/GitHub | One valid selected-format report is rendered; JSON parses and failure exits remain non-zero |
 | Legacy JSON `github.repo` is a number, boolean, object, or list | Surrounding valid config remains, but repository resolution fails closed without Git auto-detection |
 | CLI/MCP scan encounters unreadable or malformed/missing-frontmatter spec | Inconclusive with safe path attribution; no spec bytes and no successful zero-reference result |
@@ -101,6 +107,13 @@ Windows GNU cross-target compilation, 100 MCP unit tests, and 52 MCP integration
 non-object JSON, symlink, and bounded FIFO regressions. The earlier full lane passed 1,857 unit and
 287 integration tests plus release build and strict 100% coverage, but it predates this final patch
 and must be rerun.
+The renewed independent reviews then found a selected-config pre-open identity interval, blocking
+or silently skipped special manifests, checked-JSON GitHub shape substitution, retained-source
+ignore divergence, direct-detail pull-request acceptance, and punctuation-only import titles.
+Focused regressions for all six facets pass: 1,864 unit and 290 integration tests are present in
+the tree. `fledge run test` completed the full current-tree test task with all 1,864 unit and 290
+integration tests passing. This is not yet the complete repository verification lane. The private
+sandbox replay, two clean rereviews, and all final exact-tree gates remain pending.
 
 - `REQ-mcp-002`: `mcp::tests::test_repeated_tree_scans_share_one_confinement_budget`,
   `mcp::tests::snapshot_copies_the_exact_manifest_bytes_charged_during_discovery`,

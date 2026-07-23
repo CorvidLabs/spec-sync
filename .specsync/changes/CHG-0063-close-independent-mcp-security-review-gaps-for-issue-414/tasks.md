@@ -107,10 +107,14 @@ artifact: tasks
   acquiring config through non-blocking, no-follow, identity-verified regular-file snapshots.
 - [x] Detect omitted CLI issue source directories through a bounded retained-capability snapshot
   and supply them to exact config parsing without ambient root access.
+- [x] Close the renewed acceptance and defensive-review findings: bind selected config and
+  recognized manifests to pre-open identities, reject special manifests without blocking, reject
+  wrong-shaped exact JSON GitHub fields, share source-detection ignores, reject direct-detail
+  pull-request payloads, and reject empty GitHub import slugs.
 - [ ] Obtain a clean post-fix acceptance rereview and adversarial security/compatibility rereview.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.
-- [ ] Obtain fresh definition reapproval after this material independent-review artifact amendment.
+- [ ] Obtain fresh definition reapproval after the final independent-review artifact amendment.
 - [ ] Finish lifecycle verification, complete repository lane, trust, provenance, independent
   rereview, and GitHub CI evidence; rerun final-tree full-suite/build/docs/coverage/spec-score gates
   and preserve prior Windows GNU/private-sandbox evidence without presenting it as final runtime CI.

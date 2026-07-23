@@ -61,7 +61,14 @@ artifact: docs
   snapshot and passes the exact bytes through complete checked parsing before compatibility
   loading.
 - Document that omitted CLI issue source directories are detected through a bounded sparse
-  retained-capability snapshot rather than a replaceable ambient root path.
+  retained-capability snapshot rather than a replaceable ambient root path. The snapshot applies
+  the shared ignored-directory policy before metadata inspection and reports recognized
+  non-regular manifests as inconclusive.
+- Record that selected config and recognized manifest files must remain regular and identity-stable
+  from inspection through their non-blocking bounded reads; exact checked JSON validates the
+  `github` object and `github.repo` type before compatibility substitution.
+- Record that direct issue-detail reads reject pull-request payloads and imports reject issue
+  titles that cannot produce a nonempty safe module name.
 - Document that missing/empty specs and repository-resolution failures use the selected
   JSON/Markdown/GitHub renderer instead of text-only early exits.
 - Keep fresh Windows runtime and final repository/trust/provenance evidence described as pending

@@ -22,7 +22,9 @@ spec: importer.spec.md
 All three importers are implemented. The GitHub public entry delegates through an injected
 crate-private seam to the shared typed provider, with success conversion and provider-failure
 non-production covered in unit tests; single and batch CLI token failures are covered end-to-end
-and assert that no spec output is created. Live REST success remains an integration-only gate.
+and assert that no spec output is created. GitHub issue titles that normalize to an empty safe
+module name are rejected before an imported item or output path is created. Live REST success
+remains an integration-only gate.
 
 ## Notes
 

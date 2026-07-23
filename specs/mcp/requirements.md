@@ -86,6 +86,8 @@ Acceptance Criteria
   without following symlink/reparse points or blocking on special files. Its exact bounded bytes
   pass complete checked parsing before compatibility loading; non-object JSON, invalid UTF-8,
   malformed JSON/TOML, and wrong-typed known fields fail closed for both tools and resources.
+- Recognized manifest inputs must also remain identity-stable regular files; FIFOs, devices,
+  links/reparse points, and replacement identities fail before parsing or blocking reads.
 - Cargo TOML path discovery follows only semantic target, dependency, workspace-dependency,
   target-specific dependency, patch, and replacement tables; unrelated metadata `path` keys do
   not authorize filesystem inputs. Comment/escape-aware shared Gradle workspace parsing preserves

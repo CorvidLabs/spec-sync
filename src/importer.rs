@@ -207,21 +207,30 @@ fn import_github_issue_with(
     fetch: impl FnOnce(&str, u64) -> Result<crate::github::GitHubIssueDetails, String>,
 ) -> Result<ImportedItem, String> {
     let details = fetch(repo, number)?;
-    Ok(import_github_issue_details(details))
+    import_github_issue_details(details)
 }
 
-fn import_github_issue_details(details: crate::github::GitHubIssueDetails) -> ImportedItem {
+fn import_github_issue_details(
+    details: crate::github::GitHubIssueDetails,
+) -> Result<ImportedItem, String> {
     let requirements = extract_requirements(&details.body);
+    let module_name = slugify(&details.issue.title);
+    if module_name.is_empty() {
+        return Err(format!(
+            "GitHub issue #{} title cannot produce a safe module name",
+            details.issue.number
+        ));
+    }
 
-    ImportedItem {
-        module_name: slugify(&details.issue.title),
+    Ok(ImportedItem {
+        module_name,
         purpose: details.issue.title,
         requirements,
         labels: details.issue.labels,
         source_url: details.issue.url,
         issue_number: Some(details.issue.number),
         source_type: ImportSource::GitHub,
-    }
+    })
 }
 
 // ─── Jira Importer ─────────────────────────────────────────────────────
@@ -717,7 +726,7 @@ mod tests {
             body: "## Summary\nUsers need to register.\n- [ ] Email validation\n- [ ] Password hashing"
                 .to_string(),
         };
-        let item = import_github_issue_details(details);
+        let item = import_github_issue_details(details).unwrap();
         assert_eq!(item.module_name, "add-user-registration");
         assert_eq!(item.purpose, "Add user registration");
         assert_eq!(
@@ -740,9 +749,28 @@ mod tests {
             },
             body: String::new(),
         };
-        let item = import_github_issue_details(details);
+        let item = import_github_issue_details(details).unwrap();
         assert_eq!(item.module_name, "fix-bug");
         assert!(item.requirements.is_empty());
+    }
+
+    #[test]
+    fn test_import_github_issue_rejects_title_without_a_safe_module_name() {
+        let error = import_github_issue_with("org/repo", 7, |repo, number| {
+            Ok(crate::github::GitHubIssueDetails {
+                issue: crate::github::GitHubIssue {
+                    number,
+                    title: "!!! 🐦".to_string(),
+                    state: "open".to_string(),
+                    labels: Vec::new(),
+                    url: format!("https://github.com/{repo}/issues/{number}"),
+                },
+                body: String::new(),
+            })
+        })
+        .expect_err("punctuation-only titles must not produce an empty output path");
+
+        assert!(error.contains("safe module name"), "{error}");
     }
 
     #[test]

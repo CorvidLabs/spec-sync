@@ -28,4 +28,6 @@ spec: config.spec.md
 
 Stable 5.0 secret-free configuration schema with checked discovery available to validation gates.
 CHG-0063 adds fail-closed legacy GitHub repository shape validation, exact-byte checked parsing,
-and capability-supplied source discovery for issue inspection.
+and capability-supplied source discovery for issue inspection. The exact checked JSON path rejects
+a non-object `github` value and a non-string/non-null `github.repo` before the compatibility parser
+can substitute an invalid sentinel.

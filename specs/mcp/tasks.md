@@ -65,4 +65,6 @@ spec: mcp.spec.md
   compatibility loading, including allow-empty tools and resources
 - [x] Reject linked/reparse, non-regular, blocking, replaced, and non-object selected configs
   before MCP tools or resources can return an allow-empty success
+- [x] Reject special-file manifests without blocking and bind selected config handles to their
+  pre-open identity before reading bytes
 - [ ] Pass fresh Windows reparse-point CI

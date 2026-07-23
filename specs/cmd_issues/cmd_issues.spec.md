@@ -1,6 +1,6 @@
 ---
 module: cmd_issues
-version: 8
+version: 9
 status: stable
 files:
   - src/commands/issues.rs
@@ -85,6 +85,9 @@ path replacement cannot redirect issue inspection or `--create` validation.
 16. Missing/empty specs and repository-resolution failures are rendered through the selected output
     format. JSON remains parseable, and Markdown/GitHub retain their structured headings and
     diagnostics instead of leaking an early text-only exit.
+17. Retained omitted-source discovery applies the same ignored-directory names as normal source
+    detection before inspecting entry types. A recognized manifest that is not a regular file is
+    an inconclusive configuration finding rather than a silently omitted input.
 
 ## Behavioral Examples
 
@@ -108,6 +111,8 @@ path replacement cannot redirect issue inspection or `--create` validation.
 | No references and no configured repository | Prints no-reference guidance and exits 0 without Git auto-detection or provider access |
 | No references with a configured repository | Validates `owner/repository` syntax, then prints no-reference guidance without Git auto-detection or provider access |
 | No specs with a valid configured repository | Validates syntax, prints "No spec files found.", and returns without Git auto-detection or provider access |
+| Omitted source directories with an ignored-name symlink | Skips the ignored name without following or rejecting its target |
+| Omitted source directories with a FIFO/device at a recognized manifest name | Exits 1 with a structured configuration finding without blocking |
 | Invalid configured repository syntax, even with missing/empty specs | Exits 1 before no-spec/no-reference success |
 | `GITHUB_TOKEN` unavailable or invalid | REST API calls fail, counted as errors; authenticated `gh` state is not consulted |
 | Issue returns 404 | Counted as "not found", triggers non-zero exit |
@@ -163,3 +168,4 @@ path replacement cannot redirect issue inspection or `--create` validation.
 | 2026-07-22 | CHG-0063 adversarial follow-up: Fail closed when a selected project config is unreadable or malformed so configured specs cannot disappear behind default-path no-spec success |
 | 2026-07-22 | CHG-0063 final configuration follow-up: Read selected config through one retained, bounded, same-handle snapshot; reject special entries and wrong-shaped TOML fields; preserve structured early output |
 | 2026-07-22 | CHG-0063 capability-source follow-up: Detect omitted source directories through a bounded retained-capability snapshot rather than a replaceable ambient root |
+| 2026-07-22 | CHG-0063 final agent-review follow-up: align retained ignored-directory behavior and reject special-file manifests as inconclusive |

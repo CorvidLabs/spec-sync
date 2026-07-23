@@ -23,6 +23,7 @@ spec: importer.spec.md
 - [x] Write unit tests for all parsers and helpers
 - [x] Exercise the GitHub importer entry path through its typed provider seam for success and
   failure without producing an item on provider error
+- [x] Reject GitHub issue titles that cannot produce a safe non-empty module name
 
 ## Gaps
 

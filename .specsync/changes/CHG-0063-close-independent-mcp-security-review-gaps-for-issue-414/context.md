@@ -191,5 +191,11 @@ blocking/substitution intervals, provider-derived names could remain non-portabl
 errors exited zero, and the sandbox receipt depended on an unversioned binary plus unhashed
 untracked inputs. The implementation now uses retained no-follow/non-blocking handles on every
 platform, validates portable names before output, returns nonzero partial-batch outcomes, and adds
-the exact missing characterization tests. The earlier sandbox PASS is superseded until an
-exact-commit binary and every drill/fixture input are hash-bound and replayed.
+the exact missing characterization tests. The earlier sandbox PASS is superseded by a successful
+replay built from exact implementation commit
+`b3e4696633f54ff57e42bdee7a8f20ef2bf32391`: the executable, reconstructed confined-sibling drill,
+and every fixture byte are SHA-256-bound in `testing.md`; the disposable clone remained at private
+testbed commit `758c144808d80169a44a740660b0d73c5b2f6ddd`, and the real private checkout remained clean.
+Fresh exact-digest approval, two clean independent rereviews, audited CHG-0062/CHG-0064 evidence
+refresh, final repository/trust/provenance gates, hosted Windows runtime, and GitHub CI remain
+required.

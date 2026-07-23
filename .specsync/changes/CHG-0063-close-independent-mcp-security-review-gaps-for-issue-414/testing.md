@@ -115,9 +115,11 @@ ignore divergence, direct-detail pull-request acceptance, and punctuation-only i
 Focused regressions for the original six facets passed on the prior tree. The newest reviewer
 amendment adds retained-handle replacement/FIFO races, non-object `github`, all direct PR-marker
 shapes, portable provider/directory slugs, and nonzero partial-batch outcomes. Focused local tests
-pass, but the complete exact-tree repository lane remains pending. The prior sandbox PASS used an
-unversioned workspace binary and unhashed untracked inputs, so it is superseded until the
-hash-bound exact-commit replay below is refreshed.
+pass. The implementation tree also passed 1,877 unit tests and 290 integration tests, formatting,
+linting, and the installed Windows GNU cross-target test build before it was committed as
+`b3e4696633f54ff57e42bdee7a8f20ef2bf32391`; final lifecycle/trust lanes remain pending. The prior
+sandbox PASS used an unversioned workspace binary and unhashed untracked inputs, so it is
+superseded by the hash-bound exact-commit replay below.
 
 ## Superseded private sandbox receipt
 
@@ -132,12 +134,46 @@ hash-bound exact-commit replay below is refreshed.
   and `drills/fixtures/`; neither was modified or deleted by the replay.
 - Reproducibility verdict: superseded because the executable and untracked inputs were not hashed.
 
-## Required replacement sandbox receipt
+## Reproducible private sandbox receipt
 
-- Build the executable from the final cited implementation commit in an isolated checkout.
-- Record SHA-256 for the executable, `drills/024-mcp-confined-sibling.sh`, and every fixture file.
-- Replay with that exact executable against the cited private testbed revision and record stdout,
-  exit status, clean/tracked state, and any intentionally preserved untracked inputs.
+- Time: `2026-07-23T14:44:19Z`
+- Exact implementation commit:
+  `b3e4696633f54ff57e42bdee7a8f20ef2bf32391`
+- Build: isolated local clone at the exact commit; `cargo build --locked --offline` exited 0; the
+  clone remained Git-clean because build output is ignored.
+- Executable SHA-256:
+  `2b89fc91ffb8830a37468d60da2e55e73c98c4226101bd82a627308feca70e83`
+- Private testbed: disposable `--no-local` clone of `CorvidLabs/spec-sync-sandbox` at
+  `758c144808d80169a44a740660b0d73c5b2f6ddd`. The real private checkout was clean before and after
+  the replay.
+- The original mutable untracked drill inputs were absent, so the audit recreated their documented
+  confined-sibling behavior in the disposable clone from the checked-in
+  `snapshot_normalizes_confined_cargo_sibling_dependency` characterization. No real private
+  checkout or remote branch was modified.
+- Drill: `drills/024-mcp-confined-sibling.sh`, mode `0755`, SHA-256
+  `1d53799cd33db3eed54edb19f7faee42205b449cd11582d3bb2c797b53d157c7`.
+- Fixture SHA-256 values:
+  - `Cargo.toml`:
+    `2e0e11dd88ff3a367882ba2d048aeddd911171086c5cc9b8e3a434dc0c9d52fa`
+  - `crates/a/Cargo.toml`:
+    `23fc2e0fa8807a7e1572731ad1b317779e9ae835c05c356cf4fd4ef3bcc80705`
+  - `crates/a/src/lib.rs`:
+    `003ee424e49547851521809f34b42fd502a98cf810678857b75d37a960173cfd`
+  - `crates/b/Cargo.toml`:
+    `b9bf56495fb12ec2260d81f356f98c1407b62b7106f445b2cb2f051857763c20`
+  - `crates/b/src/lib.rs`:
+    `3857e64ee4dec2eae618add217f7235b3c05db581129dae6b62e79a33d4bd999`
+  - `specs/workspace/workspace.spec.md`:
+    `c1020283aec8841dceeaa44ef5a1b379ea90c41114bc40314276d06cafdd2bf5`
+  - `specsync.json`:
+    `a41caeccbe40569fddbe49fc2d94bbc41d02d7bc36951edde4b522408b999b4a`
+- Command:
+  `SS=<isolated exact-commit executable> bash drills/024-mcp-confined-sibling.sh`
+- Exit: 0
+- Stdout:
+  `PASS: MCP accepts a manifest-relative sibling dependency confined beneath its server root`
+- Disposable testbed status after replay contained only the intentionally created untracked audit
+  inputs: `?? drills/024-mcp-confined-sibling.sh` and `?? drills/fixtures/`.
 
 - `REQ-mcp-002`: `mcp::tests::test_repeated_tree_scans_share_one_confinement_budget`,
   `mcp::tests::snapshot_copies_the_exact_manifest_bytes_charged_during_discovery`,

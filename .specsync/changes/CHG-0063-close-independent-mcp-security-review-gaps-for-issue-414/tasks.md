@@ -117,7 +117,7 @@ artifact: tasks
 - [x] Reject non-portable imported module candidates before writes and make partial batch errors
   return exit 1 after processing later items.
 - [x] Add exact non-object `github`, object/null/scalar PR-marker, and manifest-replacement tests.
-- [ ] Replace the prior non-reproducible sandbox receipt with an exact-commit build plus binary,
+- [x] Replace the prior non-reproducible sandbox receipt with an exact-commit build plus binary,
   drill, and fixture hashes.
 - [ ] Obtain a clean post-fix acceptance rereview and adversarial security/compatibility rereview.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
@@ -125,4 +125,4 @@ artifact: tasks
 - [ ] Obtain fresh definition reapproval after the final independent-review artifact amendment.
 - [ ] Finish lifecycle verification, complete repository lane, trust, provenance, independent
   rereview, and GitHub CI evidence; rerun final-tree full-suite/build/docs/coverage/spec-score gates
-  and preserve prior Windows GNU/private-sandbox evidence without presenting it as final runtime CI.
+  and preserve Windows GNU/private-sandbox evidence without presenting it as final runtime CI.

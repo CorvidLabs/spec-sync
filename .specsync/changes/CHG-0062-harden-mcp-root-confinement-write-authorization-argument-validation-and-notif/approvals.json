@@ -69,6 +69,13 @@
       "timestamp": 1784798479,
       "digest": "8ad1317b116578d77579dba543bb93b8956a4e93f7146b4abfd9f20a4c540b55",
       "note": "User approved closing CHG-0062 after fresh verification."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784800913,
+      "digest": "eae43deb28db27e2e24fd50a735f066a9457ccd730bef67458c790ca801110f8",
+      "note": "User approved closing CHG-0062 after fresh verification; refreshed against final retained-config review fixes."
     }
   ],
   "reopenings": [

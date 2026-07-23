@@ -1,9 +1,9 @@
 {
-  "timestamp": 1784798464,
-  "commit": "9e7e423e234dbb94d8c6f947ff152e2d4ffe8789",
+  "timestamp": 1784800890,
+  "commit": "5ede1893c296c6aa37d46535c15110a89cb165cf",
   "contract_digest": "5636f550814aca9289301732a17f17aa9d53f3cd3b910fa2f6808dbfa639a642",
-  "workspace_digest": "0145a03305ccaac7fd376d5c9e0b1010ea2a6eda6452da091f264e59b82f149a",
-  "acceptance_input_digest": "def634ba9f71b714441163387d425aa09944b28645b9770b29fee62d48c0ce12",
+  "workspace_digest": "97fbd8cc453b82c18f73faba27db5c9f8cd6e1b80a3925cc238fd02c52e7f34e",
+  "acceptance_input_digest": "d635d321a1088eaacddf802f2b5d0603c023aee131d35d13a715f95432a3c80c",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -331,8 +331,8 @@
         "path": "specs/mcp/context.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "cc222db569cb1544d31eaf7378584544573222306fb3bdf5cfe5393980647cf2",
-        "entry_digest": "d2cf707f7b66bc16ef7ad472763d90cf23a588a77eeafff521a6164a66fa0c26",
+        "payload_digest": "f49c5d4c3a01732ccbdffd3a6018a5675008fc6ebd0320f5c357f303428dac08",
+        "entry_digest": "e2a3ec5a1fa1f5ba19fbe05e2779521d34f74928ad2bb6bd838b6172d212d669",
         "owners": [
           "mcp"
         ]
@@ -341,8 +341,8 @@
         "path": "specs/mcp/mcp.spec.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "7e070cb3f1d2ecb6b5f57e30aceb86f27faf76f7d0d718918b6dbd9ced18158d",
-        "entry_digest": "603c078cc48bc696717a0afd7be4e644cfc939c621aae80c0c99a07811cc9754",
+        "payload_digest": "9d319499af72c16c2b79001626154bf45d3d088c30242c9c233893a76b7b105c",
+        "entry_digest": "78021fcc8f85d08831a2a415a2a1bbfadd909950685974b8b3e2a79412614d35",
         "owners": [
           "mcp"
         ]
@@ -351,8 +351,8 @@
         "path": "specs/mcp/requirements.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "c245db31695874e4798e45c6827abc530286cbd8d92b3e563c6b1e59a20049f1",
-        "entry_digest": "679e8eaff1df62c44e9fac46537f1a8e6bd853a3857fa7d40bd6d3d709b368c0",
+        "payload_digest": "23093862aaa2d31b82427d35963478357dce9dce6953e0690b96238e205fdbd7",
+        "entry_digest": "95a12835cc297e42f668381fba17eafd6ab4baf839bbe6d9c2c033de6c121cde",
         "owners": [
           "mcp"
         ]
@@ -361,8 +361,8 @@
         "path": "specs/mcp/tasks.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "6ac0355e40a83842fd6d3a470dbfdbf935473f3437c7a14827cd6057af32d673",
-        "entry_digest": "da1b077a56f43a257fa36d679856025fd91f24efe36c3a43e0fd48eec0fae748",
+        "payload_digest": "188a081a8c91075bf106f163e4df36868ddaca481a1f9781522ea59ba0b347b7",
+        "entry_digest": "fb338b3a437f248873d7e3fae0cea80416ae88862e6532e0d1fca671c50e3cb4",
         "owners": [
           "mcp"
         ]
@@ -371,8 +371,8 @@
         "path": "specs/mcp/testing.md",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "bafdbf028a8c38cff417c7a03c5407d5e428822a22e601d025b6eb831b858861",
-        "entry_digest": "b82d43f485b4c95dfe96fabaaa7ec7b5973ccb9c519f88a905f21f5ae927aa94",
+        "payload_digest": "f2dddff2a88fccf43c08cb24857cbd0a7e9cd79dbde885cf2155d95e2837905a",
+        "entry_digest": "742ff18df549a289dcfb42092027447f694424e9c6c6f06e3961cbcd7e334611",
         "owners": [
           "mcp"
         ]
@@ -401,8 +401,8 @@
         "path": "src/mcp.rs",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "839fa495e91206a1b3c6803ff71ddbc7e3dd1077d805b0e07919213e5e15c376",
-        "entry_digest": "8e7b1957b8a706f209dad0b1011f38f058a5ff39d92e5396eac6de265663eefe",
+        "payload_digest": "35622d713a6519499d20c192a27066c8722cc456f05d12d25ee880c767cca1af",
+        "entry_digest": "55baa4fc74799ce48c001b5df87f61b26e10e8ec6364afbf4c402784ce2c2fe5",
         "owners": [
           "mcp"
         ]
@@ -411,8 +411,8 @@
         "path": "tests/integration/mcp.rs",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "a8f3a2f4ea383ef1d8c20c98aa84b7df1629673ecda9cd6a364548adab10eee4",
-        "entry_digest": "08afd4b452fce313735f9fbdde8d9fa6f6506cd9516634b3f43a91d031404e61",
+        "payload_digest": "41330d0ec2e8e94a8911e60829c037f87b81f7eb9e54959873b5cd19a2025705",
+        "entry_digest": "6043611f786ceeb8f30154f0a43b27cced034aedb91c6a867db8ee03deae4b56",
         "owners": [
           "@exact:test"
         ]

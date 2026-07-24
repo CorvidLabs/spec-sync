@@ -7,8 +7,8 @@ pub fn specsync() -> Command {
     let mut cmd = Command::cargo_bin("specsync").unwrap();
     cmd.env_remove("GITHUB_EVENT_NAME");
     cmd.env_remove("GITHUB_BASE_REF");
-    for (key, _) in std::env::vars() {
-        if key.starts_with("SPECSYNC_") {
+    for (key, _) in std::env::vars_os() {
+        if is_specsync_environment_key(&key) {
             cmd.env_remove(key);
         }
     }
@@ -21,11 +21,17 @@ pub fn specsync_process() -> std::process::Command {
     command.env_remove("GITHUB_EVENT_NAME");
     command.env_remove("GITHUB_BASE_REF");
     for (key, _) in std::env::vars_os() {
-        if key.to_string_lossy().starts_with("SPECSYNC_") {
+        if is_specsync_environment_key(&key) {
             command.env_remove(key);
         }
     }
     command
+}
+
+fn is_specsync_environment_key(key: &std::ffi::OsStr) -> bool {
+    key.to_string_lossy()
+        .get(.."SPECSYNC_".len())
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("SPECSYNC_"))
 }
 
 pub fn valid_spec(module: &str, files: &[&str]) -> String {

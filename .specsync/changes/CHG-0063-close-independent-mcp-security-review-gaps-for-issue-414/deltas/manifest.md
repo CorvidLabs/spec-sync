@@ -39,6 +39,11 @@ Acceptance Criteria
 - Present Gradle build/settings manifests are read as regular non-link entries through the retained
   root capability, capped at 4 MiB, and rejected when linked, reparse-backed, non-regular,
   oversized, unreadable, invalid UTF-8, or changed in type during acquisition.
+- Every present Gradle build/settings filename is preflighted before precedence selection and its
+  native path identity must match the opened handle before and after the bounded read.
+- Invoked unsupported inclusion APIs such as `includeFlat` and `includeBuild` fail checked
+  discovery, while unrelated control flow remains compatible unless it governs an unsupported
+  include/project-directory mutation.
 - A present `settings.gradle[.kts]` is parsed and validated even when no root
   `build.gradle[.kts]` exists.
 - MCP Cargo workspace snapshot and confinement discovery parse bounded manifests as real TOML.
@@ -67,6 +72,7 @@ Acceptance Criteria
 |----------|-----------|---------|-------------|
 | `discover_from_manifests` | `root: &Path` | `ManifestDiscovery` | Compatibility discovery that returns an empty result when checked discovery is malformed |
 | `discover_from_manifests_checked` | `root: &Path` | `Result<ManifestDiscovery, String>` | Discover modules while surfacing unreadable or malformed Gradle settings to gate callers |
+| `discover_from_manifests_checked_with_root` | `root: &Path, project_root: &Dir` | `Result<ManifestDiscovery, String>` | Crate-visible checked discovery that reuses a caller-retained project-root capability and rejects an ambient/retained root identity mismatch |
 | `parse_gradle_settings` | `content: &str` | `Result<Vec<GradleSettingsModule>, String>` | Crate-visible shared parser for Groovy/Kotlin includes plus assignment-style and method-style literal project-directory overrides |
 
 ### SPEC SECTION Invariants
@@ -95,3 +101,7 @@ Acceptance Criteria
     capability; symlink and reparse-point components reject before source probing or traversal.
 12. Present Gradle build/settings manifests are bounded regular non-link retained-capability reads;
     malformed endpoints or bytes reject before partial discovery.
+13. Every present filename variant is preflighted before precedence and remains identity-stable
+    through open/read; unsafe shadowed variants cannot evade checked discovery.
+14. Unsupported invoked inclusion APIs and governed indirect/conditional mutations fail closed,
+    while unrelated Gradle control flow and identifier/documentation uses remain compatible.

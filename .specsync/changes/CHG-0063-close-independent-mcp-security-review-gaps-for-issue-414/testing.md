@@ -86,6 +86,12 @@ artifact: testing
 | Interpolated or encoded-dynamic Gradle string | `$name`, `${expression}`, and Unicode/octal-encoded dollars reject before partial discovery; escaped and Groovy single-quoted dollars remain literal |
 | Linked, special, oversized, or invalid-UTF-8 Gradle build/settings manifest | Bounded retained-capability acquisition fails inconclusively without referent disclosure or partial discovery |
 | Gradle-derived Unix symlink or Windows reparse component | Checked discovery is inconclusive before CLI/MCP source probing or traversal; outside sentinel bytes remain unchanged |
+| Unsafe lower-precedence Gradle filename variant | Every present build/settings name is preflighted before precedence; a shadowed special/link/replacement/oversized input fails closed |
+| Gradle manifest changes before/opened/after retained read | Native path and opened-handle identities must agree at every checkpoint on Unix and Windows |
+| Unrelated Gradle control flow plus supported include | Unrelated logic remains valid; only governed indirect/conditional directives and invoked unsupported inclusion APIs fail closed |
+| Coverage exceeds 8 MiB/file, 64 MiB total, 100,000 entries, or 256 components | Iterative retained traversal returns inconclusive before a partial percentage |
+| Coverage source has invalid UTF-8 name/content or special/replaced entry | One retained project authority rejects it before partial file, LOC, or module totals |
+| Generic MCP project file becomes FIFO/socket/link/regular replacement | Both tool and resource requests fail promptly without replacement bytes or partial results |
 | Ignored/configured-exclusion name is a symlink | Skipped before target metadata is followed unless explicitly configured |
 | Public rendered drift errors include overlapping paths and `": "` in a legal spec path | Longest exact discovered path receives the errors; public `Vec<String>` signatures remain unchanged |
 | Valid notification | No output and no dispatch |
@@ -431,6 +437,14 @@ superseded by the hash-bound exact-commit replay below.
 - The complete amended code tree passed `fledge run test`: 1,892 unit tests and 302 integration
   tests in 276.8 seconds. `fledge run fmt`, `fledge run lint`, focused coverage tests, and all
   focused Gradle tests pass.
+- The post-review amended tree passes 1,907 unit tests and 306 integration tests with zero
+  failures. Focused evidence includes 32 Gradle unit and 16 Gradle integration tests, retained
+  coverage byte/entry/depth/UTF-8 checks, two generic MCP snapshot unit races, and both spawned
+  tool/resource FIFO/socket/replacement integrations. Formatting and the repository Clippy lane
+  pass; the broader non-gating all-target Clippy invocation reports pre-existing test-only warnings
+  in lifecycle/init/scaffold/types code outside this change.
+- The same post-review tree passes the locked release build, 23 docs tests, Astro diagnostics with
+  zero errors/warnings/hints, a 43-page site build, and score 100/100 for all 62 specs.
 - `cargo check --target x86_64-pc-windows-gnu --tests` passed; it emitted the existing cfg-specific
   unused-variable warning in `src/change.rs`, outside this amendment. Cross-target compilation is
   not a substitute for hosted-Windows junction runtime.

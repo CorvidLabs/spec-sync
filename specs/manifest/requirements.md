@@ -42,8 +42,12 @@ spec: manifest.spec.md
   project-root capability before probing or traversal; symlink and Windows reparse-point components
   reject checked discovery without reading the referent.
 - Present Gradle build/settings manifests are read through the retained project-root capability,
-  must be regular non-link entries, and are bounded to 4 MiB; linked, reparse-backed, non-regular,
+  including every present lower-precedence filename variant. They must be identity-stable regular
+  non-link entries and are bounded to 4 MiB; linked, reparse-backed, non-regular, replaced,
   oversized, unreadable, or invalid-UTF-8 manifests reject checked discovery without partial output.
+- Unsupported invoked inclusion APIs such as `includeFlat` and `includeBuild` fail closed.
+  Control-flow rejection applies to governed include/project-directory directives rather than
+  unrelated top-level Gradle logic.
 - General metadata extraction remains string/regex based; MCP Cargo workspace security discovery parses bounded manifests as real TOML
 - `ManifestDiscovery::default()` returns empty collections (safe fallback)
 - Checked discovery surfaces malformed Gradle comments, escapes, strings, parentheses, and overrides so coverage gates remain inconclusive
@@ -94,8 +98,12 @@ Acceptance Criteria
   project-root capability before probing or traversal; symlink and Windows reparse-point components
   reject checked discovery without reading the referent.
 - Present Gradle build/settings manifests are read through the retained project-root capability,
-  must be regular non-link entries, and are bounded to 4 MiB; linked, reparse-backed, non-regular,
+  including every present lower-precedence filename variant. They must be identity-stable regular
+  non-link entries and are bounded to 4 MiB; linked, reparse-backed, non-regular, replaced,
   oversized, unreadable, or invalid-UTF-8 manifests reject checked discovery without partial output.
+- Unsupported invoked inclusion APIs such as `includeFlat` and `includeBuild` fail closed.
+  Control-flow rejection applies to governed include/project-directory directives rather than
+  unrelated top-level Gradle logic.
 - General metadata extraction remains string/regex based; MCP Cargo workspace security discovery parses bounded manifests as real TOML
 - `ManifestDiscovery::default()` returns empty collections (safe fallback)
 - Checked discovery surfaces malformed Gradle comments, escapes, strings, parentheses, and overrides so coverage gates remain inconclusive

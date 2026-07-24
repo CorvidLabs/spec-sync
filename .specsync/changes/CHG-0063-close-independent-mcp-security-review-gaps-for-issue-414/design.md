@@ -104,3 +104,17 @@ artifact: design
 - Select and read present Gradle build/settings files through the retained root capability. Require
   regular non-link entries, cap each file at 4 MiB, parse the exact opened bytes, and fail checked
   discovery on links, reparse points, special files, invalid UTF-8, or replacement/type changes.
+
+## Post-review authority closure
+
+- Preflight every present Gradle build/settings filename before precedence selection. Bind the
+  native pathname identity to the opened retained handle before open, after open, and after the
+  bounded read on Unix and Windows.
+- Reject invoked unsupported inclusion APIs and governed indirect/conditional mutations, but keep
+  unrelated top-level Gradle control flow and identifier/documentation uses compatible.
+- Retain one CLI project capability across manifest discovery, spec-module enumeration, iterative
+  source traversal, and final root verification. Enforce 8 MiB per file, 64 MiB cumulative bytes,
+  100,000 entries, 256 path components, strict UTF-8, and directory/file/root identity continuity.
+- Route generic MCP project inputs through the same no-follow, non-blocking, identity-continuous
+  retained reader used for selected config and manifests. Apply it to both tools and resources so
+  FIFO/socket, link/reparse, and regular replacement races fail without partial output.

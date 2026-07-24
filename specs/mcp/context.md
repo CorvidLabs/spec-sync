@@ -83,6 +83,10 @@ spec: mcp.spec.md
 - Every present Gradle build/settings variant is preflighted through that reader at the shared
   4 MiB limit before settings parsing or source probing. The exact retained bytes are charged and
   copied once, and generic snapshot traversal skips those paths.
+- Generic project-file traversal delegates to the same no-follow, non-blocking retained reader.
+  Path metadata and opened-handle identity must remain equal before and after bounded reads on Unix
+  and Windows, so FIFO/socket/device, link/reparse, and regular replacement races fail identically
+  for tools and resources without consuming attacker bytes.
 - Windows confinement fixtures construct every path with native joins. The absolute-child read
   fixture is a valid one-file, fully covered project so its success proves root selection and
   downstream coverage execution; the junction fixture first proves that the reparse point targets
@@ -107,7 +111,9 @@ selected-config fail-closed validation now have focused implementation and regre
 The latest independent reviews additionally closed selected-config substitution, wrong-shaped
 legacy GitHub fields, and blocking/special-file snapshot manifests. Configuration and manifest
 acquisition now makes the no-follow opened regular-file handle authoritative, uses bounded
-non-blocking reads, and rechecks path identity afterward. Focused regressions pass. An earlier
+non-blocking reads, and rechecks path identity afterward. Generic project inputs now use the same
+identity-continuous reader, with tool/resource race regressions for FIFO, symlink, and regular
+replacements. Focused regressions pass. An earlier
 private-sandbox replay passed but its untracked inputs were not reproducible from the cited
 revisions, so a hash-bound exact-tree replay is required with fresh definition approval, Windows
 runtime CI, independent rereview, and final repository/trust/provenance/CI gates.

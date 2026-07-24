@@ -47,6 +47,12 @@ spec: validator.spec.md
   path replacement, links/reparse points, and special entries fail every coverage gate.
 - [x] Replace ambient coverage walks and LOC reopens with retained no-follow source snapshots,
   including deterministic post-discovery Unix symlink and hosted-Windows junction race fixtures.
+- [x] Share one retained project capability across manifest discovery, spec-module enumeration,
+  configured source traversal, and final root verification.
+- [x] Replace recursive ambient enumeration with deterministic iterative traversal bounded to
+  8 MiB per file, 64 MiB cumulative bytes, 100,000 entries, and 256 components.
+- [x] Reject invalid-UTF-8 source names/content, special entries, and directory/file/root identity
+  replacement without returning partial coverage totals.
 - [ ] Obtain fresh exact-tree full reruns, independent reviews, hosted-Windows runtime,
   repository/CI, trust, and Attest evidence.
 

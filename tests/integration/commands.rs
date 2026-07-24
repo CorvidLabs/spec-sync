@@ -1250,6 +1250,84 @@ fn malformed_gradle_is_inconclusive_for_coverage_gating_commands() {
 }
 
 #[test]
+fn invalid_utf8_source_is_inconclusive_for_coverage_gating_commands() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    let source = root.join("src/auth/service.ts");
+    let source_bytes = b"export function login() {}\n\xff";
+    fs::write(&source, source_bytes).unwrap();
+
+    for command in ["check", "coverage", "generate", "report", "score"] {
+        let output = specsync()
+            .arg(command)
+            .arg("--root")
+            .arg(&root)
+            .args(["--format", "json"])
+            .assert()
+            .failure()
+            .get_output()
+            .stdout
+            .clone();
+        let json: serde_json::Value = serde_json::from_slice(&output).unwrap_or_else(|error| {
+            panic!(
+                "{command} must emit valid JSON for invalid UTF-8 source coverage: {error}; stdout={}",
+                String::from_utf8_lossy(&output)
+            )
+        });
+        assert_eq!(json["inconclusive"], true, "{command}: {json}");
+        assert!(
+            json["error"]
+                .as_str()
+                .is_some_and(|message| message.contains("not valid UTF-8")),
+            "{command}: {json}"
+        );
+        if command == "generate" {
+            assert_eq!(json["generated"], serde_json::json!([]));
+        }
+        assert_eq!(
+            fs::read(&source).unwrap(),
+            source_bytes,
+            "{command} changed invalid source bytes"
+        );
+    }
+}
+
+#[test]
+fn oversized_source_is_inconclusive_for_coverage_cli() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    let source = root.join("src/auth/service.ts");
+    fs::File::create(&source)
+        .unwrap()
+        .set_len(8 * 1024 * 1024 + 1)
+        .unwrap();
+
+    let output = specsync()
+        .arg("coverage")
+        .arg("--root")
+        .arg(&root)
+        .args(["--format", "json"])
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value = serde_json::from_slice(&output).unwrap_or_else(|error| {
+        panic!(
+            "coverage must emit valid JSON for an oversized source: {error}; stdout={}",
+            String::from_utf8_lossy(&output)
+        )
+    });
+    assert_eq!(json["inconclusive"], true, "{json}");
+    assert!(
+        json["error"]
+            .as_str()
+            .is_some_and(|message| message.contains("8 MiB per-file limit")),
+        "{json}"
+    );
+}
+
+#[test]
 fn gradle_root_escape_is_inconclusive_for_coverage_gating_commands() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);
@@ -1442,9 +1520,12 @@ fn gradle_post_discovery_symlink_swap_is_inconclusive_for_every_coverage_gate() 
     use std::time::{Duration, Instant};
 
     const BARRIER_ENV: &str = "SPECSYNC_TEST_COVERAGE_SNAPSHOT_IDENTITY_BARRIER";
+    const TEST_CONTEXT_ENV: &str = "SPECSYNC_TEST_CONTEXT";
+    const TEST_CONTEXT: &str = "coverage-snapshot-identity";
     for command_name in ["check", "coverage", "generate", "report", "score"] {
         let tmp = TempDir::new().unwrap();
         let root = tmp.path().join("project");
+        let original_root = tmp.path().join("original-project");
         let outside = tmp.path().join("outside");
         let barrier = tmp.path().join("barrier");
         fs::create_dir_all(root.join("member/src/main/kotlin")).unwrap();
@@ -1472,6 +1553,7 @@ fn gradle_post_discovery_symlink_swap_is_inconclusive_for_every_coverage_gate() 
         }
         let mut child = process
             .env(BARRIER_ENV, &barrier)
+            .env(TEST_CONTEXT_ENV, TEST_CONTEXT)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -1492,8 +1574,8 @@ fn gradle_post_discovery_symlink_swap_is_inconclusive_for_every_coverage_gate() 
             thread::sleep(Duration::from_millis(10));
         }
 
-        fs::rename(root.join("member"), root.join("original-member")).unwrap();
-        symlink(&outside, root.join("member")).unwrap();
+        fs::rename(&root, &original_root).unwrap();
+        symlink(&outside, &root).unwrap();
         fs::write(barrier.join("resume"), b"resume\n").unwrap();
         let output = child.wait_with_output().unwrap();
 
@@ -1509,11 +1591,13 @@ fn gradle_post_discovery_symlink_swap_is_inconclusive_for_every_coverage_gate() 
         assert!(
             json["error"]
                 .as_str()
-                .is_some_and(|error| error.contains("symlink or reparse point")),
+                .is_some_and(|error| error.contains("project root")
+                    && error.contains("changed during retained traversal")),
             "{command_name}: {json}"
         );
         assert!(!String::from_utf8_lossy(&output.stdout).contains("POST_DISCOVERY_SWAP"));
         assert!(!root.join("specs/member").exists());
+        assert!(!original_root.join("specs/member").exists());
         assert_eq!(fs::read(&outside_source).unwrap(), outside_bytes);
     }
 }
@@ -1608,9 +1692,12 @@ fn gradle_post_discovery_junction_swap_is_inconclusive_for_every_coverage_gate()
     use std::time::{Duration, Instant};
 
     const BARRIER_ENV: &str = "SPECSYNC_TEST_COVERAGE_SNAPSHOT_IDENTITY_BARRIER";
+    const TEST_CONTEXT_ENV: &str = "SPECSYNC_TEST_CONTEXT";
+    const TEST_CONTEXT: &str = "coverage-snapshot-identity";
     for command_name in ["check", "coverage", "generate", "report", "score"] {
         let tmp = TempDir::new().unwrap();
         let root = tmp.path().join("project");
+        let original_root = tmp.path().join("original-project");
         let outside = tmp.path().join("outside");
         let barrier = tmp.path().join("barrier");
         fs::create_dir_all(root.join("member/src/main/kotlin")).unwrap();
@@ -1638,6 +1725,7 @@ fn gradle_post_discovery_junction_swap_is_inconclusive_for_every_coverage_gate()
         }
         let mut child = process
             .env(BARRIER_ENV, &barrier)
+            .env(TEST_CONTEXT_ENV, TEST_CONTEXT)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -1658,9 +1746,9 @@ fn gradle_post_discovery_junction_swap_is_inconclusive_for_every_coverage_gate()
             thread::sleep(Duration::from_millis(10));
         }
 
-        fs::rename(root.join("member"), root.join("original-member")).unwrap();
-        create_windows_junction(&root.join("member"), &outside).unwrap_or_else(|error| {
-            panic!("failed to create post-discovery Gradle junction fixture: {error}")
+        fs::rename(&root, &original_root).unwrap();
+        create_windows_junction(&root, &outside).unwrap_or_else(|error| {
+            panic!("failed to create post-discovery project-root junction fixture: {error}")
         });
         fs::write(barrier.join("resume"), b"resume\n").unwrap();
         let output = child.wait_with_output().unwrap();
@@ -1677,11 +1765,13 @@ fn gradle_post_discovery_junction_swap_is_inconclusive_for_every_coverage_gate()
         assert!(
             json["error"]
                 .as_str()
-                .is_some_and(|error| error.contains("symlink or reparse point")),
+                .is_some_and(|error| error.contains("project root")
+                    && error.contains("changed during retained traversal")),
             "{command_name}: {json}"
         );
         assert!(!String::from_utf8_lossy(&output.stdout).contains("POST_DISCOVERY_JUNCTION_SWAP"));
         assert!(!root.join("specs/member").exists());
+        assert!(!original_root.join("specs/member").exists());
         assert_eq!(fs::read(&outside_source).unwrap(), outside_bytes);
     }
 }

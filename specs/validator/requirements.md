@@ -62,6 +62,11 @@ Acceptance Criteria
 - Checked coverage snapshots source roots and file bytes through retained no-follow handles;
   symlink, reparse, or identity replacement fails inconclusive before partial totals or outside
   reads.
+- Manifest discovery, spec-module enumeration, source traversal, and final root verification use
+  one retained project capability rather than independently reopening the ambient root.
+- Checked coverage traverses iteratively and deterministically with limits of 8 MiB per source
+  file, 64 MiB cumulative source bytes, 100,000 entries, and 256 path components; special entries,
+  invalid UTF-8 names/content, and exhausted bounds fail inconclusive.
 - `find_spec_files` returns sorted results.
 - Schema validation uses the configured `schema_pattern`.
 - Missing source suggestions use Levenshtein distance with a maximum distance of three.
@@ -93,6 +98,8 @@ Acceptance Criteria
 - Unmapped HTML reports zero covered files out of one and fails a 100 percent gate.
 - Excluded assets remain excluded and static files require no exported symbols.
 - A zero-file project is reported distinctly from measured 100 percent coverage.
+- Coverage cannot report a percentage from a partial retained snapshot after a link/reparse,
+  special entry, identity replacement, invalid UTF-8 input, or deterministic budget failure.
 
 ### REQ-validator-003
 

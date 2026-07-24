@@ -83,6 +83,7 @@ pub fn discover_manifest_modules(root: &Path) -> manifest::ManifestDiscovery {
 }
 
 /// Discover manifest modules while surfacing malformed manifest inputs.
+#[allow(dead_code)]
 pub fn discover_manifest_modules_checked(
     root: &Path,
 ) -> Result<manifest::ManifestDiscovery, String> {

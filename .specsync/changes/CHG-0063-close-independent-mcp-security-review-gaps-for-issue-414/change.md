@@ -45,6 +45,15 @@ Close independent MCP security review gaps for issue 414
   Present Gradle build/settings manifests are bounded regular non-link files read through the
   retained capability. Fresh focused/full reruns, two independent reviews, hosted-Windows runtime,
   definition approval, repository/CI, trust, and Attest evidence are required for this amendment.
+- Post-review closure preflights every present Gradle build/settings filename before precedence
+  selection, binds each manifest's native identity before/opened/after its bounded read, rejects
+  invoked unsupported inclusion APIs, and limits control-flow rejection to governed directives.
+  CLI coverage uses one retained project capability for manifest, spec-module, and source
+  discovery with iterative 8 MiB/file, 64 MiB cumulative, 100,000-entry, and 256-component
+  bounds plus strict UTF-8 and identity continuity. Every generic MCP project file uses a
+  no-follow, non-blocking, identity-continuous retained read for tools and resources; FIFO/socket,
+  link/reparse, and regular replacement races fail without attacker-byte consumption or partial
+  output.
 
 ## No-spec Rationale
 

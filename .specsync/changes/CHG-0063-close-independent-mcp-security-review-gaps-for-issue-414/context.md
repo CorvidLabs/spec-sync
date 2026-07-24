@@ -257,3 +257,16 @@ symlink/junction before traversal and require every coverage gate to fail inconc
 outside bytes or partial generation. Parser closure also rejects indirect/conditional/compound
 mutations, `newFile` token confusion, and unrooted drive-relative identities while masking
 triple-quoted documentation and nested comments.
+
+The next independent reviews found four additional medium gaps: lower-precedence Gradle filenames
+could evade preflight; retained Gradle reads did not prove native path/opened identity continuity
+at every checkpoint; directive scanning rejected unrelated valid control flow; and CLI coverage
+mixed ambient root authorities while using unbounded recursive enumeration. A separate generic
+MCP snapshot race could also block on or consume replacement project entries. The post-review
+patch preflights every present Gradle filename, binds before/opened/after native identity, rejects
+invoked unsupported inclusion APIs while preserving unrelated control flow, and uses one retained
+project capability plus deterministic byte/entry/depth/UTF-8 budgets for CLI coverage. Generic MCP
+project files now use no-follow, non-blocking, identity-continuous retained reads for tools and
+resources. The approval ledger retains the user's earlier `2f9537c...` approval as immutable
+history, but these material amendments make it stale; a new exact-tree digest and two fresh
+independent rereviews are required.

@@ -82,5 +82,12 @@ artifact: docs
 - Document that unescaped or Unicode/octal-encoded interpolation in double-quoted Gradle strings
   fails closed, explicit literal-dollar forms remain compatible, and present Gradle build/settings
   files are bounded regular non-link reads through the retained root capability.
+- Document that every present Gradle filename is preflighted before precedence and identity-bound
+  through read; unsupported invoked inclusion APIs fail closed while unrelated control flow stays
+  compatible.
+- Publish the retained CLI coverage limits (8 MiB/file, 64 MiB total, 100,000 entries, 256
+  components) and explain that manifest/spec/source enumeration shares one project authority.
+- Document that generic MCP project files use no-follow, non-blocking, identity-continuous reads
+  for both tools and resources and reject special/link/replacement races without attacker bytes.
 - Keep fresh Windows runtime and final repository/trust/provenance evidence described as pending
   until those gates actually pass.

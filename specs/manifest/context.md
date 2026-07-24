@@ -28,8 +28,12 @@ spec: manifest.spec.md
   component through a retained project-root capability with no-follow metadata. Symlinks and
   Windows reparse points fail checked discovery before source probing or traversal.
 - **Capability-confined Gradle manifests**: Present Gradle build/settings manifests are selected
-  through that retained capability, rejected when linked/reparse-backed or non-regular, bounded to
-  4 MiB, and parsed from retained bytes instead of an ambient path read.
+  through that retained capability. Every present filename variant is preflighted before
+  precedence selection, rejected when linked/reparse-backed, non-regular, or identity-unstable,
+  bounded to 4 MiB, and parsed from retained bytes instead of an ambient path read.
+- **Locally governed Gradle directives**: Unsupported inclusion APIs and indirect or conditional
+  include/project-directory mutations fail closed, while unrelated top-level control flow and
+  identifier/documentation uses remain compatible.
 - **Swift test target exclusion**: `.testTarget()` entries are explicitly skipped to avoid polluting the module list with test infrastructure.
 - **Python priority**: `[project]` section is checked before `[tool.poetry]` in pyproject.toml, reflecting the ecosystem's migration toward PEP 621.
 
@@ -46,7 +50,9 @@ literal assignment/method project-directory parsing, and retained no-follow comp
 Gradle build/settings selection and reads are likewise bounded and capability-confined; unescaped
 double-quoted interpolation rejects and encoded path escapes are decoded before confinement.
 The final parser amendment also rejects indirect executable mutations and drive-relative raw
-identities while preserving rooted nested Gradle names.
+identities while preserving rooted nested Gradle names. The post-review amendment preflights
+shadowed Gradle filename variants, binds native file identity across open/read, rejects invoked
+unsupported inclusion APIs, and narrows control-flow rejection to governed directives.
 Fresh implementation verification, independent rereviews, Windows runtime, repository/CI, trust,
 and provenance evidence remain pending. MCP Cargo workspace paths come from validated TOML values.
 

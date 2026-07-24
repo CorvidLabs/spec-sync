@@ -73,4 +73,8 @@ spec: mcp.spec.md
   acquisition, and cover config/manifest replacement plus FIFO races
 - [x] Preflight all four Gradle build/settings names at 4 MiB before parsing or source probing,
   copy exact retained bytes once, and reject special/linked/replaced inputs for tools and resources
+- [x] Route every generic project file through the retained no-follow, non-blocking snapshot
+  reader and bind pathname/opened-handle identity before and after bounded reads.
+- [x] Prove both tools and resources reject FIFO, socket, symlink/reparse, and regular-file
+  replacement races without blocking, consuming attacker bytes, or returning partial snapshots.
 - [ ] Pass fresh Windows reparse-point CI

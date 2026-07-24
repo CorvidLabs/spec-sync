@@ -25,6 +25,11 @@ Acceptance Criteria
   handles, binds directory/file identity before and after traversal, and derives file, LOC,
   immediate-directory, and flat-file module results from that snapshot. Post-discovery
   symlink/junction replacement fails inconclusive for every coverage gate before outside reads.
+- Manifest discovery, spec-module enumeration, source traversal, and final root verification share
+  one retained project capability. Traversal is sorted and iterative with 8 MiB per source file,
+  64 MiB cumulative bytes, 100,000 entries, and 256 path components.
+- Invalid UTF-8 source names/content, special entries, links/reparse points, root/directory/file
+  identity replacement, and exhausted bounds fail inconclusive before partial coverage totals.
 - `compute_coverage` remains available for compatibility and returns a zero-percent report carrying
   an inconclusive module diagnostic when checked discovery fails.
 
@@ -116,3 +121,6 @@ Acceptance Criteria
     ambient paths.
 17. Checked coverage uses retained no-follow source snapshots; symlink, reparse, or identity
     replacement fails before outside reads, partial totals, or generation.
+18. Manifest/spec/source discovery and final verification share one retained project capability;
+    deterministic iterative traversal enforces 8 MiB/file, 64 MiB total, 100,000 entries, 256
+    components, strict UTF-8, and special-entry rejection.

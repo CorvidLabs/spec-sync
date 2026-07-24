@@ -58,6 +58,25 @@ pub fn discover_from_manifests(root: &Path) -> ManifestDiscovery {
 
 /// Discover modules while surfacing malformed manifest inputs.
 pub fn discover_from_manifests_checked(root: &Path) -> Result<ManifestDiscovery, String> {
+    let project_root = Dir::open_ambient_dir(root, ambient_authority()).map_err(|error| {
+        format!(
+            "Cannot open manifest project root {} as a confined directory: {error}",
+            root.display()
+        )
+    })?;
+    discover_from_manifests_checked_with_root(root, &project_root)
+}
+
+/// Discover modules using a caller-retained project-root capability.
+///
+/// Legacy non-Gradle parsers still require the ambient path, whose identity is checked against
+/// `project_root` before and after discovery. Gradle acquisition and probing use only the retained
+/// capability.
+pub(crate) fn discover_from_manifests_checked_with_root(
+    root: &Path,
+    project_root: &Dir,
+) -> Result<ManifestDiscovery, String> {
+    verify_retained_project_root(root, project_root, "before manifest discovery")?;
     let mut discovery = ManifestDiscovery::default();
 
     if let Some(d) = parse_cargo_toml(root) {
@@ -66,7 +85,7 @@ pub fn discover_from_manifests_checked(root: &Path) -> Result<ManifestDiscovery,
     if let Some(d) = parse_package_swift(root) {
         merge_discovery(&mut discovery, d);
     }
-    if let Some(d) = parse_gradle_checked(root)? {
+    if let Some(d) = parse_gradle_checked_with_root(project_root)? {
         merge_discovery(&mut discovery, d);
     }
     if let Some(d) = parse_package_json(root) {
@@ -82,6 +101,7 @@ pub fn discover_from_manifests_checked(root: &Path) -> Result<ManifestDiscovery,
         merge_discovery(&mut discovery, d);
     }
 
+    verify_retained_project_root(root, project_root, "after manifest discovery")?;
     Ok(discovery)
 }
 
@@ -339,19 +359,26 @@ fn parse_gradle_checked(root: &Path) -> Result<Option<ManifestDiscovery>, String
             root.display()
         )
     })?;
+    parse_gradle_checked_with_root(&project_root)
+}
+
+fn parse_gradle_checked_with_root(project_root: &Dir) -> Result<Option<ManifestDiscovery>, String> {
     // Try Kotlin DSL first, then Groovy. A settings manifest is independently sufficient for a
-    // multi-project Gradle workspace; do not require a root build script before parsing it.
-    let build = match gradle_confined_manifest_text(&project_root, "build.gradle.kts", "build")? {
-        Some(content) => Some(("build.gradle.kts", content)),
-        None => gradle_confined_manifest_text(&project_root, "build.gradle", "build")?
-            .map(|content| ("build.gradle", content)),
-    };
-    let settings =
-        match gradle_confined_manifest_text(&project_root, "settings.gradle.kts", "settings")? {
-            Some(content) => Some(("settings.gradle.kts", content)),
-            None => gradle_confined_manifest_text(&project_root, "settings.gradle", "settings")?
-                .map(|content| ("settings.gradle", content)),
-        };
+    // multi-project Gradle workspace; do not require a root build script before parsing it. Every
+    // recognized variant is preflighted before precedence is selected so a shadowed unsafe entry
+    // cannot evade the retained reader.
+    let build_kotlin = gradle_confined_manifest_text(project_root, "build.gradle.kts", "build")?;
+    let build_groovy = gradle_confined_manifest_text(project_root, "build.gradle", "build")?;
+    let settings_kotlin =
+        gradle_confined_manifest_text(project_root, "settings.gradle.kts", "settings")?;
+    let settings_groovy =
+        gradle_confined_manifest_text(project_root, "settings.gradle", "settings")?;
+    let build = build_kotlin
+        .map(|content| ("build.gradle.kts", content))
+        .or_else(|| build_groovy.map(|content| ("build.gradle", content)));
+    let settings = settings_kotlin
+        .map(|content| ("settings.gradle.kts", content))
+        .or_else(|| settings_groovy.map(|content| ("settings.gradle", content)));
     if build.is_none() && settings.is_none() {
         return Ok(None);
     }
@@ -376,14 +403,14 @@ fn parse_gradle_checked(root: &Path) -> Result<Option<ManifestDiscovery>, String
             "src/main/java",
             "src/main/kotlin",
         ] {
-            if gradle_confined_directory_exists(&project_root, dir)? {
+            if gradle_confined_directory_exists(project_root, dir)? {
                 discovery.source_dirs.push(dir.to_string());
             }
         }
     } else {
         // Standard Gradle: src/main/kotlin or src/main/java
         for dir in &["src/main/kotlin", "src/main/java", "src/main/scala"] {
-            if gradle_confined_directory_exists(&project_root, dir)? {
+            if gradle_confined_directory_exists(project_root, dir)? {
                 discovery.source_dirs.push(dir.to_string());
             }
         }
@@ -393,9 +420,9 @@ fn parse_gradle_checked(root: &Path) -> Result<Option<ManifestDiscovery>, String
         let module_src = format!("{}/src/main", module.path);
         let kotlin_source = format!("{}/src/main/kotlin", module.path);
         let java_source = format!("{}/src/main/java", module.path);
-        let source_path = if gradle_confined_directory_exists(&project_root, &kotlin_source)? {
+        let source_path = if gradle_confined_directory_exists(project_root, &kotlin_source)? {
             kotlin_source
-        } else if gradle_confined_directory_exists(&project_root, &java_source)? {
+        } else if gradle_confined_directory_exists(project_root, &java_source)? {
             java_source
         } else {
             module_src
@@ -431,7 +458,6 @@ pub(crate) fn parse_gradle_settings(content: &str) -> Result<Vec<GradleSettingsM
     let content = strip_gradle_comments(content)?;
     reject_non_leading_gradle_includes(&content)?;
     reject_unsupported_gradle_project_dir_mutations(&content)?;
-    reject_gradle_control_flow_with_directives(&content)?;
     let mut included = Vec::new();
     let lines: Vec<&str> = content.lines().collect();
     let mut index = 0usize;
@@ -506,6 +532,9 @@ fn parse_gradle_project_dir_overrides(content: &str) -> Result<HashMap<String, S
         }
         if gradle_brace_depth(before)? != 0 {
             return Err("Unsupported block-scoped Gradle projectDir mutation".to_string());
+        }
+        if gradle_follows_detached_control_header(content, project_index)? {
+            return Err("Unsupported conditional Gradle projectDir mutation".to_string());
         }
 
         let project_call = before[project_index + "project".len()..].trim_start();
@@ -712,11 +741,106 @@ fn gradle_metadata_is_link(metadata: &Metadata) -> bool {
     metadata.file_type().is_symlink()
 }
 
+#[cfg(unix)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct GradleFilesystemIdentity {
+    device: u64,
+    inode: u64,
+}
+
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct GradleFilesystemIdentity {
+    volume_serial_number: u32,
+    file_index: u64,
+}
+
+#[cfg(unix)]
+fn gradle_filesystem_identity(metadata: &Metadata) -> Result<GradleFilesystemIdentity, String> {
+    use cap_std::fs::MetadataExt;
+
+    Ok(GradleFilesystemIdentity {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    })
+}
+
+#[cfg(windows)]
+fn gradle_filesystem_identity(metadata: &Metadata) -> Result<GradleFilesystemIdentity, String> {
+    use cap_primitives::fs::_WindowsByHandle;
+
+    let volume_serial_number = metadata
+        .volume_serial_number()
+        .ok_or_else(|| "Windows volume serial number is unavailable".to_string())?;
+    let file_index = metadata
+        .file_index()
+        .ok_or_else(|| "Windows file index is unavailable".to_string())?;
+    Ok(GradleFilesystemIdentity {
+        volume_serial_number,
+        file_index,
+    })
+}
+
+#[cfg(not(any(unix, windows)))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct GradleFilesystemIdentity;
+
+#[cfg(not(any(unix, windows)))]
+fn gradle_filesystem_identity(_metadata: &Metadata) -> Result<GradleFilesystemIdentity, String> {
+    Err("filesystem identity is unavailable on this platform".to_string())
+}
+
+fn verify_retained_project_root(root: &Path, retained: &Dir, phase: &str) -> Result<(), String> {
+    let retained_metadata = retained
+        .dir_metadata()
+        .map_err(|error| format!("Cannot inspect retained project root {phase}: {error}"))?;
+    let retained_identity = gradle_filesystem_identity(&retained_metadata)
+        .map_err(|error| format!("Cannot identify retained project root {phase}: {error}"))?;
+    let ambient = Dir::open_ambient_dir(root, ambient_authority()).map_err(|error| {
+        format!(
+            "Cannot reopen ambient project root {} {phase}: {error}",
+            root.display()
+        )
+    })?;
+    let ambient_metadata = ambient
+        .dir_metadata()
+        .map_err(|error| format!("Cannot inspect ambient project root {phase}: {error}"))?;
+    let ambient_identity = gradle_filesystem_identity(&ambient_metadata)
+        .map_err(|error| format!("Cannot identify ambient project root {phase}: {error}"))?;
+    if retained_identity != ambient_identity {
+        return Err(format!(
+            "Ambient project root {} does not match the retained project root {phase}",
+            root.display()
+        ));
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GradleManifestReadCheckpoint {
+    PreOpen,
+    Opened,
+    AfterOpen,
+    AfterRead,
+}
+
 fn gradle_confined_manifest_text(
     root: &Dir,
     name: &str,
     label: &str,
 ) -> Result<Option<String>, String> {
+    gradle_confined_manifest_text_with_checkpoint(root, name, label, |_| {})
+}
+
+fn gradle_confined_manifest_text_with_checkpoint<Checkpoint>(
+    root: &Dir,
+    name: &str,
+    label: &str,
+    mut checkpoint: Checkpoint,
+) -> Result<Option<String>, String>
+where
+    Checkpoint: FnMut(GradleManifestReadCheckpoint),
+{
     let before = match root.symlink_metadata(name) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
@@ -736,6 +860,10 @@ fn gradle_confined_manifest_text(
             "Gradle {label} manifest {name} must be a regular file"
         ));
     }
+    let before_identity = gradle_filesystem_identity(&before).map_err(|error| {
+        format!("Cannot identify confined Gradle {label} manifest {name} before open: {error}")
+    })?;
+    checkpoint(GradleManifestReadCheckpoint::PreOpen);
 
     let options = gradle_read_only_nofollow_options();
     let mut file = root.open_with(name, &options).map_err(|error| {
@@ -746,14 +874,28 @@ fn gradle_confined_manifest_text(
     let opened = file.metadata().map_err(|error| {
         format!("Cannot inspect opened Gradle {label} manifest {name}: {error}")
     })?;
+    let opened_identity = gradle_filesystem_identity(&opened).map_err(|error| {
+        format!("Cannot identify opened Gradle {label} manifest {name}: {error}")
+    })?;
+    checkpoint(GradleManifestReadCheckpoint::Opened);
     let after_open = root
         .symlink_metadata(name)
         .map_err(|error| format!("Cannot re-inspect Gradle {label} manifest {name}: {error}"))?;
-    if !opened.is_file() || gradle_metadata_is_link(&after_open) || !after_open.is_file() {
+    let after_open_identity = gradle_filesystem_identity(&after_open).map_err(|error| {
+        format!("Cannot identify Gradle {label} manifest {name} after open: {error}")
+    })?;
+    if !opened.is_file()
+        || gradle_metadata_is_link(&opened)
+        || gradle_metadata_is_link(&after_open)
+        || !after_open.is_file()
+        || before_identity != opened_identity
+        || before_identity != after_open_identity
+    {
         return Err(format!(
             "Gradle {label} manifest {name} changed during confined open"
         ));
     }
+    checkpoint(GradleManifestReadCheckpoint::AfterOpen);
 
     let mut bytes = Vec::new();
     file.by_ref()
@@ -766,10 +908,27 @@ fn gradle_confined_manifest_text(
             MAX_GRADLE_MANIFEST_BYTES
         ));
     }
+    checkpoint(GradleManifestReadCheckpoint::AfterRead);
     let after_read = root.symlink_metadata(name).map_err(|error| {
         format!("Cannot re-inspect Gradle {label} manifest {name} after read: {error}")
     })?;
-    if gradle_metadata_is_link(&after_read) || !after_read.is_file() {
+    let after_read_identity = gradle_filesystem_identity(&after_read).map_err(|error| {
+        format!("Cannot identify Gradle {label} manifest {name} after read: {error}")
+    })?;
+    let opened_after_read = file.metadata().map_err(|error| {
+        format!("Cannot re-inspect opened Gradle {label} manifest {name} after read: {error}")
+    })?;
+    let opened_after_read_identity =
+        gradle_filesystem_identity(&opened_after_read).map_err(|error| {
+            format!("Cannot re-identify opened Gradle {label} manifest {name} after read: {error}")
+        })?;
+    if gradle_metadata_is_link(&after_read)
+        || !after_read.is_file()
+        || before_identity != after_read_identity
+        || !opened_after_read.is_file()
+        || gradle_metadata_is_link(&opened_after_read)
+        || opened_identity != opened_after_read_identity
+    {
         return Err(format!(
             "Gradle {label} manifest {name} changed during confined read"
         ));
@@ -1062,11 +1221,19 @@ fn reject_non_leading_gradle_includes(content: &str) -> Result<(), String> {
             .chars()
             .next_back()
             .is_none_or(|character| !character.is_alphanumeric() && character != '_');
-        let after_is_boundary = content[index + "include".len()..]
-            .chars()
-            .next()
-            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
-        if before_is_boundary && after_is_boundary {
+        if !before_is_boundary {
+            search_start = index + "include".len();
+            continue;
+        }
+        let token_end = content[index..]
+            .char_indices()
+            .take_while(|(_, character)| character.is_alphanumeric() || *character == '_')
+            .last()
+            .map_or(index, |(offset, character)| {
+                index + offset + character.len_utf8()
+            });
+        let token = &content[index..token_end];
+        if token == "include" {
             let line_start = content[..index].rfind('\n').map_or(0, |line| line + 1);
             if !content[line_start..index].trim().is_empty() {
                 return Err("Unsupported qualified or conditional Gradle include".to_string());
@@ -1074,44 +1241,124 @@ fn reject_non_leading_gradle_includes(content: &str) -> Result<(), String> {
             if gradle_brace_depth(&content[..index])? != 0 {
                 return Err("Unsupported block-scoped Gradle include".to_string());
             }
+            if gradle_follows_detached_control_header(content, index)? {
+                return Err("Unsupported conditional Gradle include".to_string());
+            }
+        } else if token.starts_with("include")
+            && gradle_include_prefixed_token_is_executable(content, index, token_end)
+        {
+            return Err(format!("Unsupported Gradle workspace mutator {token}"));
         }
-        search_start = index + "include".len();
+        search_start = token_end.max(index + "include".len());
     }
     Ok(())
 }
 
-fn reject_gradle_control_flow_with_directives(content: &str) -> Result<(), String> {
-    let has_directive = ["include", "projectDir", "setProjectDir"]
-        .into_iter()
-        .any(|keyword| contains_unquoted_gradle_keyword(content, keyword));
-    if has_directive
-        && ["if", "when", "for", "while", "switch"]
-            .into_iter()
-            .any(|keyword| contains_unquoted_gradle_keyword(content, keyword))
+fn gradle_include_prefixed_token_is_executable(
+    content: &str,
+    token_start: usize,
+    token_end: usize,
+) -> bool {
+    let line_start = content[..token_start]
+        .rfind('\n')
+        .map_or(0, |line| line + 1);
+    let leading = content[line_start..token_start].trim();
+    let trailing = content[token_end..]
+        .split_once('\n')
+        .map_or(&content[token_end..], |(line, _)| line)
+        .trim_start();
+    if trailing.is_empty() {
+        return false;
+    }
+    if trailing.starts_with("==")
+        || trailing.starts_with("!=")
+        || trailing.starts_with("<=")
+        || trailing.starts_with(">=")
+        || trailing.starts_with('.')
+        || trailing.starts_with("?.")
     {
-        return Err("Unsupported conditional Gradle directive context".to_string());
+        return false;
     }
-    Ok(())
-}
-
-fn contains_unquoted_gradle_keyword(content: &str, keyword: &str) -> bool {
-    let mut search_start = 0usize;
-    while let Some(index) = find_unquoted_gradle_fragment(content, keyword, search_start) {
-        let before_is_boundary = content[..index]
-            .chars()
-            .next_back()
-            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
-        let after_index = index + keyword.len();
-        let after_is_boundary = content[after_index..]
+    leading.is_empty()
+        || trailing.starts_with('(')
+        || trailing.starts_with('\'')
+        || trailing.starts_with('"')
+        || trailing.starts_with('{')
+        || trailing
             .chars()
             .next()
-            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
-        if before_is_boundary && after_is_boundary {
-            return true;
-        }
-        search_start = after_index;
+            .is_some_and(|character| character.is_alphanumeric() || character == '_')
+}
+
+fn gradle_follows_detached_control_header(
+    content: &str,
+    directive_start: usize,
+) -> Result<bool, String> {
+    let preceding = content[..directive_start].trim_end();
+    if preceding.is_empty() {
+        return Ok(false);
     }
-    false
+    for keyword in ["else", "do", "try", "finally"] {
+        if preceding.ends_with(keyword) {
+            let keyword_start = preceding.len() - keyword.len();
+            let boundary = preceding[..keyword_start]
+                .chars()
+                .next_back()
+                .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+            if boundary {
+                return Ok(true);
+            }
+        }
+    }
+    if !preceding.ends_with(')') {
+        return Ok(false);
+    }
+
+    let mut quote = None;
+    let mut escaped = false;
+    let mut open_parens = Vec::new();
+    let mut final_open = None;
+    for (index, character) in preceding.char_indices() {
+        if let Some(delimiter) = quote {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == delimiter {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(character, '\'' | '"') {
+            quote = Some(character);
+            continue;
+        }
+        if character == '(' {
+            open_parens.push(index);
+        } else if character == ')' {
+            let Some(open) = open_parens.pop() else {
+                return Err("Gradle settings contain unmatched parentheses".to_string());
+            };
+            if index + character.len_utf8() == preceding.len() {
+                final_open = Some(open);
+            }
+        }
+    }
+    let Some(final_open) = final_open else {
+        return Ok(false);
+    };
+    let before_open = preceding[..final_open].trim_end();
+    let keyword_start = before_open
+        .char_indices()
+        .rev()
+        .take_while(|(_, character)| character.is_alphanumeric() || *character == '_')
+        .last()
+        .map_or(before_open.len(), |(index, _)| index);
+    let keyword = &before_open[keyword_start..];
+    Ok(matches!(
+        keyword,
+        "if" | "when" | "for" | "while" | "switch" | "catch"
+    ))
 }
 
 fn gradle_brace_depth(content: &str) -> Result<i32, String> {
@@ -1144,6 +1391,8 @@ fn gradle_brace_depth(content: &str) -> Result<i32, String> {
 }
 
 fn reject_unsupported_gradle_project_dir_mutations(content: &str) -> Result<(), String> {
+    reject_unrecognized_gradle_project_mutations(content)?;
+
     let mut search_start = 0usize;
     while let Some(index) = find_unquoted_gradle_fragment(content, "projectDir", search_start) {
         let before_is_boundary = content[..index]
@@ -1187,6 +1436,185 @@ fn reject_unsupported_gradle_project_dir_mutations(content: &str) -> Result<(), 
         search_start = after_index;
     }
     Ok(())
+}
+
+fn reject_unrecognized_gradle_project_mutations(content: &str) -> Result<(), String> {
+    let mut search_start = 0usize;
+    while let Some(project_index) = find_unquoted_gradle_fragment(content, "project", search_start)
+    {
+        let before_is_boundary = content[..project_index]
+            .chars()
+            .next_back()
+            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+        let after_keyword = &content[project_index + "project".len()..];
+        let after_is_boundary = after_keyword
+            .chars()
+            .next()
+            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+        let project_call = after_keyword.trim_start();
+        if !before_is_boundary || !after_is_boundary || !project_call.starts_with('(') {
+            search_start = project_index + "project".len();
+            continue;
+        }
+
+        let (_, remainder) = gradle_parenthesized(project_call)?;
+        let call_end = content.len() - remainder.len();
+        let suffix = gradle_project_chain_suffix(remainder);
+        if suffix.is_empty() {
+            search_start = call_end;
+            continue;
+        }
+        let statement = gradle_project_chain_statement(suffix).trim();
+
+        if suffix.starts_with(".setProjectDir") {
+            search_start = call_end;
+            continue;
+        }
+        if let Some(after_project_dir) = suffix.strip_prefix(".projectDir")
+            && is_gradle_simple_assignment(after_project_dir.trim_start())?
+        {
+            search_start = call_end;
+            continue;
+        }
+        if suffix.starts_with(".setProperty") {
+            return Err("Unsupported dynamic Gradle project mutation".to_string());
+        }
+
+        if !gradle_project_statement_is_read_only(statement) {
+            return Err("Unsupported executable Gradle project mutation".to_string());
+        }
+        search_start = call_end;
+    }
+    Ok(())
+}
+
+fn gradle_project_chain_suffix(remainder: &str) -> &str {
+    let horizontal = remainder.trim_start_matches([' ', '\t', '\r']);
+    if horizontal.starts_with('.') || horizontal.starts_with('[') {
+        return horizontal;
+    }
+    if horizontal.starts_with('\n') {
+        let continued = horizontal.trim_start();
+        if continued.starts_with('.') || continued.starts_with('[') {
+            return continued;
+        }
+    }
+    ""
+}
+
+fn gradle_project_chain_statement(suffix: &str) -> &str {
+    let mut quote = None;
+    let mut escaped = false;
+    let mut parentheses = 0i32;
+    let mut brackets = 0i32;
+    let mut braces = 0i32;
+    for (index, character) in suffix.char_indices() {
+        if let Some(delimiter) = quote {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == delimiter {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(character, '\'' | '"') {
+            quote = Some(character);
+            continue;
+        }
+        match character {
+            '(' => parentheses += 1,
+            ')' => parentheses -= 1,
+            '[' => brackets += 1,
+            ']' => brackets -= 1,
+            '{' => braces += 1,
+            '}' => braces -= 1,
+            ';' if parentheses <= 0 && brackets <= 0 && braces <= 0 => {
+                return &suffix[..index];
+            }
+            '\n' if parentheses <= 0 && brackets <= 0 && braces <= 0 => {
+                let before = suffix[..index].trim_end();
+                let after = suffix[index + character.len_utf8()..].trim_start();
+                if !gradle_statement_continues(before, after) {
+                    return &suffix[..index];
+                }
+            }
+            _ => {}
+        }
+    }
+    suffix
+}
+
+fn gradle_statement_continues(before: &str, after: &str) -> bool {
+    before.chars().next_back().is_some_and(|character| {
+        matches!(
+            character,
+            '.' | '?' | ':' | '=' | '+' | '-' | '*' | '/' | '%' | '&' | '|' | '^'
+        )
+    }) || after.starts_with('.')
+        || after.starts_with('[')
+        || after.starts_with('=')
+        || after.starts_with("+=")
+        || after.starts_with("-=")
+        || after.starts_with("*=")
+        || after.starts_with("/=")
+}
+
+fn gradle_project_statement_is_read_only(statement: &str) -> bool {
+    if statement.is_empty() || statement == ";" {
+        return true;
+    }
+    if !statement.starts_with('.') && !statement.starts_with('[') {
+        return false;
+    }
+    if gradle_contains_mutating_assignment(statement) || statement.contains('{') {
+        return false;
+    }
+
+    let comparison = ["==", "!=", "<=", ">=", "=~", "!~"]
+        .into_iter()
+        .filter_map(|operator| statement.find(operator))
+        .min();
+    let invocation = find_unquoted_gradle_fragment(statement, "(", 0);
+    match (comparison, invocation) {
+        (Some(comparison), Some(invocation)) => comparison < invocation,
+        (Some(_), None) | (None, None) => true,
+        (None, Some(_)) => false,
+    }
+}
+
+fn gradle_contains_mutating_assignment(statement: &str) -> bool {
+    let mut quote = None;
+    let mut escaped = false;
+    for (index, character) in statement.char_indices() {
+        if let Some(delimiter) = quote {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == delimiter {
+                quote = None;
+            }
+            continue;
+        }
+        if matches!(character, '\'' | '"') {
+            quote = Some(character);
+            continue;
+        }
+        if character != '=' {
+            continue;
+        }
+        let before = statement[..index].chars().next_back();
+        let after = statement[index + character.len_utf8()..].chars().next();
+        if after.is_some_and(|next| matches!(next, '=' | '~'))
+            || before.is_some_and(|previous| matches!(previous, '=' | '!' | '<' | '>'))
+        {
+            continue;
+        }
+        return true;
+    }
+    false
 }
 
 fn find_unquoted_gradle_fragment(
@@ -1823,6 +2251,38 @@ project(":second").projectDir = new File(rootDir, "modules/second")
     }
 
     #[test]
+    fn gradle_settings_reject_unsupported_include_prefixed_workspace_mutators() {
+        for settings in [
+            r#"includeFlat("../outside")"#,
+            r#"includeBuild("../outside")"#,
+            r#"includeWorkspace("../outside")"#,
+            r#"settings.includeFlat "../outside""#,
+        ] {
+            let error = parse_gradle_settings(settings).unwrap_err();
+            assert!(
+                error.contains("Unsupported Gradle workspace mutator"),
+                "unexpected include-prefixed mutator error: {error}"
+            );
+        }
+
+        let modules = parse_gradle_settings(
+            r#"
+val includeFlat = "documentation"
+println(includeFlat)
+include(":member")
+"#,
+        )
+        .unwrap();
+        assert_eq!(
+            modules,
+            vec![GradleSettingsModule {
+                name: "member".to_string(),
+                path: "member".to_string(),
+            }]
+        );
+    }
+
+    #[test]
     fn gradle_settings_only_workspace_discovers_included_modules() {
         let tmp = tempdir().unwrap();
         fs::create_dir_all(tmp.path().join("member/src/main/kotlin")).unwrap();
@@ -1853,10 +2313,20 @@ project(":second").projectDir = new File(rootDir, "modules/second")
 
     #[test]
     fn gradle_manifest_discovery_rejects_non_regular_oversized_and_non_utf8_manifests() {
-        let directory_manifest = tempdir().unwrap();
-        fs::create_dir(directory_manifest.path().join("settings.gradle.kts")).unwrap();
-        let error = discover_from_manifests_checked(directory_manifest.path()).unwrap_err();
-        assert!(error.contains("must be a regular file"));
+        for name in [
+            "build.gradle.kts",
+            "build.gradle",
+            "settings.gradle.kts",
+            "settings.gradle",
+        ] {
+            let directory_manifest = tempdir().unwrap();
+            fs::create_dir(directory_manifest.path().join(name)).unwrap();
+            let error = discover_from_manifests_checked(directory_manifest.path()).unwrap_err();
+            assert!(
+                error.contains(name) && error.contains("must be a regular file"),
+                "unexpected {name} preflight error: {error}"
+            );
+        }
 
         let oversized_manifest = tempdir().unwrap();
         fs::write(
@@ -1875,6 +2345,115 @@ project(":second").projectDir = new File(rootDir, "modules/second")
         .unwrap();
         let error = discover_from_manifests_checked(non_utf8_manifest.path()).unwrap_err();
         assert!(error.contains("not valid UTF-8"));
+    }
+
+    #[test]
+    fn gradle_manifest_discovery_preflights_shadowed_groovy_variants() {
+        for shadowed in ["build.gradle", "settings.gradle"] {
+            let tmp = tempdir().unwrap();
+            fs::write(tmp.path().join("build.gradle.kts"), "plugins {}\n").unwrap();
+            fs::write(
+                tmp.path().join("settings.gradle.kts"),
+                "include(\":member\")\n",
+            )
+            .unwrap();
+            fs::create_dir(tmp.path().join(shadowed)).unwrap();
+
+            let error = discover_from_manifests_checked(tmp.path()).unwrap_err();
+
+            assert!(
+                error.contains(shadowed) && error.contains("must be a regular file"),
+                "unexpected shadowed Gradle manifest error: {error}"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn gradle_manifest_reads_reject_regular_file_replacement_at_every_checkpoint() {
+        for target in [
+            GradleManifestReadCheckpoint::PreOpen,
+            GradleManifestReadCheckpoint::Opened,
+            GradleManifestReadCheckpoint::AfterOpen,
+            GradleManifestReadCheckpoint::AfterRead,
+        ] {
+            let tmp = tempdir().unwrap();
+            let manifest = tmp.path().join("settings.gradle.kts");
+            let replacement = tmp.path().join("replacement.gradle.kts");
+            fs::write(&manifest, "include(\":original\")\n").unwrap();
+            fs::write(&replacement, "include(\":replacement\")\n").unwrap();
+            let root = Dir::open_ambient_dir(tmp.path(), ambient_authority()).unwrap();
+            let mut replaced = false;
+
+            let error = gradle_confined_manifest_text_with_checkpoint(
+                &root,
+                "settings.gradle.kts",
+                "settings",
+                |checkpoint| {
+                    if checkpoint == target && !replaced {
+                        fs::rename(&replacement, &manifest).unwrap();
+                        replaced = true;
+                    }
+                },
+            )
+            .unwrap_err();
+
+            assert!(replaced);
+            assert!(
+                error.contains("changed during confined open")
+                    || error.contains("changed during confined read"),
+                "unexpected identity replacement error at {target:?}: {error}"
+            );
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn gradle_manifest_reads_reject_preopen_regular_file_replacement_on_windows() {
+        let tmp = tempdir().unwrap();
+        let manifest = tmp.path().join("settings.gradle.kts");
+        let replacement = tmp.path().join("replacement.gradle.kts");
+        fs::write(&manifest, "include(\":original\")\n").unwrap();
+        fs::write(&replacement, "include(\":replacement\")\n").unwrap();
+        let root = Dir::open_ambient_dir(tmp.path(), ambient_authority()).unwrap();
+
+        let error = gradle_confined_manifest_text_with_checkpoint(
+            &root,
+            "settings.gradle.kts",
+            "settings",
+            |checkpoint| {
+                if checkpoint == GradleManifestReadCheckpoint::PreOpen {
+                    fs::remove_file(&manifest).unwrap();
+                    fs::rename(&replacement, &manifest).unwrap();
+                }
+            },
+        )
+        .unwrap_err();
+
+        assert!(error.contains("changed during confined open"));
+    }
+
+    #[test]
+    fn retained_root_manifest_discovery_accepts_matching_capability_and_rejects_mismatch() {
+        let project = tempdir().unwrap();
+        fs::create_dir_all(project.path().join("member/src/main/kotlin")).unwrap();
+        fs::write(
+            project.path().join("settings.gradle.kts"),
+            "include(\":member\")\n",
+        )
+        .unwrap();
+        let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
+
+        let discovery =
+            discover_from_manifests_checked_with_root(project.path(), &retained).unwrap();
+        assert_eq!(
+            discovery.modules["member"].source_paths,
+            vec!["member/src/main/kotlin"]
+        );
+
+        let other = tempdir().unwrap();
+        let error = discover_from_manifests_checked_with_root(other.path(), &retained).unwrap_err();
+        assert!(error.contains("does not match the retained project root"));
     }
 
     #[test]
@@ -2023,6 +2602,84 @@ project(":second").setProjectDir(new File(rootDir, "modules/second"))
                     || error.contains("must contain one path")
                     || error.contains("Unsupported trailing Gradle projectDir assignment"),
                 "unexpected setProjectDir parser error: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn gradle_settings_reject_dynamic_and_unrecognized_project_mutations() {
+        for mutation in [
+            r#"project(":member").setProperty("projectDir", file("../outside"))"#,
+            r#"val changed = project(":member").setProperty("projectDir", file("../outside"))"#,
+            r#"project(":member")["projectDir"] = file("../outside")"#,
+            r#"project(":member").properties["projectDir"] = file("../outside")"#,
+            "project(\":member\")[\n    \"projectDir\"\n]\n    = file(\"../outside\")",
+            r#"project(":member").configure { projectDir = file("../outside") }"#,
+            r#"project(":member").customDirectory = file("../outside")"#,
+            r#"if (enabled) project(":member").customDirectory = file("../outside")"#,
+        ] {
+            let settings = format!("include(\":member\")\n{mutation}\n");
+            let error = parse_gradle_settings(&settings).unwrap_err();
+            assert!(
+                error.contains("Unsupported")
+                    && (error.contains("project mutation")
+                        || error.contains("projectDir mutation")),
+                "unexpected executable project mutation error: {error}"
+            );
+        }
+
+        let modules = parse_gradle_settings(
+            r#"
+include(":member")
+project(":member").projectDir
+project(":member")["projectDir"] == file("modules/member")
+project(":member").properties["projectDir"]
+val unchanged = project(":member").projectDir == file("modules/member")
+"#,
+        )
+        .unwrap();
+        assert_eq!(
+            modules,
+            vec![GradleSettingsModule {
+                name: "member".to_string(),
+                path: "member".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn gradle_directive_control_flow_validation_is_local() {
+        let modules = parse_gradle_settings(
+            r#"
+if (enabled) println("unrelated")
+for (entry in entries) {
+    println(entry)
+}
+include(":member")
+project(":member").projectDir = file("modules/member")
+"#,
+        )
+        .unwrap();
+        assert_eq!(
+            modules,
+            vec![GradleSettingsModule {
+                name: "member".to_string(),
+                path: "modules/member".to_string(),
+            }]
+        );
+
+        for settings in [
+            r#"if (enabled) include(":member")"#,
+            "if (\n    enabled\n)\ninclude(\":member\")",
+            "if (enabled) {\ninclude(\":member\")\n}",
+            "if (\n    enabled\n)\nproject(\":member\").projectDir = file(\"modules/member\")",
+            "if (enabled) {\nproject(\":member\").setProjectDir(file(\"modules/member\"))\n}",
+        ] {
+            let error = parse_gradle_settings(settings).unwrap_err();
+            assert!(
+                error.contains("Unsupported")
+                    && (error.contains("conditional") || error.contains("block-scoped")),
+                "unexpected directive-local control-flow error: {error}"
             );
         }
     }

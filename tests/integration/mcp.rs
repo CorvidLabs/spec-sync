@@ -2,6 +2,76 @@ use crate::helpers::*;
 use std::fs;
 use tempfile::TempDir;
 
+#[cfg(unix)]
+fn mcp_request_with_timeout(
+    root: &std::path::Path,
+    requests: &[serde_json::Value],
+    label: &str,
+) -> Vec<serde_json::Value> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    let binary = specsync().get_program().to_os_string();
+    let mut child = Command::new(binary)
+        .arg("mcp")
+        .arg("--root")
+        .arg(root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap_or_else(|error| panic!("failed to spawn {label}: {error}"));
+    {
+        let mut stdin = child.stdin.take().expect("MCP stdin must be piped");
+        for request in requests {
+            serde_json::to_writer(&mut stdin, request).unwrap();
+            stdin.write_all(b"\n").unwrap();
+        }
+    }
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        if child
+            .try_wait()
+            .unwrap_or_else(|error| panic!("failed to poll {label}: {error}"))
+            .is_some()
+        {
+            break;
+        }
+        if Instant::now() >= deadline {
+            child
+                .kill()
+                .unwrap_or_else(|error| panic!("failed to terminate blocked {label}: {error}"));
+            let output = child
+                .wait_with_output()
+                .unwrap_or_else(|error| panic!("failed to collect blocked {label}: {error}"));
+            panic!(
+                "{label} blocked; stdout: {}; stderr: {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+
+    let output = child
+        .wait_with_output()
+        .unwrap_or_else(|error| panic!("failed to collect {label}: {error}"));
+    assert!(
+        output.status.success(),
+        "{label} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output
+        .stdout
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_slice(line).unwrap())
+        .collect()
+}
+
 // ─── MCP Server Tests ──────────────────────────────────────────────────────
 
 #[test]
@@ -966,6 +1036,215 @@ fn mcp_rejects_selected_config_symlinks_and_fifos_without_blocking() {
             .as_str()
             .is_some_and(|error| error.contains("regular file"))
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn mcp_tools_and_resources_reject_generic_fifo_and_socket_sources_without_blocking() {
+    use std::os::unix::net::UnixListener;
+    use std::process::Command;
+
+    for special in ["fifo", "socket"] {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_minimal_project(&tmp);
+        let path = root.join("src/special.rs");
+        let _listener = match special {
+            "fifo" => {
+                assert!(
+                    Command::new("mkfifo")
+                        .arg(&path)
+                        .status()
+                        .unwrap()
+                        .success()
+                );
+                None
+            }
+            "socket" => Some(UnixListener::bind(&path).unwrap()),
+            _ => unreachable!(),
+        };
+        let responses = mcp_request_with_timeout(
+            &root,
+            &[
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": { "name": "specsync_coverage", "arguments": {} }
+                }),
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "resources/read",
+                    "params": { "uri": "specsync:///coverage" }
+                }),
+            ],
+            &format!("generic MCP {special} source probe"),
+        );
+
+        assert_eq!(responses.len(), 2, "{special}: {responses:#?}");
+        assert_eq!(responses[0]["result"]["isError"], true, "{special}");
+        assert_eq!(responses[1]["error"]["code"], -32602, "{special}");
+        let rendered = serde_json::to_string(&responses).unwrap();
+        assert!(
+            rendered.contains("regular file or directory"),
+            "{special}: {rendered}"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn mcp_tool_and_resource_snapshot_races_reject_fifo_symlink_and_regular_replacements() {
+    use std::io::Write;
+    use std::os::unix::fs::symlink;
+    use std::process::{Command, Stdio};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    const BARRIER_ENV: &str = "SPECSYNC_TEST_MCP_SNAPSHOT_FILE_IDENTITY_BARRIER";
+    const TARGET_ENV: &str = "SPECSYNC_TEST_MCP_SNAPSHOT_FILE_PATH";
+    const ATTACKER_BYTES: &str = "MCP_GENERIC_SNAPSHOT_ATTACKER_BYTES";
+
+    let requests = [
+        (
+            "tool",
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": { "name": "specsync_coverage", "arguments": {} }
+            }),
+        ),
+        (
+            "resource",
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "resources/read",
+                "params": { "uri": "specsync:///coverage" }
+            }),
+        ),
+    ];
+
+    for (request_kind, request) in requests {
+        for replacement in ["fifo", "symlink", "regular"] {
+            let tmp = TempDir::new().unwrap();
+            let control = TempDir::new().unwrap();
+            let root = setup_minimal_project(&tmp);
+            let barrier = control
+                .path()
+                .join(format!("barrier-{request_kind}-{replacement}"));
+            let attacker = control
+                .path()
+                .join(format!("attacker-{request_kind}-{replacement}.rs"));
+            fs::create_dir_all(&barrier).unwrap();
+            fs::write(&attacker, ATTACKER_BYTES).unwrap();
+
+            let binary = specsync().get_program().to_os_string();
+            let mut child = Command::new(binary)
+                .arg("mcp")
+                .arg("--root")
+                .arg(&root)
+                .env(BARRIER_ENV, &barrier)
+                .env(TARGET_ENV, "src/auth/service.ts")
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
+            {
+                let mut stdin = child.stdin.take().unwrap();
+                serde_json::to_writer(&mut stdin, &request).unwrap();
+                stdin.write_all(b"\n").unwrap();
+            }
+
+            let ready = barrier.join("retained-open");
+            let ready_deadline = Instant::now() + Duration::from_secs(5);
+            while !ready.is_file() {
+                assert!(
+                    child.try_wait().unwrap().is_none(),
+                    "{request_kind}/{replacement} exited before the retained-open barrier"
+                );
+                assert!(
+                    Instant::now() < ready_deadline,
+                    "{request_kind}/{replacement} did not reach the retained-open barrier"
+                );
+                thread::sleep(Duration::from_millis(10));
+            }
+
+            let target = root.join("src/auth/service.ts");
+            fs::rename(&target, root.join("src/auth/retained.ts")).unwrap();
+            match replacement {
+                "fifo" => {
+                    assert!(
+                        Command::new("mkfifo")
+                            .arg(&target)
+                            .status()
+                            .unwrap()
+                            .success()
+                    );
+                }
+                "symlink" => symlink(&attacker, &target).unwrap(),
+                "regular" => fs::rename(&attacker, &target).unwrap(),
+                _ => unreachable!(),
+            }
+            fs::write(barrier.join("resume"), b"resume\n").unwrap();
+
+            let exit_deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                if child.try_wait().unwrap().is_some() {
+                    break;
+                }
+                if Instant::now() >= exit_deadline {
+                    child.kill().unwrap();
+                    let output = child.wait_with_output().unwrap();
+                    panic!(
+                        "{request_kind}/{replacement} blocked; stdout: {}; stderr: {}",
+                        String::from_utf8_lossy(&output.stdout),
+                        String::from_utf8_lossy(&output.stderr)
+                    );
+                }
+                thread::sleep(Duration::from_millis(10));
+            }
+            let output = child.wait_with_output().unwrap();
+            assert!(
+                output.status.success(),
+                "{request_kind}/{replacement}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let response: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+            if request_kind == "tool" {
+                assert_eq!(
+                    response["result"]["isError"], true,
+                    "{replacement}: {response}"
+                );
+            } else {
+                assert_eq!(
+                    response["error"]["code"], -32602,
+                    "{replacement}: {response}"
+                );
+            }
+            let rendered = serde_json::to_string(&response).unwrap();
+            assert!(
+                rendered.contains("changed during inspection"),
+                "{request_kind}/{replacement}: {rendered}"
+            );
+            assert!(
+                !rendered.contains(ATTACKER_BYTES),
+                "{request_kind}/{replacement}: {rendered}"
+            );
+            let attacker_location = if replacement == "regular" {
+                &target
+            } else {
+                &attacker
+            };
+            assert_eq!(
+                fs::read(attacker_location).unwrap(),
+                ATTACKER_BYTES.as_bytes(),
+                "{request_kind}/{replacement} changed attacker bytes"
+            );
+        }
+    }
 }
 
 #[cfg(unix)]

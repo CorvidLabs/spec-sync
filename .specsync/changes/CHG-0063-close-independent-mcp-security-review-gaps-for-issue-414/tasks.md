@@ -151,6 +151,13 @@ artifact: tasks
   make tools/resources fail without generic snapshot reopening.
 - [x] Replace ambient CLI coverage walks/LOC reads with retained source snapshots and prove
   post-discovery Unix symlink plus hosted-Windows junction swaps are inconclusive for every gate.
+- [x] Close the post-review Gradle gaps: preflight shadowed filename variants, bind native
+  before/opened/after identities, reject invoked unsupported inclusion APIs, and keep unrelated
+  control flow compatible.
+- [x] Share one retained CLI coverage capability across manifest/spec/source discovery and enforce
+  iterative 8 MiB/file, 64 MiB total, 100,000-entry, 256-component, UTF-8, and identity bounds.
+- [x] Route generic MCP tool/resource project inputs through no-follow, non-blocking,
+  identity-continuous retained reads and characterize FIFO/socket/link/regular replacement races.
 - [ ] Obtain a clean post-fix acceptance rereview and adversarial security/compatibility rereview.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.

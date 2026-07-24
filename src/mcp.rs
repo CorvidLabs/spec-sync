@@ -39,6 +39,10 @@ const MAX_ISSUE_DIAGNOSTIC_PATH_CHARS: usize = 240;
 const MCP_STARTUP_TEST_BARRIER_ENV: &str = "SPECSYNC_TEST_MCP_STARTUP_IDENTITY_BARRIER";
 #[cfg(debug_assertions)]
 const MCP_STARTUP_TEST_BARRIER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+#[cfg(debug_assertions)]
+const MCP_SNAPSHOT_FILE_TEST_BARRIER_ENV: &str = "SPECSYNC_TEST_MCP_SNAPSHOT_FILE_IDENTITY_BARRIER";
+#[cfg(debug_assertions)]
+const MCP_SNAPSHOT_FILE_TEST_PATH_ENV: &str = "SPECSYNC_TEST_MCP_SNAPSHOT_FILE_PATH";
 static STAGED_FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 const SNAPSHOT_IGNORED_DIRS: &[&str] = &[
     ".git",
@@ -315,6 +319,54 @@ fn wait_for_mcp_startup_test_barrier() -> Result<(), String> {
         }
         if started.elapsed() >= MCP_STARTUP_TEST_BARRIER_TIMEOUT {
             return Err("Timed out waiting for MCP startup test barrier".to_string());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+#[cfg(debug_assertions)]
+fn wait_for_mcp_snapshot_file_test_barrier(relative: &Path) -> Result<(), String> {
+    let Some(target) = std::env::var_os(MCP_SNAPSHOT_FILE_TEST_PATH_ENV) else {
+        return Ok(());
+    };
+    if Path::new(&target) != relative {
+        return Ok(());
+    }
+    let Some(barrier_directory) = std::env::var_os(MCP_SNAPSHOT_FILE_TEST_BARRIER_ENV) else {
+        return Err("MCP snapshot file test barrier path is not configured".to_string());
+    };
+    let barrier_directory = PathBuf::from(barrier_directory);
+    let ready_path = barrier_directory.join("retained-open");
+    let resume_path = barrier_directory.join("resume");
+    let mut ready_file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&ready_path)
+        .map_err(|error| format!("Cannot create MCP snapshot file test barrier: {error}"))?;
+    ready_file
+        .write_all(b"retained-open\n")
+        .and_then(|_| ready_file.sync_all())
+        .map_err(|error| format!("Cannot publish MCP snapshot file test barrier: {error}"))?;
+    drop(ready_file);
+
+    let started = std::time::Instant::now();
+    loop {
+        match fs::metadata(&resume_path) {
+            Ok(metadata) if metadata.is_file() => return Ok(()),
+            Ok(_) => {
+                return Err(
+                    "MCP snapshot file test barrier resume marker is not a file".to_string()
+                );
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "Cannot inspect MCP snapshot file test barrier resume marker: {error}"
+                ));
+            }
+        }
+        if started.elapsed() >= MCP_STARTUP_TEST_BARRIER_TIMEOUT {
+            return Err("Timed out waiting for MCP snapshot file test barrier".to_string());
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
@@ -1050,179 +1102,20 @@ fn read_capability_text_if_exists_with_limit_and_hook(
     max_bytes: u64,
     after_retained_open: impl FnOnce(),
 ) -> Result<Option<String>, String> {
-    let before = match source.symlink_metadata(relative) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => {
-            return Err(format!(
-                "Cannot inspect MCP snapshot manifest {}: {error}",
-                relative.display()
-            ));
-        }
+    let Some(bytes) = read_retained_snapshot_file_if_exists_with_hook(
+        source,
+        relative,
+        relative,
+        "MCP snapshot manifest",
+        max_bytes,
+        || {
+            after_retained_open();
+            Ok(())
+        },
+    )?
+    else {
+        return Ok(None);
     };
-    if snapshot_metadata_is_link(&before) || !before.is_file() {
-        return Err(format!(
-            "MCP snapshot manifest must be a regular file and must not be a symlink or reparse point: {}",
-            relative.display()
-        ));
-    }
-    #[cfg(not(windows))]
-    let expected_identity = snapshot_metadata_identity(&before).map_err(|error| {
-        format!(
-            "Cannot identify MCP snapshot manifest {}: {error}",
-            relative.display()
-        )
-    })?;
-
-    let options = read_only_nofollow_options();
-    let mut file = source.open_with(relative, &options).map_err(|error| {
-        format!(
-            "Cannot open MCP snapshot manifest {} through its root capability: {error}",
-            relative.display()
-        )
-    })?;
-    let opened_metadata = file.metadata().map_err(|error| {
-        format!(
-            "Cannot inspect opened MCP snapshot manifest {}: {error}",
-            relative.display()
-        )
-    })?;
-    if snapshot_metadata_is_link(&opened_metadata) || !opened_metadata.is_file() {
-        return Err(format!(
-            "MCP snapshot manifest must be a regular file and must not be a symlink or reparse point: {}",
-            relative.display()
-        ));
-    }
-    let opened_identity = snapshot_file_identity(&file).map_err(|error| {
-        format!(
-            "Cannot identify opened MCP snapshot manifest {}: {error}",
-            relative.display()
-        )
-    })?;
-    #[cfg(not(windows))]
-    if opened_identity != expected_identity {
-        return Err(format!(
-            "MCP snapshot manifest changed during inspection: {}",
-            relative.display()
-        ));
-    }
-    after_retained_open();
-    let after_open = source.symlink_metadata(relative).map_err(|error| {
-        format!(
-            "Cannot re-inspect MCP snapshot manifest {}: {error}",
-            relative.display()
-        )
-    })?;
-    if snapshot_metadata_is_link(&after_open) || !after_open.is_file() {
-        return Err(format!(
-            "MCP snapshot manifest changed during inspection: {}",
-            relative.display()
-        ));
-    }
-    #[cfg(not(windows))]
-    if snapshot_metadata_identity(&after_open).ok() != Some(expected_identity) {
-        return Err(format!(
-            "MCP snapshot manifest changed during inspection: {}",
-            relative.display()
-        ));
-    }
-    #[cfg(windows)]
-    {
-        let observed_options = read_only_nofollow_options();
-        let observed = source
-            .open_with(relative, &observed_options)
-            .map_err(|error| {
-                format!(
-                    "Cannot re-open MCP snapshot manifest {}: {error}",
-                    relative.display()
-                )
-            })?;
-        if snapshot_file_identity(&observed).ok() != Some(opened_identity) {
-            return Err(format!(
-                "MCP snapshot manifest changed during inspection: {}",
-                relative.display()
-            ));
-        }
-        let observed_metadata = observed.metadata().map_err(|error| {
-            format!(
-                "Cannot inspect re-opened MCP snapshot manifest {}: {error}",
-                relative.display()
-            )
-        })?;
-        if snapshot_metadata_is_link(&observed_metadata) || !observed_metadata.is_file() {
-            return Err(format!(
-                "MCP snapshot manifest changed during inspection: {}",
-                relative.display()
-            ));
-        }
-    }
-
-    let mut bytes = Vec::new();
-    Read::by_ref(&mut file)
-        .take(max_bytes + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|error| {
-            format!(
-                "Cannot read MCP snapshot manifest {}: {error}",
-                relative.display()
-            )
-        })?;
-    if bytes.len() as u64 > max_bytes {
-        return Err(format!(
-            "MCP snapshot manifest exceeds the {} MiB per-file limit: {}",
-            max_bytes / (1024 * 1024),
-            relative.display()
-        ));
-    }
-    let after_read = source.symlink_metadata(relative).map_err(|error| {
-        format!(
-            "Cannot re-inspect MCP snapshot manifest {} after reading: {error}",
-            relative.display()
-        )
-    })?;
-    if snapshot_metadata_is_link(&after_read)
-        || !after_read.is_file()
-        || snapshot_file_identity(&file).ok() != Some(opened_identity)
-    {
-        return Err(format!(
-            "MCP snapshot manifest changed while it was being read: {}",
-            relative.display()
-        ));
-    }
-    #[cfg(not(windows))]
-    if snapshot_metadata_identity(&after_read).ok() != Some(expected_identity) {
-        return Err(format!(
-            "MCP snapshot manifest changed while it was being read: {}",
-            relative.display()
-        ));
-    }
-    #[cfg(windows)]
-    {
-        let observed_options = read_only_nofollow_options();
-        let observed = source
-            .open_with(relative, &observed_options)
-            .map_err(|error| {
-                format!(
-                    "Cannot re-open MCP snapshot manifest {} after reading: {error}",
-                    relative.display()
-                )
-            })?;
-        let observed_metadata = observed.metadata().map_err(|error| {
-            format!(
-                "Cannot inspect re-opened MCP snapshot manifest {} after reading: {error}",
-                relative.display()
-            )
-        })?;
-        if snapshot_metadata_is_link(&observed_metadata)
-            || !observed_metadata.is_file()
-            || snapshot_file_identity(&observed).ok() != Some(opened_identity)
-        {
-            return Err(format!(
-                "MCP snapshot manifest changed while it was being read: {}",
-                relative.display()
-            ));
-        }
-    }
     let normalized = normalize_snapshot_input(relative);
     budget.charge_file(&normalized, bytes.len() as u64)?;
     let content = String::from_utf8(bytes.clone()).map_err(|_| {
@@ -1233,6 +1126,124 @@ fn read_capability_text_if_exists_with_limit_and_hook(
     })?;
     budget.preloaded_files.insert(normalized, bytes);
     Ok(Some(content))
+}
+
+fn read_retained_snapshot_file_if_exists_with_hook(
+    source: &Dir,
+    relative: &Path,
+    diagnostic_relative: &Path,
+    label: &str,
+    max_bytes: u64,
+    after_retained_open: impl FnOnce() -> Result<(), String>,
+) -> Result<Option<Vec<u8>>, String> {
+    let before = match source.symlink_metadata(relative) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(format!(
+                "Cannot inspect {label} {}: {error}",
+                diagnostic_relative.display()
+            ));
+        }
+    };
+    if snapshot_metadata_is_link(&before) || !before.is_file() {
+        return Err(format!(
+            "{label} must be a regular file and must not be a symlink or reparse point: {}",
+            diagnostic_relative.display()
+        ));
+    }
+    let expected_identity = snapshot_metadata_identity(&before).map_err(|error| {
+        format!(
+            "Cannot identify {label} {}: {error}",
+            diagnostic_relative.display()
+        )
+    })?;
+
+    let options = read_only_nofollow_options();
+    let mut file = source.open_with(relative, &options).map_err(|error| {
+        format!(
+            "Cannot open {label} {} as a no-follow, non-blocking regular file: {error}",
+            diagnostic_relative.display()
+        )
+    })?;
+    let opened_metadata = file.metadata().map_err(|error| {
+        format!(
+            "Cannot inspect opened {label} {}: {error}",
+            diagnostic_relative.display()
+        )
+    })?;
+    if snapshot_metadata_is_link(&opened_metadata) || !opened_metadata.is_file() {
+        return Err(format!(
+            "{label} must be a regular file and must not be a symlink or reparse point: {}",
+            diagnostic_relative.display()
+        ));
+    }
+    let opened_identity = snapshot_file_identity(&file).map_err(|error| {
+        format!(
+            "Cannot identify opened {label} {}: {error}",
+            diagnostic_relative.display()
+        )
+    })?;
+    if opened_identity != expected_identity {
+        return Err(format!(
+            "{label} changed during inspection: {}",
+            diagnostic_relative.display()
+        ));
+    }
+
+    after_retained_open()?;
+    let after_open = source.symlink_metadata(relative).map_err(|error| {
+        format!(
+            "Cannot re-inspect {label} {}: {error}",
+            diagnostic_relative.display()
+        )
+    })?;
+    if snapshot_metadata_is_link(&after_open)
+        || !after_open.is_file()
+        || snapshot_metadata_identity(&after_open).ok() != Some(expected_identity)
+        || snapshot_file_identity(&file).ok() != Some(opened_identity)
+    {
+        return Err(format!(
+            "{label} changed during inspection: {}",
+            diagnostic_relative.display()
+        ));
+    }
+
+    let mut bytes = Vec::with_capacity(before.len().min(max_bytes) as usize);
+    Read::by_ref(&mut file)
+        .take(max_bytes + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            format!(
+                "Cannot read {label} {}: {error}",
+                diagnostic_relative.display()
+            )
+        })?;
+    if bytes.len() as u64 > max_bytes {
+        return Err(format!(
+            "{label} exceeds the {} MiB per-file limit: {}",
+            max_bytes / (1024 * 1024),
+            diagnostic_relative.display()
+        ));
+    }
+
+    let after_read = source.symlink_metadata(relative).map_err(|error| {
+        format!(
+            "Cannot re-inspect {label} {} after reading: {error}",
+            diagnostic_relative.display()
+        )
+    })?;
+    if snapshot_metadata_is_link(&after_read)
+        || !after_read.is_file()
+        || snapshot_metadata_identity(&after_read).ok() != Some(expected_identity)
+        || snapshot_file_identity(&file).ok() != Some(opened_identity)
+    {
+        return Err(format!(
+            "{label} changed while it was being read: {}",
+            diagnostic_relative.display()
+        ));
+    }
+    Ok(Some(bytes))
 }
 
 fn snapshot_manifest_input(base: &Path, configured: &str, label: &str) -> Result<PathBuf, String> {
@@ -1342,6 +1353,19 @@ fn snapshot_metadata_identity(metadata: &Metadata) -> io::Result<SnapshotEntryId
     use cap_std::fs::MetadataExt;
 
     Ok((metadata.dev(), metadata.ino()))
+}
+
+#[cfg(windows)]
+fn snapshot_metadata_identity(metadata: &Metadata) -> io::Result<SnapshotEntryIdentity> {
+    use cap_primitives::fs::_WindowsByHandle;
+
+    let volume = metadata.volume_serial_number().ok_or_else(|| {
+        io::Error::other("Windows metadata does not expose a volume serial number")
+    })?;
+    let index = metadata
+        .file_index()
+        .ok_or_else(|| io::Error::other("Windows metadata does not expose a file index"))?;
+    Ok((volume, index))
 }
 
 #[cfg(not(any(unix, windows)))]
@@ -1529,180 +1553,17 @@ fn read_snapshot_configuration_with_hook(
         };
     }
 
-    let before = match parent.symlink_metadata(file_name) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => {
-            return Err(format!(
-                "Cannot inspect MCP configuration {}: {error}",
-                relative.display()
-            ));
-        }
-    };
-    if snapshot_metadata_is_link(&before) || !before.is_file() {
-        return Err(format!(
-            "Selected MCP configuration {} must be a regular file and must not be a symlink or reparse point",
-            relative.display()
-        ));
-    }
-
-    #[cfg(not(windows))]
-    let expected_metadata_identity =
-        Some(snapshot_metadata_identity(&before).map_err(|error| {
-            format!(
-                "Cannot identify MCP configuration {}: {error}",
-                relative.display()
-            )
-        })?);
-    let options = read_only_nofollow_options();
-    let mut file = parent.open_with(file_name, &options).map_err(|error| {
-        format!(
-            "Cannot open MCP configuration {} as a non-blocking regular file: {error}",
-            relative.display()
-        )
-    })?;
-    let opened_metadata = file.metadata().map_err(|error| {
-        format!(
-            "Cannot inspect opened MCP configuration {}: {error}",
-            relative.display()
-        )
-    })?;
-    if snapshot_metadata_is_link(&opened_metadata) || !opened_metadata.is_file() {
-        return Err(format!(
-            "Selected MCP configuration {} must be a regular file and must not be a symlink or reparse point",
-            relative.display()
-        ));
-    }
-    let opened_identity = snapshot_file_identity(&file).map_err(|error| {
-        format!(
-            "Cannot identify opened MCP configuration {}: {error}",
-            relative.display()
-        )
-    })?;
-    #[cfg(not(windows))]
-    if expected_metadata_identity != Some(opened_identity) {
-        return Err(format!(
-            "Selected MCP configuration changed during inspection: {}",
-            relative.display()
-        ));
-    }
-    after_retained_open();
-    let after_open = parent.symlink_metadata(file_name).map_err(|error| {
-        format!(
-            "Cannot re-inspect MCP configuration {}: {error}",
-            relative.display()
-        )
-    })?;
-    let metadata_changed = {
-        #[cfg(not(windows))]
-        {
-            expected_metadata_identity.is_some_and(|expected| {
-                snapshot_metadata_identity(&after_open).ok() != Some(expected)
-            })
-        }
-        #[cfg(windows)]
-        {
-            false
-        }
-    };
-    if snapshot_metadata_is_link(&after_open) || !after_open.is_file() || metadata_changed {
-        return Err(format!(
-            "Selected MCP configuration changed during inspection: {}",
-            relative.display()
-        ));
-    }
-    #[cfg(windows)]
-    {
-        let observed_options = read_only_nofollow_options();
-        let observed = parent
-            .open_with(file_name, &observed_options)
-            .map_err(|error| {
-                format!(
-                    "Cannot re-open MCP configuration {}: {error}",
-                    relative.display()
-                )
-            })?;
-        if snapshot_file_identity(&observed).ok() != Some(opened_identity) {
-            return Err(format!(
-                "Selected MCP configuration changed during inspection: {}",
-                relative.display()
-            ));
-        }
-    }
-
-    let mut bytes = Vec::new();
-    Read::by_ref(&mut file)
-        .take(MAX_PROJECT_FILE_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|error| {
-            format!(
-                "Cannot read MCP configuration {}: {error}",
-                relative.display()
-            )
-        })?;
-    if bytes.len() as u64 > MAX_PROJECT_FILE_BYTES {
-        return Err(format!(
-            "MCP configuration exceeds the {} MiB per-file limit: {}",
-            MAX_PROJECT_FILE_BYTES / (1024 * 1024),
-            relative.display()
-        ));
-    }
-    let after_read = parent.symlink_metadata(file_name).map_err(|error| {
-        format!(
-            "Cannot re-inspect MCP configuration {} after reading: {error}",
-            relative.display()
-        )
-    })?;
-    let metadata_changed = {
-        #[cfg(not(windows))]
-        {
-            expected_metadata_identity.is_some_and(|expected| {
-                snapshot_metadata_identity(&after_read).ok() != Some(expected)
-            })
-        }
-        #[cfg(windows)]
-        {
-            false
-        }
-    };
-    if snapshot_metadata_is_link(&after_read)
-        || !after_read.is_file()
-        || metadata_changed
-        || snapshot_file_identity(&file).ok() != Some(opened_identity)
-    {
-        return Err(format!(
-            "Selected MCP configuration changed while it was being read: {}",
-            relative.display()
-        ));
-    }
-    #[cfg(windows)]
-    {
-        let observed_options = read_only_nofollow_options();
-        let observed = parent
-            .open_with(file_name, &observed_options)
-            .map_err(|error| {
-                format!(
-                    "Cannot re-open MCP configuration {} after reading: {error}",
-                    relative.display()
-                )
-            })?;
-        let observed_metadata = observed.metadata().map_err(|error| {
-            format!(
-                "Cannot inspect re-opened MCP configuration {} after reading: {error}",
-                relative.display()
-            )
-        })?;
-        if snapshot_metadata_is_link(&observed_metadata)
-            || !observed_metadata.is_file()
-            || snapshot_file_identity(&observed).ok() != Some(opened_identity)
-        {
-            return Err(format!(
-                "Selected MCP configuration changed while it was being read: {}",
-                relative.display()
-            ));
-        }
-    }
-    Ok(Some(bytes))
+    read_retained_snapshot_file_if_exists_with_hook(
+        &parent,
+        Path::new(file_name),
+        relative,
+        "Selected MCP configuration",
+        MAX_PROJECT_FILE_BYTES,
+        || {
+            after_retained_open();
+            Ok(())
+        },
+    )
 }
 
 fn validate_snapshot_configuration(
@@ -1853,6 +1714,47 @@ impl SnapshotBudget {
     }
 }
 
+fn read_snapshot_project_file(source: &Dir, relative: &Path) -> Result<Vec<u8>, String> {
+    read_snapshot_project_file_with_result_hook(source, relative, || {
+        #[cfg(debug_assertions)]
+        wait_for_mcp_snapshot_file_test_barrier(relative)?;
+        Ok(())
+    })
+}
+
+#[cfg(all(test, unix))]
+fn read_snapshot_project_file_with_hook(
+    source: &Dir,
+    relative: &Path,
+    after_retained_open: impl FnOnce(),
+) -> Result<Vec<u8>, String> {
+    read_snapshot_project_file_with_result_hook(source, relative, || {
+        after_retained_open();
+        Ok(())
+    })
+}
+
+fn read_snapshot_project_file_with_result_hook(
+    source: &Dir,
+    relative: &Path,
+    after_retained_open: impl FnOnce() -> Result<(), String>,
+) -> Result<Vec<u8>, String> {
+    read_retained_snapshot_file_if_exists_with_hook(
+        source,
+        relative,
+        relative,
+        "MCP project input",
+        MAX_PROJECT_FILE_BYTES,
+        after_retained_open,
+    )?
+    .ok_or_else(|| {
+        format!(
+            "MCP project input changed during inspection: {}",
+            relative.display()
+        )
+    })
+}
+
 fn copy_snapshot_directory(
     source: &Dir,
     destination: &Dir,
@@ -1930,7 +1832,7 @@ fn copy_snapshot_directory(
             continue;
         }
 
-        let metadata = source.metadata(&child).map_err(|error| {
+        let metadata = source.symlink_metadata(&child).map_err(|error| {
             format!(
                 "Cannot inspect MCP project input {} through its root capability: {error}",
                 child.display()
@@ -1947,8 +1849,11 @@ fn copy_snapshot_directory(
             )?;
             continue;
         }
-        if !metadata.is_file() {
-            continue;
+        if snapshot_metadata_is_link(&metadata) || !metadata.is_file() {
+            return Err(format!(
+                "MCP project input must be a regular file or directory and must not be a symlink or reparse point: {}",
+                child.display()
+            ));
         }
         if metadata.len() > MAX_PROJECT_FILE_BYTES {
             return Err(format!(
@@ -1957,26 +1862,7 @@ fn copy_snapshot_directory(
                 child.display()
             ));
         }
-        let input = source.open(&child).map_err(|error| {
-            format!(
-                "Cannot open MCP project input {} through its root capability: {error}",
-                child.display()
-            )
-        })?;
-        let mut bytes = Vec::with_capacity(metadata.len() as usize);
-        input
-            .take(MAX_PROJECT_FILE_BYTES + 1)
-            .read_to_end(&mut bytes)
-            .map_err(|error| {
-                format!("Cannot read MCP project input {}: {error}", child.display())
-            })?;
-        if bytes.len() as u64 > MAX_PROJECT_FILE_BYTES {
-            return Err(format!(
-                "MCP project input exceeds the {} MiB per-file limit: {}",
-                MAX_PROJECT_FILE_BYTES / (1024 * 1024),
-                child.display()
-            ));
-        }
+        let bytes = read_snapshot_project_file(source, &child)?;
         budget.charge_file(&child, bytes.len() as u64)?;
         destination.write(&child, bytes).map_err(|error| {
             format!(
@@ -5743,7 +5629,7 @@ Test
 
         let explicit_destination = open_test_directory(explicit_destination_temp.path());
         let mut explicit_budget = SnapshotBudget::default();
-        copy_snapshot_directory(
+        let error = copy_snapshot_directory(
             &source,
             &explicit_destination,
             Path::new("."),
@@ -5751,12 +5637,10 @@ Test
             &[PathBuf::from("generated")],
             &mut explicit_budget,
         )
-        .expect("an explicit input must override an exclusion with the same symlink basename");
-
-        assert_eq!(
-            fs::read_to_string(explicit_destination_temp.path().join("generated/module.rs"))
-                .unwrap(),
-            "inside\n"
+        .expect_err("an explicit input must inspect and reject the excluded symlink");
+        assert!(
+            error.contains("regular file or directory"),
+            "unexpected explicit symlink rejection: {error}"
         );
     }
 
@@ -6098,6 +5982,92 @@ Test
 
         assert!(error.contains("regular file"), "{error}");
         assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn generic_snapshot_rejects_fifo_and_socket_sources_without_blocking() {
+        use std::os::unix::net::UnixListener;
+        use std::process::Command;
+        use std::time::{Duration, Instant};
+
+        let fifo = setup_project();
+        assert!(
+            Command::new("mkfifo")
+                .arg(fifo.path().join("src/special.rs"))
+                .status()
+                .unwrap()
+                .success()
+        );
+        let started = Instant::now();
+        let fifo_error = ProjectSnapshot::create(fifo.path())
+            .err()
+            .expect("a configured FIFO source must fail the generic snapshot");
+        assert!(
+            fifo_error.contains("regular file or directory"),
+            "{fifo_error}"
+        );
+        assert!(started.elapsed() < Duration::from_secs(2));
+
+        let socket = setup_project();
+        let _listener = UnixListener::bind(socket.path().join("src/special.rs")).unwrap();
+        let socket_error = ProjectSnapshot::create(socket.path())
+            .err()
+            .expect("a configured socket source must fail the generic snapshot");
+        assert!(
+            socket_error.contains("regular file or directory"),
+            "{socket_error}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn generic_snapshot_reader_rejects_fifo_symlink_and_regular_replacements() {
+        use std::os::unix::fs::symlink;
+        use std::process::Command;
+        use std::time::{Duration, Instant};
+
+        const ATTACKER_BYTES: &str = "GENERIC_SNAPSHOT_ATTACKER_BYTES";
+        for replacement in ["fifo", "symlink", "regular"] {
+            let tmp = setup_project();
+            let root = tmp.path();
+            let source_path = root.join("src/lib.rs");
+            let attacker_path = root.join("attacker.rs");
+            fs::write(&source_path, "pub fn retained() {}\n").unwrap();
+            fs::write(&attacker_path, ATTACKER_BYTES).unwrap();
+            let source = open_test_directory(root);
+            let started = Instant::now();
+
+            let result =
+                read_snapshot_project_file_with_hook(&source, Path::new("src/lib.rs"), || {
+                    fs::rename(&source_path, root.join("src/original.rs")).unwrap();
+                    match replacement {
+                        "fifo" => {
+                            assert!(
+                                Command::new("mkfifo")
+                                    .arg(&source_path)
+                                    .status()
+                                    .unwrap()
+                                    .success()
+                            );
+                        }
+                        "symlink" => symlink(&attacker_path, &source_path).unwrap(),
+                        "regular" => fs::rename(&attacker_path, &source_path).unwrap(),
+                        _ => unreachable!(),
+                    }
+                });
+
+            let error = result.expect_err("every post-open path replacement must fail closed");
+            assert!(
+                error.contains("changed during inspection"),
+                "{replacement}: {error}"
+            );
+            assert!(!error.contains(ATTACKER_BYTES), "{replacement}: {error}");
+            assert!(
+                started.elapsed() < Duration::from_secs(2),
+                "{replacement} replacement blocked the retained reader"
+            );
+        }
     }
 
     #[cfg(unix)]

@@ -49,6 +49,10 @@ Acceptance Criteria
   Recognized snapshot manifests follow the same non-blocking regular-file and pre-open identity
   rule. Non-object JSON, invalid UTF-8, malformed JSON/TOML, and wrong-typed known fields make every
   tool/resource inconclusive rather than selecting defaults.
+- Generic project files used by tools and resources follow the same no-follow, non-blocking,
+  retained-handle acquisition. Path and opened-handle identity must agree before and after the
+  bounded read; FIFO/socket/device, link/reparse, and regular replacement races fail without
+  consuming replacement bytes or returning partial snapshots.
 - Manifest-relative Cargo paths may normalize `..` across sibling crates when the normalized result
   remains beneath the retained root. Confined Windows-native backslashes normalize equivalently;
   drive, UNC, rooted, traversal, canonical, symlink, and junction escapes remain rejected.
@@ -152,6 +156,9 @@ Acceptance Criteria
 27. All four recognized Gradle build/settings candidates are preflighted through retained handles
     with a 4 MiB per-file ceiling before manifest-derived traversal; no unsafe unselected candidate
     is silently ignored.
-27. Every present Gradle build/settings variant is preflighted at 4 MiB before settings parsing or
+28. Every present Gradle build/settings variant is preflighted at 4 MiB before settings parsing or
     manifest-derived source probing, charged/copied from exact retained bytes once, and excluded
     from generic snapshot reopening.
+29. Generic MCP project files use no-follow, non-blocking, identity-continuous retained reads for
+    both tools and resources; special/link/replacement races fail without attacker-byte
+    consumption or partial output.

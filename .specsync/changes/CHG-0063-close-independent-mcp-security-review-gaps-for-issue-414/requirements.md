@@ -46,6 +46,14 @@ Acceptance Criteria
 - Present Gradle build/settings manifests are retained-capability reads of regular non-link files,
   bounded to 4 MiB; linked, reparse-backed, non-regular, oversized, unreadable, or invalid-UTF-8
   inputs make checked discovery inconclusive without reading an outside referent.
+- Every present Gradle build/settings filename is preflighted before precedence selection and must
+  preserve native identity before open, after open, and after the bounded retained read. Invoked
+  unsupported inclusion APIs fail closed; unrelated control flow remains valid unless it governs
+  an unsupported include/project-directory mutation.
+- CLI coverage retains one project capability across manifest discovery, spec-module enumeration,
+  source traversal, and final root verification. Iterative traversal is bounded to 8 MiB per source
+  file, 64 MiB cumulative bytes, 100,000 entries, and 256 path components; invalid UTF-8, special
+  entries, links/reparse points, and identity replacement are inconclusive.
 - Cargo path discovery follows only semantic target, dependency, workspace-dependency,
   target-specific dependency, patch, and replacement tables. Unrelated metadata `path` keys are
   ignored. Confined Windows-native backslashes normalize from the declaring manifest, while
@@ -67,6 +75,10 @@ Acceptance Criteria
   likewise non-blocking, regular-file-only, and identity-bound before parsing. Non-object JSON,
   invalid UTF-8, malformed JSON/TOML, and wrong-typed known fields make tools and resources
   inconclusive rather than substituting an empty/default project.
+- Every generic MCP project file uses the same no-follow, non-blocking retained reader with
+  path/opened-handle identity continuity before and after the bounded read. Tool and resource
+  snapshots reject FIFO/socket/device entries, links/reparse points, and regular replacements
+  without blocking, consuming replacement bytes, or returning partial results.
 
 ### REQ-mcp-003
 
@@ -433,6 +445,9 @@ Acceptance Criteria
   reject without exposing referent content.
 - Present Gradle build/settings manifests must be regular non-link entries read through the
   retained capability, are bounded to 4 MiB, and reject invalid UTF-8 without partial discovery.
+- Every present filename variant is preflighted before selection, remains identity-stable through
+  read, and invoked unsupported inclusion APIs fail closed without rejecting unrelated control
+  flow.
 - General module discovery and MCP snapshot preflight use the same effective Gradle module paths.
 - MCP Cargo workspace discovery parses bounded manifests as real TOML.
 - Malformed MCP Cargo TOML/workspace shapes make MCP operations inconclusive; malformed Gradle

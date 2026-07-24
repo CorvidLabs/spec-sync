@@ -44,6 +44,14 @@ spec: manifest.spec.md
   Gradle project-directory mutations; ignore triple-quoted documentation and nested comments.
 - [x] Require the whitespace-delimited `new File` constructor and reject unrooted drive-relative
   identities while preserving genuine rooted nested Gradle identities.
+- [x] Preflight all four Gradle build/settings filenames before precedence selection so an unsafe
+  shadowed variant cannot evade checked discovery.
+- [x] Bind each Gradle manifest's native filesystem identity before open, after open, and after the
+  bounded retained read on Unix and Windows.
+- [x] Scope control-flow rejection to governed include/project-directory directives so unrelated
+  valid Gradle logic remains compatible.
+- [x] Reject invoked unsupported inclusion APIs such as `includeFlat` and `includeBuild` while
+  leaving ordinary identifiers and documentation inert.
 - [ ] Verify hosted-Windows junction/reparse-point rejection before outside source probing or
   traversal.
 - [ ] Obtain fresh exact-tree independent reviews, full repository/CI, trust, and Attest evidence.

@@ -9,6 +9,12 @@ retained directory capabilities and immutable bounded snapshots. Mutating tools 
 retained server-root capability and reject per-call root overrides. Replacing a configured path
 cannot redirect an active operation.
 
+Every generic project file, selected config, and recognized manifest is opened no-follow and
+non-blocking through a retained directory. Its path identity must still match the opened handle
+before and after the bounded read. FIFOs, sockets/devices, links/reparse points, and regular-file
+replacement races therefore fail without blocking or consuming replacement bytes, for both tools
+and resources.
+
 Absolute outside roots are rejected before filesystem probing. Configuration, manifests, dependency
 references, module definitions, spec mappings, source roots, generated destinations, nested symlinks,
 and Windows junctions must remain beneath the configured server root. Explicitly configured source
@@ -62,7 +68,16 @@ multiline workspace arrays and comments. Invalid TOML or malformed workspace sha
 operation inconclusive; partial member paths are not trusted. Gradle settings use the shared checked,
 comment- and escape-aware parser for Groovy and Kotlin includes plus supported `projectDir`
 overrides. Malformed Gradle discovery likewise fails gates instead of falling back to a partial or
-empty success.
+empty success. Every present build/settings filename is preflighted before precedence selection,
+including a lower-precedence shadowed variant, and remains identity-bound across its 4 MiB retained
+read. Invoked unsupported inclusion APIs and indirect/conditional include or project-directory
+mutations fail closed, while unrelated Gradle control flow remains compatible.
+
+CLI coverage uses one retained project capability for manifest discovery, spec-module enumeration,
+source traversal, and final root verification. The deterministic iterative source snapshot is
+limited to 8 MiB per file, 64 MiB cumulatively, 100,000 entries, and 256 path components. Invalid
+UTF-8 source names/content, special entries, links/reparse points, identity replacement, and
+exhausted limits make coverage inconclusive rather than yielding a partial percentage.
 
 Cargo path authority comes only from semantic target, dependency, workspace-dependency,
 target-specific dependency, patch, and replacement tables. An arbitrary metadata key named `path`

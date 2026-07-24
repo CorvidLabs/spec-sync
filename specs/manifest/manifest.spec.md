@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 9
+version: 10
 status: stable
 files:
   - src/manifest.rs
@@ -37,6 +37,7 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 |----------|-----------|---------|-------------|
 | `discover_from_manifests` | `root: &Path` | `ManifestDiscovery` | Compatibility discovery that returns an empty result when checked discovery is malformed |
 | `discover_from_manifests_checked` | `root: &Path` | `Result<ManifestDiscovery, String>` | Discover modules while surfacing unreadable or malformed Gradle settings to gate callers |
+| `discover_from_manifests_checked_with_root` | `root: &Path, project_root: &Dir` | `Result<ManifestDiscovery, String>` | Crate-visible checked discovery that reuses a caller-retained project-root capability and rejects an ambient/retained root identity mismatch |
 | `parse_gradle_settings` | `content: &str` | `Result<Vec<GradleSettingsModule>, String>` | Crate-visible shared parser for Groovy/Kotlin includes plus assignment-style and method-style literal project-directory overrides |
 
 ### Supported Manifest Types
@@ -59,10 +60,12 @@ member or target paths.
 
 1. Parsers are tried in a fixed order: Cargo.toml → Package.swift → build.gradle → package.json → pubspec.yaml → go.mod → pyproject.toml
 2. Multiple manifest types can coexist — results are merged (first module name wins on conflict)
-3. Missing ordinary manifest files are skipped. Present Gradle build/settings manifests are opened
-   through the retained project-root capability, must be regular non-link entries, are bounded to
-   4 MiB, and are parsed from the exact retained bytes. Linked, reparse-backed, non-regular,
-   oversized, unreadable, or invalid-UTF-8 Gradle manifests fail checked discovery.
+3. Missing ordinary manifest files are skipped. Every present Gradle build/settings variant is
+   preflighted through the retained project-root capability, including a lower-precedence variant
+   shadowed by another filename. Each must be a regular non-link entry, remain identity-stable
+   before open, after open, and after its bounded read, and fit the 4 MiB limit. Parsing consumes
+   only the exact retained bytes. Linked, reparse-backed, non-regular, replaced, oversized,
+   unreadable, or invalid-UTF-8 Gradle manifests fail checked discovery.
 4. Cargo workspace members are parsed recursively, with source paths prefixed by the member directory
 5. Swift `.testTarget()` declarations are excluded from modules
 6. Swift balanced-paren extraction handles nested parentheses correctly
@@ -70,7 +73,10 @@ member or target paths.
 8. Gradle multi-module projects support comment-aware Groovy/Kotlin quoting, decoded escapes,
    parenthesized or bare multiline `include` declarations, nested colon names, assignment-style
    `.projectDir = ...`, and method-style `.setProjectDir(...)`. Triple-quoted Groovy/Kotlin
-   documentation and nested block comments are inert.
+   documentation and nested block comments are inert. Control-flow rejection is local to a
+   governed include or project-directory directive; unrelated top-level control flow remains
+   compatible. Unsupported inclusion APIs such as `includeFlat` and `includeBuild` fail checked
+   discovery when invoked but remain inert when used only as identifiers or prose.
 9. Supported assignment and method arguments are exactly `file(<literal>)` and
    `new File(rootDir, <literal>)`. Every include argument and project-directory argument must be a
    complete literal expression; `new File` requires a real token boundary. Unescaped interpolation
@@ -164,6 +170,22 @@ member or target paths.
 - **When** checked manifest discovery is called
 - **Then** discovery returns an inconclusive error without reading or disclosing referent bytes
 
+### Scenario: A shadowed Gradle variant is unsafe
+
+- **Given** `settings.gradle.kts` is selected by precedence while a present `settings.gradle` is a
+  directory, link/reparse point, special file, replacement, oversized file, or invalid UTF-8
+- **When** checked manifest discovery is called
+- **Then** discovery fails before parsing or source probing; the lower-precedence variant cannot
+  evade security preflight
+
+### Scenario: Unrelated Gradle control flow
+
+- **Given** a settings file contains unrelated top-level `if`, `for`, or closure logic plus a
+  supported top-level literal `include`
+- **When** checked manifest discovery is called
+- **Then** the supported include is parsed; only indirect, conditional, or otherwise unsupported
+  include/project-directory mutations are rejected
+
 ### Scenario: Gradle path uses interpolation or encoded traversal
 
 - **Given** a Gradle include or project-directory expression uses `$name`, `${expression}`,
@@ -179,8 +201,8 @@ member or target paths.
 | Manifest file missing | Parser returns `None`, skipped silently |
 | Manifest file unreadable | Parser returns `None` (fs::read_to_string fails gracefully) |
 | Malformed non-Gradle manifest content | Best-effort extraction; missing fields result in defaults or skipped entries |
-| Linked, reparse-backed, non-regular, oversized, unreadable, or invalid-UTF-8 Gradle build/settings manifest | Checked discovery returns `Err` without reading a link referent or returning partial discovery; compatibility discovery returns an empty result |
-| Malformed or dynamic Gradle include, unescaped double-quoted interpolation, unsupported assignment/method project-directory form, rooted/drive/UNC/parent-escaping raw module identity or decoded effective path, or broken comments/escapes/parentheses | Checked discovery returns `Err`; compatibility discovery returns an empty result and gates stay inconclusive |
+| Linked, reparse-backed, non-regular, replaced, oversized, unreadable, or invalid-UTF-8 Gradle build/settings manifest, including a shadowed filename variant | Checked discovery returns `Err` without reading a link referent or returning partial discovery; compatibility discovery returns an empty result |
+| Malformed or dynamic Gradle include, invoked unsupported inclusion API, unescaped double-quoted interpolation, unsupported assignment/method project-directory form, rooted/drive/UNC/parent-escaping raw module identity or decoded effective path, or broken comments/escapes/parentheses | Checked discovery returns `Err`; compatibility discovery returns an empty result and gates stay inconclusive |
 | Gradle-derived directory contains a symlink or Windows reparse-point component | Checked discovery returns `Err` before source probing/traversal; compatibility discovery returns an empty result and gates stay inconclusive |
 | Workspace member directory doesn't exist | Skipped (Cargo.toml existence check) |
 | No parsers produce results | Returns default empty `ManifestDiscovery` |
@@ -214,3 +236,4 @@ member or target paths.
 | 2026-07-23 | v7 / CHG-0063 independent review: Validate raw drive-qualified module identities before colon mapping, confine literal `setProjectDir` forms, and reject symlink/reparse components through the retained root capability |
 | 2026-07-23 | v8 / CHG-0063 adversarial rereview: Acquire Gradle build/settings manifests as bounded regular non-link files, reject unescaped interpolation, and decode Unicode/octal path escapes before confinement |
 | 2026-07-23 | v9 / CHG-0063 final security rereview: Reject indirect/conditional Gradle mutations, mask multiline literals and nested comments, require the `new File` token boundary, and preserve only explicitly rooted Gradle names that resemble drive-relative paths |
+| 2026-07-23 | v10 / CHG-0063 post-review hardening: Preflight every present Gradle filename including shadowed variants, bind manifest identity across open/read, scope control-flow rejection to governed directives, and reject invoked unsupported inclusion APIs |

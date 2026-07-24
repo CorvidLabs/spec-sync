@@ -24,7 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read-root selection and generation rollback stay bound to retained parent capabilities and exact
   filesystem identities even when ambient paths are replaced; generated-file identity also binds
   exact staged bytes so immediate Unix inode reuse cannot authorize a replacement, with fail-closed
-  hashing bounded at the generated-output limit.
+  hashing bounded at the generated-output limit. Generic MCP project files now use no-follow,
+  non-blocking, identity-continuous retained reads for both tools and resources, rejecting special,
+  linked/reparse-backed, and replacement entries without consuming attacker bytes.
 - **MCP manifest and issue checks fail closed under adversarial input** — bounded Cargo workspace
   discovery uses real TOML, while shared checked Gradle discovery handles Groovy/Kotlin comments,
   escapes, includes, and supported project directories; malformed discovery is inconclusive for
@@ -35,7 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still fail. Private quarantine cleanup
   consumes its final retained directory capability before removal so Windows does not turn
   successful init/generation into sharing-violation failures. Manifest discovery shares the 64 MiB
-  input budget and snapshots exact preflighted bytes.
+  input budget and snapshots exact preflighted bytes. Every present Gradle filename, including a
+  lower-precedence shadowed variant, is preflighted and identity-bound across its retained read;
+  invoked unsupported inclusion APIs fail closed without rejecting unrelated control flow. CLI
+  coverage shares one retained project authority across manifest/spec/source discovery and applies
+  iterative 8 MiB/file, 64 MiB total, 100,000-entry, and 256-component bounds with strict UTF-8.
   Issue reads, listing, and verification require `GITHUB_TOKEN`, use in-process GitHub REST, and
   never spawn a `gh` provider process; `gh` remains only the explicit issue-creation write path.
   Verification globally deduplicates/caps IDs, includes repository preflight in the complete batch

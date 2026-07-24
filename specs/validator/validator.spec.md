@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 16
+version: 17
 status: stable
 files:
   - src/validator.rs
@@ -19,7 +19,7 @@ depends_on:
 
 ## Purpose
 
-Core validation engine for spec-sync. Validates individual specs and selected companion artifacts against source code, discovers configured and zero-config source files including static HTML, HTM, and CSS content, rejects every known generated companion marker outside fenced examples, extracts schema table names from SQL migrations, computes non-vacuous file and LOC coverage metrics from retained no-follow source snapshots, preserves malformed or unconstrained manifest discovery as an inconclusive checked error for gates, and resolves cross-project dependency references.
+Core validation engine for spec-sync. Validates individual specs and selected companion artifacts against source code, discovers configured and zero-config source files including static HTML, HTM, and CSS content, rejects every known generated companion marker outside fenced examples, extracts schema table names from SQL migrations, computes non-vacuous file and LOC coverage metrics from one retained, bounded, no-follow project snapshot, preserves malformed or unconstrained manifest discovery as an inconclusive checked error for gates, and resolves cross-project dependency references.
 
 ## Public API
 
@@ -75,9 +75,15 @@ Core validation engine for spec-sync. Validates individual specs and selected co
     readability, containment rejection, UTF-8 validation, and export extraction; it does not fall
     back to ambient source-path reads.
 17. Checked coverage opens configured source roots and files through retained no-follow
-    capabilities, binds identities before and after reads, and derives file, LOC,
+    capabilities beneath the same retained project root used for manifest and spec-module
+    discovery, binds directory and file identities before and after reads, and derives file, LOC,
     immediate-directory, and flat-file module results from one immutable observation. Symlink,
-    reparse, or identity replacement is inconclusive before outside reads or partial totals.
+    reparse, special-file, root/path identity replacement, invalid UTF-8, or traversal failure is
+    inconclusive before outside reads or partial totals.
+18. Checked coverage uses iterative deterministic traversal and one shared budget: 8 MiB per
+    source file, 64 MiB cumulative source bytes, 100,000 directory entries, and 256 path
+    components. Duplicate configured roots do not double-charge source bytes; excluded names are
+    filtered before metadata inspection unless directly configured.
 
 ## Behavioral Examples
 
@@ -142,6 +148,21 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 - **Then** validation uses only the supplied spec bytes and `SourceSnapshot` map, never reopens
   either path, and extracts exports from supplied source content without ambient wildcard imports
 
+### Scenario: Coverage root is replaced after manifest discovery
+
+- **Given** checked coverage retained the project directory, then the ambient project path or a
+  discovered source directory is replaced with a symlink, junction, or different regular entry
+- **When** source, spec-module, and manifest coverage discovery completes
+- **Then** the operation returns an inconclusive error without reading replacement bytes or
+  publishing partial file, LOC, or module totals
+
+### Scenario: Coverage traversal exceeds a deterministic bound
+
+- **Given** configured sources exceed 8 MiB per file, 64 MiB cumulatively, 100,000 entries, 256
+  components, or contain invalid UTF-8 in a supported source name/content
+- **When** `compute_coverage_checked` runs
+- **Then** it returns an inconclusive error before reporting a percentage
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -155,6 +176,7 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 | Missing required section | Error: "Missing required section: ## SectionName" |
 | Dependency spec not found | Error: "Dependency spec not found" |
 | Malformed, unreadable, unsupported, or unconfined Gradle discovery during checked coverage, including unsafe Gradle manifest entries | Returns `Err`; CLI/MCP gate callers report an inconclusive failure rather than coverage success, referent reads, or outside traversal |
+| Coverage source is linked/reparse-backed, special, replaced, invalid UTF-8, over 8 MiB, or traversal exceeds 64 MiB/100,000 entries/256 components | Returns `Err` from the retained project snapshot; no partial totals or ambient fallback |
 
 ## Dependencies
 
@@ -190,6 +212,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-23 | v14 / CHG-0063 independent review: keep raw drive-qualified modules, unsupported `setProjectDir` forms, and linked/reparse-backed Gradle source roots inconclusive across CLI and MCP gates |
 | 2026-07-23 | v15 / CHG-0063 adversarial rereview: keep linked/reparse-backed Gradle manifests plus interpolated or encoded Gradle paths inconclusive across checked gates |
 | 2026-07-23 | v16 / CHG-0063 final security rereview: snapshot coverage roots and bytes through retained no-follow handles so post-discovery symlink/junction replacement is inconclusive before outside reads |
+| 2026-07-23 | v17 / CHG-0063 post-review hardening: share one retained project authority across manifest/spec/source coverage and enforce deterministic iterative byte, entry, depth, UTF-8, and identity bounds |
 | 2026-07-10 | v5: keep coverage regression fixtures warning-free under current stable Clippy and document the intentionally in-file test-module layout |
 | 2026-07-10 | v5: make canonical requirements companions adaptive rather than empty mandatory ceremony |
 | 2026-07-02 | v4: add `source_within_root` — shared guard rejecting `files:` paths that escape the project root (absolute/`..`/symlink); applied in `validate_spec` and every export-extraction site (score, check --fix, diff, new) to close an out-of-root identifier-disclosure vector |

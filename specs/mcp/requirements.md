@@ -95,6 +95,10 @@ Acceptance Criteria
 - Recognized manifest inputs use the same retained-handle acquisition contract; FIFOs, devices,
   links/reparse points, and replacement identities fail before parsing or blocking reads on every
   platform.
+- Generic project inputs used by tools and resources use that retained no-follow, non-blocking
+  reader too. Path metadata and opened-handle identity must agree before and after the bounded
+  read; FIFO/socket/device entries, links/reparse points, and regular replacements fail without
+  consuming replacement bytes or producing partial snapshots.
 - Cargo TOML path discovery follows only semantic target, dependency, workspace-dependency,
   target-specific dependency, patch, and replacement tables; unrelated metadata `path` keys do
   not authorize filesystem inputs. Comment/escape-aware shared Gradle workspace parsing preserves

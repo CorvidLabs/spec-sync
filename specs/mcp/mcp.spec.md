@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 16
+version: 17
 status: stable
 files:
   - src/mcp.rs
@@ -95,6 +95,11 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
     any compatibility loader runs. Non-object JSON, invalid UTF-8, malformed JSON/TOML, and
     wrong-typed known fields make tools and resources inconclusive instead of silently falling
     back to an empty/default project.
+18. Generic MCP project files use the same no-follow, non-blocking retained-handle reader as
+    selected config and recognized manifests. Their path identity must match the opened handle
+    before and after the bounded read on Unix and Windows; FIFO/socket/device entries, symlinks or
+    reparse points, and regular-file replacements fail without blocking or consuming attacker
+    bytes. Tool and resource snapshots share this behavior.
 
 ## Behavioral Examples
 
@@ -147,6 +152,14 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 - **When** the server processes the request
 - **Then** responds with JSON-RPC error code -32601 "Method not found"
 
+### Scenario: Generic project input is replaced during snapshot
+
+- **Given** a tool or resource retains a regular project file, then its pathname is replaced by a
+  FIFO, socket, symlink/reparse point, or different regular file
+- **When** the bounded project snapshot continues
+- **Then** the operation fails inconclusively without blocking, parsing replacement bytes, or
+  returning a partial tool/resource result
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -165,6 +178,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | Unrelated Cargo metadata contains a `path` key | Ignored for snapshot input discovery; only semantic Cargo target/workspace/dependency path tables authorize an input |
 | Cumulative confinement or manifest preflight exceeds its deterministic entry bound | Tool/resource error before downstream filesystem access |
 | Selected config or recognized manifest is a FIFO, device, symlink/reparse point, or replaced identity | Tool/resource error before parsing; the server does not block or consume replacement bytes |
+| Generic project input is a FIFO/socket/device, link/reparse point, or is replaced across its retained read | Tool/resource error before downstream parsing; the server does not block, consume attacker bytes, or return a partial snapshot |
 | Generation exceeds 1,000 specs, 64 MiB, or its response budget | Tool error before publishing project files |
 | Generated destination exists, a public parent path is replaced, or a staged batch cannot publish completely | Tool error; identity-bound cleanup preserves public replacements; an empty parent created by the failed batch may remain |
 | Private quarantine cleanup on Windows | Final retained directory handle is consumed before removal; successful init/generate does not fail with a sharing violation |
@@ -222,3 +236,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-22 | CHG-0063 final agent-review follow-up: Bind selected configs to their pre-open identity and reject special-file manifests before blocking reads |
 | 2026-07-22 | CHG-0063 retained-handle follow-up: Acquire selected configs and manifests with no-follow, non-blocking handles on every platform; validate opened metadata and reject path replacement before and after bounded reads |
 | 2026-07-23 | v16 / CHG-0063 final security rereview: Preflight every Gradle build/settings variant once through the retained no-follow reader, enforce 4 MiB before parsing/probing, and reject special, linked, replaced, or oversized inputs for tools and resources |
+| 2026-07-23 | v17 / CHG-0063 post-review hardening: Apply no-follow, non-blocking, before/opened/after identity continuity to every generic project file used by MCP tools and resources |

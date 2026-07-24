@@ -1,5 +1,5 @@
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::sync::LazyLock;
@@ -38,26 +38,55 @@ pub struct SpecColumn {
 
 // ─── SQL Parsing ─────────────────────────────────────────────────────────
 
+/// Table-name token: double-quoted, backtick-quoted, bracket-quoted, or a bare
+/// (optionally schema-qualified) identifier.
+const TABLE_NAME: &str = r#"(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|[\w.]+)"#;
+
+fn table_name_regex(pattern: &str) -> Regex {
+    Regex::new(&pattern.replace("{NAME}", TABLE_NAME)).unwrap()
+}
+
+/// Normalize a table reference for comparison: strip per-segment quoting
+/// (`"quoted"`, `` `backtick` ``, `[bracket]`) and lowercase, so SQL quoting
+/// style and case don't change identity. `public."Users"` → `public.users`.
+pub fn normalize_table_name(raw: &str) -> String {
+    raw.split('.')
+        .map(|segment| {
+            let s = segment.trim();
+            let unquoted = s
+                .strip_prefix('"')
+                .and_then(|v| v.strip_suffix('"'))
+                .or_else(|| s.strip_prefix('`').and_then(|v| v.strip_suffix('`')))
+                .or_else(|| s.strip_prefix('[').and_then(|v| v.strip_suffix(']')))
+                .unwrap_or(s);
+            unquoted.to_ascii_lowercase()
+        })
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
 static CREATE_TABLE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)CREATE\s+(?:VIRTUAL\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(").unwrap()
+    table_name_regex(r"(?i)CREATE\s+(?:VIRTUAL\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?({NAME})\s*\(")
 });
 
 static ALTER_ADD_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+ADD\s+(?:COLUMN\s+)?(\w+)\s+(\w+)").unwrap()
+    table_name_regex(r"(?i)ALTER\s+TABLE\s+({NAME})\s+ADD\s+(?:COLUMN\s+)?(\w+)\s+(\w+)")
 });
 
-static DROP_TABLE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(\w+)").unwrap());
+static DROP_TABLE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    table_name_regex(r"(?i)DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?({NAME})")
+});
 
 static ALTER_DROP_COL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+DROP\s+(?:COLUMN\s+)?(\w+)").unwrap()
+    table_name_regex(r"(?i)ALTER\s+TABLE\s+({NAME})\s+DROP\s+(?:COLUMN\s+)?(\w+)")
 });
 
-static ALTER_RENAME_TABLE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+RENAME\s+TO\s+(\w+)").unwrap());
+static ALTER_RENAME_TABLE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    table_name_regex(r"(?i)ALTER\s+TABLE\s+({NAME})\s+RENAME\s+TO\s+({NAME})")
+});
 
 static ALTER_RENAME_COL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+RENAME\s+(?:COLUMN\s+)?(\w+)\s+TO\s+(\w+)").unwrap()
+    table_name_regex(r"(?i)ALTER\s+TABLE\s+({NAME})\s+RENAME\s+(?:COLUMN\s+)?(\w+)\s+TO\s+(\w+)")
 });
 
 /// File extensions that may contain embedded SQL statements.
@@ -69,10 +98,21 @@ const SQL_EXTENSIONS: &[&str] = &[
 /// Build a complete schema map from SQL/migration files in the given directory.
 /// Files are sorted by name so migrations replay in order.
 pub fn build_schema(schema_dir: &Path) -> HashMap<String, SchemaTable> {
+    build_schema_with_retired(schema_dir).0
+}
+
+/// Like `build_schema`, but also returns the normalized names of tables that
+/// were retired by `DROP TABLE` or renamed away by `ALTER TABLE ... RENAME TO`
+/// (and never recreated). Existence checks use this so a CREATE-pattern scan
+/// cannot resurrect retired tables.
+pub fn build_schema_with_retired(
+    schema_dir: &Path,
+) -> (HashMap<String, SchemaTable>, HashSet<String>) {
     let mut tables: HashMap<String, SchemaTable> = HashMap::new();
+    let mut retired: HashSet<String> = HashSet::new();
 
     if !schema_dir.exists() {
-        return tables;
+        return (tables, retired);
     }
 
     // Collect and sort files for deterministic migration ordering.
@@ -97,10 +137,10 @@ pub fn build_schema(schema_dir: &Path) -> HashMap<String, SchemaTable> {
             Ok(c) => c,
             Err(_) => continue,
         };
-        parse_sql_into(&content, &mut tables);
+        parse_sql_into_tracked(&content, &mut tables, &mut retired);
     }
 
-    tables
+    (tables, retired)
 }
 
 /// Return an error message for each schema/migration file that EXISTS in
@@ -163,15 +203,27 @@ pub fn schema_read_errors(schema_dir: &Path) -> Vec<String> {
 }
 
 /// Parse SQL content and merge discovered tables/columns into the map.
+#[cfg(test)]
 fn parse_sql_into(sql: &str, tables: &mut HashMap<String, SchemaTable>) {
+    let mut retired = HashSet::new();
+    parse_sql_into_tracked(sql, tables, &mut retired);
+}
+
+/// Like `parse_sql_into`, but tracks tables retired by DROP/RENAME.
+fn parse_sql_into_tracked(
+    sql: &str,
+    tables: &mut HashMap<String, SchemaTable>,
+    retired: &mut HashSet<String>,
+) {
     // Handle CREATE TABLE statements
     for cap in CREATE_TABLE_RE.captures_iter(sql) {
-        let table_name = cap[1].to_string();
+        let table_name = normalize_table_name(&cap[1]);
         let start = cap.get(0).unwrap().end(); // position after opening paren
 
         // Find matching closing paren (handles nested parens for CHECK constraints etc.)
         if let Some(body) = extract_paren_body(sql, start) {
             let columns = parse_column_defs(&body);
+            retired.remove(&table_name);
             let entry = tables.entry(table_name).or_default();
             // CREATE TABLE replaces any prior definition (e.g. CREATE OR REPLACE)
             entry.columns = columns;
@@ -180,7 +232,7 @@ fn parse_sql_into(sql: &str, tables: &mut HashMap<String, SchemaTable>) {
 
     // Handle ALTER TABLE ADD COLUMN
     for cap in ALTER_ADD_RE.captures_iter(sql) {
-        let table_name = cap[1].to_string();
+        let table_name = normalize_table_name(&cap[1]);
         let col_name = cap[2].to_string();
         let col_type = cap[3].to_uppercase();
 
@@ -209,13 +261,14 @@ fn parse_sql_into(sql: &str, tables: &mut HashMap<String, SchemaTable>) {
 
     // Handle DROP TABLE
     for cap in DROP_TABLE_RE.captures_iter(sql) {
-        let table_name = cap[1].to_string();
+        let table_name = normalize_table_name(&cap[1]);
         tables.remove(&table_name);
+        retired.insert(table_name);
     }
 
     // Handle ALTER TABLE DROP COLUMN
     for cap in ALTER_DROP_COL_RE.captures_iter(sql) {
-        let table_name = cap[1].to_string();
+        let table_name = normalize_table_name(&cap[1]);
         let col_name = cap[2].to_string();
         if let Some(table) = tables.get_mut(&table_name) {
             table.columns.retain(|c| c.name != col_name);
@@ -224,16 +277,18 @@ fn parse_sql_into(sql: &str, tables: &mut HashMap<String, SchemaTable>) {
 
     // Handle ALTER TABLE RENAME TO
     for cap in ALTER_RENAME_TABLE_RE.captures_iter(sql) {
-        let old_name = cap[1].to_string();
-        let new_name = cap[2].to_string();
+        let old_name = normalize_table_name(&cap[1]);
+        let new_name = normalize_table_name(&cap[2]);
         if let Some(table) = tables.remove(&old_name) {
+            retired.insert(old_name);
+            retired.remove(&new_name);
             tables.insert(new_name, table);
         }
     }
 
     // Handle ALTER TABLE RENAME COLUMN
     for cap in ALTER_RENAME_COL_RE.captures_iter(sql) {
-        let table_name = cap[1].to_string();
+        let table_name = normalize_table_name(&cap[1]);
         let old_col = cap[2].to_string();
         let new_col = cap[3].to_string();
         if let Some(table) = tables.get_mut(&table_name)
@@ -881,6 +936,48 @@ ALTER TABLE items RENAME COLUMN old_col TO new_col;
         assert_eq!(t.columns.len(), 2);
         assert_eq!(t.columns[1].name, "new_col");
         assert_eq!(t.columns[1].col_type, "TEXT");
+    }
+
+    #[test]
+    fn test_quoted_and_schema_qualified_table_names() {
+        let sql = r#"
+CREATE TABLE "quoted" (id INTEGER PRIMARY KEY);
+CREATE TABLE `backtick` (id INTEGER PRIMARY KEY);
+CREATE TABLE public.schema_table (id INTEGER PRIMARY KEY);
+CREATE TABLE MixedCase (id INTEGER PRIMARY KEY);
+"#;
+        let mut tables = HashMap::new();
+        parse_sql_into(sql, &mut tables);
+        assert!(tables.contains_key("quoted"), "tables: {:?}", tables.keys());
+        assert!(tables.contains_key("backtick"));
+        assert!(tables.contains_key("public.schema_table"));
+        // Comparison is case-insensitive: stored normalized.
+        assert!(tables.contains_key("mixedcase"));
+        assert!(!tables.contains_key("MixedCase"));
+    }
+
+    #[test]
+    fn test_normalize_table_name() {
+        assert_eq!(normalize_table_name("users"), "users");
+        assert_eq!(normalize_table_name("\"Users\""), "users");
+        assert_eq!(normalize_table_name("`Users`"), "users");
+        assert_eq!(normalize_table_name("public.\"Users\""), "public.users");
+        assert_eq!(normalize_table_name("PUBLIC.USERS"), "public.users");
+    }
+
+    #[test]
+    fn test_rename_and_drop_apply_to_quoted_names() {
+        let sql = r#"
+CREATE TABLE "old_name" (id INTEGER PRIMARY KEY);
+ALTER TABLE "old_name" RENAME TO "new_name";
+CREATE TABLE `doomed` (id INTEGER PRIMARY KEY);
+DROP TABLE `doomed`;
+"#;
+        let mut tables = HashMap::new();
+        parse_sql_into(sql, &mut tables);
+        assert!(!tables.contains_key("old_name"));
+        assert!(tables.contains_key("new_name"));
+        assert!(!tables.contains_key("doomed"));
     }
 
     #[test]

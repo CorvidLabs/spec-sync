@@ -549,6 +549,199 @@ fn no_spec_change_completes_full_cli_lifecycle() {
 }
 
 #[test]
+fn change_list_surfaces_malformed_workspaces_and_exits_nonzero() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 1,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [],
+  "verification_commands": [],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    fs::write(root.join("README.md"), "Docs.\n").unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "new",
+            "Update docs",
+            "--kind",
+            "documentation",
+            "--path",
+            "README.md",
+            "--no-spec-change",
+            "--rationale",
+            "Documentation-only change",
+        ])
+        .assert()
+        .success();
+    let bogus = root.join(".specsync/changes/CHG-9999-bogus");
+    fs::create_dir_all(&bogus).unwrap();
+    fs::write(bogus.join("state.json"), b"{ not json\n").unwrap();
+    // The healthy change is still listed, the corrupt workspace is named on
+    // stderr with a remediation, and the exit code is non-zero.
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "list"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("CHG-0001-update-docs"))
+        .stderr(predicate::str::contains("CHG-9999-bogus"))
+        .stderr(predicate::str::contains("repair or remove"));
+}
+
+#[test]
+fn change_status_prints_dependencies() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 1,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [],
+  "verification_commands": [],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    fs::write(root.join("README.md"), "Docs.\n").unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "new",
+            "Update docs",
+            "--kind",
+            "documentation",
+            "--path",
+            "README.md",
+            "--no-spec-change",
+            "--rationale",
+            "Documentation-only change",
+        ])
+        .assert()
+        .success();
+    let id = "CHG-0001-update-docs";
+    let state_path = root.join(".specsync/changes").join(id).join("state.json");
+    let mut state: Value =
+        serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
+    state["dependencies"] = serde_json::json!(["CHG-0000-predecessor"]);
+    fs::write(&state_path, serde_json::to_string_pretty(&state).unwrap()).unwrap();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "status", id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Dependencies: CHG-0000-predecessor",
+        ));
+}
+
+#[test]
+fn change_status_fails_on_corrupt_archived_evidence() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["commit", "--allow-empty", "-m", "base"]);
+    fs::write(root.join("README.md"), "Docs.\n").unwrap();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "new",
+            "Update docs",
+            "--kind",
+            "documentation",
+            "--path",
+            "README.md",
+            "--no-spec-change",
+            "--rationale",
+            "Documentation-only change",
+        ])
+        .assert()
+        .success();
+    let id = "CHG-0001-update-docs";
+    for (question, answer) in [
+        ("acceptance_criteria", "Docs stay accurate"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let dir = root.join(".specsync/changes").join(id);
+    fs::write(dir.join("context.md"), "# Context\n\nDocs.\n").unwrap();
+    fs::write(dir.join("docs.md"), "# Docs\n\nDocs.\n").unwrap();
+    for command in ["approve", "start", "verify", "accept"] {
+        specsync()
+            .args(["--root", root.to_str().unwrap(), "change", command, id])
+            .assert()
+            .success();
+    }
+    git(&["add", "."]);
+    git(&["commit", "-m", "record accepted lifecycle evidence"]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "archive", id])
+        .assert()
+        .success();
+    let archive_dir = root
+        .join(".specsync/archive/changes")
+        .read_dir()
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| path.file_name().unwrap().to_string_lossy().ends_with(id))
+        .unwrap();
+    // Corrupt the authenticated accepted-state snapshot: status must fail
+    // loudly instead of rendering the archive as healthy.
+    fs::write(archive_dir.join("accepted-state.json"), b"{}\n").unwrap();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "status", id])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("corrupt archived evidence"));
+}
+
+#[test]
 fn change_supersede_persists_an_exact_predecessor_obligation_through_the_cli() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
@@ -843,7 +1036,7 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
             "accepted change verification is stale for current delivery inputs",
         ))
         .stderr(predicate::str::contains(
-            "exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen CHG-0001-update-review-instructions` to re-verify the accepted change",
+            "exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen CHG-0001-update-review-instructions --actor <name> --reason <why>` to re-verify the accepted change",
         ));
     let output = specsync()
         .args([
@@ -1663,4 +1856,183 @@ fn migrate_5_0_backfills_reopening_digest_fields_idempotently() {
         .success()
         .stdout(predicate::str::contains("nothing to migrate"));
     assert_eq!(fs::read(&approvals_path).unwrap(), before);
+}
+
+#[test]
+fn change_supersede_resolves_the_entry_digest_automatically() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 1,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [],
+  "verification_commands": [],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("src/auth.rs"),
+        "pub fn authenticate() -> bool { true }\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuthentication.\n\n## Public API\n\n| Name | Description |\n|------|-------------|\n| `authenticate` | Return whether authentication succeeds |\n\n## Invariants\n\nAuthentication is available.\n\n## Behavioral Examples\n\nValid users authenticate.\n\n## Error Cases\n\nInvalid users fail.\n\n## Dependencies\n\nNone.\n\n## Legacy Notes\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/auth/requirements.md"),
+        "---\nspec: auth.spec.md\n---\n\n# Requirements\n\n### REQ-auth-001\n\nAuthentication SHALL remain available.\n",
+    )
+    .unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "new",
+            "Govern authentication",
+            "--kind",
+            "bug-fix",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success();
+    let predecessor = "CHG-0001-govern-authentication";
+    for (question, answer) in [
+        ("acceptance_criteria", "Authentication remains governed"),
+        ("public_contract", "yes"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                predecessor,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let predecessor_dir = root.join(".specsync/changes").join(predecessor);
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(predecessor_dir.join("state.json")).unwrap())
+            .unwrap();
+    for artifact in state["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let content = if name == "tasks" {
+            "# Tasks\n\n- [x] Complete predecessor preparation.\n"
+        } else {
+            "# Complete\n\nReviewed predecessor evidence.\n"
+        };
+        fs::write(predecessor_dir.join(format!("{name}.md")), content).unwrap();
+    }
+    fs::write(
+        predecessor_dir.join("deltas/auth.md"),
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nAuthentication remains governed.\n",
+    )
+    .unwrap();
+    for command in ["approve", "start", "verify", "accept"] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                command,
+                predecessor,
+            ])
+            .assert()
+            .success();
+    }
+    git(&["add", "."]);
+    git(&["commit", "-m", "accept predecessor"]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    let verification: Value = serde_json::from_str(
+        &fs::read_to_string(predecessor_dir.join("verification.json")).unwrap(),
+    )
+    .unwrap();
+    let digest = verification["acceptance_manifest"]["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["path"] == "src/auth.rs")
+        .unwrap()["entry_digest"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "new",
+            "Evolve authentication",
+            "--kind",
+            "bug-fix",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ])
+        .assert()
+        .success();
+    let successor = "CHG-0002-evolve-authentication";
+    // No --digest: the exact entry digest is resolved from the predecessor.
+    let output = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "supersede",
+            successor,
+            predecessor,
+            "--path",
+            "src/auth.rs",
+            "--spec",
+            "auth",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let persisted: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(
+        persisted["change"]["supersedes"][0]["obligations"][0]["predecessor_entry_digest"],
+        digest
+    );
 }

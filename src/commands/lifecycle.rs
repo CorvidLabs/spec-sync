@@ -222,7 +222,7 @@ pub fn evaluate_guards(
                                         &spec_commit,
                                         source_file,
                                     );
-                                    if commits >= threshold {
+                                    if commits > 0 && commits >= threshold {
                                         failures.push(format!(
                                             "guard: stale — {source_file} has {commits} commits since spec was last updated (threshold: {threshold})"
                                         ));

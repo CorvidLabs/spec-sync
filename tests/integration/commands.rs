@@ -4,6 +4,23 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
+fn specsync_process() -> std::process::Command {
+    let binary = specsync().get_program().to_os_string();
+    let mut command = std::process::Command::new(binary);
+    command.env_remove("GITHUB_EVENT_NAME");
+    command.env_remove("GITHUB_BASE_REF");
+    for (key, _) in std::env::vars_os() {
+        if key
+            .to_string_lossy()
+            .get(.."SPECSYNC_".len())
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("SPECSYNC_"))
+        {
+            command.env_remove(key);
+        }
+    }
+    command
+}
+
 // ─── 1. specsync issues ────────────────────────────────────────────────
 
 #[test]

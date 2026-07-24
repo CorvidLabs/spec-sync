@@ -618,6 +618,76 @@
         "REQ-mcp-002",
         "REQ-mcp-003"
       ]
+    },
+    {
+      "timestamp": 1784904495,
+      "commit": "f3322ab25650ab1f363e7212acbafe44c848f5fe",
+      "contract_digest": "5636f550814aca9289301732a17f17aa9d53f3cd3b910fa2f6808dbfa639a642",
+      "workspace_digest": "804b933a3fe0e4e07b03837f5feaa7f4859bf4d59d22aee1bdef3135a7732cc6",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cli-005",
+        "REQ-cli-args-008",
+        "REQ-mcp-002",
+        "REQ-mcp-003"
+      ]
+    },
+    {
+      "timestamp": 1784904730,
+      "commit": "f3322ab25650ab1f363e7212acbafe44c848f5fe",
+      "contract_digest": "5636f550814aca9289301732a17f17aa9d53f3cd3b910fa2f6808dbfa639a642",
+      "workspace_digest": "804b933a3fe0e4e07b03837f5feaa7f4859bf4d59d22aee1bdef3135a7732cc6",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cli-005",
+        "REQ-cli-args-008",
+        "REQ-mcp-002",
+        "REQ-mcp-003"
+      ]
     }
   ]
 }

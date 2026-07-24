@@ -1,9 +1,9 @@
 {
-  "timestamp": 1784870197,
-  "commit": "ee6786d82734a64ceaba52c9fd6fa39d83c29a8e",
+  "timestamp": 1784904730,
+  "commit": "f3322ab25650ab1f363e7212acbafe44c848f5fe",
   "contract_digest": "5636f550814aca9289301732a17f17aa9d53f3cd3b910fa2f6808dbfa639a642",
-  "workspace_digest": "0bc6852d9464c1a1287074c0f20ed19792c1103e39e36ff1e93cf65b95bd4641",
-  "acceptance_input_digest": "c4ab49718807dcd2add0080071282379154d0ebbec3b6e2849b35f9c8f724b1b",
+  "workspace_digest": "804b933a3fe0e4e07b03837f5feaa7f4859bf4d59d22aee1bdef3135a7732cc6",
+  "acceptance_input_digest": "98c34c1118bb81bf4ab04b903c244e0dcbca3a6025bde2e4b09e841dea5d1c48",
   "acceptance_manifest": {
     "schema_version": 1,
     "entries": [
@@ -401,8 +401,8 @@
         "path": "src/mcp.rs",
         "kind": "file",
         "mode": 33188,
-        "payload_digest": "4b7ae30e8535ee4f54f4ee456b6a235ddd17bc1cf9b3f3d82358c5c572a85ed5",
-        "entry_digest": "380d07cb392314724c978ea4db6d542e7abec178f92a15bf865c7bcfc3a35453",
+        "payload_digest": "0a123b57994bce9b234d633753b5f19de4a529227ade813e9cd2c42595fd2620",
+        "entry_digest": "b98790dcc53d59cc1edc515057e96612e6e9b00f68c14aa1abed1345f3d3bf8e",
         "owners": [
           "mcp"
         ]

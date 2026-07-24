@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 20
+version: 22
 status: stable
 files:
   - src/validator.rs
@@ -98,6 +98,12 @@ Core validation engine for spec-sync. Validates individual specs and selected co
     command phases outside `compute_coverage_checked`.
 20. Explicitly configured `source_dirs` are parsed before autodetection and do not trigger unrelated
     retained manifest/source scanning. Omitted source directories use retained autodetection.
+21. Checked spec and source traversal records child directory identities during deterministic
+    enumeration, then reopens and processes children sequentially through retained parent
+    capabilities. Configured roots are identity-selected without retaining their handles, then
+    reopened, identity-checked, traversed, and released sequentially. Live directory handles are
+    bounded by depth rather than sibling or configured-root count, and identity/reachability checks
+    before and after recursion still reject replacement.
 
 ## Behavioral Examples
 
@@ -208,6 +214,8 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 | Malformed, unreadable, unsupported, or unconfined Gradle discovery during checked coverage, including unsafe Gradle manifest entries | Returns `Err`; CLI/MCP gate callers report an inconclusive failure rather than coverage success, referent reads, or outside traversal |
 | Coverage selected-spec/source input is linked/reparse-backed, special, replaced, invalid UTF-8, over 8 MiB, or shared traversal exceeds 64 MiB/100,000 entries/256 components | Returns `Err` from the retained project snapshot; no partial totals or ambient fallback |
 | Caller-selected coverage spec is outside the retained project, missing, linked/reparse-backed, special, replaced, invalid UTF-8, or over the shared coverage input bounds | Returns `Err`; ownership mappings are never obtained through the ambient spec pathname |
+| Valid checked coverage contains more sibling spec/source directories than the process descriptor limit | Children are reopened sequentially through retained parents; coverage completes with handles bounded by traversal depth |
+| Valid checked coverage configures more source roots than the process descriptor limit | Root identities are selected without retaining handles, then each root is reopened, identity-checked, traversed, and released sequentially |
 
 ## Dependencies
 
@@ -247,6 +255,8 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-23 | v18 / CHG-0063 acceptance remediation: read caller-selected spec ownership frontmatter and every recognized manifest through the same retained project authority before source coverage |
 | 2026-07-23 | v19 / CHG-0063 exact-head review remediation: preserve nested config/manifest reachability and selected-spec identity continuity, lazily autodetect omitted source roots, and charge selected-spec/source bytes and entries within checked coverage |
 | 2026-07-24 | v20 / CHG-0063 independent rereview remediation: Preserve bounded scan fallback after malformed manifest autodetection and retain selected source-directory identities from post-manifest selection through checked coverage traversal |
+| 2026-07-24 | v21 / CHG-0063 exact-head rereview remediation: Replace retained sibling handles with identity records and sequential capability reopen so broad checked coverage remains descriptor-bounded |
+| 2026-07-24 | v22 / CHG-0063 descriptor-breadth remediation: Select configured source-root identities without retaining all handles, then reopen and traverse roots sequentially so breadth cannot exhaust descriptors |
 | 2026-07-10 | v5: keep coverage regression fixtures warning-free under current stable Clippy and document the intentionally in-file test-module layout |
 | 2026-07-10 | v5: make canonical requirements companions adaptive rather than empty mandatory ceremony |
 | 2026-07-02 | v4: add `source_within_root` — shared guard rejecting `files:` paths that escape the project root (absolute/`..`/symlink); applied in `validate_spec` and every export-extraction site (score, check --fix, diff, new) to close an out-of-root identifier-disclosure vector |

@@ -15,7 +15,8 @@ Acceptance Criteria
   snapshots and writes resolve only through the capability.
 - Project-controlled Git metadata is never used for MCP repository auto-detection; issue checks
   require explicit `github.repo` configuration.
-- Every case variant of `.git` is rejected as a configured input and excluded from snapshots.
+- Every case variant of `.git` is rejected as a configured input, read-root component, and
+  snapshot entry before Git metadata can become operation authority.
 - Project inputs are bounded to 8 MiB per file and 64 MiB of actual file/config bytes cumulatively;
   explicitly configured normally ignored roots remain eligible.
 - Ignored and configured-exclusion symlink names are skipped before their targets are followed,
@@ -102,14 +103,14 @@ Acceptance Criteria
 4. All filesystem operations remain within the retained canonical server-root capability,
    including read-root selection and generated-file rollback after ambient path replacement.
 5. Absolute outside read roots are rejected before filesystem probing; in-root candidates must be
-   existing canonical descendants.
+   existing canonical descendants and must not contain a `.git` component in any ASCII case.
 6. Mutating tools require write mode, reject root overrides, and use the configured root.
 7. Complete JSON-RPC envelopes, tool arguments, and resource arguments are exactly validated before
    dispatch.
 8. Tool-domain errors use `isError`; JSON-RPC shape errors use protocol error objects.
 9. Every valid notification, including unknown methods, receives no response and cannot mutate.
 10. Project-controlled Git metadata is not used for MCP issue-repository discovery and every case
-    variant of `.git` is excluded from configuration inputs and snapshots.
+    variant of `.git` is excluded from read-root authority, configuration inputs, and snapshots.
 11. Project files are bounded to 8 MiB each and actual configured operation inputs, including config
     files, to 64 MiB cumulatively; explicit normally ignored roots remain eligible.
 12. JSON-RPC input and output are bounded to 1 MiB; oversized input is drained and oversized output
@@ -175,3 +176,7 @@ Acceptance Criteria
     deduplication.
 32. Zero-config source selection consumes retained configuration/manifest observations after root
     retention.
+33. Recursive snapshot traversal records sibling identities before sequential capability opens,
+    bounding live directory handles by depth while preserving replacement detection.
+34. Object-form Node workspaces require `packages`, and recognized nested package manifests are
+    bounded and strictly parsed before tools/resources can report success.

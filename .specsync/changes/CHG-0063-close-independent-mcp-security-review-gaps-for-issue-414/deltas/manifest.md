@@ -124,3 +124,7 @@ Acceptance Criteria
     deduplicates normalized nodes, and reuses completed results.
 17. Retained nested manifest/workspace parents are reverified through the project root around
     enumeration and reads.
+18. Node workspace enumeration records child identities, opens children sequentially through the
+    retained workspace base, and consumes child manifests/source probes only from identity-matching
+    capabilities. Each verified base listing is released before the next distinct base, so
+    swap/read/restore cannot mix generations and neither sibling nor base breadth exhausts handles.

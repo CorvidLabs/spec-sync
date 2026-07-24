@@ -132,7 +132,36 @@ trait ManifestAccess {
     fn read_text(&mut self, relative: &Path, label: &str) -> Result<Option<String>, String>;
     fn directory_exists(&mut self, relative: &Path, label: &str) -> Result<bool, String>;
     fn child_directories(&mut self, relative: &Path, label: &str) -> Result<Vec<String>, String>;
+    fn read_enumerated_child_text(
+        &mut self,
+        parent: &Path,
+        child: &str,
+        relative: &Path,
+        label: &str,
+    ) -> Result<Option<String>, String> {
+        self.read_text(&parent.join(child).join(relative), label)
+    }
+    fn enumerated_child_directory_exists(
+        &mut self,
+        parent: &Path,
+        child: &str,
+        relative: &Path,
+        label: &str,
+    ) -> Result<bool, String> {
+        self.directory_exists(&parent.join(child).join(relative), label)
+    }
+    fn verify_enumerated_child(
+        &mut self,
+        _parent: &Path,
+        _child: &str,
+        _label: &str,
+    ) -> Result<(), String> {
+        Ok(())
+    }
     fn verify_child_directories(&mut self, _relative: &Path, _label: &str) -> Result<(), String> {
+        Ok(())
+    }
+    fn release_child_directories(&mut self, _relative: &Path, _label: &str) -> Result<(), String> {
         Ok(())
     }
     fn charge_entries(&mut self, _count: usize, _label: &str) -> Result<(), String> {
@@ -182,6 +211,7 @@ struct RetainedManifestAccess<'a> {
 struct RetainedDirectoryListing {
     names: Vec<String>,
     directory: Dir,
+    child_identities: HashMap<String, GradleFilesystemIdentity>,
 }
 
 impl<'a> RetainedManifestAccess<'a> {
@@ -237,6 +267,7 @@ impl<'a> RetainedManifestAccess<'a> {
         }
         names.sort();
         let mut children = Vec::new();
+        let mut child_identities = HashMap::new();
         for name in names {
             let name_text = name.to_str().ok_or_else(|| {
                 format!(
@@ -258,7 +289,14 @@ impl<'a> RetainedManifestAccess<'a> {
                 ));
             }
             if metadata.is_dir() {
+                let identity = gradle_filesystem_identity(&metadata).map_err(|error| {
+                    format!(
+                        "Cannot identify retained {label} directory {} during enumeration: {error}",
+                        child.display()
+                    )
+                })?;
                 children.push(name_text.to_string());
+                child_identities.insert(name_text.to_string(), identity);
             }
         }
         after_traversal();
@@ -268,9 +306,94 @@ impl<'a> RetainedManifestAccess<'a> {
             RetainedDirectoryListing {
                 names: children.clone(),
                 directory,
+                child_identities,
             },
         );
         Ok(children)
+    }
+
+    fn enumerated_child_directory(
+        &self,
+        parent: &Path,
+        child: &str,
+        label: &str,
+    ) -> Result<Dir, String> {
+        let parent = normalize_retained_manifest_path(parent, label)?;
+        let listing = self.children.get(&parent).ok_or_else(|| {
+            format!(
+                "Retained {label} directory {} was not enumerated",
+                display_manifest_path(&parent)
+            )
+        })?;
+        let expected_identity = listing.child_identities.get(child).ok_or_else(|| {
+            format!(
+                "Retained {label} child {} was not present in enumerated directory {}",
+                parent.join(child).display(),
+                display_manifest_path(&parent)
+            )
+        })?;
+        let relative = parent.join(child);
+        let before = listing.directory.symlink_metadata(child).map_err(|error| {
+            format!(
+                "Cannot re-inspect enumerated {label} child {}: {error}",
+                relative.display()
+            )
+        })?;
+        if gradle_metadata_is_link(&before)
+            || !before.is_dir()
+            || gradle_filesystem_identity(&before)? != *expected_identity
+        {
+            return Err(format!(
+                "Retained {label} directory {} changed after enumeration",
+                relative.display()
+            ));
+        }
+        let directory = listing.directory.open_dir(child).map_err(|error| {
+            format!(
+                "Cannot open enumerated {label} child {}: {error}",
+                relative.display()
+            )
+        })?;
+        let opened = directory.dir_metadata().map_err(|error| {
+            format!(
+                "Cannot inspect opened enumerated {label} child {}: {error}",
+                relative.display()
+            )
+        })?;
+        let after = listing.directory.symlink_metadata(child).map_err(|error| {
+            format!(
+                "Cannot re-inspect opened {label} child {}: {error}",
+                relative.display()
+            )
+        })?;
+        if gradle_metadata_is_link(&after)
+            || !after.is_dir()
+            || gradle_filesystem_identity(&opened)? != *expected_identity
+            || gradle_filesystem_identity(&after)? != *expected_identity
+        {
+            return Err(format!(
+                "Retained {label} directory {} changed during confined open",
+                relative.display()
+            ));
+        }
+        Ok(directory)
+    }
+
+    fn record_text(
+        &mut self,
+        relative: PathBuf,
+        text: Option<String>,
+    ) -> Result<Option<String>, String> {
+        if let Some(content) = &text {
+            self.bytes = self.bytes.saturating_add(content.len() as u64);
+            if self.bytes > MAX_RETAINED_MANIFEST_INPUT_BYTES {
+                return Err(format!(
+                    "Retained manifest inputs exceed the {MAX_RETAINED_MANIFEST_INPUT_BYTES} byte cumulative limit"
+                ));
+            }
+        }
+        self.texts.insert(relative, text.clone());
+        Ok(text)
     }
 }
 
@@ -288,16 +411,7 @@ impl ManifestAccess for RetainedManifestAccess<'_> {
             MAX_RETAINED_MANIFEST_BYTES,
             remaining,
         )?;
-        if let Some(content) = &text {
-            self.bytes = self.bytes.saturating_add(content.len() as u64);
-            if self.bytes > MAX_RETAINED_MANIFEST_INPUT_BYTES {
-                return Err(format!(
-                    "Retained manifest inputs exceed the {MAX_RETAINED_MANIFEST_INPUT_BYTES} byte cumulative limit"
-                ));
-            }
-        }
-        self.texts.insert(relative, text.clone());
-        Ok(text)
+        self.record_text(relative, text)
     }
 
     fn directory_exists(&mut self, relative: &Path, label: &str) -> Result<bool, String> {
@@ -317,6 +431,70 @@ impl ManifestAccess for RetainedManifestAccess<'_> {
         self.child_directories_with_hook(relative, label, || {})
     }
 
+    fn read_enumerated_child_text(
+        &mut self,
+        parent: &Path,
+        child: &str,
+        relative: &Path,
+        label: &str,
+    ) -> Result<Option<String>, String> {
+        let full_path =
+            normalize_retained_manifest_path(&parent.join(child).join(relative), label)?;
+        if let Some(cached) = self.texts.get(&full_path) {
+            return Ok(cached.clone());
+        }
+        let child_directory = self.enumerated_child_directory(parent, child, label)?;
+        let remaining = MAX_RETAINED_MANIFEST_INPUT_BYTES.saturating_sub(self.bytes);
+        let text = read_retained_manifest_text(
+            &child_directory,
+            relative,
+            label,
+            MAX_RETAINED_MANIFEST_BYTES,
+            remaining,
+        )?;
+        self.record_text(full_path, text)
+    }
+
+    fn enumerated_child_directory_exists(
+        &mut self,
+        parent: &Path,
+        child: &str,
+        relative: &Path,
+        label: &str,
+    ) -> Result<bool, String> {
+        let full_path =
+            normalize_retained_manifest_path(&parent.join(child).join(relative), label)?;
+        if let Some(cached) = self.directories.get(&full_path) {
+            return Ok(*cached);
+        }
+        let child_directory = self.enumerated_child_directory(parent, child, label)?;
+        let exists = open_retained_manifest_directory(&child_directory, relative, label)?.is_some();
+        self.directories.insert(full_path, exists);
+        Ok(exists)
+    }
+
+    fn verify_enumerated_child(
+        &mut self,
+        parent: &Path,
+        child: &str,
+        label: &str,
+    ) -> Result<(), String> {
+        let parent = normalize_retained_manifest_path(parent, label)?;
+        let listing = self.children.get(&parent).ok_or_else(|| {
+            format!(
+                "Retained {label} directory {} was not enumerated",
+                display_manifest_path(&parent)
+            )
+        })?;
+        let child_directory = self.enumerated_child_directory(&parent, child, label)?;
+        verify_retained_manifest_directory_edge(
+            &listing.directory,
+            Path::new(child),
+            &child_directory,
+            label,
+        )
+    }
+
     fn verify_child_directories(&mut self, relative: &Path, label: &str) -> Result<(), String> {
         let relative = normalize_retained_manifest_path(relative, label)?;
         if let Some(listing) = self.children.get(&relative) {
@@ -327,6 +505,12 @@ impl ManifestAccess for RetainedManifestAccess<'_> {
                 label,
             )?;
         }
+        Ok(())
+    }
+
+    fn release_child_directories(&mut self, relative: &Path, label: &str) -> Result<(), String> {
+        let relative = normalize_retained_manifest_path(relative, label)?;
+        self.children.remove(&relative);
         Ok(())
     }
 
@@ -2435,15 +2619,28 @@ fn parse_package_json(root: &Path) -> Option<ManifestDiscovery> {
 fn parse_package_json_with_access(
     access: &mut dyn ManifestAccess,
 ) -> Result<Option<ManifestDiscovery>, String> {
-    parse_package_json_with_access_and_hook(access, |_| {})
+    parse_package_json_with_access_and_hooks(access, |_| {}, |_, _| {})
 }
 
+#[cfg(test)]
 fn parse_package_json_with_access_and_hook<AfterEnumeration>(
     access: &mut dyn ManifestAccess,
-    mut after_enumeration: AfterEnumeration,
+    after_enumeration: AfterEnumeration,
 ) -> Result<Option<ManifestDiscovery>, String>
 where
     AfterEnumeration: FnMut(&Path),
+{
+    parse_package_json_with_access_and_hooks(access, after_enumeration, |_, _| {})
+}
+
+fn parse_package_json_with_access_and_hooks<AfterEnumeration, AfterChildRead>(
+    access: &mut dyn ManifestAccess,
+    mut after_enumeration: AfterEnumeration,
+    mut after_child_read: AfterChildRead,
+) -> Result<Option<ManifestDiscovery>, String>
+where
+    AfterEnumeration: FnMut(&Path),
+    AfterChildRead: FnMut(&Path, &str),
 {
     let Some(content) = access.read_text(Path::new("package.json"), "Node package manifest")?
     else {
@@ -2475,10 +2672,15 @@ where
                 if !seen_workspaces.insert(workspace.clone()) {
                     continue;
                 }
-                if let Some(workspace_content) = access.read_text(
-                    &workspace.join("package.json"),
+                let workspace_content = access.read_enumerated_child_text(
+                    &base_dir,
+                    &ws_name,
+                    Path::new("package.json"),
                     "Node workspace package manifest",
-                )? {
+                )?;
+                after_child_read(&base_dir, &ws_name);
+                access.verify_enumerated_child(&base_dir, &ws_name, "Node workspace")?;
+                if let Some(workspace_content) = workspace_content {
                     let workspace_package = parse_node_package_document(
                         &workspace_content,
                         &workspace.join("package.json"),
@@ -2488,9 +2690,12 @@ where
                         &workspace.join("package.json"),
                         access,
                     )?;
-                    let src_dir = if access
-                        .directory_exists(&workspace.join("src"), "Node workspace source")?
-                    {
+                    let src_dir = if access.enumerated_child_directory_exists(
+                        &base_dir,
+                        &ws_name,
+                        Path::new("src"),
+                        "Node workspace source",
+                    )? {
                         manifest_path_text(&workspace.join("src"), "Node workspace source")?
                     } else {
                         manifest_path_text(&workspace, "Node workspace source")?
@@ -2498,7 +2703,7 @@ where
                     discovery.modules.insert(
                         ws_name.clone(),
                         ManifestModule {
-                            name: ws_name,
+                            name: ws_name.clone(),
                             source_paths: vec![src_dir.clone()],
                             dependencies: Vec::new(),
                         },
@@ -2507,8 +2712,10 @@ where
                         discovery.source_dirs.push(src_dir);
                     }
                 }
+                access.verify_enumerated_child(&base_dir, &ws_name, "Node workspace")?;
             }
             access.verify_child_directories(&base_dir, "Node workspace")?;
+            access.release_child_directories(&base_dir, "Node workspace")?;
         }
     }
 
@@ -3776,9 +3983,164 @@ include(":member")
         .unwrap_err();
 
         assert!(
-            error.contains("Retained Node workspace directory packages changed"),
+            error.contains("Retained Node workspace directory packages"),
             "{error}"
         );
+    }
+
+    #[test]
+    fn retained_node_workspace_swap_read_restore_uses_enumerated_child_capability() {
+        let project = tempdir().unwrap();
+        let workspace = project.path().join("packages");
+        let detached = project.path().join("detached-packages");
+        let replacement = project.path().join("replacement-packages");
+        fs::create_dir_all(workspace.join("member/src")).unwrap();
+        fs::create_dir_all(replacement.join("member")).unwrap();
+        fs::write(
+            project.path().join("package.json"),
+            r#"{"name":"root","workspaces":["packages/*"]}"#,
+        )
+        .unwrap();
+        fs::write(
+            workspace.join("member/package.json"),
+            r#"{"name":"original"}"#,
+        )
+        .unwrap();
+        fs::write(
+            replacement.join("member/package.json"),
+            r#"{"name":"replacement","workspaces":"SWAP_READ_RESTORE_SENTINEL"}"#,
+        )
+        .unwrap();
+        let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
+        let mut access = RetainedManifestAccess::new(&retained);
+
+        let discovery = parse_package_json_with_access_and_hooks(
+            &mut access,
+            |relative| {
+                assert_eq!(relative, Path::new("packages"));
+                fs::rename(&workspace, &detached).unwrap();
+                fs::rename(&replacement, &workspace).unwrap();
+            },
+            |relative, child| {
+                assert_eq!(relative, Path::new("packages"));
+                assert_eq!(child, "member");
+                fs::rename(&workspace, &replacement).unwrap();
+                fs::rename(&detached, &workspace).unwrap();
+            },
+        )
+        .unwrap()
+        .unwrap();
+
+        assert!(discovery.modules.contains_key("member"));
+        assert!(
+            discovery
+                .source_dirs
+                .contains(&"packages/member/src".to_string())
+        );
+        assert_eq!(
+            access
+                .texts
+                .get(Path::new("packages/member/package.json"))
+                .and_then(Option::as_deref),
+            Some(r#"{"name":"original"}"#)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retained_node_workspace_enumeration_bounds_open_directory_handles() {
+        const CHILD_ENV: &str = "SPECSYNC_MANIFEST_BOUNDED_HANDLES_CHILD";
+        if std::env::var_os(CHILD_ENV).is_none() {
+            let executable = std::env::current_exe().unwrap();
+            let status = std::process::Command::new("sh")
+                .args([
+                    "-c",
+                    "ulimit -n 64; exec \"$1\" retained_node_workspace_enumeration_bounds_open_directory_handles --nocapture",
+                    "sh",
+                ])
+                .arg(executable)
+                .env(CHILD_ENV, "1")
+                .status()
+                .unwrap();
+            assert!(
+                status.success(),
+                "Node workspace discovery failed with a 64-descriptor soft limit"
+            );
+            return;
+        }
+
+        let project = tempdir().unwrap();
+        fs::create_dir_all(project.path().join("packages")).unwrap();
+        fs::write(
+            project.path().join("package.json"),
+            r#"{"name":"root","workspaces":["packages/*"]}"#,
+        )
+        .unwrap();
+        for index in 0..200 {
+            let workspace = project.path().join(format!("packages/member-{index:03}"));
+            fs::create_dir_all(workspace.join("src")).unwrap();
+            fs::write(
+                workspace.join("package.json"),
+                format!(r#"{{"name":"member-{index:03}"}}"#),
+            )
+            .unwrap();
+        }
+        let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
+
+        let discovery = discover_from_manifests_checked_with_root(project.path(), &retained)
+            .expect("broad retained Node workspace discovery must stay descriptor-bounded");
+
+        assert_eq!(discovery.modules.len(), 200);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retained_node_workspace_bases_bound_open_directory_handles() {
+        const CHILD_ENV: &str = "SPECSYNC_MANIFEST_BOUNDED_BASE_HANDLES_CHILD";
+        if std::env::var_os(CHILD_ENV).is_none() {
+            let executable = std::env::current_exe().unwrap();
+            let status = std::process::Command::new("sh")
+                .args([
+                    "-c",
+                    "ulimit -n 64; exec \"$1\" retained_node_workspace_bases_bound_open_directory_handles --nocapture",
+                    "sh",
+                ])
+                .arg(executable)
+                .env(CHILD_ENV, "1")
+                .status()
+                .unwrap();
+            assert!(
+                status.success(),
+                "Node workspace discovery retained handles across distinct bases"
+            );
+            return;
+        }
+
+        let project = tempdir().unwrap();
+        let mut patterns = Vec::new();
+        for index in 0..90 {
+            let base = format!("base-{index:03}");
+            let member = format!("member-{index:03}");
+            patterns.push(format!(r#""{base}/*""#));
+            let workspace = project.path().join(&base).join(&member);
+            fs::create_dir_all(workspace.join("src")).unwrap();
+            fs::write(
+                workspace.join("package.json"),
+                format!(r#"{{"name":"{member}"}}"#),
+            )
+            .unwrap();
+        }
+        fs::write(
+            project.path().join("package.json"),
+            format!(r#"{{"name":"root","workspaces":[{}]}}"#, patterns.join(",")),
+        )
+        .unwrap();
+        let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
+
+        let discovery = discover_from_manifests_checked_with_root(project.path(), &retained)
+            .expect("distinct retained Node workspace bases must stay descriptor-bounded");
+
+        assert_eq!(discovery.modules.len(), 90);
     }
 
     #[test]

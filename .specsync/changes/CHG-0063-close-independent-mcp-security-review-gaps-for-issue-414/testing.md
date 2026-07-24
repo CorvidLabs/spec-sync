@@ -12,6 +12,7 @@ artifact: testing
 | Existing and nonexistent absolute outside roots | Same pre-canonicalization error; no path disclosure |
 | Redirected `.git` file or symlink | Explicit-repository/confinement error; outside metadata absent |
 | Mixed-case `.GIT` configuration | Rejected on every platform; metadata is never snapshotted |
+| Direct, nested, absolute, or mixed-case `.git` read root containing a valid project | Rejected before operation-root acquisition; metadata config and source bytes are never authoritative |
 | Unix symlink or Windows junction escape | Rejected; referent bytes remain exact |
 | Missing/wrong JSON-RPC envelope members | `-32600`; mutator never executes |
 | Invalid/extended `resources/read` params | `-32602`; no resource access |
@@ -293,6 +294,57 @@ is required.
 - Disposable sandbox status after replay contained only the intentionally created untracked
   fixture; the real private checkout and isolated implementation clone remained Git-clean.
 
+## Exact `971c89a` private sandbox replay
+
+- Time: `2026-07-24T03:27:11Z`
+- Exact implementation commit:
+  `971c89acccd261794ec3886268dc52d1abc7743a`
+- Implementation tree:
+  `60b80946f844cd5bb7cae2488ac09a75e10f2c4b`
+- Deterministic implementation archive SHA-256:
+  `3bf40d989b8c9f9db48335040da779fb21e8eb6332646c81be6fa18f339ed62e`
+- Build: disposable detached clone; `cargo build --release --locked --offline` exited 0.
+- Exact executable SHA-256:
+  `d3a07de907ebb372250d5271a86cf20c0fda6c451c68fa7b8acb6b7e8283d69b`
+- Private testbed: clean disposable clone of `CorvidLabs/spec-sync-sandbox` at
+  `758c144808d80169a44a740660b0d73c5b2f6ddd`, tree
+  `99cff2310ec2f9a449dca01f608818d2ff7c1062`.
+- Deterministic sandbox archive SHA-256:
+  `da78737fb5bbc1adecae62c359253300f2997fa1d99d43c74840c42a40bba6ab`.
+- Default `tools/list` returned exactly the five read tools and no mutators.
+- `specsync_coverage` returned 100% file and LOC coverage: 3/3 files and 25/25 LOC, with no
+  uncovered files/modules or JSON-RPC error.
+- The disposable implementation clone, disposable sandbox clone, and real private checkout remained
+  Git-clean.
+
+This receipt is historical rather than final evidence. Two independent exact-commit reviews
+subsequently rejected `971c89a`: both found that valid projects with many distinct Node workspace
+bases exhausted retained directory handles, and one also reproduced the same breadth failure across
+many configured coverage roots. The next amendment releases completed Node bases and stores only
+configured-root identities before sequential reopen/traversal.
+
+## Exact `bead6d2` private sandbox replay
+
+- Exact implementation commit:
+  `bead6d2d71720460fc077a0c0fe956d43ed2f4bd`
+- Implementation tree:
+  `97369d96c130ab8bcbc158568dc8057308608ddb`
+- Deterministic implementation archive SHA-256:
+  `cdf44249489efdafb1067fc293549b63f1c5b5181bca4808ce0ac81596b1b7d4`
+- Build: disposable detached clone; `cargo build --release --locked --offline` exited 0.
+- Exact executable SHA-256:
+  `320c59c9cbc046f35eb43c11a1d5fa5cb026c07d17c95f4c78ffef16a164e2b4`
+- Private testbed: clean disposable clone of `CorvidLabs/spec-sync-sandbox` at
+  `758c144808d80169a44a740660b0d73c5b2f6ddd`, tree
+  `99cff2310ec2f9a449dca01f608818d2ff7c1062`.
+- Deterministic sandbox archive SHA-256:
+  `da78737fb5bbc1adecae62c359253300f2997fa1d99d43c74840c42a40bba6ab`.
+- Default `tools/list` returned exactly the five read tools and no mutators.
+- `specsync_coverage` returned 100% file and LOC coverage: 3/3 files and 25/25 LOC, with no
+  uncovered files/modules or JSON-RPC error.
+- The disposable implementation clone, disposable sandbox clone, and real private checkout remained
+  Git-clean.
+
 - `REQ-mcp-002`: `mcp::tests::test_repeated_tree_scans_share_one_confinement_budget`,
   `mcp::tests::snapshot_copies_the_exact_manifest_bytes_charged_during_discovery`,
   `mcp::tests::snapshot_includes_all_standard_gradle_module_forms_under_ignored_directories`,
@@ -546,17 +598,40 @@ is required.
   rejection; strict malformed/wrong-shaped Node workspace rejection; real-TOML multiline Cargo
   parity; selected source-directory identity continuity; and post-discovery Unix symlink/Windows
   junction gate barriers.
-- Latest targeted results: 49 manifest tests, 43 validator tests, 117 MCP unit tests, and 65 MCP
-  integration tests. Formatting, lint, pre-commit, and Windows GNU cross-target compilation pass.
-- The full amended local suite passes 1,948 unit and 310 integration tests in 335.3 seconds.
-- The exact `65b2847` implementation received a clean independent security approval. Its companion
-  evidence review found only stale counts; those counts are corrected in implementation commit
-  `237e548` and the current docs-only head.
+- Latest targeted results: 52 manifest tests, 45 validator tests, 117 MCP unit tests, and 67 MCP
+  integration tests. Unix child-process regressions prove 200 sibling directories plus 90 distinct
+  Node workspace bases/configured coverage roots succeed beneath 64-descriptor manifest/coverage
+  limits; the MCP breadth fixture remains bounded beneath 128 descriptors.
+- The amended local suite passes 1,953 unit and 312 integration tests in 250.8 seconds.
+- `fledge lanes run pre-commit` passes formatting, production Clippy, and type checking.
+- `fledge run build` passes the locked optimized release build.
+- `cargo check --target x86_64-pc-windows-gnu --tests` passes with only the known unrelated
+  cfg-specific unused `link` test-fixture warning in `src/change.rs`; hosted-Windows runtime remains
+  pending.
+- Exact release-binary coverage passes the 100% gate with 105/105 files and
+  106,168/106,168 LOC. All 62 specs score 100/A.
+- Exact release-binary strict check reports only the expected lifecycle blockers: audited reopening
+  remains required for CHG-0062's exact-only MCP security guide and CHG-0064's exact-only
+  `Cargo.lock`; CHG-0063 requires fresh digest-bound definition approval. It reports no ordinary
+  spec/API/coverage warning.
+- Two independent reviews rejected exact commit `237e548` with three Medium findings: retained
+  Node workspace generation mixing, incomplete MCP Node manifest validation, and sibling-handle
+  exhaustion. The current amendment implements and characterizes all three; fresh exact-commit
+  rereviews are pending and no clean-review claim applies yet.
+- Two independent reviews rejected exact commit `971c89a` with the remaining Medium
+  descriptor-breadth finding across distinct Node workspace bases; one also reproduced it across
+  configured coverage roots. The current amendment characterizes and closes both breadth cases;
+  fresh exact-commit rereviews remain required.
+- The first independent acceptance review of exact commit `bead6d2` returned PASS with zero High or
+  Medium findings. It independently confirmed every #414 facet, all prior remediations, both new
+  breadth cases, focused/full tests, coverage, score, release build, and cross-target compilation.
+  The second independent compatibility/regression review remains pending.
 - The command-wide immutable CLI analysis snapshot and generic structured discovery outcomes from
   that review are not implemented in CHG-0063. They are outside GitHub #414's MCP boundary and
   remain assigned to later CLI/outcome/generation work.
-- The hash-bound `912d270` private-sandbox receipt is superseded by the exact `237e548` replay.
-  Trust/Attest, hosted-Windows runtime, GitHub CI, and fresh lifecycle approval remain pending.
+- The hash-bound `912d270` private-sandbox receipt was superseded by the exact `237e548` replay,
+  but both predate the current semantic amendment and are historical only. A fresh sandbox replay,
+  trust/Attest, hosted-Windows runtime, GitHub CI, and fresh lifecycle approval remain pending.
 - Exact commit `d05896b` passed the full local lane: 1,882 unit tests and 296 integration tests,
   plus `fledge run fmt`, `fledge run lint`, and the release `fledge run build`. That evidence
   predates the interpolation/encoded-escape amendment and is not final-tree evidence.
@@ -596,3 +671,59 @@ is required.
   and nested-comment content; aliased/qualified/compound directives; same-line and multiline
   conditional blocks; unsupported triple-quoted include/project-directory arguments; all CLI/MCP
   checked gates; and unchanged outside bytes with no partial output.
+
+## Exact `bead6d2` review disposition
+
+- Acceptance review: PASS with zero High/Medium findings.
+- Adversarial compatibility review: REJECT with one Medium because `.git` itself could be selected
+  as a read-tool operation root, bypassing recursive snapshot exclusion.
+- Characterization: mixed-case direct, nested, and absolute selectors now fail in
+  `resolve_read_root`; a spawned MCP coverage request with a valid project beneath each selector
+  returns `isError: true` before reading its configuration or source.
+- Focused post-fix result: the complete MCP lane passes 118 unit and 68 integration tests.
+- Full post-fix result: 1,954 unit and 313 integration tests pass; the release build and Windows
+  GNU cross-target test compilation pass (with only the known unrelated cfg-specific test warning
+  in `src/change.rs`).
+- Spec quality: 105/105 files and 106,207/106,207 LOC covered; all 62 specs score 100/A.
+- Repository facets: formatting, Clippy, type checks, 23 documentation tests, Astro diagnostics
+  (0 errors/warnings/hints), 43-page site build, and VS Code compile/package pass. RustSec passes
+  against the cached 1,169-advisory database; refreshing that database was unavailable in the
+  restricted environment.
+- The exact `bead6d2` sandbox receipt is historical. A fresh hash-bound sandbox replay, two fresh
+  exact-commit reviews, trust/provenance, and hosted CI remain pending.
+
+## Exact `6fcf6ea` final-candidate evidence
+
+- Time: `2026-07-24T04:46:03Z`
+- Exact implementation commit:
+  `6fcf6eab85b219f27411c21091cb0fb3042274b0`
+- Exact implementation tree:
+  `181d6017f0bb4f1331fc7be0b5da9128b846b69d`
+- Build: disposable `--no-local` clone at the exact commit;
+  `cargo build --release --locked --offline` exited 0 and the clone remained Git-clean.
+- Executable SHA-256:
+  `81d715de89433900d19f9a757ca27d38947cfc420d42a082def7a63f669ade5d`
+- Implementation archive SHA-256:
+  `b15da500d4bb4a19c6b55cd09a4cf017af717c59406db3c0d6212cc0115423d6`
+- Private testbed: disposable `--no-local` clone of `CorvidLabs/spec-sync-sandbox` at
+  `758c144808d80169a44a740660b0d73c5b2f6ddd`; sandbox archive SHA-256:
+  `da78737fb5bbc1adecae62c359253300f2997fa1d99d43c74840c42a40bba6ab`.
+- Drill: `drills/024-mcp-git-root-boundary.sh`, mode `0755`, SHA-256:
+  `0781bd656c18dfec3a8751a36e6ac194963e6a4706eddb331f4729d074c5eece`.
+- Drill result:
+  `PASS: five read-only tools and direct/nested mixed-case Git metadata roots rejected`.
+- Exact binary against checked-in sandbox: 3/3 files and 25/25 LOC covered (100%).
+- The disposable sandbox contained only the intentionally created untracked drill afterward. The
+  isolated implementation clone and the real private sandbox checkout remained Git-clean.
+- Independent compatibility/regression review: PASS, zero High/Medium findings; exact commit/tree,
+  118 MCP unit tests, 68 real-process MCP integrations, low-descriptor regressions, Windows GNU
+  test compilation, and clean worktree confirmed.
+- Independent issue-contract traceability review: PASS, zero High/Medium gaps; every #414/CHG-0063
+  requirement mapped to implementation/tests/specs, and later CLI snapshot/outcome work correctly
+  kept outside this issue.
+- `fledge trust verify` repeated formatting, Clippy, type checks, 1,954 unit tests, 313 integration
+  tests, and release compilation. It stopped at the expected CHG-0062 audited reopen, CHG-0063
+  current-digest approval, and CHG-0064 audited reopen. Augur and Attest were not reached.
+- Remaining gates: current-digest definition approval, authorized CHG-0062/0064 reopenings,
+  lifecycle verification and closing approval, hosted-Windows runtime, Attest provenance, push,
+  and GitHub CI.

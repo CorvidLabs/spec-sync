@@ -1524,7 +1524,7 @@ fn gradle_symlink_module_escape_is_inconclusive_for_coverage_gating_commands() {
 #[test]
 fn gradle_post_discovery_symlink_swap_is_inconclusive_for_every_coverage_gate() {
     use std::os::unix::fs::symlink;
-    use std::process::{Command as ProcessCommand, Stdio};
+    use std::process::Stdio;
     use std::thread;
     use std::time::{Duration, Instant};
 
@@ -1552,8 +1552,7 @@ fn gradle_post_discovery_symlink_swap_is_inconclusive_for_every_coverage_gate() 
             let outside_bytes = b"const val SECRET = \"POST_DISCOVERY_SWAP\"\n";
             fs::write(&outside_source, outside_bytes).unwrap();
 
-            let binary = specsync().get_program().to_os_string();
-            let mut process = ProcessCommand::new(binary);
+            let mut process = specsync_process();
             process
                 .arg(command_name)
                 .arg("--root")
@@ -1703,7 +1702,7 @@ fn gradle_junction_module_escape_is_inconclusive_for_coverage_gating_commands() 
 #[cfg(windows)]
 #[test]
 fn gradle_post_discovery_junction_swap_is_inconclusive_for_every_coverage_gate() {
-    use std::process::{Command as ProcessCommand, Stdio};
+    use std::process::Stdio;
     use std::thread;
     use std::time::{Duration, Instant};
 
@@ -1731,8 +1730,7 @@ fn gradle_post_discovery_junction_swap_is_inconclusive_for_every_coverage_gate()
             let outside_bytes = b"const val SECRET = \"POST_DISCOVERY_JUNCTION_SWAP\"\n";
             fs::write(&outside_source, outside_bytes).unwrap();
 
-            let binary = specsync().get_program().to_os_string();
-            let mut process = ProcessCommand::new(binary);
+            let mut process = specsync_process();
             process
                 .arg(command_name)
                 .arg("--root")

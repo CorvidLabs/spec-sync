@@ -80,6 +80,12 @@ Acceptance Criteria
   path/opened-handle identity continuity before and after the bounded read. Tool and resource
   snapshots reject FIFO/socket/device entries, links/reparse points, and regular replacements
   without blocking, consuming replacement bytes, or returning partial results.
+- Recursive MCP snapshot enumeration records sibling directory identities, then opens children
+  sequentially through retained parents so live handles are bounded by depth while replacement
+  remains detectable.
+- Object-form Node workspaces require a `packages` array, and every recognized nested
+  `package.json` is bounded and strictly parsed as an object with checked workspace fields before
+  any tool or resource may report success.
 
 ### REQ-mcp-003
 
@@ -425,6 +431,9 @@ Acceptance Criteria
 - Missing required frontmatter fields are errors.
 - Cross-project references are skipped during local validation.
 - Coverage excludes test files and configured exclude patterns.
+- Checked spec/source directory traversal records sibling identities and reopens children
+  sequentially through retained parents, bounding live handles by depth without weakening
+  replacement detection.
 - Spec discovery is sorted.
 - Schema validation uses the configured schema regex.
 - Missing-source suggestions use bounded Levenshtein distance.
@@ -483,6 +492,9 @@ Acceptance Criteria
   parsing.
 - Nested manifest/workspace directories remain reachable through the retained project root after
   enumeration and around reads; detached-parent replacement fails without mixing generations.
+- Node workspace child identities are recorded during retained enumeration and opened
+  sequentially through the retained base capability for child manifest reads and source probes;
+  swap/read/restore cannot inject bytes and broad siblings stay descriptor-bounded.
 - Every present filename variant is preflighted before selection, remains identity-stable through
   read, and invoked unsupported inclusion APIs fail closed without rejecting unrelated control
   flow.

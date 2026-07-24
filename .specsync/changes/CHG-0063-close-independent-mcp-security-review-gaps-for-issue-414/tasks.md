@@ -175,6 +175,14 @@ artifact: tasks
   coverage and propagate their failures through check, coverage, generate, report, and score.
 - [x] Add injectable limit/limit-plus-one, duplicate workspace, retained config/spec inventory,
   nested-parent replacement, pre-open replacement, and post-discovery Unix/Windows gate fixtures.
+- [x] Close the exact `237e548` Node generation-mixing finding by consuming child manifests and
+  source probes through identity-matching enumerated capabilities, including swap/read/restore and
+  constrained-descriptor regressions.
+- [x] Require `workspaces.packages` in object-form MCP Node manifests and strictly parse every
+  recognized nested package manifest before tools/resources may report success.
+- [x] Replace retained sibling-directory handles in MCP and checked coverage with enumerated
+  identities plus sequential capability opens, proving broad trees succeed under constrained
+  descriptor limits while replacement remains detected.
 - [ ] Later CLI/outcome/generation work: implement a command-wide immutable CLI analysis snapshot
   and generic structured discovery outcomes. This remains outside GitHub #414's MCP boundary.
 - [x] Add remaining after-open/read, invalid-UTF-8, all-ecosystem, and cross-target

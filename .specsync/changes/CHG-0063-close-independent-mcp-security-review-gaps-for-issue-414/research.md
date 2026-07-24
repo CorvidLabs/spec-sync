@@ -95,3 +95,13 @@ artifact: research
 - The review's command-wide immutable CLI snapshot and generic structured discovery-outcome
   architecture are broader than issue #414's MCP boundary. They remain valid later
   CLI/outcome/generation work and are not claimed by this change.
+- Retaining every enumerated sibling directory is secure against replacement but exhausts ordinary
+  Unix descriptor and Windows HANDLE limits far below the 100,000-entry traversal budget.
+  Enumeration-time identities plus sequential capability opens preserve the authority proof while
+  bounding live handles by depth.
+- Retaining only the Node workspace-base capability is sufficient for swap/read/restore safety
+  when every child is identity-bound at enumeration and opened through that base for the exact
+  manifest/probe operation; ambient child paths must never be the read authority.
+- A syntactically valid root `package.json` does not make nested package manifests trustworthy.
+  Object-form workspaces without `packages`, malformed/non-object nested manifests, and
+  wrong-shaped nested workspace fields must all make MCP operations inconclusive.

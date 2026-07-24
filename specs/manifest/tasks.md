@@ -58,8 +58,13 @@ spec: manifest.spec.md
   nodes, and memoize completed results so repeated declarations cannot amplify parsing work.
 - [x] Reverify nested manifest/workspace parent reachability after traversal and around retained
   reads; reject detached-parent replacement races.
+- [x] Record enumerated Node workspace child identities and open each sequentially through the
+  retained base capability for manifest reads/source probes, with swap/read/restore and
+  descriptor-bound regressions.
+- [x] Release each verified Node workspace-base listing and prove 90 distinct base patterns succeed
+  beneath a 64-descriptor process limit.
 - [x] Add limit/limit-plus-one, duplicate Cargo/Node expansion, linked duplicate-member, and
-  replaced retained-parent regressions; the reported focused manifest run passes 49 tests.
+  replaced retained-parent regressions; the combined focused manifest run passes 52 tests.
 - [ ] Add remaining invalid-UTF-8 and after-open/read table-driven retained-manifest regressions
   across every supported non-Gradle ecosystem.
 - [ ] Verify hosted-Windows junction/reparse-point rejection before outside source probing or

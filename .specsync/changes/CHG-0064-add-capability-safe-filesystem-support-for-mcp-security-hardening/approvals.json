@@ -34,6 +34,13 @@
       "timestamp": 1784792208,
       "digest": "60c5fc25bc5ecb52a8a1106f83326e8ba365369258e63f01329178e07184d886",
       "note": "User approved closing CHG-0064 after fresh verification."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784869932,
+      "digest": "4e0f1a04d2d9fae1440d36e872ff1090c0c243cfe6015d3695f3805dfd3a4b3e",
+      "note": "User explicitly approved closing CHG-0064 after fresh verification; fresh verification passed at commit 4da1d5b8f4b9c9b546451bac9598c1b4b9c1d707."
     }
   ],
   "reopenings": [
@@ -204,6 +211,90 @@
       },
       "stale_acceptance_input_digest": "aaa06f6cfa535667807309188160aa4725c02cc54eec28ff62d6f45af45ff855",
       "current_acceptance_input_digest": "d94dac5a049e3b542a3f9d59c98b5c5ed8bd36ea9cdeeb0c5169dc530ee252c9"
+    },
+    {
+      "schema_version": 1,
+      "change_id": "CHG-0064-add-capability-safe-filesystem-support-for-mcp-security-hardening",
+      "actor": "0xLeif",
+      "reason": "Authorized audited reopen because exact-only delivery input Cargo.lock changed during CHG-0063 issue-414 hardening and requires fresh verification.",
+      "timestamp": 1784868830,
+      "from_state": "accepted",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "acceptance",
+        "actor": "0xLeif",
+        "timestamp": 1784792208,
+        "digest": "60c5fc25bc5ecb52a8a1106f83326e8ba365369258e63f01329178e07184d886",
+        "note": "User approved closing CHG-0064 after fresh verification."
+      },
+      "prior_verification": {
+        "timestamp": 1784792196,
+        "commit": "1df87a680d6f14a5c19fb2affee4930a07251061",
+        "contract_digest": "5592890d2ac472a734434eb3459da25281a98d5e20fe02e2c78e3e99ee08879a",
+        "workspace_digest": "508bde2c21362742ccf2ac005c2832a479b6c49a49018250cf09e5922c2a8ba3",
+        "acceptance_input_digest": "d94dac5a049e3b542a3f9d59c98b5c5ed8bd36ea9cdeeb0c5169dc530ee252c9",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": ".specsync/change-sequence.json",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d59281ec1ee11a4eea427a9ff56b75c435de455e1db212aabf1d37fa16f90471",
+              "entry_digest": "152cf47d6d29dffaa0493691f34b788f37a06c7945918ab3a252dce2e3a3f422",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "Cargo.lock",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "c7fcc3a4a47310cd19dc346701a322b08261db9154356ef0796fe53d2e020c52",
+              "entry_digest": "6e545159c76b2fa8bf3c2efb582d8a448d4c6811ccd3d249c6bead8577d1cfec",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "Cargo.toml",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "dd558f41d776fc623d24797f9b685ccbb29f29c882bedbb4cf299e164d2cfcdd",
+              "entry_digest": "7ea3fb0c9593ac9e9dae41d89ac12a2cb42fdce28aed9252e36c834f412bb575",
+              "owners": [
+                "@exact:delivery"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "ruby --version",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "cargo test",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-release-version.py",
+            "success": true,
+            "exit_code": 0
+          },
+          {
+            "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "d94dac5a049e3b542a3f9d59c98b5c5ed8bd36ea9cdeeb0c5169dc530ee252c9",
+      "current_acceptance_input_digest": "7ca1e4ac4376c6c20976888acd05cd658c849fe9d3da0fe6cb87b119a642deed"
     }
   ]
 }

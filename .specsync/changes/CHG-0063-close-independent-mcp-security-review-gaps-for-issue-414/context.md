@@ -293,13 +293,49 @@ workspace expansion with completed-node memoization in manifest and MCP-specific
 Coverage-internal early and post-discovery checkpoints remain distinct and gate callers propagate
 their errors.
 
-The latest review disposition is scoped rather than silently overclaimed. The review findings above
-have implementation and focused coverage: 49 manifest tests, 43 validator tests, MCP declaration
-budget and deduplication tests, the duplicate Cargo/Node integration drill, and both five-command
-race phases. The command-wide immutable CLI analysis snapshot and generic structured discovery
-outcomes identified by the review are not implemented here; they are outside GitHub #414's MCP
-boundary and remain assigned to later CLI/outcome/generation work. The full local suite now passes
-1,948 unit and 310 integration tests. The exact implementation received one clean security approval;
-the companion-evidence review found only stale counts, which are corrected in the current docs-only
-head. The exact `237e548` sandbox receipt is recorded. Hosted-Windows runtime, repository/CI, trust,
-and provenance evidence remain pending.
+The latest review disposition is scoped rather than silently overclaimed. Two independent reviews
+of exact commit `237e548` rejected it with three Medium findings: Node workspace child manifests
+could mix generations during swap/read/restore, MCP accepted object-form workspaces without
+`packages` and did not parse nested package manifests, and MCP/coverage traversal retained every
+sibling directory handle. The amended tree consumes Node child manifests/probes through
+identity-matching enumerated capabilities, strictly validates root and nested Node manifests, and
+records sibling identities before sequential capability opens. Focused results pass 51 manifest,
+44 validator, 117 MCP unit, and 67 MCP integration tests; the full suite passes 1,951 unit and 312
+integration tests. The command-wide immutable CLI analysis snapshot and generic structured
+discovery outcomes identified by the review are not implemented here; they are outside GitHub
+#414's MCP boundary and remain assigned to later CLI/outcome/generation work. The prior exact
+`237e548` sandbox receipt remains historical rather than final-tree evidence. Fresh post-fix
+independent reviews of exact `971c89a` rejected it because completed Node workspace bases and
+configured coverage roots retained handles proportional to root breadth. The amended tree releases
+each verified Node base and identity-selects configured coverage roots before reopening/traversing
+them sequentially; 90-base and 90-root regressions pass beneath a 64-descriptor limit. The
+hash-bound exact `971c89a` binary replay against clean private sandbox commit `758c144` is now
+historical. The amended full suite passes 1,953 unit and 312 integration tests. Fresh independent
+rereview has one exact-`bead6d2` PASS with zero High/Medium findings; the second review remains
+pending. A hash-bound exact-`bead6d2` offline build and clean private-sandbox replay passes with five
+read-only default tools and 100% fixture coverage. Hosted-Windows runtime, repository/CI, completed
+trust, and provenance evidence remain pending.
+
+The second independent review of exact commit `bead6d2` rejected that candidate with one Medium:
+the lexical read-root selector allowed `.git` itself (including nested and case-varied spellings)
+to become the operation root, bypassing snapshot-level Git metadata exclusion. The amended
+authorization rejects every ASCII-case `.git` component before opening the operation-root
+capability. A unit characterization covers relative, nested, absolute, and case-varied selectors;
+a real MCP integration places valid configuration and source bytes beneath each selector and
+requires a content-free tool error. The prior exact sandbox receipt and first PASS are historical;
+the amended tree passes 1,954 unit and 313 integration tests, release and Windows GNU cross-target
+compilation, strict 100% file/LOC coverage, all 62 scores at 100/A, documentation
+tests/lint/build, and editor-extension compile/package. The RustSec scan passed against the cached
+1,169-advisory database after the networked refresh was unavailable. Two fresh exact-tree reviews,
+the hash-bound sandbox replay, hosted-Windows runtime, trust/provenance, and GitHub CI remain
+pending.
+
+Exact commit `6fcf6eab85b219f27411c21091cb0fb3042274b0` (tree
+`181d6017f0bb4f1331fc7be0b5da9128b846b69d`) now has two independent PASS verdicts with zero
+High/Medium findings: one issue-contract traceability review and one compatibility/regression
+review. Its isolated offline release binary replay passes against clean private sandbox commit
+`758c144808d80169a44a740660b0d73c5b2f6ddd`, proving five read-only default tools, rejection of
+direct and nested mixed-case Git metadata roots, and 3/3 file plus 25/25 LOC coverage. The exact
+trust lane repeated formatting, lint, type checks, 1,954 unit and 313 integration tests, and the
+release build, then stopped at only the expected stale lifecycle approvals for CHG-0062,
+CHG-0063, and CHG-0064. It did not reach Augur or Attest, so no provenance is claimed.

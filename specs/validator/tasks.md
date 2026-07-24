@@ -64,6 +64,11 @@ spec: validator.spec.md
   coverage and propagate their failures through gate callers.
 - [x] Add retained config, shared selected-spec entry, bounded enumeration, pre-open replacement,
   nested-parent replacement, and post-discovery Unix/Windows gate fixtures.
+- [x] Bound checked spec/source traversal handles by depth and prove 200 sibling directories succeed
+  beneath a 64-descriptor process limit without weakening replacement checks.
+- [x] Identity-select configured source roots without retaining every root handle, then prove 90
+  distinct roots succeed beneath a 64-descriptor process limit without weakening replacement
+  checks.
 - [ ] Later CLI/outcome/generation work: retain an immutable authority across complete command
   pipelines and provide generic structured discovery-failure rendering. This is outside #414.
 - [ ] Obtain fresh exact-tree full reruns, independent reviews, hosted-Windows runtime,

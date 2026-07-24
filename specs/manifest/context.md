@@ -65,8 +65,12 @@ nested workspace probe, eliminating the ambient swap-read-restore interval.
 The latest remediation bounds and deduplicates Cargo/Node workspace expansion, memoizes completed
 nodes, and verifies that nested manifest/workspace directories remain reachable from the retained
 project root after enumeration and around reads. Structural Cargo/Node parsing and retained
-directory-listing continuity now close the latest independent-review gaps. The focused manifest
-run passes 49 tests. The full amended suite passes 1,948 unit and 310 integration tests. Fresh
+directory-listing continuity now close the latest independent-review gaps. Node workspace child
+identities are recorded during enumeration, then each child is opened sequentially through the
+retained workspace-base capability for manifest reads and source probes. A swap/read/restore
+interval cannot mix generations. Each completed base listing is reachability-verified and released,
+so broad sibling sets and broad distinct-base sets do not exhaust directory handles. Fresh
+combined results pass 52 focused manifest tests and 1,953 unit plus 312 integration tests. Fresh
 independent rereview, hosted-Windows runtime, repository/CI, trust, and provenance evidence remain
 pending. MCP Cargo workspace paths come from validated TOML values.
 

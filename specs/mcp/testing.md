@@ -12,6 +12,7 @@ spec: mcp.spec.md
 | Authorized mutator | Operates only at the canonical server root and rejects `root` with -32602 |
 | Existing child read root | Allowed only through the retained root capability, including after ambient root replacement |
 | Outside, nonexistent, traversing, or symlink read root | Rejected; outside victim bytes remain identical |
+| Direct, nested, or mixed-case `.git` read root | Rejected before its valid-looking project config or source bytes can become operation authority |
 | Traversing/absolute configured path or unsafe module name | Rejected before project discovery or generation; outside bytes remain identical |
 | Configured or nested symlink escape | Rejected for reads and writes, including a dangling init destination |
 | Escaping spec frontmatter file mapping | Rejected before list/check/score consumers can read it |
@@ -80,10 +81,11 @@ Windows read/write junctions, identity-bound capability acquisition, cycle/bound
 input/output, configured-ignore exceptions, conservative Git scoring, rollback, and transport
 failure branches. Exact-head remediation covers Cargo/Node duplicate-chain expansion,
 declaration charging, injectable limit/limit-plus-one behavior, and retained zero-config detection.
-The latest targeted runs passed 117 MCP unit tests and 65 MCP integration tests, including
-selected-config parent identity, recursive directory replacement, and strict Cargo/Node workspace
-cases. The full amended suite passed 1,948 unit plus 310 integration tests. Fresh independent
-rereview and hosted-Windows junction/reparse runtime remain pending.
+The latest targeted runs pass 117 MCP unit tests and 67 MCP integration tests, including
+selected-config parent identity, recursive directory replacement, descriptor-bounded traversal,
+and strict root/nested Cargo/Node workspace cases. The full amended suite passes 1,951 unit plus
+312 integration tests. Fresh independent rereview and hosted-Windows junction/reparse runtime
+remain pending.
 `snapshot_ignores_nonsemantic_cargo_metadata_paths`,
 `snapshot_normalizes_confined_windows_native_cargo_paths`,
 `issue_tool_fails_inconclusive_for_malformed_frontmatter`, and
@@ -107,3 +109,8 @@ on Windows CI.
 8.3 expansion, original-spelling absolute children, and sibling-prefix rejection.
 The `mcp_allow_empty_tool_and_resource_*selected_config*` integration group covers malformed,
 invalid-UTF-8, wrong-typed, and valid BOM-prefixed selected config behavior across tools/resources.
+
+The v21 rereview regressions exercise a 200-sibling project beneath a 128-descriptor Unix process
+limit, missing object-form `workspaces.packages`, and malformed, non-object, or wrong-shaped nested
+workspace manifests through both tools and resources. Focused results pass 117 MCP unit and 67 MCP
+integration tests; the full suite passes 1,951 unit and 312 integration tests.

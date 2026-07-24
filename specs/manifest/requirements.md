@@ -124,3 +124,8 @@ Acceptance Criteria
 - Nested manifest/workspace directories remain reachable from the retained project root after
   enumeration and before/after reads; detached or replaced parents fail without mixed-generation
   discovery.
+- Node workspace child identities are recorded during retained enumeration and opened
+  sequentially through the retained base capability for child manifest reads and source probes;
+  swap/read/restore cannot inject bytes. Each base listing is released after its final reachability
+  check, so broad sibling sets and broad sets of distinct workspace bases remain
+  descriptor-bounded.

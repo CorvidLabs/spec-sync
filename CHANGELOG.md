@@ -52,7 +52,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   structurally and workspace directory listings remain identity-bound through child consumption.
   Selected source directories are retained before the post-manifest checkpoint, selected MCP
   configuration parents are revalidated through their complete edge chain after bounded reads, and
-  authority-bearing recursive snapshot directories reject regular-directory replacement. Separate
+  authority-bearing recursive snapshot directories reject regular-directory replacement. Recursive
+  MCP and checked-coverage traversal records sibling identities before opening children
+  sequentially, bounding live handles by depth; Node workspace discovery likewise consumes
+  identity-matching child capabilities without swap/read/restore mixing. Object-form Node
+  workspaces require `packages`, and every recognized nested package manifest is strictly parsed.
+  Separate
   early and post-discovery checkpoints protect the checked-coverage operation and propagate failures
   to gate callers.
   Command-wide immutable CLI snapshots and generic structured discovery outcomes remain deferred

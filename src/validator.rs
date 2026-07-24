@@ -44,9 +44,69 @@ pub fn parse_cross_project_ref(dep: &str) -> Option<(&str, &str)> {
     Some((repo, module))
 }
 
+/// Validate one local (non-cross-project) `depends_on` entry and resolve it
+/// to an existing path inside the project.
+///
+/// This is the ONE verdict for a dependency declaration, shared by
+/// `check` (here), `deps` (crate::deps), and `resolve` (commands::resolve) so
+/// the same list can no longer yield three different answers:
+/// - cross-project refs (`owner/repo@module`) are skipped (Ok) — `resolve`
+///   validates them against registries;
+/// - absolute paths and `..` traversal are rejected as escapes;
+/// - bare module names resolve against the specs directory;
+/// - anything else must exist as a path confined to the project root.
+pub fn validate_local_dependency(dep: &str, root: &Path, specs_dir: &str) -> Result<PathBuf, String> {
+    if is_cross_project_ref(dep) {
+        // Cross-project refs (e.g. "owner/repo@module") are validated
+        // by `specsync resolve`, not during local checks.
+        return Ok(root.join(specs_dir));
+    }
+    let trimmed = dep.trim();
+    if trimmed.is_empty() {
+        return Err("Dependency spec entry is empty".to_string());
+    }
+    let as_path = Path::new(trimmed);
+    if as_path.is_absolute()
+        || as_path
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir | std::path::Component::Prefix(_)))
+        || trimmed.contains('\\')
+    {
+        return Err(format!(
+            "Dependency spec path escapes the project root: {trimmed} (absolute paths and `..` traversal are not allowed)"
+        ));
+    }
+    // Bare module names (no path separators or extension) resolve
+    // against the specs directory, not the project root.
+    let full_path = if !trimmed.contains('/') && !trimmed.contains('.') {
+        root.join(specs_dir).join(trimmed)
+    } else {
+        root.join(trimmed)
+    };
+    if !source_within_root(root, trimmed) {
+        return Err(format!(
+            "Dependency spec path escapes the project root: {trimmed} (symlink resolution leaves the project)"
+        ));
+    }
+    if !full_path.exists() {
+        return Err(format!("Dependency spec not found: {trimmed}"));
+    }
+    Ok(full_path)
+}
+
 // ─── Schema Table Discovery ──────────────────────────────────────────────
 
 /// Extract table names from SQL schema files.
+///
+/// The base set comes from `schema::build_schema`, which replays migrations in
+/// order — so `ALTER TABLE ... RENAME TO` retires the old name and `DROP TABLE`
+/// retires the table (the naive CREATE-only scan this replaces had the rename
+/// semantics exactly inverted). A configured `schema_pattern` extracts
+/// ADDITIONAL names on top (for nonstandard DDL the replay doesn't understand);
+/// it can no longer vacuously replace the set — an uncompilable pattern is
+/// surfaced loudly by `schema_config_problems` instead of disabling validation.
+/// All names are normalized (`normalize_table_name`): quoting style and case
+/// do not change identity.
 pub fn get_schema_table_names(root: &Path, config: &SpecSyncConfig) -> HashSet<String> {
     let mut tables = HashSet::new();
     let schema_dir = match &config.schema_dir {
@@ -58,17 +118,22 @@ pub fn get_schema_table_names(root: &Path, config: &SpecSyncConfig) -> HashSet<S
         return tables;
     }
 
+    let (schema_map, retired) = schema::build_schema_with_retired(&schema_dir);
+    for name in schema_map.keys() {
+        tables.insert(name.clone());
+    }
+
+    // Pattern extraction adds names the replay can't see (e.g. VIRTUAL TABLE,
+    // whose column list uses `USING module(...)` syntax), but must never
+    // resurrect a table that a later migration dropped or renamed away.
     let pattern_str = config
         .schema_pattern
         .as_deref()
         .unwrap_or_else(|| default_schema_pattern());
 
-    let re = match safe_regex(pattern_str) {
-        Some(r) => r,
-        None => return tables,
-    };
-
-    if let Ok(entries) = fs::read_dir(&schema_dir) {
+    if let Some(re) = safe_regex(pattern_str)
+        && let Ok(entries) = fs::read_dir(&schema_dir)
+    {
         for entry in entries.flatten() {
             let path = entry.path();
             let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
@@ -78,7 +143,10 @@ pub fn get_schema_table_names(root: &Path, config: &SpecSyncConfig) -> HashSet<S
             if let Ok(content) = fs::read_to_string(&path) {
                 for caps in re.captures_iter(&content) {
                     if let Some(name) = caps.get(1) {
-                        tables.insert(name.as_str().to_string());
+                        let normalized = schema::normalize_table_name(name.as_str());
+                        if !retired.contains(&normalized) {
+                            tables.insert(normalized);
+                        }
                     }
                 }
             }
@@ -86,6 +154,42 @@ pub fn get_schema_table_names(root: &Path, config: &SpecSyncConfig) -> HashSet<S
     }
 
     tables
+}
+
+/// Loud, project-level schema configuration problems: a configured
+/// `schema_dir` that does not exist, or a `schema_pattern` that does not
+/// compile as a regex. Both previously disabled table validation silently
+/// (empty table set ⇒ every db_tables entry vacuously passed).
+pub fn schema_config_problems(root: &Path, config: &SpecSyncConfig) -> Vec<String> {
+    let mut problems = Vec::new();
+    if let Some(dir) = &config.schema_dir {
+        if !root.join(dir).exists() {
+            problems.push(format!(
+                "Configured schema_dir `{dir}` does not exist — db_tables validation cannot run; create the directory or fix schema_dir in the config"
+            ));
+        } else if let Some(pattern) = &config.schema_pattern
+            && safe_regex(pattern).is_none()
+        {
+            problems.push(format!(
+                "Configured schema_pattern `{pattern}` is not a valid regex — table-name extraction cannot use it; fix or remove schema_pattern in the config"
+            ));
+        }
+    }
+    problems
+}
+
+/// Whether a declared `db_tables` entry exists in the discovered schema set.
+/// Both sides are normalized; an unqualified declared name also matches a
+/// schema-qualified discovered name (`users` matches `public.users`).
+pub fn schema_table_exists(tables: &HashSet<String>, declared: &str) -> bool {
+    let norm = schema::normalize_table_name(declared);
+    if tables.contains(&norm) {
+        return true;
+    }
+    !norm.contains('.')
+        && tables
+            .iter()
+            .any(|t| t.rsplit('.').next() == Some(norm.as_str()))
 }
 
 // ─── File Discovery ──────────────────────────────────────────────────────
@@ -160,6 +264,84 @@ fn has_coverage_extension(path: &Path, config: &SpecSyncConfig) -> bool {
         .is_some_and(|extension| STATIC_COVERAGE_EXTENSIONS.contains(&extension))
 }
 
+/// Fold a symbol name for cross-document matching: strip combining
+/// diacritical marks so canonically-equivalent Unicode (NFC `ï` vs NFD
+/// `i` + U+0308) compares equal regardless of how each side was encoded.
+fn symbol_key(s: &str) -> String {
+    s.chars()
+        .flat_map(decompose_latin)
+        .filter(|c| !matches!(*c as u32, 0x300..=0x36F))
+        .collect()
+}
+
+/// Canonical decomposition for the common precomposed Latin letters
+/// (Latin-1 Supplement + Latin Extended-A) into base letter + combining
+/// mark, so that `symbol_key`'s combining-mark strip folds NFC and NFD
+/// spellings of the same glyph to the same key without pulling in a full
+/// Unicode normalization crate. Non-listed characters pass through.
+fn decompose_latin(c: char) -> Vec<char> {
+    let base = match c {
+        'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'ā' | 'ă' | 'ą' => Some('a'),
+        'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' | 'Ā' | 'Ă' | 'Ą' => Some('A'),
+        'ç' | 'ć' | 'ĉ' | 'ċ' | 'č' => Some('c'),
+        'Ç' | 'Ć' | 'Ĉ' | 'Ċ' | 'Č' => Some('C'),
+        'ď' | 'đ' | 'ð' => Some('d'),
+        'Ď' | 'Đ' | 'Ð' => Some('D'),
+        'è' | 'é' | 'ê' | 'ë' | 'ē' | 'ĕ' | 'ė' | 'ę' | 'ě' => Some('e'),
+        'È' | 'É' | 'Ê' | 'Ë' | 'Ē' | 'Ĕ' | 'Ė' | 'Ę' | 'Ě' => Some('E'),
+        'ĝ' | 'ğ' | 'ġ' | 'ģ' => Some('g'),
+        'Ĝ' | 'Ğ' | 'Ġ' | 'Ģ' => Some('G'),
+        'ĥ' | 'ħ' => Some('h'),
+        'Ĥ' | 'Ħ' => Some('H'),
+        'ì' | 'í' | 'î' | 'ï' | 'ĩ' | 'ī' | 'ĭ' | 'į' | 'ı' => Some('i'),
+        'Ì' | 'Í' | 'Î' | 'Ï' | 'Ĩ' | 'Ī' | 'Ĭ' | 'Į' | 'İ' => Some('I'),
+        'ĵ' => Some('j'),
+        'Ĵ' => Some('J'),
+        'ķ' => Some('k'),
+        'Ķ' => Some('K'),
+        'ĺ' | 'ļ' | 'ľ' | 'ŀ' | 'ł' => Some('l'),
+        'Ĺ' | 'Ļ' | 'Ľ' | 'Ŀ' | 'Ł' => Some('L'),
+        'ñ' | 'ń' | 'ņ' | 'ň' => Some('n'),
+        'Ñ' | 'Ń' | 'Ņ' | 'Ň' => Some('N'),
+        'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' | 'ō' | 'ŏ' | 'ő' => Some('o'),
+        'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'Ø' | 'Ō' | 'Ŏ' | 'Ő' => Some('O'),
+        'ŕ' | 'ŗ' | 'ř' => Some('r'),
+        'Ŕ' | 'Ŗ' | 'Ř' => Some('R'),
+        'ś' | 'ŝ' | 'ş' | 'š' => Some('s'),
+        'Ś' | 'Ŝ' | 'Ş' | 'Š' => Some('S'),
+        'ţ' | 'ť' | 'ŧ' => Some('t'),
+        'Ţ' | 'Ť' | 'Ŧ' => Some('T'),
+        'ù' | 'ú' | 'û' | 'ü' | 'ũ' | 'ū' | 'ŭ' | 'ů' | 'ű' | 'ų' => Some('u'),
+        'Ù' | 'Ú' | 'Û' | 'Ü' | 'Ũ' | 'Ū' | 'Ŭ' | 'Ů' | 'Ű' | 'Ų' => Some('U'),
+        'ŵ' => Some('w'),
+        'Ŵ' => Some('W'),
+        'ý' | 'ÿ' | 'ŷ' => Some('y'),
+        'Ý' | 'Ŷ' | 'Ÿ' => Some('Y'),
+        'ź' | 'ż' | 'ž' => Some('z'),
+        'Ź' | 'Ż' | 'Ž' => Some('Z'),
+        _ => None,
+    };
+    match base {
+        Some(b) => vec![b],
+        None => vec![c],
+    }
+}
+
+/// Whether a documented spec symbol matches a discovered export. Beyond exact
+/// (diacritic-folded) equality, a bare spec name matches an arity-qualified
+/// export (`area` matches Erlang's `area/2`) so pre-arity specs keep working,
+/// while `area/1` correctly does NOT match `area/2`.
+fn symbols_match(spec_symbol: &str, export_key: &str) -> bool {
+    let spec_key = symbol_key(spec_symbol);
+    spec_key == export_key
+        || (export_key.contains('/')
+            && export_key.rsplit('/').next().is_some_and(|arity| {
+                !arity.is_empty()
+                    && arity.chars().all(|c| c.is_ascii_digit())
+                    && export_key[..export_key.len() - arity.len() - 1] == spec_key
+            }))
+}
+
 // ─── Single Spec Validation ──────────────────────────────────────────────
 
 /// Validate a single spec file against source code.
@@ -195,6 +377,12 @@ pub fn validate_spec(
             return result;
         }
     };
+
+    // Surface frontmatter shape problems (duplicate keys, wrong YAML shapes,
+    // unclosed brackets) before anything else — a lenient parse here is a
+    // validation bypass downstream.
+    result.errors.extend(parsed.errors.iter().cloned());
+    result.warnings.extend(parsed.warnings.iter().cloned());
 
     let fm = &parsed.frontmatter;
     let body = &parsed.body;
@@ -236,6 +424,20 @@ pub fn validate_spec(
         result
             .fixes
             .push("Add `module: your-module-name` to the YAML frontmatter block".to_string());
+    } else if let Some(module) = &fm.module {
+        // Cross-check `module:` against the spec filename — a spec at
+        // `specs/lib/lib.spec.md` declaring `module: totallydifferent` makes
+        // dependency edges point at a name nothing else can find.
+        if let Some(stem) = spec_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .and_then(|n| n.strip_suffix(".spec.md"))
+            && stem != module
+        {
+            result.warnings.push(format!(
+                "Frontmatter module `{module}` does not match the spec filename `{stem}.spec.md` — depends_on entries resolve against module names, so other specs must use `{module}` to depend on this one"
+            ));
+        }
     }
     if fm.version.is_none() {
         result
@@ -362,9 +564,20 @@ pub fn validate_spec(
         }
     }
 
+    // db_tables declared but validation cannot run: fail visible, not silent.
+    if !fm.db_tables.is_empty() && config.schema_dir.is_none() {
+        result.warnings.push(format!(
+            "db_tables declares {} table(s) but no `schema_dir` is configured — table validation is skipped; set schema_dir in .specsync/config.toml to enable it",
+            fm.db_tables.len()
+        ));
+    }
+
     // Check db_tables exist in schema
     for table in &fm.db_tables {
-        if !schema_tables.is_empty() && !schema_tables.contains(table) {
+        if config.schema_dir.is_some()
+            && root.join(config.schema_dir.as_deref().unwrap_or_default()).exists()
+            && !schema_table_exists(schema_tables, table)
+        {
             result
                 .errors
                 .push(format!("DB table not found in schema: {table}"));
@@ -378,7 +591,19 @@ pub fn validate_spec(
     if !schema_columns.is_empty() {
         let spec_schema = schema::parse_spec_schema(body);
         for table_name in &fm.db_tables {
-            if let Some(actual_table) = schema_columns.get(table_name)
+            let normalized = schema::normalize_table_name(table_name);
+            let actual_table = schema_columns.get(&normalized).or_else(|| {
+                // Unqualified declared names match a schema-qualified table.
+                if normalized.contains('.') {
+                    None
+                } else {
+                    schema_columns
+                        .iter()
+                        .find(|(k, _)| k.rsplit('.').next() == Some(normalized.as_str()))
+                        .map(|(_, v)| v)
+                }
+            });
+            if let Some(actual_table) = actual_table
                 && let Some(spec_cols) = spec_schema.get(table_name)
             {
                 let actual_names: HashSet<&str> = actual_table
@@ -510,12 +735,20 @@ pub fn validate_spec(
         all_exports.retain(|s| seen.insert(s.clone()));
 
         let spec_symbols = get_spec_symbols(body);
-        let spec_set: HashSet<&str> = spec_symbols.iter().map(|s| s.as_str()).collect();
-        let export_set: HashSet<&str> = all_exports.iter().map(|s| s.as_str()).collect();
+        for dup in crate::parser::get_duplicate_spec_symbols(body) {
+            result.warnings.push(format!(
+                "Duplicate Public API table row: `{dup}` is listed more than once"
+            ));
+        }
+        // Unicode-insensitive matching: an NFC source name and an NFD spec
+        // name (glyph-identical) must match, not produce phantom +
+        // undocumented errors. Diacritics are folded away on both sides.
+        let spec_keys: HashSet<String> = spec_symbols.iter().map(|s| symbol_key(s)).collect();
+        let export_keys: HashSet<String> = all_exports.iter().map(|s| symbol_key(s)).collect();
 
         // Spec documents something that doesn't exist = ERROR
         for sym in &spec_symbols {
-            if !export_set.contains(sym.as_str()) {
+            if !export_keys.iter().any(|k| symbols_match(sym, k)) {
                 result.errors.push(format!(
                     "Spec documents '{sym}' but no matching export found in source"
                 ));
@@ -524,7 +757,11 @@ pub fn validate_spec(
 
         // Code exports something not in spec = WARNING (with source file attribution)
         for sym in &all_exports {
-            if !spec_set.contains(sym.as_str()) {
+            if !spec_keys.contains(&symbol_key(sym))
+                && !spec_symbols
+                    .iter()
+                    .any(|s| symbols_match(s, &symbol_key(sym)))
+            {
                 // Find the source file for this export
                 let source_file = exports_by_file
                     .iter()
@@ -547,7 +784,7 @@ pub fn validate_spec(
 
         let documented = spec_symbols
             .iter()
-            .filter(|s| export_set.contains(s.as_str()))
+            .filter(|s| export_keys.iter().any(|k| symbols_match(s, k)))
             .count();
 
         if !all_exports.is_empty() {
@@ -564,22 +801,8 @@ pub fn validate_spec(
 
     if !fm.depends_on.is_empty() {
         for dep in &fm.depends_on {
-            if is_cross_project_ref(dep) {
-                // Cross-project refs (e.g. "owner/repo@module") are validated
-                // by `specsync resolve`, not during local checks.
-                continue;
-            }
-            // Bare module names (no path separators or extension) resolve
-            // against the specs directory, not the project root.
-            let full_path = if !dep.contains('/') && !dep.contains('.') {
-                root.join(&config.specs_dir).join(dep)
-            } else {
-                root.join(dep)
-            };
-            if !full_path.exists() {
-                result
-                    .errors
-                    .push(format!("Dependency spec not found: {dep}"));
+            if let Err(message) = validate_local_dependency(dep, root, &config.specs_dir) {
+                result.errors.push(message);
             }
         }
     }
@@ -1594,6 +1817,337 @@ Test
                 .any(|e| e.contains("Dependency spec not found")),
             "bare dep name should resolve via specs dir: {:?}",
             result.errors
+        );
+    }
+
+    #[test]
+    fn test_validate_local_dependency_rejects_escapes() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("specs")).unwrap();
+
+        for bad in ["/etc/passwd", "../outside", "specs/../../etc/passwd"] {
+            let err = validate_local_dependency(bad, tmp.path(), "specs")
+                .expect_err("escape must be rejected");
+            assert!(
+                err.contains("escapes the project root") && err.contains(bad),
+                "error must name the offending entry `{bad}`: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_local_dependency_one_verdict() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dep_dir = tmp.path().join("specs").join("run");
+        fs::create_dir_all(&dep_dir).unwrap();
+        fs::write(dep_dir.join("run.spec.md"), "# fixture").unwrap();
+
+        // Bare module name resolves via the specs directory.
+        assert!(validate_local_dependency("run", tmp.path(), "specs").is_ok());
+        // Path form resolves relative to the root.
+        assert!(validate_local_dependency("specs/run/run.spec.md", tmp.path(), "specs").is_ok());
+        // Missing targets fail loudly with the offending entry.
+        let err = validate_local_dependency("nosuchmod", tmp.path(), "specs").unwrap_err();
+        assert!(err.contains("Dependency spec not found: nosuchmod"), "{err}");
+        // Cross-project refs are out of scope for local validation.
+        assert!(validate_local_dependency("owner/repo@auth", tmp.path(), "specs").is_ok());
+    }
+
+    #[test]
+    fn test_validate_spec_rejects_dependency_escape_and_flow_style_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("specs")).unwrap();
+        let spec = tmp.path().join("app.spec.md");
+        fs::write(
+            &spec,
+            "---\nmodule: app\nversion: 1\nstatus: active\nfiles: []\ndepends_on: [/etc/passwd, nosuchmod]\n---\n\n## Purpose\nTest\n## Public API\n## Invariants\n## Behavioral Examples\n## Error Cases\n## Dependencies\n## Change Log\n",
+        )
+        .unwrap();
+
+        let config = SpecSyncConfig::default();
+        let result = validate_spec(
+            &spec,
+            tmp.path(),
+            &HashSet::new(),
+            &HashMap::new(),
+            &config,
+        );
+        // Flow-style entries must be parsed (not silently zero edges) and each
+        // entry rejected with its own verdict.
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("escapes the project root") && e.contains("/etc/passwd")),
+            "errors: {:?}",
+            result.errors
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("Dependency spec not found: nosuchmod")),
+            "errors: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_validate_spec_duplicate_status_key_is_an_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let spec = tmp.path().join("dup.spec.md");
+        fs::write(
+            &spec,
+            "---\nmodule: dup\nversion: 1\nstatus: active\nstatus: draft\nfiles: []\n---\n\n## Purpose\nTest\n",
+        )
+        .unwrap();
+        let config = SpecSyncConfig::default();
+        let result = validate_spec(
+            &spec,
+            tmp.path(),
+            &HashSet::new(),
+            &HashMap::new(),
+            &config,
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("duplicate key `status`")),
+            "errors: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_get_schema_table_names_rename_and_drop_applied() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("migrations");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("001_init.sql"),
+            "CREATE TABLE old_users (id INTEGER PRIMARY KEY);\nCREATE TABLE doomed (id INTEGER);",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("002_migrate.sql"),
+            "ALTER TABLE old_users RENAME TO users;\nDROP TABLE doomed;",
+        )
+        .unwrap();
+
+        let config = SpecSyncConfig {
+            schema_dir: Some("migrations".to_string()),
+            ..Default::default()
+        };
+        let tables = get_schema_table_names(tmp.path(), &config);
+        // Rename must retire the old name, DROP must retire the table.
+        assert!(tables.contains("users"), "tables: {tables:?}");
+        assert!(!tables.contains("old_users"), "tables: {tables:?}");
+        assert!(!tables.contains("doomed"), "tables: {tables:?}");
+    }
+
+    #[test]
+    fn test_schema_table_exists_quoting_case_and_schema_prefix() {
+        let tables: HashSet<String> = ["users", "public.orders", "mixedcase"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        assert!(schema_table_exists(&tables, "users"));
+        assert!(schema_table_exists(&tables, "\"users\""));
+        assert!(schema_table_exists(&tables, "`users`"));
+        assert!(schema_table_exists(&tables, "USERS"));
+        assert!(schema_table_exists(&tables, "MixedCase"));
+        // Unqualified declared name matches schema-qualified discovered name.
+        assert!(schema_table_exists(&tables, "orders"));
+        assert!(schema_table_exists(&tables, "public.orders"));
+        assert!(!schema_table_exists(&tables, "zzz_definitely_missing"));
+    }
+
+    #[test]
+    fn test_schema_config_problems_loud() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut config = SpecSyncConfig {
+            schema_dir: Some("no_such_dir".to_string()),
+            ..Default::default()
+        };
+        let problems = schema_config_problems(tmp.path(), &config);
+        assert_eq!(problems.len(), 1);
+        assert!(problems[0].contains("no_such_dir"), "{problems:?}");
+
+        // An uncompilable schema_pattern must be flagged, not silently vacuous.
+        fs::create_dir_all(tmp.path().join("migrations")).unwrap();
+        config.schema_dir = Some("migrations".to_string());
+        config.schema_pattern = Some("*.sql".to_string());
+        let problems = schema_config_problems(tmp.path(), &config);
+        assert_eq!(problems.len(), 1);
+        assert!(problems[0].contains("*.sql"), "{problems:?}");
+
+        // A valid pattern is fine.
+        config.schema_pattern = Some(r"CREATE TABLE (\w+)".to_string());
+        assert!(schema_config_problems(tmp.path(), &config).is_empty());
+    }
+
+    #[test]
+    fn test_validate_spec_db_tables_warn_when_no_schema_dir_and_error_on_phantom() {
+        let tmp = tempfile::tempdir().unwrap();
+        let body = "---\nmodule: t\nversion: 1\nstatus: active\nfiles: []\ndb_tables:\n  - zzz_definitely_missing\n---\n\n## Purpose\nTest\n";
+        let spec = tmp.path().join("t.spec.md");
+        fs::write(&spec, body).unwrap();
+
+        // No schema_dir configured: warn (validation skipped visibly), no error.
+        let config = SpecSyncConfig::default();
+        let result = validate_spec(
+            &spec,
+            tmp.path(),
+            &HashSet::new(),
+            &HashMap::new(),
+            &config,
+        );
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.contains("schema_dir") && w.contains("db_tables")),
+            "warnings: {:?}",
+            result.warnings
+        );
+        assert!(
+            !result.errors.iter().any(|e| e.contains("DB table")),
+            "errors: {:?}",
+            result.errors
+        );
+
+        // schema_dir configured and present: phantom table is an error.
+        fs::create_dir_all(tmp.path().join("migrations")).unwrap();
+        fs::write(
+            tmp.path().join("migrations/001.sql"),
+            "CREATE TABLE users (id INTEGER PRIMARY KEY);",
+        )
+        .unwrap();
+        let config = SpecSyncConfig {
+            schema_dir: Some("migrations".to_string()),
+            ..Default::default()
+        };
+        let tables = get_schema_table_names(tmp.path(), &config);
+        let result = validate_spec(&spec, tmp.path(), &tables, &HashMap::new(), &config);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("DB table not found in schema: zzz_definitely_missing")),
+            "errors: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_unicode_nfc_nfd_export_matching() {
+        let tmp = tempfile::tempdir().unwrap();
+        // NFD source (i + combining diaeresis), NFC spec (precomposed ï):
+        // glyph-identical names must match, not phantom/undocumented.
+        fs::create_dir_all(tmp.path().join("src")).unwrap();
+        fs::write(tmp.path().join("src/lib.ts"), "export const nai\u{0308}ve = 1;\n").unwrap();
+        let spec = tmp.path().join("u.spec.md");
+        fs::write(
+            &spec,
+            "---\nmodule: u\nversion: 1\nstatus: active\nfiles:\n  - src/lib.ts\n---\n\n## Purpose\nTest\n## Public API\n\n### Exported Constants\n\n| Name | Description |\n|------|-------------|\n| `na\u{ef}ve` | unicode |\n",
+        )
+        .unwrap();
+        let config = SpecSyncConfig::default();
+        let result = validate_spec(
+            &spec,
+            tmp.path(),
+            &HashSet::new(),
+            &HashMap::new(),
+            &config,
+        );
+        assert!(
+            !result.errors.iter().any(|e| e.contains("no matching export")),
+            "errors: {:?}",
+            result.errors
+        );
+        assert!(
+            !result.warnings.iter().any(|w| w.contains("ndocumented export")),
+            "warnings: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_erlang_arity_export_matching() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("src")).unwrap();
+        fs::write(tmp.path().join("src/geo.erl"), "-module(geo).\n-export([area/2]).\narea(A, B) -> A * B.\n").unwrap();
+        let config = SpecSyncConfig::default();
+
+        // Bare `area` still matches `area/2` (back-compat)...
+        let spec = tmp.path().join("geo.spec.md");
+        fs::write(
+            &spec,
+            "---\nmodule: geo\nversion: 1\nstatus: active\nfiles:\n  - src/geo.erl\n---\n\n## Purpose\nTest\n## Public API\n\n### Exported Functions\n\n| Name | Description |\n|------|-------------|\n| `area` | arity-2 export |\n",
+        )
+        .unwrap();
+        let result = validate_spec(
+            &spec,
+            tmp.path(),
+            &HashSet::new(),
+            &HashMap::new(),
+            &config,
+        );
+        assert!(
+            !result.errors.iter().any(|e| e.contains("no matching export")),
+            "errors: {:?}",
+            result.errors
+        );
+
+        // ...but the wrong arity is a phantom, and the true `area/2` is
+        // documentable.
+        fs::write(
+            &spec,
+            "---\nmodule: geo\nversion: 1\nstatus: active\nfiles:\n  - src/geo.erl\n---\n\n## Purpose\nTest\n## Public API\n\n### Exported Functions\n\n| Name | Description |\n|------|-------------|\n| `area/1` | wrong arity |\n",
+        )
+        .unwrap();
+        let result = validate_spec(
+            &spec,
+            tmp.path(),
+            &HashSet::new(),
+            &HashMap::new(),
+            &config,
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("'area/1'") && e.contains("no matching export")),
+            "errors: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_validate_spec_module_filename_mismatch_warns() {
+        let tmp = tempfile::tempdir().unwrap();
+        let spec = tmp.path().join("lib.spec.md");
+        fs::write(
+            &spec,
+            "---\nmodule: totallydifferent\nversion: 1\nstatus: active\nfiles: []\n---\n\n## Purpose\nTest\n",
+        )
+        .unwrap();
+        let config = SpecSyncConfig::default();
+        let result = validate_spec(
+            &spec,
+            tmp.path(),
+            &HashSet::new(),
+            &HashMap::new(),
+            &config,
+        );
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.contains("totallydifferent") && w.contains("lib.spec.md")),
+            "warnings: {:?}",
+            result.warnings
         );
     }
 }

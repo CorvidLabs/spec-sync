@@ -107,7 +107,12 @@ pub enum Command {
     /// Watch spec and source files, re-running check on changes
     Watch,
     /// Run as an MCP (Model Context Protocol) server over stdio
-    Mcp,
+    Mcp {
+        /// Enable write-capable MCP tools (specsync_generate, specsync_init).
+        /// Off by default so a connected agent gets a read-only surface.
+        #[arg(long)]
+        allow_writes: bool,
+    },
     /// Scaffold a new spec with required companion files and optional design.md
     AddSpec {
         /// Module name for the new spec

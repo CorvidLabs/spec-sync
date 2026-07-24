@@ -10,10 +10,57 @@ use tree_sitter::{Parser, Tree};
 /// instead of `Name`. `declare` is accepted as an optional modifier so
 /// ambient declarations (`export declare function/class/const ...`) are not
 /// silently dropped.
+/// An identifier token that may contain JS unicode escapes (`\uXXXX`,
+/// `\u{...}`) — legal in JS/TS identifiers; truncating at the backslash
+/// produces a bogus export name (`caf\u0061` → `caf`).
+const JS_IDENT: &str = r"(?:\w|\\u(?:\{[0-9A-Fa-f]{1,6}\}|[0-9A-Fa-f]{4}))+";
+
 static EXPORT_DECL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"export\s+(?:declare\s+)?(?:async\s+)?(?:abstract\s+)?(?:const\s+enum|function|class|interface|type|const|enum)\s+(\w+)")
-        .unwrap()
+    Regex::new(&format!(
+        r"export\s+(?:declare\s+)?(?:async\s+)?(?:abstract\s+)?(?:const\s+enum|function|class|interface|type|const|enum)\s+({JS_IDENT})"
+    ))
+    .unwrap()
 });
+
+/// Decode `\uXXXX` / `\u{...}` escapes inside a captured identifier.
+/// Anything malformed is left as-is (the extractor never invents text).
+fn decode_js_identifier_escapes(name: &str) -> String {
+    if !name.contains('\\') {
+        return name.to_string();
+    }
+    let mut out = String::with_capacity(name.len());
+    let mut rest = name;
+    while let Some(pos) = rest.find("\\u") {
+        out.push_str(&rest[..pos]);
+        let after = &rest[pos + 2..];
+        let (digits, consumed) = if let Some(braced) = after.strip_prefix('{') {
+            match braced.find('}') {
+                Some(end) => (&braced[..end], end + 2),
+                None => {
+                    out.push_str("\\u");
+                    rest = after;
+                    continue;
+                }
+            }
+        } else if after.len() >= 4 {
+            (&after[..4], 4)
+        } else {
+            out.push_str("\\u");
+            rest = after;
+            continue;
+        };
+        match u32::from_str_radix(digits, 16).ok().and_then(char::from_u32) {
+            Some(ch) => out.push(ch),
+            None => {
+                out.push_str("\\u");
+                out.push_str(&after[..consumed]);
+            }
+        }
+        rest = &after[consumed..];
+    }
+    out.push_str(rest);
+    out
+}
 
 /// export type { Name, Name2 }
 static RE_EXPORT_TYPE: LazyLock<Regex> =
@@ -88,7 +135,7 @@ pub fn extract_exports_with_resolver(
     // Direct exports: export function/class/interface/type/const/enum
     for caps in EXPORT_DECL.captures_iter(&stripped) {
         if let Some(name) = caps.get(1) {
-            symbols.push(name.as_str().to_string());
+            symbols.push(decode_js_identifier_escapes(name.as_str()));
         }
     }
 
@@ -591,6 +638,19 @@ fn strip_comments_preserving_strings(content: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_unicode_escape_identifiers_not_truncated() {
+        // `caf\u0061` is the legal JS identifier `cafa`; truncating at the
+        // backslash produced a bogus `caf` export and an unfixable phantom.
+        let symbols = extract_exports("export const caf\\u0061 = 4;\nexport const b = 2;\n");
+        assert!(symbols.contains(&"cafa".to_string()), "{symbols:?}");
+        assert!(!symbols.contains(&"caf".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"b".to_string()));
+        // Brace form.
+        let symbols = extract_exports("export const \\u{62}eta = 1;\n");
+        assert!(symbols.contains(&"beta".to_string()), "{symbols:?}");
+    }
 
     #[test]
     fn test_basic_exports() {

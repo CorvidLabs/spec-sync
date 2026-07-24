@@ -12,7 +12,8 @@ static ERL_EXPORT_ATTR: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?s)-export\s*\(\s*\[\s*([^]]*)\s*\]\s*\)").unwrap());
 
 /// Function name within export list: name/arity
-static ERL_FUN_ARITY: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"'?\b(\w+)'?/\d+").unwrap());
+static ERL_FUN_ARITY: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"'?\b(\w+)'?/(\d+)").unwrap());
 
 /// `-compile(export_all).` or `-compile([export_all, ...]).`: a compiler
 /// directive that exports every top-level function in the module, regardless
@@ -39,8 +40,12 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         if let Some(list_match) = caps.get(1) {
             let list_str = list_match.as_str();
             for f_caps in ERL_FUN_ARITY.captures_iter(list_str) {
-                if let Some(name) = f_caps.get(1) {
-                    let n = name.as_str().to_string();
+                if let (Some(name), Some(arity)) = (f_caps.get(1), f_caps.get(2)) {
+                    // Erlang export identity is name/arity: `area/1` and
+                    // `area/2` are different exports. Emitting the bare name
+                    // made one of them unmatchable (phantom) and hid arity
+                    // mismatches entirely.
+                    let n = format!("{}/{}", name.as_str(), arity.as_str());
                     if !symbols.contains(&n) {
                         symbols.push(n);
                     }
@@ -86,10 +91,10 @@ mul(A, B) -> A * B.
 helper() -> ok.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"add".to_string()));
-        assert!(symbols.contains(&"sub".to_string()));
-        assert!(symbols.contains(&"mul".to_string()));
-        assert!(symbols.contains(&"DummyClass".to_string()));
+        assert!(symbols.contains(&"add/2".to_string()));
+        assert!(symbols.contains(&"sub/2".to_string()));
+        assert!(symbols.contains(&"mul/2".to_string()));
+        assert!(symbols.contains(&"DummyClass/0".to_string()));
         assert!(!symbols.contains(&"helper".to_string()));
     }
 
@@ -109,8 +114,8 @@ real_fn(X) -> X.
 fake_fn(X) -> X.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"real_fn".to_string()));
-        assert!(!symbols.contains(&"fake_fn".to_string()));
+        assert!(symbols.contains(&"real_fn/1".to_string()));
+        assert!(!symbols.contains(&"fake_fn/1".to_string()));
     }
 
     #[test]
@@ -180,9 +185,9 @@ real_fn2(A, B) -> A + B.
 fake_fn(X) -> X.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"real_fn".to_string()));
-        assert!(symbols.contains(&"real_fn2".to_string()));
-        assert!(!symbols.contains(&"fake_fn".to_string()));
+        assert!(symbols.contains(&"real_fn/1".to_string()));
+        assert!(symbols.contains(&"real_fn2/2".to_string()));
+        assert!(!symbols.iter().any(|s| s.starts_with("fake_fn/")));
     }
 
     #[test]
@@ -203,8 +208,8 @@ add(A, B) -> A + B.
 sub(A, B) -> A - B.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"add".to_string()));
-        assert!(symbols.contains(&"sub".to_string()));
+        assert!(symbols.contains(&"add/2".to_string()));
+        assert!(symbols.contains(&"sub/2".to_string()));
     }
 
     #[test]
@@ -251,11 +256,11 @@ handle_call(_, _, State) -> {reply, ok, State}.
 describe_internal() -> ok.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"start_link".to_string()));
-        assert!(symbols.contains(&"validate".to_string()));
-        assert!(symbols.contains(&"init".to_string()));
-        assert!(symbols.contains(&"handle_call".to_string()));
-        assert!(!symbols.contains(&"describe".to_string()));
-        assert!(!symbols.contains(&"describe_internal".to_string()));
+        assert!(symbols.contains(&"start_link/0".to_string()));
+        assert!(symbols.contains(&"validate/1".to_string()));
+        assert!(symbols.contains(&"init/1".to_string()));
+        assert!(symbols.contains(&"handle_call/3".to_string()));
+        assert!(!symbols.iter().any(|s| s.starts_with("describe/")));
+        assert!(!symbols.iter().any(|s| s.starts_with("describe_internal/")));
     }
 }

@@ -64,8 +64,9 @@ The acceptance-remediation pass extends retained authority to every recognized m
 nested workspace probe, eliminating the ambient swap-read-restore interval.
 The latest remediation bounds and deduplicates Cargo/Node workspace expansion, memoizes completed
 nodes, and verifies that nested manifest/workspace directories remain reachable from the retained
-project root after enumeration and around reads. The reported focused manifest run passed 49
-tests. The full post-remediation suite passes 1,948 unit and 310 integration tests. Fresh
+project root after enumeration and around reads. Structural Cargo/Node parsing and retained
+directory-listing continuity now close the latest independent-review gaps. The focused manifest
+run passes 49 tests. The full amended suite passes 1,948 unit and 310 integration tests. Fresh
 independent rereview, hosted-Windows runtime, repository/CI, trust, and provenance evidence remain
 pending. MCP Cargo workspace paths come from validated TOML values.
 

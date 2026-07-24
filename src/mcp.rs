@@ -1959,7 +1959,7 @@ fn read_snapshot_project_file_with_hook(
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 fn read_snapshot_project_file_with_result_hook(
     source: &Dir,
     relative: &Path,
@@ -2031,7 +2031,7 @@ fn copy_snapshot_directory(
     )
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 fn copy_snapshot_directory_with_hook(
     source: &Dir,
     destination: &Dir,

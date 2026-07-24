@@ -61,11 +61,12 @@ The exact-head implementation adds
 `retained_config_uses_configured_source_dirs_after_root_replacement`,
 `retained_config_rejects_a_detached_parent_before_read`,
 `retained_selected_specs_enforce_the_shared_entry_budget`,
-`retained_spec_enumeration_is_bounded_before_returning_paths`, and
-`retained_coverage_file_read_rejects_preopen_regular_replacement`. Reported targeted results are 39
-validator tests, 89 config tests, 31 coverage integrations, and the five-command post-manifest race
-fixture. The full post-remediation suite passed 1,948 unit plus 310 integration tests. The Windows
-GNU cross-target compiled, but hosted-Windows runtime remains pending.
+`retained_spec_enumeration_is_bounded_before_returning_paths`,
+`retained_coverage_file_read_rejects_preopen_regular_replacement`,
+`retained_omitted_source_dirs_scan_after_a_malformed_manifest`, and
+`retained_coverage_sources_reject_regular_directory_replacement_after_selection`. The focused
+validator run passed 43 tests, and the full amended suite passed 1,948 unit plus 310 integration
+tests. The Windows GNU cross-target compiled, but hosted-Windows runtime remains pending.
 
 ## Reviewer Checklist
 

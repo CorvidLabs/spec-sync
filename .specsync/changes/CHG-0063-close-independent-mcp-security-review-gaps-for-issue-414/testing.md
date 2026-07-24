@@ -505,25 +505,26 @@ is required.
 
 ## Current post-remediation evidence and review disposition
 
-- The exact-head remediation now includes manifest workspace declaration/memoization,
+- The amended remediation now includes manifest workspace declaration/memoization,
   limit/limit-plus-one, duplicate-linked-member and nested-parent replacement cases; validator
   retained config-parent, explicit-source, selected-spec identity/shared-entry, bounded
   enumeration, and pre-open replacement cases; MCP snapshot/preflight declaration charging and
-  deduplication; post-enumeration directory-generation rejection; strict malformed/wrong-shaped
-  Node workspace rejection; real-TOML multiline Cargo parity; and post-discovery Unix
-  symlink/Windows junction gate barriers.
-- Reported targeted results: 49 manifest tests; 43 validator tests; 89 config tests; 117 MCP unit
-  tests; 65 MCP integration tests; 31 coverage integrations; 7 command tests; 16 Gradle security
-  integrations; and the five-command post-manifest race fixture. Formatting, pre-commit, and
-  Windows GNU cross-target compilation were also reported green.
-- The full post-remediation local suite passes 1,948 unit and 310 integration tests.
-- The latest independent review rejected the pre-remediation exact head. Its in-scope findings now
-  have implementation and targeted coverage, but no independent reviewer has accepted the current
-  post-fix tree. A fresh acceptance and adversarial rereview remain pending.
+  deduplication; selected-config parent-edge revalidation; post-enumeration directory-generation
+  rejection; strict malformed/wrong-shaped Node workspace rejection; real-TOML multiline Cargo
+  parity; selected source-directory identity continuity; and post-discovery Unix symlink/Windows
+  junction gate barriers.
+- Latest targeted results: 49 manifest tests, 43 validator tests, 117 MCP unit tests, and 65 MCP
+  integration tests. Formatting, lint, pre-commit, and Windows GNU cross-target compilation pass.
+- The full amended local suite passes 1,948 unit and 310 integration tests in 335.3 seconds.
+- The latest independent reviews rejected commit `912d270`. Their three in-scope blockers now have
+  implementation and deterministic regression coverage, but no independent reviewer has accepted
+  the current post-fix tree. Fresh acceptance and adversarial rereviews remain pending.
 - The command-wide immutable CLI analysis snapshot and generic structured discovery outcomes from
   that review are not implemented in CHG-0063. They are outside GitHub #414's MCP boundary and
   remain assigned to later CLI/outcome/generation work.
-- Trust/Attest, hosted-Windows runtime, GitHub CI, and fresh lifecycle approval remain pending.
+- The hash-bound `912d270` private-sandbox receipt predates this amendment and is superseded.
+  Exact-head sandbox replay, trust/Attest, hosted-Windows runtime, GitHub CI, and fresh lifecycle
+  approval remain pending.
 - Exact commit `d05896b` passed the full local lane: 1,882 unit tests and 296 integration tests,
   plus `fledge run fmt`, `fledge run lint`, and the release `fledge run build`. That evidence
   predates the interpolation/encoded-escape amendment and is not final-tree evidence.

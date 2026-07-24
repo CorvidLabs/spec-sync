@@ -61,8 +61,9 @@ The exact-head implementation adds
 `node_workspace_traversal_charges_patterns_and_deduplicates_cached_expansion`,
 `retained_duplicate_cargo_members_reject_a_linked_workspace_without_disclosure`, and
 `retained_nested_manifest_read_rejects_a_replaced_parent_directory`, plus deterministic Cargo and
-Node nested-directory replacement cases. The reported focused manifest run passed 41 tests with
-zero failures, and the full post-remediation suite passed 1,948 unit plus 310 integration tests.
+Node nested-directory replacement cases. The latest amendment adds strict structural Cargo/Node
+fixtures and retained workspace-listing replacement races. The focused manifest run passed 49
+tests with zero failures, and the full amended suite passed 1,948 unit plus 310 integration tests.
 Fresh independent rereview and hosted-Windows runtime remain pending.
 
 ## Reviewer Checklist

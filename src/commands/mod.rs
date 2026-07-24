@@ -79,6 +79,29 @@ pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConf
 /// misses. Control characters are rejected so a name cannot inject into the generated
 /// YAML frontmatter or create a control-char directory. Returns `Err` (to be printed and
 /// exited on) rather than writing outside the project.
+/// Maximum module-name length. Generous for real names while keeping the
+/// generated `<specs_dir>/<name>/<name>.spec.md` path far from filesystem
+/// limits (a 200+ character name otherwise dies with a raw OS error at mkdir).
+pub const MAX_MODULE_NAME_LEN: usize = 64;
+
+/// Names that must never become module directories: tool-reserved directory
+/// names (`change`/`changes`/`specs` collide with `.specsync/` internals and
+/// the specs root) and Windows device names (`con`, `nul`, …) that are
+/// unwritable on Windows checkouts regardless of case.
+fn is_reserved_module_name(lower: &str) -> bool {
+    const RESERVED: &[&str] = &[
+        "change", "changes", "spec", "specs", "con", "prn", "aux", "nul", "com1", "com2", "com3",
+        "com4", "com5", "com6", "com7", "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5",
+        "lpt6", "lpt7", "lpt8", "lpt9",
+    ];
+    RESERVED.contains(&lower)
+}
+
+/// Documented naming rules, shared by the error message and `--help` text.
+pub const MODULE_NAME_RULES: &str = "1-64 chars: letters, digits, `-`, `_`, `.`; \
+     must start with a letter or digit; no spaces, path separators, or reserved \
+     names (`change`, `specs`, Windows device names)";
+
 pub fn validate_module_name(module_name: &str) -> Result<(), String> {
     let single_normal_segment = {
         let mut components = Path::new(module_name).components();
@@ -96,6 +119,69 @@ pub fn validate_module_name(module_name: &str) -> Result<(), String> {
          `.`/`..`, drive prefixes, absolute paths, or control characters",
         module_name.escape_default()
     ))
+}
+
+/// Stricter naming rules for names the scaffolding commands (`new`, `add-spec`,
+/// `scaffold`, `wizard`) are about to mint. On top of the traversal-safety base
+/// rules, a newly scaffolded name must satisfy the documented naming rules:
+/// length, character set, reserved words. Internal callers validating
+/// pre-existing module names use [`validate_module_name`] so older repos with
+/// legacy names keep working.
+pub fn validate_scaffold_module_name(module_name: &str) -> Result<(), String> {
+    validate_module_name(module_name)?;
+
+    // Length limit (character count, not bytes).
+    let char_count = module_name.chars().count();
+    if char_count == 0 || char_count > MAX_MODULE_NAME_LEN {
+        return Err(format!(
+            "invalid module name `{}`: must be 1-{MAX_MODULE_NAME_LEN} characters (got {char_count}). Rules: {MODULE_NAME_RULES}",
+            module_name.escape_default()
+        ));
+    }
+
+    // Character set: letters/digits plus `-`, `_`, `.`; must start with a
+    // letter or digit (no leading dash, dot, emoji, or whitespace).
+    let mut chars = module_name.chars();
+    let first = chars.next().unwrap_or(' ');
+    let charset_ok = first.is_alphanumeric()
+        && module_name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.');
+    if !charset_ok {
+        return Err(format!(
+            "invalid module name `{}`: {MODULE_NAME_RULES}",
+            module_name.escape_default()
+        ));
+    }
+
+    // Reserved words (case-insensitive — `CON` is as unwritable as `con`).
+    if is_reserved_module_name(&module_name.to_lowercase()) {
+        return Err(format!(
+            "invalid module name `{module_name}`: reserved name. Rules: {MODULE_NAME_RULES}"
+        ));
+    }
+
+    Ok(())
+}
+
+/// Reject a module name that would collide with an existing spec directory
+/// under a case-folding filesystem (e.g. `Lib` vs existing `lib`). Linux
+/// allows both, but the repo then breaks on macOS/Windows checkouts.
+pub fn check_case_collision(specs_dir: &Path, module_name: &str) -> Result<(), String> {
+    let entries = match std::fs::read_dir(specs_dir) {
+        Ok(e) => e,
+        Err(_) => return Ok(()), // no specs dir yet — nothing to collide with
+    };
+    for entry in entries.flatten() {
+        let existing = entry.file_name().to_string_lossy().to_string();
+        if existing != module_name && existing.eq_ignore_ascii_case(module_name) {
+            return Err(format!(
+                "invalid module name `{module_name}`: collides with existing spec directory \
+                 `{existing}` on case-insensitive filesystems (macOS/Windows) — pick a distinct name"
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Filter spec files by user-provided spec names/paths.
@@ -382,15 +468,22 @@ pub fn run_validation(
 
         println!("\n{}", result.spec_path.bold());
 
-        // Frontmatter check
-        let has_fm_errors = result
+        // Frontmatter check — on failure, print each specific frontmatter
+        // error inline; a bare "Frontmatter invalid" with the cause buried in
+        // Suggested fixes leaves users guessing.
+        let fm_errors: Vec<&str> = result
             .errors
             .iter()
-            .any(|e| e.starts_with("Frontmatter") || e.starts_with("Missing or malformed"));
-        if has_fm_errors {
-            println!("  {} Frontmatter invalid", "✗".red());
-        } else {
+            .filter(|e| e.starts_with("Frontmatter") || e.starts_with("Missing or malformed"))
+            .map(|s| s.as_str())
+            .collect();
+        if fm_errors.is_empty() {
             println!("  {} Frontmatter valid", "✓".green());
+        } else {
+            println!("  {} Frontmatter invalid", "✗".red());
+            for e in &fm_errors {
+                println!("    {} {e}", "✗".red());
+            }
         }
 
         // File existence
@@ -851,7 +944,7 @@ pub fn create_drift_issues(
 
 #[cfg(test)]
 mod tests {
-    use super::validate_module_name;
+    use super::{check_case_collision, validate_module_name, validate_scaffold_module_name};
 
     #[test]
     fn validate_module_name_accepts_plain_names() {
@@ -904,5 +997,51 @@ mod tests {
         // components include a Prefix, so the single-Normal-segment check refuses it.
         assert!(validate_module_name("C:foo").is_err());
         assert!(validate_module_name("C:\\abs").is_err());
+    }
+
+    // ── #442 regression: naming rules ──────────────────────────────────
+
+    #[test]
+    fn validate_scaffold_module_name_rejects_overlong_names() {
+        let long = "a".repeat(200);
+        let err = validate_scaffold_module_name(&long).unwrap_err();
+        assert!(err.contains("1-64"), "{err}");
+        let max_ok = "a".repeat(64);
+        assert!(validate_scaffold_module_name(&max_ok).is_ok());
+    }
+
+    #[test]
+    fn validate_scaffold_module_name_rejects_reserved_names() {
+        for name in ["change", "specs", "con", "CON", "nul", "com1", "Changes"] {
+            assert!(
+                validate_scaffold_module_name(name).is_err(),
+                "`{name}` is reserved and must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_scaffold_module_name_rejects_spaces_leading_dash_emoji() {
+        for name in ["my module", "-dash", "🚀rocket", ".hidden", "trailing "] {
+            assert!(
+                validate_scaffold_module_name(name).is_err(),
+                "`{name}` must be rejected"
+            );
+        }
+        // Still accepted: documented charset.
+        for name in ["auth", "auth-service", "user_profile", "a.b", "v2", "Módulo"] {
+            assert!(validate_scaffold_module_name(name).is_ok(), "`{name}` should stay valid");
+        }
+    }
+
+    #[test]
+    fn case_collision_detects_case_fold_duplicates() {
+        let tmp = tempfile::tempdir().unwrap();
+        let specs_dir = tmp.path().join("specs");
+        std::fs::create_dir_all(specs_dir.join("lib")).unwrap();
+        assert!(check_case_collision(&specs_dir, "Lib").is_err());
+        assert!(check_case_collision(&specs_dir, "LIB").is_err());
+        assert!(check_case_collision(&specs_dir, "lib").is_ok()); // same name: normal "already exists" path
+        assert!(check_case_collision(&specs_dir, "other").is_ok());
     }
 }

@@ -83,12 +83,60 @@ fn read_file_at_ref(root: &Path, git_ref: &str, file_path: &str) -> Option<Strin
 }
 
 /// Parse a range string like "v0.1..v0.2" or "HEAD~5..HEAD" into (from, to).
+#[cfg(test)]
 pub fn parse_range(range: &str) -> Option<(String, String)> {
-    let parts: Vec<&str> = range.splitn(2, "..").collect();
-    if parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty() {
-        Some((parts[0].to_string(), parts[1].to_string()))
+    parse_range_full(range).map(|(from, to, _)| (from, to))
+}
+
+/// Parse a range into (from, to, three_dot). A three-dot range (`A...B`,
+/// changes since the merge-base) must be split on `...` FIRST — splitting on
+/// `..` mangles it into `A` / `.B`, and the bogus `.B` ref then silently
+/// produced fabricated "removed" entries (#418).
+pub fn parse_range_full(range: &str) -> Option<(String, String, bool)> {
+    if let Some((from, to)) = range.split_once("...") {
+        if !from.is_empty() && !to.is_empty() {
+            return Some((from.to_string(), to.to_string(), true));
+        }
+        return None;
+    }
+    let (from, to) = range.split_once("..")?;
+    if from.is_empty() || to.is_empty() {
+        return None;
+    }
+    Some((from.to_string(), to.to_string(), false))
+}
+
+/// Verify that a git ref resolves to a real commit (`git rev-parse --verify`).
+/// Returns the resolved full hash.
+pub fn resolve_ref(root: &Path, git_ref: &str) -> Result<String, String> {
+    let output = Command::new("git")
+        .args([
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &format!("{git_ref}^{{commit}}"),
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|e| format!("failed to run git rev-parse: {e}"))?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
-        None
+        Err(format!("unknown revision '{git_ref}'"))
+    }
+}
+
+/// Compute the merge-base of two refs (`git merge-base`).
+pub fn merge_base(root: &Path, a: &str, b: &str) -> Result<String, String> {
+    let output = Command::new("git")
+        .args(["merge-base", "--end-of-options", a, b])
+        .current_dir(root)
+        .output()
+        .map_err(|e| format!("failed to run git merge-base: {e}"))?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err(format!("no merge-base between '{a}' and '{b}'"))
     }
 }
 

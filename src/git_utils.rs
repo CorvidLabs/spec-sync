@@ -18,6 +18,18 @@ pub fn git_last_commit_hash(root: &Path, file: &str) -> Option<String> {
 /// callers iterating over a spec's source files spawn one `git rev-list` per
 /// file instead of also re-resolving the spec's commit each time.
 pub fn git_commits_since(root: &Path, spec_commit: &str, source_file: &str) -> usize {
+    // Content first: add-then-revert commit pairs leave the file byte-identical
+    // to its state at `spec_commit`, and pure commit counting would report
+    // phantom drift. If the working-tree content matches the content at
+    // `spec_commit`, there is nothing to catch up on.
+    if let Ok(diff) = Command::new("git")
+        .args(["diff", "--quiet", spec_commit, "--", source_file])
+        .current_dir(root)
+        .status()
+        && diff.success()
+    {
+        return 0;
+    }
     let output = match Command::new("git")
         .args([
             "rev-list",

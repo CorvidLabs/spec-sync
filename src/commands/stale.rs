@@ -14,6 +14,7 @@ pub fn cmd_stale(
     threshold: usize,
     exclude_status: &[String],
     only_status: &[String],
+    enforcement: Option<types::EnforcementMode>,
 ) {
     if !is_git_repo(root) {
         match format {
@@ -95,7 +96,10 @@ pub fn cmd_stale(
             max_behind = max_behind.max(behind);
         }
 
-        let is_stale = max_behind >= threshold;
+        // A fully in-sync spec (0 commits behind) is never stale, even at
+        // `--threshold 0`: the threshold gates how much drift is tolerated,
+        // not whether drift exists at all.
+        let is_stale = max_behind > 0 && max_behind >= threshold;
         if is_stale {
             stale_specs.push(StaleInfo {
                 spec_path: rel_spec,
@@ -229,8 +233,12 @@ pub fn cmd_stale(
         }
     }
 
-    // Exit with non-zero if stale specs found
-    if stale_count > 0 {
+    // Exit with non-zero if stale specs found — unless `--enforcement warn`
+    // was passed explicitly, which is non-blocking by definition (the help
+    // text promises warn always exits 0). An unset flag keeps the historical
+    // exit-1-on-stale behavior regardless of config defaults.
+    let warn_only = enforcement == Some(types::EnforcementMode::Warn);
+    if stale_count > 0 && !warn_only {
         std::process::exit(1);
     }
 }

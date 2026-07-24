@@ -696,8 +696,14 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
 
     match serde_json::from_str::<SpecSyncConfig>(&content) {
         Ok(config) => {
+            let mut config = config;
+            // An explicit `enforcement` key (even `"warn"`) opts into that mode;
+            // an unset key gates on errors (see commands::default_enforcement).
+            config.enforcement_set = serde_json::from_str::<serde_json::Value>(&content)
+                .ok()
+                .and_then(|v| v.as_object().map(|o| o.contains_key("enforcement")))
+                .unwrap_or(false);
             if !content.contains("\"sourceDirs\"") {
-                let mut config = config;
                 config.source_dirs = detect_source_dirs(root);
                 return config;
             }
@@ -892,6 +898,10 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                 }
                 "enforcement" => {
                     let s = parse_toml_string(value);
+                    // Mark enforcement as explicitly configured: gate commands
+                    // honor an explicit `warn` (exit 0), while an UNSET
+                    // enforcement gates on errors (see default_enforcement).
+                    config.enforcement_set = true;
                     match s.as_str() {
                         "strict" => {
                             config.enforcement = crate::types::EnforcementMode::Strict;

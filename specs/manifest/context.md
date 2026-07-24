@@ -68,8 +68,9 @@ project root after enumeration and around reads. Structural Cargo/Node parsing a
 directory-listing continuity now close the latest independent-review gaps. Node workspace child
 identities are recorded during enumeration, then each child is opened sequentially through the
 retained workspace-base capability for manifest reads and source probes. A swap/read/restore
-interval cannot mix generations, and broad sibling sets do not exhaust directory handles. Fresh
-combined results pass 51 focused manifest tests and 1,951 unit plus 312 integration tests. Fresh
+interval cannot mix generations. Each completed base listing is reachability-verified and released,
+so broad sibling sets and broad distinct-base sets do not exhaust directory handles. Fresh
+combined results pass 52 focused manifest tests and 1,953 unit plus 312 integration tests. Fresh
 independent rereview, hosted-Windows runtime, repository/CI, trust, and provenance evidence remain
 pending. MCP Cargo workspace paths come from validated TOML values.
 

@@ -161,6 +161,9 @@ trait ManifestAccess {
     fn verify_child_directories(&mut self, _relative: &Path, _label: &str) -> Result<(), String> {
         Ok(())
     }
+    fn release_child_directories(&mut self, _relative: &Path, _label: &str) -> Result<(), String> {
+        Ok(())
+    }
     fn charge_entries(&mut self, _count: usize, _label: &str) -> Result<(), String> {
         Ok(())
     }
@@ -502,6 +505,12 @@ impl ManifestAccess for RetainedManifestAccess<'_> {
                 label,
             )?;
         }
+        Ok(())
+    }
+
+    fn release_child_directories(&mut self, relative: &Path, label: &str) -> Result<(), String> {
+        let relative = normalize_retained_manifest_path(relative, label)?;
+        self.children.remove(&relative);
         Ok(())
     }
 
@@ -2706,6 +2715,7 @@ where
                 access.verify_enumerated_child(&base_dir, &ws_name, "Node workspace")?;
             }
             access.verify_child_directories(&base_dir, "Node workspace")?;
+            access.release_child_directories(&base_dir, "Node workspace")?;
         }
     }
 
@@ -4081,6 +4091,56 @@ include(":member")
             .expect("broad retained Node workspace discovery must stay descriptor-bounded");
 
         assert_eq!(discovery.modules.len(), 200);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retained_node_workspace_bases_bound_open_directory_handles() {
+        const CHILD_ENV: &str = "SPECSYNC_MANIFEST_BOUNDED_BASE_HANDLES_CHILD";
+        if std::env::var_os(CHILD_ENV).is_none() {
+            let executable = std::env::current_exe().unwrap();
+            let status = std::process::Command::new("sh")
+                .args([
+                    "-c",
+                    "ulimit -n 64; exec \"$1\" retained_node_workspace_bases_bound_open_directory_handles --nocapture",
+                    "sh",
+                ])
+                .arg(executable)
+                .env(CHILD_ENV, "1")
+                .status()
+                .unwrap();
+            assert!(
+                status.success(),
+                "Node workspace discovery retained handles across distinct bases"
+            );
+            return;
+        }
+
+        let project = tempdir().unwrap();
+        let mut patterns = Vec::new();
+        for index in 0..90 {
+            let base = format!("base-{index:03}");
+            let member = format!("member-{index:03}");
+            patterns.push(format!(r#""{base}/*""#));
+            let workspace = project.path().join(&base).join(&member);
+            fs::create_dir_all(workspace.join("src")).unwrap();
+            fs::write(
+                workspace.join("package.json"),
+                format!(r#"{{"name":"{member}"}}"#),
+            )
+            .unwrap();
+        }
+        fs::write(
+            project.path().join("package.json"),
+            format!(r#"{{"name":"root","workspaces":[{}]}}"#, patterns.join(",")),
+        )
+        .unwrap();
+        let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
+
+        let discovery = discover_from_manifests_checked_with_root(project.path(), &retained)
+            .expect("distinct retained Node workspace bases must stay descriptor-bounded");
+
+        assert_eq!(discovery.modules.len(), 90);
     }
 
     #[test]

@@ -65,14 +65,18 @@ Close independent MCP security review gaps for issue 414
   independent-rereview remediation additionally binds selected source-directory identities through
   coverage, revalidates selected-config parent chains after reads, and rejects authority-bearing
   recursive directory replacement. Exact-head rereview closure records sibling identities before
-  sequential capability opens so MCP and checked coverage remain descriptor-bounded, consumes
+  sequential capability opens and releases completed Node bases/configured coverage roots so MCP
+  and checked coverage remain descriptor-bounded across sibling and root breadth, consumes
   Node workspace child manifests/probes through identity-matching enumerated capabilities so
   swap/read/restore cannot mix generations, requires `workspaces.packages` for object-form Node
   workspaces, and strictly parses every recognized nested package manifest. Cargo operational
-  discovery uses the same real-TOML multiline member semantics as preflight. The full amended suite
-  passes 1,951 unit and 312 integration tests. Both exact `237e548` rereviews rejected the prior
-  candidate with these three Medium findings; fresh post-fix rereviews, exact-head sandbox replay,
-  hosted-Windows runtime, and final repository/trust/provenance/CI evidence remain pending.
+  discovery uses the same real-TOML multiline member semantics as preflight. The latest amended
+  suite passes 1,953 unit and 312 integration tests. Both exact `237e548` rereviews rejected that
+  candidate with three Medium findings. Both exact `971c89a` rereviews then rejected its incomplete
+  descriptor bound across distinct Node bases and configured coverage roots. Its hash-bound
+  private-sandbox replay is historical; fresh post-fix rereviews,
+  hosted-Windows runtime, and final
+  repository/trust/provenance/CI evidence remain pending.
 
 ## No-spec Rationale
 

@@ -126,4 +126,5 @@ Acceptance Criteria
     enumeration and reads.
 18. Node workspace enumeration records child identities, opens children sequentially through the
     retained workspace base, and consumes child manifests/source probes only from identity-matching
-    capabilities so swap/read/restore cannot mix generations or exhaust handles by sibling count.
+    capabilities. Each verified base listing is released before the next distinct base, so
+    swap/read/restore cannot mix generations and neither sibling nor base breadth exhausts handles.

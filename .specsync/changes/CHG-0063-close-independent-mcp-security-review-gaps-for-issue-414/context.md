@@ -305,5 +305,11 @@ integration tests. The command-wide immutable CLI analysis snapshot and generic 
 discovery outcomes identified by the review are not implemented here; they are outside GitHub
 #414's MCP boundary and remain assigned to later CLI/outcome/generation work. The prior exact
 `237e548` sandbox receipt remains historical rather than final-tree evidence. Fresh post-fix
-independent reviews, sandbox replay, hosted-Windows runtime, repository/CI, trust, and provenance
-evidence remain pending.
+independent reviews of exact `971c89a` rejected it because completed Node workspace bases and
+configured coverage roots retained handles proportional to root breadth. The amended tree releases
+each verified Node base and identity-selects configured coverage roots before reopening/traversing
+them sequentially; 90-base and 90-root regressions pass beneath a 64-descriptor limit. The
+hash-bound exact `971c89a` binary replay against clean private sandbox commit `758c144` is now
+historical. The amended full suite passes 1,953 unit and 312 integration tests. Fresh independent
+rereviews, sandbox replay, hosted-Windows runtime,
+repository/CI, trust, and provenance evidence remain pending.

@@ -57,6 +57,7 @@ spec: validator.spec.md
 | Selected-spec/source inventory reaches 100,000 entries | Limit succeeds and limit-plus-one fails before unbounded accumulation | Use injected small-limit unit coverage plus end-to-end selected-spec and source fixtures |
 | Hosted-Windows source/junction replacement | Native junction fixture and path rendering remain portable | Prove the junction target, compare normalized paths, and run both checkpoints on hosted Windows |
 | Broad checked spec/source tree under a constrained descriptor limit | 200 sibling directories succeed with live handles bounded by depth while identities remain checked | Keep `broad_source_tree_succeeds_with_a_bounded_file_descriptor_limit` beneath a 64-descriptor child process |
+| Broad configured source-root list under a constrained descriptor limit | 90 distinct roots succeed because selection stores identities and traversal reopens/releases roots sequentially | Keep `broad_configured_source_roots_bound_open_directory_handles` beneath a 64-descriptor child process |
 
 The exact-head implementation adds
 `retained_config_uses_configured_source_dirs_after_root_replacement`,
@@ -66,8 +67,9 @@ The exact-head implementation adds
 `retained_coverage_file_read_rejects_preopen_regular_replacement`,
 `retained_omitted_source_dirs_scan_after_a_malformed_manifest`, and
 `retained_coverage_sources_reject_regular_directory_replacement_after_selection`, and
-`broad_source_tree_succeeds_with_a_bounded_file_descriptor_limit`. The focused validator run
-passes 44 tests and the full suite passes 1,951 unit plus 312 integration tests. The Windows GNU
+`broad_source_tree_succeeds_with_a_bounded_file_descriptor_limit`, and
+`broad_configured_source_roots_bound_open_directory_handles`. The focused validator run passes 45
+tests; the full suite passes 1,953 unit plus 312 integration tests. The Windows GNU
 cross-target previously compiled, but hosted-Windows runtime remains pending.
 
 ## Reviewer Checklist

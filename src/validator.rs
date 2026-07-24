@@ -649,10 +649,10 @@ struct DiscoveredCoverageDirectory {
     identity: CoverageEntryIdentity,
 }
 
-struct RetainedCoverageSourceDirectory {
+struct SelectedCoverageSourceDirectory {
     configured: String,
     normalized: PathBuf,
-    retained: RetainedCoverageDirectory,
+    identity: CoverageEntryIdentity,
 }
 
 #[cfg(test)]
@@ -678,25 +678,25 @@ fn snapshot_coverage_sources_with_hook<AfterEnumeration>(
 where
     AfterEnumeration: FnMut(&Path),
 {
-    let retained_sources =
-        retain_coverage_source_directories(project, config, budget.limits.max_depth)?;
-    snapshot_retained_coverage_sources_with_hook(
+    let selected_sources =
+        select_coverage_source_directories(project, config, budget.limits.max_depth)?;
+    snapshot_selected_coverage_sources_with_hook(
         project,
         root,
         config,
         exclude_dirs,
         budget,
-        retained_sources,
+        selected_sources,
         &mut after_enumeration,
     )
 }
 
-fn retain_coverage_source_directories(
+fn select_coverage_source_directories(
     project: &Dir,
     config: &SpecSyncConfig,
     max_depth: usize,
-) -> Result<Vec<RetainedCoverageSourceDirectory>, String> {
-    let mut retained_sources = Vec::new();
+) -> Result<Vec<SelectedCoverageSourceDirectory>, String> {
+    let mut selected_sources = Vec::new();
     for configured in &config.source_dirs {
         let normalized = if configured == "." {
             PathBuf::new()
@@ -711,29 +711,55 @@ fn retain_coverage_source_directories(
         let Some(retained) = open_retained_coverage_directory(project, &normalized)? else {
             continue;
         };
-        retained_sources.push(RetainedCoverageSourceDirectory {
+        let identity = coverage_directory_identity(&retained.directory).map_err(|error| {
+            format!(
+                "Cannot identify selected coverage source directory {}: {error}",
+                display_coverage_path(&normalized)
+            )
+        })?;
+        verify_retained_coverage_directory(project, &retained)?;
+        selected_sources.push(SelectedCoverageSourceDirectory {
             configured: configured.clone(),
             normalized,
-            retained,
+            identity,
         });
     }
-    Ok(retained_sources)
+    Ok(selected_sources)
 }
 
-fn snapshot_retained_coverage_sources_with_hook<AfterEnumeration>(
+fn snapshot_selected_coverage_sources_with_hook<AfterEnumeration>(
     project: &Dir,
     root: &Path,
     config: &SpecSyncConfig,
     exclude_dirs: &HashSet<String>,
     budget: &mut CoverageTraversalBudget,
-    retained_sources: Vec<RetainedCoverageSourceDirectory>,
+    selected_sources: Vec<SelectedCoverageSourceDirectory>,
     after_enumeration: &mut AfterEnumeration,
 ) -> Result<CoverageSourceSnapshot, String>
 where
     AfterEnumeration: FnMut(&Path),
 {
     let mut snapshot = CoverageSourceSnapshot::default();
-    for source in retained_sources {
+    for source in selected_sources {
+        let Some(retained) = open_retained_coverage_directory(project, &source.normalized)? else {
+            return Err(format!(
+                "Selected coverage source directory {} changed during retained traversal",
+                display_coverage_path(&source.normalized)
+            ));
+        };
+        let observed_identity =
+            coverage_directory_identity(&retained.directory).map_err(|error| {
+                format!(
+                    "Cannot identify reopened coverage source directory {}: {error}",
+                    display_coverage_path(&source.normalized)
+                )
+            })?;
+        if observed_identity != source.identity {
+            return Err(format!(
+                "Selected coverage source directory {} changed during retained traversal",
+                display_coverage_path(&source.normalized)
+            ));
+        }
         let mut immediate_modules = Vec::new();
         let mut accumulator = CoverageSourceAccumulator {
             exclude_dirs,
@@ -744,12 +770,12 @@ where
             budget,
         };
         snapshot_coverage_directory_with_hook(
-            &source.retained.directory,
+            &retained.directory,
             &source.normalized,
             &mut accumulator,
             after_enumeration,
         )?;
-        verify_retained_coverage_directory(project, &source.retained)?;
+        verify_retained_coverage_directory(project, &retained)?;
         immediate_modules.sort();
         immediate_modules.dedup();
         snapshot
@@ -2808,7 +2834,7 @@ mod tests {
             source_dirs: vec!["src".to_string()],
             ..SpecSyncConfig::default()
         };
-        let retained_sources = retain_coverage_source_directories(
+        let selected_sources = select_coverage_source_directories(
             &retained,
             &config,
             CoverageTraversalLimits::default().max_depth,
@@ -2823,13 +2849,13 @@ mod tests {
         .unwrap();
         let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
 
-        let error = snapshot_retained_coverage_sources_with_hook(
+        let error = snapshot_selected_coverage_sources_with_hook(
             &retained,
             project.path(),
             &config,
             &HashSet::new(),
             &mut budget,
-            retained_sources,
+            selected_sources,
             &mut |_| {},
         )
         .unwrap_err();
@@ -3324,6 +3350,57 @@ mod tests {
         .unwrap();
 
         assert_eq!(snapshot.files.len(), 200);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn broad_configured_source_roots_bound_open_directory_handles() {
+        const CHILD_ENV: &str = "SPECSYNC_VALIDATOR_BOUNDED_ROOT_HANDLES_CHILD";
+        if std::env::var_os(CHILD_ENV).is_none() {
+            let executable = std::env::current_exe().unwrap();
+            let status = std::process::Command::new("sh")
+                .args([
+                    "-c",
+                    "ulimit -n 64; exec \"$1\" broad_configured_source_roots_bound_open_directory_handles --nocapture",
+                    "sh",
+                ])
+                .arg(executable)
+                .env(CHILD_ENV, "1")
+                .status()
+                .unwrap();
+            assert!(
+                status.success(),
+                "coverage retained handles across distinct configured roots"
+            );
+            return;
+        }
+
+        let project = tempfile::tempdir().unwrap();
+        let mut source_dirs = Vec::new();
+        for index in 0..90 {
+            let source_dir = format!("source-{index:03}");
+            fs::create_dir(project.path().join(&source_dir)).unwrap();
+            fs::write(
+                project.path().join(&source_dir).join("lib.rs"),
+                format!("pub fn visible_{index:03}() {{}}\n"),
+            )
+            .unwrap();
+            source_dirs.push(source_dir);
+        }
+        let config = SpecSyncConfig {
+            source_dirs,
+            ..SpecSyncConfig::default()
+        };
+
+        let snapshot = snapshot_with_limits(
+            project.path(),
+            &config,
+            &HashSet::new(),
+            CoverageTraversalLimits::default(),
+        )
+        .expect("distinct configured source roots must stay descriptor-bounded");
+
+        assert_eq!(snapshot.files.len(), 90);
     }
 
     #[cfg(unix)]
@@ -4552,8 +4629,8 @@ pub fn compute_coverage_checked(
         ));
     }
     let manifest = crate::manifest::discover_from_manifests_checked_with_root(root, &project)?;
-    let retained_sources =
-        retain_coverage_source_directories(&project, config, budget.limits.max_depth)?;
+    let selected_sources =
+        select_coverage_source_directories(&project, config, budget.limits.max_depth)?;
     coverage_snapshot_test_barrier(CoverageSnapshotCheckpoint::ManifestDiscovered)?;
     let retained_spec_inventory =
         discover_coverage_spec_files(&project, &config.specs_dir, &mut budget)?;
@@ -4561,13 +4638,13 @@ pub fn compute_coverage_checked(
         select_coverage_spec_files(root, spec_files, &retained_spec_inventory)?;
     let specced_files = collect_specced_files(&project, &retained_spec_files, &mut budget)?;
     let exclude_dirs: HashSet<String> = config.exclude_dirs.iter().cloned().collect();
-    let source_snapshot = snapshot_retained_coverage_sources_with_hook(
+    let source_snapshot = snapshot_selected_coverage_sources_with_hook(
         &project,
         root,
         config,
         &exclude_dirs,
         &mut budget,
-        retained_sources,
+        selected_sources,
         &mut |_| {},
     )?;
     let spec_modules: HashSet<String> =

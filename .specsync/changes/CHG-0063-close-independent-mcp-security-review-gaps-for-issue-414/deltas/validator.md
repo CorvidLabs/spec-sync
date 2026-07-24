@@ -141,3 +141,5 @@ Acceptance Criteria
 21. Checked spec/source traversal records sibling identities and reopens children sequentially
     through retained parents, bounding live handles by depth while preserving identity and
     reachability checks around recursion.
+22. Configured source-root selection stores stable identities without retaining every root handle;
+    traversal reopens, identity-checks, consumes, and releases each root sequentially.

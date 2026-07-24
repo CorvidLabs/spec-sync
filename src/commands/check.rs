@@ -26,7 +26,10 @@ use super::{
 /// otherwise a migration that drops a documented column, or a newly-added
 /// custom rule, is silently skipped on the default incremental `check` path
 /// (a false-PASS) and only surfaces under `--force`.
-fn global_validation_inputs(root: &Path, config: &types::SpecSyncConfig) -> Vec<String> {
+pub(crate) fn global_validation_inputs(
+    root: &Path,
+    config: &types::SpecSyncConfig,
+) -> Vec<String> {
     let normalize = |p: &Path| -> String {
         p.strip_prefix(root)
             .unwrap_or(p)
@@ -240,13 +243,58 @@ pub fn cmd_check(
     };
 
     let skipped = spec_files.len() - specs_to_validate.len();
+    let skipped_specs: Vec<PathBuf> = spec_files
+        .iter()
+        .filter(|p| !specs_to_validate.contains(p))
+        .cloned()
+        .collect();
+
+    // Replay the validation outcomes cached for unchanged specs so warnings
+    // and errors do not silently vanish on warm-cache reruns (issue #429).
+    // Specs without a recorded outcome (cache written by an older version or
+    // by `rehash`) replay no findings but still count as checked/passed.
+    let mut replay_errors: Vec<String> = Vec::new();
+    let mut replay_warnings: Vec<String> = Vec::new();
+    let mut replay_notices: Vec<String> = Vec::new();
+    let mut replay_passed: usize = 0;
+    for spec in &skipped_specs {
+        let rel = spec
+            .strip_prefix(root)
+            .unwrap_or(spec)
+            .to_string_lossy()
+            .replace('\\', "/");
+        match cache.outcomes.get(&rel) {
+            Some(outcome) => {
+                replay_errors.extend(outcome.errors.iter().map(|e| format!("{rel}: {e} (cached)")));
+                replay_warnings
+                    .extend(outcome.warnings.iter().map(|w| format!("{rel}: {w} (cached)")));
+                replay_notices
+                    .extend(outcome.notices.iter().map(|n| format!("{rel}: {n} (cached)")));
+                if outcome.errors.is_empty() {
+                    replay_passed += 1;
+                }
+            }
+            None => replay_passed += 1,
+        }
+    }
+
     if skipped > 0 && matches!(format, Text) {
         let cache_path = root.join(".specsync").join("hashes.json");
         println!(
             "{} Skipped {skipped} unchanged spec(s) (use --force/--no-cache to re-validate all)",
             "⊘".cyan()
         );
-        println!("  {} Cache: {}\n", "ℹ".dimmed(), cache_path.display());
+        println!("  {} Cache: {}", "ℹ".dimmed(), cache_path.display());
+        for e in &replay_errors {
+            println!("  {} {e}", "✗".red());
+        }
+        for w in &replay_warnings {
+            println!("  {} {w}", "⚠".yellow());
+        }
+        for n in &replay_notices {
+            println!("  {} {n}", "⊘".cyan());
+        }
+        println!();
     }
 
     if specs_to_validate.is_empty() && matches!(format, Text) {
@@ -256,9 +304,16 @@ pub fn cmd_check(
         // A warm cache skips spec RE-validation, but a requested coverage/
         // enforcement gate must still be evaluated against freshly computed
         // coverage — otherwise an unchanged run silently flips a failing
-        // --require-coverage / --enforcement gate to exit 0. Cached specs had no
-        // errors (that's why they're cached), so 0 errors/warnings is correct here.
-        let exit_code = compute_exit_code(0, 0, strict, enforcement, &coverage, require_coverage);
+        // --require-coverage / --enforcement gate to exit 0. Cached findings
+        // (replayed above) still count toward the gate.
+        let exit_code = compute_exit_code(
+            replay_errors.len(),
+            replay_warnings.len(),
+            strict,
+            enforcement,
+            &coverage,
+            require_coverage,
+        );
         process::exit(exit_code);
     }
 
@@ -390,18 +445,37 @@ pub fn cmd_check(
     }
 
     let collect = !matches!(format, Text);
-    let (total_errors, total_warnings, passed, total, all_errors, all_warnings, all_notices) =
-        run_validation(
-            root,
-            &specs_to_validate,
-            &all_spec_files,
-            &schema_tables,
-            &schema_columns,
-            &config,
-            collect,
-            explain,
-            &ignore_rules,
-        );
+    let mut new_outcomes: std::collections::HashMap<String, hash_cache::CachedSpecOutcome> =
+        std::collections::HashMap::new();
+    let (
+        mut total_errors,
+        mut total_warnings,
+        mut passed,
+        mut total,
+        mut all_errors,
+        mut all_warnings,
+        mut all_notices,
+    ) = run_validation(
+        root,
+        &specs_to_validate,
+        &all_spec_files,
+        &schema_tables,
+        &schema_columns,
+        &config,
+        collect,
+        explain,
+        &ignore_rules,
+        Some(&mut new_outcomes),
+    );
+    // Fold the replayed cached outcomes for unchanged specs into the totals
+    // so JSON/Markdown reports and exit codes reflect the full spec set.
+    total += skipped;
+    passed += replay_passed;
+    total_errors += replay_errors.len();
+    total_warnings += replay_warnings.len();
+    all_errors.extend(replay_errors);
+    all_warnings.extend(replay_warnings);
+    all_notices.extend(replay_notices);
     // Git-based staleness detection (--stale flag)
     let stale_threshold = stale.map(|opt| opt.unwrap_or(5));
     let mut git_stale_warnings: usize = 0;
@@ -498,6 +572,9 @@ pub fn cmd_check(
         for input in &global_inputs {
             cache.update(root, input);
         }
+        // Persist the per-spec outcomes from this run so warm-cache reruns can
+        // replay their findings (issue #429).
+        cache.outcomes.extend(new_outcomes);
         let _ = cache.save(root);
     }
 
@@ -523,6 +600,7 @@ pub fn cmd_check(
                 "notices": all_notices,
                 "stale": stale_entries,
                 "specs_checked": total,
+                "specs_skipped": skipped,
             });
             println!("{}", serde_json::to_string_pretty(&output).unwrap());
             process::exit(exit_code);

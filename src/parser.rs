@@ -8,6 +8,11 @@ use std::sync::LazyLock;
 pub struct ParsedSpec {
     pub frontmatter: Frontmatter,
     pub body: String,
+    /// Hard frontmatter problems (duplicate keys, wrong shapes, unclosed
+    /// brackets/quotes). The offending text is included in each message.
+    pub errors: Vec<String>,
+    /// Soft frontmatter problems (non-numeric versions, ignored garbage lines).
+    pub warnings: Vec<String>,
 }
 
 static FRONTMATTER_RE: LazyLock<Regex> =
@@ -28,8 +33,11 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
     let body = caps.get(2)?.as_str().to_string();
 
     let mut fm = Frontmatter::default();
+    let mut errors: Vec<String> = Vec::new();
+    let mut warnings: Vec<String> = Vec::new();
     let mut current_key: Option<String> = None;
     let mut current_list: Vec<String> = Vec::new();
+    let mut seen_keys: HashSet<String> = HashSet::new();
 
     for line in yaml_block.lines() {
         // List item: "  - value" (supports spaces or tabs for indentation)
@@ -53,24 +61,41 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
                 current_list.clear();
             }
 
+            // Duplicate keys are a validation bypass (a hidden second
+            // `status: draft` silently disables all section/export checks).
+            // Reject loudly with the offending line.
+            if !seen_keys.insert(key.to_string()) {
+                errors.push(format!(
+                    "Frontmatter duplicate key `{key}` (offending line: `{}`) — remove the duplicate; the last value would silently win",
+                    line.trim()
+                ));
+            }
+
             let value = strip_yaml_comment(line[colon_pos + 1..].trim());
 
             if value.is_empty() || value == "[]" {
                 current_key = Some(key.to_string());
                 current_list.clear();
             } else {
-                set_scalar(&mut fm, key, &value);
+                set_scalar(&mut fm, key, &value, line.trim(), &mut errors, &mut warnings);
             }
             continue;
         }
 
         // Blank or comment line: flush
         let trimmed = line.trim();
-        if (trimmed.is_empty() || trimmed.starts_with('#'))
-            && let Some(prev_key) = current_key.take()
-        {
-            set_field(&mut fm, &prev_key, &current_list);
-            current_list.clear();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            if let Some(prev_key) = current_key.take() {
+                set_field(&mut fm, &prev_key, &current_list);
+                current_list.clear();
+            }
+        } else {
+            // A non-empty, non-comment line that is neither `key: value` nor a
+            // list item under an active key cannot be parsed — surface it
+            // instead of silently dropping it.
+            warnings.push(format!(
+                "Ignoring malformed frontmatter line (expected `key: value`): `{trimmed}`"
+            ));
         }
     }
 
@@ -82,6 +107,8 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
     Some(ParsedSpec {
         frontmatter: fm,
         body,
+        errors,
+        warnings,
     })
 }
 
@@ -104,10 +131,53 @@ fn strip_yaml_comment(value: &str) -> String {
     value.to_string()
 }
 
-fn set_scalar(fm: &mut Frontmatter, key: &str, value: &str) {
+/// Fields that must hold a YAML list of strings.
+const LIST_FIELDS: &[&str] = &["files", "db_tables", "depends_on"];
+
+fn set_scalar(
+    fm: &mut Frontmatter,
+    key: &str,
+    value: &str,
+    offending_line: &str,
+    errors: &mut Vec<String>,
+    warnings: &mut Vec<String>,
+) {
+    // List fields given a non-list shape: a mapping (`depends_on: {a: b}`)
+    // would otherwise parse to an empty list and silently validate nothing.
+    if LIST_FIELDS.contains(&key) {
+        if value.starts_with('{') {
+            errors.push(format!(
+                "Frontmatter field `{key}` must be a YAML list, got a mapping (offending line: `{offending_line}`)"
+            ));
+            return;
+        }
+        if value.starts_with('[') {
+            // Flow-style list (`depends_on: [a, b]`) — the form `specsync new`
+            // scaffolds. Parse it; an unclosed bracket is a hard error.
+            match parse_flow_string_list(value) {
+                Ok(items) => set_field(fm, key, &items),
+                Err(message) => errors.push(message),
+            }
+            return;
+        }
+        // A bare scalar (`depends_on: auth`) is treated as a one-item list,
+        // matching YAML's leniency, but flagged so typos are visible.
+        warnings.push(format!(
+            "Frontmatter field `{key}` should be a YAML list, got scalar `{value}` — treating it as a one-item list"
+        ));
+        set_field(fm, key, std::slice::from_ref(&value.to_string()));
+        return;
+    }
     match key {
         "module" => fm.module = Some(value.to_string()),
-        "version" => fm.version = Some(value.to_string()),
+        "version" => {
+            if !is_version_shaped(value) {
+                warnings.push(format!(
+                    "Frontmatter `version` should be a plain number, got `{value}`"
+                ));
+            }
+            fm.version = Some(value.to_string());
+        }
         "status" => fm.status = Some(value.to_string()),
         "agent_policy" => fm.agent_policy = Some(value.to_string()),
         // Handle inline bracket arrays like `implements: [42, 57]`
@@ -115,6 +185,55 @@ fn set_scalar(fm: &mut Frontmatter, key: &str, value: &str) {
         "tracks" => fm.tracks = parse_inline_issue_numbers(value),
         _ => {}
     }
+}
+
+/// A version is "version-shaped" if it is numeric or semver-like (`1`, `1.0`,
+/// `1.0.0`), optionally quoted.
+fn is_version_shaped(value: &str) -> bool {
+    let unquoted = value
+        .strip_prefix('"')
+        .and_then(|v| v.strip_suffix('"'))
+        .or_else(|| {
+            value
+                .strip_prefix('\'')
+                .and_then(|v| v.strip_suffix('\''))
+        })
+        .unwrap_or(value);
+    !unquoted.is_empty()
+        && unquoted
+            .split('.')
+            .all(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_digit()))
+}
+
+/// Parse a flow-style YAML string list: `[a, b, "c"]` → `vec![a, b, c]`.
+/// Rejects unclosed brackets and unterminated quotes loudly.
+fn parse_flow_string_list(value: &str) -> Result<Vec<String>, String> {
+    let inner = value
+        .strip_prefix('[')
+        .and_then(|v| v.strip_suffix(']'))
+        .ok_or_else(|| {
+            format!("Frontmatter flow-style list is missing a closing `]`: `{value}`")
+        })?;
+    let mut items = Vec::new();
+    for raw in inner.split(',') {
+        let item = raw.trim();
+        if item.is_empty() {
+            continue;
+        }
+        let unquoted = if let Some(rest) = item.strip_prefix('"') {
+            rest.strip_suffix('"').ok_or_else(|| {
+                format!("Frontmatter list has an unterminated quoted string: `{item}`")
+            })?
+        } else if let Some(rest) = item.strip_prefix('\'') {
+            rest.strip_suffix('\'').ok_or_else(|| {
+                format!("Frontmatter list has an unterminated quoted string: `{item}`")
+            })?
+        } else {
+            item
+        };
+        items.push(unquoted.to_string());
+    }
+    Ok(items)
 }
 
 /// Parse an inline bracket array of issue numbers: `[42, 57]` → vec![42, 57].
@@ -174,7 +293,7 @@ static EXPORT_HEADER_RE: LazyLock<Regex> =
 /// an identifier character allowlist. Requiring the closing backtick and cell
 /// delimiter prevents prose and later-column code spans from becoming exports.
 static TABLE_ROW_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^\|\s*`([^`\r\n]+)`\s*\|").unwrap());
+    LazyLock::new(|| Regex::new(r"^[ \t]{0,3}\|\s*`([^`\r\n]+)`\s*\|").unwrap());
 
 static METHOD_HEADER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^####\s+.*(?:Methods|Constructor|Properties)").unwrap());
@@ -183,6 +302,29 @@ static METHOD_HEADER_RE: LazyLock<Regex> =
 /// Only extracts the FIRST nonempty backtick-quoted symbol in each table row.
 /// Skips class method sub-tables.
 pub fn get_spec_symbols(body: &str) -> Vec<String> {
+    let mut symbols = collect_spec_symbols(body);
+    // Deduplicate while preserving order
+    let mut seen = HashSet::new();
+    symbols.retain(|s| seen.insert(s.clone()));
+    symbols
+}
+
+/// Symbols listed more than once in the Public API tables — duplicate rows
+/// are almost always a paste error and were previously deduplicated silently.
+pub fn get_duplicate_spec_symbols(body: &str) -> Vec<String> {
+    let symbols = collect_spec_symbols(body);
+    let mut seen = HashSet::new();
+    let mut reported = HashSet::new();
+    let mut duplicates = Vec::new();
+    for symbol in symbols {
+        if !seen.insert(symbol.clone()) && reported.insert(symbol.clone()) {
+            duplicates.push(symbol);
+        }
+    }
+    duplicates
+}
+
+fn collect_spec_symbols(body: &str) -> Vec<String> {
     let mut symbols = Vec::new();
 
     // Find the Public API section manually (no lookahead in Rust regex).
@@ -265,9 +407,6 @@ pub fn get_spec_symbols(body: &str) -> Vec<String> {
         }
     }
 
-    // Deduplicate while preserving order
-    let mut seen = HashSet::new();
-    symbols.retain(|s| seen.insert(s.clone()));
     symbols
 }
 
@@ -489,6 +628,90 @@ mod tests {
         assert_eq!(parsed.frontmatter.status.as_deref(), Some("active"));
         assert_eq!(parsed.frontmatter.files, vec!["src/auth.ts"]);
         assert!(parsed.frontmatter.db_tables.is_empty());
+    }
+
+    #[test]
+    fn test_parse_frontmatter_duplicate_key_rejected_loudly() {
+        // A hidden second `status: draft` must not silently disable validation.
+        let content = "---\nmodule: auth\nversion: 1\nstatus: active\nstatus: draft\nfiles:\n  - src/auth.ts\n---\n\n# Auth\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert!(
+            parsed
+                .errors
+                .iter()
+                .any(|e| e.contains("duplicate key `status`") && e.contains("status: draft")),
+            "errors: {:?}",
+            parsed.errors
+        );
+    }
+
+    #[test]
+    fn test_parse_frontmatter_flow_style_string_lists() {
+        // `specsync new` scaffolds `depends_on: [b]` — it must parse as one edge.
+        let content = "---\nmodule: a\nversion: 1\nstatus: active\nfiles: [src/a.ts, \"src/b.ts\"]\ndepends_on: [b, 'c']\ndb_tables: [users]\n---\n\n# A\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert!(parsed.errors.is_empty(), "errors: {:?}", parsed.errors);
+        assert_eq!(parsed.frontmatter.files, vec!["src/a.ts", "src/b.ts"]);
+        assert_eq!(parsed.frontmatter.depends_on, vec!["b", "c"]);
+        assert_eq!(parsed.frontmatter.db_tables, vec!["users"]);
+    }
+
+    #[test]
+    fn test_parse_frontmatter_rejects_bad_list_shapes() {
+        let content = "---\nmodule: a\nversion: 1\nstatus: active\nfiles:\n  - src/a.ts\ndepends_on: {a: b}\n---\n\n# A\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert!(
+            parsed
+                .errors
+                .iter()
+                .any(|e| e.contains("`depends_on` must be a YAML list")),
+            "errors: {:?}",
+            parsed.errors
+        );
+
+        let unclosed = "---\nmodule: a\nversion: 1\nstatus: active\nfiles:\n  - src/a.ts\ndepends_on: [unclosed\n---\n\n# A\n";
+        let parsed = parse_frontmatter(unclosed).unwrap();
+        assert!(
+            parsed
+                .errors
+                .iter()
+                .any(|e| e.contains("missing a closing `]`")),
+            "errors: {:?}",
+            parsed.errors
+        );
+
+        let unterminated = "---\nmodule: a\nversion: 1\nstatus: active\nfiles:\n  - src/a.ts\ndepends_on: [\"mymod]\n---\n\n# A\n";
+        let parsed = parse_frontmatter(unterminated).unwrap();
+        assert!(
+            parsed
+                .errors
+                .iter()
+                .any(|e| e.contains("unterminated quoted string")),
+            "errors: {:?}",
+            parsed.errors
+        );
+    }
+
+    #[test]
+    fn test_parse_frontmatter_warns_on_non_numeric_version_and_garbage_lines() {
+        let content = "---\nmodule: a\nversion: \"one\"\nstatus: active\nfiles:\n  - src/a.ts\ncolons are fun\n---\n\n# A\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert!(
+            parsed
+                .warnings
+                .iter()
+                .any(|w| w.contains("`version` should be a plain number")),
+            "warnings: {:?}",
+            parsed.warnings
+        );
+        assert!(
+            parsed
+                .warnings
+                .iter()
+                .any(|w| w.contains("malformed frontmatter line") && w.contains("colons are fun")),
+            "warnings: {:?}",
+            parsed.warnings
+        );
     }
 
     #[test]
@@ -818,6 +1041,23 @@ This prose contains `proseSymbol` but is not a table row.
         let parsed = parse_frontmatter(content).unwrap();
         assert!(parsed.frontmatter.implements.is_empty());
         assert!(parsed.frontmatter.tracks.is_empty());
+    }
+
+    #[test]
+    fn test_get_spec_symbols_indented_table() {
+        // A 2-space-indented GFM table (valid CommonMark, renders on GitHub)
+        // must not be silently ignored.
+        let body = "## Public API\n\n### Exported Functions\n\n  | Function | Description |\n  |----------|-------------|\n  | `createAuth` | Creates auth |\n  | `validateToken` | Validates |\n\n## Invariants\n";
+        assert_eq!(get_spec_symbols(body), vec!["createAuth", "validateToken"]);
+    }
+
+    #[test]
+    fn test_get_duplicate_spec_symbols() {
+        let body = "## Public API\n\n### Exported Functions\n\n| Function | Description |\n|----------|-------------|\n| `login` | a |\n| `logout` | b |\n| `login` | pasted twice |\n\n## Invariants\n";
+        assert_eq!(get_duplicate_spec_symbols(body), vec!["login"]);
+        // Unique rows produce no duplicates.
+        let body = "## Public API\n\n| Function | Description |\n|----------|-------------|\n| `login` | a |\n";
+        assert!(get_duplicate_spec_symbols(body).is_empty());
     }
 
     #[test]

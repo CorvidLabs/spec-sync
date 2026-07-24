@@ -113,8 +113,36 @@ fn set_scalar(fm: &mut Frontmatter, key: &str, value: &str) {
         // Handle inline bracket arrays like `implements: [42, 57]`
         "implements" => fm.implements = parse_inline_issue_numbers(value),
         "tracks" => fm.tracks = parse_inline_issue_numbers(value),
+        // A scalar `depends_on: alpha` (or inline `depends_on: [a, b]`) used to
+        // be silently DROPPED — the dependency edge vanished from validation
+        // and graphing with no diagnostic. Normalize it into the list so the
+        // edge is enforced, and warn so the typo is visible.
+        "depends_on" => {
+            fm.depends_on = parse_inline_string_list(value);
+            if !value.trim_start().starts_with('[') {
+                eprintln!(
+                    "warning: scalar `depends_on: {value}` should be a YAML list (`depends_on: [{value}]`); treating it as a single dependency"
+                );
+            }
+        }
         _ => {}
     }
+}
+
+/// Parse an inline bracket array of strings (`[a, b]` → vec!["a", "b"]) or a
+/// bare scalar (`a` → vec!["a"]). Quotes are stripped from each element.
+fn parse_inline_string_list(value: &str) -> Vec<String> {
+    let s = value.trim();
+    let inner = if s.starts_with('[') && s.ends_with(']') {
+        &s[1..s.len() - 1]
+    } else {
+        s
+    };
+    inner
+        .split(',')
+        .map(|v| v.trim().trim_matches('"').trim_matches('\'').to_string())
+        .filter(|v| !v.is_empty())
+        .collect()
 }
 
 /// Parse an inline bracket array of issue numbers: `[42, 57]` → vec![42, 57].
@@ -143,7 +171,16 @@ fn set_field(fm: &mut Frontmatter, key: &str, values: &[String]) {
     match key {
         "files" => fm.files = values.to_vec(),
         "db_tables" => fm.db_tables = values.to_vec(),
-        "depends_on" => fm.depends_on = values.to_vec(),
+        // Dedupe at parse time (order-preserving): duplicate `depends_on`
+        // entries used to inflate edge counts and emit doubled mermaid edges.
+        "depends_on" => {
+            let mut seen = std::collections::HashSet::new();
+            fm.depends_on = values
+                .iter()
+                .filter(|v| seen.insert((*v).clone()))
+                .cloned()
+                .collect();
+        }
         "implements" => fm.implements = parse_issue_numbers(values),
         "tracks" => fm.tracks = parse_issue_numbers(values),
         "lifecycle_log" => fm.lifecycle_log = values.to_vec(),
@@ -378,15 +415,46 @@ const STUB_PHRASES: &[&str] = &[
     "\u{2026}", // ellipsis character
 ];
 
+/// Stock sentences emitted verbatim by `specsync new` / `generate` scaffolds.
+/// They read like prose but are pure template — a spec consisting of them is
+/// an untouched scaffold, not documentation (#441).
+const SCAFFOLD_BOILERPLATE_PREFIXES: &[&str] = &[
+    "document this module's responsibility",
+    "list runtime dependencies and the specific symbols",
+    "define an invariant that must remain true",
+    "**given** precondition",
+    "**when** action",
+    "**then** result",
+];
+
+/// Strip list markers (`- `, `* `, `> `, `1. `) from the start of a line.
+fn strip_list_marker(mut s: &str) -> &str {
+    s = s.trim();
+    for marker in ["- ", "* ", "> "] {
+        if let Some(rest) = s.strip_prefix(marker) {
+            s = rest.trim_start();
+        }
+    }
+    let digits = s.len() - s.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+    if digits > 0 && s[digits..].starts_with(". ") {
+        s = s[digits + 2..].trim_start();
+    }
+    s
+}
+
+/// Check if a line is verbatim scaffold boilerplate (case-insensitive).
+pub fn is_boilerplate_line(line: &str) -> bool {
+    let lower = strip_list_marker(line).to_ascii_lowercase();
+    SCAFFOLD_BOILERPLATE_PREFIXES
+        .iter()
+        .any(|p| lower.starts_with(p))
+}
+
 /// Check if a line is a stub/placeholder (case-insensitive).
 fn is_stub_line(line: &str) -> bool {
-    let t = line
-        .trim()
-        .trim_start_matches("- ")
-        .trim_start_matches("* ")
-        .trim_start_matches("> ");
+    let t = strip_list_marker(line);
     let lower = t.to_ascii_lowercase();
-    STUB_PHRASES.contains(&lower.as_str())
+    STUB_PHRASES.contains(&lower.as_str()) || is_boilerplate_line(line)
 }
 
 /// Find the byte offset of an exact `## Section` heading line.
@@ -489,6 +557,45 @@ mod tests {
         assert_eq!(parsed.frontmatter.status.as_deref(), Some("active"));
         assert_eq!(parsed.frontmatter.files, vec!["src/auth.ts"]);
         assert!(parsed.frontmatter.db_tables.is_empty());
+    }
+
+    #[test]
+    fn test_scalar_depends_on_normalized_to_list() {
+        // Regression (#419): a scalar `depends_on: alpha` was silently dropped,
+        // disabling the dependency edge with no diagnostic.
+        let content = "---\nmodule: beta\nversion: 1\nstatus: active\nfiles: []\ndepends_on: alpha\n---\n\n# Beta\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert_eq!(parsed.frontmatter.depends_on, vec!["alpha"]);
+    }
+
+    #[test]
+    fn test_inline_bracket_depends_on_parsed() {
+        let content = "---\nmodule: beta\ndepends_on: [alpha, gamma]\n---\n\n# Beta\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert_eq!(parsed.frontmatter.depends_on, vec!["alpha", "gamma"]);
+    }
+
+    #[test]
+    fn test_duplicate_depends_on_deduped() {
+        // Regression (#419): duplicate entries inflated edge counts and doubled
+        // mermaid edges.
+        let content = "---\nmodule: beta\ndepends_on:\n  - alpha\n  - alpha\n  - gamma\n  - alpha\n---\n\n# Beta\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert_eq!(parsed.frontmatter.depends_on, vec!["alpha", "gamma"]);
+    }
+
+    #[test]
+    fn test_scaffold_boilerplate_detected() {
+        // Regression (#441): an untouched `specsync new` scaffold must not
+        // count as placeholder-free, meaningful content.
+        assert!(is_boilerplate_line(
+            "Document this module's responsibility, inputs, outputs, and ownership boundaries."
+        ));
+        assert!(is_boilerplate_line("- **Given** precondition"));
+        assert!(is_boilerplate_line(
+            "1. Define an invariant that must remain true for supported inputs."
+        ));
+        assert!(!is_boilerplate_line("Handles authentication tokens."));
     }
 
     #[test]

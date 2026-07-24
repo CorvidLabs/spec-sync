@@ -100,7 +100,7 @@ fn run() {
     }
 
     match command {
-        Command::Init => commands::init::cmd_init(&root),
+        Command::Init { repair } => commands::init::cmd_init(&root, repair, format),
         Command::Check {
             fix,
             dry_run,
@@ -167,7 +167,7 @@ fn run() {
             dir,
             template,
         } => commands::scaffold::cmd_scaffold(&root, &name, dir, template),
-        Command::InitRegistry { name } => commands::init_registry::cmd_init_registry(&root, name),
+        Command::InitRegistry { name } => commands::init_registry::cmd_init_registry(&root, name, format),
         Command::Resolve {
             remote,
             verify,

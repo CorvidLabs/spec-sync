@@ -7,16 +7,20 @@ use crate::config::load_config;
 use crate::exports;
 use crate::generator;
 
-use super::validate_module_name;
+use super::validate_scaffold_module_name;
 
 /// Quick-create a minimal spec for a module with auto-detected source files.
 pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
-    if let Err(e) = validate_module_name(module_name) {
+    if let Err(e) = validate_scaffold_module_name(module_name) {
         eprintln!("{e}");
         process::exit(1);
     }
     let config = load_config(root);
     let specs_dir = root.join(&config.specs_dir);
+    if let Err(e) = super::check_case_collision(&specs_dir, module_name) {
+        eprintln!("{e}");
+        process::exit(1);
+    }
     let spec_dir = specs_dir.join(module_name);
     let spec_file = spec_dir.join(format!("{module_name}.spec.md"));
 
@@ -34,8 +38,23 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
         process::exit(1);
     }
 
-    // Auto-detect source files for this module
-    let source_files = detect_module_sources(root, module_name, &config);
+    // Auto-detect source files for this module. The single-source-file
+    // fallback claims the project's only source file even when the module
+    // name doesn't match it — warn so a greedy claim (and the duplicate spec
+    // ownership it can cause) is visible at creation time.
+    let mut source_files = detect_module_sources(root, module_name, &config);
+    if source_files.is_empty()
+        && let Some(single) = generator::find_single_source_fallback(root, &config)
+    {
+        eprintln!(
+            "{} No source files matched module '{module_name}' by name — claiming the project's only source file '{single}'.",
+            "⚠".yellow()
+        );
+        eprintln!(
+            "  Verify this mapping; if another spec already covers this file, `specsync check` reports duplicate spec ownership."
+        );
+        source_files.push(single);
+    }
     if source_files.is_empty() {
         eprintln!(
             "{} No source files matched module '{module_name}' — the spec is created with an empty `files:` list.",
@@ -96,6 +115,16 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
          Document this module's responsibility, inputs, outputs, and ownership boundaries.\n\n\
          ## Public API\n\n\
          {api_table}\n\n\
+         ## Invariants\n\n\
+         1. Define an invariant that must remain true for supported inputs.\n\n\
+         ## Behavioral Examples\n\n\
+         ### Scenario: Core behavior\n\n\
+         - **Given** precondition\n\
+         - **When** action\n\
+         - **Then** result\n\n\
+         ## Error Cases\n\n\
+         | Condition | Behavior |\n\
+         |-----------|----------|\n\n\
          ## Dependencies\n\n\
          List runtime dependencies and the specific symbols, services, or data they provide.\n\n\
          ## Change Log\n\n\
@@ -210,14 +239,6 @@ fn detect_module_sources(
                 }
             }
         }
-    }
-
-    // Fallback: a single-source-file project (e.g. only src/lib.rs) has exactly
-    // one possible source — use it even though the name doesn't match.
-    if files.is_empty()
-        && let Some(single) = generator::find_single_source_fallback(root, config)
-    {
-        files.push(single);
     }
 
     files.sort();

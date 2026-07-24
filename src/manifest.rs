@@ -3057,8 +3057,107 @@ fn split_toml_array_sections(content: &str, header: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
     use std::fs;
     use tempfile::tempdir;
+
+    fn windows_directory_replacement_was_refused(error: &io::Error) -> bool {
+        const ERROR_ACCESS_DENIED: i32 = 5;
+        const ERROR_SHARING_VIOLATION: i32 = 32;
+
+        cfg!(windows)
+            && matches!(
+                error.raw_os_error(),
+                Some(ERROR_ACCESS_DENIED | ERROR_SHARING_VIOLATION)
+            )
+    }
+
+    fn directory_identity_for_race_test(path: &Path) -> GradleFilesystemIdentity {
+        let directory = Dir::open_ambient_dir(path, ambient_authority()).unwrap_or_else(|error| {
+            panic!(
+                "cannot open race-test directory {} for identity inspection: {error}",
+                path.display()
+            )
+        });
+        let metadata = directory.dir_metadata().unwrap_or_else(|error| {
+            panic!(
+                "cannot inspect race-test directory {}: {error}",
+                path.display()
+            )
+        });
+        gradle_filesystem_identity(&metadata).unwrap_or_else(|error| {
+            panic!(
+                "cannot identify race-test directory {}: {error}",
+                path.display()
+            )
+        })
+    }
+
+    fn replace_directory_for_race_test(
+        current: &Path,
+        detached: &Path,
+        replacement: &Path,
+        replacement_refused: &Cell<bool>,
+    ) {
+        match fs::rename(current, detached) {
+            Ok(()) => {
+                fs::rename(replacement, current).unwrap_or_else(|error| {
+                    panic!(
+                        "cannot install replacement directory {} at {}: {error}",
+                        replacement.display(),
+                        current.display()
+                    )
+                });
+            }
+            Err(error) if windows_directory_replacement_was_refused(&error) => {
+                replacement_refused.set(true);
+            }
+            Err(error) => panic!(
+                "cannot detach retained directory {} to {}: {error}",
+                current.display(),
+                detached.display()
+            ),
+        }
+    }
+
+    fn assert_refused_replacement_and_released_handle(
+        current: &Path,
+        detached: &Path,
+        replacement: &Path,
+        expected_identity: GradleFilesystemIdentity,
+    ) {
+        assert!(
+            current.is_dir(),
+            "the original directory must remain present"
+        );
+        assert!(
+            !detached.exists(),
+            "a refused replacement must not detach the original directory"
+        );
+        assert!(
+            replacement.is_dir(),
+            "a refused replacement must leave the replacement untouched"
+        );
+        assert_eq!(
+            directory_identity_for_race_test(current),
+            expected_identity,
+            "a refused replacement must preserve the original directory identity"
+        );
+
+        fs::rename(current, detached)
+            .expect("the same rename must succeed after retained capabilities are released");
+        fs::rename(detached, current)
+            .expect("the original directory must restore after the negative-control rename");
+        assert_eq!(
+            directory_identity_for_race_test(current),
+            expected_identity,
+            "the negative-control rename must restore the original directory identity"
+        );
+        assert!(
+            replacement.is_dir(),
+            "the negative-control rename must not consume the replacement"
+        );
+    }
 
     struct CountingManifestAccess {
         texts: HashMap<PathBuf, String>,
@@ -3483,7 +3582,11 @@ let package = Package(
 
         let error = parse_package_json_with_access(&mut access).unwrap_err();
 
-        assert!(error.contains("packages/member/package.json"), "{error}");
+        let manifest_path = Path::new("packages").join("member").join("package.json");
+        assert!(
+            error.contains(&display_manifest_path(&manifest_path)),
+            "{error}"
+        );
         assert!(error.contains("must contain a JSON object"), "{error}");
     }
 
@@ -3878,27 +3981,49 @@ include(":member")
             "[package]\nname = \"retained\"\n",
         )
         .unwrap();
+        let original_content = "[package]\nname = \"retained\"\n";
         let sentinel = "REPLACEMENT_MANIFEST_SENTINEL";
         fs::write(
             replacement.join("Cargo.toml"),
             format!("[package]\nname = \"{sentinel}\"\n"),
         )
         .unwrap();
+        let original_identity = directory_identity_for_race_test(&workspace);
         let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
+        let replacement_refused = Cell::new(false);
 
-        let error = read_retained_manifest_text_with_hook(
+        let result = read_retained_manifest_text_with_hook(
             &retained,
             Path::new("workspace/Cargo.toml"),
             "Cargo manifest",
             MAX_RETAINED_MANIFEST_BYTES,
             MAX_RETAINED_MANIFEST_INPUT_BYTES,
             || {
-                fs::rename(&workspace, &original).unwrap();
-                fs::rename(&replacement, &workspace).unwrap();
+                replace_directory_for_race_test(
+                    &workspace,
+                    &original,
+                    &replacement,
+                    &replacement_refused,
+                );
             },
-        )
-        .unwrap_err();
+        );
 
+        if replacement_refused.get() {
+            let content = result
+                .unwrap()
+                .expect("the original retained manifest must remain readable");
+            assert_eq!(content, original_content);
+            drop(retained);
+            assert_refused_replacement_and_released_handle(
+                &workspace,
+                &original,
+                &replacement,
+                original_identity,
+            );
+            return;
+        }
+
+        let error = result.unwrap_err();
         assert!(error.contains("directory workspace changed"), "{error}");
         assert!(!error.contains(sentinel), "{error}");
     }
@@ -3913,16 +4038,34 @@ include(":member")
         let replacement = project.path().join("replacement-workspace");
         fs::create_dir_all(workspace.join("original-member")).unwrap();
         fs::create_dir_all(replacement.join("replacement-member")).unwrap();
+        let original_identity = directory_identity_for_race_test(&workspace);
         let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
         let mut access = RetainedManifestAccess::new(&retained);
+        let replacement_refused = Cell::new(false);
 
-        let error = access
-            .child_directories_with_hook(relative, label, || {
-                fs::rename(&workspace, &detached).unwrap();
-                fs::rename(&replacement, &workspace).unwrap();
-            })
-            .unwrap_err();
+        let result = access.child_directories_with_hook(relative, label, || {
+            replace_directory_for_race_test(
+                &workspace,
+                &detached,
+                &replacement,
+                &replacement_refused,
+            );
+        });
 
+        if replacement_refused.get() {
+            assert_eq!(result.unwrap(), vec!["original-member"]);
+            drop(access);
+            drop(retained);
+            assert_refused_replacement_and_released_handle(
+                &workspace,
+                &detached,
+                &replacement,
+                original_identity,
+            );
+            return;
+        }
+
+        let error = result.unwrap_err();
         assert!(
             error.contains(&format!(
                 "Retained {label} directory {} changed during confined read",
@@ -3972,16 +4115,45 @@ include(":member")
             r#"{"name":"replacement"}"#,
         )
         .unwrap();
+        let original_identity = directory_identity_for_race_test(&workspace);
         let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
         let mut access = RetainedManifestAccess::new(&retained);
+        let replacement_refused = Cell::new(false);
 
-        let error = parse_package_json_with_access_and_hook(&mut access, |relative| {
+        let result = parse_package_json_with_access_and_hook(&mut access, |relative| {
             assert_eq!(relative, Path::new("packages"));
-            fs::rename(&workspace, &detached).unwrap();
-            fs::rename(&replacement, &workspace).unwrap();
-        })
-        .unwrap_err();
+            replace_directory_for_race_test(
+                &workspace,
+                &detached,
+                &replacement,
+                &replacement_refused,
+            );
+        });
 
+        if replacement_refused.get() {
+            let discovery = result
+                .unwrap()
+                .expect("the original retained Node workspace must remain discoverable");
+            assert!(discovery.modules.contains_key("member"));
+            assert_eq!(
+                access
+                    .texts
+                    .get(Path::new("packages/member/package.json"))
+                    .and_then(Option::as_deref),
+                Some(r#"{"name":"original"}"#)
+            );
+            drop(access);
+            drop(retained);
+            assert_refused_replacement_and_released_handle(
+                &workspace,
+                &detached,
+                &replacement,
+                original_identity,
+            );
+            return;
+        }
+
+        let error = result.unwrap_err();
         assert!(
             error.contains("Retained Node workspace directory packages"),
             "{error}"
@@ -4011,26 +4183,37 @@ include(":member")
             r#"{"name":"replacement","workspaces":"SWAP_READ_RESTORE_SENTINEL"}"#,
         )
         .unwrap();
+        let original_identity = directory_identity_for_race_test(&workspace);
         let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
         let mut access = RetainedManifestAccess::new(&retained);
+        let replacement_refused = Cell::new(false);
+        let restored = Cell::new(false);
 
         let discovery = parse_package_json_with_access_and_hooks(
             &mut access,
             |relative| {
                 assert_eq!(relative, Path::new("packages"));
-                fs::rename(&workspace, &detached).unwrap();
-                fs::rename(&replacement, &workspace).unwrap();
+                replace_directory_for_race_test(
+                    &workspace,
+                    &detached,
+                    &replacement,
+                    &replacement_refused,
+                );
             },
             |relative, child| {
                 assert_eq!(relative, Path::new("packages"));
                 assert_eq!(child, "member");
-                fs::rename(&workspace, &replacement).unwrap();
-                fs::rename(&detached, &workspace).unwrap();
+                if !replacement_refused.get() {
+                    fs::rename(&workspace, &replacement).unwrap();
+                    fs::rename(&detached, &workspace).unwrap();
+                    restored.set(true);
+                }
             },
         )
         .unwrap()
         .unwrap();
 
+        assert_eq!(restored.get(), !replacement_refused.get());
         assert!(discovery.modules.contains_key("member"));
         assert!(
             discovery
@@ -4044,6 +4227,16 @@ include(":member")
                 .and_then(Option::as_deref),
             Some(r#"{"name":"original"}"#)
         );
+        if replacement_refused.get() {
+            drop(access);
+            drop(retained);
+            assert_refused_replacement_and_released_handle(
+                &workspace,
+                &detached,
+                &replacement,
+                original_identity,
+            );
+        }
     }
 
     #[cfg(unix)]

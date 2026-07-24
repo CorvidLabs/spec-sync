@@ -3494,19 +3494,25 @@ mod tests {
 
     #[cfg(windows)]
     fn create_coverage_test_junction(junction: &Path, target: &Path) -> Result<(), String> {
-        let junction = junction
-            .to_str()
-            .ok_or_else(|| "junction fixture path must be valid Unicode for cmd.exe".to_string())?;
-        let target = target
-            .to_str()
-            .ok_or_else(|| "junction target path must be valid Unicode for cmd.exe".to_string())?;
-        if junction.contains('"') || target.contains('"') {
-            return Err("junction fixture paths must not contain a double quote".to_string());
+        for path in [junction, target] {
+            let path = path
+                .to_str()
+                .ok_or_else(|| "junction fixture paths must be valid Unicode".to_string())?;
+            if path.chars().any(|character| {
+                matches!(
+                    character,
+                    '"' | '&' | '|' | '<' | '>' | '^' | '%' | '!' | '(' | ')' | '\r' | '\n'
+                )
+            }) {
+                return Err(
+                    "junction fixture paths must not contain cmd.exe metacharacters".to_string(),
+                );
+            }
         }
-        let command = format!("mklink /J \"{junction}\" \"{target}\"");
         let output = std::process::Command::new("cmd")
-            .args(["/D", "/S", "/C"])
-            .arg(command)
+            .args(["/D", "/V:OFF", "/C", "mklink", "/J"])
+            .arg(junction)
+            .arg(target)
             .output()
             .map_err(|error| format!("failed to launch cmd /C mklink /J: {error}"))?;
         if output.status.success() {

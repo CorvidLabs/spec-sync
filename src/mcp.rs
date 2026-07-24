@@ -6935,6 +6935,9 @@ Test
 
     #[test]
     fn selected_config_read_revalidates_each_parent_identity() {
+        const ERROR_ACCESS_DENIED: i32 = 5;
+        const ERROR_SHARING_VIOLATION: i32 = 32;
+
         for replaced_parent in ["selected", "selected/nested"] {
             let tmp = TempDir::new().unwrap();
             let root = tmp.path();
@@ -6960,22 +6963,75 @@ Test
                 )
                 .unwrap();
             }
+            let selected_parent = root.join(replaced_parent);
+            let original_identity =
+                directory_identity(&open_test_directory(&selected_parent)).unwrap();
             let source = open_test_directory(root);
+            let replacement_denied = std::cell::Cell::new(false);
 
             let result = read_snapshot_configuration_with_hook(
                 &source,
                 Path::new("selected/nested/specsync.json"),
                 || {
-                    let selected_parent = root.join(replaced_parent);
                     let original_parent = if replaced_parent == "selected" {
                         root.join("original-selected")
                     } else {
                         root.join("selected/original-nested")
                     };
-                    fs::rename(&selected_parent, original_parent).unwrap();
-                    fs::rename(&replacement, selected_parent).unwrap();
+                    match fs::rename(&selected_parent, &original_parent) {
+                        Ok(()) => fs::rename(&replacement, &selected_parent).unwrap(),
+                        Err(error)
+                            if cfg!(windows)
+                                && matches!(
+                                    error.raw_os_error(),
+                                    Some(ERROR_ACCESS_DENIED | ERROR_SHARING_VIOLATION)
+                                ) =>
+                        {
+                            replacement_denied.set(true);
+                        }
+                        Err(error) => panic!(
+                            "cannot rename retained selected-config parent {replaced_parent}: {error}"
+                        ),
+                    }
                 },
             );
+
+            if replacement_denied.get() {
+                let bytes = result
+                    .expect("Windows sharing protection must preserve the retained parent identity")
+                    .expect("the retained configuration must remain present");
+                assert_eq!(
+                    bytes,
+                    r#"{"specsDir":"specs","sourceDirs":["src"]}"#.as_bytes(),
+                    "{replaced_parent}: retained capability read replacement bytes"
+                );
+                let original_parent = if replaced_parent == "selected" {
+                    root.join("original-selected")
+                } else {
+                    root.join("selected/original-nested")
+                };
+                assert!(selected_parent.is_dir());
+                assert!(!original_parent.exists());
+                assert!(replacement.is_dir());
+                assert_eq!(
+                    directory_identity(&open_test_directory(&selected_parent)).unwrap(),
+                    original_identity,
+                    "{replaced_parent}: refused replacement changed the original identity"
+                );
+                drop(source);
+                fs::rename(&selected_parent, &original_parent).expect(
+                    "the same rename must succeed after selected-config capabilities are released",
+                );
+                fs::rename(&original_parent, &selected_parent)
+                    .expect("the original selected-config parent must restore");
+                assert_eq!(
+                    directory_identity(&open_test_directory(&selected_parent)).unwrap(),
+                    original_identity,
+                    "{replaced_parent}: negative-control rename changed the original identity"
+                );
+                assert!(replacement.is_dir());
+                continue;
+            }
 
             let error = result
                 .expect_err("every selected-config parent replacement must fail after the read");

@@ -74,6 +74,38 @@ pub fn discover_manifest_modules(root: &Path) -> manifest::ManifestDiscovery {
 
 /// Scan-based source directory detection (fallback when no manifests found).
 fn detect_source_dirs_by_scan(root: &Path) -> Vec<String> {
+    let detected = scan_source_dirs(root);
+    if detected.is_empty() {
+        // Fallback to "src" if nothing detected
+        return vec!["src".to_string()];
+    }
+    detected
+}
+
+/// Like [`detect_source_dirs`], but also reports whether any source
+/// directories were actually detected. `false` means the `["src"]` fallback
+/// was used — callers (e.g. `init`) must not present it as "detected".
+pub fn detect_source_dirs_with_confidence(root: &Path) -> (Vec<String>, bool) {
+    // Manifest-aware detection first
+    let manifest_discovery = manifest::discover_from_manifests(root);
+    if !manifest_discovery.source_dirs.is_empty() {
+        let mut dirs = manifest_discovery.source_dirs;
+        dirs.sort();
+        dirs.dedup();
+        return (dirs, true);
+    }
+
+    let scanned = scan_source_dirs(root);
+    if scanned.is_empty() {
+        (vec!["src".to_string()], false)
+    } else {
+        (scanned, true)
+    }
+}
+
+/// Raw directory scan with no fallback — returns an empty vector when no
+/// source directories or root-level source files are found.
+fn scan_source_dirs(root: &Path) -> Vec<String> {
     let ignored: HashSet<&str> = IGNORED_DIRS.iter().copied().collect();
     let mut source_dirs: Vec<String> = Vec::new();
     let mut has_root_source_files = false;
@@ -81,7 +113,7 @@ fn detect_source_dirs_by_scan(root: &Path) -> Vec<String> {
     // Check immediate children of root
     let entries = match fs::read_dir(root) {
         Ok(e) => e,
-        Err(_) => return vec!["src".to_string()],
+        Err(_) => return Vec::new(),
     };
 
     for entry in entries.flatten() {
@@ -110,15 +142,9 @@ fn detect_source_dirs_by_scan(root: &Path) -> Vec<String> {
         return vec![".".to_string()];
     }
 
-    if source_dirs.is_empty() {
-        // Fallback to "src" if nothing detected
-        return vec!["src".to_string()];
-    }
-
     source_dirs.sort();
     source_dirs
 }
-
 /// Check if a directory contains source files, scanning up to `max_depth` levels.
 fn dir_contains_source_files(dir: &Path, ignored: &HashSet<&str>, max_depth: usize) -> bool {
     for entry in WalkDir::new(dir)

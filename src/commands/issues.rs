@@ -139,6 +139,7 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
             true,
             false,
             &ignore_rules,
+            None,
         );
         if !all_errors.is_empty() {
             create_drift_issues(root, &config, &all_errors, format);

@@ -90,7 +90,13 @@ pub enum Command {
         batch: Vec<String>,
     },
     /// Create .specsync/config.toml and initialize the verified SDD layout
-    Init,
+    Init {
+        /// Repair a partially-initialized project: restore missing .specsync
+        /// support files (version stamp, .gitignore, sdd.json, directories)
+        /// without touching the existing config
+        #[arg(long)]
+        repair: bool,
+    },
     /// Score spec quality (0-100) with letter grades and improvement suggestions
     Score {
         /// Show detailed per-category breakdown explaining exactly why each spec lost points
@@ -205,7 +211,10 @@ pub enum Command {
     },
     /// Quick-create a minimal spec for a module (auto-detects source files)
     New {
-        /// Module name for the new spec
+        /// Module name for the new spec.
+        /// Rules: 1-64 chars — letters, digits, `-`, `_`, `.`; must start with a
+        /// letter or digit; no spaces, path separators, or reserved names
+        /// (`change`, `specs`, Windows device names like `con`).
         name: String,
         /// Also create required companions (requirements.md, tasks.md, context.md, testing.md)
         /// and optional design.md when design artifacts are enabled

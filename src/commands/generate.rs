@@ -10,7 +10,8 @@ use crate::types;
 use crate::validator::{compute_coverage, get_schema_table_names};
 
 use super::{
-    build_schema_columns, compute_exit_code, exit_with_status, load_and_discover, run_validation,
+    build_schema_columns, compute_exit_code, default_enforcement, exit_with_status,
+    load_and_discover, run_validation,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -50,7 +51,7 @@ fn cmd_generate_all(
     let enforcement = enforcement.unwrap_or(if strict {
         types::EnforcementMode::Strict
     } else {
-        config.enforcement
+        default_enforcement(&config)
     });
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);
@@ -212,7 +213,7 @@ fn cmd_generate_batch(
     let enforcement = enforcement.unwrap_or(if strict {
         types::EnforcementMode::Strict
     } else {
-        config.enforcement
+        default_enforcement(&config)
     });
 
     let coverage = compute_coverage(root, &spec_files, &config);

@@ -6,7 +6,8 @@ use crate::types;
 use crate::validator::compute_coverage;
 
 use super::{
-    compute_exit_code, exit_with_status, filter_by_status, filter_specs, load_and_discover,
+    compute_exit_code, default_enforcement, exit_with_status, filter_by_status, filter_specs,
+    load_and_discover,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -34,12 +35,15 @@ pub fn cmd_score(
         if strict {
             types::EnforcementMode::Strict
         } else {
-            crate::config::load_config(root).enforcement
+            default_enforcement(&crate::config::load_config(root))
         }
     });
     let gate_requested =
         require_coverage.is_some() || !matches!(enforcement, types::EnforcementMode::Warn);
-    let (config, all_spec_files) = load_and_discover(root, gate_requested);
+    // JSON mode must ALSO bypass the no-spec early-exit: that path prints plain
+    // human text ("No spec files found…"), breaking CI parsers exactly in the
+    // bootstrap case (#441). The JSON below already handles zero specs.
+    let (config, all_spec_files) = load_and_discover(root, gate_requested || json);
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
     let spec_files = filter_by_status(&spec_files, exclude_status, only_status);
     let scores: Vec<scoring::SpecScore> = spec_files
@@ -104,6 +108,31 @@ pub fn cmd_score(
         }
         _ => {
             print_text_output(&project, explain);
+        }
+    }
+
+    // --strict quality gate (#441): F-grade specs — or nothing scored at all,
+    // where the bar is unenforceable — must fail the process. JSON/CSV gate
+    // silently via the exit code to keep stdout machine-parseable.
+    if strict {
+        let f_grades = project
+            .spec_scores
+            .iter()
+            .filter(|s| s.grade == "F")
+            .count();
+        if project.total_specs == 0 || f_grades > 0 {
+            if !json && !matches!(format, types::OutputFormat::Csv) {
+                eprintln!(
+                    "{}: {} — failing the quality gate",
+                    "--strict mode".red(),
+                    if project.total_specs == 0 {
+                        "no specs were scored".to_string()
+                    } else {
+                        format!("{f_grades} spec(s) scored F")
+                    }
+                );
+            }
+            std::process::exit(1);
         }
     }
 

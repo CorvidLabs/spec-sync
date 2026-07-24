@@ -2045,3 +2045,161 @@ fn check_require_coverage_gate_fails_on_warm_cache() {
         .assert()
         .failure();
 }
+
+// ─── stale subcommand drift semantics (#445) ────────────────────────────
+
+fn setup_stale_fixture(root: &std::path::Path) {
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(root.join("src/auth/auth.ts"), "export const a = 1;\n").unwrap();
+    let spec = valid_spec("auth", &["src/auth/auth.ts"]);
+    fs::write(root.join("specs/auth/auth.spec.md"), spec).unwrap();
+    let git = |args: &[&str]| {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+}
+
+#[test]
+fn stale_threshold_zero_passes_when_in_sync_and_fails_on_real_drift() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    setup_stale_fixture(&root);
+
+    // Fully in-sync: 0 commits behind must not trip --threshold 0.
+    specsync()
+        .args(["stale", "--threshold", "0"])
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success();
+
+    // Real drift still fails at threshold 0.
+    fs::write(root.join("src/auth/auth.ts"), "export const a = 2;\n").unwrap();
+    std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(&root)
+        .status()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["commit", "-m", "drift"])
+        .current_dir(&root)
+        .status()
+        .unwrap();
+    specsync()
+        .args(["stale", "--threshold", "0"])
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure();
+}
+
+#[test]
+fn stale_warn_enforcement_exits_zero_despite_drift() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    setup_stale_fixture(&root);
+    fs::write(root.join("src/auth/auth.ts"), "export const a = 2;\n").unwrap();
+    let git = |args: &[&str]| {
+        assert!(
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(&root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    };
+    git(&["add", "."]);
+    git(&["commit", "-m", "drift"]);
+
+    // Default behavior preserved: stale findings exit 1.
+    specsync()
+        .args(["stale", "--threshold", "1"])
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure();
+    // --enforcement warn is non-blocking by definition.
+    specsync()
+        .args(["--enforcement", "warn", "stale", "--threshold", "1"])
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success();
+}
+
+#[test]
+fn stale_ignores_add_then_revert_commit_pairs() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    setup_stale_fixture(&root);
+    let git = |args: &[&str], msg: &str| {
+        assert!(
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(&root)
+                .status()
+                .unwrap()
+                .success(),
+            "{msg}"
+        );
+    };
+    // Add a line, then revert it: two commits, byte-identical content.
+    fs::write(
+        root.join("src/auth/auth.ts"),
+        "export const a = 1;\nexport const b = 2;\n",
+    )
+    .unwrap();
+    git(&["add", "."], "add");
+    git(&["commit", "-m", "add b"], "add");
+    fs::write(root.join("src/auth/auth.ts"), "export const a = 1;\n").unwrap();
+    git(&["add", "."], "revert");
+    git(&["commit", "-m", "revert b"], "revert");
+
+    specsync()
+        .args(["stale", "--threshold", "1"])
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success();
+}
+
+#[test]
+fn sdd_errors_honor_enforcement_warn_exit_semantics() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/sdd.json"), "{").unwrap();
+
+    // Default behavior preserved: SDD errors exit 1.
+    specsync()
+        .arg("check")
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .failure();
+    // Explicit --enforcement warn reports the violation but exits 0.
+    specsync()
+        .args(["--enforcement", "warn", "check"])
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("warning:"));
+}

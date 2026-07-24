@@ -69,6 +69,9 @@ Acceptance Criteria
   selected spec or source file, 64 MiB cumulative selected-spec/source bytes, 100,000 selected-spec
   and source inventory entries, and 256 path components; special entries, invalid UTF-8
   names/content, and exhausted bounds fail inconclusive.
+- Checked spec/source directory enumeration stores child identities rather than every open child
+  handle, then reopens children sequentially through retained parents so live handles are bounded
+  by depth while replacement remains inconclusive.
 - The project root is retained before configuration and zero-config manifest/source detection;
   nested configuration/manifest parents remain reachable from it, and selected-spec identities
   remain bound through ownership reads.

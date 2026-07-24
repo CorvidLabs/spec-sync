@@ -138,3 +138,6 @@ Acceptance Criteria
 20. Early and post-discovery race checkpoints independently cover retained acquisition and later
     traversal inside checked coverage; callers propagate those failures without claiming
     command-wide retained authority.
+21. Checked spec/source traversal records sibling identities and reopens children sequentially
+    through retained parents, bounding live handles by depth while preserving identity and
+    reachability checks around recursion.

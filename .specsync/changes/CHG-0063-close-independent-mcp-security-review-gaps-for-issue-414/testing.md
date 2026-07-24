@@ -546,17 +546,20 @@ is required.
   rejection; strict malformed/wrong-shaped Node workspace rejection; real-TOML multiline Cargo
   parity; selected source-directory identity continuity; and post-discovery Unix symlink/Windows
   junction gate barriers.
-- Latest targeted results: 49 manifest tests, 43 validator tests, 117 MCP unit tests, and 65 MCP
-  integration tests. Formatting, lint, pre-commit, and Windows GNU cross-target compilation pass.
-- The full amended local suite passes 1,948 unit and 310 integration tests in 335.3 seconds.
-- The exact `65b2847` implementation received a clean independent security approval. Its companion
-  evidence review found only stale counts; those counts are corrected in implementation commit
-  `237e548` and the current docs-only head.
+- Latest targeted results: 51 manifest tests, 44 validator tests, 117 MCP unit tests, and 67 MCP
+  integration tests. Unix child-process regressions prove 200 sibling directories succeed beneath
+  64-descriptor manifest/coverage and 128-descriptor MCP limits.
+- The full amended local suite passes 1,951 unit and 312 integration tests in 250.8 seconds.
+- Two independent reviews rejected exact commit `237e548` with three Medium findings: retained
+  Node workspace generation mixing, incomplete MCP Node manifest validation, and sibling-handle
+  exhaustion. The current amendment implements and characterizes all three; fresh exact-commit
+  rereviews are pending and no clean-review claim applies yet.
 - The command-wide immutable CLI analysis snapshot and generic structured discovery outcomes from
   that review are not implemented in CHG-0063. They are outside GitHub #414's MCP boundary and
   remain assigned to later CLI/outcome/generation work.
-- The hash-bound `912d270` private-sandbox receipt is superseded by the exact `237e548` replay.
-  Trust/Attest, hosted-Windows runtime, GitHub CI, and fresh lifecycle approval remain pending.
+- The hash-bound `912d270` private-sandbox receipt was superseded by the exact `237e548` replay,
+  but both predate the current semantic amendment and are historical only. A fresh sandbox replay,
+  trust/Attest, hosted-Windows runtime, GitHub CI, and fresh lifecycle approval remain pending.
 - Exact commit `d05896b` passed the full local lane: 1,882 unit tests and 296 integration tests,
   plus `fledge run fmt`, `fledge run lint`, and the release `fledge run build`. That evidence
   predates the interpolation/encoded-escape amendment and is not final-tree evidence.

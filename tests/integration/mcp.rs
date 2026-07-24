@@ -72,6 +72,50 @@ fn mcp_request_with_timeout(
         .collect()
 }
 
+#[cfg(unix)]
+fn mcp_request_with_low_fd_limit(
+    root: &std::path::Path,
+    requests: &[serde_json::Value],
+) -> Vec<serde_json::Value> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    let binary = specsync().get_program().to_os_string();
+    let mut child = Command::new("sh")
+        .arg("-c")
+        .arg(r#"ulimit -n 128; exec "$1" mcp --root "$2""#)
+        .arg("specsync-low-fd")
+        .arg(binary)
+        .arg(root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("low-descriptor MCP server must start");
+    {
+        let mut stdin = child.stdin.take().expect("MCP stdin must be piped");
+        for request in requests {
+            serde_json::to_writer(&mut stdin, request).unwrap();
+            stdin.write_all(b"\n").unwrap();
+        }
+    }
+
+    let output = child
+        .wait_with_output()
+        .expect("low-descriptor MCP server must terminate");
+    assert!(
+        output.status.success(),
+        "low-descriptor MCP server failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output
+        .stdout
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_slice(line).unwrap())
+        .collect()
+}
+
 // ─── MCP Server Tests ──────────────────────────────────────────────────────
 
 #[test]
@@ -224,6 +268,41 @@ fn mcp_tool_coverage_returns_metrics() {
     let result: serde_json::Value = serde_json::from_str(content.as_str().unwrap()).unwrap();
     assert!(result["files_total"].as_u64().unwrap() > 0);
     assert!(result["file_coverage"].is_number());
+}
+
+#[cfg(unix)]
+#[test]
+fn mcp_snapshot_bounds_open_directory_handles_for_broad_trees() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_minimal_mcp_project_at(root);
+    fs::write(
+        root.join("specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["src","broad"]}"#,
+    )
+    .unwrap();
+    for index in 0..200 {
+        let directory = root.join(format!("broad/module-{index:03}"));
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("module.rs"), "pub fn bounded() {}\n").unwrap();
+    }
+
+    let responses = mcp_request_with_low_fd_limit(
+        root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": { "name": "specsync_coverage", "arguments": {} }
+        })],
+    );
+
+    assert_eq!(responses.len(), 1);
+    assert_ne!(
+        responses[0]["result"]["isError"], true,
+        "a valid broad tree must fit beneath a 128-descriptor process limit: {}",
+        responses[0]
+    );
 }
 
 #[test]
@@ -2584,6 +2663,11 @@ fn mcp_package_json_failures_are_inconclusive_for_tools_and_resources() {
             "`workspaces.packages` must be an array",
         ),
         (
+            "missing-packages",
+            r#"{"workspaces":{}}"#,
+            "`workspaces` object must contain a `packages` array",
+        ),
+        (
             "wrong-entry",
             r#"{"workspaces":["packages/*",false]}"#,
             "workspace entries must be strings",
@@ -2623,6 +2707,69 @@ fn mcp_package_json_failures_are_inconclusive_for_tools_and_resources() {
         );
         let rendered = serde_json::to_string(&responses).unwrap();
         assert!(rendered.contains(expected), "{label}: {rendered}");
+    }
+}
+
+#[test]
+fn mcp_nested_package_json_failures_are_inconclusive_for_tools_and_resources() {
+    for (label, content, expected) in [
+        (
+            "malformed",
+            "{",
+            "Cannot parse MCP package workspace manifest",
+        ),
+        ("non-object", "[]", "root must be a JSON object"),
+        (
+            "missing-packages",
+            r#"{"workspaces":{}}"#,
+            "`workspaces` object must contain a `packages` array",
+        ),
+        (
+            "wrong-packages",
+            r#"{"workspaces":{"packages":false}}"#,
+            "`workspaces.packages` must be an array",
+        ),
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        setup_minimal_mcp_project_at(root);
+        fs::create_dir_all(root.join("packages/member")).unwrap();
+        fs::write(
+            root.join("package.json"),
+            r#"{"workspaces":["packages/*"]}"#,
+        )
+        .unwrap();
+        fs::write(root.join("packages/member/package.json"), content).unwrap();
+
+        let responses = mcp_request(
+            root,
+            &[
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": { "name": "specsync_coverage", "arguments": {} }
+                }),
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "resources/read",
+                    "params": { "uri": "specsync:///coverage" }
+                }),
+            ],
+        );
+
+        for response in responses {
+            let encoded = response.to_string();
+            assert!(
+                encoded.contains(expected),
+                "{label}: expected {expected:?} in {encoded}"
+            );
+            assert!(
+                response["result"]["isError"] == true || response["error"].is_object(),
+                "{label}: malformed nested package manifest must not report success: {encoded}"
+            );
+        }
     }
 }
 

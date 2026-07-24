@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 20
+version: 21
 status: stable
 files:
   - src/mcp.rs
@@ -108,6 +108,13 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 20. MCP snapshot collection and preflight charge every Cargo member and Node workspace declaration
     before deduplication. Normalized patterns, bases, workspace paths, and completed Cargo manifests
     are reused so duplicates cannot replay traversal; limit-plus-one fails closed.
+21. Recursive snapshots bind each enumerated directory identity before the enumeration checkpoint,
+    then open and process siblings sequentially through retained capabilities. Directory-handle use
+    is bounded by traversal depth rather than sibling count, while replacement before, during, or
+    after recursion remains detectable.
+22. Object-form Node workspaces require a `packages` array. Every recognized nested
+    `package.json` is bounded and parsed as a JSON object with checked workspace field shapes before
+    a tool or resource can report success.
 
 ## Behavioral Examples
 
@@ -188,6 +195,8 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | Cargo/Node workspace expansion exceeds its declared-work bound or repeats a completed normalized node | Tool/resource error on budget exhaustion; otherwise completed discovery is reused without subtree replay |
 | Selected config or recognized manifest is a FIFO, device, symlink/reparse point, or replaced identity | Tool/resource error before parsing; the server does not block or consume replacement bytes |
 | Generic project input is a FIFO/socket/device, link/reparse point, or is replaced across its retained read | Tool/resource error before downstream parsing; the server does not block, consume attacker bytes, or return a partial snapshot |
+| Object-form Node workspaces omit `packages`, or a nested `package.json` is malformed/non-object/wrong-shaped | Tool/resource error before validation can report success |
+| A valid snapshot has more sibling directories than the process descriptor limit | Siblings are opened sequentially; retained directory handles remain bounded by traversal depth |
 | Generation exceeds 1,000 specs, 64 MiB, or its response budget | Tool error before publishing project files |
 | Generated destination exists, a public parent path is replaced, or a staged batch cannot publish completely | Tool error; identity-bound cleanup preserves public replacements; an empty parent created by the failed batch may remain |
 | Private quarantine cleanup on Windows | Final retained directory handle is consumed before removal; successful init/generate does not fail with a sharing violation |
@@ -249,3 +258,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-23 | v18 / CHG-0063 verification portability: Preserve FIFO coverage and execute socket assertions where the Unix host permits socket fixtures without making restricted sandboxes fail before the security assertion |
 | 2026-07-23 | v19 / CHG-0063 exact-head review remediation: Charge Cargo/Node declarations before deduplication, reuse normalized completed workspace nodes, and retain zero-config manifest/source authority before autodetection |
 | 2026-07-24 | v20 / CHG-0063 independent rereview remediation: Bind selected-config parent directories to pre-open identities, revalidate their complete retained edge chain after reads, and reject authority-bearing recursive snapshot directory replacement |
+| 2026-07-24 | v21 / CHG-0063 exact-head rereview remediation: Bound recursive snapshot handles by depth, require object-form Node workspace packages, and strictly parse nested package manifests |

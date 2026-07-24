@@ -116,6 +116,12 @@ Acceptance Criteria
 - MCP snapshot collection and Cargo/Node preflight charge each workspace declaration before
   deduplication, reuse normalized patterns/bases/workspace paths and completed Cargo manifests, and
   fail closed when the shared traversal-entry bound is exceeded.
+- Recursive snapshot traversal records each enumerated directory identity before any test or
+  attacker checkpoint, then opens siblings sequentially so live directory handles are bounded by
+  depth while replacement still fails closed.
+- Object-form Node workspaces require a `packages` array, and every recognized nested
+  `package.json` is bounded and strictly parsed as an object with checked known workspace fields
+  before tools or resources may report success.
 - Manifest-relative `..` components are resolved from the declaring manifest and accepted only
   when the normalized target remains beneath the retained server root. Confined Windows-native
   backslashes are normalized equivalently; drive, UNC, rooted, traversal, symlink, and junction

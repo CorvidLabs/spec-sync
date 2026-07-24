@@ -64,8 +64,10 @@ The latest remediation implements lazy retained autodetection, nested config/man
 reachability, selected-spec identity continuity, shared selected-spec/source accounting, and
 distinct checked-coverage race checkpoints. The latest amendment preserves bounded scan fallback
 after malformed manifest autodetection and retains selected source-directory identities through
-checked traversal. The focused validator run passes 43 tests, and the full amended suite passes
-1,948 unit and 310 integration tests; fresh exact-tree independent review remains pending. A
+checked traversal. Spec/source traversal now records sibling identities and reopens children
+sequentially, bounding live directory handles by depth while preserving replacement checks.
+Combined results pass 44 focused validator tests and 1,951 unit plus 312 integration tests;
+exact-tree independent review remains pending. A
 command-wide immutable CLI analysis snapshot and generic structured
 discovery outcomes are intentionally deferred to the later CLI/outcome/generation work outside
 GitHub #414's MCP boundary. Its in-file

@@ -139,3 +139,15 @@ artifact: design
 - Do not describe the returned config/path tuple as a command-wide immutable snapshot. Retaining
   authority across complete CLI pipelines and rendering generic structured discovery failures are
   deferred to later CLI/outcome/generation work outside issue #414.
+
+## Exact-head rereview closure
+
+- Store enumerated child identities rather than retaining every sibling handle. Reopen and process
+  children sequentially through retained parents, comparing enumerated, opened, and post-recursion
+  identities so live handles scale with depth without weakening replacement detection.
+- For Node workspace discovery, retain the workspace-base capability, record child identities, and
+  consume each child manifest/source probe through an identity-matching child capability. This
+  permits safe original-byte consumption during swap/read/restore while rejecting mixed
+  generations after reachability verification.
+- Require `workspaces.packages` in object-form MCP manifests and strictly parse each recognized
+  nested package manifest before any tool/resource can return success.

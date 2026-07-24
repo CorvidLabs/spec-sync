@@ -993,7 +993,9 @@ fn package_workspace_declarations<'a>(
         None => Ok(&[]),
         Some(Value::Array(values)) => Ok(values),
         Some(Value::Object(workspaces)) => match workspaces.get("packages") {
-            None => Ok(&[]),
+            None => Err(format!(
+                "{label} `workspaces` object must contain a `packages` array"
+            )),
             Some(Value::Array(values)) => Ok(values),
             Some(_) => Err(format!("{label} `workspaces.packages` must be an array")),
         },
@@ -2003,7 +2005,7 @@ struct RetainedSnapshotDirectory {
 struct SnapshotDirectoryEntry {
     name: std::ffi::OsString,
     child: PathBuf,
-    retained_directory: Option<RetainedSnapshotDirectory>,
+    directory_identity: Option<SnapshotEntryIdentity>,
 }
 
 fn copy_snapshot_directory(
@@ -2095,12 +2097,13 @@ fn copy_snapshot_directory_with_enumeration_hook(
         {
             continue;
         }
-        let file_type = entry.file_type().map_err(|error| {
+        let metadata = source.symlink_metadata(&name).map_err(|error| {
             format!(
                 "Cannot inspect MCP project input type {}: {error}",
                 child.display()
             )
         })?;
+        let file_type = metadata.file_type();
         if file_type.is_dir() || file_type.is_symlink() {
             let is_configured_input = configured_inputs
                 .iter()
@@ -2126,22 +2129,29 @@ fn copy_snapshot_directory_with_enumeration_hook(
             continue;
         }
 
-        let retained_directory = if file_type.is_dir() {
-            Some(retain_snapshot_directory(source, &name, &child)?)
+        let directory_identity = if file_type.is_dir() {
+            Some(snapshot_metadata_identity(&metadata).map_err(|error| {
+                format!(
+                    "Cannot identify MCP project directory {} during enumeration: {error}",
+                    child.display()
+                )
+            })?)
         } else {
             None
         };
         retained_entries.push(SnapshotDirectoryEntry {
             name,
             child,
-            retained_directory,
+            directory_identity,
         });
     }
 
     after_enumeration(relative)?;
 
     for entry in retained_entries {
-        if let Some(retained) = entry.retained_directory {
+        if let Some(expected_identity) = entry.directory_identity {
+            let retained =
+                retain_snapshot_directory(source, &entry.name, &entry.child, expected_identity)?;
             verify_retained_snapshot_directory(source, &entry.name, &entry.child, &retained)?;
             copy_snapshot_directory_with_enumeration_hook(
                 &retained.directory,
@@ -2197,6 +2207,7 @@ fn retain_snapshot_directory(
     parent: &Dir,
     name: &OsStr,
     relative: &Path,
+    expected_identity: SnapshotEntryIdentity,
 ) -> Result<RetainedSnapshotDirectory, String> {
     let before = parent.symlink_metadata(name).map_err(|error| {
         format!(
@@ -2216,6 +2227,12 @@ fn retain_snapshot_directory(
             relative.display()
         )
     })?;
+    if expected != expected_identity {
+        return Err(format!(
+            "MCP project directory changed during snapshot traversal: {}",
+            relative.display()
+        ));
+    }
     let directory = parent.open_dir(name).map_err(|error| {
         format!(
             "Cannot open MCP project directory {} through its retained parent capability: {error}",
@@ -3577,12 +3594,30 @@ fn validate_package_workspaces(
             }
             let nested_package = entry.path().join("package.json");
             match fs::symlink_metadata(&nested_package) {
-                Ok(_) => validate_existing_path(
-                    root,
-                    &nested_package,
-                    "package workspace manifest",
-                    None,
-                )?,
+                Ok(_) => {
+                    validate_existing_path(
+                        root,
+                        &nested_package,
+                        "package workspace manifest",
+                        None,
+                    )?;
+                    let nested_content =
+                        read_file_bounded(root, &nested_package, "package workspace manifest")?;
+                    let nested_json: Value =
+                        serde_json::from_str(&nested_content).map_err(|error| {
+                            format!(
+                                "Cannot parse MCP package workspace manifest {} as JSON: {error}",
+                                nested_package.display()
+                            )
+                        })?;
+                    package_workspace_declarations(
+                        &nested_json,
+                        &format!(
+                            "MCP package workspace manifest {}",
+                            nested_package.display()
+                        ),
+                    )?;
+                }
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
                 Err(error) => {
                     return Err(format!(
@@ -6422,6 +6457,10 @@ Test
                 r#"{"workspaces":{"packages":7}}"#,
                 "`workspaces.packages` must be an array",
             ),
+            (
+                r#"{"workspaces":{}}"#,
+                "`workspaces` object must contain a `packages` array",
+            ),
         ] {
             let tmp = TempDir::new().unwrap();
             fs::write(tmp.path().join("package.json"), content).unwrap();
@@ -8244,6 +8283,10 @@ project(':override').projectDir = file('vendor/custom')
             (
                 r#"{"workspaces":{"packages":{}}}"#,
                 "`workspaces.packages` must be an array",
+            ),
+            (
+                r#"{"workspaces":{}}"#,
+                "`workspaces` object must contain a `packages` array",
             ),
         ] {
             let tmp = TempDir::new().unwrap();

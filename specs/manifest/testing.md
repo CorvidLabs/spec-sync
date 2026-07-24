@@ -53,6 +53,8 @@ spec: manifest.spec.md
 | No parsers produce results | Returns default empty `ManifestDiscovery` | Keep or add a focused assertion before changing this behavior |
 | Retained non-Gradle manifest or workspace input is replaced, linked, special, oversized, invalid UTF-8, or over budget | Checked discovery fails or consumes only the identity-continuous retained bytes; no ambient fallback | Keep `retained_non_gradle_manifest_access_ignores_an_ambient_root_replacement` plus focused bounds/identity tests |
 | Retained manifest changes after open or during read | Checked discovery rejects identity discontinuity and never parses replacement bytes | Use deterministic hook-driven races for every supported non-Gradle ecosystem and hosted-Windows reparse behavior |
+| Enumerated Node workspace is swapped for attacker bytes during its child manifest read, then restored | Child `package.json` and source probes consume an identity-matching child opened through the retained workspace-base capability, so no replacement bytes enter discovery | Keep `retained_node_workspace_swap_read_restore_uses_enumerated_child_capability` |
+| Node workspace base has more child directories than the process descriptor limit | Child identities are recorded during enumeration and opened sequentially, so discovery succeeds with handles bounded independently of sibling count | Keep `retained_node_workspace_enumeration_bounds_open_directory_handles` |
 | Cargo/Node expansion reaches its declared-work limit | Limit succeeds, limit-plus-one fails without partial modules, and duplicate normalized nodes reuse completed results | Use injectable small limits and duplicate-chain fixtures |
 
 The exact-head implementation adds
@@ -62,9 +64,10 @@ The exact-head implementation adds
 `retained_duplicate_cargo_members_reject_a_linked_workspace_without_disclosure`, and
 `retained_nested_manifest_read_rejects_a_replaced_parent_directory`, plus deterministic Cargo and
 Node nested-directory replacement cases. The latest amendment adds strict structural Cargo/Node
-fixtures and retained workspace-listing replacement races. The focused manifest run passed 49
-tests with zero failures, and the full amended suite passed 1,948 unit plus 310 integration tests.
-Fresh independent rereview and hosted-Windows runtime remain pending.
+fixtures, retained workspace-listing replacement races, an enumerated-child swap/read/restore
+regression, and a 200-sibling run beneath a 64-descriptor process limit. Fresh combined focused
+coverage passes 51 tests; the full suite passes 1,951 unit and 312 integration tests. Independent
+rereview and hosted-Windows runtime remain pending.
 
 ## Reviewer Checklist
 

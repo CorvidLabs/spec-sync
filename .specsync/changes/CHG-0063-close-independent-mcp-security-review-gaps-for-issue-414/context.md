@@ -293,13 +293,17 @@ workspace expansion with completed-node memoization in manifest and MCP-specific
 Coverage-internal early and post-discovery checkpoints remain distinct and gate callers propagate
 their errors.
 
-The latest review disposition is scoped rather than silently overclaimed. The review findings above
-have implementation and focused coverage: 49 manifest tests, 43 validator tests, MCP declaration
-budget and deduplication tests, the duplicate Cargo/Node integration drill, and both five-command
-race phases. The command-wide immutable CLI analysis snapshot and generic structured discovery
-outcomes identified by the review are not implemented here; they are outside GitHub #414's MCP
-boundary and remain assigned to later CLI/outcome/generation work. The full local suite now passes
-1,948 unit and 310 integration tests. The exact implementation received one clean security approval;
-the companion-evidence review found only stale counts, which are corrected in the current docs-only
-head. The exact `237e548` sandbox receipt is recorded. Hosted-Windows runtime, repository/CI, trust,
-and provenance evidence remain pending.
+The latest review disposition is scoped rather than silently overclaimed. Two independent reviews
+of exact commit `237e548` rejected it with three Medium findings: Node workspace child manifests
+could mix generations during swap/read/restore, MCP accepted object-form workspaces without
+`packages` and did not parse nested package manifests, and MCP/coverage traversal retained every
+sibling directory handle. The amended tree consumes Node child manifests/probes through
+identity-matching enumerated capabilities, strictly validates root and nested Node manifests, and
+records sibling identities before sequential capability opens. Focused results pass 51 manifest,
+44 validator, 117 MCP unit, and 67 MCP integration tests; the full suite passes 1,951 unit and 312
+integration tests. The command-wide immutable CLI analysis snapshot and generic structured
+discovery outcomes identified by the review are not implemented here; they are outside GitHub
+#414's MCP boundary and remain assigned to later CLI/outcome/generation work. The prior exact
+`237e548` sandbox receipt remains historical rather than final-tree evidence. Fresh post-fix
+independent reviews, sandbox replay, hosted-Windows runtime, repository/CI, trust, and provenance
+evidence remain pending.

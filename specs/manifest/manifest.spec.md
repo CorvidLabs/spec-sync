@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 13
+version: 14
 status: stable
 files:
   - src/manifest.rs
@@ -120,6 +120,10 @@ member or target paths.
 21. A retained nested manifest or workspace directory must remain reachable through the same
     project-root edge after enumeration and before/after manifest reads. Detaching and replacing a
     parent directory makes checked discovery inconclusive instead of mixing workspace generations.
+22. Node workspace enumeration records every child directory identity through the retained
+    workspace-base capability, then opens children sequentially through that capability. Child
+    manifests and source probes consume only identity-matching retained directories, so
+    swap/read/restore cannot inject bytes and sibling count does not exhaust directory handles.
 
 ## Behavioral Examples
 
@@ -227,6 +231,7 @@ member or target paths.
 | Non-Gradle manifest is unsafe, replaced, invalid UTF-8, over 8 MiB, or retained discovery exceeds 64 MiB/100,000 entries/256 components | Caller-retained checked discovery returns `Err` without ambient fallback or partial discovery; compatibility discovery returns an empty result |
 | Cargo/Node workspace declarations exceed the expansion budget or repeat a completed normalized node | Checked discovery returns `Err` on budget exhaustion; otherwise it reuses the completed result without reparsing the subtree |
 | Nested manifest/workspace parent is detached or replaced during enumeration/read | Caller-retained checked discovery returns `Err` after project-root reachability verification; detached and replacement generations are not mixed |
+| Enumerated Node workspace is swapped during a child read, or has more siblings than the process descriptor limit | Child bytes/probes come from an identity-matching retained capability opened sequentially; replacement generations are not mixed and handles remain bounded |
 | Malformed non-Gradle manifest content | Best-effort extraction; missing fields result in defaults or skipped entries |
 | Linked, reparse-backed, non-regular, replaced, oversized, unreadable, or invalid-UTF-8 Gradle build/settings manifest, including a shadowed filename variant | Checked discovery returns `Err` without reading a link referent or returning partial discovery; compatibility discovery returns an empty result |
 | Malformed or dynamic Gradle include, invoked unsupported inclusion API, unescaped double-quoted interpolation, unsupported assignment/method project-directory form, rooted/drive/UNC/parent-escaping raw module identity or decoded effective path, or broken comments/escapes/parentheses | Checked discovery returns `Err`; compatibility discovery returns an empty result and gates stay inconclusive |
@@ -267,3 +272,4 @@ member or target paths.
 | 2026-07-23 | v11 / CHG-0063 acceptance remediation: Acquire all recognized checked manifests, nested workspaces, and manifest probes through one bounded retained project capability without ambient parser fallback |
 | 2026-07-23 | v12 / CHG-0063 exact-head review remediation: Bound declared Cargo/Node workspace expansion, memoize completed normalized nodes, and verify nested manifest/workspace reachability so duplicate declarations or detached parents cannot produce mixed discovery |
 | 2026-07-24 | v13 / CHG-0063 independent rereview remediation: Parse retained Cargo and Node workspace declarations structurally, charge malformed entries before rejection, and bind nested workspace directory listings through child consumption |
+| 2026-07-24 | v14 / CHG-0063 exact-head rereview remediation: Consume Node child manifests and probes through identity-bound enumerated capabilities while bounding live handles independently of sibling count |

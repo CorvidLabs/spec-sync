@@ -175,3 +175,7 @@ Acceptance Criteria
     deduplication.
 32. Zero-config source selection consumes retained configuration/manifest observations after root
     retention.
+33. Recursive snapshot traversal records sibling identities before sequential capability opens,
+    bounding live directory handles by depth while preserving replacement detection.
+34. Object-form Node workspaces require `packages`, and recognized nested package manifests are
+    bounded and strictly parsed before tools/resources can report success.

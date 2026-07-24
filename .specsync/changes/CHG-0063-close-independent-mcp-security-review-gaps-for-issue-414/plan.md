@@ -90,3 +90,8 @@ artifact: plan
 24. Defer the command-wide immutable CLI analysis snapshot and generic structured discovery
     outcomes to the later CLI/outcome/generation work. They are outside GitHub #414's MCP boundary
     and are not completion claims for CHG-0063.
+25. Close the exact `237e548` rereview findings by consuming Node children through
+    identity-matching enumerated capabilities, requiring and checking root/nested Node workspace
+    manifests, and replacing retained sibling handles with sequential capability reopen in MCP and
+    checked coverage. Prove the handle bound under constrained child processes, rerun the full
+    suite, then obtain fresh exact-commit reviews and all platform/lifecycle/trust/CI evidence.

@@ -548,19 +548,14 @@ where
     let Some(retained_directory) = open_retained_coverage_directory(project, &relative)? else {
         return Ok(Vec::new());
     };
-    let pending = PendingCoverageDirectory {
-        directory: retained_directory.directory.try_clone().map_err(|error| {
-            format!(
-                "Cannot retain coverage specs directory {}: {error}",
-                display_coverage_path(&relative)
-            )
-        })?,
-        relative: relative.clone(),
-        source_root: true,
-        parent_edge: None,
-    };
     let mut specs = Vec::new();
-    discover_coverage_spec_directory(pending, budget, &mut after_enumeration, &mut specs)?;
+    discover_coverage_spec_directory(
+        &retained_directory.directory,
+        &relative,
+        budget,
+        &mut after_enumeration,
+        &mut specs,
+    )?;
     verify_retained_coverage_directory(project, &retained_directory)?;
     specs.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
     specs.dedup_by(|left, right| left.relative_path == right.relative_path);
@@ -568,7 +563,8 @@ where
 }
 
 fn discover_coverage_spec_directory<AfterEnumeration>(
-    pending: PendingCoverageDirectory,
+    directory: &Dir,
+    relative: &Path,
     budget: &mut CoverageTraversalBudget,
     after_enumeration: &mut AfterEnumeration,
     specs: &mut Vec<CoverageSpecFile>,
@@ -576,18 +572,18 @@ fn discover_coverage_spec_directory<AfterEnumeration>(
 where
     AfterEnumeration: FnMut(&Path),
 {
-    let names = read_coverage_entry_names(&pending.directory, &pending.relative, budget)?;
+    let names = read_coverage_entry_names(directory, relative, budget)?;
     let mut children = Vec::new();
     for name in names {
         let name_text = name.to_str().ok_or_else(|| {
             format!(
                 "Coverage spec path beneath {} is not valid UTF-8",
-                display_coverage_path(&pending.relative)
+                display_coverage_path(relative)
             )
         })?;
-        let child = pending.relative.join(&name);
+        let child = relative.join(&name);
         ensure_coverage_depth(&child, budget.limits.max_depth)?;
-        let metadata = pending.directory.symlink_metadata(&name).map_err(|error| {
+        let metadata = directory.symlink_metadata(&name).map_err(|error| {
             format!(
                 "Cannot inspect retained coverage spec path {}: {error}",
                 child.display()
@@ -600,20 +596,16 @@ where
             ));
         }
         if metadata.is_dir() {
-            let child_directory = open_coverage_child_directory(&pending.directory, &name, &child)?;
-            children.push(PendingCoverageDirectory {
-                directory: child_directory,
+            let identity = coverage_metadata_identity(&metadata).map_err(|error| {
+                format!(
+                    "Cannot identify retained coverage spec directory {}: {error}",
+                    child.display()
+                )
+            })?;
+            children.push(DiscoveredCoverageDirectory {
+                name,
                 relative: child,
-                source_root: false,
-                parent_edge: Some((
-                    pending.directory.try_clone().map_err(|error| {
-                        format!(
-                            "Cannot retain coverage spec directory {}: {error}",
-                            display_coverage_path(&pending.relative)
-                        )
-                    })?,
-                    name,
-                )),
+                identity,
             });
             continue;
         }
@@ -636,21 +628,25 @@ where
             });
         }
     }
-    after_enumeration(&pending.relative);
+    after_enumeration(relative);
     for child in children {
-        discover_coverage_spec_directory(child, budget, after_enumeration, specs)?;
-    }
-    if let Some((parent, name)) = pending.parent_edge {
-        verify_coverage_child_directory(&parent, &name, &pending.relative, &pending.directory)?;
+        let child_directory = reopen_discovered_coverage_directory(directory, &child)?;
+        discover_coverage_spec_directory(
+            &child_directory,
+            &child.relative,
+            budget,
+            after_enumeration,
+            specs,
+        )?;
+        verify_coverage_child_directory(directory, &child.name, &child.relative, &child_directory)?;
     }
     Ok(())
 }
 
-struct PendingCoverageDirectory {
-    directory: Dir,
+struct DiscoveredCoverageDirectory {
+    name: OsString,
     relative: PathBuf,
-    source_root: bool,
-    parent_edge: Option<(Dir, OsString)>,
+    identity: CoverageEntryIdentity,
 }
 
 struct RetainedCoverageSourceDirectory {
@@ -738,12 +734,6 @@ where
 {
     let mut snapshot = CoverageSourceSnapshot::default();
     for source in retained_sources {
-        let directory = source.retained.directory.try_clone().map_err(|error| {
-            format!(
-                "Cannot retain coverage source directory {}: {error}",
-                display_coverage_path(&source.normalized)
-            )
-        })?;
         let mut immediate_modules = Vec::new();
         let mut accumulator = CoverageSourceAccumulator {
             exclude_dirs,
@@ -754,7 +744,7 @@ where
             budget,
         };
         snapshot_coverage_directory_with_hook(
-            directory,
+            &source.retained.directory,
             &source.normalized,
             &mut accumulator,
             after_enumeration,
@@ -863,7 +853,7 @@ struct CoverageSourceAccumulator<'a> {
 }
 
 fn snapshot_coverage_directory_with_hook<AfterEnumeration>(
-    directory: Dir,
+    directory: &Dir,
     relative: &Path,
     accumulator: &mut CoverageSourceAccumulator<'_>,
     after_enumeration: &mut AfterEnumeration,
@@ -871,28 +861,20 @@ fn snapshot_coverage_directory_with_hook<AfterEnumeration>(
 where
     AfterEnumeration: FnMut(&Path),
 {
-    snapshot_pending_coverage_directory(
-        PendingCoverageDirectory {
-            directory,
-            relative: relative.to_path_buf(),
-            source_root: true,
-            parent_edge: None,
-        },
-        accumulator,
-        after_enumeration,
-    )
+    snapshot_coverage_directory(directory, relative, true, accumulator, after_enumeration)
 }
 
-fn snapshot_pending_coverage_directory<AfterEnumeration>(
-    pending: PendingCoverageDirectory,
+fn snapshot_coverage_directory<AfterEnumeration>(
+    directory: &Dir,
+    relative: &Path,
+    source_root: bool,
     accumulator: &mut CoverageSourceAccumulator<'_>,
     after_enumeration: &mut AfterEnumeration,
 ) -> Result<(), String>
 where
     AfterEnumeration: FnMut(&Path),
 {
-    let names =
-        read_coverage_entry_names(&pending.directory, &pending.relative, accumulator.budget)?;
+    let names = read_coverage_entry_names(directory, relative, accumulator.budget)?;
     let mut children = Vec::new();
     for name in names {
         if coverage_name_is_excluded(&name, accumulator.exclude_dirs) {
@@ -901,12 +883,12 @@ where
         name.to_str().ok_or_else(|| {
             format!(
                 "Coverage source path beneath {} is not valid UTF-8",
-                display_coverage_path(&pending.relative)
+                display_coverage_path(relative)
             )
         })?;
-        let child = pending.relative.join(&name);
+        let child = relative.join(&name);
         ensure_coverage_depth(&child, accumulator.budget.limits.max_depth)?;
-        let metadata = pending.directory.symlink_metadata(&name).map_err(|error| {
+        let metadata = directory.symlink_metadata(&name).map_err(|error| {
             format!(
                 "Cannot inspect retained coverage source {}: {error}",
                 child.display()
@@ -919,23 +901,19 @@ where
             ));
         }
         if metadata.is_dir() {
-            if pending.source_root {
+            if source_root {
                 accumulator.immediate_modules.push(name.clone());
             }
-            let child_directory = open_coverage_child_directory(&pending.directory, &name, &child)?;
-            children.push(PendingCoverageDirectory {
-                directory: child_directory,
+            let identity = coverage_metadata_identity(&metadata).map_err(|error| {
+                format!(
+                    "Cannot identify retained coverage source directory {}: {error}",
+                    child.display()
+                )
+            })?;
+            children.push(DiscoveredCoverageDirectory {
+                name,
                 relative: child,
-                source_root: false,
-                parent_edge: Some((
-                    pending.directory.try_clone().map_err(|error| {
-                        format!(
-                            "Cannot retain coverage source directory {}: {error}",
-                            display_coverage_path(&pending.relative)
-                        )
-                    })?,
-                    name,
-                )),
+                identity,
             });
             continue;
         }
@@ -968,7 +946,7 @@ where
             ));
         }
         let bytes = read_coverage_file(
-            &pending.directory,
+            directory,
             &name,
             &child,
             accumulator.budget.limits.max_file_bytes,
@@ -991,12 +969,17 @@ where
             });
         }
     }
-    after_enumeration(&pending.relative);
+    after_enumeration(relative);
     for child in children {
-        snapshot_pending_coverage_directory(child, accumulator, after_enumeration)?;
-    }
-    if let Some((parent, name)) = pending.parent_edge {
-        verify_coverage_child_directory(&parent, &name, &pending.relative, &pending.directory)?;
+        let child_directory = reopen_discovered_coverage_directory(directory, &child)?;
+        snapshot_coverage_directory(
+            &child_directory,
+            &child.relative,
+            false,
+            accumulator,
+            after_enumeration,
+        )?;
+        verify_coverage_child_directory(directory, &child.name, &child.relative, &child_directory)?;
     }
     Ok(())
 }
@@ -1187,6 +1170,37 @@ fn open_coverage_child_directory(
     })?;
     verify_coverage_child_directory(parent, name, display, &child)?;
     Ok(child)
+}
+
+fn reopen_discovered_coverage_directory(
+    parent: &Dir,
+    discovered: &DiscoveredCoverageDirectory,
+) -> Result<Dir, String> {
+    let metadata = parent.symlink_metadata(&discovered.name).map_err(|error| {
+        format!(
+            "Cannot re-inspect coverage source directory {}: {error}",
+            discovered.relative.display()
+        )
+    })?;
+    if coverage_metadata_is_link(&metadata) || !metadata.is_dir() {
+        return Err(format!(
+            "Coverage source directory {} changed during retained traversal",
+            discovered.relative.display()
+        ));
+    }
+    let identity = coverage_metadata_identity(&metadata).map_err(|error| {
+        format!(
+            "Cannot identify re-inspected coverage source directory {}: {error}",
+            discovered.relative.display()
+        )
+    })?;
+    if identity != discovered.identity {
+        return Err(format!(
+            "Coverage source directory {} changed during retained traversal",
+            discovered.relative.display()
+        ));
+    }
+    open_coverage_child_directory(parent, &discovered.name, &discovered.relative)
 }
 
 fn verify_coverage_directory_edge(
@@ -3247,6 +3261,69 @@ mod tests {
         let project = open_coverage_project_root(root).unwrap();
         let mut budget = CoverageTraversalBudget::new(limits);
         snapshot_coverage_sources(&project, root, config, exclude_dirs, &mut budget)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn broad_source_tree_succeeds_with_a_bounded_file_descriptor_limit() {
+        const CHILD_ENV: &str = "SPECSYNC_VALIDATOR_BOUNDED_HANDLES_CHILD";
+        if std::env::var_os(CHILD_ENV).is_none() {
+            let executable = std::env::current_exe().unwrap();
+            let status = std::process::Command::new("sh")
+                .args([
+                    "-c",
+                    "ulimit -n 64; exec \"$1\" broad_source_tree_succeeds_with_a_bounded_file_descriptor_limit --nocapture",
+                    "sh",
+                ])
+                .arg(executable)
+                .env(CHILD_ENV, "1")
+                .status()
+                .unwrap();
+            assert!(
+                status.success(),
+                "broad traversal failed with a 64-descriptor soft limit"
+            );
+            return;
+        }
+
+        let project = tempfile::tempdir().unwrap();
+        let source = project.path().join("src");
+        let specs = project.path().join("specs");
+        fs::create_dir_all(&source).unwrap();
+        fs::create_dir_all(&specs).unwrap();
+        for index in 0..200 {
+            let module = source.join(format!("module-{index:03}"));
+            fs::create_dir(&module).unwrap();
+            fs::write(module.join("lib.rs"), "pub fn visible() {}\n").unwrap();
+            let spec_module = specs.join(format!("module-{index:03}"));
+            fs::create_dir(&spec_module).unwrap();
+            fs::write(
+                spec_module.join("module.spec.md"),
+                "---\nmodule: broad\nversion: 1\nstatus: stable\nfiles: []\n---\n",
+            )
+            .unwrap();
+        }
+        let retained = open_coverage_project_root(project.path()).unwrap();
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+        let discovered_specs =
+            discover_coverage_spec_files(&retained, "specs", &mut budget).unwrap();
+        assert_eq!(discovered_specs.len(), 200);
+        drop(retained);
+
+        let config = SpecSyncConfig {
+            source_dirs: vec!["src".to_string()],
+            ..SpecSyncConfig::default()
+        };
+
+        let snapshot = snapshot_with_limits(
+            project.path(),
+            &config,
+            &HashSet::new(),
+            CoverageTraversalLimits::default(),
+        )
+        .unwrap();
+
+        assert_eq!(snapshot.files.len(), 200);
     }
 
     #[cfg(unix)]

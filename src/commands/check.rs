@@ -94,13 +94,18 @@ pub fn cmd_check(
     // message under --format json). Default warn mode still exits 0 there.
     let (config, all_spec_files) = load_and_discover(root, true);
     let sdd_report = crate::change::check_project(root);
+    // `--enforcement warn` is non-blocking by definition: SDD lifecycle
+    // violations then surface as warnings through the normal channels (and a
+    // zero exit) instead of hard-failing. An unset flag keeps the historical
+    // exit-1 behavior.
+    let sdd_warn_only = enforcement == Some(types::EnforcementMode::Warn);
     if sdd_report.enabled {
         for warning in &sdd_report.warnings {
             if matches!(format, Text) {
                 eprintln!("{} {warning}", "warning:".yellow().bold());
             }
         }
-        if !sdd_report.errors.is_empty() {
+        if !sdd_report.errors.is_empty() && !sdd_warn_only {
             match format {
                 Json => println!(
                     "{}",
@@ -122,7 +127,7 @@ pub fn cmd_check(
                 }
             }
             process::exit(1);
-        } else if matches!(format, Text) {
+        } else if sdd_report.errors.is_empty() && matches!(format, Text) {
             println!(
                 "{} SDD lifecycle valid ({} active change(s))\n",
                 "✓".green(),
@@ -390,7 +395,7 @@ pub fn cmd_check(
     }
 
     let collect = !matches!(format, Text);
-    let (total_errors, total_warnings, passed, total, all_errors, all_warnings, all_notices) =
+    let (total_errors, total_warnings, passed, total, all_errors, mut all_warnings, all_notices) =
         run_validation(
             root,
             &specs_to_validate,
@@ -402,6 +407,16 @@ pub fn cmd_check(
             explain,
             &ignore_rules,
         );
+    // In `--enforcement warn` mode, SDD lifecycle violations surface as
+    // warnings through the normal channels instead of the hard failure above.
+    if sdd_warn_only && !sdd_report.errors.is_empty() {
+        for error in &sdd_report.errors {
+            if matches!(format, Text) {
+                eprintln!("{} {error}", "warning:".yellow().bold());
+            }
+            all_warnings.push(error.clone());
+        }
+    }
     // Git-based staleness detection (--stale flag)
     let stale_threshold = stale.map(|opt| opt.unwrap_or(5));
     let mut git_stale_warnings: usize = 0;
@@ -442,13 +457,13 @@ pub fn cmd_check(
                     continue;
                 }
                 let behind = git_utils::git_commits_since(root, &spec_commit, source_file);
-                if behind >= threshold {
+                if behind > 0 && behind >= threshold {
                     drifted_files.push((source_file.clone(), behind));
                 }
                 max_behind = max_behind.max(behind);
             }
 
-            if max_behind >= threshold {
+            if max_behind > 0 && max_behind >= threshold {
                 git_stale_warnings += 1;
                 if matches!(format, types::OutputFormat::Text) {
                     let module = fm.module.as_deref().unwrap_or(&rel_spec);

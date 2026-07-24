@@ -156,8 +156,12 @@ pub fn fetch_remote_registry(repo: &str) -> Result<RemoteRegistry, String> {
 /// Matches inert 5.0.1-era placeholders such as `version = 1` plus an empty
 /// `[modules]` table that never carried module authority under 5.1.x parsing.
 pub fn is_inert_legacy_registry_stub(content: &str) -> bool {
-    let (name, specs) = scan_registry_fields(content);
-    name.is_empty() && specs.is_empty()
+    match parse_registry_toml(content) {
+        Ok((name, specs)) => name.is_empty() && specs.is_empty(),
+        // Malformed TOML is not inert — it must fail closed in
+        // load_local_registry, not silently vanish.
+        Err(_) => false,
+    }
 }
 
 /// Load the local registry with explicit missing/inert/invalid discrimination.
@@ -189,49 +193,75 @@ pub fn load_registry(root: &Path) -> Option<RegistryEntry> {
     load_local_registry(root).ok().flatten()
 }
 
-/// Scan registry TOML for a `name` value and `[specs]` mappings.
-fn scan_registry_fields(content: &str) -> (String, Vec<(String, String)>) {
+/// Parse registry TOML into `(name, spec mappings)` with a real TOML parser.
+///
+/// Two mapping shapes are supported:
+/// - the generated `[specs]` table (`module = "path"`), emitted by
+///   `init-registry` / `generate_registry`
+/// - the documented `[[modules]]` array-of-tables (`name` + `spec` keys) from
+///   `cross-project-refs.md`
+///
+/// The registry `name` is read from `[registry] name` first, then a top-level
+/// `name`. Returns `Err` on malformed TOML or malformed `[[modules]]` entries
+/// so callers fail closed instead of silently dropping mappings.
+fn parse_registry_toml(content: &str) -> Result<(String, Vec<(String, String)>), String> {
+    let value: toml::Value =
+        toml::from_str(content).map_err(|e| format!("invalid TOML: {e}"))?;
+
     let mut name = String::new();
-    let mut specs = Vec::new();
-    let mut in_specs = false;
+    if let Some(n) = value.get("name").and_then(|v| v.as_str()) {
+        name = n.to_string();
+    }
+    if let Some(n) = value
+        .get("registry")
+        .and_then(|r| r.get("name"))
+        .and_then(|v| v.as_str())
+    {
+        name = n.to_string();
+    }
 
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
+    let mut specs: Vec<(String, String)> = Vec::new();
 
-        if line.starts_with('[') && line.ends_with(']') {
-            in_specs = line == "[specs]";
-            continue;
-        }
-
-        if let Some(eq_pos) = line.find('=') {
-            let key = line[..eq_pos].trim();
-            let value = line[eq_pos + 1..].trim();
-            let value = value.trim_matches('"');
-
-            if in_specs {
-                specs.push((key.to_string(), value.to_string()));
-            } else if key == "name" && !value.is_empty() {
-                name = value.to_string();
+    // Generated shape: [specs] table of module = "path".
+    if let Some(table) = value.get("specs").and_then(|v| v.as_table()) {
+        for (module, path) in table {
+            if let Some(path) = path.as_str() {
+                specs.push((module.clone(), path.to_string()));
             }
         }
     }
 
-    (name, specs)
+    // Documented shape: [[modules]] array of { name, spec }.
+    if let Some(modules) = value.get("modules").and_then(|v| v.as_array()) {
+        for module in modules {
+            let module_name = module.get("name").and_then(|v| v.as_str());
+            let spec_path = module.get("spec").and_then(|v| v.as_str());
+            match (module_name, spec_path) {
+                (Some(m), Some(p)) => specs.push((m.to_string(), p.to_string())),
+                _ => {
+                    return Err(
+                        "every [[modules]] entry needs both `name` and `spec` keys".to_string()
+                    );
+                }
+            }
+        }
+    }
+
+    Ok((name, specs))
 }
 
 /// Parse registry TOML content.
+///
+/// Returns `None` when the content is malformed TOML or carries no registry
+/// `name` — callers treat that as "failed to parse" and fail closed.
 fn parse_registry(content: &str) -> Option<RegistryEntry> {
-    let (name, specs) = scan_registry_fields(content);
+    let (name, specs) = parse_registry_toml(content).ok()?;
     if name.is_empty() {
         return None;
     }
 
     Some(RegistryEntry { name, specs })
 }
-
 /// Generate a registry file by scanning for spec files.
 pub fn generate_registry(root: &Path, project_name: &str, specs_dir: &str) -> String {
     let specs_path = root.join(specs_dir);
@@ -272,13 +302,33 @@ pub fn generate_registry(root: &Path, project_name: &str, specs_dir: &str) -> St
 
     let mut output = String::new();
     output.push_str("[registry]\n");
-    output.push_str(&format!("name = \"{project_name}\"\n"));
+    output.push_str(&format!("name = \"{}\"\n", toml_escape(project_name)));
     output.push_str("\n[specs]\n");
     for (module, path) in &specs {
-        output.push_str(&format!("{module} = \"{path}\"\n"));
+        output.push_str(&format!("{module} = \"{}\"\n", toml_escape(path)));
     }
 
     output
+}
+
+/// Escape a string for embedding inside a TOML basic string (`"..."`).
+/// Without this, a project name containing `"`, `\`, or control characters
+/// (e.g. newlines) produces a registry that fails TOML parsing — or worse,
+/// injects extra keys into it.
+fn toml_escape(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if c.is_control() => out.push_str(&format!("\\u{:04X}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 /// Add a module entry to an existing local registry file
@@ -448,5 +498,51 @@ messaging = "specs/messaging/messaging.spec.md"
         assert!(reg.has_spec("auth"));
         assert!(reg.has_spec("messaging"));
         assert!(!reg.has_spec("nonexistent"));
+    }
+
+    #[test]
+    fn generate_registry_escapes_toml_injection() {
+        // #440: a --name with quotes/newlines must produce valid TOML.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let content = generate_registry(tmp.path(), "evil\"\n[specs]\npwned=\"x", "specs");
+        let parsed: Result<toml::Value, toml::de::Error> = toml::from_str(&content);
+        assert!(parsed.is_ok(), "generated registry must be valid TOML: {content}");
+        // No injected [specs] key survived.
+        let value = parsed.unwrap();
+        assert!(value.get("specs").is_none() || value["specs"].get("pwned").is_none());
+    }
+
+    #[test]
+    fn parse_registry_supports_documented_modules_shape() {
+        // #413 facet 1: [[modules]] array-of-tables must not drop mappings.
+        let content = "[registry]\nname = \"probe\"\n\n[[modules]]\nname = \"lib\"\nspec = \"custom/lib.spec.md\"\n";
+        let entry = parse_registry(content).expect("documented shape parses");
+        assert_eq!(entry.name, "probe");
+        assert_eq!(
+            entry.specs,
+            vec![("lib".to_string(), "custom/lib.spec.md".to_string())]
+        );
+    }
+
+    #[test]
+    fn load_local_registry_fails_closed_on_malformed_toml_with_name_line() {
+        // #413 facet 2: `name = {{{` is not valid TOML and must not parse.
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(root.join(".specsync/registry.toml"), "version = 1\nname = {{{\n").unwrap();
+
+        assert!(!is_inert_legacy_registry_stub(
+            "version = 1\nname = {{{\n"
+        ));
+        let error = load_local_registry(root).unwrap_err();
+        assert!(error.contains("failed to parse local registry"), "{error}");
+    }
+
+    #[test]
+    fn modules_entry_missing_spec_key_is_an_error() {
+        let content = "[registry]\nname = \"probe\"\n\n[[modules]]\nname = \"lib\"\n";
+        assert!(parse_registry(content).is_none());
+        assert!(!is_inert_legacy_registry_stub(content));
     }
 }

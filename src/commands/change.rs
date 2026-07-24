@@ -55,12 +55,17 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
         } => change::add_supersedes_obligation(root, &id, &predecessor, &path, &module, &digest)
             .and_then(|record| print_record(root, &record, format, false)),
         ChangeAction::List => {
+            let _scope = change::begin_change_read_scope(root);
             print_records(root, &change::list_changes(root), format);
             Ok(())
         }
-        ChangeAction::Show { id } => change::load_change(root, &id)
-            .and_then(|record| print_record(root, &record, format, true)),
+        ChangeAction::Show { id } => {
+            let _scope = change::begin_change_read_scope(root);
+            change::load_change(root, &id)
+                .and_then(|record| print_record(root, &record, format, true))
+        }
         ChangeAction::Status { id } => {
+            let _scope = change::begin_change_read_scope(root);
             if let Some(id) = id {
                 change::load_change(root, &id)
                     .and_then(|record| print_record(root, &record, format, false))
@@ -232,6 +237,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
             })
         }
         ChangeAction::Check => {
+            let _scope = change::begin_change_read_scope(root);
             let report = change::check_project(root);
             let passed = report.errors.is_empty();
             match format {

@@ -711,11 +711,17 @@ pub fn generate_spec(
     let version_re = regex::Regex::new(r"(?m)^version:\s*.+$").unwrap();
     spec = version_re.replace(&spec, "version: 1").to_string();
 
-    // Replace files list (handles both `files: []` and multi-line YAML list)
+    // Replace files list (handles both `files: []` and multi-line YAML list).
+    // With no detected source files emit `files: []` — a bare `files:` parses
+    // as YAML null and fails the tool's own frontmatter validation.
     let files_re = regex::Regex::new(r"(?m)^files:\s*\[\]|^files:\n(?:\s+-\s+.+\n?)*").unwrap();
-    spec = files_re
-        .replace(&spec, format!("files:\n{files_yaml}\n"))
-        .to_string();
+    if source_files.is_empty() {
+        spec = files_re.replace(&spec, "files: []\n").to_string();
+    } else {
+        spec = files_re
+            .replace(&spec, format!("files:\n{files_yaml}\n"))
+            .to_string();
+    }
 
     // Replace title
     let title_re = regex::Regex::new(r"(?m)^# .+$").unwrap();
@@ -725,7 +731,54 @@ pub fn generate_spec(
     let db_re = regex::Regex::new(r"(?m)^db_tables:\n(?:\s+-\s+.+\n?)*").unwrap();
     spec = db_re.replace(&spec, "db_tables: []\n").to_string();
 
+    // Pre-populate the Public API table from detected exports so generated
+    // specs document their API surface like `specsync new` does.
+    let exports = collect_exports_for_files(root, source_files);
+    spec = populate_public_api_table(&spec, &exports);
+
     spec
+}
+
+/// Collect deduplicated exported symbols across a module's source files.
+///
+/// Paths may be absolute or root-relative; anything escaping the project root
+/// is skipped (consistency with validate/score/diff).
+pub fn collect_exports_for_files(root: &Path, source_files: &[String]) -> Vec<String> {
+    let mut all_exports: Vec<String> = Vec::new();
+    for file in source_files {
+        let rel = Path::new(file)
+            .strip_prefix(root)
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| file.clone());
+        if !crate::validator::source_within_root(root, &rel) {
+            continue;
+        }
+        let full_path = root.join(&rel);
+        all_exports.extend(crate::exports::get_exported_symbols(&full_path));
+    }
+    let mut seen = std::collections::HashSet::new();
+    all_exports.retain(|s| seen.insert(s.clone()));
+    all_exports
+}
+
+/// Insert a populated export table directly under the `## Public API` heading.
+/// Leaves the spec untouched when no exports were detected.
+pub fn populate_public_api_table(spec: &str, exports: &[String]) -> String {
+    if exports.is_empty() {
+        return spec.to_string();
+    }
+    let header = "| Export | Description |\n|--------|-------------|";
+    let rows: String = exports
+        .iter()
+        .map(|e| {
+            format!("| `{e}` | Document the export's responsibility and caller-visible behavior. |")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let heading_re = regex::Regex::new(r"(?m)^## Public API[ \t]*$").unwrap();
+    heading_re
+        .replace(spec, format!("## Public API\n\n{header}\n{rows}\n"))
+        .to_string()
 }
 
 /// Generate deterministic spec content for a module from the built-in template.
@@ -1553,5 +1606,53 @@ mod tests {
         );
         let files = find_files_for_module(root, "my-module", &config);
         assert_eq!(files.len(), 2);
+    }
+
+    // ── #421 regression: generators must emit self-valid specs ─────────
+
+    #[test]
+    fn generate_spec_empty_files_emits_valid_empty_list() {
+        // A bare `files:` (YAML null) fails the tool's own frontmatter
+        // validation; generators must emit `files: []` instead.
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let specs_dir = root.join("specs");
+        fs::create_dir_all(&specs_dir).unwrap();
+
+        let spec = generate_spec("ghost", &[], root, &specs_dir);
+        assert!(spec.contains("files: []"), "{spec}");
+        let parsed = crate::parser::parse_frontmatter(&spec).expect("frontmatter parses");
+        assert!(parsed.frontmatter.files.is_empty());
+    }
+
+    #[test]
+    fn generate_spec_prepopulates_public_api_from_exports() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let specs_dir = root.join("specs");
+        fs::create_dir_all(&specs_dir).unwrap();
+        let src_dir = root.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(
+            src_dir.join("auth.rs"),
+            "pub fn login() {}\npub fn logout() {}\n",
+        )
+        .unwrap();
+
+        let files = vec!["src/auth.rs".to_string()];
+        let spec = generate_spec("auth", &files, root, &specs_dir);
+        assert!(spec.contains("| `login` |"), "{spec}");
+        assert!(spec.contains("| `logout` |"), "{spec}");
+
+        // The populated table is visible to the spec symbol scanner.
+        let parsed = crate::parser::parse_frontmatter(&spec).unwrap();
+        let symbols = crate::parser::get_spec_symbols(&parsed.body);
+        assert!(symbols.iter().any(|s| s == "login"), "{symbols:?}");
+    }
+
+    #[test]
+    fn populate_public_api_table_no_exports_is_noop() {
+        let spec = "## Public API\n\nempty\n";
+        assert_eq!(populate_public_api_table(spec, &[]), spec);
     }
 }

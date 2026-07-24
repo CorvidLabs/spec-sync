@@ -17,11 +17,32 @@ fn normalize_rel(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
+/// Validation outcome recorded for a single spec at the time its hashes were
+/// cached, so a later warm-cache `check` can replay the same findings instead
+/// of silently dropping them (issue #429).
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct CachedSpecOutcome {
+    /// Validation errors (unprefixed messages) for the spec.
+    #[serde(default)]
+    pub errors: Vec<String>,
+    /// Validation warnings (unprefixed messages) for the spec.
+    #[serde(default)]
+    pub warnings: Vec<String>,
+    /// Informational notices (unprefixed messages) for the spec.
+    #[serde(default)]
+    pub notices: Vec<String>,
+}
+
 /// Stored content hashes for spec and source files.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct HashCache {
     /// Map from relative file path to its SHA-256 hex digest.
     pub hashes: HashMap<String, String>,
+    /// Map from relative spec path to the validation outcome recorded when the
+    /// spec was last validated. Missing for caches written before outcomes
+    /// were tracked (or by `rehash`); such specs simply replay no findings.
+    #[serde(default)]
+    pub outcomes: HashMap<String, CachedSpecOutcome>,
 }
 
 impl HashCache {
@@ -85,6 +106,8 @@ impl HashCache {
     /// Remove entries for files that no longer exist on disk.
     pub fn prune(&mut self, root: &Path) {
         self.hashes
+            .retain(|rel_path, _| root.join(rel_path).exists());
+        self.outcomes
             .retain(|rel_path, _| root.join(rel_path).exists());
     }
 }
@@ -338,6 +361,37 @@ mod tests {
 
         let loaded = HashCache::load(root);
         assert_eq!(loaded.hashes.get("specs/auth.spec.md").unwrap(), "abc123");
+    }
+
+    #[test]
+    fn outcomes_round_trip_and_default_for_old_caches() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        let mut cache = HashCache::default();
+        cache.outcomes.insert(
+            "specs/auth.spec.md".into(),
+            CachedSpecOutcome {
+                errors: vec![],
+                warnings: vec!["Undocumented export 'login'".into()],
+                notices: vec![],
+            },
+        );
+        cache.save(root).unwrap();
+
+        let loaded = HashCache::load(root);
+        let outcome = loaded.outcomes.get("specs/auth.spec.md").unwrap();
+        assert_eq!(outcome.warnings, vec!["Undocumented export 'login'"]);
+
+        // Caches written before outcomes were tracked still parse.
+        fs::write(
+            root.join(CACHE_DIR).join(CACHE_FILE),
+            r#"{"hashes":{"a":"b"}}"#,
+        )
+        .unwrap();
+        let loaded = HashCache::load(root);
+        assert!(loaded.outcomes.is_empty());
+        assert_eq!(loaded.hashes.get("a").unwrap(), "b");
     }
 
     #[test]

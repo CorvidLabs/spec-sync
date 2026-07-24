@@ -110,6 +110,26 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1784869238,
+      "commit": "3f830ea11456bbee6b7a6ba6c7e728157dcf27f0",
+      "contract_digest": "5592890d2ac472a734434eb3459da25281a98d5e20fe02e2c78e3e99ee08879a",
+      "workspace_digest": "8fbe2797bde26f2b7bebc61b97258e37c914f8fc864ad13d8ffced927c231028",
+      "passed": false,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

@@ -2045,3 +2045,168 @@ fn check_require_coverage_gate_fails_on_warm_cache() {
         .assert()
         .failure();
 }
+
+// ─── #429: warm-cache reruns replay cached findings ─────────────────────
+
+/// Project whose single spec validates with warnings only (one undocumented
+/// export), so the hash cache is written and the next run is cache-warm.
+fn warning_only_project(tmp: &TempDir) -> std::path::PathBuf {
+    let root = tmp.path().to_path_buf();
+    write_config(&root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/svc")).unwrap();
+    fs::write(
+        root.join("src/svc/api.ts"),
+        "export function documented() {}\nexport function extra() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/svc")).unwrap();
+    let spec = r#"---
+module: svc
+version: 1
+status: active
+files:
+  - src/svc/api.ts
+db_tables: []
+depends_on: []
+---
+
+# Svc
+
+## Purpose
+
+Service.
+
+## Public API
+
+### Exported Functions
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `documented` | none | void | Documented |
+
+## Invariants
+
+1. Valid.
+
+## Behavioral Examples
+
+### Scenario: Basic
+
+- **Given** precondition
+- **When** action
+- **Then** result
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+
+## Dependencies
+
+### Consumes
+
+| Module | What is used |
+|--------|-------------|
+
+### Consumed By
+
+| Module | What is used |
+|--------|-------------|
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+"#;
+    fs::write(root.join("specs/svc/svc.spec.md"), spec).unwrap();
+    root
+}
+
+#[test]
+fn warm_cache_json_replays_cached_warnings() {
+    let tmp = TempDir::new().unwrap();
+    let root = warning_only_project(&tmp);
+
+    let check_json = || {
+        let assert = specsync()
+            .current_dir(&root)
+            .args(["check", "--format", "json"])
+            .assert()
+            .success();
+        serde_json::from_slice::<serde_json::Value>(&assert.get_output().stdout)
+            .expect("single valid JSON result")
+    };
+
+    let cold = check_json();
+    assert_eq!(cold["specs_checked"], 1);
+    assert!(
+        !cold["warnings"].as_array().unwrap().is_empty(),
+        "cold run must report warnings"
+    );
+
+    // Warm rerun: the spec is unchanged, but the report must not collapse to
+    // specs_checked: 0 / warnings: [] — findings are replayed from the cache.
+    let warm = check_json();
+    assert_eq!(warm["passed"], true);
+    assert_eq!(warm["specs_checked"], 1);
+    assert_eq!(warm["specs_skipped"], 1);
+    let warnings: Vec<&str> = warm["warnings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|w| w.as_str().unwrap())
+        .collect();
+    assert!(
+        warnings.iter().any(|w| w.contains("(cached)")),
+        "warm run must replay cached warnings, got {warnings:?}"
+    );
+}
+
+#[test]
+fn warm_cache_text_replays_cached_warnings() {
+    let tmp = TempDir::new().unwrap();
+    let root = warning_only_project(&tmp);
+
+    // Cold run populates the cache.
+    specsync()
+        .current_dir(&root)
+        .arg("check")
+        .assert()
+        .success();
+
+    // Warm run: warnings are still visible, marked as cached.
+    specsync()
+        .current_dir(&root)
+        .arg("check")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("(cached)"));
+}
+
+#[test]
+fn rehash_writes_config_cache_entry() {
+    let tmp = TempDir::new().unwrap();
+    let root = warning_only_project(&tmp);
+
+    specsync().current_dir(&root).arg("rehash").assert().success();
+
+    let cache: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(root.join(".specsync/hashes.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        cache["hashes"].get("specsync.json").is_some(),
+        "rehash must cache the config entry `check` requires: {cache}"
+    );
+
+    // And the first `check` after `rehash` is a warm run, not a full
+    // re-validation.
+    specsync()
+        .current_dir(&root)
+        .arg("check")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("nothing to validate"));
+}

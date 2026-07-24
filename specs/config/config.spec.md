@@ -1,6 +1,6 @@
 ---
 module: config
-version: 12
+version: 13
 status: stable
 files:
   - src/config.rs
@@ -38,6 +38,13 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | `read_config_file` | `path: &Path` | `Option<String>` | Read a config file, dropping a leading UTF-8 BOM (lossless) so it does not attach to the first TOML key or break JSON parsing; shared by the loaders and `migrate` so config reads handle a BOM consistently. `None` if unreadable |
 | `parse_config_content_checked` | `config_path: &Path, content: &str, root: &Path` | `Result<SpecSyncConfig, String>` | Crate-private exact-byte JSON/TOML parser for retained callers; validates syntax and known TOML field types without reopening the path |
 | `parse_config_content_checked_with_source_dirs` | `config_path: &Path, content: &str, root: &Path, detected_source_dirs: Option<Vec<String>>` | `Result<SpecSyncConfig, String>` | Crate-private exact-byte parser that lets capability callers supply source discovery so omitted source directories never consult an ambient root path |
+| `is_detectable_source_file` | `path: &Path` | `bool` | Crate-private lexical source-file classifier shared by ambient and retained autodetection |
+
+**Exported Constants**
+
+| Constant | Type | Description |
+|----------|------|-------------|
+| `CONFIG_PATH_CANDIDATES` | `&[&str]` | Crate-private canonical-to-legacy configuration precedence shared by retained CLI discovery |
 
 ## Invariants
 
@@ -60,6 +67,10 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
     reopens or scans the ambient root pathname.
 14. Exact-byte checked JSON parsing rejects a non-object root, a non-object `github` section, and
     non-string/non-null `github.repo`; compatibility loading may preserve its sentinel behavior.
+15. Retained CLI discovery uses the shared configuration precedence and source-file classifier,
+    reads the selected config through a bounded no-follow capability, honors an explicit source
+    list without pre-scanning it, and preserves fail-loud compatibility fallback for malformed
+    legacy CLI config. MCP selected-config parsing remains strict.
 
 ## Behavioral Examples
 
@@ -143,6 +154,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | 2026-07-14 | CHG-0034-support-extensionless-source-discovery-through-an-explicit-include-extensionless: Support extensionless source discovery through an explicit include_extensionless setting while preserving omitted and empty source_extensions defaults, with parser, scanner, strict file coverage, LOC coverage, and wizard regressions for extensionless-only and mixed projects |
 | 2026-07-14 | CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str: Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts |
 | 2026-07-22 | CHG-0063 capability-source follow-up: Let exact-byte config callers supply retained-capability source discovery so omitted source dirs cannot consult a replaced ambient root |
+| 2026-07-24 | v13 / CHG-0063 exact-head remediation: expose shared config precedence and lexical source classification to retained CLI discovery while preserving explicit-source and malformed-config compatibility |
 
 ## Config File Structure
 

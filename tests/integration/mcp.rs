@@ -2397,6 +2397,56 @@ fn mcp_manifest_preflight_rejects_cycles_and_excessive_configured_paths() {
     );
 }
 
+#[test]
+fn mcp_manifest_traversal_accepts_duplicate_cargo_and_node_workspaces_once() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_minimal_mcp_project_at(root);
+    fs::create_dir_all(root.join("crates/member/src")).unwrap();
+    fs::create_dir_all(root.join("packages/member")).unwrap();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/member\", \"./crates/member\", \"crates/member\"]\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("crates/member/Cargo.toml"),
+        "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("crates/member/src/lib.rs"),
+        "pub fn member() {}\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("package.json"),
+        r#"{"workspaces":["packages/*","packages/*","packages/**"]}"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("packages/member/package.json"),
+        r#"{"name":"member"}"#,
+    )
+    .unwrap();
+
+    let responses = mcp_request(
+        root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": { "name": "specsync_coverage", "arguments": {} }
+        })],
+    );
+
+    assert_ne!(
+        responses[0]["result"]["isError"], true,
+        "duplicate workspace declarations must not trigger replay or a false failure: {}",
+        responses[0]
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn mcp_autodetection_preflight_honors_builtin_ignored_directories() {

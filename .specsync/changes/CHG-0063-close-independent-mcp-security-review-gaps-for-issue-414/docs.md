@@ -92,3 +92,13 @@ artifact: docs
   for both tools and resources and reject special/link/replacement races without attacker bytes.
 - Keep fresh Windows runtime and final repository/trust/provenance evidence described as pending
   until those gates actually pass.
+- Document the exact-head remediation contract: retained zero-config discovery; one shared
+  selected-spec/source byte-and-entry budget; bounded, deduplicated Cargo/Node workspace expansion;
+  nested config/manifest reachability; selected-spec identity continuity; explicit-config lazy
+  autodetection; independent checked-coverage race checkpoints; and targeted after-open/read,
+  invalid UTF-8, limit/limit-plus-one, duplicate-chain, ecosystem, and hosted-Windows reparse tests.
+- Record only the reported targeted counts. Do not describe the full post-remediation suite,
+  independent rereview, sandbox, hosted-Windows runtime, or final repository/trust/provenance/CI
+  gates as passing.
+- State explicitly that command-wide immutable CLI analysis and generic structured discovery
+  outcomes are deferred to later CLI/outcome/generation work outside issue #414.

@@ -38,6 +38,21 @@ Acceptance Criteria
 - Checked JSON rejects a non-object `github` value and non-string/non-null `github.repo` before the
   compatibility parser can substitute a sentinel or defaults.
 
+### REQUIREMENT REQ-config-008
+
+Retained CLI configuration discovery SHALL preserve established compatibility while acquiring
+selected bytes and omitted-source detection beneath one retained project capability.
+
+Acceptance Criteria
+
+- Canonical-to-legacy precedence and source-file classification are shared rather than duplicated.
+- Explicit source roots are parsed before autodetection and left to normal validation instead of
+  triggering unrelated manifest/source traversal.
+- A nested configuration parent must remain reachable from the retained project root before and
+  after its bounded read.
+- Invalid-UTF-8 legacy CLI config keeps its fail-loud warning and safe-default fallback.
+- Strict MCP selected-config parsing remains unchanged.
+
 ## MODIFIED
 
 ### SPEC SECTION Public API
@@ -58,6 +73,11 @@ Acceptance Criteria
 | `read_config_file` | `path: &Path` | `Option<String>` | Read a config file, dropping a leading UTF-8 BOM (lossless) so it does not attach to the first TOML key or break JSON parsing; shared by the loaders and `migrate` so config reads handle a BOM consistently. `None` if unreadable |
 | `parse_config_content_checked` | `config_path: &Path, content: &str, root: &Path` | `Result<SpecSyncConfig, String>` | Crate-private exact-byte JSON/TOML parser for retained callers; validates syntax and known TOML field types without reopening the path |
 | `parse_config_content_checked_with_source_dirs` | `config_path: &Path, content: &str, root: &Path, detected_source_dirs: Option<Vec<String>>` | `Result<SpecSyncConfig, String>` | Crate-private exact-byte parser with caller-supplied retained source discovery for omitted source fields |
+| `is_detectable_source_file` | `path: &Path` | `bool` | Crate-private lexical classifier shared by ambient and retained source detection |
+
+| Constant | Type | Description |
+|----------|------|-------------|
+| `CONFIG_PATH_CANDIDATES` | `&[&str]` | Crate-private canonical-to-legacy configuration precedence shared by retained CLI discovery |
 
 ### SPEC SECTION Invariants
 
@@ -76,3 +96,9 @@ Acceptance Criteria
     before applying the established compatibility parser.
 13. Capability callers may supply source-directory detection; omitted source fields consume that
     list without consulting an ambient root pathname.
+14. Security-sensitive zero-config source detection begins only after the caller retains the
+    project root and consumes manifest observations obtained through that capability.
+15. Retained CLI discovery reads config bytes through its project capability, honors explicit
+    source lists without pre-traversal, and preserves malformed legacy config warning fallback.
+16. Nested configuration parents are reverified through the retained project root around the
+    bounded read; a detached parent cannot become mixed-generation configuration authority.

@@ -721,17 +721,22 @@ fn collect_snapshot_manifest_inputs(
     configured_inputs: &mut Vec<PathBuf>,
     budget: &mut SnapshotBudget,
 ) -> Result<(), String> {
+    let mut configured_input_set: HashSet<PathBuf> = configured_inputs
+        .iter()
+        .map(|path| normalize_snapshot_input(path))
+        .collect();
     let gradle_modules = preload_gradle_manifests(source, budget)?
         .map(|content| parse_gradle_settings(&content))
         .transpose()?
         .unwrap_or_default();
     let mut cargo_manifests = vec![PathBuf::from("Cargo.toml")];
-    let mut seen = HashSet::new();
+    let mut seen_cargo_manifests = HashSet::new();
+    let mut seen_cargo_members = HashSet::new();
     while let Some(manifest) = cargo_manifests.pop() {
-        if !seen.insert(manifest.clone()) {
+        if !seen_cargo_manifests.insert(manifest.clone()) {
             continue;
         }
-        if seen.len() > MAX_MANIFEST_PREFLIGHTS {
+        if seen_cargo_manifests.len() > MAX_MANIFEST_PREFLIGHTS {
             return Err(format!(
                 "MCP snapshot manifest discovery exceeds {MAX_MANIFEST_PREFLIGHTS} manifests"
             ));
@@ -742,16 +747,27 @@ fn collect_snapshot_manifest_inputs(
         let manifest_dir = manifest.parent().unwrap_or_else(|| Path::new(""));
         let cargo = parse_cargo_snapshot_manifest(&content, &manifest)?;
         for member in cargo.workspace_members {
+            budget.charge_entries(1, "MCP snapshot manifest discovery")?;
             let member = snapshot_manifest_input(manifest_dir, &member, "Cargo workspace member")?;
-            configured_inputs.push(member.clone());
-            cargo_manifests.push(member.join("Cargo.toml"));
+            if seen_cargo_members.insert(member.clone()) {
+                push_unique_snapshot_input(
+                    configured_inputs,
+                    &mut configured_input_set,
+                    member.clone(),
+                );
+                cargo_manifests.push(member.join("Cargo.toml"));
+            }
         }
         for path in cargo.paths {
             if path.is_empty() {
                 continue;
             }
             let path = snapshot_manifest_input(manifest_dir, &path, "Cargo target path")?;
-            configured_inputs.push(path.parent().unwrap_or(&path).to_path_buf());
+            push_unique_snapshot_input(
+                configured_inputs,
+                &mut configured_input_set,
+                path.parent().unwrap_or(&path).to_path_buf(),
+            );
         }
     }
 
@@ -768,29 +784,50 @@ fn collect_snapshot_manifest_inputs(
                 .unwrap_or_default(),
             _ => Vec::new(),
         };
+        let mut seen_patterns = HashSet::new();
+        let mut seen_bases = HashSet::new();
         for pattern in patterns {
+            budget.charge_entries(1, "MCP snapshot manifest discovery")?;
+            if !seen_patterns.insert(pattern.to_string()) {
+                continue;
+            }
             let base = pattern.trim_end_matches("/*").trim_end_matches("/**");
-            configured_inputs.push(snapshot_manifest_input(
+            let base = snapshot_manifest_input(
                 Path::new(""),
                 if base.is_empty() { "." } else { base },
                 "package workspace base",
-            )?);
+            )?;
+            if seen_bases.insert(base.clone()) {
+                push_unique_snapshot_input(configured_inputs, &mut configured_input_set, base);
+            }
         }
         let main = package.get("main").and_then(Value::as_str).unwrap_or("");
         if main.starts_with("./") {
             let main = snapshot_manifest_input(Path::new(""), main, "package main path")?;
-            configured_inputs.push(main.parent().unwrap_or(&main).to_path_buf());
+            push_unique_snapshot_input(
+                configured_inputs,
+                &mut configured_input_set,
+                main.parent().unwrap_or(&main).to_path_buf(),
+            );
         }
         if source
             .try_exists("src")
             .map_err(|error| format!("Cannot inspect MCP package source directory: {error}"))?
         {
-            configured_inputs.push(PathBuf::from("src"));
+            push_unique_snapshot_input(
+                configured_inputs,
+                &mut configured_input_set,
+                PathBuf::from("src"),
+            );
         } else if source
             .try_exists("lib")
             .map_err(|error| format!("Cannot inspect MCP package library directory: {error}"))?
         {
-            configured_inputs.push(PathBuf::from("lib"));
+            push_unique_snapshot_input(
+                configured_inputs,
+                &mut configured_input_set,
+                PathBuf::from("lib"),
+            );
         }
     }
 
@@ -889,6 +926,17 @@ fn collect_snapshot_manifest_inputs(
         ));
     }
     Ok(())
+}
+
+fn push_unique_snapshot_input(
+    configured_inputs: &mut Vec<PathBuf>,
+    configured_input_set: &mut HashSet<PathBuf>,
+    input: PathBuf,
+) {
+    let normalized = normalize_snapshot_input(&input);
+    if configured_input_set.insert(normalized.clone()) {
+        configured_inputs.push(normalized);
+    }
 }
 
 fn preload_gradle_manifests(
@@ -1695,6 +1743,14 @@ fn copy_preloaded_snapshot_files(
 }
 
 impl SnapshotBudget {
+    fn charge_entries(&mut self, count: usize, label: &str) -> Result<(), String> {
+        self.entries = self.entries.saturating_add(count);
+        if self.entries > MAX_CONFINEMENT_ENTRIES {
+            return Err(format!("{label} exceeds {MAX_CONFINEMENT_ENTRIES} entries"));
+        }
+        Ok(())
+    }
+
     fn charge_file(&mut self, relative: &Path, bytes: u64) -> Result<(), String> {
         if !self.charged_paths.insert(relative.to_path_buf()) {
             return Ok(());
@@ -1777,12 +1833,7 @@ fn copy_snapshot_directory(
     })?;
 
     for entry in entries {
-        budget.entries += 1;
-        if budget.entries > MAX_CONFINEMENT_ENTRIES {
-            return Err(format!(
-                "MCP project snapshot exceeds {MAX_CONFINEMENT_ENTRIES} entries"
-            ));
-        }
+        budget.charge_entries(1, "MCP project snapshot")?;
         let entry = entry.map_err(|error| {
             format!(
                 "Cannot inspect MCP project entry beneath {}: {error}",
@@ -2942,14 +2993,16 @@ fn validate_manifest_inputs(root: &Path) -> Result<(), String> {
     let mut visiting = HashSet::new();
     let mut validated = HashSet::new();
     let mut manifests_seen = 0usize;
+    let mut traversal_entries_seen = 0usize;
     validate_cargo_workspace_manifest(
         root,
         root,
         &mut visiting,
         &mut validated,
         &mut manifests_seen,
+        &mut traversal_entries_seen,
     )?;
-    validate_package_workspaces(root)?;
+    validate_package_workspaces(root, &mut traversal_entries_seen)?;
     validate_gradle_modules(root)?;
     validate_python_package_path(root)?;
     Ok(())
@@ -3014,6 +3067,7 @@ fn validate_cargo_workspace_manifest(
     visiting: &mut HashSet<PathBuf>,
     validated: &mut HashSet<PathBuf>,
     manifests_seen: &mut usize,
+    traversal_entries_seen: &mut usize,
 ) -> Result<(), String> {
     let manifest_path = manifest_dir.join("Cargo.toml");
     match fs::symlink_metadata(&manifest_path) {
@@ -3056,13 +3110,24 @@ fn validate_cargo_workspace_manifest(
 
     let content = read_file_bounded(server_root, &manifest_path, "Cargo workspace manifest")?;
     let cargo = parse_cargo_snapshot_manifest(&content, &manifest_path)?;
+    let mut member_roots = HashSet::new();
     for member in cargo.workspace_members {
+        charge_manifest_traversal_entry(traversal_entries_seen, "MCP Cargo workspace preflight")?;
         let member_root = validate_manifest_relative_candidate(
             server_root,
             manifest_dir,
             &member,
             "Cargo workspace member",
         )?;
+        let member_key = member_root.canonicalize().unwrap_or_else(|_| {
+            member_root
+                .strip_prefix(server_root)
+                .map(normalize_snapshot_input)
+                .unwrap_or_else(|_| member_root.clone())
+        });
+        if !member_roots.insert(member_key) {
+            continue;
+        }
         let nested_manifest = member_root.join("Cargo.toml");
         match fs::symlink_metadata(&nested_manifest) {
             Ok(_) => validate_cargo_workspace_manifest(
@@ -3071,6 +3136,7 @@ fn validate_cargo_workspace_manifest(
                 visiting,
                 validated,
                 manifests_seen,
+                traversal_entries_seen,
             )?,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => {
@@ -3087,7 +3153,10 @@ fn validate_cargo_workspace_manifest(
     Ok(())
 }
 
-fn validate_package_workspaces(root: &Path) -> Result<(), String> {
+fn validate_package_workspaces(
+    root: &Path,
+    traversal_entries_seen: &mut usize,
+) -> Result<(), String> {
     let package_path = root.join("package.json");
     let content = match read_file_bounded(root, &package_path, "package workspace manifest") {
         Ok(content) => content,
@@ -3108,8 +3177,14 @@ fn validate_package_workspaces(root: &Path) -> Result<(), String> {
         _ => Vec::new(),
     };
 
-    let mut entries_seen = 0usize;
+    let mut seen_patterns = HashSet::new();
+    let mut seen_bases = HashSet::new();
+    let mut seen_workspaces = HashSet::new();
     for pattern in workspace_patterns {
+        charge_manifest_traversal_entry(traversal_entries_seen, "MCP package workspace preflight")?;
+        if !seen_patterns.insert(pattern.to_string()) {
+            continue;
+        }
         let base = pattern.trim_end_matches("/*").trim_end_matches("/**");
         let base_dir = if base.is_empty() {
             root.to_path_buf()
@@ -3126,7 +3201,10 @@ fn validate_package_workspaces(root: &Path) -> Result<(), String> {
                 ));
             }
         }
-        if !base_dir.canonicalize().is_ok_and(|path| path.is_dir()) {
+        let Ok(canonical_base) = base_dir.canonicalize() else {
+            continue;
+        };
+        if !canonical_base.is_dir() || !seen_bases.insert(canonical_base) {
             continue;
         }
         let entries = match fs::read_dir(&base_dir) {
@@ -3134,12 +3212,10 @@ fn validate_package_workspaces(root: &Path) -> Result<(), String> {
             Err(_) => continue,
         };
         for entry in entries {
-            entries_seen += 1;
-            if entries_seen > MAX_CONFINEMENT_ENTRIES {
-                return Err(format!(
-                    "MCP package workspace preflight exceeds {MAX_CONFINEMENT_ENTRIES} entries"
-                ));
-            }
+            charge_manifest_traversal_entry(
+                traversal_entries_seen,
+                "MCP package workspace preflight",
+            )?;
             let entry = entry.map_err(|error| {
                 format!(
                     "Cannot inspect entry beneath MCP package workspace base {}: {error}",
@@ -3154,6 +3230,9 @@ fn validate_package_workspaces(root: &Path) -> Result<(), String> {
                 )
             })?;
             if !canonical_entry.is_dir() {
+                continue;
+            }
+            if !seen_workspaces.insert(canonical_entry) {
                 continue;
             }
             let nested_package = entry.path().join("package.json");
@@ -3173,6 +3252,14 @@ fn validate_package_workspaces(root: &Path) -> Result<(), String> {
                 }
             }
         }
+    }
+    Ok(())
+}
+
+fn charge_manifest_traversal_entry(entries_seen: &mut usize, label: &str) -> Result<(), String> {
+    *entries_seen = entries_seen.saturating_add(1);
+    if *entries_seen > MAX_CONFINEMENT_ENTRIES {
+        return Err(format!("{label} exceeds {MAX_CONFINEMENT_ENTRIES} entries"));
     }
     Ok(())
 }
@@ -5920,6 +6007,69 @@ Test
     }
 
     #[test]
+    fn snapshot_workspace_declarations_are_charged_before_deduplication() {
+        let cargo = TempDir::new().unwrap();
+        fs::create_dir_all(cargo.path().join("crates/member")).unwrap();
+        fs::write(
+            cargo.path().join("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/member\", \"./crates/member\"]\n",
+        )
+        .unwrap();
+        fs::write(
+            cargo.path().join("crates/member/Cargo.toml"),
+            "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+        let cargo_source = open_test_directory(cargo.path());
+        let mut cargo_inputs = Vec::new();
+        let mut cargo_budget = SnapshotBudget {
+            entries: MAX_CONFINEMENT_ENTRIES - 2,
+            ..SnapshotBudget::default()
+        };
+
+        collect_snapshot_manifest_inputs(&cargo_source, &mut cargo_inputs, &mut cargo_budget)
+            .expect("two duplicate Cargo declarations must fit exactly at the traversal limit");
+
+        assert_eq!(cargo_budget.entries, MAX_CONFINEMENT_ENTRIES);
+        assert_eq!(
+            cargo_inputs
+                .iter()
+                .filter(|path| path.as_path() == Path::new("crates/member"))
+                .count(),
+            1
+        );
+
+        let node = TempDir::new().unwrap();
+        fs::write(
+            node.path().join("package.json"),
+            r#"{"workspaces":["packages/*","packages/*","packages/**"]}"#,
+        )
+        .unwrap();
+        let node_source = open_test_directory(node.path());
+        let mut node_inputs = Vec::new();
+        let mut node_budget = SnapshotBudget {
+            entries: MAX_CONFINEMENT_ENTRIES - 2,
+            ..SnapshotBudget::default()
+        };
+
+        let error =
+            collect_snapshot_manifest_inputs(&node_source, &mut node_inputs, &mut node_budget)
+                .expect_err(
+                    "a duplicate Node declaration beyond the traversal limit must be rejected",
+                );
+
+        assert!(error.contains("exceeds 100000 entries"), "{error}");
+        assert_eq!(node_budget.entries, MAX_CONFINEMENT_ENTRIES + 1);
+        assert_eq!(
+            node_inputs
+                .iter()
+                .filter(|path| path.as_path() == Path::new("packages"))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
     fn snapshot_copies_the_exact_manifest_bytes_charged_during_discovery() {
         let source_temp = TempDir::new().unwrap();
         let destination_temp = TempDir::new().unwrap();
@@ -7469,6 +7619,7 @@ project(':override').projectDir = file('vendor/custom')
         let mut visiting = HashSet::new();
         let mut validated = HashSet::new();
         let mut manifests_seen = MAX_MANIFEST_PREFLIGHTS;
+        let mut traversal_entries_seen = 0;
 
         let error = validate_cargo_workspace_manifest(
             tmp.path(),
@@ -7476,8 +7627,92 @@ project(':override').projectDir = file('vendor/custom')
             &mut visiting,
             &mut validated,
             &mut manifests_seen,
+            &mut traversal_entries_seen,
         )
         .unwrap_err();
         assert!(error.contains("preflight exceeds"));
+    }
+
+    #[test]
+    fn cargo_preflight_charges_duplicate_members_without_replaying_manifests() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join("crates/member")).unwrap();
+        fs::write(
+            tmp.path().join("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/member\", \"./crates/member\"]\n",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join("crates/member/Cargo.toml"),
+            "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+        let mut visiting = HashSet::new();
+        let mut validated = HashSet::new();
+        let mut manifests_seen = 0;
+        let mut traversal_entries_seen = MAX_CONFINEMENT_ENTRIES - 2;
+
+        validate_cargo_workspace_manifest(
+            tmp.path(),
+            tmp.path(),
+            &mut visiting,
+            &mut validated,
+            &mut manifests_seen,
+            &mut traversal_entries_seen,
+        )
+        .expect("duplicate members must fit exactly at the declaration limit");
+
+        assert_eq!(traversal_entries_seen, MAX_CONFINEMENT_ENTRIES);
+        assert_eq!(manifests_seen, 2);
+
+        fs::write(
+            tmp.path().join("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/member\", \"./crates/member\", \"crates/member\"]\n",
+        )
+        .unwrap();
+        let mut visiting = HashSet::new();
+        let mut validated = HashSet::new();
+        let mut manifests_seen = 0;
+        let mut traversal_entries_seen = MAX_CONFINEMENT_ENTRIES - 2;
+        let error = validate_cargo_workspace_manifest(
+            tmp.path(),
+            tmp.path(),
+            &mut visiting,
+            &mut validated,
+            &mut manifests_seen,
+            &mut traversal_entries_seen,
+        )
+        .expect_err("the limit-plus-one duplicate declaration must be rejected");
+
+        assert!(error.contains("exceeds 100000 entries"), "{error}");
+        assert_eq!(manifests_seen, 2);
+    }
+
+    #[test]
+    fn node_preflight_deduplicates_patterns_bases_and_workspace_paths() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join("packages/member")).unwrap();
+        fs::write(
+            tmp.path().join("packages/member/package.json"),
+            r#"{"name":"member"}"#,
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join("package.json"),
+            r#"{"workspaces":["packages/*","packages/*","packages/**"]}"#,
+        )
+        .unwrap();
+        let mut exact_entries_seen = MAX_CONFINEMENT_ENTRIES - 4;
+
+        validate_package_workspaces(tmp.path(), &mut exact_entries_seen)
+            .expect("three declarations plus one unique workspace must fit exactly");
+
+        assert_eq!(exact_entries_seen, MAX_CONFINEMENT_ENTRIES);
+
+        let mut overflow_entries_seen = MAX_CONFINEMENT_ENTRIES - 3;
+        let error = validate_package_workspaces(tmp.path(), &mut overflow_entries_seen)
+            .expect_err("the limit-plus-one Node declaration must be rejected");
+
+        assert!(error.contains("exceeds 100000 entries"), "{error}");
     }
 }

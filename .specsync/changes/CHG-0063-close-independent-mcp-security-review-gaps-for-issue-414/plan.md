@@ -80,3 +80,13 @@ artifact: plan
     statements, rejecting aliased/qualified/conditional/block-scoped/compound mutations, and
     ensuring unsupported multiline directive arguments cannot collapse into empty successful
     includes. Add parser plus CLI/MCP false-green regressions for every branch.
+23. Close the exact-head review findings by retaining configuration and zero-config discovery
+    authority, lazily autodetecting omitted source roots, reverifying nested config/manifest
+    parents, carrying selected-spec identities through ownership reads, charging shared
+    selected-spec/source bytes and entries, bounding and memoizing Cargo/Node workspace expansion
+    in manifest and MCP traversal, and retaining both checked-coverage race checkpoints. Add
+    injectable boundary, duplicate-chain, retained-input race, ecosystem-table, and hosted-Windows
+    junction/reparse regressions, then rerun exact-tree review and verification gates.
+24. Defer the command-wide immutable CLI analysis snapshot and generic structured discovery
+    outcomes to the later CLI/outcome/generation work. They are outside GitHub #414's MCP boundary
+    and are not completion claims for CHG-0063.

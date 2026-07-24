@@ -24,6 +24,11 @@ Acceptance Criteria
 - Manifest discovery parses Cargo workspace membership as TOML and comment/escape-aware Gradle
   settings, charges deduplicated manifest bytes to the shared cumulative input budget, and copies
   the exact preflight buffers.
+- Every declared Cargo member and Node workspace pattern consumes bounded expansion work;
+  snapshot collection and preflight charge declarations before deduplication, normalize patterns,
+  bases, workspace paths, and manifest nodes, and reuse completed results.
+- Zero-config manifest/source detection begins after root capability retention and accepts only
+  retained manifest observations as source-directory authority.
 - Before any manifest-derived traversal, every present `build.gradle`, `build.gradle.kts`,
   `settings.gradle`, and `settings.gradle.kts` candidate is opened no-follow and non-blocking
   through the retained root capability, required to remain a regular non-link file with stable
@@ -165,3 +170,8 @@ Acceptance Criteria
 30. Unix verification always exercises FIFO rejection and exercises socket rejection when the
     host permits socket fixture creation; host-level `PermissionDenied` marks only that fixture
     unavailable rather than failing before the security assertion.
+31. Cargo/Node workspace expansion is bounded independently of retained-byte uniqueness and reuses
+    completed normalized nodes; snapshot collection and preflight both charge declarations before
+    deduplication.
+32. Zero-config source selection consumes retained configuration/manifest observations after root
+    retention.

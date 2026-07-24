@@ -47,6 +47,12 @@ const IGNORED_DIRS: &[&str] = &[
     "obj",
 ];
 const DEFAULT_STATIC_SOURCE_EXTENSIONS: &[&str] = &["html", "htm", "css"];
+pub(crate) const CONFIG_PATH_CANDIDATES: &[&str] = &[
+    ".specsync/config.toml",
+    ".specsync/config.json",
+    ".specsync.toml",
+    "specsync.json",
+];
 
 pub(crate) fn source_detection_ignores_directory(name: &str) -> bool {
     name.starts_with('.') || IGNORED_DIRS.contains(&name)
@@ -160,7 +166,7 @@ fn dir_contains_source_files(dir: &Path, ignored: &HashSet<&str>, max_depth: usi
     false
 }
 
-fn is_detectable_source_file(path: &Path) -> bool {
+pub(crate) fn is_detectable_source_file(path: &Path) -> bool {
     has_extension(path, &[])
         || path
             .extension()

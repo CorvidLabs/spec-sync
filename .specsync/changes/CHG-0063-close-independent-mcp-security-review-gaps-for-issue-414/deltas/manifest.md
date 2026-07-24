@@ -54,6 +54,13 @@ Acceptance Criteria
   retained project capability. Reads are no-follow, non-blocking, identity-continuous, strict
   UTF-8, and bounded to 8 MiB each/64 MiB cumulatively; directory discovery is sorted and bounded
   to 100,000 entries/256 components. Ambient parser reads are forbidden.
+- Every declared Cargo workspace member and Node workspace pattern consumes a deterministic
+  expansion-work entry before traversal. Normalized workspace nodes are deduplicated and completed
+  results are memoized; budget exhaustion returns an inconclusive checked error without partial
+  modules or repeated subtree parsing.
+- Nested manifest/workspace directories remain reachable through the retained project root after
+  enumeration and before/after reads; detached-parent replacement fails without mixing
+  generations.
 
 ### SPEC SECTION Public API
 
@@ -113,3 +120,7 @@ Acceptance Criteria
 15. Every recognized checked manifest ecosystem and nested workspace probe uses the caller's
     retained project capability with deterministic byte, entry, depth, UTF-8, link, special-file,
     and identity enforcement; ambient paths are only a final replacement diagnostic.
+16. Cargo/Node workspace expansion charges declarations independently of unique retained bytes,
+    deduplicates normalized nodes, and reuses completed results.
+17. Retained nested manifest/workspace parents are reverified through the project root around
+    enumeration and reads.

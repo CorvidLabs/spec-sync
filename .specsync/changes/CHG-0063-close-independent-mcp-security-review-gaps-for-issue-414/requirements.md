@@ -374,6 +374,18 @@ Acceptance Criteria
 - Malformed JSON/TOML and wrong-shaped known TOML fields return an error rather than silently
   accepting compatibility defaults.
 
+### REQ-config-008
+
+Retained CLI configuration discovery SHALL preserve established compatibility while acquiring
+selected bytes and omitted-source detection beneath one retained project capability.
+
+Acceptance Criteria
+
+- Canonical-to-legacy precedence and source-file classification are shared rather than duplicated.
+- Explicit source roots are left to normal validation instead of being pre-traversed.
+- Invalid-UTF-8 legacy CLI config keeps its fail-loud warning and safe-default fallback.
+- Strict MCP selected-config parsing remains unchanged.
+
 ### REQ-validator-008
 
 Coverage gates SHALL use fallible checked manifest discovery and SHALL report malformed or unreadable
@@ -387,6 +399,17 @@ Acceptance Criteria
   source traversal, and final root verification share one retained project capability. Spec/source
   inputs are no-follow, non-blocking, identity-continuous, valid UTF-8, and bounded to 8 MiB/file,
   64 MiB cumulatively, 100,000 entries, and 256 path components.
+- The root capability is retained before configuration and zero-config manifest/source detection.
+  Nested configuration/manifest parents remain reachable from it, every selected spec and source
+  inventory entry is charged to the shared entry bound, and retained selected-spec identities
+  remain authoritative through ownership reads.
+- Explicit `source_dirs` are parsed before autodetection; only omitted source directories trigger
+  retained manifest/source discovery.
+- Separate deterministic checkpoints immediately after root retention and after discovery cover
+  `compute_coverage_checked`; gate callers propagate replacement failures without partial coverage
+  totals or outside reads.
+- A command-wide immutable CLI analysis snapshot and generic structured discovery outcomes are
+  outside this issue's MCP boundary and remain assigned to later CLI/outcome/generation work.
 - `compute_coverage` remains a compatibility wrapper carrying an inconclusive diagnostic.
 
 ### REQ-validator-001
@@ -454,6 +477,12 @@ Acceptance Criteria
   directories, and manifest-derived source probes are acquired only through the retained project
   capability. Inputs are no-follow, non-blocking, identity-continuous, valid UTF-8, and bounded to
   8 MiB/file, 64 MiB cumulatively, 100,000 entries, and 256 path components.
+- Every declared Cargo member and Node workspace pattern consumes a deterministic expansion-work
+  entry before traversal. Normalized workspace nodes are deduplicated and completed results are
+  memoized; limit-plus-one fails checked discovery without partial modules or repeated subtree
+  parsing.
+- Nested manifest/workspace directories remain reachable through the retained project root after
+  enumeration and around reads; detached-parent replacement fails without mixing generations.
 - Every present filename variant is preflighted before selection, remains identity-stable through
   read, and invoked unsupported inclusion APIs fail closed without rejecting unrelated control
   flow.

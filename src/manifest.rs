@@ -86,8 +86,12 @@ pub(crate) fn discover_from_manifests_checked_with_root(
     let mut access = RetainedManifestAccess::new(project_root);
     let mut discovery = ManifestDiscovery::default();
 
-    if let Some(d) = parse_cargo_toml_with_access(&mut access, Path::new(""), &mut HashSet::new())?
-    {
+    if let Some(d) = parse_cargo_toml_with_access(
+        &mut access,
+        Path::new(""),
+        &mut HashSet::new(),
+        &mut HashSet::new(),
+    )? {
         merge_discovery(&mut discovery, d);
     }
     if let Some(d) = parse_package_swift_with_access(&mut access)? {
@@ -128,6 +132,9 @@ trait ManifestAccess {
     fn read_text(&mut self, relative: &Path, label: &str) -> Result<Option<String>, String>;
     fn directory_exists(&mut self, relative: &Path, label: &str) -> Result<bool, String>;
     fn child_directories(&mut self, relative: &Path, label: &str) -> Result<Vec<String>, String>;
+    fn charge_entries(&mut self, _count: usize, _label: &str) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -180,6 +187,72 @@ impl<'a> RetainedManifestAccess<'a> {
             children: HashMap::new(),
         }
     }
+
+    fn child_directories_with_hook<AfterTraversal>(
+        &mut self,
+        relative: &Path,
+        label: &str,
+        after_traversal: AfterTraversal,
+    ) -> Result<Vec<String>, String>
+    where
+        AfterTraversal: FnOnce(),
+    {
+        let relative = normalize_retained_manifest_path(relative, label)?;
+        if let Some(cached) = self.children.get(&relative) {
+            return Ok(cached.clone());
+        }
+        let Some(directory) = open_retained_manifest_directory(self.root, &relative, label)? else {
+            self.children.insert(relative, Vec::new());
+            return Ok(Vec::new());
+        };
+        let mut names: Vec<OsString> = Vec::new();
+        let entries = directory.read_dir(".").map_err(|error| {
+            format!(
+                "Cannot read retained {label} directory {}: {error}",
+                display_manifest_path(&relative)
+            )
+        })?;
+        for entry in entries {
+            let entry = entry.map_err(|error| {
+                format!(
+                    "Cannot inspect retained {label} directory {}: {error}",
+                    display_manifest_path(&relative)
+                )
+            })?;
+            self.charge_entries(1, label)?;
+            names.push(entry.file_name());
+        }
+        names.sort();
+        let mut children = Vec::new();
+        for name in names {
+            let name_text = name.to_str().ok_or_else(|| {
+                format!(
+                    "Retained {label} path beneath {} is not valid UTF-8",
+                    display_manifest_path(&relative)
+                )
+            })?;
+            let child = relative.join(&name);
+            let metadata = directory.symlink_metadata(&name).map_err(|error| {
+                format!(
+                    "Cannot inspect retained {label} path {}: {error}",
+                    child.display()
+                )
+            })?;
+            if gradle_metadata_is_link(&metadata) {
+                return Err(format!(
+                    "Retained {label} path {} must not be a symlink or reparse point",
+                    child.display()
+                ));
+            }
+            if metadata.is_dir() {
+                children.push(name_text.to_string());
+            }
+        }
+        after_traversal();
+        verify_retained_manifest_directory_edge(self.root, &relative, &directory, label)?;
+        self.children.insert(relative, children.clone());
+        Ok(children)
+    }
 }
 
 impl ManifestAccess for RetainedManifestAccess<'_> {
@@ -222,64 +295,17 @@ impl ManifestAccess for RetainedManifestAccess<'_> {
     }
 
     fn child_directories(&mut self, relative: &Path, label: &str) -> Result<Vec<String>, String> {
-        let relative = normalize_retained_manifest_path(relative, label)?;
-        if let Some(cached) = self.children.get(&relative) {
-            return Ok(cached.clone());
+        self.child_directories_with_hook(relative, label, || {})
+    }
+
+    fn charge_entries(&mut self, count: usize, _label: &str) -> Result<(), String> {
+        if self.entries.saturating_add(count) > MAX_RETAINED_MANIFEST_ENTRIES {
+            return Err(format!(
+                "Retained manifest discovery exceeds the {MAX_RETAINED_MANIFEST_ENTRIES}-entry limit"
+            ));
         }
-        let Some(directory) = open_retained_manifest_directory(self.root, &relative, label)? else {
-            self.children.insert(relative, Vec::new());
-            return Ok(Vec::new());
-        };
-        let mut names: Vec<OsString> = Vec::new();
-        let entries = directory.read_dir(".").map_err(|error| {
-            format!(
-                "Cannot read retained {label} directory {}: {error}",
-                display_manifest_path(&relative)
-            )
-        })?;
-        for entry in entries {
-            let entry = entry.map_err(|error| {
-                format!(
-                    "Cannot inspect retained {label} directory {}: {error}",
-                    display_manifest_path(&relative)
-                )
-            })?;
-            names.push(entry.file_name());
-            if self.entries.saturating_add(names.len()) > MAX_RETAINED_MANIFEST_ENTRIES {
-                return Err(format!(
-                    "Retained manifest discovery exceeds the {MAX_RETAINED_MANIFEST_ENTRIES}-entry limit"
-                ));
-            }
-        }
-        names.sort();
-        self.entries = self.entries.saturating_add(names.len());
-        let mut children = Vec::new();
-        for name in names {
-            let name_text = name.to_str().ok_or_else(|| {
-                format!(
-                    "Retained {label} path beneath {} is not valid UTF-8",
-                    display_manifest_path(&relative)
-                )
-            })?;
-            let child = relative.join(&name);
-            let metadata = directory.symlink_metadata(&name).map_err(|error| {
-                format!(
-                    "Cannot inspect retained {label} path {}: {error}",
-                    child.display()
-                )
-            })?;
-            if gradle_metadata_is_link(&metadata) {
-                return Err(format!(
-                    "Retained {label} path {} must not be a symlink or reparse point",
-                    child.display()
-                ));
-            }
-            if metadata.is_dir() {
-                children.push(name_text.to_string());
-            }
-        }
-        self.children.insert(relative, children.clone());
-        Ok(children)
+        self.entries = self.entries.saturating_add(count);
+        Ok(())
     }
 }
 
@@ -417,6 +443,41 @@ fn open_retained_manifest_directory(
     Ok(Some(directory))
 }
 
+fn verify_retained_manifest_directory_edge(
+    root: &Dir,
+    relative: &Path,
+    expected: &Dir,
+    label: &str,
+) -> Result<(), String> {
+    let Some(observed) = open_retained_manifest_directory(root, relative, label)? else {
+        return Err(format!(
+            "Retained {label} directory {} changed during confined read",
+            display_manifest_path(relative)
+        ));
+    };
+    let expected_metadata = expected.dir_metadata().map_err(|error| {
+        format!(
+            "Cannot identify retained {label} directory {}: {error}",
+            display_manifest_path(relative)
+        )
+    })?;
+    let observed_metadata = observed.dir_metadata().map_err(|error| {
+        format!(
+            "Cannot identify re-opened retained {label} directory {}: {error}",
+            display_manifest_path(relative)
+        )
+    })?;
+    if gradle_filesystem_identity(&expected_metadata)?
+        != gradle_filesystem_identity(&observed_metadata)?
+    {
+        return Err(format!(
+            "Retained {label} directory {} changed during confined read",
+            display_manifest_path(relative)
+        ));
+    }
+    Ok(())
+}
+
 fn read_retained_manifest_text(
     root: &Dir,
     relative: &Path,
@@ -515,6 +576,7 @@ where
         )
     })?;
     after_open();
+    verify_retained_manifest_directory_edge(root, parent, &directory, label)?;
     let after_open = directory.symlink_metadata(name).map_err(|error| {
         format!(
             "Cannot re-inspect retained {label} file {} after open: {error}",
@@ -566,6 +628,7 @@ where
             relative.display()
         )
     })?;
+    verify_retained_manifest_directory_edge(root, parent, &directory, label)?;
     if gradle_metadata_is_link(&after_read)
         || !after_read.is_file()
         || before_identity != gradle_filesystem_identity(&after_read)?
@@ -591,25 +654,37 @@ where
 #[cfg(test)]
 fn parse_cargo_toml(root: &Path) -> Option<ManifestDiscovery> {
     let mut access = AmbientManifestAccess { root };
-    parse_cargo_toml_with_access(&mut access, Path::new(""), &mut HashSet::new())
-        .ok()
-        .flatten()
+    parse_cargo_toml_with_access(
+        &mut access,
+        Path::new(""),
+        &mut HashSet::new(),
+        &mut HashSet::new(),
+    )
+    .ok()
+    .flatten()
 }
 
 fn parse_cargo_toml_with_access(
     access: &mut dyn ManifestAccess,
     relative_root: &Path,
     active: &mut HashSet<PathBuf>,
+    completed: &mut HashSet<PathBuf>,
 ) -> Result<Option<ManifestDiscovery>, String> {
     let relative_root = normalize_retained_manifest_path(relative_root, "Cargo workspace")?;
+    if completed.contains(&relative_root) {
+        return Ok(None);
+    }
     if !active.insert(relative_root.clone()) {
         return Err(format!(
             "Retained Cargo workspace cycle revisits {}",
             display_manifest_path(&relative_root)
         ));
     }
-    let result = parse_cargo_toml_with_access_inner(access, &relative_root, active);
+    let result = parse_cargo_toml_with_access_inner(access, &relative_root, active, completed);
     active.remove(&relative_root);
+    if result.is_ok() {
+        completed.insert(relative_root);
+    }
     result
 }
 
@@ -617,6 +692,7 @@ fn parse_cargo_toml_with_access_inner(
     access: &mut dyn ManifestAccess,
     relative_root: &Path,
     active: &mut HashSet<PathBuf>,
+    completed: &mut HashSet<PathBuf>,
 ) -> Result<Option<ManifestDiscovery>, String> {
     let manifest_path = relative_root.join("Cargo.toml");
     let Some(content) = access.read_text(&manifest_path, "Cargo manifest")? else {
@@ -665,13 +741,20 @@ fn parse_cargo_toml_with_access_inner(
 
     // Check for workspace members
     if let Some(members_str) = extract_toml_array(&content, "members", Some("[workspace]")) {
+        access.charge_entries(members_str.len(), "Cargo workspace declaration")?;
+        let mut expanded_members = HashSet::new();
         for member in members_str {
             // Workspace members are subdirectories with their own Cargo.toml
             let member_root = normalize_retained_manifest_path(
                 &relative_root.join(&member),
                 "Cargo workspace member",
             )?;
-            if let Some(sub) = parse_cargo_toml_with_access(access, &member_root, active)? {
+            if !expanded_members.insert(member_root.clone()) {
+                continue;
+            }
+            if let Some(sub) =
+                parse_cargo_toml_with_access(access, &member_root, active, completed)?
+            {
                 for (_, module) in sub.modules {
                     discovery
                         .modules
@@ -2328,25 +2411,36 @@ fn parse_package_json_with_access(
 
     // Check for workspaces (monorepo)
     if let Some(workspaces) = json.get("workspaces") {
-        let workspace_patterns: Vec<&str> = match workspaces {
-            serde_json::Value::Array(arr) => arr.iter().filter_map(|v| v.as_str()).collect(),
+        let (workspace_patterns, declared_entries): (Vec<&str>, usize) = match workspaces {
+            serde_json::Value::Array(arr) => {
+                (arr.iter().filter_map(|v| v.as_str()).collect(), arr.len())
+            }
             serde_json::Value::Object(obj) => {
                 if let Some(serde_json::Value::Array(arr)) = obj.get("packages") {
-                    arr.iter().filter_map(|v| v.as_str()).collect()
+                    (arr.iter().filter_map(|v| v.as_str()).collect(), arr.len())
                 } else {
-                    Vec::new()
+                    (Vec::new(), 0)
                 }
             }
-            _ => Vec::new(),
+            _ => (Vec::new(), 0),
         };
 
+        access.charge_entries(declared_entries, "Node workspace declaration")?;
+        let mut expanded_bases = HashSet::new();
+        let mut seen_workspaces = HashSet::new();
         for pattern in workspace_patterns {
             // Simple glob: "packages/*" → look for subdirs
             let base = pattern.trim_end_matches("/*").trim_end_matches("/**");
             let base_dir =
                 normalize_retained_manifest_path(Path::new(base), "Node workspace base")?;
+            if !expanded_bases.insert(base_dir.clone()) {
+                continue;
+            }
             for ws_name in access.child_directories(&base_dir, "Node workspace")? {
                 let workspace = base_dir.join(&ws_name);
+                if !seen_workspaces.insert(workspace.clone()) {
+                    continue;
+                }
                 if access
                     .read_text(
                         &workspace.join("package.json"),
@@ -2651,6 +2745,63 @@ mod tests {
     use std::fs;
     use tempfile::tempdir;
 
+    struct CountingManifestAccess {
+        texts: HashMap<PathBuf, String>,
+        directories: HashSet<PathBuf>,
+        children: HashMap<PathBuf, Vec<String>>,
+        text_reads: HashMap<PathBuf, usize>,
+        child_reads: HashMap<PathBuf, usize>,
+        entries: usize,
+        entry_limit: usize,
+    }
+
+    impl CountingManifestAccess {
+        fn new(entry_limit: usize) -> Self {
+            Self {
+                texts: HashMap::new(),
+                directories: HashSet::new(),
+                children: HashMap::new(),
+                text_reads: HashMap::new(),
+                child_reads: HashMap::new(),
+                entries: 0,
+                entry_limit,
+            }
+        }
+    }
+
+    impl ManifestAccess for CountingManifestAccess {
+        fn read_text(&mut self, relative: &Path, _label: &str) -> Result<Option<String>, String> {
+            *self.text_reads.entry(relative.to_path_buf()).or_default() += 1;
+            Ok(self.texts.get(relative).cloned())
+        }
+
+        fn directory_exists(&mut self, relative: &Path, _label: &str) -> Result<bool, String> {
+            Ok(self.directories.contains(relative))
+        }
+
+        fn child_directories(
+            &mut self,
+            relative: &Path,
+            _label: &str,
+        ) -> Result<Vec<String>, String> {
+            *self.child_reads.entry(relative.to_path_buf()).or_default() += 1;
+            let children = self.children.get(relative).cloned().unwrap_or_default();
+            self.charge_entries(children.len(), "test child directory")?;
+            Ok(children)
+        }
+
+        fn charge_entries(&mut self, count: usize, _label: &str) -> Result<(), String> {
+            if self.entries.saturating_add(count) > self.entry_limit {
+                return Err(format!(
+                    "Retained manifest discovery exceeds the {}-entry limit",
+                    self.entry_limit
+                ));
+            }
+            self.entries = self.entries.saturating_add(count);
+            Ok(())
+        }
+    }
+
     #[test]
     fn test_parse_cargo_toml_basic() {
         let tmp = tempdir().unwrap();
@@ -2676,6 +2827,64 @@ regex = "1.0"
         assert_eq!(module.source_paths, vec!["src"]);
         assert!(module.dependencies.contains(&"serde".to_string()));
         assert!(module.dependencies.contains(&"regex".to_string()));
+    }
+
+    #[test]
+    fn cargo_workspace_traversal_charges_declarations_and_memoizes_completed_members() {
+        let mut access = CountingManifestAccess::new(MAX_RETAINED_MANIFEST_ENTRIES);
+        access.texts.insert(
+            PathBuf::from("Cargo.toml"),
+            "[workspace]\nmembers = [\"level-one\", \"level-one\"]\n".to_string(),
+        );
+        access.texts.insert(
+            PathBuf::from("level-one/Cargo.toml"),
+            "[package]\nname = \"level-one\"\n[workspace]\nmembers = [\"level-two\", \"level-two\"]\n"
+                .to_string(),
+        );
+        access.texts.insert(
+            PathBuf::from("level-one/level-two/Cargo.toml"),
+            "[package]\nname = \"level-two\"\n".to_string(),
+        );
+
+        let mut active = HashSet::new();
+        let mut completed = HashSet::new();
+        let discovery =
+            parse_cargo_toml_with_access(&mut access, Path::new(""), &mut active, &mut completed)
+                .unwrap()
+                .unwrap();
+
+        assert!(discovery.modules.contains_key("level-one"));
+        assert!(discovery.modules.contains_key("level-two"));
+        assert_eq!(access.entries, 4);
+        assert_eq!(access.text_reads[Path::new("Cargo.toml")], 1);
+        assert_eq!(access.text_reads[Path::new("level-one/Cargo.toml")], 1);
+        assert_eq!(
+            access.text_reads[Path::new("level-one/level-two/Cargo.toml")],
+            1
+        );
+        assert_eq!(completed.len(), 3);
+        assert!(active.is_empty());
+    }
+
+    #[test]
+    fn retained_entry_budget_accepts_the_limit_and_rejects_limit_plus_one() {
+        let project = tempdir().unwrap();
+        let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
+        let mut access = RetainedManifestAccess::new(&retained);
+
+        access
+            .charge_entries(MAX_RETAINED_MANIFEST_ENTRIES, "workspace declarations")
+            .unwrap();
+        assert_eq!(access.entries, MAX_RETAINED_MANIFEST_ENTRIES);
+
+        let error = access
+            .charge_entries(1, "workspace declaration")
+            .unwrap_err();
+        assert!(
+            error.contains(&format!("{MAX_RETAINED_MANIFEST_ENTRIES}-entry limit")),
+            "{error}"
+        );
+        assert_eq!(access.entries, MAX_RETAINED_MANIFEST_ENTRIES);
     }
 
     #[test]
@@ -2743,6 +2952,37 @@ let package = Package(
             result
                 .source_dirs
                 .contains(&"packages/core/src".to_string())
+        );
+    }
+
+    #[test]
+    fn node_workspace_traversal_charges_patterns_and_deduplicates_cached_expansion() {
+        let mut access = CountingManifestAccess::new(MAX_RETAINED_MANIFEST_ENTRIES);
+        access.texts.insert(
+            PathBuf::from("package.json"),
+            r#"{"name":"root","workspaces":["packages/*","packages/**"]}"#.to_string(),
+        );
+        access
+            .children
+            .insert(PathBuf::from("packages"), vec!["member".to_string()]);
+        access.texts.insert(
+            PathBuf::from("packages/member/package.json"),
+            r#"{"name":"member"}"#.to_string(),
+        );
+        access
+            .directories
+            .insert(PathBuf::from("packages/member/src"));
+
+        let discovery = parse_package_json_with_access(&mut access)
+            .unwrap()
+            .unwrap();
+
+        assert!(discovery.modules.contains_key("member"));
+        assert_eq!(access.entries, 3);
+        assert_eq!(access.child_reads[Path::new("packages")], 1);
+        assert_eq!(
+            access.text_reads[Path::new("packages/member/package.json")],
+            1
         );
     }
 
@@ -3035,10 +3275,14 @@ include(":member")
         symlink(&replacement, &root).unwrap();
 
         let mut access = RetainedManifestAccess::new(&retained);
-        let discovery =
-            parse_cargo_toml_with_access(&mut access, Path::new(""), &mut HashSet::new())
-                .unwrap()
-                .unwrap();
+        let discovery = parse_cargo_toml_with_access(
+            &mut access,
+            Path::new(""),
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        )
+        .unwrap()
+        .unwrap();
 
         assert!(discovery.modules.contains_key("retained-project"));
         assert!(!discovery.modules.contains_key("replacement-project"));
@@ -3071,6 +3315,34 @@ include(":member")
         assert!(!error.contains(sentinel), "{error}");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn retained_duplicate_cargo_members_reject_a_linked_workspace_without_disclosure() {
+        use std::os::unix::fs::symlink;
+
+        let project = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        let sentinel = "RETAINED_WORKSPACE_SENTINEL";
+        fs::write(
+            project.path().join("Cargo.toml"),
+            "[workspace]\nmembers = [\"member\", \"member\"]\n",
+        )
+        .unwrap();
+        fs::write(
+            outside.path().join("Cargo.toml"),
+            format!("[package]\nname = \"{sentinel}\"\n"),
+        )
+        .unwrap();
+        symlink(outside.path(), project.path().join("member")).unwrap();
+        let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
+
+        let error =
+            discover_from_manifests_checked_with_root(project.path(), &retained).unwrap_err();
+
+        assert!(error.contains("symlink or reparse point"), "{error}");
+        assert!(!error.contains(sentinel), "{error}");
+    }
+
     #[test]
     fn retained_non_gradle_manifest_access_rejects_non_regular_and_oversized_inputs() {
         let non_regular = tempdir().unwrap();
@@ -3090,6 +3362,90 @@ include(":member")
             discover_from_manifests_checked_with_root(oversized.path(), &retained).unwrap_err();
         assert!(error.contains("exceeds the"), "{error}");
         assert!(error.contains("byte limit"), "{error}");
+    }
+
+    #[test]
+    fn retained_nested_manifest_read_rejects_a_replaced_parent_directory() {
+        let project = tempdir().unwrap();
+        let workspace = project.path().join("workspace");
+        let original = project.path().join("original-workspace");
+        let replacement = project.path().join("replacement-workspace");
+        fs::create_dir(&workspace).unwrap();
+        fs::create_dir(&replacement).unwrap();
+        fs::write(
+            workspace.join("Cargo.toml"),
+            "[package]\nname = \"retained\"\n",
+        )
+        .unwrap();
+        let sentinel = "REPLACEMENT_MANIFEST_SENTINEL";
+        fs::write(
+            replacement.join("Cargo.toml"),
+            format!("[package]\nname = \"{sentinel}\"\n"),
+        )
+        .unwrap();
+        let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
+
+        let error = read_retained_manifest_text_with_hook(
+            &retained,
+            Path::new("workspace/Cargo.toml"),
+            "Cargo manifest",
+            MAX_RETAINED_MANIFEST_BYTES,
+            MAX_RETAINED_MANIFEST_INPUT_BYTES,
+            || {
+                fs::rename(&workspace, &original).unwrap();
+                fs::rename(&replacement, &workspace).unwrap();
+            },
+        )
+        .unwrap_err();
+
+        assert!(error.contains("directory workspace changed"), "{error}");
+        assert!(!error.contains(sentinel), "{error}");
+    }
+
+    fn assert_retained_child_enumeration_rejects_nested_directory_replacement(
+        relative: &Path,
+        label: &str,
+    ) {
+        let project = tempdir().unwrap();
+        let workspace = project.path().join(relative);
+        let detached = project.path().join("detached-workspace");
+        let replacement = project.path().join("replacement-workspace");
+        fs::create_dir_all(workspace.join("original-member")).unwrap();
+        fs::create_dir_all(replacement.join("replacement-member")).unwrap();
+        let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
+        let mut access = RetainedManifestAccess::new(&retained);
+
+        let error = access
+            .child_directories_with_hook(relative, label, || {
+                fs::rename(&workspace, &detached).unwrap();
+                fs::rename(&replacement, &workspace).unwrap();
+            })
+            .unwrap_err();
+
+        assert!(
+            error.contains(&format!(
+                "Retained {label} directory {} changed during confined read",
+                relative.display()
+            )),
+            "{error}"
+        );
+        assert!(!access.children.contains_key(relative));
+    }
+
+    #[test]
+    fn retained_cargo_child_enumeration_rejects_nested_regular_directory_replacement() {
+        assert_retained_child_enumeration_rejects_nested_directory_replacement(
+            Path::new("nested/crates"),
+            "Cargo workspace",
+        );
+    }
+
+    #[test]
+    fn retained_node_child_enumeration_rejects_nested_regular_directory_replacement() {
+        assert_retained_child_enumeration_rejects_nested_directory_replacement(
+            Path::new("nested/packages"),
+            "Node workspace",
+        );
     }
 
     #[test]

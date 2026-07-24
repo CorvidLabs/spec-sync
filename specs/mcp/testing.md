@@ -38,6 +38,7 @@ spec: mcp.spec.md
 | Ignored or configured-exclusion basename is a symlink | Skipped before following target metadata unless an explicit configured input names it or a descendant; broad ancestor inputs do not override `excludeDirs` |
 | `sourceDirs: ["."]` or Cargo/Gradle manifest member beneath an ignored directory | Included and copied from exact bytes charged to the same bounded snapshot budget |
 | Commented `[workspace]` text or multiline Cargo workspace members beneath an ignored directory | Parsed as TOML, included only when real, and bounded; cannot produce 0/0 false-green coverage |
+| Duplicate Cargo members or Node workspace patterns | Every declaration is charged, normalized completed nodes are reused, and limit-plus-one fails without repeated subtree parsing |
 | Commented, escaped, malformed, or partial Gradle settings | Parsed through the shared checked parser; malformed discovery is inconclusive for every coverage consumer |
 | Manifest discovery crosses 64 MiB before snapshot copying | Rejected by the shared cumulative operation budget |
 | Manifest grows after discovery | Snapshot retains only the charged preflight buffer and cannot exceed the cumulative budget |
@@ -77,7 +78,12 @@ Focused MCP source and integration coverage includes exact envelope and resource
 explicit Git repository configuration, generation-failure reporting,
 Windows read/write junctions, identity-bound capability acquisition, cycle/bound and actual-byte budgets, bounded
 input/output, configured-ignore exceptions, conservative Git scoring, rollback, and transport
-failure branches. `snapshot_ignores_nonsemantic_cargo_metadata_paths`,
+failure branches. Exact-head remediation covers Cargo/Node duplicate-chain expansion,
+declaration charging, injectable limit/limit-plus-one behavior, and retained zero-config detection.
+The reported targeted runs passed 111 MCP unit tests and 62 MCP integration tests, including the
+end-to-end duplicate Cargo/Node workspace case. The full post-remediation suite, fresh independent
+rereview, and hosted-Windows junction/reparse runtime remain pending.
+`snapshot_ignores_nonsemantic_cargo_metadata_paths`,
 `snapshot_normalizes_confined_windows_native_cargo_paths`,
 `issue_tool_fails_inconclusive_for_malformed_frontmatter`, and
 `issue_tool_fails_inconclusive_for_unreadable_spec_text` cover the independent-review follow-up.

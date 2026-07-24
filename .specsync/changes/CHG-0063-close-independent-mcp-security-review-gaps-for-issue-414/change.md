@@ -54,7 +54,16 @@ Close independent MCP security review gaps for issue 414
   identity continuity. Every generic MCP project file uses a
   no-follow, non-blocking, identity-continuous retained read for tools and resources; FIFO/socket,
   link/reparse, and regular replacement races fail without attacker-byte consumption or partial
-  output.
+  output. Exact-head review remediation additionally retains the root before configuration and
+  omitted-source detection, skips autodetection for explicit source roots, verifies nested
+  config/manifest-directory reachability, carries selected-spec inventory identities into ownership
+  parsing, charges selected-spec and source bytes plus entries to one checked-coverage budget, and
+  bounds/deduplicates Cargo/Node expansion in both manifest and MCP traversal. Separate early and
+  post-discovery checkpoints cover the checked-coverage operation and propagate failures to gate
+  callers. A command-wide immutable CLI analysis snapshot and generic structured discovery outcomes
+  remain assigned to later CLI/outcome/generation work outside issue #414's MCP boundary. Fresh
+  independent rereview, the full post-remediation suite, hosted-Windows runtime, and final
+  repository/trust/provenance/CI evidence remain pending.
 
 ## No-spec Rationale
 

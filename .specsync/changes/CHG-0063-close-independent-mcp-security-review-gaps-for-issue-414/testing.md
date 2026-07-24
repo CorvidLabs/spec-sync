@@ -95,6 +95,14 @@ artifact: testing
 | Caller-selected coverage spec path resolves through a replacement ambient tree | Ownership frontmatter is read only through the retained project capability and charged to the shared spec/source input budget |
 | Generic MCP project file becomes FIFO/socket/link/regular replacement | Both tool and resource requests fail promptly without replacement bytes or partial results |
 | Ambient project pathname is replaced after the coverage capability is retained | Caller-selected spec ownership and every recognized manifest are read through the retained project; replacement bytes never become coverage authority and the final root check is inconclusive |
+| Zero-config manifest/source detection after root retention | Configuration fallback and autodetection use retained manifest observations; an ambient replacement cannot inject source roots |
+| Explicit source directories plus unrelated unsafe autodetection input | Retained configuration parsing uses the explicit roots without manifest/source autodetection |
+| Nested configuration or manifest parent is detached/replaced | Reachability verification rejects the mixed generation before configuration or manifest bytes become authority |
+| Early and post-discovery coverage races | `compute_coverage_checked` pauses at both checkpoints and rejects corresponding replacement without outside reads or partial totals; gate callers propagate the failure |
+| Selected-spec/source shared inventory bound | Injected limit succeeds and limit-plus-one fails before unbounded spec or source accumulation |
+| Duplicate Cargo/Node workspace graph | Every declaration consumes expansion work, completed normalized nodes are reused, and duplicate chains do not replay subtrees exponentially |
+| Retained non-Gradle manifest after-open/read replacement and invalid UTF-8 | Table-driven ecosystem fixtures fail inconclusive without parsing replacement bytes |
+| Hosted-Windows junction/reparse acceptance | Native junction target is proved, path comparison is portable, and both race checkpoints run on Windows CI |
 | Restricted Unix host denies local socket creation | FIFO assertions still run; only the unavailable socket fixture is skipped, while capable Unix CI exercises socket rejection |
 | Ignored/configured-exclusion name is a symlink | Skipped before target metadata is followed unless explicitly configured |
 | Public rendered drift errors include overlapping paths and `": "` in a legal spec path | Longest exact discovered path receives the errors; public `Vec<String>` signatures remain unchanged |
@@ -432,6 +440,12 @@ superseded by the hash-bound exact-commit replay below.
   `commands::issues::tests::omitted_source_dirs_are_detected_through_the_retained_project_capability`
   prove exact-byte parsing, same-capability authority, post-snapshot pathname replacement
   resistance, capability-bound omitted-source discovery, and known-field type rejection.
+- `REQ-config-008`:
+  `validator::tests::retained_config_uses_configured_source_dirs_after_root_replacement`,
+  `check::draft_planned_mapping_rejects_symlinked_parent_escape`,
+  `check::draft_planned_mapping_rejects_dangling_symlink_parent`, and
+  `commands::config_warns_on_unreadable_config_file` prove retained selected-byte authority while
+  preserving explicit-source validation and fail-loud legacy CLI compatibility.
 - `REQ-validator-008`:
   `validator::tests::malformed_gradle_settings_make_coverage_inconclusive` proves checked coverage
   returns no partial report and the compatibility wrapper carries an inconclusive diagnostic.
@@ -452,10 +466,26 @@ superseded by the hash-bound exact-commit replay below.
   output, while the `mcp_allow_empty_tool_and_resource_*selected_config*` group proves MCP
   malformed/UTF-8/type rejection and valid BOM compatibility.
 
-## Current final-tree evidence for the Gradle amendment
+## Current post-remediation evidence and review disposition
 
-- No historical test, reviewer, Windows cross-target, sandbox, trust, Attest, or CI result is
-  evidence for the reviewer-driven Gradle fixes documented in this amendment.
+- The exact-head remediation now includes manifest workspace declaration/memoization,
+  limit/limit-plus-one, duplicate-linked-member and nested-parent replacement cases; validator
+  retained config-parent, explicit-source, selected-spec identity/shared-entry, bounded
+  enumeration, and pre-open replacement cases; MCP snapshot/preflight declaration charging and
+  deduplication; and post-discovery Unix symlink/Windows junction gate barriers.
+- Reported targeted results: 41 manifest tests; 39 validator tests; 89 config tests; 111 MCP unit
+  tests; 62 MCP integration tests; 31 coverage integrations; 7 command tests; 16 Gradle security
+  integrations; and the five-command post-manifest race fixture. Formatting, pre-commit, and
+  Windows GNU cross-target compilation were also reported green. These are targeted results, not a
+  fresh full post-remediation repository lane or hosted-Windows runtime.
+- The latest independent review rejected the pre-remediation exact head. Its in-scope findings now
+  have implementation and targeted coverage, but no independent reviewer has accepted the current
+  post-fix tree. A fresh acceptance and adversarial rereview remain pending.
+- The command-wide immutable CLI analysis snapshot and generic structured discovery outcomes from
+  that review are not implemented in CHG-0063. They are outside GitHub #414's MCP boundary and
+  remain assigned to later CLI/outcome/generation work.
+- The full post-remediation suite, private-sandbox replay, trust/Attest, hosted-Windows runtime,
+  GitHub CI, and fresh lifecycle approval remain pending.
 - Exact commit `d05896b` passed the full local lane: 1,882 unit tests and 296 integration tests,
   plus `fledge run fmt`, `fledge run lint`, and the release `fledge run build`. That evidence
   predates the interpolation/encoded-escape amendment and is not final-tree evidence.

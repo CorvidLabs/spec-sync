@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 11
+version: 12
 status: stable
 files:
   - src/manifest.rs
@@ -66,7 +66,10 @@ member or target paths.
    before open, after open, and after its bounded read, and fit the 4 MiB limit. Parsing consumes
    only the exact retained bytes. Linked, reparse-backed, non-regular, replaced, oversized,
    unreadable, or invalid-UTF-8 Gradle manifests fail checked discovery.
-4. Cargo workspace members are parsed recursively, with source paths prefixed by the member directory
+4. Cargo workspace members are parsed recursively, with source paths prefixed by the member
+   directory. Declared Cargo members and Node workspace patterns consume a bounded expansion-work
+   budget before traversal. Normalized workspace nodes are deduplicated and completed results are
+   memoized, so duplicate declarations cannot replay an already parsed subtree exponentially.
 5. Swift `.testTarget()` declarations are excluded from modules
 6. Swift balanced-paren extraction handles nested parentheses correctly
 7. Gradle parser distinguishes Android projects (checks `android {` block) from standard Kotlin/Java layouts
@@ -110,6 +113,13 @@ member or target paths.
     valid UTF-8 reads bounded to 8 MiB each and 64 MiB cumulatively; discovery is sorted and
     bounded to 100,000 directory entries and 256 path components. The ambient project pathname is
     consulted only after discovery to detect root replacement.
+20. Workspace expansion is bounded independently of unique retained bytes: every declared Cargo
+    member and Node workspace pattern is charged, repeated normalized entries reuse one completed
+    discovery result, and exhausting the expansion budget makes checked discovery inconclusive
+    without partial modules.
+21. A retained nested manifest or workspace directory must remain reachable through the same
+    project-root edge after enumeration and before/after manifest reads. Detaching and replacing a
+    parent directory makes checked discovery inconclusive instead of mixing workspace generations.
 
 ## Behavioral Examples
 
@@ -130,6 +140,14 @@ member or target paths.
 - **Given** `package.json` with `"workspaces": ["packages/*"]` and subdirs `packages/core/` and `packages/web/` each containing a `package.json`
 - **When** `discover_from_manifests(root)` is called
 - **Then** returns "core" and "web" as modules with source paths like `packages/core/src`
+
+### Scenario: Duplicate workspace declarations
+
+- **Given** Cargo manifests or Node workspace arrays repeat the same normalized child declarations
+  at multiple levels
+- **When** checked manifest discovery expands the workspace graph
+- **Then** each declaration is charged, each normalized child is completed once, and exhausted work
+  bounds return an inconclusive error instead of repeatedly parsing the same subtree
 
 ### Scenario: Go project with standard layout
 
@@ -207,6 +225,8 @@ member or target paths.
 | Manifest file missing | Parser returns `None`, skipped silently |
 | Manifest file unreadable | Parser returns `None` (fs::read_to_string fails gracefully) |
 | Non-Gradle manifest is unsafe, replaced, invalid UTF-8, over 8 MiB, or retained discovery exceeds 64 MiB/100,000 entries/256 components | Caller-retained checked discovery returns `Err` without ambient fallback or partial discovery; compatibility discovery returns an empty result |
+| Cargo/Node workspace declarations exceed the expansion budget or repeat a completed normalized node | Checked discovery returns `Err` on budget exhaustion; otherwise it reuses the completed result without reparsing the subtree |
+| Nested manifest/workspace parent is detached or replaced during enumeration/read | Caller-retained checked discovery returns `Err` after project-root reachability verification; detached and replacement generations are not mixed |
 | Malformed non-Gradle manifest content | Best-effort extraction; missing fields result in defaults or skipped entries |
 | Linked, reparse-backed, non-regular, replaced, oversized, unreadable, or invalid-UTF-8 Gradle build/settings manifest, including a shadowed filename variant | Checked discovery returns `Err` without reading a link referent or returning partial discovery; compatibility discovery returns an empty result |
 | Malformed or dynamic Gradle include, invoked unsupported inclusion API, unescaped double-quoted interpolation, unsupported assignment/method project-directory form, rooted/drive/UNC/parent-escaping raw module identity or decoded effective path, or broken comments/escapes/parentheses | Checked discovery returns `Err`; compatibility discovery returns an empty result and gates stay inconclusive |
@@ -244,4 +264,5 @@ member or target paths.
 | 2026-07-23 | v8 / CHG-0063 adversarial rereview: Acquire Gradle build/settings manifests as bounded regular non-link files, reject unescaped interpolation, and decode Unicode/octal path escapes before confinement |
 | 2026-07-23 | v9 / CHG-0063 final security rereview: Reject indirect/conditional Gradle mutations, mask multiline literals and nested comments, require the `new File` token boundary, and preserve only explicitly rooted Gradle names that resemble drive-relative paths |
 | 2026-07-23 | v10 / CHG-0063 post-review hardening: Preflight every present Gradle filename including shadowed variants, bind manifest identity across open/read, scope control-flow rejection to governed directives, and reject invoked unsupported inclusion APIs |
-| 2026-07-24 | v11 / CHG-0063 acceptance remediation: Acquire all recognized checked manifests, nested workspaces, and manifest probes through one bounded retained project capability without ambient parser fallback |
+| 2026-07-23 | v11 / CHG-0063 acceptance remediation: Acquire all recognized checked manifests, nested workspaces, and manifest probes through one bounded retained project capability without ambient parser fallback |
+| 2026-07-23 | v12 / CHG-0063 exact-head review remediation: Bound declared Cargo/Node workspace expansion, memoize completed normalized nodes, and verify nested manifest/workspace reachability so duplicate declarations or detached parents cannot produce mixed discovery |

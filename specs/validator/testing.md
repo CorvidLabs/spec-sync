@@ -31,6 +31,10 @@ spec: validator.spec.md
 | Retained spec snapshot validation | valid pre-read spec bytes and a logical spec path replaced after the snapshot | `validate_spec_content` is called | validation uses the pre-read spec bytes and opens neither the replaced spec path nor adjacent companions; mapped sources retain normal path behavior |
 | Retained spec/source validation | retained spec bytes plus `SourceSnapshot` observations, with ambient paths replaced | `validate_spec_content_with_sources` is called | validation uses only supplied spec/source snapshots and ambient-free export extraction |
 | Coverage ownership after ambient root replacement | caller-selected spec path now resolves through an attacker tree while the original project capability remains retained | checked ownership collection runs | the original spec mapping is used and replacement frontmatter is never parsed |
+| Zero-config manifest/source detection replacement | omitted source directories plus a recognized manifest replaced after root retention | checked coverage autodetection runs | retained discovery rejects the replacement or uses only identity-continuous retained bytes; attacker-selected source roots never become authority |
+| Explicit source directories | valid explicit `source_dirs` plus an unrelated unsafe autodetection input | retained config loading runs | configured roots are parsed without unrelated manifest/source autodetection |
+| Nested retained config/manifest parent replacement | `.specsync` or a nested workspace parent is detached and replaced during acquisition | retained read or enumeration completes | reachability verification fails rather than mixing generations |
+| Early and post-discovery race checkpoints | a gate caller reaches either checked-coverage checkpoint | root/spec/manifest/source input is replaced | checked coverage exits inconclusive with no outside read or partial total and the caller propagates the error |
 
 ## Regression Matrix
 
@@ -50,6 +54,18 @@ spec: validator.spec.md
 | Malformed or unreadable Gradle settings | Checked coverage returns an error; compatibility coverage remains callable with a zero-percent inconclusive report | Keep gate callers on `compute_coverage_checked` and cover text/JSON or MCP failure output when it changes |
 | Unsupported or unconfined Gradle discovery | Checked coverage returns an error before source probing/traversal; all CLI/MCP gates remain non-success and content-free | Cover raw drive identifiers, interpolation, encoded traversal, unsafe recognized manifests, dynamic/unsupported `setProjectDir`, Unix symlink, and hosted-Windows reparse fixtures with unchanged outside sentinels |
 | Caller-selected coverage spec path is replaced through the ambient root | Ownership comes only from the retained project capability and preserves the original mapping | Keep `retained_coverage_spec_mapping_ignores_an_ambient_root_replacement` |
+| Selected-spec/source inventory reaches 100,000 entries | Limit succeeds and limit-plus-one fails before unbounded accumulation | Use injected small-limit unit coverage plus end-to-end selected-spec and source fixtures |
+| Hosted-Windows source/junction replacement | Native junction fixture and path rendering remain portable | Prove the junction target, compare normalized paths, and run both checkpoints on hosted Windows |
+
+The exact-head implementation adds
+`retained_config_uses_configured_source_dirs_after_root_replacement`,
+`retained_config_rejects_a_detached_parent_before_read`,
+`retained_selected_specs_enforce_the_shared_entry_budget`,
+`retained_spec_enumeration_is_bounded_before_returning_paths`, and
+`retained_coverage_file_read_rejects_preopen_regular_replacement`. Reported targeted results are 39
+validator tests, 89 config tests, 31 coverage integrations, and the five-command post-manifest race
+fixture. The Windows GNU cross-target compiled, but hosted-Windows runtime and the full
+post-remediation suite remain pending.
 
 ## Reviewer Checklist
 

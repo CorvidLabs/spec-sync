@@ -73,12 +73,29 @@ including a lower-precedence shadowed variant, and remains identity-bound across
 read. Invoked unsupported inclusion APIs and indirect/conditional include or project-directory
 mutations fail closed, while unrelated Gradle control flow remains compatible.
 
-CLI coverage uses one retained project capability for caller-selected spec mappings, every
-recognized manifest and nested workspace probe, spec-module enumeration, source traversal, and
-final root verification. The deterministic iterative spec/source snapshot is limited to 8 MiB per
-file, 64 MiB cumulatively, 100,000 entries, and 256 path components. Invalid UTF-8 names/content,
-special entries, links/reparse points, identity replacement, and exhausted limits make coverage
-inconclusive rather than yielding a partial percentage.
+Cargo member declarations and Node workspace patterns also consume a deterministic expansion-work
+budget before traversal. Normalized workspace nodes are deduplicated and completed discovery
+results are reused, so repeated declarations cannot amplify cached parsing work.
+
+`compute_coverage_checked` retains one project capability before configuration or zero-config
+source detection. Explicitly configured source directories are parsed first and do not trigger
+unrelated autodetection. Caller-selected spec mappings, every recognized manifest and nested
+workspace probe, spec-module enumeration, and source traversal remain bound to that capability
+through the checked-coverage root verification. Nested config/manifest parents must remain
+reachable from the retained root, and selected-spec identities captured during inventory remain
+authoritative during ownership parsing. The deterministic iterative snapshot shares limits of
+8 MiB per selected spec or source file, 64 MiB of selected-spec/source bytes, 100,000 inventory
+entries, and 256 path components. Invalid UTF-8 names/content, special entries, links/reparse
+points, identity replacement, and exhausted limits make coverage inconclusive rather than yielding
+a partial percentage.
+
+Security regression instrumentation keeps separate checkpoints immediately after checked-coverage
+root retention and after retained manifest discovery but before selected-spec/source traversal.
+Gate callers propagate failures from either checkpoint. This guarantee is scoped to the
+`compute_coverage_checked` operation: a command-wide immutable CLI analysis snapshot and generic
+structured discovery outcomes remain assigned to later CLI/outcome/generation work outside
+GitHub #414's MCP boundary. Hosted Windows runtime remains the acceptance authority for
+junction/reparse behavior.
 
 Cargo path authority comes only from semantic target, dependency, workspace-dependency,
 target-specific dependency, patch, and replacement tables. An arbitrary metadata key named `path`

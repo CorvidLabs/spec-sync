@@ -32,6 +32,10 @@ spec: mcp.spec.md
   cache/schema references, module names, spec file mappings, and nested symlink targets are
   validated against the canonical server root before a tool or resource runs
 - Recursive confinement and autodetection preflights are bounded and honor ignored/excluded directories
+- Declared Cargo workspace members and Node workspace patterns are charged before expansion;
+  normalized workspace nodes are deduplicated and completed results are reused.
+- Zero-config manifest/source autodetection starts only after the project root is retained and never
+  trusts an ambient manifest replacement as source-directory authority.
 - JSON-RPC input is limited to 1 MiB per line; oversized lines are drained and rejected before parsing
 - stdin EOF triggers graceful exit
 
@@ -83,6 +87,9 @@ Acceptance Criteria
   UTF-8.
 - Recursive confinement uses cumulative deterministic budgets across configured paths and spec
   mappings and honors ignored/configured exclusions.
+- Every declared Cargo member and Node workspace pattern consumes a deterministic expansion-work
+  entry before traversal; completed normalized nodes are memoized, and limit-plus-one fails without
+  partial discovery or subtree replay.
 - Traversal, configured-path, and symlink escapes fail before filesystem access.
 - Project files are bounded to 8 MiB and actual project/config input to 64 MiB per operation;
   manifests are copied from the exact bytes charged during discovery.
@@ -104,6 +111,11 @@ Acceptance Criteria
   not authorize filesystem inputs. Comment/escape-aware shared Gradle workspace parsing preserves
   explicitly declared inputs beneath normally ignored names, including multiline includes and
   supported `projectDir` overrides.
+- Zero-config source selection consumes retained configuration and manifest observations acquired
+  after root retention; ambient swap-read-restore cannot inject source roots.
+- MCP snapshot collection and Cargo/Node preflight charge each workspace declaration before
+  deduplication, reuse normalized patterns/bases/workspace paths and completed Cargo manifests, and
+  fail closed when the shared traversal-entry bound is exceeded.
 - Manifest-relative `..` components are resolved from the declaring manifest and accepted only
   when the normalized target remains beneath the retained server root. Confined Windows-native
   backslashes are normalized equivalently; drive, UNC, rooted, traversal, symlink, and junction

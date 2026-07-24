@@ -44,7 +44,8 @@ spec: mcp.spec.md
   required inputs cannot disappear into false-green analysis. Manifest discovery parses Cargo
   workspace membership as TOML and shared Gradle settings with comment/escape-aware syntax,
   charges deduplicated manifest bytes to the operation budget, and copies those exact preflight
-  buffers.
+  buffers. Declared Cargo members and Node workspace patterns also consume a bounded expansion-work
+  budget, while normalized completed workspace nodes are reused.
 - Cargo snapshot inputs come only from semantic target, dependency, workspace-dependency,
   target-specific dependency, patch, and replacement tables. An arbitrary metadata key named
   `path` is data, not filesystem authority. Semantic manifest paths are normalized relative to the
@@ -111,12 +112,17 @@ publication; and no embedded provider or credential surfaces. Shared real-YAML i
 checked top-level shapes, duplicate/global malformed rejection, checked traversal/non-UTF-8
 discovery, relative content-free diagnostics, Windows startup-alias absolute-child handling, and
 selected-config fail-closed validation now have focused implementation and regression coverage.
-The latest independent reviews additionally closed selected-config substitution, wrong-shaped
+The latest remediation charges Cargo/Node workspace declarations before deduplication, reuses
+normalized completed nodes in snapshot and preflight traversal, and keeps zero-config discovery
+capability-retained. Reported targeted runs passed 111 MCP unit tests and 62 MCP integration tests.
+Fresh exact-tree independent rereview, the full post-remediation suite, and hosted-Windows
+junction/reparse runtime evidence remain pending.
+Earlier independent reviews additionally closed selected-config substitution, wrong-shaped
 legacy GitHub fields, and blocking/special-file snapshot manifests. Configuration and manifest
 acquisition now makes the no-follow opened regular-file handle authoritative, uses bounded
 non-blocking reads, and rechecks path identity afterward. Generic project inputs now use the same
 identity-continuous reader, with tool/resource race regressions for FIFO, symlink, and regular
-replacements. Focused regressions pass. An earlier
+replacements. An earlier
 private-sandbox replay passed but its untracked inputs were not reproducible from the cited
 revisions, so a hash-bound exact-tree replay is required with fresh definition approval, Windows
 runtime CI, independent rereview, and final repository/trust/provenance/CI gates.

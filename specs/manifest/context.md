@@ -38,6 +38,9 @@ spec: manifest.spec.md
   capability for Cargo, Swift, Node, Dart, Go, Python, and Gradle manifests plus nested workspace
   directories. Non-Gradle retained reads are no-follow, non-blocking, identity-continuous, UTF-8
   checked, and deterministically bounded; only compatibility wrappers retain ambient best effort.
+- **Bounded workspace graph**: Cargo member declarations and Node workspace patterns are charged as
+  work before expansion. Normalized workspace nodes are deduplicated and completed discoveries are
+  memoized, preventing duplicate declarations from replaying cached subtrees exponentially.
 - **Swift test target exclusion**: `.testTarget()` entries are explicitly skipped to avoid polluting the module list with test infrastructure.
 - **Python priority**: `[project]` section is checked before `[tool.poetry]` in pyproject.toml, reflecting the ecosystem's migration toward PEP 621.
 
@@ -59,8 +62,12 @@ shadowed Gradle filename variants, binds native file identity across open/read, 
 unsupported inclusion APIs, and narrows control-flow rejection to governed directives.
 The acceptance-remediation pass extends retained authority to every recognized manifest parser and
 nested workspace probe, eliminating the ambient swap-read-restore interval.
-Fresh implementation verification, independent rereviews, Windows runtime, repository/CI, trust,
-and provenance evidence remain pending. MCP Cargo workspace paths come from validated TOML values.
+The latest remediation bounds and deduplicates Cargo/Node workspace expansion, memoizes completed
+nodes, and verifies that nested manifest/workspace directories remain reachable from the retained
+project root after enumeration and around reads. The reported focused manifest run passed 41
+tests. Fresh independent rereview, the full post-remediation suite, hosted-Windows runtime,
+repository/CI, trust, and provenance evidence remain pending. MCP Cargo workspace paths come from
+validated TOML values.
 
 ## Notes
 

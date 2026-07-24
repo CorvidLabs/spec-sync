@@ -165,6 +165,20 @@ artifact: tasks
   or capable-host socket security assertions.
 - [x] Replay exact implementation commit `5070c954d1ee8ebdb96cbf90cfa0c1c9a1986f96`
   against a disposable clone of the private sandbox with a hash-bound MCP security drill.
+- [x] Retain configuration and zero-config manifest/source discovery before source selection and
+  carry selected-spec discovery identities through ownership reads; reverify nested
+  configuration/manifest parents and skip autodetection for explicit source roots.
+- [x] Charge selected-spec/source bytes and inventory entries to one shared coverage budget.
+- [x] Bound every declared Cargo member and Node workspace pattern, deduplicate normalized nodes,
+  and memoize completed workspace results.
+- [x] Preserve separate early-after-root-retention and post-discovery checkpoints inside checked
+  coverage and propagate their failures through check, coverage, generate, report, and score.
+- [x] Add injectable limit/limit-plus-one, duplicate workspace, retained config/spec inventory,
+  nested-parent replacement, pre-open replacement, and post-discovery Unix/Windows gate fixtures.
+- [ ] Later CLI/outcome/generation work: implement a command-wide immutable CLI analysis snapshot
+  and generic structured discovery outcomes. This remains outside GitHub #414's MCP boundary.
+- [x] Add remaining after-open/read, invalid-UTF-8, all-ecosystem, and cross-target
+  junction/reparse coverage.
 - [ ] Obtain two clean exact-tree post-fix acceptance and adversarial
   security/compatibility rereviews after the retained-authority amendment.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target

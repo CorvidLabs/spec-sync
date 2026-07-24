@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 18
+version: 19
 status: stable
 files:
   - src/mcp.rs
@@ -71,7 +71,9 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
     are skipped before following targets unless an explicit configured input names them or a descendant;
     manifest discovery parses Cargo workspace
     membership as TOML plus comment/escape-aware shared Gradle settings; snapshots copy the exact
-    manifest bytes charged to the shared cumulative byte budget.
+    manifest bytes charged to the shared cumulative byte budget. Every declared Cargo member and
+    Node workspace pattern is charged against a deterministic expansion-work bound; normalized
+    workspace nodes are deduplicated and completed results are reused.
     Cargo path discovery follows only semantic target, dependency, workspace-dependency,
     target-specific dependency, patch, and replacement tables; unrelated metadata named `path`
     is ignored. Manifest-relative parent components and confined Windows-native backslashes are
@@ -100,6 +102,12 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
     before and after the bounded read on Unix and Windows; FIFO/socket/device entries, symlinks or
     reparse points, and regular-file replacements fail without blocking or consuming attacker
     bytes. Tool and resource snapshots share this behavior.
+19. Zero-config manifest/source selection begins only after the server/project root capability is
+    retained. Autodetection consumes retained manifest observations and cannot accept source roots
+    injected through an ambient manifest replacement.
+20. MCP snapshot collection and preflight charge every Cargo member and Node workspace declaration
+    before deduplication. Normalized patterns, bases, workspace paths, and completed Cargo manifests
+    are reused so duplicates cannot replay traversal; limit-plus-one fails closed.
 
 ## Behavioral Examples
 
@@ -177,6 +185,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | Semantic Cargo sibling path such as `../b` or `..\b` normalizes inside the root | Accepted and included in the bounded snapshot; drive, UNC, rooted, traversal, symlink, and junction escapes still fail |
 | Unrelated Cargo metadata contains a `path` key | Ignored for snapshot input discovery; only semantic Cargo target/workspace/dependency path tables authorize an input |
 | Cumulative confinement or manifest preflight exceeds its deterministic entry bound | Tool/resource error before downstream filesystem access |
+| Cargo/Node workspace expansion exceeds its declared-work bound or repeats a completed normalized node | Tool/resource error on budget exhaustion; otherwise completed discovery is reused without subtree replay |
 | Selected config or recognized manifest is a FIFO, device, symlink/reparse point, or replaced identity | Tool/resource error before parsing; the server does not block or consume replacement bytes |
 | Generic project input is a FIFO/socket/device, link/reparse point, or is replaced across its retained read | Tool/resource error before downstream parsing; the server does not block, consume attacker bytes, or return a partial snapshot |
 | Generation exceeds 1,000 specs, 64 MiB, or its response budget | Tool error before publishing project files |
@@ -237,4 +246,5 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-22 | CHG-0063 retained-handle follow-up: Acquire selected configs and manifests with no-follow, non-blocking handles on every platform; validate opened metadata and reject path replacement before and after bounded reads |
 | 2026-07-23 | v16 / CHG-0063 final security rereview: Preflight every Gradle build/settings variant once through the retained no-follow reader, enforce 4 MiB before parsing/probing, and reject special, linked, replaced, or oversized inputs for tools and resources |
 | 2026-07-23 | v17 / CHG-0063 post-review hardening: Apply no-follow, non-blocking, before/opened/after identity continuity to every generic project file used by MCP tools and resources |
-| 2026-07-24 | v18 / CHG-0063 verification portability: Preserve FIFO coverage and execute socket assertions where the Unix host permits socket fixtures without making restricted sandboxes fail before the security assertion |
+| 2026-07-23 | v18 / CHG-0063 verification portability: Preserve FIFO coverage and execute socket assertions where the Unix host permits socket fixtures without making restricted sandboxes fail before the security assertion |
+| 2026-07-23 | v19 / CHG-0063 exact-head review remediation: Charge Cargo/Node declarations before deduplication, reuse normalized completed workspace nodes, and retain zero-config manifest/source authority before autodetection |

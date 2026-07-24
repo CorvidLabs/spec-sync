@@ -97,3 +97,16 @@ Acceptance Criteria
   accepting parser defaults.
 - Checked JSON rejects a non-object root or `github` section and rejects non-string/non-null
   `github.repo` rather than exposing compatibility sentinel/default success.
+
+### REQ-config-008
+
+Retained CLI configuration discovery SHALL preserve established compatibility while acquiring
+selected bytes and omitted-source detection beneath one retained project capability.
+
+Acceptance Criteria
+
+- Canonical-to-legacy precedence and source-file classification are shared rather than duplicated.
+- An explicitly configured source root is not traversed during config loading; normal validation
+  remains responsible for reporting unsafe mappings.
+- Invalid-UTF-8 legacy CLI config emits the established fail-loud warning and uses safe defaults.
+- Strict MCP selected-config parsing remains unchanged.

@@ -20,3 +20,5 @@ spec: config.spec.md
 - [x] Accept capability-derived source-directory discovery when retained config omits its source
   list, without scanning an ambient root pathname
 - [x] Reject wrong-shaped `github` and `github.repo` values in exact-byte checked JSON parsing
+- [x] Share config precedence and lexical source classification with retained CLI discovery
+- [x] Preserve explicit-source validation and malformed legacy config warning compatibility

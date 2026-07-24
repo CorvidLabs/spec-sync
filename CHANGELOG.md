@@ -40,9 +40,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   input budget and snapshots exact preflighted bytes. Every present Gradle filename, including a
   lower-precedence shadowed variant, is preflighted and identity-bound across its retained read;
   invoked unsupported inclusion APIs fail closed without rejecting unrelated control flow. CLI
-  coverage shares one retained project authority across caller-selected spec mappings, every
-  recognized manifest/workspace probe, spec-module enumeration, and source discovery, applying
-  iterative 8 MiB/file, 64 MiB total, 100,000-entry, and 256-component bounds with strict UTF-8.
+  checked coverage shares one retained project authority across caller-selected spec mappings,
+  every recognized manifest/workspace probe, spec-module enumeration, and source discovery,
+  applying iterative 8 MiB/file, 64 MiB total, 100,000-entry, and 256-component bounds with strict
+  UTF-8. Root retention precedes configuration and omitted-source autodetection, while explicit
+  source roots avoid unrelated autodetection. Nested config/manifest parents remain reachable,
+  selected-spec inventory identities remain authoritative through ownership parsing, and shared
+  spec/source bytes plus entries are bounded. Cargo member declarations and Node workspace
+  patterns consume bounded expansion work before deduplication and reuse normalized completed
+  results in both manifest and MCP-specific traversal. Separate early and post-discovery
+  checkpoints protect the checked-coverage operation and propagate failures to gate callers.
+  Command-wide immutable CLI snapshots and generic structured discovery outcomes remain deferred
+  to later CLI/outcome/generation work outside issue #414; hosted-Windows junction/reparse runtime
+  remains required for final acceptance.
   Issue reads, listing, and verification require `GITHUB_TOKEN`, use in-process GitHub REST, and
   never spawn a `gh` provider process; `gh` remains only the explicit issue-creation write path.
   Verification globally deduplicates/caps IDs, includes repository preflight in the complete batch

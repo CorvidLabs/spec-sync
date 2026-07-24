@@ -55,6 +55,9 @@ spec: manifest.spec.md
   through one no-follow, non-blocking project capability, with identity continuity, strict UTF-8,
   8 MiB per-file, 64 MiB cumulative, 100,000-entry, and 256-component limits; ambient paths are
   not parser authority.
+- Every declared Cargo workspace member and Node workspace pattern consumes a deterministic
+  expansion-work entry before traversal; normalized workspace nodes are deduplicated and completed
+  results are memoized so repeated declarations cannot cause exponential reparsing.
 
 ## Constraints
 
@@ -115,3 +118,9 @@ Acceptance Criteria
   through one no-follow, non-blocking project capability, with identity continuity, strict UTF-8,
   8 MiB per-file, 64 MiB cumulative, 100,000-entry, and 256-component limits; ambient paths are
   not parser authority.
+- Cargo member declarations and Node workspace patterns are charged before expansion, normalized
+  duplicates reuse one completed result, and expansion-budget exhaustion fails checked discovery
+  without partial modules.
+- Nested manifest/workspace directories remain reachable from the retained project root after
+  enumeration and before/after reads; detached or replaced parents fail without mixed-generation
+  discovery.

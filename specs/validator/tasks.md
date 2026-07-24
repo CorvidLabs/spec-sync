@@ -55,6 +55,17 @@ spec: validator.spec.md
   8 MiB per file, 64 MiB cumulative bytes, 100,000 entries, and 256 components.
 - [x] Reject invalid-UTF-8 source names/content, special entries, and directory/file/root identity
   replacement without returning partial coverage totals.
+- [x] Retain configuration and zero-config manifest/source detection before source selection, carry
+  selected-spec identities into ownership reads, and charge every selected-spec/source inventory
+  entry against the shared bound.
+- [x] Verify nested configuration and manifest-directory reachability before/after retained reads,
+  and avoid autodetection when explicit `source_dirs` are present.
+- [x] Keep separate early-after-root-retention and post-discovery checkpoints inside checked
+  coverage and propagate their failures through gate callers.
+- [x] Add retained config, shared selected-spec entry, bounded enumeration, pre-open replacement,
+  nested-parent replacement, and post-discovery Unix/Windows gate fixtures.
+- [ ] Later CLI/outcome/generation work: retain an immutable authority across complete command
+  pipelines and provide generic structured discovery-failure rendering. This is outside #414.
 - [ ] Obtain fresh exact-tree full reruns, independent reviews, hosted-Windows runtime,
   repository/CI, trust, and Attest evidence.
 

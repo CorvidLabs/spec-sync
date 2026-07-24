@@ -65,9 +65,20 @@ Acceptance Criteria
 - Caller-selected spec ownership reads, manifest discovery, spec-module enumeration, source
   traversal, and final root verification use one retained project capability rather than
   independently reopening ambient project/spec paths.
-- Checked coverage traverses iteratively and deterministically with limits of 8 MiB per source
-  file, 64 MiB cumulative source bytes, 100,000 entries, and 256 path components; special entries,
-  invalid UTF-8 names/content, and exhausted bounds fail inconclusive.
+- Checked coverage traverses iteratively and deterministically with shared limits of 8 MiB per
+  selected spec or source file, 64 MiB cumulative selected-spec/source bytes, 100,000 selected-spec
+  and source inventory entries, and 256 path components; special entries, invalid UTF-8
+  names/content, and exhausted bounds fail inconclusive.
+- The project root is retained before configuration and zero-config manifest/source detection;
+  nested configuration/manifest parents remain reachable from it, and selected-spec identities
+  remain bound through ownership reads.
+- Explicit `source_dirs` are parsed before autodetection; only omitted source directories trigger
+  retained manifest/source discovery.
+- Deterministic early-after-retention and post-discovery checkpoints independently prove that
+  checked coverage rejects root/input replacement without partial totals or outside reads; gate
+  callers propagate these checked-coverage failures.
+- Command-wide immutable CLI authority and generic structured discovery outcomes are not provided
+  by this requirement and remain assigned to later CLI/outcome/generation work.
 - `find_spec_files` returns sorted results.
 - Schema validation uses the configured `schema_pattern`.
 - Missing source suggestions use Levenshtein distance with a maximum distance of three.

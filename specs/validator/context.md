@@ -10,8 +10,16 @@ spec: validator.spec.md
   derives ownership/file/LOC/module results from exact bytes. Post-retention ambient path
   replacement is inconclusive before outside access.
 - **Bounded iterative coverage**: Traversal is sorted and iterative, filters excluded names before
-  metadata inspection, and enforces 8 MiB per file, 64 MiB cumulative bytes, 100,000 entries, and
-  256 path components. Special entries and invalid UTF-8 names/content fail closed.
+  metadata inspection, and enforces one selected-spec/source budget of 8 MiB per file, 64 MiB
+  cumulative bytes, 100,000 inventory entries, and 256 path components. Special entries and invalid
+  UTF-8 names/content fail closed.
+- **Two checked-coverage race checkpoints**: The early checkpoint immediately follows project-root
+  retention; the second follows retained manifest discovery. Gate commands propagate failures from
+  both checkpoints, but the retained capability does not span unrelated command phases.
+- **Retained zero-config discovery**: Configuration fallback and manifest/source autodetection run
+  only when `source_dirs` is omitted. Nested configuration/manifest parents remain reachable from
+  the retained root, and selected-spec inventory identities remain authoritative through ownership
+  reads.
 - **Bidirectional validation**: Spec documents non-existent export = ERROR (spec is wrong). Code exports undocumented symbol = WARNING (spec is incomplete). This asymmetry reflects that incorrect docs are worse than incomplete docs.
 - **Missing frontmatter fields are errors**: `module`, `version`, `status`, and `files` are all required. Missing any of these is an error, not a warning, because downstream modules depend on them.
 - **Cross-project refs skipped locally**: References in `owner/repo@module` format are silently skipped during `specsync check`. They're only validated with `specsync resolve --remote`.
@@ -52,8 +60,13 @@ discovery, spec-module enumeration, source traversal, and final root verificatio
 exact capability and bounded observation, while
 `validate_spec_content_with_sources` lets confined callers validate exact spec-and-source
 snapshots without reopening paths.
-Fresh CHG definition reapproval, focused final-tree reruns, independent reviews, hosted-Windows
-runtime, repository/CI, trust, and Attest evidence remain pending. Its in-file
+The latest remediation implements lazy retained autodetection, nested config/manifest-directory
+reachability, selected-spec identity continuity, shared selected-spec/source accounting, and
+distinct checked-coverage race checkpoints. Reported targeted runs include 39 validator tests, 89
+config tests, 31 coverage integrations, and the five-command post-manifest race fixture; a fresh
+exact-tree independent review and full post-remediation suite remain pending. A command-wide
+immutable CLI analysis snapshot and generic structured discovery outcomes are intentionally
+deferred to the later CLI/outcome/generation work outside GitHub #414's MCP boundary. Its in-file
 regression-test module intentionally precedes coverage helpers, so the narrow
 `items_after_test_module` Clippy allowance stays localized.
 

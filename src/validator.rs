@@ -1,4 +1,7 @@
-use crate::config::default_schema_pattern;
+use crate::config::{
+    CONFIG_PATH_CANDIDATES, default_schema_pattern, is_detectable_source_file,
+    parse_config_content_checked_with_source_dirs, source_detection_ignores_directory,
+};
 use crate::exports::{
     get_exported_symbols_from_content, get_exported_symbols_full, has_configured_extension,
     is_test_file,
@@ -39,6 +42,9 @@ const MAX_COVERAGE_ENTRIES: usize = 100_000;
 const MAX_COVERAGE_DEPTH: usize = 256;
 #[cfg(debug_assertions)]
 const COVERAGE_SNAPSHOT_TEST_BARRIER_ENV: &str = "SPECSYNC_TEST_COVERAGE_SNAPSHOT_IDENTITY_BARRIER";
+#[cfg(debug_assertions)]
+const COVERAGE_SNAPSHOT_TEST_BARRIER_PHASE_ENV: &str =
+    "SPECSYNC_TEST_COVERAGE_SNAPSHOT_IDENTITY_BARRIER_PHASE";
 #[cfg(debug_assertions)]
 const COVERAGE_SNAPSHOT_TEST_CONTEXT_ENV: &str = "SPECSYNC_TEST_CONTEXT";
 #[cfg(debug_assertions)]
@@ -135,10 +141,34 @@ pub fn find_spec_files(dir: &Path) -> Vec<PathBuf> {
     results
 }
 
+/// Load CLI discovery inputs through one retained project-root capability.
+///
+/// Configuration bytes, manifest-based source autodetection, fallback source
+/// scanning, and spec enumeration all remain beneath the same retained root.
+pub(crate) fn load_config_and_discover_retained(
+    root: &Path,
+) -> Result<(SpecSyncConfig, Vec<PathBuf>), String> {
+    let project = open_coverage_project_root(root)?;
+    let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+    let config = retained_config(&project, root, &mut budget)?;
+    let spec_files = discover_coverage_spec_files(&project, &config.specs_dir, &mut budget)?
+        .into_iter()
+        .map(|spec| root.join(spec.relative_path))
+        .collect();
+    verify_coverage_project_root(root, &project)?;
+    Ok((config, spec_files))
+}
+
 #[derive(Debug)]
 struct CoverageSourceFile {
     relative_path: PathBuf,
     loc: usize,
+}
+
+#[derive(Clone, Debug)]
+struct CoverageSpecFile {
+    relative_path: PathBuf,
+    identity: CoverageEntryIdentity,
 }
 
 #[derive(Debug, Default)]
@@ -227,6 +257,369 @@ impl CoverageTraversalBudget {
     }
 }
 
+fn retained_source_dirs(
+    project: &Dir,
+    root: &Path,
+    budget: &mut CoverageTraversalBudget,
+) -> Result<Vec<String>, String> {
+    match crate::manifest::discover_from_manifests_checked_with_root(root, project) {
+        Ok(mut discovery) if !discovery.source_dirs.is_empty() => {
+            discovery.source_dirs.sort();
+            discovery.source_dirs.dedup();
+            Ok(discovery.source_dirs)
+        }
+        Ok(_) => retained_source_dirs_by_scan(project, root, budget),
+        // Coverage itself repeats retained manifest discovery and owns the
+        // command-specific inconclusive JSON. Keep pre-discovery confined but
+        // do not exit before that structured diagnostic can be emitted.
+        Err(_) => Ok(vec!["src".to_string()]),
+    }
+}
+
+fn retained_source_dirs_by_scan(
+    project: &Dir,
+    root: &Path,
+    budget: &mut CoverageTraversalBudget,
+) -> Result<Vec<String>, String> {
+    let mut source_dirs = Vec::new();
+    let mut has_root_source_files = false;
+    let names = read_coverage_entry_names(project, Path::new(""), budget)?;
+    for name in names {
+        let name_text = name.to_str().ok_or_else(|| {
+            "Coverage source-detection path beneath . is not valid UTF-8".to_string()
+        })?;
+        if source_detection_ignores_directory(name_text) {
+            continue;
+        }
+        let relative = PathBuf::from(&name);
+        let metadata = project.symlink_metadata(&name).map_err(|error| {
+            format!(
+                "Cannot inspect retained source-detection path {}: {error}",
+                relative.display()
+            )
+        })?;
+        if coverage_metadata_is_link(&metadata) {
+            return Err(format!(
+                "Coverage source-detection path {} must not traverse a symlink or reparse point",
+                relative.display()
+            ));
+        }
+        if metadata.is_file() {
+            if is_detectable_source_file(&root.join(&relative)) {
+                has_root_source_files = true;
+            }
+            continue;
+        }
+        if !metadata.is_dir() {
+            continue;
+        }
+        let directory = open_coverage_child_directory(project, &name, &relative)?;
+        if retained_directory_contains_source(project, root, directory, &relative, 0, budget)? {
+            source_dirs.push(name_text.to_string());
+        }
+    }
+    verify_coverage_directory_edge(project, Path::new(""), project)?;
+    if has_root_source_files && source_dirs.is_empty() {
+        return Ok(vec![".".to_string()]);
+    }
+    if source_dirs.is_empty() {
+        return Ok(vec!["src".to_string()]);
+    }
+    source_dirs.sort();
+    source_dirs.dedup();
+    Ok(source_dirs)
+}
+
+fn retained_directory_contains_source(
+    project: &Dir,
+    root: &Path,
+    directory: Dir,
+    relative: &Path,
+    depth: usize,
+    budget: &mut CoverageTraversalBudget,
+) -> Result<bool, String> {
+    let retained = directory.try_clone().map_err(|error| {
+        format!(
+            "Cannot retain source-detection directory {}: {error}",
+            relative.display()
+        )
+    })?;
+    let names = read_coverage_entry_names(&directory, relative, budget)?;
+    let mut found = false;
+    for name in names {
+        let name_text = name.to_str().ok_or_else(|| {
+            format!(
+                "Coverage source-detection path beneath {} is not valid UTF-8",
+                relative.display()
+            )
+        })?;
+        if source_detection_ignores_directory(name_text) {
+            continue;
+        }
+        let child = relative.join(&name);
+        ensure_coverage_depth(&child, budget.limits.max_depth)?;
+        let metadata = directory.symlink_metadata(&name).map_err(|error| {
+            format!(
+                "Cannot inspect retained source-detection path {}: {error}",
+                child.display()
+            )
+        })?;
+        if coverage_metadata_is_link(&metadata) {
+            return Err(format!(
+                "Coverage source-detection path {} must not traverse a symlink or reparse point",
+                child.display()
+            ));
+        }
+        if metadata.is_file() && is_detectable_source_file(&root.join(&child)) {
+            found = true;
+            break;
+        }
+        if metadata.is_dir() && depth < 2 {
+            let child_directory = open_coverage_child_directory(&directory, &name, &child)?;
+            if retained_directory_contains_source(
+                project,
+                root,
+                child_directory,
+                &child,
+                depth + 1,
+                budget,
+            )? {
+                found = true;
+                break;
+            }
+        }
+    }
+    verify_coverage_directory_edge(project, relative, &retained)?;
+    Ok(found)
+}
+
+fn retained_config(
+    project: &Dir,
+    root: &Path,
+    budget: &mut CoverageTraversalBudget,
+) -> Result<SpecSyncConfig, String> {
+    retained_config_with_hook(project, root, budget, |_| {})
+}
+
+fn retained_config_with_hook<BeforeRead>(
+    project: &Dir,
+    root: &Path,
+    budget: &mut CoverageTraversalBudget,
+    mut before_read: BeforeRead,
+) -> Result<SpecSyncConfig, String>
+where
+    BeforeRead: FnMut(&Path),
+{
+    for configured in CONFIG_PATH_CANDIDATES {
+        let relative = Path::new(configured);
+        let parent = relative.parent().unwrap_or_else(|| Path::new(""));
+        let Some(directory) = open_coverage_directory(project, parent)? else {
+            continue;
+        };
+        let name = relative.file_name().ok_or_else(|| {
+            format!(
+                "Configuration path {} has no terminal filename",
+                relative.display()
+            )
+        })?;
+        let metadata = match directory.symlink_metadata(name) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(format!(
+                    "Cannot inspect retained configuration file {}: {error}",
+                    relative.display()
+                ));
+            }
+        };
+        if coverage_metadata_is_link(&metadata) || !metadata.is_file() {
+            return Err(format!(
+                "Configuration file {} must be a regular file beneath the retained project root",
+                relative.display()
+            ));
+        }
+        before_read(relative);
+        verify_coverage_directory_edge(project, parent, &directory)?;
+        let bytes = read_coverage_file(
+            &directory,
+            name,
+            relative,
+            budget.limits.max_file_bytes,
+            budget.remaining_bytes(),
+            budget.limits.max_input_bytes,
+        )?;
+        verify_coverage_directory_edge(project, parent, &directory)?;
+        budget.charge_input_file(relative, bytes.len() as u64)?;
+        let content = match std::str::from_utf8(&bytes) {
+            Ok(content) => content,
+            Err(_) => {
+                eprintln!(
+                    "Warning: config file {} exists but could not be read (not valid UTF-8 or unreadable); \
+                     using built-in defaults — its settings (enforcement, required sections, etc.) are NOT applied",
+                    root.join(relative).display()
+                );
+                let source_dirs = retained_source_dirs(project, root, budget)?;
+                return Ok(SpecSyncConfig {
+                    source_dirs,
+                    config_path: Some(root.join(relative)),
+                    ..SpecSyncConfig::default()
+                });
+            }
+        };
+        let parsed = parse_config_content_checked_with_source_dirs(
+            &root.join(relative),
+            content,
+            root,
+            Some(Vec::new()),
+        );
+        let mut config = match parsed {
+            Ok(config) => config,
+            Err(error) => {
+                eprintln!(
+                    "Warning: failed to parse config file {}: {error}; using built-in defaults",
+                    root.join(relative).display()
+                );
+                let source_dirs = retained_source_dirs(project, root, budget)?;
+                return Ok(SpecSyncConfig {
+                    source_dirs,
+                    config_path: Some(root.join(relative)),
+                    ..SpecSyncConfig::default()
+                });
+            }
+        };
+        if !retained_config_has_source_dirs(relative, content)? {
+            config.source_dirs = retained_source_dirs(project, root, budget)?;
+        }
+        return Ok(config);
+    }
+
+    let source_dirs = retained_source_dirs(project, root, budget)?;
+    Ok(SpecSyncConfig {
+        source_dirs,
+        ..SpecSyncConfig::default()
+    })
+}
+
+fn retained_config_has_source_dirs(relative: &Path, content: &str) -> Result<bool, String> {
+    let content = content.trim_start_matches('\u{feff}');
+    if relative
+        .extension()
+        .and_then(|extension| extension.to_str())
+        == Some("toml")
+    {
+        let table = toml::from_str::<toml::Table>(content).map_err(|error| error.to_string())?;
+        return Ok(table.contains_key("source_dirs"));
+    }
+    let value =
+        serde_json::from_str::<serde_json::Value>(content).map_err(|error| error.to_string())?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| "configuration root must be an object".to_string())?;
+    Ok(object.contains_key("sourceDirs"))
+}
+
+fn discover_coverage_spec_files(
+    project: &Dir,
+    configured: &str,
+    budget: &mut CoverageTraversalBudget,
+) -> Result<Vec<CoverageSpecFile>, String> {
+    let relative = if configured == "." {
+        PathBuf::new()
+    } else {
+        PathBuf::from(normalize_source_mapping(configured).ok_or_else(|| {
+            format!("Coverage specs directory must remain beneath the project root: {configured}")
+        })?)
+    };
+    ensure_coverage_depth(&relative, budget.limits.max_depth)?;
+    let Some(directory) = open_coverage_directory(project, &relative)? else {
+        return Ok(Vec::new());
+    };
+    let retained_directory = directory.try_clone().map_err(|error| {
+        format!(
+            "Cannot retain coverage specs directory {}: {error}",
+            display_coverage_path(&relative)
+        )
+    })?;
+    let mut stack = vec![PendingCoverageDirectory {
+        directory,
+        relative: relative.clone(),
+        source_root: true,
+        parent_edge: None,
+    }];
+    let mut specs = Vec::new();
+    while let Some(pending) = stack.pop() {
+        let names = read_coverage_entry_names(&pending.directory, &pending.relative, budget)?;
+        let mut children = Vec::new();
+        for name in names {
+            let name_text = name.to_str().ok_or_else(|| {
+                format!(
+                    "Coverage spec path beneath {} is not valid UTF-8",
+                    display_coverage_path(&pending.relative)
+                )
+            })?;
+            let child = pending.relative.join(&name);
+            ensure_coverage_depth(&child, budget.limits.max_depth)?;
+            let metadata = pending.directory.symlink_metadata(&name).map_err(|error| {
+                format!(
+                    "Cannot inspect retained coverage spec path {}: {error}",
+                    child.display()
+                )
+            })?;
+            if coverage_metadata_is_link(&metadata) {
+                return Err(format!(
+                    "Coverage spec path {} must not traverse a symlink or reparse point",
+                    child.display()
+                ));
+            }
+            if metadata.is_dir() {
+                let child_directory =
+                    open_coverage_child_directory(&pending.directory, &name, &child)?;
+                children.push(PendingCoverageDirectory {
+                    directory: child_directory,
+                    relative: child,
+                    source_root: false,
+                    parent_edge: Some((
+                        pending.directory.try_clone().map_err(|error| {
+                            format!(
+                                "Cannot retain coverage spec directory {}: {error}",
+                                display_coverage_path(&pending.relative)
+                            )
+                        })?,
+                        name,
+                    )),
+                });
+                continue;
+            }
+            if !metadata.is_file() {
+                return Err(format!(
+                    "Coverage spec path {} must be a regular file or directory",
+                    child.display()
+                ));
+            }
+            if name_text.ends_with(".spec.md") && !name_text.starts_with('_') {
+                let identity = coverage_metadata_identity(&metadata).map_err(|error| {
+                    format!(
+                        "Cannot identify retained coverage spec file {}: {error}",
+                        child.display()
+                    )
+                })?;
+                specs.push(CoverageSpecFile {
+                    relative_path: child,
+                    identity,
+                });
+            }
+        }
+        if let Some((parent, name)) = pending.parent_edge {
+            verify_coverage_child_directory(&parent, &name, &pending.relative, &pending.directory)?;
+        }
+        stack.extend(children.into_iter().rev());
+    }
+    verify_coverage_directory_edge(project, &relative, &retained_directory)?;
+    specs.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    specs.dedup_by(|left, right| left.relative_path == right.relative_path);
+    Ok(specs)
+}
+
 struct PendingCoverageDirectory {
     directory: Dir,
     relative: PathBuf,
@@ -288,8 +681,24 @@ fn snapshot_coverage_sources(
     Ok(snapshot)
 }
 
+#[derive(Clone, Copy)]
+enum CoverageSnapshotCheckpoint {
+    RootRetained,
+    ManifestDiscovered,
+}
+
 #[cfg(debug_assertions)]
-fn coverage_snapshot_test_barrier() -> Result<(), String> {
+impl CoverageSnapshotCheckpoint {
+    fn marker(self) -> &'static str {
+        match self {
+            Self::RootRetained => "root-retained",
+            Self::ManifestDiscovered => "manifest-discovered",
+        }
+    }
+}
+
+#[cfg(debug_assertions)]
+fn coverage_snapshot_test_barrier(checkpoint: CoverageSnapshotCheckpoint) -> Result<(), String> {
     let Some(directory) = std::env::var_os(COVERAGE_SNAPSHOT_TEST_BARRIER_ENV) else {
         return Ok(());
     };
@@ -300,14 +709,24 @@ fn coverage_snapshot_test_barrier() -> Result<(), String> {
             "Coverage snapshot test barrier requires {COVERAGE_SNAPSHOT_TEST_CONTEXT_ENV}={COVERAGE_SNAPSHOT_TEST_CONTEXT}"
         ));
     }
+    let selected_checkpoint = std::env::var(COVERAGE_SNAPSHOT_TEST_BARRIER_PHASE_ENV)
+        .unwrap_or_else(|_| {
+            CoverageSnapshotCheckpoint::RootRetained
+                .marker()
+                .to_string()
+        });
+    if selected_checkpoint != checkpoint.marker() {
+        return Ok(());
+    }
     let directory = PathBuf::from(directory);
+    let marker = checkpoint.marker();
     let mut ready = fs::OpenOptions::new()
         .write(true)
         .create_new(true)
-        .open(directory.join("root-retained"))
+        .open(directory.join(marker))
         .map_err(|error| format!("Cannot create coverage snapshot test barrier: {error}"))?;
     ready
-        .write_all(b"root-retained\n")
+        .write_all(format!("{marker}\n").as_bytes())
         .and_then(|_| ready.sync_all())
         .map_err(|error| format!("Cannot publish coverage snapshot test barrier: {error}"))?;
     drop(ready);
@@ -336,7 +755,7 @@ fn coverage_snapshot_test_barrier() -> Result<(), String> {
 }
 
 #[cfg(not(debug_assertions))]
-fn coverage_snapshot_test_barrier() -> Result<(), String> {
+fn coverage_snapshot_test_barrier(_checkpoint: CoverageSnapshotCheckpoint) -> Result<(), String> {
     Ok(())
 }
 
@@ -681,6 +1100,93 @@ fn read_coverage_file(
     remaining_input_bytes: u64,
     max_input_bytes: u64,
 ) -> Result<Vec<u8>, String> {
+    read_coverage_file_with_hook(
+        directory,
+        name,
+        display,
+        max_file_bytes,
+        remaining_input_bytes,
+        max_input_bytes,
+        || {},
+    )
+}
+
+fn read_coverage_file_with_hook<BeforeOpen>(
+    directory: &Dir,
+    name: &OsStr,
+    display: &Path,
+    max_file_bytes: u64,
+    remaining_input_bytes: u64,
+    max_input_bytes: u64,
+    before_open: BeforeOpen,
+) -> Result<Vec<u8>, String>
+where
+    BeforeOpen: FnOnce(),
+{
+    read_coverage_file_with_expected_identity_and_hook(
+        directory,
+        name,
+        display,
+        max_file_bytes,
+        remaining_input_bytes,
+        max_input_bytes,
+        None,
+        before_open,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn read_coverage_file_with_expected_identity_and_hook<BeforeOpen>(
+    directory: &Dir,
+    name: &OsStr,
+    display: &Path,
+    max_file_bytes: u64,
+    remaining_input_bytes: u64,
+    max_input_bytes: u64,
+    expected_identity: Option<CoverageEntryIdentity>,
+    before_open: BeforeOpen,
+) -> Result<Vec<u8>, String>
+where
+    BeforeOpen: FnOnce(),
+{
+    let before = directory.symlink_metadata(name).map_err(|error| {
+        format!(
+            "Cannot inspect retained coverage source file {} before open: {error}",
+            display.display()
+        )
+    })?;
+    if coverage_metadata_is_link(&before) || !before.is_file() {
+        return Err(format!(
+            "Coverage source file {} must be a regular non-link file",
+            display.display()
+        ));
+    }
+    if before.len() > max_file_bytes {
+        return Err(format!(
+            "Coverage source file {} exceeds the {} per-file limit",
+            display.display(),
+            display_coverage_byte_limit(max_file_bytes)
+        ));
+    }
+    if before.len() > remaining_input_bytes {
+        return Err(format!(
+            "Coverage source inputs exceed the {} cumulative limit",
+            display_coverage_byte_limit(max_input_bytes)
+        ));
+    }
+    let before_identity = coverage_metadata_identity(&before).map_err(|error| {
+        format!(
+            "Cannot identify retained coverage source file {} before open: {error}",
+            display.display()
+        )
+    })?;
+    if expected_identity.is_some_and(|expected| expected != before_identity) {
+        return Err(format!(
+            "Coverage source file {} changed after retained inventory",
+            display.display()
+        ));
+    }
+    before_open();
     let mut options = OpenOptions::new();
     options
         .read(true)
@@ -698,6 +1204,12 @@ fn read_coverage_file(
             display.display()
         )
     })?;
+    if identity != before_identity {
+        return Err(format!(
+            "Coverage source file {} changed during retained open",
+            display.display()
+        ));
+    }
     verify_coverage_file_edge(directory, name, display, identity)?;
     let mut bytes = Vec::new();
     let read_limit = max_file_bytes.min(remaining_input_bytes);
@@ -864,6 +1376,15 @@ fn coverage_file_identity(file: &cap_std::fs::File) -> io::Result<CoverageEntryI
     Ok((metadata.dev(), metadata.ino()))
 }
 
+#[cfg(unix)]
+fn coverage_metadata_identity(
+    metadata: &cap_std::fs::Metadata,
+) -> io::Result<CoverageEntryIdentity> {
+    use cap_std::fs::MetadataExt;
+
+    Ok((metadata.dev(), metadata.ino()))
+}
+
 #[cfg(windows)]
 fn coverage_file_identity(file: &cap_std::fs::File) -> io::Result<CoverageEntryIdentity> {
     use std::os::windows::io::AsRawHandle;
@@ -871,9 +1392,31 @@ fn coverage_file_identity(file: &cap_std::fs::File) -> io::Result<CoverageEntryI
     coverage_windows_handle_identity(file.as_raw_handle().cast())
 }
 
+#[cfg(windows)]
+fn coverage_metadata_identity(
+    metadata: &cap_std::fs::Metadata,
+) -> io::Result<CoverageEntryIdentity> {
+    use cap_primitives::fs::_WindowsByHandle;
+
+    let volume = metadata
+        .volume_serial_number()
+        .ok_or_else(|| io::Error::other("Windows volume serial number is unavailable"))?;
+    let index = metadata
+        .file_index()
+        .ok_or_else(|| io::Error::other("Windows file index is unavailable"))?;
+    Ok((volume, index))
+}
+
 #[cfg(not(any(unix, windows)))]
 fn coverage_file_identity(file: &cap_std::fs::File) -> io::Result<CoverageEntryIdentity> {
     let metadata = file.metadata()?;
+    Ok((metadata.len(), metadata.modified().ok()))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn coverage_metadata_identity(
+    metadata: &cap_std::fs::Metadata,
+) -> io::Result<CoverageEntryIdentity> {
     Ok((metadata.len(), metadata.modified().ok()))
 }
 
@@ -2086,13 +2629,14 @@ mod tests {
         )
         .unwrap();
         let project = open_coverage_project_root(&root).unwrap();
+        let mut inventory_budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+        let inventory =
+            discover_coverage_spec_files(&project, "specs", &mut inventory_budget).unwrap();
         fs::rename(&root, &original).unwrap();
         symlink(&replacement, &root).unwrap();
         let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
 
-        let mappings =
-            collect_specced_files(&project, &root, &[root.join(relative_spec)], &mut budget)
-                .unwrap();
+        let mappings = collect_specced_files(&project, &inventory, &mut budget).unwrap();
 
         assert!(mappings.contains("src/retained.rs"));
         assert!(!mappings.contains("src/replacement.rs"));
@@ -2102,14 +2646,11 @@ mod tests {
     fn retained_coverage_spec_mapping_rejects_a_path_outside_the_project() {
         let project = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
-        let retained = open_coverage_project_root(project.path()).unwrap();
-        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
 
-        let error = collect_specced_files(
-            &retained,
+        let error = select_coverage_spec_files(
             project.path(),
             &[outside.path().join("outside.spec.md")],
-            &mut budget,
+            &[],
         )
         .unwrap_err();
 
@@ -2117,6 +2658,247 @@ mod tests {
             error.contains("must remain beneath the project root"),
             "{error}"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retained_config_uses_configured_source_dirs_after_root_replacement() {
+        use std::os::unix::fs::symlink;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("project");
+        let original = tmp.path().join("original-project");
+        let replacement = tmp.path().join("replacement-project");
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::create_dir_all(replacement.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/config.toml"),
+            "specs_dir = \"retained-specs\"\nsource_dirs = [\"retained-source\"]\n",
+        )
+        .unwrap();
+        fs::write(
+            replacement.join(".specsync/config.toml"),
+            "specs_dir = \"replacement-specs\"\nsource_dirs = [\"replacement-source\"]\n",
+        )
+        .unwrap();
+        let retained = open_coverage_project_root(&root).unwrap();
+        fs::rename(&root, &original).unwrap();
+        symlink(&replacement, &root).unwrap();
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+
+        let config = retained_config(&retained, &root, &mut budget).unwrap();
+
+        assert_eq!(config.specs_dir, "retained-specs");
+        assert_eq!(config.source_dirs, ["retained-source"]);
+    }
+
+    #[test]
+    fn retained_explicit_source_dirs_skip_unrelated_manifest_autodetection() {
+        let project = tempfile::tempdir().unwrap();
+        fs::create_dir_all(project.path().join(".specsync")).unwrap();
+        fs::write(
+            project.path().join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nsource_dirs = [\"configured-source\"]\n",
+        )
+        .unwrap();
+        fs::write(project.path().join("Cargo.toml"), "[workspace\n").unwrap();
+        let retained = open_coverage_project_root(project.path()).unwrap();
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+
+        let config = retained_config(&retained, project.path(), &mut budget).unwrap();
+
+        assert_eq!(config.source_dirs, ["configured-source"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retained_config_rejects_a_detached_parent_before_read() {
+        let project = tempfile::tempdir().unwrap();
+        let original_parent = project.path().join(".specsync-original");
+        fs::create_dir_all(project.path().join(".specsync")).unwrap();
+        fs::write(
+            project.path().join(".specsync/config.toml"),
+            "source_dirs = [\"original-source\"]\n",
+        )
+        .unwrap();
+        let retained = open_coverage_project_root(project.path()).unwrap();
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+        let mut replaced = false;
+
+        let error = retained_config_with_hook(&retained, project.path(), &mut budget, |relative| {
+            if replaced || relative != Path::new(".specsync/config.toml") {
+                return;
+            }
+            replaced = true;
+            fs::rename(project.path().join(".specsync"), &original_parent).unwrap();
+            fs::create_dir_all(project.path().join(".specsync")).unwrap();
+            fs::write(
+                project.path().join(".specsync/config.toml"),
+                "source_dirs = [\"replacement-source\"]\n",
+            )
+            .unwrap();
+        })
+        .unwrap_err();
+
+        assert!(
+            error.contains("changed during retained traversal"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn retained_selected_specs_enforce_the_shared_entry_budget() {
+        let project = tempfile::tempdir().unwrap();
+        fs::create_dir_all(project.path().join("specs")).unwrap();
+        let first = project.path().join("specs/first.spec.md");
+        let second = project.path().join("specs/second.spec.md");
+        let spec = "---\nmodule: fixture\nversion: 1\nstatus: stable\nfiles: []\n---\n";
+        fs::write(&first, spec).unwrap();
+        fs::write(&second, spec).unwrap();
+        let retained = open_coverage_project_root(project.path()).unwrap();
+        let mut inventory_budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+        let inventory =
+            discover_coverage_spec_files(&retained, "specs", &mut inventory_budget).unwrap();
+        let limits = CoverageTraversalLimits {
+            max_entries: 1,
+            ..CoverageTraversalLimits::default()
+        };
+        let mut within_budget = CoverageTraversalBudget::new(limits);
+        collect_specced_files(
+            &retained,
+            std::slice::from_ref(&inventory[0]),
+            &mut within_budget,
+        )
+        .unwrap();
+
+        let mut over_budget = CoverageTraversalBudget::new(limits);
+        let error = collect_specced_files(&retained, &inventory, &mut over_budget).unwrap_err();
+
+        assert!(error.contains("1-entry limit"), "{error}");
+    }
+
+    #[test]
+    fn retained_spec_enumeration_is_bounded_before_returning_paths() {
+        let project = tempfile::tempdir().unwrap();
+        fs::create_dir_all(project.path().join("specs")).unwrap();
+        fs::write(project.path().join("specs/first.spec.md"), "").unwrap();
+        fs::write(project.path().join("specs/second.spec.md"), "").unwrap();
+        let retained = open_coverage_project_root(project.path()).unwrap();
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits {
+            max_entries: 1,
+            ..CoverageTraversalLimits::default()
+        });
+
+        let error = discover_coverage_spec_files(&retained, "specs", &mut budget).unwrap_err();
+
+        assert!(error.contains("1-entry limit"), "{error}");
+    }
+
+    #[test]
+    fn retained_spec_inventory_applies_caller_selection_before_ownership_parsing() {
+        let project = tempfile::tempdir().unwrap();
+        fs::create_dir_all(project.path().join("specs")).unwrap();
+        fs::create_dir_all(project.path().join("src")).unwrap();
+        let first = project.path().join("specs/first.spec.md");
+        let second = project.path().join("specs/second.spec.md");
+        fs::write(
+            &first,
+            "---\nmodule: first\nversion: 1\nstatus: stable\nfiles:\n  - src/first.rs\n---\n",
+        )
+        .unwrap();
+        fs::write(
+            &second,
+            "---\nmodule: second\nversion: 1\nstatus: stable\nfiles:\n  - src/second.rs\n---\n",
+        )
+        .unwrap();
+        fs::write(project.path().join("src/first.rs"), "pub fn first() {}\n").unwrap();
+        fs::write(project.path().join("src/second.rs"), "pub fn second() {}\n").unwrap();
+        let config = SpecSyncConfig {
+            source_dirs: vec!["src".to_string()],
+            ..SpecSyncConfig::default()
+        };
+
+        let report =
+            compute_coverage_checked(project.path(), std::slice::from_ref(&first), &config)
+                .unwrap();
+
+        assert_eq!(report.total_source_files, 2);
+        assert_eq!(report.specced_file_count, 1);
+        assert_eq!(report.unspecced_files, ["src/second.rs"]);
+    }
+
+    #[test]
+    fn retained_spec_inventory_rejects_replacement_before_ownership_parse() {
+        let project = tempfile::tempdir().unwrap();
+        fs::create_dir_all(project.path().join("specs")).unwrap();
+        let selected = project.path().join("specs/selected.spec.md");
+        let replacement = project.path().join("specs/replacement.spec.md");
+        fs::write(
+            &selected,
+            "---\nmodule: selected\nversion: 1\nstatus: stable\nfiles:\n  - src/original.rs\n---\n",
+        )
+        .unwrap();
+        fs::write(
+            &replacement,
+            "---\nmodule: replacement\nversion: 1\nstatus: stable\nfiles:\n  - src/replacement.rs\n---\n",
+        )
+        .unwrap();
+        let retained = open_coverage_project_root(project.path()).unwrap();
+        let mut inventory_budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+        let inventory =
+            discover_coverage_spec_files(&retained, "specs", &mut inventory_budget).unwrap();
+        let selected_inventory: Vec<CoverageSpecFile> = inventory
+            .into_iter()
+            .filter(|spec| spec.relative_path == Path::new("specs/selected.spec.md"))
+            .collect();
+        let mut read_budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+        let mut replaced = false;
+
+        let error = collect_specced_files_with_hook(
+            &retained,
+            &selected_inventory,
+            &mut read_budget,
+            |_| {
+                if replaced {
+                    return;
+                }
+                replaced = true;
+                fs::remove_file(&selected).unwrap();
+                fs::rename(&replacement, &selected).unwrap();
+            },
+        )
+        .unwrap_err();
+
+        assert!(
+            error.contains("changed after retained inventory"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn retained_coverage_file_read_rejects_preopen_regular_replacement() {
+        let project = tempfile::tempdir().unwrap();
+        let source = project.path().join("source.rs");
+        let replacement = project.path().join("replacement.rs");
+        fs::write(&source, "pub fn original() {}\n").unwrap();
+        fs::write(&replacement, "pub fn replacement() {}\n").unwrap();
+        let retained = open_coverage_project_root(project.path()).unwrap();
+
+        let error = read_coverage_file_with_hook(
+            &retained,
+            std::ffi::OsStr::new("source.rs"),
+            Path::new("source.rs"),
+            MAX_COVERAGE_FILE_BYTES,
+            MAX_COVERAGE_INPUT_BYTES,
+            MAX_COVERAGE_INPUT_BYTES,
+            || {
+                fs::remove_file(&source).unwrap();
+                fs::rename(&replacement, &source).unwrap();
+            },
+        )
+        .unwrap_err();
+
+        assert!(error.contains("changed during retained open"), "{error}");
     }
 
     fn snapshot_with_limits(
@@ -2221,10 +3003,19 @@ mod tests {
 
     #[cfg(windows)]
     fn create_coverage_test_junction(junction: &Path, target: &Path) -> Result<(), String> {
+        let junction = junction
+            .to_str()
+            .ok_or_else(|| "junction fixture path must be valid Unicode for cmd.exe".to_string())?;
+        let target = target
+            .to_str()
+            .ok_or_else(|| "junction target path must be valid Unicode for cmd.exe".to_string())?;
+        if junction.contains('"') || target.contains('"') {
+            return Err("junction fixture paths must not contain a double quote".to_string());
+        }
+        let command = format!("mklink /J \"{junction}\" \"{target}\"");
         let output = std::process::Command::new("cmd")
-            .args(["/D", "/C", "mklink", "/J"])
-            .arg(junction)
-            .arg(target)
+            .args(["/D", "/S", "/C"])
+            .arg(command)
             .output()
             .map_err(|error| format!("failed to launch cmd /C mklink /J: {error}"))?;
         if output.status.success() {
@@ -2351,7 +3142,7 @@ mod tests {
 
         let error = compute_coverage_checked(root, &[], &config).unwrap_err();
 
-        assert!(error.contains("src/bad.rs"), "{error}");
+        assert!(error.replace('\\', "/").contains("src/bad.rs"), "{error}");
         assert!(error.contains("not valid UTF-8"), "{error}");
     }
 
@@ -3061,18 +3852,30 @@ Test
 
 fn collect_specced_files(
     project: &Dir,
-    root: &Path,
-    spec_files: &[PathBuf],
+    spec_files: &[CoverageSpecFile],
     budget: &mut CoverageTraversalBudget,
 ) -> Result<HashSet<String>, String> {
+    collect_specced_files_with_hook(project, spec_files, budget, |_| {})
+}
+
+fn collect_specced_files_with_hook<BeforeRead>(
+    project: &Dir,
+    spec_files: &[CoverageSpecFile],
+    budget: &mut CoverageTraversalBudget,
+    mut before_read: BeforeRead,
+) -> Result<HashSet<String>, String>
+where
+    BeforeRead: FnMut(&Path),
+{
     let mut specced = HashSet::new();
     let mut observed_specs = HashSet::new();
     for spec_file in spec_files {
-        let relative = coverage_relative_spec_path(root, spec_file)?;
+        let relative = &spec_file.relative_path;
         if !observed_specs.insert(relative.clone()) {
             continue;
         }
-        ensure_coverage_depth(&relative, budget.limits.max_depth)?;
+        budget.charge_entries(1)?;
+        ensure_coverage_depth(relative, budget.limits.max_depth)?;
         let parent = relative.parent().unwrap_or_else(|| Path::new(""));
         let name = relative.file_name().ok_or_else(|| {
             format!(
@@ -3086,15 +3889,18 @@ fn collect_specced_files(
                 relative.display()
             ));
         };
-        let bytes = read_coverage_file(
+        before_read(relative);
+        let bytes = read_coverage_file_with_expected_identity_and_hook(
             &directory,
             name,
-            &relative,
+            relative,
             budget.limits.max_file_bytes,
             budget.remaining_bytes(),
             budget.limits.max_input_bytes,
+            Some(spec_file.identity),
+            || {},
         )?;
-        budget.charge_input_file(&relative, bytes.len() as u64)?;
+        budget.charge_input_file(relative, bytes.len() as u64)?;
         let content = std::str::from_utf8(&bytes).map_err(|_| {
             format!(
                 "Coverage spec file {} is not valid UTF-8",
@@ -3116,6 +3922,37 @@ fn collect_specced_files(
         }
     }
     Ok(specced)
+}
+
+fn select_coverage_spec_files(
+    root: &Path,
+    spec_files: &[PathBuf],
+    retained_inventory: &[CoverageSpecFile],
+) -> Result<Vec<CoverageSpecFile>, String> {
+    let selected_spec_files: HashSet<PathBuf> = spec_files
+        .iter()
+        .map(|spec_file| coverage_relative_spec_path(root, spec_file))
+        .collect::<Result<_, _>>()?;
+    let retained_spec_files: Vec<CoverageSpecFile> = retained_inventory
+        .iter()
+        .filter(|spec| selected_spec_files.contains(&spec.relative_path))
+        .cloned()
+        .collect();
+    if retained_spec_files.len() != selected_spec_files.len() {
+        let retained_spec_set: HashSet<&PathBuf> = retained_spec_files
+            .iter()
+            .map(|spec| &spec.relative_path)
+            .collect();
+        let missing = selected_spec_files
+            .iter()
+            .find(|selected| !retained_spec_set.contains(selected))
+            .expect("selected and retained spec counts differ");
+        return Err(format!(
+            "Coverage selected spec {} is missing from the retained spec inventory",
+            missing.display()
+        ));
+    }
+    Ok(retained_spec_files)
 }
 
 fn coverage_relative_spec_path(root: &Path, spec_file: &Path) -> Result<PathBuf, String> {
@@ -3294,11 +4131,22 @@ pub fn compute_coverage_checked(
     config: &SpecSyncConfig,
 ) -> Result<CoverageReport, String> {
     let project = open_coverage_project_root(root)?;
-    coverage_snapshot_test_barrier()?;
+    coverage_snapshot_test_barrier(CoverageSnapshotCheckpoint::RootRetained)?;
     let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
-    let specced_files = collect_specced_files(&project, root, spec_files, &mut budget)?;
-    let exclude_dirs: HashSet<String> = config.exclude_dirs.iter().cloned().collect();
+    if spec_files.len() > budget.limits.max_entries {
+        return Err(format!(
+            "Coverage selected-spec input exceeds the {}-entry limit",
+            budget.limits.max_entries
+        ));
+    }
     let manifest = crate::manifest::discover_from_manifests_checked_with_root(root, &project)?;
+    coverage_snapshot_test_barrier(CoverageSnapshotCheckpoint::ManifestDiscovered)?;
+    let retained_spec_inventory =
+        discover_coverage_spec_files(&project, &config.specs_dir, &mut budget)?;
+    let retained_spec_files =
+        select_coverage_spec_files(root, spec_files, &retained_spec_inventory)?;
+    let specced_files = collect_specced_files(&project, &retained_spec_files, &mut budget)?;
+    let exclude_dirs: HashSet<String> = config.exclude_dirs.iter().cloned().collect();
     let source_snapshot =
         snapshot_coverage_sources(&project, root, config, &exclude_dirs, &mut budget)?;
     let spec_modules: HashSet<String> =

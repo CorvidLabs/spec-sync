@@ -78,3 +78,20 @@ artifact: research
 - Ambiently probing or reading a Gradle build/settings manifest reintroduces link/reparse and
   replacement ambiguity before checked parsing. The retained project capability must select a
   bounded regular non-link file and the opened bytes must be authoritative.
+- A byte cache alone does not bound manifest work. Duplicate Cargo members or Node workspace
+  patterns can repeatedly replay a cached subtree unless declared expansions are charged and
+  completed normalized nodes are memoized.
+- An early root-retention barrier closes pre-discovery swaps but cannot characterize replacement
+  during later source traversal. A distinct post-discovery checkpoint is required inside checked
+  coverage, and gate callers must propagate its failure.
+- Selected-spec inventory is part of coverage input authority. It must be retained, identity-bound,
+  and charged to the same byte and entry bounds as source inventory before ownership parsing.
+- Retaining a nested directory handle is insufficient if its name is detached from the project
+  root. Configuration and manifest/workspace parents must be reverified through the retained root
+  around reads and after enumeration to prevent mixed-generation observations.
+- Explicit `source_dirs` are compatibility authority and must be parsed before autodetection;
+  scanning unrelated manifests or filesystem entries can introduce failures outside the configured
+  scope.
+- The review's command-wide immutable CLI snapshot and generic structured discovery-outcome
+  architecture are broader than issue #414's MCP boundary. They remain valid later
+  CLI/outcome/generation work and are not claimed by this change.

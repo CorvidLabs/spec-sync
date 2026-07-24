@@ -123,3 +123,19 @@ artifact: design
   100,000-entry, and 256-component fail-closed limits for non-Gradle acquisition.
 - Resolve caller-selected coverage spec paths relative to the retained project capability and
   charge their exact bytes to the same deduplicated cumulative budget as source bytes.
+- Retain the root before configuration fallback and zero-config manifest/source detection. Preserve
+  selected-spec discovery identities through ownership parsing, skip autodetection when explicit
+  source roots are configured, and reverify nested config/manifest parents through the retained
+  root around reads and after enumeration.
+- Charge selected-spec and source bytes plus inventory entries to one shared coverage budget.
+  Manifest workspace expansion charges every Cargo member and Node workspace pattern to the
+  retained manifest entry/work budget before traversal, normalizes and deduplicates nodes, and
+  memoizes completed results.
+- Keep two deterministic coverage race checkpoints: one immediately after root retention and one
+  after retained manifest discovery but before selected-spec/source traversal. These checkpoints
+  scope the `compute_coverage_checked` operation; gate callers propagate its failures.
+- Hosted-Windows fixtures construct and prove a real junction/reparse target, use portable path
+  comparisons, and must run in Windows CI; cross-target compilation is not runtime evidence.
+- Do not describe the returned config/path tuple as a command-wide immutable snapshot. Retaining
+  authority across complete CLI pipelines and rendering generic structured discovery failures are
+  deferred to later CLI/outcome/generation work outside issue #414.

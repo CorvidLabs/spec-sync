@@ -34,27 +34,21 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::process;
 
-use crate::config::load_config;
 use crate::ignore::IgnoreRules;
 use crate::parser;
 use crate::schema;
 use crate::scoring;
 use crate::types;
 use crate::types::SpecStatus;
-use crate::validator::{find_spec_files, source_within_root, validate_spec};
+use crate::validator::{
+    find_spec_files, load_config_and_discover_retained, source_within_root, validate_spec,
+};
 
 pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConfig, Vec<PathBuf>) {
-    let config = load_config(root);
-    let specs_dir = root.join(&config.specs_dir);
-    let spec_files: Vec<PathBuf> = find_spec_files(&specs_dir)
-        .into_iter()
-        .filter(|f| {
-            f.file_name()
-                .and_then(|n| n.to_str())
-                .map(|n| !n.starts_with('_'))
-                .unwrap_or(true)
-        })
-        .collect();
+    let (config, spec_files) = load_config_and_discover_retained(root).unwrap_or_else(|error| {
+        eprintln!("SpecSync discovery is inconclusive: {error}");
+        process::exit(1);
+    });
 
     if spec_files.is_empty() && !allow_empty {
         let abs_specs = root.join(&config.specs_dir);

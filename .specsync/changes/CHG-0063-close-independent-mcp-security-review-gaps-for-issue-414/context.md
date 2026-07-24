@@ -281,3 +281,23 @@ ambient pathname only as a final replacement diagnostic. The same review found t
 fixtures unconditionally failed in restricted sandboxes; FIFO checks remain mandatory, while only
 a host-denied socket fixture is skipped. Fresh exact-tree approval, two clean reviews, sandbox,
 Windows runtime, repository/CI, trust, and provenance evidence remain required.
+
+The exact-head review of `59ea788` found that selected-spec inventory and zero-config source
+detection still needed stronger retained authority, Cargo/Node workspace declarations could replay
+completed subtrees without a work bound, the moved early race barrier no longer exercised the
+post-discovery traversal window, and hosted-Windows junction/path assertions still needed runtime
+acceptance. The remediation now implements lazy autodetection for omitted `source_dirs`, retained
+nested config/manifest-directory reachability, selected-spec inventory identity continuity, one
+shared checked-coverage spec/source byte-and-entry budget, and bounded/deduplicated Cargo/Node
+workspace expansion with completed-node memoization in manifest and MCP-specific traversal.
+Coverage-internal early and post-discovery checkpoints remain distinct and gate callers propagate
+their errors.
+
+The latest review disposition is scoped rather than silently overclaimed. The review findings above
+have implementation and focused coverage: 41 manifest tests, 39 validator tests, MCP declaration
+budget and deduplication tests, the duplicate Cargo/Node integration drill, and both five-command
+race phases. The command-wide immutable CLI analysis snapshot and generic structured discovery
+outcomes identified by the review are not implemented here; they are outside GitHub #414's MCP
+boundary and remain assigned to later CLI/outcome/generation work. The full local suite now passes
+1,930 unit and 307 integration tests. No post-fix independent review has accepted the current tree;
+hosted-Windows runtime, sandbox, repository/CI, trust, and provenance evidence remain pending.

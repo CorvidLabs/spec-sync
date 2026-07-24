@@ -29,6 +29,12 @@ Acceptance Criteria
   traversal, and final root verification share one retained project capability. Traversal is
   sorted and iterative with 8 MiB per input file, 64 MiB cumulative bytes, 100,000 entries, and
   256 path components.
+- Root retention precedes configuration and omitted-source manifest/source detection. Explicit
+  source roots skip autodetection; nested configuration/manifest parents remain reachable from the
+  retained root. Every selected spec and source inventory entry is charged to the shared entry
+  bound, and selected-spec discovery identity remains authoritative through ownership parsing.
+- Separate deterministic checkpoints immediately after root retention and after discovery scope
+  checked coverage; gate callers propagate their inconclusive errors.
 - Invalid UTF-8 source names/content, special entries, links/reparse points, root/directory/file
   identity replacement, and exhausted bounds fail inconclusive before partial coverage totals.
 - `compute_coverage` remains available for compatibility and returns a zero-percent report carrying
@@ -79,6 +85,7 @@ Acceptance Criteria
 | `validate_spec` | `spec_path: &Path, root: &Path, schema_tables: &HashSet<String>, schema_columns: &HashMap<String, SchemaTable>, config: &SpecSyncConfig` | `ValidationResult` | Validate a single spec file: frontmatter, files, sections, API surface, and dependencies |
 | `validate_spec_content` | `spec_path: &Path, content: &str, root: &Path, schema_tables: &HashSet<String>, schema_columns: &HashMap<String, SchemaTable>, config: &SpecSyncConfig` | `ValidationResult` | Validate already-read spec bytes without reopening the spec or adjacent companions; mapped sources retain normal path-based behavior |
 | `find_spec_files` | `dir: &Path` | `Vec<PathBuf>` | Recursively find sorted `*.spec.md` files |
+| `load_config_and_discover_retained` | `root: &Path` | `Result<(SpecSyncConfig, Vec<PathBuf>), String>` | Crate-private bounded retained-root configuration and spec inventory used by CLI commands |
 | `compute_coverage` | `root, spec_files, config` | `CoverageReport` | Compatibility file and LOC coverage computation |
 | `compute_coverage_checked` | `root, spec_files, config` | `Result<CoverageReport, String>` | Checked coverage that surfaces malformed/unreadable manifest discovery |
 | `get_schema_table_names` | `root, config` | `HashSet<String>` | Extract schema table names through the configured pattern |
@@ -125,3 +132,9 @@ Acceptance Criteria
 18. Caller-selected spec ownership, manifest/spec-module/source discovery, and final verification
     share one retained project capability; deterministic iterative traversal enforces 8 MiB/file,
     64 MiB total, 100,000 entries, 256 components, strict UTF-8, and special-entry rejection.
+19. Configuration and zero-config source detection begin after root retention; selected-spec/source
+    bytes and entries share one budget, nested config/manifest parents remain reachable, explicit
+    source roots avoid autodetection, and retained identities remain authoritative.
+20. Early and post-discovery race checkpoints independently cover retained acquisition and later
+    traversal inside checked coverage; callers propagate those failures without claiming
+    command-wide retained authority.

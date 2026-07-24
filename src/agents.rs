@@ -12,6 +12,14 @@ use std::path::{Path, PathBuf};
 
 const SKILL_BODY: &str = r#"## Companion files
 
+Each canonical spec may have policy-selected companion files. Read and update the ones present; do not create empty companions only for ceremony:
+
+- **`tasks.md`** — Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
+- **`requirements.md`** — Acceptance criteria and user stories. These are permanent invariants, not tasks — do not check them off. Update if requirements change.
+- **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress.
+- **`testing.md`** — Test strategy: automated test locations, manual QA checklists, and edge cases/boundary conditions.
+- **`design.md`** *(opt-in)* — Layout, component hierarchy, design tokens, and asset references. Present when `companions.design` is enabled in config.
+
 ## Verified SDD change lifecycle (5.0)
 
 For every meaningful source, test, public documentation, schema, or configuration change:
@@ -29,14 +37,6 @@ For every meaningful source, test, public documentation, schema, or configuratio
 Never invent or self-grant either human approval. If an approved definition changes, its digest
 becomes stale and must be approved again. `specsync check` validates canonical specs plus approved
 active deltas, requirement-to-test evidence, change coverage, and CI gates.
-
-Each canonical spec may have policy-selected companion files. Read and update the ones present; do not create empty companions only for ceremony:
-
-- **`tasks.md`** — Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
-- **`requirements.md`** — Acceptance criteria and user stories. These are permanent invariants, not tasks — do not check them off. Update if requirements change.
-- **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress.
-- **`testing.md`** — Test strategy: automated test locations, manual QA checklists, and edge cases/boundary conditions.
-- **`design.md`** *(opt-in)* — Layout, component hierarchy, design tokens, and asset references. Present when `companions.design` is enabled in config.
 
 ## Before modifying any module
 
@@ -291,60 +291,69 @@ pub fn is_installed(root: &Path, tool: AgentTool) -> bool {
     skill_ok && command_ok
 }
 
+/// Write `content` to `path`. If the file already exists with DIFFERENT
+/// content, the existing content is first copied to a `<name>.specsync-backup`
+/// sibling and a warning is printed — user customizations are never silently
+/// clobbered (#438). Returns Ok(true) if the file was written, Ok(false) when
+/// the content already matched (idempotent no-op, no backup churn).
+fn write_with_backup(path: &Path, content: &str) -> Result<bool, String> {
+    let existing = fs::read_to_string(path).ok();
+    if existing.as_deref() == Some(content) {
+        return Ok(false);
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
+    }
+    if let Some(old) = existing {
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("file");
+        let backup = path.with_file_name(format!("{file_name}.specsync-backup"));
+        fs::write(&backup, &old)
+            .map_err(|e| format!("Failed to write backup {}: {e}", backup.display()))?;
+        eprintln!(
+            "  {} {} existed with local modifications — backed up to {}",
+            "!".yellow(),
+            path.display(),
+            backup.display()
+        );
+    }
+    fs::write(path, content).map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
+    Ok(true)
+}
+
 /// Install skill + command files for one tool. Returns Ok(true) if anything
 /// was written, Ok(false) if everything was already present and up to date.
 ///
 /// Re-running on an already-installed project upgrades stale content: if a
 /// newer spec-sync ships revised skill/command text, the existing file is
 /// overwritten to match rather than being silently left outdated because it
-/// already exists. Safe because these files are fully spec-sync-owned (see
-/// `uninstall_agent`'s doc comment) — there's no user content to preserve.
+/// already exists. Any differing pre-existing content is backed up to a
+/// `<name>.specsync-backup` sibling first (#438) so local customizations are
+/// never silently destroyed.
 pub fn install_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
     let mut changed = false;
 
     if let Some(dir) = tool.skill_dir(root) {
         let skill_path = dir.join("SKILL.md");
         let skill_content = skill_md_content(tool);
-        let needs_write = fs::read_to_string(&skill_path)
-            .map(|existing| existing != skill_content)
-            .unwrap_or(true);
-        if needs_write {
-            fs::create_dir_all(&dir)
-                .map_err(|e| format!("Failed to create {}: {e}", dir.display()))?;
-            fs::write(&skill_path, skill_content)
-                .map_err(|e| format!("Failed to write {}: {e}", skill_path.display()))?;
+        if write_with_backup(&skill_path, &skill_content)? {
             changed = true;
         }
     }
 
     if let Some(path) = tool.command_path(root) {
         let command_content = create_spec_command_content(tool);
-        let needs_write = fs::read_to_string(&path)
-            .map(|existing| existing != command_content)
-            .unwrap_or(true);
-        if needs_write {
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent)
-                    .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
-            }
-            fs::write(&path, command_content)
-                .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
+        if write_with_backup(&path, &command_content)? {
             changed = true;
         }
     }
 
     if let Some(path) = tool.change_command_path(root) {
         let command_content = create_change_command_content(tool);
-        let needs_write = fs::read_to_string(&path)
-            .map(|existing| existing != command_content)
-            .unwrap_or(true);
-        if needs_write {
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent)
-                    .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
-            }
-            fs::write(&path, command_content)
-                .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
+        if write_with_backup(&path, &command_content)? {
             changed = true;
         }
     }
@@ -922,6 +931,67 @@ mod tests {
         install_agent(tmp.path(), AgentTool::Claude).unwrap();
         // Second install: content is identical, so nothing should be rewritten.
         assert!(!install_agent(tmp.path(), AgentTool::Claude).unwrap());
+    }
+
+    #[test]
+    fn install_backs_up_user_customized_skill() {
+        // #438 regression: a user-customized skill file must be backed up and
+        // warned about — never silently clobbered while claiming success.
+        let tmp = setup();
+        install_agent(tmp.path(), AgentTool::Claude).unwrap();
+        let skill_path = tmp.path().join(".claude/skills/spec-sync/SKILL.md");
+        let customized = format!(
+            "{}\n\nMy custom additions I do not want to lose.\n",
+            fs::read_to_string(&skill_path).unwrap()
+        );
+        fs::write(&skill_path, &customized).unwrap();
+
+        assert!(install_agent(tmp.path(), AgentTool::Claude).unwrap());
+
+        let backup = tmp
+            .path()
+            .join(".claude/skills/spec-sync/SKILL.md.specsync-backup");
+        assert!(backup.exists(), "customized content must be backed up");
+        assert_eq!(fs::read_to_string(&backup).unwrap(), customized);
+        // The stock skill is restored, customization preserved in the backup.
+        assert!(!fs::read_to_string(&skill_path)
+            .unwrap()
+            .contains("custom additions"));
+    }
+
+    #[test]
+    fn install_backs_up_user_customized_command() {
+        let tmp = setup();
+        install_agent(tmp.path(), AgentTool::Cursor).unwrap();
+        let cmd_path = tmp
+            .path()
+            .join(".cursor/commands/specsync-create-spec.md");
+        fs::write(&cmd_path, "user's tweaked command").unwrap();
+
+        assert!(install_agent(tmp.path(), AgentTool::Cursor).unwrap());
+        let backup = tmp
+            .path()
+            .join(".cursor/commands/specsync-create-spec.md.specsync-backup");
+        assert_eq!(
+            fs::read_to_string(&backup).unwrap(),
+            "user's tweaked command"
+        );
+    }
+
+    #[test]
+    fn skill_md_companion_files_section_is_not_empty() {
+        // #438 regression: the installed SKILL.md's `## Companion files`
+        // section must actually contain the companion-files content.
+        let tmp = setup();
+        install_agent(tmp.path(), AgentTool::Claude).unwrap();
+        let skill =
+            fs::read_to_string(tmp.path().join(".claude/skills/spec-sync/SKILL.md")).unwrap();
+        let start = skill.find("## Companion files").unwrap();
+        let rest = &skill[start..];
+        let end = rest[3..].find("\n## ").map(|i| i + 3).unwrap_or(rest.len());
+        let section = &rest[..end];
+        assert!(section.contains("tasks.md"), "section body:\n{section}");
+        assert!(section.contains("requirements.md"), "section body:\n{section}");
     }
 
     // ── uninstall_agent ──────────────────────────────────────────────

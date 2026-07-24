@@ -353,9 +353,10 @@ pub enum ChangeAction {
         /// Canonical owner module for this obligation
         #[arg(long = "spec")]
         module: String,
-        /// Full `specsync.acceptance-entry.v1` predecessor digest
+        /// Full `specsync.acceptance-entry.v1` predecessor digest (resolved
+        /// automatically from the predecessor's signed acceptance entry when omitted)
         #[arg(long)]
-        digest: String,
+        digest: Option<String>,
     },
     /// List active changes
     List,

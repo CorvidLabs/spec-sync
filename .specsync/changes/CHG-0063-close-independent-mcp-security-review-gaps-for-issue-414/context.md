@@ -299,5 +299,5 @@ budget and deduplication tests, the duplicate Cargo/Node integration drill, and 
 race phases. The command-wide immutable CLI analysis snapshot and generic structured discovery
 outcomes identified by the review are not implemented here; they are outside GitHub #414's MCP
 boundary and remain assigned to later CLI/outcome/generation work. The full local suite now passes
-1,930 unit and 307 integration tests. No post-fix independent review has accepted the current tree;
+1,948 unit and 310 integration tests. No post-fix independent review has accepted the current tree;
 hosted-Windows runtime, sandbox, repository/CI, trust, and provenance evidence remain pending.

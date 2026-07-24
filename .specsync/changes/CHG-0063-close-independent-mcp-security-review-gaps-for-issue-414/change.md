@@ -61,8 +61,13 @@ Close independent MCP security review gaps for issue 414
   bounds/deduplicates Cargo/Node expansion in both manifest and MCP traversal. Separate early and
   post-discovery checkpoints cover the checked-coverage operation and propagate failures to gate
   callers. A command-wide immutable CLI analysis snapshot and generic structured discovery outcomes
-  remain assigned to later CLI/outcome/generation work outside issue #414's MCP boundary. Fresh
-  independent rereview, the full post-remediation suite, hosted-Windows runtime, and final
+  remain assigned to later CLI/outcome/generation work outside issue #414's MCP boundary. The
+  independent-rereview remediation additionally binds selected source-directory identities through
+  coverage, revalidates selected-config parent chains after reads, and rejects authority-bearing
+  recursive directory replacement. Present Node manifests now fail closed on malformed or
+  wrong-shaped workspace data, and Cargo operational discovery uses the same real-TOML multiline
+  member semantics as preflight. The full amended suite passes 1,948 unit and 310 integration tests.
+  Fresh independent rereview, exact-head sandbox replay, hosted-Windows runtime, and final
   repository/trust/provenance/CI evidence remain pending.
 
 ## No-spec Rationale

@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 19
+version: 20
 status: stable
 files:
   - src/mcp.rs
@@ -248,3 +248,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-23 | v17 / CHG-0063 post-review hardening: Apply no-follow, non-blocking, before/opened/after identity continuity to every generic project file used by MCP tools and resources |
 | 2026-07-23 | v18 / CHG-0063 verification portability: Preserve FIFO coverage and execute socket assertions where the Unix host permits socket fixtures without making restricted sandboxes fail before the security assertion |
 | 2026-07-23 | v19 / CHG-0063 exact-head review remediation: Charge Cargo/Node declarations before deduplication, reuse normalized completed workspace nodes, and retain zero-config manifest/source authority before autodetection |
+| 2026-07-24 | v20 / CHG-0063 independent rereview remediation: Bind selected-config parent directories to pre-open identities, revalidate their complete retained edge chain after reads, and reject authority-bearing recursive snapshot directory replacement |

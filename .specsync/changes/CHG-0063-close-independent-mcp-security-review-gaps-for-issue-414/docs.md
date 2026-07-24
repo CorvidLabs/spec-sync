@@ -97,8 +97,8 @@ artifact: docs
   nested config/manifest reachability; selected-spec identity continuity; explicit-config lazy
   autodetection; independent checked-coverage race checkpoints; and targeted after-open/read,
   invalid UTF-8, limit/limit-plus-one, duplicate-chain, ecosystem, and hosted-Windows reparse tests.
-- Record only the reported targeted counts. Do not describe the full post-remediation suite,
-  independent rereview, sandbox, hosted-Windows runtime, or final repository/trust/provenance/CI
-  gates as passing.
+- Record the latest targeted counts and the full amended result of 1,948 unit plus 310 integration
+  tests. Do not describe independent rereview, exact-head sandbox replay, hosted-Windows runtime,
+  or final repository/trust/provenance/CI gates as passing.
 - State explicitly that command-wide immutable CLI analysis and generic structured discovery
   outcomes are deferred to later CLI/outcome/generation work outside issue #414.

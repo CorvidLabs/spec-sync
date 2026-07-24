@@ -270,9 +270,10 @@ fn retained_source_dirs(
         }
         Ok(_) => retained_source_dirs_by_scan(project, root, budget),
         // Coverage itself repeats retained manifest discovery and owns the
-        // command-specific inconclusive JSON. Keep pre-discovery confined but
-        // do not exit before that structured diagnostic can be emitted.
-        Err(_) => Ok(vec!["src".to_string()]),
+        // command-specific inconclusive JSON. Preserve legacy omitted-source
+        // compatibility for shared CLI discovery by using the bounded retained
+        // scan here; the checked coverage pass still reports the manifest error.
+        Err(_) => retained_source_dirs_by_scan(project, root, budget),
     }
 }
 
@@ -413,9 +414,10 @@ where
     for configured in CONFIG_PATH_CANDIDATES {
         let relative = Path::new(configured);
         let parent = relative.parent().unwrap_or_else(|| Path::new(""));
-        let Some(directory) = open_coverage_directory(project, parent)? else {
+        let Some(retained_directory) = open_retained_coverage_directory(project, parent)? else {
             continue;
         };
+        let directory = &retained_directory.directory;
         let name = relative.file_name().ok_or_else(|| {
             format!(
                 "Configuration path {} has no terminal filename",
@@ -438,17 +440,17 @@ where
                 relative.display()
             ));
         }
+        verify_retained_coverage_directory(project, &retained_directory)?;
         before_read(relative);
-        verify_coverage_directory_edge(project, parent, &directory)?;
         let bytes = read_coverage_file(
-            &directory,
+            directory,
             name,
             relative,
             budget.limits.max_file_bytes,
             budget.remaining_bytes(),
             budget.limits.max_input_bytes,
         )?;
-        verify_coverage_directory_edge(project, parent, &directory)?;
+        verify_retained_coverage_directory(project, &retained_directory)?;
         budget.charge_input_file(relative, bytes.len() as u64)?;
         let content = match std::str::from_utf8(&bytes) {
             Ok(content) => content,
@@ -523,6 +525,18 @@ fn discover_coverage_spec_files(
     configured: &str,
     budget: &mut CoverageTraversalBudget,
 ) -> Result<Vec<CoverageSpecFile>, String> {
+    discover_coverage_spec_files_with_hook(project, configured, budget, |_| {})
+}
+
+fn discover_coverage_spec_files_with_hook<AfterEnumeration>(
+    project: &Dir,
+    configured: &str,
+    budget: &mut CoverageTraversalBudget,
+    mut after_enumeration: AfterEnumeration,
+) -> Result<Vec<CoverageSpecFile>, String>
+where
+    AfterEnumeration: FnMut(&Path),
+{
     let relative = if configured == "." {
         PathBuf::new()
     } else {
@@ -531,93 +545,105 @@ fn discover_coverage_spec_files(
         })?)
     };
     ensure_coverage_depth(&relative, budget.limits.max_depth)?;
-    let Some(directory) = open_coverage_directory(project, &relative)? else {
+    let Some(retained_directory) = open_retained_coverage_directory(project, &relative)? else {
         return Ok(Vec::new());
     };
-    let retained_directory = directory.try_clone().map_err(|error| {
-        format!(
-            "Cannot retain coverage specs directory {}: {error}",
-            display_coverage_path(&relative)
-        )
-    })?;
-    let mut stack = vec![PendingCoverageDirectory {
-        directory,
+    let pending = PendingCoverageDirectory {
+        directory: retained_directory.directory.try_clone().map_err(|error| {
+            format!(
+                "Cannot retain coverage specs directory {}: {error}",
+                display_coverage_path(&relative)
+            )
+        })?,
         relative: relative.clone(),
         source_root: true,
         parent_edge: None,
-    }];
+    };
     let mut specs = Vec::new();
-    while let Some(pending) = stack.pop() {
-        let names = read_coverage_entry_names(&pending.directory, &pending.relative, budget)?;
-        let mut children = Vec::new();
-        for name in names {
-            let name_text = name.to_str().ok_or_else(|| {
-                format!(
-                    "Coverage spec path beneath {} is not valid UTF-8",
-                    display_coverage_path(&pending.relative)
-                )
-            })?;
-            let child = pending.relative.join(&name);
-            ensure_coverage_depth(&child, budget.limits.max_depth)?;
-            let metadata = pending.directory.symlink_metadata(&name).map_err(|error| {
-                format!(
-                    "Cannot inspect retained coverage spec path {}: {error}",
-                    child.display()
-                )
-            })?;
-            if coverage_metadata_is_link(&metadata) {
-                return Err(format!(
-                    "Coverage spec path {} must not traverse a symlink or reparse point",
-                    child.display()
-                ));
-            }
-            if metadata.is_dir() {
-                let child_directory =
-                    open_coverage_child_directory(&pending.directory, &name, &child)?;
-                children.push(PendingCoverageDirectory {
-                    directory: child_directory,
-                    relative: child,
-                    source_root: false,
-                    parent_edge: Some((
-                        pending.directory.try_clone().map_err(|error| {
-                            format!(
-                                "Cannot retain coverage spec directory {}: {error}",
-                                display_coverage_path(&pending.relative)
-                            )
-                        })?,
-                        name,
-                    )),
-                });
-                continue;
-            }
-            if !metadata.is_file() {
-                return Err(format!(
-                    "Coverage spec path {} must be a regular file or directory",
-                    child.display()
-                ));
-            }
-            if name_text.ends_with(".spec.md") && !name_text.starts_with('_') {
-                let identity = coverage_metadata_identity(&metadata).map_err(|error| {
-                    format!(
-                        "Cannot identify retained coverage spec file {}: {error}",
-                        child.display()
-                    )
-                })?;
-                specs.push(CoverageSpecFile {
-                    relative_path: child,
-                    identity,
-                });
-            }
-        }
-        if let Some((parent, name)) = pending.parent_edge {
-            verify_coverage_child_directory(&parent, &name, &pending.relative, &pending.directory)?;
-        }
-        stack.extend(children.into_iter().rev());
-    }
-    verify_coverage_directory_edge(project, &relative, &retained_directory)?;
+    discover_coverage_spec_directory(pending, budget, &mut after_enumeration, &mut specs)?;
+    verify_retained_coverage_directory(project, &retained_directory)?;
     specs.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
     specs.dedup_by(|left, right| left.relative_path == right.relative_path);
     Ok(specs)
+}
+
+fn discover_coverage_spec_directory<AfterEnumeration>(
+    pending: PendingCoverageDirectory,
+    budget: &mut CoverageTraversalBudget,
+    after_enumeration: &mut AfterEnumeration,
+    specs: &mut Vec<CoverageSpecFile>,
+) -> Result<(), String>
+where
+    AfterEnumeration: FnMut(&Path),
+{
+    let names = read_coverage_entry_names(&pending.directory, &pending.relative, budget)?;
+    let mut children = Vec::new();
+    for name in names {
+        let name_text = name.to_str().ok_or_else(|| {
+            format!(
+                "Coverage spec path beneath {} is not valid UTF-8",
+                display_coverage_path(&pending.relative)
+            )
+        })?;
+        let child = pending.relative.join(&name);
+        ensure_coverage_depth(&child, budget.limits.max_depth)?;
+        let metadata = pending.directory.symlink_metadata(&name).map_err(|error| {
+            format!(
+                "Cannot inspect retained coverage spec path {}: {error}",
+                child.display()
+            )
+        })?;
+        if coverage_metadata_is_link(&metadata) {
+            return Err(format!(
+                "Coverage spec path {} must not traverse a symlink or reparse point",
+                child.display()
+            ));
+        }
+        if metadata.is_dir() {
+            let child_directory = open_coverage_child_directory(&pending.directory, &name, &child)?;
+            children.push(PendingCoverageDirectory {
+                directory: child_directory,
+                relative: child,
+                source_root: false,
+                parent_edge: Some((
+                    pending.directory.try_clone().map_err(|error| {
+                        format!(
+                            "Cannot retain coverage spec directory {}: {error}",
+                            display_coverage_path(&pending.relative)
+                        )
+                    })?,
+                    name,
+                )),
+            });
+            continue;
+        }
+        if !metadata.is_file() {
+            return Err(format!(
+                "Coverage spec path {} must be a regular file or directory",
+                child.display()
+            ));
+        }
+        if name_text.ends_with(".spec.md") && !name_text.starts_with('_') {
+            let identity = coverage_metadata_identity(&metadata).map_err(|error| {
+                format!(
+                    "Cannot identify retained coverage spec file {}: {error}",
+                    child.display()
+                )
+            })?;
+            specs.push(CoverageSpecFile {
+                relative_path: child,
+                identity,
+            });
+        }
+    }
+    after_enumeration(&pending.relative);
+    for child in children {
+        discover_coverage_spec_directory(child, budget, after_enumeration, specs)?;
+    }
+    if let Some((parent, name)) = pending.parent_edge {
+        verify_coverage_child_directory(&parent, &name, &pending.relative, &pending.directory)?;
+    }
+    Ok(())
 }
 
 struct PendingCoverageDirectory {
@@ -627,6 +653,13 @@ struct PendingCoverageDirectory {
     parent_edge: Option<(Dir, OsString)>,
 }
 
+struct RetainedCoverageSourceDirectory {
+    configured: String,
+    normalized: PathBuf,
+    retained: RetainedCoverageDirectory,
+}
+
+#[cfg(test)]
 fn snapshot_coverage_sources(
     project: &Dir,
     root: &Path,
@@ -634,7 +667,40 @@ fn snapshot_coverage_sources(
     exclude_dirs: &HashSet<String>,
     budget: &mut CoverageTraversalBudget,
 ) -> Result<CoverageSourceSnapshot, String> {
-    let mut snapshot = CoverageSourceSnapshot::default();
+    snapshot_coverage_sources_with_hook(project, root, config, exclude_dirs, budget, |_| {})
+}
+
+#[cfg(test)]
+fn snapshot_coverage_sources_with_hook<AfterEnumeration>(
+    project: &Dir,
+    root: &Path,
+    config: &SpecSyncConfig,
+    exclude_dirs: &HashSet<String>,
+    budget: &mut CoverageTraversalBudget,
+    mut after_enumeration: AfterEnumeration,
+) -> Result<CoverageSourceSnapshot, String>
+where
+    AfterEnumeration: FnMut(&Path),
+{
+    let retained_sources =
+        retain_coverage_source_directories(project, config, budget.limits.max_depth)?;
+    snapshot_retained_coverage_sources_with_hook(
+        project,
+        root,
+        config,
+        exclude_dirs,
+        budget,
+        retained_sources,
+        &mut after_enumeration,
+    )
+}
+
+fn retain_coverage_source_directories(
+    project: &Dir,
+    config: &SpecSyncConfig,
+    max_depth: usize,
+) -> Result<Vec<RetainedCoverageSourceDirectory>, String> {
+    let mut retained_sources = Vec::new();
     for configured in &config.source_dirs {
         let normalized = if configured == "." {
             PathBuf::new()
@@ -645,14 +711,37 @@ fn snapshot_coverage_sources(
                 )
             })?)
         };
-        ensure_coverage_depth(&normalized, budget.limits.max_depth)?;
-        let Some(directory) = open_coverage_directory(project, &normalized)? else {
+        ensure_coverage_depth(&normalized, max_depth)?;
+        let Some(retained) = open_retained_coverage_directory(project, &normalized)? else {
             continue;
         };
-        let retained_directory = directory.try_clone().map_err(|error| {
+        retained_sources.push(RetainedCoverageSourceDirectory {
+            configured: configured.clone(),
+            normalized,
+            retained,
+        });
+    }
+    Ok(retained_sources)
+}
+
+fn snapshot_retained_coverage_sources_with_hook<AfterEnumeration>(
+    project: &Dir,
+    root: &Path,
+    config: &SpecSyncConfig,
+    exclude_dirs: &HashSet<String>,
+    budget: &mut CoverageTraversalBudget,
+    retained_sources: Vec<RetainedCoverageSourceDirectory>,
+    after_enumeration: &mut AfterEnumeration,
+) -> Result<CoverageSourceSnapshot, String>
+where
+    AfterEnumeration: FnMut(&Path),
+{
+    let mut snapshot = CoverageSourceSnapshot::default();
+    for source in retained_sources {
+        let directory = source.retained.directory.try_clone().map_err(|error| {
             format!(
                 "Cannot retain coverage source directory {}: {error}",
-                display_coverage_path(&normalized)
+                display_coverage_path(&source.normalized)
             )
         })?;
         let mut immediate_modules = Vec::new();
@@ -664,13 +753,18 @@ fn snapshot_coverage_sources(
             files: &mut snapshot.files,
             budget,
         };
-        snapshot_coverage_directory(directory, &normalized, &mut accumulator)?;
-        verify_coverage_directory_edge(project, &normalized, &retained_directory)?;
+        snapshot_coverage_directory_with_hook(
+            directory,
+            &source.normalized,
+            &mut accumulator,
+            after_enumeration,
+        )?;
+        verify_retained_coverage_directory(project, &source.retained)?;
         immediate_modules.sort();
         immediate_modules.dedup();
         snapshot
             .immediate_modules
-            .insert(configured.clone(), immediate_modules);
+            .insert(source.configured, immediate_modules);
     }
     snapshot
         .files
@@ -768,123 +862,141 @@ struct CoverageSourceAccumulator<'a> {
     budget: &'a mut CoverageTraversalBudget,
 }
 
-fn snapshot_coverage_directory(
+fn snapshot_coverage_directory_with_hook<AfterEnumeration>(
     directory: Dir,
     relative: &Path,
     accumulator: &mut CoverageSourceAccumulator<'_>,
-) -> Result<(), String> {
-    let mut stack = vec![PendingCoverageDirectory {
-        directory,
-        relative: relative.to_path_buf(),
-        source_root: true,
-        parent_edge: None,
-    }];
-    while let Some(pending) = stack.pop() {
-        let names =
-            read_coverage_entry_names(&pending.directory, &pending.relative, accumulator.budget)?;
-        let mut children = Vec::new();
-        for name in names {
-            if coverage_name_is_excluded(&name, accumulator.exclude_dirs) {
-                continue;
-            }
-            name.to_str().ok_or_else(|| {
-                format!(
-                    "Coverage source path beneath {} is not valid UTF-8",
-                    display_coverage_path(&pending.relative)
-                )
-            })?;
-            let child = pending.relative.join(&name);
-            ensure_coverage_depth(&child, accumulator.budget.limits.max_depth)?;
-            let metadata = pending.directory.symlink_metadata(&name).map_err(|error| {
-                format!(
-                    "Cannot inspect retained coverage source {}: {error}",
-                    child.display()
-                )
-            })?;
-            if coverage_metadata_is_link(&metadata) {
-                return Err(format!(
-                    "Coverage source {} must not traverse a symlink or reparse point",
-                    child.display()
-                ));
-            }
-            if metadata.is_dir() {
-                if pending.source_root {
-                    accumulator.immediate_modules.push(name.clone());
-                }
-                let child_directory =
-                    open_coverage_child_directory(&pending.directory, &name, &child)?;
-                children.push(PendingCoverageDirectory {
-                    directory: child_directory,
-                    relative: child,
-                    source_root: false,
-                    parent_edge: Some((
-                        pending.directory.try_clone().map_err(|error| {
-                            format!(
-                                "Cannot retain coverage source directory {}: {error}",
-                                display_coverage_path(&pending.relative)
-                            )
-                        })?,
-                        name,
-                    )),
-                });
-                continue;
-            }
-            if !metadata.is_file() {
-                return Err(format!(
-                    "Coverage source {} must be a regular file or directory",
-                    child.display()
-                ));
-            }
-            let logical_path = accumulator.root.join(&child);
-            if !has_coverage_extension(&logical_path, accumulator.config)
-                || is_test_file(&logical_path, accumulator.root)
-            {
-                continue;
-            }
-            if accumulator.budget.source_files.contains(&child) {
-                continue;
-            }
-            if metadata.len() > accumulator.budget.limits.max_file_bytes {
-                return Err(format!(
-                    "Coverage source file {} exceeds the {} per-file limit",
-                    child.display(),
-                    display_coverage_byte_limit(accumulator.budget.limits.max_file_bytes)
-                ));
-            }
-            if metadata.len() > accumulator.budget.remaining_bytes() {
-                return Err(format!(
-                    "Coverage source inputs exceed the {} cumulative limit",
-                    display_coverage_byte_limit(accumulator.budget.limits.max_input_bytes)
-                ));
-            }
-            let bytes = read_coverage_file(
-                &pending.directory,
-                &name,
-                &child,
-                accumulator.budget.limits.max_file_bytes,
-                accumulator.budget.remaining_bytes(),
-                accumulator.budget.limits.max_input_bytes,
-            )?;
-            let content = std::str::from_utf8(&bytes).map_err(|_| {
-                format!(
-                    "Coverage source file {} is not valid UTF-8",
-                    child.display()
-                )
-            })?;
-            if accumulator
-                .budget
-                .charge_source_file(&child, bytes.len() as u64)?
-            {
-                accumulator.files.push(CoverageSourceFile {
-                    relative_path: child,
-                    loc: content.lines().count(),
-                });
-            }
+    after_enumeration: &mut AfterEnumeration,
+) -> Result<(), String>
+where
+    AfterEnumeration: FnMut(&Path),
+{
+    snapshot_pending_coverage_directory(
+        PendingCoverageDirectory {
+            directory,
+            relative: relative.to_path_buf(),
+            source_root: true,
+            parent_edge: None,
+        },
+        accumulator,
+        after_enumeration,
+    )
+}
+
+fn snapshot_pending_coverage_directory<AfterEnumeration>(
+    pending: PendingCoverageDirectory,
+    accumulator: &mut CoverageSourceAccumulator<'_>,
+    after_enumeration: &mut AfterEnumeration,
+) -> Result<(), String>
+where
+    AfterEnumeration: FnMut(&Path),
+{
+    let names =
+        read_coverage_entry_names(&pending.directory, &pending.relative, accumulator.budget)?;
+    let mut children = Vec::new();
+    for name in names {
+        if coverage_name_is_excluded(&name, accumulator.exclude_dirs) {
+            continue;
         }
-        if let Some((parent, name)) = pending.parent_edge {
-            verify_coverage_child_directory(&parent, &name, &pending.relative, &pending.directory)?;
+        name.to_str().ok_or_else(|| {
+            format!(
+                "Coverage source path beneath {} is not valid UTF-8",
+                display_coverage_path(&pending.relative)
+            )
+        })?;
+        let child = pending.relative.join(&name);
+        ensure_coverage_depth(&child, accumulator.budget.limits.max_depth)?;
+        let metadata = pending.directory.symlink_metadata(&name).map_err(|error| {
+            format!(
+                "Cannot inspect retained coverage source {}: {error}",
+                child.display()
+            )
+        })?;
+        if coverage_metadata_is_link(&metadata) {
+            return Err(format!(
+                "Coverage source {} must not traverse a symlink or reparse point",
+                child.display()
+            ));
         }
-        stack.extend(children.into_iter().rev());
+        if metadata.is_dir() {
+            if pending.source_root {
+                accumulator.immediate_modules.push(name.clone());
+            }
+            let child_directory = open_coverage_child_directory(&pending.directory, &name, &child)?;
+            children.push(PendingCoverageDirectory {
+                directory: child_directory,
+                relative: child,
+                source_root: false,
+                parent_edge: Some((
+                    pending.directory.try_clone().map_err(|error| {
+                        format!(
+                            "Cannot retain coverage source directory {}: {error}",
+                            display_coverage_path(&pending.relative)
+                        )
+                    })?,
+                    name,
+                )),
+            });
+            continue;
+        }
+        if !metadata.is_file() {
+            return Err(format!(
+                "Coverage source {} must be a regular file or directory",
+                child.display()
+            ));
+        }
+        let logical_path = accumulator.root.join(&child);
+        if !has_coverage_extension(&logical_path, accumulator.config)
+            || is_test_file(&logical_path, accumulator.root)
+        {
+            continue;
+        }
+        if accumulator.budget.source_files.contains(&child) {
+            continue;
+        }
+        if metadata.len() > accumulator.budget.limits.max_file_bytes {
+            return Err(format!(
+                "Coverage source file {} exceeds the {} per-file limit",
+                child.display(),
+                display_coverage_byte_limit(accumulator.budget.limits.max_file_bytes)
+            ));
+        }
+        if metadata.len() > accumulator.budget.remaining_bytes() {
+            return Err(format!(
+                "Coverage source inputs exceed the {} cumulative limit",
+                display_coverage_byte_limit(accumulator.budget.limits.max_input_bytes)
+            ));
+        }
+        let bytes = read_coverage_file(
+            &pending.directory,
+            &name,
+            &child,
+            accumulator.budget.limits.max_file_bytes,
+            accumulator.budget.remaining_bytes(),
+            accumulator.budget.limits.max_input_bytes,
+        )?;
+        let content = std::str::from_utf8(&bytes).map_err(|_| {
+            format!(
+                "Coverage source file {} is not valid UTF-8",
+                child.display()
+            )
+        })?;
+        if accumulator
+            .budget
+            .charge_source_file(&child, bytes.len() as u64)?
+        {
+            accumulator.files.push(CoverageSourceFile {
+                relative_path: child,
+                loc: content.lines().count(),
+            });
+        }
+    }
+    after_enumeration(&pending.relative);
+    for child in children {
+        snapshot_pending_coverage_directory(child, accumulator, after_enumeration)?;
+    }
+    if let Some((parent, name)) = pending.parent_edge {
+        verify_coverage_child_directory(&parent, &name, &pending.relative, &pending.directory)?;
     }
     Ok(())
 }
@@ -952,16 +1064,40 @@ fn display_coverage_byte_limit(bytes: u64) -> String {
     }
 }
 
-fn open_coverage_directory(root: &Dir, relative: &Path) -> Result<Option<Dir>, String> {
+struct RetainedCoverageDirectory {
+    root: Dir,
+    directory: Dir,
+    edges: Vec<RetainedCoverageDirectoryEdge>,
+}
+
+struct RetainedCoverageDirectoryEdge {
+    parent: Dir,
+    name: OsString,
+    relative: PathBuf,
+    child: Dir,
+}
+
+fn open_retained_coverage_directory(
+    root: &Dir,
+    relative: &Path,
+) -> Result<Option<RetainedCoverageDirectory>, String> {
+    let retained_root = root
+        .try_clone()
+        .map_err(|error| format!("Cannot retain coverage project root: {error}"))?;
     if relative.as_os_str().is_empty() {
-        return root
+        let directory = root
             .try_clone()
-            .map(Some)
-            .map_err(|error| format!("Cannot retain coverage project root: {error}"));
+            .map_err(|error| format!("Cannot retain coverage project root: {error}"))?;
+        return Ok(Some(RetainedCoverageDirectory {
+            root: retained_root,
+            directory,
+            edges: Vec::new(),
+        }));
     }
     let mut directory = root
         .try_clone()
         .map_err(|error| format!("Cannot retain coverage project root: {error}"))?;
+    let mut edges = Vec::new();
     let mut inspected = PathBuf::new();
     for component in relative.components() {
         let std::path::Component::Normal(name) = component else {
@@ -996,9 +1132,46 @@ fn open_coverage_directory(root: &Dir, relative: &Path) -> Result<Option<Dir>, S
             }
             return Ok(None);
         }
-        directory = open_coverage_child_directory(&directory, name, &inspected)?;
+        let child = open_coverage_child_directory(&directory, name, &inspected)?;
+        edges.push(RetainedCoverageDirectoryEdge {
+            parent: directory.try_clone().map_err(|error| {
+                format!(
+                    "Cannot retain coverage source directory {}: {error}",
+                    display_coverage_path(inspected.parent().unwrap_or_else(|| Path::new("")))
+                )
+            })?,
+            name: name.to_os_string(),
+            relative: inspected.clone(),
+            child: child.try_clone().map_err(|error| {
+                format!(
+                    "Cannot retain coverage source directory {}: {error}",
+                    inspected.display()
+                )
+            })?,
+        });
+        directory = child;
     }
-    Ok(Some(directory))
+    Ok(Some(RetainedCoverageDirectory {
+        root: retained_root,
+        directory,
+        edges,
+    }))
+}
+
+fn verify_retained_coverage_directory(
+    project: &Dir,
+    retained: &RetainedCoverageDirectory,
+) -> Result<(), String> {
+    verify_coverage_directory_edge(project, Path::new(""), &retained.root)?;
+    for edge in &retained.edges {
+        verify_coverage_child_directory(&edge.parent, &edge.name, &edge.relative, &edge.child)?;
+    }
+    Ok(())
+}
+
+fn open_coverage_directory(root: &Dir, relative: &Path) -> Result<Option<Dir>, String> {
+    open_retained_coverage_directory(root, relative)
+        .map(|retained| retained.map(|retained| retained.directory))
 }
 
 fn open_coverage_child_directory(
@@ -2606,6 +2779,143 @@ mod tests {
         assert_eq!(fs::read(outside_source).unwrap(), sentinel);
     }
 
+    #[test]
+    fn retained_coverage_sources_reject_regular_directory_replacement_after_selection() {
+        let project = tempfile::tempdir().unwrap();
+        let original = project.path().join("original-src");
+        fs::create_dir_all(project.path().join("src")).unwrap();
+        fs::write(
+            project.path().join("src/original.rs"),
+            "pub fn original() {}\n",
+        )
+        .unwrap();
+        let retained = open_coverage_project_root(project.path()).unwrap();
+        let config = SpecSyncConfig {
+            source_dirs: vec!["src".to_string()],
+            ..SpecSyncConfig::default()
+        };
+        let retained_sources = retain_coverage_source_directories(
+            &retained,
+            &config,
+            CoverageTraversalLimits::default().max_depth,
+        )
+        .unwrap();
+        fs::rename(project.path().join("src"), &original).unwrap();
+        fs::create_dir_all(project.path().join("src")).unwrap();
+        fs::write(
+            project.path().join("src/replacement.rs"),
+            "pub fn replacement() {}\n",
+        )
+        .unwrap();
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+
+        let error = snapshot_retained_coverage_sources_with_hook(
+            &retained,
+            project.path(),
+            &config,
+            &HashSet::new(),
+            &mut budget,
+            retained_sources,
+            &mut |_| {},
+        )
+        .unwrap_err();
+
+        assert!(
+            error.contains("changed during retained traversal"),
+            "{error}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retained_source_traversal_rejects_directory_replacement_after_enumeration() {
+        let project = tempfile::tempdir().unwrap();
+        let source_parent = project.path().join("src/module");
+        let original = source_parent.join("nested");
+        let detached = project.path().join("detached-source");
+        let replacement = project.path().join("replacement-source");
+        fs::create_dir_all(&original).unwrap();
+        fs::create_dir_all(&replacement).unwrap();
+        fs::write(original.join("original.rs"), "pub fn original() {}\n").unwrap();
+        fs::write(
+            replacement.join("replacement.rs"),
+            "pub fn replacement() {}\n",
+        )
+        .unwrap();
+        let retained = open_coverage_project_root(project.path()).unwrap();
+        let config = SpecSyncConfig {
+            source_dirs: vec!["src".to_string()],
+            ..SpecSyncConfig::default()
+        };
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+        let mut replaced = false;
+
+        let error = snapshot_coverage_sources_with_hook(
+            &retained,
+            project.path(),
+            &config,
+            &HashSet::new(),
+            &mut budget,
+            |relative| {
+                if replaced || relative != Path::new("src/module") {
+                    return;
+                }
+                replaced = true;
+                fs::rename(&original, &detached).unwrap();
+                fs::rename(&replacement, &original).unwrap();
+            },
+        )
+        .unwrap_err();
+
+        assert!(replaced);
+        assert!(
+            error.contains("changed during retained traversal"),
+            "{error}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retained_spec_traversal_rejects_directory_replacement_after_enumeration() {
+        let project = tempfile::tempdir().unwrap();
+        let spec_parent = project.path().join("specs/module");
+        let original = spec_parent.join("nested");
+        let detached = project.path().join("detached-specs");
+        let replacement = project.path().join("replacement-specs");
+        fs::create_dir_all(&original).unwrap();
+        fs::create_dir_all(&replacement).unwrap();
+        fs::write(
+            original.join("original.spec.md"),
+            "---\nmodule: original\nversion: 1\nstatus: stable\nfiles: []\n---\n",
+        )
+        .unwrap();
+        fs::write(
+            replacement.join("replacement.spec.md"),
+            "---\nmodule: replacement\nversion: 1\nstatus: stable\nfiles: []\n---\n",
+        )
+        .unwrap();
+        let retained = open_coverage_project_root(project.path()).unwrap();
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+        let mut replaced = false;
+
+        let error =
+            discover_coverage_spec_files_with_hook(&retained, "specs", &mut budget, |relative| {
+                if replaced || relative != Path::new("specs/module") {
+                    return;
+                }
+                replaced = true;
+                fs::rename(&original, &detached).unwrap();
+                fs::rename(&replacement, &original).unwrap();
+            })
+            .unwrap_err();
+
+        assert!(replaced);
+        assert!(
+            error.contains("changed during retained traversal"),
+            "{error}"
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn retained_coverage_spec_mapping_ignores_an_ambient_root_replacement() {
@@ -2701,13 +3011,40 @@ mod tests {
             "specs_dir = \"specs\"\nsource_dirs = [\"configured-source\"]\n",
         )
         .unwrap();
-        fs::write(project.path().join("Cargo.toml"), "[workspace\n").unwrap();
+        fs::write(
+            project.path().join("settings.gradle"),
+            "include(\":member\"\n",
+        )
+        .unwrap();
         let retained = open_coverage_project_root(project.path()).unwrap();
         let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
 
         let config = retained_config(&retained, project.path(), &mut budget).unwrap();
 
         assert_eq!(config.source_dirs, ["configured-source"]);
+    }
+
+    #[test]
+    fn retained_omitted_source_dirs_scan_after_a_malformed_manifest() {
+        let project = tempfile::tempdir().unwrap();
+        fs::create_dir_all(project.path().join("lib")).unwrap();
+        fs::write(project.path().join("lib/source.rs"), "pub fn value() {}\n").unwrap();
+        fs::write(
+            project.path().join("settings.gradle"),
+            "include(\":member\"\n",
+        )
+        .unwrap();
+        let retained = open_coverage_project_root(project.path()).unwrap();
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+
+        let config = retained_config(&retained, project.path(), &mut budget).unwrap();
+
+        assert_eq!(config.source_dirs, ["lib"]);
+        let checked_error = compute_coverage_checked(project.path(), &[], &config).unwrap_err();
+        assert!(
+            checked_error.contains("Cannot parse Gradle settings manifest"),
+            "{checked_error}"
+        );
     }
 
     #[cfg(unix)]
@@ -3883,15 +4220,17 @@ where
                 relative.display()
             )
         })?;
-        let Some(directory) = open_coverage_directory(project, parent)? else {
+        let Some(retained_directory) = open_retained_coverage_directory(project, parent)? else {
             return Err(format!(
                 "Coverage spec file {} is missing from the retained project",
                 relative.display()
             ));
         };
+        let directory = &retained_directory.directory;
+        verify_retained_coverage_directory(project, &retained_directory)?;
         before_read(relative);
         let bytes = read_coverage_file_with_expected_identity_and_hook(
-            &directory,
+            directory,
             name,
             relative,
             budget.limits.max_file_bytes,
@@ -3900,6 +4239,7 @@ where
             Some(spec_file.identity),
             || {},
         )?;
+        verify_retained_coverage_directory(project, &retained_directory)?;
         budget.charge_input_file(relative, bytes.len() as u64)?;
         let content = std::str::from_utf8(&bytes).map_err(|_| {
             format!(
@@ -4003,16 +4343,11 @@ fn get_spec_module_dirs(
     };
     ensure_coverage_depth(&relative, budget.limits.max_depth)?;
     let mut modules = Vec::new();
-    let Some(directory) = open_coverage_directory(project, &relative)? else {
+    let Some(retained_directory) = open_retained_coverage_directory(project, &relative)? else {
         return Ok(modules);
     };
-    let retained_directory = directory.try_clone().map_err(|error| {
-        format!(
-            "Cannot retain coverage specs directory {}: {error}",
-            display_coverage_path(&relative)
-        )
-    })?;
-    let names = read_coverage_entry_names(&directory, &relative, budget)?;
+    let directory = &retained_directory.directory;
+    let names = read_coverage_entry_names(directory, &relative, budget)?;
     for name in names {
         let name_text = name.to_str().ok_or_else(|| {
             format!(
@@ -4037,7 +4372,7 @@ fn get_spec_module_dirs(
         if !metadata.is_dir() {
             continue;
         }
-        let child_directory = open_coverage_child_directory(&directory, &name, &child)?;
+        let child_directory = open_coverage_child_directory(directory, &name, &child)?;
         let spec_names = read_coverage_entry_names(&child_directory, &child, budget)?;
         let mut has_spec = false;
         for spec_name in spec_names {
@@ -4077,12 +4412,12 @@ fn get_spec_module_dirs(
                 ));
             }
         }
-        verify_coverage_child_directory(&directory, &name, &child, &child_directory)?;
+        verify_coverage_child_directory(directory, &name, &child, &child_directory)?;
         if has_spec {
             modules.push(name_text.to_string());
         }
     }
-    verify_coverage_directory_edge(project, &relative, &retained_directory)?;
+    verify_retained_coverage_directory(project, &retained_directory)?;
     modules.sort();
     Ok(modules)
 }
@@ -4140,6 +4475,8 @@ pub fn compute_coverage_checked(
         ));
     }
     let manifest = crate::manifest::discover_from_manifests_checked_with_root(root, &project)?;
+    let retained_sources =
+        retain_coverage_source_directories(&project, config, budget.limits.max_depth)?;
     coverage_snapshot_test_barrier(CoverageSnapshotCheckpoint::ManifestDiscovered)?;
     let retained_spec_inventory =
         discover_coverage_spec_files(&project, &config.specs_dir, &mut budget)?;
@@ -4147,8 +4484,15 @@ pub fn compute_coverage_checked(
         select_coverage_spec_files(root, spec_files, &retained_spec_inventory)?;
     let specced_files = collect_specced_files(&project, &retained_spec_files, &mut budget)?;
     let exclude_dirs: HashSet<String> = config.exclude_dirs.iter().cloned().collect();
-    let source_snapshot =
-        snapshot_coverage_sources(&project, root, config, &exclude_dirs, &mut budget)?;
+    let source_snapshot = snapshot_retained_coverage_sources_with_hook(
+        &project,
+        root,
+        config,
+        &exclude_dirs,
+        &mut budget,
+        retained_sources,
+        &mut |_| {},
+    )?;
     let spec_modules: HashSet<String> =
         get_spec_module_dirs(&project, &config.specs_dir, &mut budget)?
             .into_iter()

@@ -62,8 +62,8 @@ The exact-head implementation adds
 `retained_duplicate_cargo_members_reject_a_linked_workspace_without_disclosure`, and
 `retained_nested_manifest_read_rejects_a_replaced_parent_directory`, plus deterministic Cargo and
 Node nested-directory replacement cases. The reported focused manifest run passed 41 tests with
-zero failures. The full post-remediation suite, fresh independent rereview, and hosted-Windows
-runtime remain pending.
+zero failures, and the full post-remediation suite passed 1,948 unit plus 310 integration tests.
+Fresh independent rereview and hosted-Windows runtime remain pending.
 
 ## Reviewer Checklist
 

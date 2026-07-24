@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 19
+version: 20
 status: stable
 files:
   - src/validator.rs
@@ -246,6 +246,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-23 | v17 / CHG-0063 post-review hardening: share one retained project authority across manifest/spec/source coverage and enforce deterministic iterative byte, entry, depth, UTF-8, and identity bounds |
 | 2026-07-23 | v18 / CHG-0063 acceptance remediation: read caller-selected spec ownership frontmatter and every recognized manifest through the same retained project authority before source coverage |
 | 2026-07-23 | v19 / CHG-0063 exact-head review remediation: preserve nested config/manifest reachability and selected-spec identity continuity, lazily autodetect omitted source roots, and charge selected-spec/source bytes and entries within checked coverage |
+| 2026-07-24 | v20 / CHG-0063 independent rereview remediation: Preserve bounded scan fallback after malformed manifest autodetection and retain selected source-directory identities from post-manifest selection through checked coverage traversal |
 | 2026-07-10 | v5: keep coverage regression fixtures warning-free under current stable Clippy and document the intentionally in-file test-module layout |
 | 2026-07-10 | v5: make canonical requirements companions adaptive rather than empty mandatory ceremony |
 | 2026-07-02 | v4: add `source_within_root` — shared guard rejecting `files:` paths that escape the project root (absolute/`..`/symlink); applied in `validate_spec` and every export-extraction site (score, check --fix, diff, new) to close an out-of-root identifier-disclosure vector |

@@ -81,8 +81,9 @@ input/output, configured-ignore exceptions, conservative Git scoring, rollback, 
 failure branches. Exact-head remediation covers Cargo/Node duplicate-chain expansion,
 declaration charging, injectable limit/limit-plus-one behavior, and retained zero-config detection.
 The reported targeted runs passed 111 MCP unit tests and 62 MCP integration tests, including the
-end-to-end duplicate Cargo/Node workspace case. The full post-remediation suite, fresh independent
-rereview, and hosted-Windows junction/reparse runtime remain pending.
+end-to-end duplicate Cargo/Node workspace case. The full post-remediation suite passed 1,930 unit
+plus 307 integration tests. Fresh independent rereview and hosted-Windows junction/reparse runtime
+remain pending.
 `snapshot_ignores_nonsemantic_cargo_metadata_paths`,
 `snapshot_normalizes_confined_windows_native_cargo_paths`,
 `issue_tool_fails_inconclusive_for_malformed_frontmatter`, and

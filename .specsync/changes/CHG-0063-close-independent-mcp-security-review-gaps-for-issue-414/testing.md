@@ -223,6 +223,43 @@ superseded by the hash-bound exact-commit replay below.
 - Disposable sandbox status after replay contained only the intentionally created untracked drill;
   the isolated implementation clone remained Git-clean.
 
+## Superseded exact-head private sandbox coverage receipt
+
+This receipt predates the directory-generation and strict Node/Cargo parsing remediation and is
+retained only as historical evidence. A fresh replay against the next exact implementation commit
+is required.
+
+- Time: `2026-07-24T02:15:52Z`
+- Exact implementation commit:
+  `912d2703a34047b60c2c7d604c854deede346669`
+- Build: disposable clone checked out detached at the exact commit;
+  `cargo build --release --locked --offline` exited 0.
+- Exact executable SHA-256:
+  `f5ac684b945341d013c3f043c3646dae1b0b7645643909cea99a63054cc1765e`
+- Private testbed: disposable clone of `CorvidLabs/spec-sync-sandbox` at
+  `758c144808d80169a44a740660b0d73c5b2f6ddd`; the real private checkout remained clean.
+- Fixture SHA-256 values:
+  - `Cargo.toml`:
+    `e77ac5576c1f325bc33957d5e41dc1285a6ed4222c9eac2ded5cb15773276c27`
+  - `crates/a/Cargo.toml`:
+    `d749d0d8c1d2f1c8f2eb3a197a024baf2e5caae6e6de2087b96b104b07f21adc`
+  - `crates/a/src/lib.rs`:
+    `b4e8ab15a4a448bf6cf21803acb611eaf2a247a250205c5efce6fb6065501195`
+  - `crates/b/Cargo.toml`:
+    `089de5bd84a831e0cfe9d4cd4edb6682b6485fa99fdf3b92dc1ac841f6381692`
+  - `crates/b/src/lib.rs`:
+    `5ef4c8137a224996d54200d9781792b3783570b74fd752a4291ae769bda3e51e`
+  - `specs/workspace/workspace.spec.md`:
+    `fad46122f8ae41e905f104a8501326ec36cce7cc5f7794a60cabec1a3e692d59`
+  - `specsync.json`:
+    `a41caeccbe40569fddbe49fc2d94bbc41d02d7bc36951edde4b522408b999b4a`
+- Default `tools/list` returned only five read tools: `specsync_check`,
+  `specsync_coverage`, `specsync_list_specs`, `specsync_score`, and `specsync_issues`.
+- `specsync_coverage` returned 100% file and LOC coverage: 2/2 files and 6/6 LOC, with no
+  uncovered files and no JSON-RPC error.
+- Disposable sandbox status after replay contained only the intentionally created untracked
+  fixture; the real private checkout and isolated implementation clone remained Git-clean.
+
 - `REQ-mcp-002`: `mcp::tests::test_repeated_tree_scans_share_one_confinement_budget`,
   `mcp::tests::snapshot_copies_the_exact_manifest_bytes_charged_during_discovery`,
   `mcp::tests::snapshot_includes_all_standard_gradle_module_forms_under_ignored_directories`,
@@ -472,20 +509,21 @@ superseded by the hash-bound exact-commit replay below.
   limit/limit-plus-one, duplicate-linked-member and nested-parent replacement cases; validator
   retained config-parent, explicit-source, selected-spec identity/shared-entry, bounded
   enumeration, and pre-open replacement cases; MCP snapshot/preflight declaration charging and
-  deduplication; and post-discovery Unix symlink/Windows junction gate barriers.
-- Reported targeted results: 41 manifest tests; 39 validator tests; 89 config tests; 111 MCP unit
-  tests; 62 MCP integration tests; 31 coverage integrations; 7 command tests; 16 Gradle security
+  deduplication; post-enumeration directory-generation rejection; strict malformed/wrong-shaped
+  Node workspace rejection; real-TOML multiline Cargo parity; and post-discovery Unix
+  symlink/Windows junction gate barriers.
+- Reported targeted results: 49 manifest tests; 43 validator tests; 89 config tests; 117 MCP unit
+  tests; 65 MCP integration tests; 31 coverage integrations; 7 command tests; 16 Gradle security
   integrations; and the five-command post-manifest race fixture. Formatting, pre-commit, and
-  Windows GNU cross-target compilation were also reported green. These are targeted results, not a
-  fresh full post-remediation repository lane or hosted-Windows runtime.
+  Windows GNU cross-target compilation were also reported green.
+- The full post-remediation local suite passes 1,948 unit and 310 integration tests.
 - The latest independent review rejected the pre-remediation exact head. Its in-scope findings now
   have implementation and targeted coverage, but no independent reviewer has accepted the current
   post-fix tree. A fresh acceptance and adversarial rereview remain pending.
 - The command-wide immutable CLI analysis snapshot and generic structured discovery outcomes from
   that review are not implemented in CHG-0063. They are outside GitHub #414's MCP boundary and
   remain assigned to later CLI/outcome/generation work.
-- The full post-remediation suite, private-sandbox replay, trust/Attest, hosted-Windows runtime,
-  GitHub CI, and fresh lifecycle approval remain pending.
+- Trust/Attest, hosted-Windows runtime, GitHub CI, and fresh lifecycle approval remain pending.
 - Exact commit `d05896b` passed the full local lane: 1,882 unit tests and 296 integration tests,
   plus `fledge run fmt`, `fledge run lint`, and the release `fledge run build`. That evidence
   predates the interpolation/encoded-escape amendment and is not final-tree evidence.

@@ -43,6 +43,11 @@ const MCP_STARTUP_TEST_BARRIER_TIMEOUT: std::time::Duration = std::time::Duratio
 const MCP_SNAPSHOT_FILE_TEST_BARRIER_ENV: &str = "SPECSYNC_TEST_MCP_SNAPSHOT_FILE_IDENTITY_BARRIER";
 #[cfg(debug_assertions)]
 const MCP_SNAPSHOT_FILE_TEST_PATH_ENV: &str = "SPECSYNC_TEST_MCP_SNAPSHOT_FILE_PATH";
+#[cfg(debug_assertions)]
+const MCP_SNAPSHOT_DIRECTORY_TEST_BARRIER_ENV: &str =
+    "SPECSYNC_TEST_MCP_SNAPSHOT_DIRECTORY_IDENTITY_BARRIER";
+#[cfg(debug_assertions)]
+const MCP_SNAPSHOT_DIRECTORY_TEST_PATH_ENV: &str = "SPECSYNC_TEST_MCP_SNAPSHOT_DIRECTORY_PATH";
 static STAGED_FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 const SNAPSHOT_IGNORED_DIRS: &[&str] = &[
     ".git",
@@ -367,6 +372,54 @@ fn wait_for_mcp_snapshot_file_test_barrier(relative: &Path) -> Result<(), String
         }
         if started.elapsed() >= MCP_STARTUP_TEST_BARRIER_TIMEOUT {
             return Err("Timed out waiting for MCP snapshot file test barrier".to_string());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+#[cfg(debug_assertions)]
+fn wait_for_mcp_snapshot_directory_test_barrier(relative: &Path) -> Result<(), String> {
+    let Some(target) = std::env::var_os(MCP_SNAPSHOT_DIRECTORY_TEST_PATH_ENV) else {
+        return Ok(());
+    };
+    if Path::new(&target) != relative {
+        return Ok(());
+    }
+    let Some(barrier_directory) = std::env::var_os(MCP_SNAPSHOT_DIRECTORY_TEST_BARRIER_ENV) else {
+        return Err("MCP snapshot directory test barrier path is not configured".to_string());
+    };
+    let barrier_directory = PathBuf::from(barrier_directory);
+    let ready_path = barrier_directory.join("enumerated-open");
+    let resume_path = barrier_directory.join("resume");
+    let mut ready_file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&ready_path)
+        .map_err(|error| format!("Cannot create MCP snapshot directory test barrier: {error}"))?;
+    ready_file
+        .write_all(b"enumerated-open\n")
+        .and_then(|_| ready_file.sync_all())
+        .map_err(|error| format!("Cannot publish MCP snapshot directory test barrier: {error}"))?;
+    drop(ready_file);
+
+    let started = std::time::Instant::now();
+    loop {
+        match fs::metadata(&resume_path) {
+            Ok(metadata) if metadata.is_file() => return Ok(()),
+            Ok(_) => {
+                return Err(
+                    "MCP snapshot directory test barrier resume marker is not a file".to_string(),
+                );
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "Cannot inspect MCP snapshot directory test barrier resume marker: {error}"
+                ));
+            }
+        }
+        if started.elapsed() >= MCP_STARTUP_TEST_BARRIER_TIMEOUT {
+            return Err("Timed out waiting for MCP snapshot directory test barrier".to_string());
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
@@ -773,21 +826,22 @@ fn collect_snapshot_manifest_inputs(
 
     if let Some(content) =
         read_capability_text_if_exists(source, Path::new("package.json"), budget)?
-        && let Ok(package) = serde_json::from_str::<Value>(&content)
     {
-        let patterns: Vec<&str> = match package.get("workspaces") {
-            Some(Value::Array(values)) => values.iter().filter_map(Value::as_str).collect(),
-            Some(Value::Object(object)) => object
-                .get("packages")
-                .and_then(Value::as_array)
-                .map(|values| values.iter().filter_map(Value::as_str).collect())
-                .unwrap_or_default(),
-            _ => Vec::new(),
-        };
+        let package: Value = serde_json::from_str(&content)
+            .map_err(|error| format!("Cannot parse MCP package.json as JSON: {error}"))?;
+        let declarations = package_workspace_declarations(&package, "MCP snapshot package.json")?;
+        budget.charge_entries(declarations.len(), "MCP snapshot manifest discovery")?;
+        let patterns = declarations
+            .iter()
+            .map(|declaration| {
+                declaration.as_str().ok_or_else(|| {
+                    "MCP snapshot package.json workspace entries must be strings".to_string()
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let mut seen_patterns = HashSet::new();
         let mut seen_bases = HashSet::new();
         for pattern in patterns {
-            budget.charge_entries(1, "MCP snapshot manifest discovery")?;
             if !seen_patterns.insert(pattern.to_string()) {
                 continue;
             }
@@ -926,6 +980,27 @@ fn collect_snapshot_manifest_inputs(
         ));
     }
     Ok(())
+}
+
+fn package_workspace_declarations<'a>(
+    package: &'a Value,
+    label: &str,
+) -> Result<&'a [Value], String> {
+    let object = package
+        .as_object()
+        .ok_or_else(|| format!("{label} root must be a JSON object"))?;
+    match object.get("workspaces") {
+        None => Ok(&[]),
+        Some(Value::Array(values)) => Ok(values),
+        Some(Value::Object(workspaces)) => match workspaces.get("packages") {
+            None => Ok(&[]),
+            Some(Value::Array(values)) => Ok(values),
+            Some(_) => Err(format!("{label} `workspaces.packages` must be an array")),
+        },
+        Some(_) => Err(format!(
+            "{label} `workspaces` must be an array or an object containing `packages`"
+        )),
+    }
 }
 
 fn push_unique_snapshot_input(
@@ -1451,12 +1526,31 @@ fn snapshot_metadata_is_link(metadata: &Metadata) -> bool {
     metadata.file_type().is_symlink()
 }
 
+fn snapshot_configuration_identities_match<Identity: PartialEq>(
+    expected: &Identity,
+    observed: &[Option<Identity>],
+) -> bool {
+    observed
+        .iter()
+        .all(|identity| identity.as_ref() == Some(expected))
+}
+
 #[cfg(not(windows))]
 fn open_snapshot_configuration_directory(
     parent: &Dir,
     name: &OsStr,
     relative: &Path,
-) -> Result<Option<Dir>, String> {
+) -> Result<Option<(Dir, SnapshotEntryIdentity)>, String> {
+    open_snapshot_configuration_directory_with_hook(parent, name, relative, || {})
+}
+
+#[cfg(not(windows))]
+fn open_snapshot_configuration_directory_with_hook(
+    parent: &Dir,
+    name: &OsStr,
+    relative: &Path,
+    after_pre_open_identity: impl FnOnce(),
+) -> Result<Option<(Dir, SnapshotEntryIdentity)>, String> {
     let before = match parent.symlink_metadata(name) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
@@ -1479,6 +1573,7 @@ fn open_snapshot_configuration_directory(
             relative.display()
         )
     })?;
+    after_pre_open_identity();
     let directory = parent.open_dir(name).map_err(|error| {
         format!(
             "Cannot open MCP configuration directory {}: {error}",
@@ -1498,15 +1593,17 @@ fn open_snapshot_configuration_directory(
     })?;
     if snapshot_metadata_is_link(&after)
         || !after.is_dir()
-        || snapshot_metadata_identity(&after).ok() != Some(expected)
-        || opened != expected
+        || !snapshot_configuration_identities_match(
+            &expected,
+            &[Some(opened), snapshot_metadata_identity(&after).ok()],
+        )
     {
         return Err(format!(
             "Selected MCP configuration directory changed during inspection: {}",
             relative.display()
         ));
     }
-    Ok(Some(directory))
+    Ok(Some((directory, expected)))
 }
 
 #[cfg(windows)]
@@ -1514,7 +1611,17 @@ fn open_snapshot_configuration_directory(
     parent: &Dir,
     name: &OsStr,
     relative: &Path,
-) -> Result<Option<Dir>, String> {
+) -> Result<Option<(Dir, SnapshotEntryIdentity)>, String> {
+    open_snapshot_configuration_directory_with_hook(parent, name, relative, || {})
+}
+
+#[cfg(windows)]
+fn open_snapshot_configuration_directory_with_hook(
+    parent: &Dir,
+    name: &OsStr,
+    relative: &Path,
+    after_pre_open_identity: impl FnOnce(),
+) -> Result<Option<(Dir, SnapshotEntryIdentity)>, String> {
     let before = match parent.symlink_metadata(name) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
@@ -1531,13 +1638,20 @@ fn open_snapshot_configuration_directory(
             relative.display()
         ));
     }
+    let expected = snapshot_metadata_identity(&before).map_err(|error| {
+        format!(
+            "Cannot identify MCP configuration directory {}: {error}",
+            relative.display()
+        )
+    })?;
+    after_pre_open_identity();
     let directory = parent.open_dir(name).map_err(|error| {
         format!(
             "Cannot open MCP configuration directory {}: {error}",
             relative.display()
         )
     })?;
-    let expected = directory_identity(&directory)
+    let opened = directory_identity(&directory)
         .map_err(|error| format!("Cannot identify opened MCP configuration directory: {error}"))?;
     let observed = parent.open_dir(name).map_err(|error| {
         format!(
@@ -1553,14 +1667,54 @@ fn open_snapshot_configuration_directory(
     })?;
     if snapshot_metadata_is_link(&after)
         || !after.is_dir()
-        || directory_identity(&observed).ok() != Some(expected)
+        || !snapshot_configuration_identities_match(
+            &expected,
+            &[
+                Some(opened),
+                snapshot_metadata_identity(&after).ok(),
+                directory_identity(&observed).ok(),
+            ],
+        )
     {
         return Err(format!(
             "Selected MCP configuration directory changed during inspection: {}",
             relative.display()
         ));
     }
-    Ok(Some(directory))
+    Ok(Some((directory, expected)))
+}
+
+fn revalidate_snapshot_configuration_parents(
+    source: &Dir,
+    parents: &[(PathBuf, SnapshotEntryIdentity)],
+) -> Result<(), String> {
+    let mut parent = source
+        .try_clone()
+        .map_err(|error| format!("Cannot clone MCP server root capability: {error}"))?;
+    for (relative, expected) in parents {
+        let Some(name) = relative.file_name() else {
+            return Err(format!(
+                "Selected MCP configuration parent path is invalid: {}",
+                relative.display()
+            ));
+        };
+        let Some((directory, observed)) =
+            open_snapshot_configuration_directory(&parent, name, relative)?
+        else {
+            return Err(format!(
+                "Selected MCP configuration directory changed while the configuration was being read: {}",
+                relative.display()
+            ));
+        };
+        if &observed != expected {
+            return Err(format!(
+                "Selected MCP configuration directory changed while the configuration was being read: {}",
+                relative.display()
+            ));
+        }
+        parent = directory;
+    }
+    Ok(())
 }
 
 fn read_snapshot_configuration(source: &Dir, relative: &Path) -> Result<Option<Vec<u8>>, String> {
@@ -1587,6 +1741,7 @@ fn read_snapshot_configuration_with_hook(
         .try_clone()
         .map_err(|error| format!("Cannot clone MCP server root capability: {error}"))?;
     let mut traversed = PathBuf::new();
+    let mut parents = Vec::new();
     for component in parent_components {
         let Component::Normal(name) = component else {
             return Err(format!(
@@ -1596,12 +1751,15 @@ fn read_snapshot_configuration_with_hook(
         };
         traversed.push(name);
         parent = match open_snapshot_configuration_directory(&parent, name, &traversed)? {
-            Some(directory) => directory,
+            Some((directory, identity)) => {
+                parents.push((traversed.clone(), identity));
+                directory
+            }
             None => return Ok(None),
         };
     }
 
-    read_retained_snapshot_file_if_exists_with_hook(
+    let bytes = read_retained_snapshot_file_if_exists_with_hook(
         &parent,
         Path::new(file_name),
         relative,
@@ -1611,7 +1769,9 @@ fn read_snapshot_configuration_with_hook(
             after_retained_open();
             Ok(())
         },
-    )
+    )?;
+    revalidate_snapshot_configuration_parents(source, &parents)?;
+    Ok(bytes)
 }
 
 fn validate_snapshot_configuration(
@@ -1770,12 +1930,21 @@ impl SnapshotBudget {
     }
 }
 
-fn read_snapshot_project_file(source: &Dir, relative: &Path) -> Result<Vec<u8>, String> {
-    read_snapshot_project_file_with_result_hook(source, relative, || {
-        #[cfg(debug_assertions)]
-        wait_for_mcp_snapshot_file_test_barrier(relative)?;
-        Ok(())
-    })
+fn read_snapshot_project_file_from_directory(
+    source: &Dir,
+    relative: &Path,
+    diagnostic_relative: &Path,
+) -> Result<Vec<u8>, String> {
+    read_snapshot_project_file_from_directory_with_result_hook(
+        source,
+        relative,
+        diagnostic_relative,
+        || {
+            #[cfg(debug_assertions)]
+            wait_for_mcp_snapshot_file_test_barrier(diagnostic_relative)?;
+            Ok(())
+        },
+    )
 }
 
 #[cfg(all(test, unix))]
@@ -1790,15 +1959,30 @@ fn read_snapshot_project_file_with_hook(
     })
 }
 
+#[cfg(test)]
 fn read_snapshot_project_file_with_result_hook(
     source: &Dir,
     relative: &Path,
     after_retained_open: impl FnOnce() -> Result<(), String>,
 ) -> Result<Vec<u8>, String> {
-    read_retained_snapshot_file_if_exists_with_hook(
+    read_snapshot_project_file_from_directory_with_result_hook(
         source,
         relative,
         relative,
+        after_retained_open,
+    )
+}
+
+fn read_snapshot_project_file_from_directory_with_result_hook(
+    source: &Dir,
+    relative: &Path,
+    diagnostic_relative: &Path,
+    after_retained_open: impl FnOnce() -> Result<(), String>,
+) -> Result<Vec<u8>, String> {
+    read_retained_snapshot_file_if_exists_with_hook(
+        source,
+        relative,
+        diagnostic_relative,
         "MCP project input",
         MAX_PROJECT_FILE_BYTES,
         after_retained_open,
@@ -1806,9 +1990,20 @@ fn read_snapshot_project_file_with_result_hook(
     .ok_or_else(|| {
         format!(
             "MCP project input changed during inspection: {}",
-            relative.display()
+            diagnostic_relative.display()
         )
     })
+}
+
+struct RetainedSnapshotDirectory {
+    directory: Dir,
+    identity: SnapshotEntryIdentity,
+}
+
+struct SnapshotDirectoryEntry {
+    name: std::ffi::OsString,
+    child: PathBuf,
+    retained_directory: Option<RetainedSnapshotDirectory>,
 }
 
 fn copy_snapshot_directory(
@@ -1819,19 +2014,67 @@ fn copy_snapshot_directory(
     configured_inputs: &[PathBuf],
     budget: &mut SnapshotBudget,
 ) -> Result<(), String> {
+    copy_snapshot_directory_with_enumeration_hook(
+        source,
+        destination,
+        relative,
+        configured_exclusions,
+        configured_inputs,
+        budget,
+        &mut |enumerated| {
+            #[cfg(debug_assertions)]
+            wait_for_mcp_snapshot_directory_test_barrier(enumerated)?;
+            #[cfg(not(debug_assertions))]
+            let _ = enumerated;
+            Ok(())
+        },
+    )
+}
+
+#[cfg(test)]
+fn copy_snapshot_directory_with_hook(
+    source: &Dir,
+    destination: &Dir,
+    relative: &Path,
+    configured_exclusions: &HashSet<String>,
+    configured_inputs: &[PathBuf],
+    budget: &mut SnapshotBudget,
+    mut after_enumeration: impl FnMut(&Path) -> Result<(), String>,
+) -> Result<(), String> {
+    copy_snapshot_directory_with_enumeration_hook(
+        source,
+        destination,
+        relative,
+        configured_exclusions,
+        configured_inputs,
+        budget,
+        &mut after_enumeration,
+    )
+}
+
+fn copy_snapshot_directory_with_enumeration_hook(
+    source: &Dir,
+    destination: &Dir,
+    relative: &Path,
+    configured_exclusions: &HashSet<String>,
+    configured_inputs: &[PathBuf],
+    budget: &mut SnapshotBudget,
+    after_enumeration: &mut impl FnMut(&Path) -> Result<(), String>,
+) -> Result<(), String> {
     destination.create_dir_all(relative).map_err(|error| {
         format!(
             "Cannot create MCP snapshot directory {}: {error}",
             relative.display()
         )
     })?;
-    let entries = source.read_dir(relative).map_err(|error| {
+    let entries = source.read_dir(".").map_err(|error| {
         format!(
             "Cannot read MCP project directory {} through its root capability: {error}",
             relative.display()
         )
     })?;
 
+    let mut retained_entries = Vec::new();
     for entry in entries {
         budget.charge_entries(1, "MCP project snapshot")?;
         let entry = entry.map_err(|error| {
@@ -1883,47 +2126,144 @@ fn copy_snapshot_directory(
             continue;
         }
 
-        let metadata = source.symlink_metadata(&child).map_err(|error| {
-            format!(
-                "Cannot inspect MCP project input {} through its root capability: {error}",
-                child.display()
-            )
-        })?;
-        if metadata.is_dir() {
-            copy_snapshot_directory(
-                source,
+        let retained_directory = if file_type.is_dir() {
+            Some(retain_snapshot_directory(source, &name, &child)?)
+        } else {
+            None
+        };
+        retained_entries.push(SnapshotDirectoryEntry {
+            name,
+            child,
+            retained_directory,
+        });
+    }
+
+    after_enumeration(relative)?;
+
+    for entry in retained_entries {
+        if let Some(retained) = entry.retained_directory {
+            verify_retained_snapshot_directory(source, &entry.name, &entry.child, &retained)?;
+            copy_snapshot_directory_with_enumeration_hook(
+                &retained.directory,
                 destination,
-                &child,
+                &entry.child,
                 configured_exclusions,
                 configured_inputs,
                 budget,
+                after_enumeration,
             )?;
+            verify_retained_snapshot_directory(source, &entry.name, &entry.child, &retained)?;
             continue;
         }
+
+        let metadata = source.symlink_metadata(&entry.name).map_err(|error| {
+            format!(
+                "Cannot inspect MCP project input {} through its retained parent capability: {error}",
+                entry.child.display()
+            )
+        })?;
         if snapshot_metadata_is_link(&metadata) || !metadata.is_file() {
             return Err(format!(
                 "MCP project input must be a regular file or directory and must not be a symlink or reparse point: {}",
-                child.display()
+                entry.child.display()
             ));
         }
         if metadata.len() > MAX_PROJECT_FILE_BYTES {
             return Err(format!(
                 "MCP project input exceeds the {} MiB per-file limit: {}",
                 MAX_PROJECT_FILE_BYTES / (1024 * 1024),
-                child.display()
+                entry.child.display()
             ));
         }
-        let bytes = read_snapshot_project_file(source, &child)?;
-        budget.charge_file(&child, bytes.len() as u64)?;
-        destination.write(&child, bytes).map_err(|error| {
+        let bytes = read_snapshot_project_file_from_directory(
+            source,
+            Path::new(&entry.name),
+            &entry.child,
+        )?;
+        budget.charge_file(&entry.child, bytes.len() as u64)?;
+        destination.write(&entry.child, bytes).map_err(|error| {
             format!(
                 "Cannot copy MCP project input {} into the bounded snapshot: {error}",
-                child.display()
+                entry.child.display()
             )
         })?;
-        budget.copied_paths.insert(child);
+        budget.copied_paths.insert(entry.child);
     }
 
+    Ok(())
+}
+
+fn retain_snapshot_directory(
+    parent: &Dir,
+    name: &OsStr,
+    relative: &Path,
+) -> Result<RetainedSnapshotDirectory, String> {
+    let before = parent.symlink_metadata(name).map_err(|error| {
+        format!(
+            "Cannot inspect MCP project directory {} through its retained parent capability: {error}",
+            relative.display()
+        )
+    })?;
+    if snapshot_metadata_is_link(&before) || !before.is_dir() {
+        return Err(format!(
+            "MCP project input must be a regular directory and must not be a symlink or reparse point: {}",
+            relative.display()
+        ));
+    }
+    let expected = snapshot_metadata_identity(&before).map_err(|error| {
+        format!(
+            "Cannot identify MCP project directory {}: {error}",
+            relative.display()
+        )
+    })?;
+    let directory = parent.open_dir(name).map_err(|error| {
+        format!(
+            "Cannot open MCP project directory {} through its retained parent capability: {error}",
+            relative.display()
+        )
+    })?;
+    let opened = directory_identity(&directory).map_err(|error| {
+        format!(
+            "Cannot identify opened MCP project directory {}: {error}",
+            relative.display()
+        )
+    })?;
+    let retained = RetainedSnapshotDirectory {
+        directory,
+        identity: expected,
+    };
+    if opened != expected {
+        return Err(format!(
+            "MCP project directory changed during enumeration: {}",
+            relative.display()
+        ));
+    }
+    verify_retained_snapshot_directory(parent, name, relative, &retained)?;
+    Ok(retained)
+}
+
+fn verify_retained_snapshot_directory(
+    parent: &Dir,
+    name: &OsStr,
+    relative: &Path,
+    retained: &RetainedSnapshotDirectory,
+) -> Result<(), String> {
+    let current = parent.symlink_metadata(name).map_err(|error| {
+        format!(
+            "Cannot re-inspect MCP project directory {} through its retained parent capability: {error}",
+            relative.display()
+        )
+    })?;
+    if snapshot_metadata_is_link(&current)
+        || !current.is_dir()
+        || snapshot_metadata_identity(&current).ok() != Some(retained.identity)
+        || directory_identity(&retained.directory).ok() != Some(retained.identity)
+    {
+        return Err(format!(
+            "MCP project directory changed during snapshot traversal: {}",
+            relative.display()
+        ));
+    }
     Ok(())
 }
 
@@ -3163,25 +3503,25 @@ fn validate_package_workspaces(
         Err(_) if !package_path.exists() => return Ok(()),
         Err(error) => return Err(error),
     };
-    let json: Value = match serde_json::from_str(&content) {
-        Ok(json) => json,
-        Err(_) => return Ok(()),
-    };
-    let workspace_patterns: Vec<&str> = match json.get("workspaces") {
-        Some(Value::Array(values)) => values.iter().filter_map(Value::as_str).collect(),
-        Some(Value::Object(object)) => object
-            .get("packages")
-            .and_then(Value::as_array)
-            .map(|values| values.iter().filter_map(Value::as_str).collect())
-            .unwrap_or_default(),
-        _ => Vec::new(),
-    };
+    let json: Value = serde_json::from_str(&content)
+        .map_err(|error| format!("Cannot parse MCP package.json as JSON: {error}"))?;
+    let declarations = package_workspace_declarations(&json, "MCP package.json")?;
+    for _ in declarations {
+        charge_manifest_traversal_entry(traversal_entries_seen, "MCP package workspace preflight")?;
+    }
+    let workspace_patterns = declarations
+        .iter()
+        .map(|declaration| {
+            declaration
+                .as_str()
+                .ok_or_else(|| "MCP package.json workspace entries must be strings".to_string())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     let mut seen_patterns = HashSet::new();
     let mut seen_bases = HashSet::new();
     let mut seen_workspaces = HashSet::new();
     for pattern in workspace_patterns {
-        charge_manifest_traversal_entry(traversal_entries_seen, "MCP package workspace preflight")?;
         if !seen_patterns.insert(pattern.to_string()) {
             continue;
         }
@@ -6065,8 +6405,52 @@ Test
                 .iter()
                 .filter(|path| path.as_path() == Path::new("packages"))
                 .count(),
-            1
+            0
         );
+    }
+
+    #[test]
+    fn snapshot_package_json_fails_closed_and_charges_entries_before_type_validation() {
+        for (content, expected) in [
+            ("{", "Cannot parse MCP package.json as JSON"),
+            ("[]", "root must be a JSON object"),
+            (
+                r#"{"workspaces":7}"#,
+                "`workspaces` must be an array or an object",
+            ),
+            (
+                r#"{"workspaces":{"packages":7}}"#,
+                "`workspaces.packages` must be an array",
+            ),
+        ] {
+            let tmp = TempDir::new().unwrap();
+            fs::write(tmp.path().join("package.json"), content).unwrap();
+            let error = ProjectSnapshot::create(tmp.path())
+                .err()
+                .expect("invalid package.json must make snapshot discovery inconclusive");
+            assert!(error.contains(expected), "{content}: {error}");
+        }
+
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join("package.json"),
+            r#"{"workspaces":[7,"packages/*"]}"#,
+        )
+        .unwrap();
+        let source = open_test_directory(tmp.path());
+        let mut inputs = Vec::new();
+        let mut budget = SnapshotBudget {
+            entries: MAX_CONFINEMENT_ENTRIES - 2,
+            ..SnapshotBudget::default()
+        };
+        let error = collect_snapshot_manifest_inputs(&source, &mut inputs, &mut budget)
+            .expect_err("wrong-typed workspace entries must fail after declaration charging");
+
+        assert!(
+            error.contains("workspace entries must be strings"),
+            "{error}"
+        );
+        assert_eq!(budget.entries, MAX_CONFINEMENT_ENTRIES);
     }
 
     #[test]
@@ -6227,6 +6611,46 @@ Test
 
     #[cfg(unix)]
     #[test]
+    fn snapshot_rejects_directory_replacement_after_enumeration_before_recursion() {
+        let source_temp = setup_project();
+        let destination_temp = TempDir::new().unwrap();
+        let source_root = source_temp.path();
+        let original = source_root.join("src");
+        let retained = source_root.join("retained-src");
+        let destination = open_test_directory(destination_temp.path());
+        let source = open_test_directory(source_root);
+        let mut budget = SnapshotBudget::default();
+        let mut replaced = false;
+
+        let error = copy_snapshot_directory_with_hook(
+            &source,
+            &destination,
+            Path::new("."),
+            &HashSet::new(),
+            &[PathBuf::from("src"), PathBuf::from("specs")],
+            &mut budget,
+            |relative| {
+                if relative == Path::new(".") && !replaced {
+                    fs::rename(&original, &retained).unwrap();
+                    fs::create_dir(&original).unwrap();
+                    fs::write(original.join("attacker.rs"), "pub fn attacker() {}\n").unwrap();
+                    replaced = true;
+                }
+                Ok(())
+            },
+        )
+        .expect_err("a post-enumeration directory replacement must fail closed");
+
+        assert!(
+            error.contains("changed during snapshot traversal"),
+            "{error}"
+        );
+        assert!(error.contains("src"), "{error}");
+        assert!(!destination_temp.path().join("src/attacker.rs").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn snapshot_preflight_rejects_special_and_linked_gradle_manifests_without_blocking() {
         use std::os::unix::fs::symlink;
         use std::os::unix::net::UnixListener;
@@ -6365,6 +6789,45 @@ Test
     }
 
     #[test]
+    fn selected_config_directory_identity_stays_bound_to_the_pre_open_observation() {
+        assert!(snapshot_configuration_identities_match(
+            &1_u64,
+            &[Some(1), Some(1), Some(1)]
+        ));
+        assert!(!snapshot_configuration_identities_match(
+            &1_u64,
+            &[Some(2), Some(2), Some(2)]
+        ));
+        assert!(!snapshot_configuration_identities_match(
+            &1_u64,
+            &[Some(1), None, Some(1)]
+        ));
+    }
+
+    #[test]
+    fn selected_config_parent_open_binds_the_pre_open_identity() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir(root.join("selected")).unwrap();
+        fs::create_dir(root.join("replacement")).unwrap();
+        let source = open_test_directory(root);
+
+        let result = open_snapshot_configuration_directory_with_hook(
+            &source,
+            OsStr::new("selected"),
+            Path::new("selected"),
+            || {
+                fs::rename(root.join("selected"), root.join("original")).unwrap();
+                fs::rename(root.join("replacement"), root.join("selected")).unwrap();
+            },
+        );
+
+        let error =
+            result.expect_err("a replacement opened after metadata inspection must be rejected");
+        assert!(error.contains("changed during inspection"), "{error}");
+    }
+
+    #[test]
     fn selected_config_open_binds_the_retained_file_identity() {
         let tmp = TempDir::new().unwrap();
         let root = tmp.path();
@@ -6390,6 +6853,59 @@ Test
             result.is_err(),
             "a regular selected config replaced after discovery must not be read"
         );
+    }
+
+    #[test]
+    fn selected_config_read_revalidates_each_parent_identity() {
+        for replaced_parent in ["selected", "selected/nested"] {
+            let tmp = TempDir::new().unwrap();
+            let root = tmp.path();
+            fs::create_dir_all(root.join("selected/nested")).unwrap();
+            fs::write(
+                root.join("selected/nested/specsync.json"),
+                r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+            )
+            .unwrap();
+            let replacement = root.join("replacement");
+            if replaced_parent == "selected" {
+                fs::create_dir_all(replacement.join("nested")).unwrap();
+                fs::write(
+                    replacement.join("nested/specsync.json"),
+                    r#"{"specsDir":"outside","sourceDirs":["outside"]}"#,
+                )
+                .unwrap();
+            } else {
+                fs::create_dir(&replacement).unwrap();
+                fs::write(
+                    replacement.join("specsync.json"),
+                    r#"{"specsDir":"outside","sourceDirs":["outside"]}"#,
+                )
+                .unwrap();
+            }
+            let source = open_test_directory(root);
+
+            let result = read_snapshot_configuration_with_hook(
+                &source,
+                Path::new("selected/nested/specsync.json"),
+                || {
+                    let selected_parent = root.join(replaced_parent);
+                    let original_parent = if replaced_parent == "selected" {
+                        root.join("original-selected")
+                    } else {
+                        root.join("selected/original-nested")
+                    };
+                    fs::rename(&selected_parent, original_parent).unwrap();
+                    fs::rename(&replacement, selected_parent).unwrap();
+                },
+            );
+
+            let error = result
+                .expect_err("every selected-config parent replacement must fail after the read");
+            assert!(
+                error.contains("changed while the configuration was being read"),
+                "{replaced_parent}: {error}"
+            );
+        }
     }
 
     #[test]
@@ -7714,5 +8230,44 @@ project(':override').projectDir = file('vendor/custom')
             .expect_err("the limit-plus-one Node declaration must be rejected");
 
         assert!(error.contains("exceeds 100000 entries"), "{error}");
+    }
+
+    #[test]
+    fn node_preflight_fails_closed_and_charges_entries_before_type_validation() {
+        for (content, expected) in [
+            ("{", "Cannot parse MCP package.json as JSON"),
+            ("false", "root must be a JSON object"),
+            (
+                r#"{"workspaces":"packages/*"}"#,
+                "`workspaces` must be an array or an object",
+            ),
+            (
+                r#"{"workspaces":{"packages":{}}}"#,
+                "`workspaces.packages` must be an array",
+            ),
+        ] {
+            let tmp = TempDir::new().unwrap();
+            fs::write(tmp.path().join("package.json"), content).unwrap();
+            let mut entries_seen = 0;
+            let error = validate_package_workspaces(tmp.path(), &mut entries_seen)
+                .expect_err("invalid package.json must make MCP preflight inconclusive");
+            assert!(error.contains(expected), "{content}: {error}");
+        }
+
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join("package.json"),
+            r#"{"workspaces":[false,"packages/*"]}"#,
+        )
+        .unwrap();
+        let mut entries_seen = MAX_CONFINEMENT_ENTRIES - 2;
+        let error = validate_package_workspaces(tmp.path(), &mut entries_seen)
+            .expect_err("wrong-typed workspace entries must fail after declaration charging");
+
+        assert!(
+            error.contains("workspace entries must be strings"),
+            "{error}"
+        );
+        assert_eq!(entries_seen, MAX_CONFINEMENT_ENTRIES);
     }
 }

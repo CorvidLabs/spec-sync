@@ -48,8 +48,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   selected-spec inventory identities remain authoritative through ownership parsing, and shared
   spec/source bytes plus entries are bounded. Cargo member declarations and Node workspace
   patterns consume bounded expansion work before deduplication and reuse normalized completed
-  results in both manifest and MCP-specific traversal. Separate early and post-discovery
-  checkpoints protect the checked-coverage operation and propagate failures to gate callers.
+  results in both manifest and MCP-specific traversal. Retained Cargo and Node manifests are parsed
+  structurally and workspace directory listings remain identity-bound through child consumption.
+  Selected source directories are retained before the post-manifest checkpoint, selected MCP
+  configuration parents are revalidated through their complete edge chain after bounded reads, and
+  authority-bearing recursive snapshot directories reject regular-directory replacement. Separate
+  early and post-discovery checkpoints protect the checked-coverage operation and propagate failures
+  to gate callers.
   Command-wide immutable CLI snapshots and generic structured discovery outcomes remain deferred
   to later CLI/outcome/generation work outside issue #414; hosted-Windows junction/reparse runtime
   remains required for final acceptance.

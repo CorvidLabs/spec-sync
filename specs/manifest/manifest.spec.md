@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 12
+version: 13
 status: stable
 files:
   - src/manifest.rs
@@ -266,3 +266,4 @@ member or target paths.
 | 2026-07-23 | v10 / CHG-0063 post-review hardening: Preflight every present Gradle filename including shadowed variants, bind manifest identity across open/read, scope control-flow rejection to governed directives, and reject invoked unsupported inclusion APIs |
 | 2026-07-23 | v11 / CHG-0063 acceptance remediation: Acquire all recognized checked manifests, nested workspaces, and manifest probes through one bounded retained project capability without ambient parser fallback |
 | 2026-07-23 | v12 / CHG-0063 exact-head review remediation: Bound declared Cargo/Node workspace expansion, memoize completed normalized nodes, and verify nested manifest/workspace reachability so duplicate declarations or detached parents cannot produce mixed discovery |
+| 2026-07-24 | v13 / CHG-0063 independent rereview remediation: Parse retained Cargo and Node workspace declarations structurally, charge malformed entries before rejection, and bind nested workspace directory listings through child consumption |

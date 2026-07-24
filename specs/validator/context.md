@@ -62,11 +62,12 @@ exact capability and bounded observation, while
 snapshots without reopening paths.
 The latest remediation implements lazy retained autodetection, nested config/manifest-directory
 reachability, selected-spec identity continuity, shared selected-spec/source accounting, and
-distinct checked-coverage race checkpoints. Reported targeted runs include 39 validator tests, 89
-config tests, 31 coverage integrations, and the five-command post-manifest race fixture; a fresh
-exact-tree independent review and full post-remediation suite remain pending. A command-wide
-immutable CLI analysis snapshot and generic structured discovery outcomes are intentionally
-deferred to the later CLI/outcome/generation work outside GitHub #414's MCP boundary. Its in-file
+distinct checked-coverage race checkpoints. Reported targeted runs include 43 validator tests, 89
+config tests, 31 coverage integrations, and the five-command post-manifest race fixture. The full
+post-remediation suite passes 1,948 unit and 310 integration tests; fresh exact-tree independent
+review remains pending. A command-wide immutable CLI analysis snapshot and generic structured
+discovery outcomes are intentionally deferred to the later CLI/outcome/generation work outside
+GitHub #414's MCP boundary. Its in-file
 regression-test module intentionally precedes coverage helpers, so the narrow
 `items_after_test_module` Clippy allowance stays localized.
 

@@ -1253,6 +1253,127 @@ fn mcp_tool_and_resource_snapshot_races_reject_fifo_symlink_and_regular_replacem
 
 #[cfg(unix)]
 #[test]
+fn mcp_tool_and_resource_reject_directory_replacement_after_enumeration() {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    const BARRIER_ENV: &str = "SPECSYNC_TEST_MCP_SNAPSHOT_DIRECTORY_IDENTITY_BARRIER";
+    const TARGET_ENV: &str = "SPECSYNC_TEST_MCP_SNAPSHOT_DIRECTORY_PATH";
+
+    let requests = [
+        (
+            "tool",
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": { "name": "specsync_coverage", "arguments": {} }
+            }),
+        ),
+        (
+            "resource",
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "resources/read",
+                "params": { "uri": "specsync:///coverage" }
+            }),
+        ),
+    ];
+
+    for (request_kind, request) in requests {
+        let tmp = TempDir::new().unwrap();
+        let control = TempDir::new().unwrap();
+        let root = setup_minimal_project(&tmp);
+        let barrier = control.path().join(format!("barrier-{request_kind}"));
+        fs::create_dir_all(&barrier).unwrap();
+
+        let binary = specsync().get_program().to_os_string();
+        let mut child = Command::new(binary)
+            .arg("mcp")
+            .arg("--root")
+            .arg(&root)
+            .env(BARRIER_ENV, &barrier)
+            .env(TARGET_ENV, ".")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        {
+            let mut stdin = child.stdin.take().unwrap();
+            serde_json::to_writer(&mut stdin, &request).unwrap();
+            stdin.write_all(b"\n").unwrap();
+        }
+
+        let ready = barrier.join("enumerated-open");
+        let ready_deadline = Instant::now() + Duration::from_secs(5);
+        while !ready.is_file() {
+            assert!(
+                child.try_wait().unwrap().is_none(),
+                "{request_kind} exited before the directory-enumeration barrier"
+            );
+            assert!(
+                Instant::now() < ready_deadline,
+                "{request_kind} did not reach the directory-enumeration barrier"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        fs::rename(root.join("src"), root.join("retained-src")).unwrap();
+        fs::create_dir(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/attacker.rs"),
+            "pub fn post_enumeration_attacker() {}\n",
+        )
+        .unwrap();
+        fs::write(barrier.join("resume"), b"resume\n").unwrap();
+
+        let exit_deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if child.try_wait().unwrap().is_some() {
+                break;
+            }
+            if Instant::now() >= exit_deadline {
+                child.kill().unwrap();
+                let output = child.wait_with_output().unwrap();
+                panic!(
+                    "{request_kind} directory replacement blocked; stdout: {}; stderr: {}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        let output = child.wait_with_output().unwrap();
+        assert!(
+            output.status.success(),
+            "{request_kind}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let response: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        if request_kind == "tool" {
+            assert_eq!(response["result"]["isError"], true, "{response}");
+        } else {
+            assert_eq!(response["error"]["code"], -32602, "{response}");
+        }
+        let rendered = serde_json::to_string(&response).unwrap();
+        assert!(
+            rendered.contains("changed during snapshot traversal"),
+            "{request_kind}: {rendered}"
+        );
+        assert!(
+            !rendered.contains("post_enumeration_attacker"),
+            "{request_kind}: {rendered}"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
 fn mcp_tools_and_resources_reject_unsafe_gradle_build_manifests() {
     use std::os::unix::fs::symlink;
     use std::process::Command;
@@ -2444,6 +2565,150 @@ fn mcp_manifest_traversal_accepts_duplicate_cargo_and_node_workspaces_once() {
         responses[0]["result"]["isError"], true,
         "duplicate workspace declarations must not trigger replay or a false failure: {}",
         responses[0]
+    );
+}
+
+#[test]
+fn mcp_package_json_failures_are_inconclusive_for_tools_and_resources() {
+    for (label, content, expected) in [
+        ("malformed", "{", "Cannot parse MCP package.json as JSON"),
+        ("non-object", "[]", "root must be a JSON object"),
+        (
+            "wrong-workspaces",
+            r#"{"workspaces":7}"#,
+            "`workspaces` must be an array or an object",
+        ),
+        (
+            "wrong-packages",
+            r#"{"workspaces":{"packages":"packages/*"}}"#,
+            "`workspaces.packages` must be an array",
+        ),
+        (
+            "wrong-entry",
+            r#"{"workspaces":["packages/*",false]}"#,
+            "workspace entries must be strings",
+        ),
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        setup_minimal_mcp_project_at(root);
+        fs::write(root.join("package.json"), content).unwrap();
+
+        let responses = mcp_request(
+            root,
+            &[
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": { "name": "specsync_coverage", "arguments": {} }
+                }),
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "resources/read",
+                    "params": { "uri": "specsync:///coverage" }
+                }),
+            ],
+        );
+
+        assert_eq!(responses.len(), 2, "{label}: {responses:#?}");
+        assert_eq!(
+            responses[0]["result"]["isError"], true,
+            "{label}: {responses:#?}"
+        );
+        assert_eq!(
+            responses[1]["error"]["code"], -32602,
+            "{label}: {responses:#?}"
+        );
+        let rendered = serde_json::to_string(&responses).unwrap();
+        assert!(rendered.contains(expected), "{label}: {rendered}");
+    }
+}
+
+#[test]
+fn mcp_multiline_cargo_workspace_members_survive_coverage_and_generation() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("vendor/member/src")).unwrap();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\n  \"vendor/member\",\n]\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("vendor/member/Cargo.toml"),
+        "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("vendor/member/src/lib.rs"),
+        "pub fn workspace_member() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/member")).unwrap();
+    fs::write(
+        root.join("specs/member/member.spec.md"),
+        valid_spec("member", &[]),
+    )
+    .unwrap();
+
+    let responses = mcp_request_with_write(
+        root,
+        &[
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": { "name": "specsync_coverage", "arguments": {} }
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": { "name": "specsync_generate", "arguments": {} }
+            }),
+        ],
+    );
+
+    assert_eq!(responses.len(), 2, "{responses:#?}");
+    assert_ne!(
+        responses[0]["result"]["isError"], true,
+        "multiline Cargo member vanished from coverage: {responses:#?}"
+    );
+    let coverage: serde_json::Value = serde_json::from_str(
+        responses[0]["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(coverage["files_total"], 1, "{coverage}");
+    assert_eq!(
+        coverage["uncovered_files"][0]["file"], "vendor/member/src/lib.rs",
+        "{coverage}"
+    );
+
+    assert_ne!(
+        responses[1]["result"]["isError"], true,
+        "multiline Cargo member vanished from generation: {responses:#?}"
+    );
+    let generation: serde_json::Value = serde_json::from_str(
+        responses[1]["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        generation["count"].as_u64().is_some_and(|count| count >= 1),
+        "{generation}"
+    );
+    assert!(
+        generation["generated"]
+            .as_array()
+            .is_some_and(|paths| paths.iter().any(|path| path
+                .as_str()
+                .is_some_and(|path| path.ends_with("src.spec.md")))),
+        "{generation}"
     );
 }
 

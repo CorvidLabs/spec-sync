@@ -114,9 +114,9 @@ discovery, relative content-free diagnostics, Windows startup-alias absolute-chi
 selected-config fail-closed validation now have focused implementation and regression coverage.
 The latest remediation charges Cargo/Node workspace declarations before deduplication, reuses
 normalized completed nodes in snapshot and preflight traversal, and keeps zero-config discovery
-capability-retained. Reported targeted runs passed 111 MCP unit tests and 62 MCP integration tests.
-Fresh exact-tree independent rereview, the full post-remediation suite, and hosted-Windows
-junction/reparse runtime evidence remain pending.
+capability-retained. Reported targeted runs passed 117 MCP unit tests and 65 MCP integration tests.
+The full post-remediation suite passes 1,948 unit and 310 integration tests. Fresh exact-tree
+independent rereview and hosted-Windows junction/reparse runtime evidence remain pending.
 Earlier independent reviews additionally closed selected-config substitution, wrong-shaped
 legacy GitHub fields, and blocking/special-file snapshot manifests. Configuration and manifest
 acquisition now makes the no-follow opened regular-file handle authoritative, uses bounded

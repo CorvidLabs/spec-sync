@@ -132,6 +132,9 @@ trait ManifestAccess {
     fn read_text(&mut self, relative: &Path, label: &str) -> Result<Option<String>, String>;
     fn directory_exists(&mut self, relative: &Path, label: &str) -> Result<bool, String>;
     fn child_directories(&mut self, relative: &Path, label: &str) -> Result<Vec<String>, String>;
+    fn verify_child_directories(&mut self, _relative: &Path, _label: &str) -> Result<(), String> {
+        Ok(())
+    }
     fn charge_entries(&mut self, _count: usize, _label: &str) -> Result<(), String> {
         Ok(())
     }
@@ -173,7 +176,12 @@ struct RetainedManifestAccess<'a> {
     entries: usize,
     texts: HashMap<PathBuf, Option<String>>,
     directories: HashMap<PathBuf, bool>,
-    children: HashMap<PathBuf, Vec<String>>,
+    children: HashMap<PathBuf, RetainedDirectoryListing>,
+}
+
+struct RetainedDirectoryListing {
+    names: Vec<String>,
+    directory: Dir,
 }
 
 impl<'a> RetainedManifestAccess<'a> {
@@ -199,10 +207,15 @@ impl<'a> RetainedManifestAccess<'a> {
     {
         let relative = normalize_retained_manifest_path(relative, label)?;
         if let Some(cached) = self.children.get(&relative) {
-            return Ok(cached.clone());
+            verify_retained_manifest_directory_edge(
+                self.root,
+                &relative,
+                &cached.directory,
+                label,
+            )?;
+            return Ok(cached.names.clone());
         }
         let Some(directory) = open_retained_manifest_directory(self.root, &relative, label)? else {
-            self.children.insert(relative, Vec::new());
             return Ok(Vec::new());
         };
         let mut names: Vec<OsString> = Vec::new();
@@ -250,7 +263,13 @@ impl<'a> RetainedManifestAccess<'a> {
         }
         after_traversal();
         verify_retained_manifest_directory_edge(self.root, &relative, &directory, label)?;
-        self.children.insert(relative, children.clone());
+        self.children.insert(
+            relative,
+            RetainedDirectoryListing {
+                names: children.clone(),
+                directory,
+            },
+        );
         Ok(children)
     }
 }
@@ -296,6 +315,19 @@ impl ManifestAccess for RetainedManifestAccess<'_> {
 
     fn child_directories(&mut self, relative: &Path, label: &str) -> Result<Vec<String>, String> {
         self.child_directories_with_hook(relative, label, || {})
+    }
+
+    fn verify_child_directories(&mut self, relative: &Path, label: &str) -> Result<(), String> {
+        let relative = normalize_retained_manifest_path(relative, label)?;
+        if let Some(listing) = self.children.get(&relative) {
+            verify_retained_manifest_directory_edge(
+                self.root,
+                &relative,
+                &listing.directory,
+                label,
+            )?;
+        }
+        Ok(())
     }
 
     fn charge_entries(&mut self, count: usize, _label: &str) -> Result<(), String> {
@@ -698,6 +730,12 @@ fn parse_cargo_toml_with_access_inner(
     let Some(content) = access.read_text(&manifest_path, "Cargo manifest")? else {
         return Ok(None);
     };
+    let document = toml::from_str::<toml::Table>(&content).map_err(|error| {
+        format!(
+            "Cannot parse retained Cargo manifest {} as TOML: {error}",
+            display_manifest_path(&manifest_path)
+        )
+    })?;
     let mut discovery = ManifestDiscovery::default();
 
     // Extract package name
@@ -739,11 +777,10 @@ fn parse_cargo_toml_with_access_inner(
         }
     }
 
-    // Check for workspace members
-    if let Some(members_str) = extract_toml_array(&content, "members", Some("[workspace]")) {
-        access.charge_entries(members_str.len(), "Cargo workspace declaration")?;
+    // Check for workspace members using the same TOML semantics as security preflight.
+    if let Some(members) = cargo_workspace_members(&document, &manifest_path, access)? {
         let mut expanded_members = HashSet::new();
-        for member in members_str {
+        for member in members {
             // Workspace members are subdirectories with their own Cargo.toml
             let member_root = normalize_retained_manifest_path(
                 &relative_root.join(&member),
@@ -2398,34 +2435,29 @@ fn parse_package_json(root: &Path) -> Option<ManifestDiscovery> {
 fn parse_package_json_with_access(
     access: &mut dyn ManifestAccess,
 ) -> Result<Option<ManifestDiscovery>, String> {
+    parse_package_json_with_access_and_hook(access, |_| {})
+}
+
+fn parse_package_json_with_access_and_hook<AfterEnumeration>(
+    access: &mut dyn ManifestAccess,
+    mut after_enumeration: AfterEnumeration,
+) -> Result<Option<ManifestDiscovery>, String>
+where
+    AfterEnumeration: FnMut(&Path),
+{
     let Some(content) = access.read_text(Path::new("package.json"), "Node package manifest")?
     else {
         return Ok(None);
     };
-    let Some(json) = serde_json::from_str::<serde_json::Value>(&content).ok() else {
-        return Ok(None);
-    };
+    let json = parse_node_package_document(&content, Path::new("package.json"))?;
     let mut discovery = ManifestDiscovery::default();
 
     let name = json.get("name").and_then(|v| v.as_str()).unwrap_or("app");
 
     // Check for workspaces (monorepo)
-    if let Some(workspaces) = json.get("workspaces") {
-        let (workspace_patterns, declared_entries): (Vec<&str>, usize) = match workspaces {
-            serde_json::Value::Array(arr) => {
-                (arr.iter().filter_map(|v| v.as_str()).collect(), arr.len())
-            }
-            serde_json::Value::Object(obj) => {
-                if let Some(serde_json::Value::Array(arr)) = obj.get("packages") {
-                    (arr.iter().filter_map(|v| v.as_str()).collect(), arr.len())
-                } else {
-                    (Vec::new(), 0)
-                }
-            }
-            _ => (Vec::new(), 0),
-        };
-
-        access.charge_entries(declared_entries, "Node workspace declaration")?;
+    if let Some(workspace_patterns) =
+        node_workspace_patterns(&json, Path::new("package.json"), access)?
+    {
         let mut expanded_bases = HashSet::new();
         let mut seen_workspaces = HashSet::new();
         for pattern in workspace_patterns {
@@ -2436,18 +2468,26 @@ fn parse_package_json_with_access(
             if !expanded_bases.insert(base_dir.clone()) {
                 continue;
             }
-            for ws_name in access.child_directories(&base_dir, "Node workspace")? {
+            let workspace_names = access.child_directories(&base_dir, "Node workspace")?;
+            after_enumeration(&base_dir);
+            for ws_name in workspace_names {
                 let workspace = base_dir.join(&ws_name);
                 if !seen_workspaces.insert(workspace.clone()) {
                     continue;
                 }
-                if access
-                    .read_text(
+                if let Some(workspace_content) = access.read_text(
+                    &workspace.join("package.json"),
+                    "Node workspace package manifest",
+                )? {
+                    let workspace_package = parse_node_package_document(
+                        &workspace_content,
                         &workspace.join("package.json"),
-                        "Node workspace package manifest",
-                    )?
-                    .is_some()
-                {
+                    )?;
+                    node_workspace_patterns(
+                        &workspace_package,
+                        &workspace.join("package.json"),
+                        access,
+                    )?;
                     let src_dir = if access
                         .directory_exists(&workspace.join("src"), "Node workspace source")?
                     {
@@ -2468,6 +2508,7 @@ fn parse_package_json_with_access(
                     }
                 }
             }
+            access.verify_child_directories(&base_dir, "Node workspace")?;
         }
     }
 
@@ -2502,6 +2543,109 @@ fn parse_package_json_with_access(
     }
 
     Ok(Some(discovery))
+}
+
+fn parse_node_package_document(
+    content: &str,
+    manifest_path: &Path,
+) -> Result<serde_json::Map<String, serde_json::Value>, String> {
+    let value = serde_json::from_str::<serde_json::Value>(content).map_err(|error| {
+        format!(
+            "Cannot parse retained Node package manifest {} as JSON: {error}",
+            display_manifest_path(manifest_path)
+        )
+    })?;
+    value.as_object().cloned().ok_or_else(|| {
+        format!(
+            "Retained Node package manifest {} must contain a JSON object",
+            display_manifest_path(manifest_path)
+        )
+    })
+}
+
+fn node_workspace_patterns(
+    package: &serde_json::Map<String, serde_json::Value>,
+    manifest_path: &Path,
+    access: &mut dyn ManifestAccess,
+) -> Result<Option<Vec<String>>, String> {
+    let Some(workspaces) = package.get("workspaces") else {
+        return Ok(None);
+    };
+    let entries = match workspaces {
+        serde_json::Value::Array(entries) => entries,
+        serde_json::Value::Object(object) => object
+            .get("packages")
+            .ok_or_else(|| {
+                format!(
+                    "Retained Node package manifest {} must define `workspaces.packages` as a string array",
+                    display_manifest_path(manifest_path)
+                )
+            })?
+            .as_array()
+            .ok_or_else(|| {
+                format!(
+                    "Retained Node package manifest {} must define `workspaces.packages` as a string array",
+                    display_manifest_path(manifest_path)
+                )
+            })?,
+        _ => {
+            return Err(format!(
+                "Retained Node package manifest {} must define `workspaces` as a string array or an object with a `packages` string array",
+                display_manifest_path(manifest_path)
+            ));
+        }
+    };
+    access.charge_entries(entries.len(), "Node workspace declaration")?;
+    entries
+        .iter()
+        .map(|entry| {
+            entry.as_str().map(str::to_string).ok_or_else(|| {
+                format!(
+                    "Retained Node package manifest {} has a non-string workspace entry",
+                    display_manifest_path(manifest_path)
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
+}
+
+fn cargo_workspace_members(
+    document: &toml::Table,
+    manifest_path: &Path,
+    access: &mut dyn ManifestAccess,
+) -> Result<Option<Vec<String>>, String> {
+    let Some(workspace) = document.get("workspace") else {
+        return Ok(None);
+    };
+    let workspace = workspace.as_table().ok_or_else(|| {
+        format!(
+            "Retained Cargo manifest {} must define `workspace` as a TOML table",
+            display_manifest_path(manifest_path)
+        )
+    })?;
+    let Some(members) = workspace.get("members") else {
+        return Ok(Some(Vec::new()));
+    };
+    let members = members.as_array().ok_or_else(|| {
+        format!(
+            "Retained Cargo manifest {} must define `workspace.members` as a string array",
+            display_manifest_path(manifest_path)
+        )
+    })?;
+    access.charge_entries(members.len(), "Cargo workspace declaration")?;
+    members
+        .iter()
+        .map(|member| {
+            member.as_str().map(str::to_string).ok_or_else(|| {
+                format!(
+                    "Retained Cargo manifest {} has a non-string workspace member",
+                    display_manifest_path(manifest_path)
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
 }
 
 // ─── pubspec.yaml (Dart/Flutter) ─────────────────────────────────────────
@@ -2671,42 +2815,6 @@ fn extract_toml_value(content: &str, key: &str, section: Option<&str>) -> Option
     None
 }
 
-/// Extract an array of strings from a TOML key within a section.
-fn extract_toml_array(content: &str, key: &str, section: Option<&str>) -> Option<Vec<String>> {
-    let search_content = if let Some(section_header) = section {
-        extract_section(content, section_header)?
-    } else {
-        content.to_string()
-    };
-
-    for line in search_content.lines() {
-        let line = line.trim();
-        if let Some(eq_pos) = line.find('=') {
-            let k = line[..eq_pos].trim();
-            if k == key {
-                let val = line[eq_pos + 1..].trim();
-                if val.starts_with('[') && val.ends_with(']') {
-                    let inner = &val[1..val.len() - 1];
-                    let items: Vec<String> = inner
-                        .split(',')
-                        .map(|s| {
-                            let s = s.trim();
-                            if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-                                s[1..s.len() - 1].to_string()
-                            } else {
-                                s.to_string()
-                            }
-                        })
-                        .filter(|s| !s.is_empty())
-                        .collect();
-                    return Some(items);
-                }
-            }
-        }
-    }
-    None
-}
-
 /// Extract the content of a TOML section (from header to next section or EOF).
 fn extract_section(content: &str, header: &str) -> Option<String> {
     let start = content.find(header)?;
@@ -2867,6 +2975,93 @@ regex = "1.0"
     }
 
     #[test]
+    fn cargo_workspace_operational_discovery_supports_multiline_members() {
+        let mut access = CountingManifestAccess::new(MAX_RETAINED_MANIFEST_ENTRIES);
+        access.texts.insert(
+            PathBuf::from("Cargo.toml"),
+            r#"
+[workspace]
+members = [
+    "crates/core",
+    # Inline comments and trailing commas are valid Cargo TOML.
+    "crates/cli",
+]
+"#
+            .to_string(),
+        );
+        access.texts.insert(
+            PathBuf::from("crates/core/Cargo.toml"),
+            "[package]\nname = \"core\"\nversion = \"0.1.0\"\n".to_string(),
+        );
+        access.texts.insert(
+            PathBuf::from("crates/cli/Cargo.toml"),
+            "[package]\nname = \"cli\"\nversion = \"0.1.0\"\n".to_string(),
+        );
+
+        let discovery = parse_cargo_toml_with_access(
+            &mut access,
+            Path::new(""),
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        )
+        .unwrap()
+        .unwrap();
+
+        assert!(discovery.modules.contains_key("core"));
+        assert!(discovery.modules.contains_key("cli"));
+        assert_eq!(access.entries, 2);
+        assert_eq!(access.text_reads[Path::new("crates/core/Cargo.toml")], 1);
+        assert_eq!(access.text_reads[Path::new("crates/cli/Cargo.toml")], 1);
+    }
+
+    #[test]
+    fn cargo_workspace_operational_discovery_rejects_malformed_and_wrong_typed_toml() {
+        for (content, expected) in [
+            ("[workspace\nmembers = []\n", "as TOML"),
+            ("workspace = []\n", "`workspace` as a TOML table"),
+            (
+                "[workspace]\nmembers = \"crates/core\"\n",
+                "`workspace.members` as a string array",
+            ),
+        ] {
+            let mut access = CountingManifestAccess::new(MAX_RETAINED_MANIFEST_ENTRIES);
+            access
+                .texts
+                .insert(PathBuf::from("Cargo.toml"), content.to_string());
+
+            let error = parse_cargo_toml_with_access(
+                &mut access,
+                Path::new(""),
+                &mut HashSet::new(),
+                &mut HashSet::new(),
+            )
+            .unwrap_err();
+
+            assert!(error.contains(expected), "{error}");
+        }
+    }
+
+    #[test]
+    fn cargo_workspace_charges_every_member_before_rejecting_a_non_string() {
+        let mut access = CountingManifestAccess::new(MAX_RETAINED_MANIFEST_ENTRIES);
+        access.texts.insert(
+            PathBuf::from("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/core\", 7]\n".to_string(),
+        );
+
+        let error = parse_cargo_toml_with_access(
+            &mut access,
+            Path::new(""),
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        )
+        .unwrap_err();
+
+        assert!(error.contains("non-string workspace member"), "{error}");
+        assert_eq!(access.entries, 2);
+    }
+
+    #[test]
     fn retained_entry_budget_accepts_the_limit_and_rejects_limit_plus_one() {
         let project = tempdir().unwrap();
         let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
@@ -2984,6 +3179,105 @@ let package = Package(
             access.text_reads[Path::new("packages/member/package.json")],
             1
         );
+    }
+
+    #[test]
+    fn node_workspace_object_form_preserves_yarn_and_pnpm_package_metadata() {
+        let mut access = CountingManifestAccess::new(MAX_RETAINED_MANIFEST_ENTRIES);
+        access.texts.insert(
+            PathBuf::from("package.json"),
+            r#"{
+                "name": "root",
+                "packageManager": "pnpm@9.0.0",
+                "workspaces": {
+                    "packages": ["packages/*"],
+                    "nohoist": ["**/native"]
+                }
+            }"#
+            .to_string(),
+        );
+        access
+            .children
+            .insert(PathBuf::from("packages"), vec!["member".to_string()]);
+        access.texts.insert(
+            PathBuf::from("packages/member/package.json"),
+            r#"{"name":"member"}"#.to_string(),
+        );
+
+        let discovery = parse_package_json_with_access(&mut access)
+            .unwrap()
+            .unwrap();
+
+        assert!(discovery.modules.contains_key("member"));
+        assert_eq!(access.entries, 2);
+    }
+
+    #[test]
+    fn node_package_manifests_fail_closed_for_malformed_and_wrong_typed_inputs() {
+        for (content, expected) in [
+            ("{\"name\":", "as JSON"),
+            ("[]", "must contain a JSON object"),
+            (
+                r#"{"workspaces":"packages/*"}"#,
+                "`workspaces` as a string array",
+            ),
+            (
+                r#"{"workspaces":{"packages":"packages/*"}}"#,
+                "`workspaces.packages` as a string array",
+            ),
+            (
+                r#"{"workspaces":{"nohoist":[]}}"#,
+                "`workspaces.packages` as a string array",
+            ),
+        ] {
+            let mut access = CountingManifestAccess::new(MAX_RETAINED_MANIFEST_ENTRIES);
+            access
+                .texts
+                .insert(PathBuf::from("package.json"), content.to_string());
+
+            let error = parse_package_json_with_access(&mut access).unwrap_err();
+
+            assert!(error.contains(expected), "{error}");
+        }
+    }
+
+    #[test]
+    fn node_workspace_charges_every_entry_before_rejecting_a_non_string() {
+        for content in [
+            r#"{"workspaces":["packages/*",7]}"#,
+            r#"{"workspaces":{"packages":["packages/*",7]}}"#,
+        ] {
+            let mut access = CountingManifestAccess::new(MAX_RETAINED_MANIFEST_ENTRIES);
+            access
+                .texts
+                .insert(PathBuf::from("package.json"), content.to_string());
+
+            let error = parse_package_json_with_access(&mut access).unwrap_err();
+
+            assert!(error.contains("non-string workspace entry"), "{error}");
+            assert_eq!(access.entries, 2);
+        }
+    }
+
+    #[test]
+    fn nested_node_package_manifest_is_strict_json_object_input() {
+        let mut access = CountingManifestAccess::new(MAX_RETAINED_MANIFEST_ENTRIES);
+        access.texts.insert(
+            PathBuf::from("package.json"),
+            r#"{"workspaces":["packages/*"]}"#.to_string(),
+        );
+        access
+            .children
+            .insert(PathBuf::from("packages"), vec!["member".to_string()]);
+        access.texts.insert(
+            PathBuf::from("packages/member/package.json"),
+            "[]".to_string(),
+        );
+
+        let error = parse_package_json_with_access(&mut access).unwrap_err();
+
+        assert!(error.contains("packages/member/package.json"), "{error}");
+        assert!(error.contains("must contain a JSON object"), "{error}");
     }
 
     #[test]
@@ -3445,6 +3739,45 @@ include(":member")
         assert_retained_child_enumeration_rejects_nested_directory_replacement(
             Path::new("nested/packages"),
             "Node workspace",
+        );
+    }
+
+    #[test]
+    fn retained_node_workspace_rejects_replacement_after_enumeration_before_child_consumption() {
+        let project = tempdir().unwrap();
+        let workspace = project.path().join("packages");
+        let detached = project.path().join("detached-packages");
+        let replacement = project.path().join("replacement-packages");
+        fs::create_dir_all(workspace.join("member/src")).unwrap();
+        fs::create_dir_all(replacement.join("member/src")).unwrap();
+        fs::write(
+            project.path().join("package.json"),
+            r#"{"name":"root","workspaces":["packages/*"]}"#,
+        )
+        .unwrap();
+        fs::write(
+            workspace.join("member/package.json"),
+            r#"{"name":"original"}"#,
+        )
+        .unwrap();
+        fs::write(
+            replacement.join("member/package.json"),
+            r#"{"name":"replacement"}"#,
+        )
+        .unwrap();
+        let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
+        let mut access = RetainedManifestAccess::new(&retained);
+
+        let error = parse_package_json_with_access_and_hook(&mut access, |relative| {
+            assert_eq!(relative, Path::new("packages"));
+            fs::rename(&workspace, &detached).unwrap();
+            fs::rename(&replacement, &workspace).unwrap();
+        })
+        .unwrap_err();
+
+        assert!(
+            error.contains("Retained Node workspace directory packages changed"),
+            "{error}"
         );
     }
 

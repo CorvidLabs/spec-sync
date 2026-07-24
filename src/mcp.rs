@@ -13,7 +13,12 @@ const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 const PROTOCOL_VERSION: &str = "2024-11-05";
 
 /// Run the MCP server on stdio.
-pub fn run_mcp_server(root: &Path) {
+///
+/// All tool `root` arguments are confined to the server `root` (see
+/// [`crate::util::confine_path_to_root`]); write-capable tools
+/// (`specsync_generate`, `specsync_init`) are rejected unless the server was
+/// started with `--allow-writes`.
+pub fn run_mcp_server(root: &Path, allow_writes: bool) {
     let stdin = io::stdin();
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
@@ -29,56 +34,66 @@ pub fn run_mcp_server(root: &Path) {
             continue;
         }
 
-        let request: Value = match serde_json::from_str(&line) {
-            Ok(v) => v,
-            Err(_) => {
-                let err = json!({
-                    "jsonrpc": "2.0",
-                    "id": null,
-                    "error": { "code": -32700, "message": "Parse error" }
-                });
-                let _ = writeln!(stdout, "{}", err);
-                let _ = stdout.flush();
-                continue;
-            }
-        };
-
-        let id = request.get("id").cloned();
-        let method = request.get("method").and_then(|m| m.as_str()).unwrap_or("");
-
-        let response = match method {
-            "initialize" => Some(handle_initialize(id)),
-            "notifications/initialized" => None, // notification, no response
-            "tools/list" => Some(handle_tools_list(id)),
-            "tools/call" => {
-                let params = request.get("params").cloned().unwrap_or(json!({}));
-                Some(handle_tools_call(id, &params, root))
-            }
-            "resources/list" => Some(handle_resources_list(id)),
-            "resources/read" => {
-                let params = request.get("params").cloned().unwrap_or(json!({}));
-                Some(handle_resources_read(id, &params, root))
-            }
-            "ping" => Some(json!({ "jsonrpc": "2.0", "id": id, "result": {} })),
-            _ => {
-                // Notifications (no id) get no response
-                if id.is_some() {
-                    Some(json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "error": { "code": -32601, "message": format!("Method not found: {method}") }
-                    }))
-                } else {
-                    None
-                }
-            }
-        };
-
-        if let Some(resp) = response {
+        if let Some(resp) = handle_request_line(&line, root, allow_writes) {
             let _ = writeln!(stdout, "{}", resp);
             let _ = stdout.flush();
         }
     }
+}
+
+/// Handle a single JSON-RPC request line. Returns the response to write, or
+/// `None` when the line is a notification (JSON-RPC forbids responding to
+/// notifications — including with an `"id": null` response).
+fn handle_request_line(line: &str, root: &Path, allow_writes: bool) -> Option<Value> {
+    let request: Value = match serde_json::from_str(line) {
+        Ok(v) => v,
+        Err(_) => {
+            return Some(json!({
+                "jsonrpc": "2.0",
+                "id": null,
+                "error": { "code": -32700, "message": "Parse error" }
+            }));
+        }
+    };
+
+    let id = request.get("id").cloned();
+    let method = request.get("method").and_then(|m| m.as_str()).unwrap_or("");
+
+    // JSON-RPC notifications (requests without an "id" member) MUST NOT be
+    // answered — not even with an "id": null response. An explicit
+    // `"id": null` is a (discouraged) request id, not a notification.
+    let is_notification = request.get("id").is_none();
+
+    let response = match method {
+        "initialize" => Some(handle_initialize(id)),
+        "notifications/initialized" => None, // notification, no response
+        "tools/list" => Some(handle_tools_list(id)),
+        "tools/call" => {
+            let params = request.get("params").cloned().unwrap_or(json!({}));
+            Some(handle_tools_call(id, &params, root, allow_writes))
+        }
+        "resources/list" => Some(handle_resources_list(id)),
+        "resources/read" => {
+            let params = request.get("params").cloned().unwrap_or(json!({}));
+            Some(handle_resources_read(id, &params, root))
+        }
+        "ping" => Some(json!({ "jsonrpc": "2.0", "id": id, "result": {} })),
+        _ => {
+            // Notifications (no id) get no response
+            if id.is_some() {
+                Some(json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": { "code": -32601, "message": format!("Method not found: {method}") }
+                }))
+            } else {
+                None
+            }
+        }
+    };
+
+    // Suppress responses to notifications for known methods too.
+    if is_notification { None } else { response }
 }
 
 fn handle_initialize(id: Option<Value>) -> Value {
@@ -113,13 +128,14 @@ fn handle_tools_list(id: Option<Value>) -> Value {
                         "properties": {
                             "root": {
                                 "type": "string",
-                                "description": "Project root directory (default: server root)"
+                                "description": "Project root directory — must be the server root or a path inside it (default: server root)"
                             },
                             "strict": {
                                 "type": "boolean",
                                 "description": "Treat warnings as errors (default: false)"
                             }
-                        }
+                        },
+                        "additionalProperties": false
                     }
                 },
                 {
@@ -130,7 +146,7 @@ fn handle_tools_list(id: Option<Value>) -> Value {
                         "properties": {
                             "root": {
                                 "type": "string",
-                                "description": "Project root directory (default: server root)"
+                                "description": "Project root directory — must be the server root or a path inside it (default: server root)"
                             }
                         },
                         "additionalProperties": false
@@ -138,15 +154,16 @@ fn handle_tools_list(id: Option<Value>) -> Value {
                 },
                 {
                     "name": "specsync_generate",
-                    "description": "Deterministically scaffold spec files for uncovered source modules. Returns paths of generated specs.",
+                    "description": "Deterministically scaffold spec files for uncovered source modules. Returns paths of generated specs. Requires the server to be started with --allow-writes.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
                             "root": {
                                 "type": "string",
-                                "description": "Project root directory (default: server root)"
+                                "description": "Project root directory — must be the server root or a path inside it (default: server root)"
                             }
-                        }
+                        },
+                        "additionalProperties": false
                     }
                 },
                 {
@@ -157,22 +174,24 @@ fn handle_tools_list(id: Option<Value>) -> Value {
                         "properties": {
                             "root": {
                                 "type": "string",
-                                "description": "Project root directory (default: server root)"
+                                "description": "Project root directory — must be the server root or a path inside it (default: server root)"
                             }
-                        }
+                        },
+                        "additionalProperties": false
                     }
                 },
                 {
                     "name": "specsync_init",
-                    "description": "Initialize a specsync.json config file with auto-detected source directories.",
+                    "description": "Initialize a specsync.json config file with auto-detected source directories. Requires the server to be started with --allow-writes.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
                             "root": {
                                 "type": "string",
-                                "description": "Project root directory (default: server root)"
+                                "description": "Project root directory — must be the server root or a path inside it (default: server root)"
                             }
-                        }
+                        },
+                        "additionalProperties": false
                     }
                 },
                 {
@@ -183,9 +202,10 @@ fn handle_tools_list(id: Option<Value>) -> Value {
                         "properties": {
                             "root": {
                                 "type": "string",
-                                "description": "Project root directory (default: server root)"
+                                "description": "Project root directory — must be the server root or a path inside it (default: server root)"
                             }
-                        }
+                        },
+                        "additionalProperties": false
                     }
                 },
                 {
@@ -196,9 +216,10 @@ fn handle_tools_list(id: Option<Value>) -> Value {
                         "properties": {
                             "root": {
                                 "type": "string",
-                                "description": "Project root directory (default: server root)"
+                                "description": "Project root directory — must be the server root or a path inside it (default: server root)"
                             }
-                        }
+                        },
+                        "additionalProperties": false
                     }
                 }
             ]
@@ -206,16 +227,174 @@ fn handle_tools_list(id: Option<Value>) -> Value {
     })
 }
 
-fn handle_tools_call(id: Option<Value>, params: &Value, default_root: &Path) -> Value {
+/// Tools that mutate the filesystem. They run only when the server was
+/// started with `--allow-writes`.
+const WRITE_TOOLS: &[&str] = &["specsync_generate", "specsync_init"];
+
+/// Advertised argument types per tool, used to validate `tools/call`
+/// arguments against the schemas published by `tools/list`. Unknown argument
+/// names and wrong JSON types are rejected with -32602 (Invalid params).
+fn tool_arg_schema(tool_name: &str) -> Option<&'static [(&'static str, &'static str)]> {
+    match tool_name {
+        "specsync_check" => Some(&[("root", "string"), ("strict", "boolean")]),
+        "specsync_coverage"
+        | "specsync_generate"
+        | "specsync_list_specs"
+        | "specsync_init"
+        | "specsync_score"
+        | "specsync_issues" => Some(&[("root", "string")]),
+        _ => None,
+    }
+}
+
+/// Validate `arguments` against the tool's advertised schema. Returns a
+/// -32602 message on the first violation.
+fn validate_tool_arguments(tool_name: &str, arguments: &Value) -> Result<(), String> {
+    let schema = match tool_arg_schema(tool_name) {
+        Some(s) => s,
+        None => return Ok(()), // unknown tools are reported as such elsewhere
+    };
+    let object = match arguments.as_object() {
+        Some(o) => o,
+        None => {
+            return Err(format!(
+                "Invalid params for tool `{tool_name}`: arguments must be a JSON object"
+            ));
+        }
+    };
+    for (name, value) in object {
+        let expected = schema.iter().find(|(n, _)| n == name);
+        match expected {
+            None => {
+                return Err(format!(
+                    "Invalid params for tool `{tool_name}`: unknown argument `{name}`"
+                ));
+            }
+            Some((_, "string")) if !value.is_string() => {
+                return Err(format!(
+                    "Invalid params for tool `{tool_name}`: argument `{name}` must be a string"
+                ));
+            }
+            Some((_, "boolean")) if !value.is_boolean() => {
+                return Err(format!(
+                    "Invalid params for tool `{tool_name}`: argument `{name}` must be a boolean"
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// MCP arguments that were removed in spec-sync 5.0. They are rejected with a
+/// dedicated migration message (before generic schema validation and the
+/// write gate) so the error stays stable for older clients.
+const RETIRED_GENERATE_ARGUMENTS: &[&str] = &[
+    "ai",
+    "provider",
+    "aiProvider",
+    "ai_provider",
+    "model",
+    "aiModel",
+    "ai_model",
+    "apiKey",
+    "api_key",
+    "aiApiKey",
+    "ai_api_key",
+    "credential",
+    "credentials",
+    "baseUrl",
+    "base_url",
+    "aiBaseUrl",
+    "ai_base_url",
+    "timeout",
+    "timeoutSecs",
+    "timeout_secs",
+    "aiTimeout",
+    "ai_timeout",
+    "command",
+    "aiCommand",
+    "ai_command",
+];
+
+/// JSON-RPC Invalid params (-32602) error response.
+fn invalid_params_error(id: Option<Value>, message: String) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": { "code": -32602, "message": message }
+    })
+}
+
+fn handle_tools_call(
+    id: Option<Value>,
+    params: &Value,
+    default_root: &Path,
+    allow_writes: bool,
+) -> Value {
     let tool_name = params.get("name").and_then(|n| n.as_str()).unwrap_or("");
     let arguments = params.get("arguments").cloned().unwrap_or(json!({}));
 
-    let root = arguments
-        .get("root")
-        .and_then(|r| r.as_str())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| default_root.to_path_buf());
-    let root = root.canonicalize().unwrap_or(root);
+    // Retired generate arguments get a dedicated migration error, before any
+    // other validation, so older clients see a stable message.
+    if tool_name == "specsync_generate"
+        && let Some(name) = RETIRED_GENERATE_ARGUMENTS
+            .iter()
+            .find(|name| arguments.get(**name).is_some())
+    {
+        return json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "content": [{
+                    "type": "text",
+                    "text": format!(
+                        "MCP argument `{name}` was removed in spec-sync 5.0. `specsync_generate` is deterministic; use your coding agent to enrich the generated spec."
+                    )
+                }],
+                "isError": true
+            }
+        });
+    }
+
+    // Validate arguments against the advertised schema before touching the
+    // filesystem (rejects e.g. `strict: "yes please"` with -32602).
+    if let Err(message) = validate_tool_arguments(tool_name, &arguments) {
+        return invalid_params_error(id, message);
+    }
+
+    // Write-capable tools are opt-in via the server's --allow-writes flag.
+    if WRITE_TOOLS.contains(&tool_name) && !allow_writes {
+        return json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "content": [{
+                    "type": "text",
+                    "text": format!(
+                        "Tool `{tool_name}` modifies the filesystem and is disabled. Restart the MCP server with --allow-writes to enable it."
+                    )
+                }],
+                "isError": true
+            }
+        });
+    }
+
+    // Every tool defaults to the server's --root. A caller-supplied `root`
+    // must be the server root or a path inside it (canonicalized and
+    // symlink-resolved) — anything else is rejected with -32602.
+    let root = match arguments.get("root") {
+        None => default_root
+            .canonicalize()
+            .unwrap_or_else(|_| default_root.to_path_buf()),
+        Some(value) => {
+            let candidate = PathBuf::from(value.as_str().unwrap_or_default());
+            match crate::util::confine_path_to_root(default_root, &candidate) {
+                Ok(confined) => confined,
+                Err(message) => return invalid_params_error(id, message),
+            }
+        }
+    };
 
     let result = match tool_name {
         "specsync_check" => tool_check(&root, &arguments),
@@ -678,34 +857,7 @@ fn tool_coverage(root: &Path) -> Result<Value, String> {
 }
 
 fn tool_generate(root: &Path, arguments: &Value) -> Result<Value, String> {
-    const RETIRED_ARGUMENTS: &[&str] = &[
-        "ai",
-        "provider",
-        "aiProvider",
-        "ai_provider",
-        "model",
-        "aiModel",
-        "ai_model",
-        "apiKey",
-        "api_key",
-        "aiApiKey",
-        "ai_api_key",
-        "credential",
-        "credentials",
-        "baseUrl",
-        "base_url",
-        "aiBaseUrl",
-        "ai_base_url",
-        "timeout",
-        "timeoutSecs",
-        "timeout_secs",
-        "aiTimeout",
-        "ai_timeout",
-        "command",
-        "aiCommand",
-        "ai_command",
-    ];
-    if let Some(name) = RETIRED_ARGUMENTS
+    if let Some(name) = RETIRED_GENERATE_ARGUMENTS
         .iter()
         .find(|name| arguments.get(**name).is_some())
     {
@@ -1018,7 +1170,7 @@ mod tests {
     fn test_handle_tools_call_unknown_tool() {
         let tmp = setup_project();
         let params = json!({ "name": "nonexistent_tool", "arguments": {} });
-        let resp = handle_tools_call(Some(json!(1)), &params, tmp.path());
+        let resp = handle_tools_call(Some(json!(1)), &params, tmp.path(), true);
         assert_eq!(resp["result"]["isError"], true);
         let text = resp["result"]["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("Unknown tool"));
@@ -1032,7 +1184,7 @@ mod tests {
             "name": "specsync_coverage",
             "arguments": { "root": tmp.path().to_string_lossy() }
         });
-        let resp = handle_tools_call(Some(json!(1)), &params, tmp.path());
+        let resp = handle_tools_call(Some(json!(1)), &params, tmp.path(), true);
         assert!(!resp["result"]["isError"].as_bool().unwrap_or(false));
     }
 
@@ -1276,7 +1428,7 @@ mod tests {
     fn test_tools_call_success_response_structure() {
         let tmp = setup_project();
         let params = json!({ "name": "specsync_coverage", "arguments": {} });
-        let resp = handle_tools_call(Some(json!(42)), &params, tmp.path());
+        let resp = handle_tools_call(Some(json!(42)), &params, tmp.path(), true);
 
         assert_eq!(resp["jsonrpc"], "2.0");
         assert_eq!(resp["id"], 42);
@@ -1288,7 +1440,7 @@ mod tests {
     fn test_tools_call_error_response_structure() {
         let tmp = setup_project();
         let params = json!({ "name": "bogus", "arguments": {} });
-        let resp = handle_tools_call(Some(json!(99)), &params, tmp.path());
+        let resp = handle_tools_call(Some(json!(99)), &params, tmp.path(), true);
 
         assert_eq!(resp["jsonrpc"], "2.0");
         assert_eq!(resp["id"], 99);
@@ -1421,5 +1573,146 @@ mod tests {
                 .unwrap()
                 .contains("Unknown resource URI")
         );
+    }
+
+    // --- #414: path confinement, arg validation, write gating, notifications ---
+
+    #[test]
+    fn test_tools_call_rejects_root_outside_server_root() {
+        let server = setup_project();
+        let outside = TempDir::new().unwrap();
+        let params = json!({
+            "name": "specsync_generate",
+            "arguments": { "root": outside.path().to_string_lossy() }
+        });
+        let resp = handle_tools_call(Some(json!(1)), &params, server.path(), true);
+        assert_eq!(resp["error"]["code"], -32602);
+        assert!(
+            resp["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("outside the server root")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_tools_call_rejects_symlink_root_escape() {
+        let server = setup_project();
+        let outside = TempDir::new().unwrap();
+        let link = server.path().join("link");
+        std::os::unix::fs::symlink(outside.path(), &link).unwrap();
+        let params = json!({
+            "name": "specsync_coverage",
+            "arguments": { "root": link.to_string_lossy() }
+        });
+        let resp = handle_tools_call(Some(json!(1)), &params, server.path(), true);
+        assert_eq!(resp["error"]["code"], -32602);
+    }
+
+    #[test]
+    fn test_tools_call_accepts_child_of_server_root() {
+        let server = setup_project();
+        let child = server.path().join("sub");
+        std::fs::create_dir_all(child.join("specs")).unwrap();
+        std::fs::write(
+            child.join("specsync.json"),
+            r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+        )
+        .unwrap();
+        let params = json!({
+            "name": "specsync_coverage",
+            "arguments": { "root": child.to_string_lossy() }
+        });
+        let resp = handle_tools_call(Some(json!(1)), &params, server.path(), true);
+        assert!(resp["error"].is_null());
+        assert!(resp["result"]["isError"].is_null());
+    }
+
+    #[test]
+    fn test_tools_call_rejects_wrong_arg_type_with_32602() {
+        let tmp = setup_project();
+        let params = json!({
+            "name": "specsync_check",
+            "arguments": { "strict": "yes please" }
+        });
+        let resp = handle_tools_call(Some(json!(1)), &params, tmp.path(), true);
+        assert_eq!(resp["error"]["code"], -32602);
+        assert!(
+            resp["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("`strict` must be a boolean")
+        );
+    }
+
+    #[test]
+    fn test_tools_call_rejects_unknown_argument_with_32602() {
+        let tmp = setup_project();
+        let params = json!({
+            "name": "specsync_coverage",
+            "arguments": { "bogus": 1 }
+        });
+        let resp = handle_tools_call(Some(json!(1)), &params, tmp.path(), true);
+        assert_eq!(resp["error"]["code"], -32602);
+        assert!(
+            resp["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("unknown argument `bogus`")
+        );
+    }
+
+    #[test]
+    fn test_tools_call_write_tools_require_allow_writes() {
+        let tmp = setup_project();
+        for tool in ["specsync_generate", "specsync_init"] {
+            let params = json!({ "name": tool, "arguments": {} });
+            let resp = handle_tools_call(Some(json!(1)), &params, tmp.path(), false);
+            assert_eq!(resp["result"]["isError"], true, "tool {tool}");
+            assert!(
+                resp["result"]["content"][0]["text"]
+                    .as_str()
+                    .unwrap()
+                    .contains("--allow-writes"),
+                "tool {tool}"
+            );
+        }
+        // Read-only tools still work without the flag.
+        let params = json!({ "name": "specsync_coverage", "arguments": {} });
+        let resp = handle_tools_call(Some(json!(1)), &params, tmp.path(), false);
+        assert!(resp["result"]["isError"].is_null());
+    }
+
+    #[test]
+    fn test_tools_call_generate_allowed_with_allow_writes() {
+        let tmp = setup_project();
+        std::fs::write(tmp.path().join("src").join("auth.rs"), "pub fn login() {}").unwrap();
+        let params = json!({ "name": "specsync_generate", "arguments": {} });
+        let resp = handle_tools_call(Some(json!(1)), &params, tmp.path(), true);
+        assert!(resp["result"]["isError"].is_null());
+        let text = resp["result"]["content"][0]["text"].as_str().unwrap();
+        let parsed: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(parsed["count"], 1);
+    }
+
+    #[test]
+    fn test_known_method_notification_gets_no_response() {
+        let tmp = setup_project();
+        for method in ["tools/list", "initialize", "ping", "resources/list"] {
+            let line = format!(r#"{{"jsonrpc":"2.0","method":"{method}"}}"#);
+            assert!(
+                handle_request_line(&line, tmp.path(), false).is_none(),
+                "notification for {method} must not get a response"
+            );
+        }
+        // Requests still get responses, and explicit "id": null is a request id.
+        let line = r#"{"jsonrpc":"2.0","id":null,"method":"ping"}"#;
+        assert!(handle_request_line(line, tmp.path(), false).is_some());
+        // Unknown-method notifications get no response either.
+        let line = r#"{"jsonrpc":"2.0","method":"bogus/method"}"#;
+        assert!(handle_request_line(line, tmp.path(), false).is_none());
+        // Parse errors are still reported.
+        assert!(handle_request_line("not json", tmp.path(), false).is_some());
     }
 }

@@ -2630,6 +2630,17 @@ fn resolve_read_root(
     } else {
         requested_path.to_path_buf()
     };
+    if relative.components().any(|component| {
+        matches!(
+            component,
+            Component::Normal(name)
+                if name
+                    .to_str()
+                    .is_some_and(|name| name.eq_ignore_ascii_case(".git"))
+        )
+    }) {
+        return Err("Read root override must not select Git metadata".to_string());
+    }
     Ok(if relative.as_os_str().is_empty() {
         PathBuf::from(".")
     } else {
@@ -6004,6 +6015,34 @@ Test
         assert_eq!(
             resolve_read_root(canonical_root, requested_root, Some(sibling)).unwrap_err(),
             "Read root override escapes the configured server root"
+        );
+    }
+
+    #[test]
+    fn read_root_rejects_git_metadata_components_case_insensitively() {
+        #[cfg(not(windows))]
+        let canonical_root = Path::new("/resolved/temp/server");
+        #[cfg(not(windows))]
+        let requested_root = Path::new("/startup-alias/temp/server");
+        #[cfg(not(windows))]
+        let absolute_git_root = "/startup-alias/temp/server/.gIt";
+
+        #[cfg(windows)]
+        let canonical_root = Path::new(r"C:\resolved\temp\server");
+        #[cfg(windows)]
+        let requested_root = Path::new(r"C:\startup-alias\temp\server");
+        #[cfg(windows)]
+        let absolute_git_root = r"C:\startup-alias\temp\server\.gIt";
+
+        for candidate in [".git", ".GIT", "child/.GiT", absolute_git_root] {
+            assert_eq!(
+                resolve_read_root(canonical_root, requested_root, Some(candidate)).unwrap_err(),
+                "Read root override must not select Git metadata"
+            );
+        }
+        assert_eq!(
+            resolve_read_root(canonical_root, requested_root, Some("child")).unwrap(),
+            PathBuf::from("child")
         );
     }
 

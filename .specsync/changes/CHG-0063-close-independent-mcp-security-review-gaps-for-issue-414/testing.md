@@ -12,6 +12,7 @@ artifact: testing
 | Existing and nonexistent absolute outside roots | Same pre-canonicalization error; no path disclosure |
 | Redirected `.git` file or symlink | Explicit-repository/confinement error; outside metadata absent |
 | Mixed-case `.GIT` configuration | Rejected on every platform; metadata is never snapshotted |
+| Direct, nested, absolute, or mixed-case `.git` read root containing a valid project | Rejected before operation-root acquisition; metadata config and source bytes are never authoritative |
 | Unix symlink or Windows junction escape | Rejected; referent bytes remain exact |
 | Missing/wrong JSON-RPC envelope members | `-32600`; mutator never executes |
 | Invalid/extended `resources/read` params | `-32602`; no resource access |
@@ -322,6 +323,28 @@ bases exhausted retained directory handles, and one also reproduced the same bre
 many configured coverage roots. The next amendment releases completed Node bases and stores only
 configured-root identities before sequential reopen/traversal.
 
+## Exact `bead6d2` private sandbox replay
+
+- Exact implementation commit:
+  `bead6d2d71720460fc077a0c0fe956d43ed2f4bd`
+- Implementation tree:
+  `97369d96c130ab8bcbc158568dc8057308608ddb`
+- Deterministic implementation archive SHA-256:
+  `cdf44249489efdafb1067fc293549b63f1c5b5181bca4808ce0ac81596b1b7d4`
+- Build: disposable detached clone; `cargo build --release --locked --offline` exited 0.
+- Exact executable SHA-256:
+  `320c59c9cbc046f35eb43c11a1d5fa5cb026c07d17c95f4c78ffef16a164e2b4`
+- Private testbed: clean disposable clone of `CorvidLabs/spec-sync-sandbox` at
+  `758c144808d80169a44a740660b0d73c5b2f6ddd`, tree
+  `99cff2310ec2f9a449dca01f608818d2ff7c1062`.
+- Deterministic sandbox archive SHA-256:
+  `da78737fb5bbc1adecae62c359253300f2997fa1d99d43c74840c42a40bba6ab`.
+- Default `tools/list` returned exactly the five read tools and no mutators.
+- `specsync_coverage` returned 100% file and LOC coverage: 3/3 files and 25/25 LOC, with no
+  uncovered files/modules or JSON-RPC error.
+- The disposable implementation clone, disposable sandbox clone, and real private checkout remained
+  Git-clean.
+
 - `REQ-mcp-002`: `mcp::tests::test_repeated_tree_scans_share_one_confinement_budget`,
   `mcp::tests::snapshot_copies_the_exact_manifest_bytes_charged_during_discovery`,
   `mcp::tests::snapshot_includes_all_standard_gradle_module_forms_under_ignored_directories`,
@@ -599,6 +622,10 @@ configured-root identities before sequential reopen/traversal.
   descriptor-breadth finding across distinct Node workspace bases; one also reproduced it across
   configured coverage roots. The current amendment characterizes and closes both breadth cases;
   fresh exact-commit rereviews remain required.
+- The first independent acceptance review of exact commit `bead6d2` returned PASS with zero High or
+  Medium findings. It independently confirmed every #414 facet, all prior remediations, both new
+  breadth cases, focused/full tests, coverage, score, release build, and cross-target compilation.
+  The second independent compatibility/regression review remains pending.
 - The command-wide immutable CLI analysis snapshot and generic structured discovery outcomes from
   that review are not implemented in CHG-0063. They are outside GitHub #414's MCP boundary and
   remain assigned to later CLI/outcome/generation work.
@@ -644,3 +671,23 @@ configured-root identities before sequential reopen/traversal.
   and nested-comment content; aliased/qualified/compound directives; same-line and multiline
   conditional blocks; unsupported triple-quoted include/project-directory arguments; all CLI/MCP
   checked gates; and unchanged outside bytes with no partial output.
+
+## Exact `bead6d2` review disposition
+
+- Acceptance review: PASS with zero High/Medium findings.
+- Adversarial compatibility review: REJECT with one Medium because `.git` itself could be selected
+  as a read-tool operation root, bypassing recursive snapshot exclusion.
+- Characterization: mixed-case direct, nested, and absolute selectors now fail in
+  `resolve_read_root`; a spawned MCP coverage request with a valid project beneath each selector
+  returns `isError: true` before reading its configuration or source.
+- Focused post-fix result: the complete MCP lane passes 118 unit and 68 integration tests.
+- Full post-fix result: 1,954 unit and 313 integration tests pass; the release build and Windows
+  GNU cross-target test compilation pass (with only the known unrelated cfg-specific test warning
+  in `src/change.rs`).
+- Spec quality: 105/105 files and 106,207/106,207 LOC covered; all 62 specs score 100/A.
+- Repository facets: formatting, Clippy, type checks, 23 documentation tests, Astro diagnostics
+  (0 errors/warnings/hints), 43-page site build, and VS Code compile/package pass. RustSec passes
+  against the cached 1,169-advisory database; refreshing that database was unavailable in the
+  restricted environment.
+- The exact `bead6d2` sandbox receipt is historical. A fresh hash-bound sandbox replay, two fresh
+  exact-commit reviews, trust/provenance, and hosted CI remain pending.

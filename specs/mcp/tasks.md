@@ -19,6 +19,7 @@ spec: mcp.spec.md
 - [x] Reject invalid request envelopes before dispatch and validate resource arguments exactly
 - [x] Bound project inputs and MCP responses, and surface transport/write failures
 - [x] Disable Git metadata auto-detection in MCP issue verification
+- [x] Reject direct, nested, and mixed-case `.git` read roots before opening operation authority
 - [x] Detect generation collisions and incomplete writes without false success
 - [x] Retain server-root capabilities and snapshot reads to close path-replacement races
 - [x] Count configuration and actual copied bytes in one operation budget

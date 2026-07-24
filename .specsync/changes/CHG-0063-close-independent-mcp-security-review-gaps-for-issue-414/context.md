@@ -311,5 +311,21 @@ each verified Node base and identity-selects configured coverage roots before re
 them sequentially; 90-base and 90-root regressions pass beneath a 64-descriptor limit. The
 hash-bound exact `971c89a` binary replay against clean private sandbox commit `758c144` is now
 historical. The amended full suite passes 1,953 unit and 312 integration tests. Fresh independent
-rereviews, sandbox replay, hosted-Windows runtime,
-repository/CI, trust, and provenance evidence remain pending.
+rereview has one exact-`bead6d2` PASS with zero High/Medium findings; the second review remains
+pending. A hash-bound exact-`bead6d2` offline build and clean private-sandbox replay passes with five
+read-only default tools and 100% fixture coverage. Hosted-Windows runtime, repository/CI, completed
+trust, and provenance evidence remain pending.
+
+The second independent review of exact commit `bead6d2` rejected that candidate with one Medium:
+the lexical read-root selector allowed `.git` itself (including nested and case-varied spellings)
+to become the operation root, bypassing snapshot-level Git metadata exclusion. The amended
+authorization rejects every ASCII-case `.git` component before opening the operation-root
+capability. A unit characterization covers relative, nested, absolute, and case-varied selectors;
+a real MCP integration places valid configuration and source bytes beneath each selector and
+requires a content-free tool error. The prior exact sandbox receipt and first PASS are historical;
+the amended tree passes 1,954 unit and 313 integration tests, release and Windows GNU cross-target
+compilation, strict 100% file/LOC coverage, all 62 scores at 100/A, documentation
+tests/lint/build, and editor-extension compile/package. The RustSec scan passed against the cached
+1,169-advisory database after the networked refresh was unavailable. Two fresh exact-tree reviews,
+the hash-bound sandbox replay, hosted-Windows runtime, trust/provenance, and GitHub CI remain
+pending.

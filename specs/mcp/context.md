@@ -28,6 +28,9 @@ spec: mcp.spec.md
   configured source roots remain visible even when their basenames are normally ignored.
 - Git contents are excluded from snapshots. MCP score output marks Git freshness unavailable and
   conservatively withholds its five points instead of returning a false-high score.
+- Read-root authorization rejects every case variant of a `.git` path component before opening
+  the selected operation root, preventing Git metadata from becoming configuration or source
+  authority even when it contains an otherwise valid project.
 - Generation verifies every required destination, reports incomplete writes, returns relative
   project paths, bounds count/content/result size before mutation, stages and syncs content beside
   each destination, and atomically publishes without overwrite. Rollback preserves replacements
@@ -119,9 +122,10 @@ through post-read edge revalidation. Recursive snapshots now record sibling iden
 enumeration checkpoint but retain and process sibling directories sequentially, bounding open
 handles by depth without weakening replacement detection. Object-form Node workspaces require a
 `packages` array, and recognized nested package manifests are strictly parsed before success.
-Focused results pass 117 MCP unit and 67 MCP integration tests; the full suite passes 1,951 unit
-and 312 integration tests. Exact-tree independent rereview and hosted-Windows junction/reparse
-runtime evidence remain pending.
+The latest `.git` operation-root characterization passes in both unit and real MCP integration
+paths. The amended full tree passes 1,954 unit and 313 integration tests, release and Windows GNU
+cross-target compilation, strict 100% coverage, and score 100/A for every spec. Fresh exact-tree
+independent rereview and hosted-Windows junction/reparse runtime evidence remain pending.
 Earlier independent reviews additionally closed selected-config substitution, wrong-shaped
 legacy GitHub fields, and blocking/special-file snapshot manifests. Configuration and manifest
 acquisition now makes the no-follow opened regular-file handle authoritative, uses bounded

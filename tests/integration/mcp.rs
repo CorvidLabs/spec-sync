@@ -536,6 +536,43 @@ fn mcp_read_roots_allow_existing_children_and_reject_escapes() {
 }
 
 #[test]
+fn mcp_read_roots_reject_git_metadata_as_operation_authority() {
+    for (id, requested_root) in [".git", ".GIT", ".GiT", "child/.gIt"]
+        .into_iter()
+        .enumerate()
+    {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().join("server");
+        let selected = root.join(requested_root);
+        fs::create_dir_all(selected.join("src")).unwrap();
+        fs::write(
+            selected.join("specsync.json"),
+            r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+        )
+        .unwrap();
+        fs::write(
+            selected.join("src/lib.rs"),
+            "pub fn hidden_authority() {}\n",
+        )
+        .unwrap();
+
+        let responses = mcp_request(
+            &root,
+            &[coverage_request(
+                u64::try_from(id + 1).unwrap(),
+                serde_json::json!(requested_root),
+            )],
+        );
+
+        assert_eq!(responses[0]["result"]["isError"], true);
+        assert_eq!(
+            responses[0]["result"]["content"][0]["text"],
+            "Read root override must not select Git metadata"
+        );
+    }
+}
+
+#[test]
 fn mcp_absolute_outside_roots_do_not_disclose_existence() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().join("server");

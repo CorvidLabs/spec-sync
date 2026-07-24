@@ -12,6 +12,7 @@ spec: mcp.spec.md
 | Authorized mutator | Operates only at the canonical server root and rejects `root` with -32602 |
 | Existing child read root | Allowed only through the retained root capability, including after ambient root replacement |
 | Outside, nonexistent, traversing, or symlink read root | Rejected; outside victim bytes remain identical |
+| Direct, nested, or mixed-case `.git` read root | Rejected before its valid-looking project config or source bytes can become operation authority |
 | Traversing/absolute configured path or unsafe module name | Rejected before project discovery or generation; outside bytes remain identical |
 | Configured or nested symlink escape | Rejected for reads and writes, including a dangling init destination |
 | Escaping spec frontmatter file mapping | Rejected before list/check/score consumers can read it |

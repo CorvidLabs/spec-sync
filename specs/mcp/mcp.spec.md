@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 21
+version: 22
 status: stable
 files:
   - src/mcp.rs
@@ -39,7 +39,8 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
    root capability, so replacement of the ambient root path cannot redirect selection. On Windows,
    an absolute child may use either the original startup spelling or the canonical spelling of that
    same identity-bound root; only its lexical suffix is consumed through the retained canonical
-   capability, and sibling-prefix lookalikes remain rejected.
+   capability, and sibling-prefix lookalikes remain rejected. Every case variant of a `.git`
+   component is rejected before opening the selected operation root.
 6. Mutating tools require write mode, reject root overrides, and use the configured root.
 7. Tool argument schemas and runtime validation reject unknown properties and wrong types.
 8. Tool-domain errors use `isError`; JSON-RPC shape errors use protocol error objects.
@@ -140,7 +141,8 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 
 - **Given** a read tool supplies an existing child directory as `root`
 - **When** the path canonicalizes beneath the configured server root
-- **Then** the tool reads that child project; outside, nonexistent, traversal, and symlink-escape roots fail
+- **Then** the tool reads that child project; outside, nonexistent, traversal, symlink-escape, and
+  `.git` metadata roots fail
 
 ### Scenario: Reject an indirect configured escape
 
@@ -188,6 +190,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | Mutating tool with a per-call `root` | JSON-RPC error -32602; the server root remains authoritative |
 | Non-object params/arguments, wrong argument type, or unknown key | JSON-RPC error -32602 before tool execution |
 | Read root outside the server root, nonexistent, traversing, symlink-escaped, or selected after ambient root replacement | Tool error with `isError: true`; retained authority never follows the replacement path |
+| Read root contains a `.git` component in any ASCII case | Tool error before opening the operation root or reading project-controlled Git metadata |
 | Configured, manifest-derived, dependency/cache/schema, module, spec-mapping, or nested-symlink path escapes the root | Tool/resource error before downstream filesystem access; outside bytes remain unchanged |
 | Semantic Cargo sibling path such as `../b` or `..\b` normalizes inside the root | Accepted and included in the bounded snapshot; drive, UNC, rooted, traversal, symlink, and junction escapes still fail |
 | Unrelated Cargo metadata contains a `path` key | Ignored for snapshot input discovery; only semantic Cargo target/workspace/dependency path tables authorize an input |
@@ -259,3 +262,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-23 | v19 / CHG-0063 exact-head review remediation: Charge Cargo/Node declarations before deduplication, reuse normalized completed workspace nodes, and retain zero-config manifest/source authority before autodetection |
 | 2026-07-24 | v20 / CHG-0063 independent rereview remediation: Bind selected-config parent directories to pre-open identities, revalidate their complete retained edge chain after reads, and reject authority-bearing recursive snapshot directory replacement |
 | 2026-07-24 | v21 / CHG-0063 exact-head rereview remediation: Bound recursive snapshot handles by depth, require object-form Node workspace packages, and strictly parse nested package manifests |
+| 2026-07-24 | v22 / CHG-0063 Git-metadata-root remediation: Reject every case variant of a `.git` read-root component before opening operation authority |

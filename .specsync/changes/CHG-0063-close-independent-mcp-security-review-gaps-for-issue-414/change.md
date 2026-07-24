@@ -74,9 +74,14 @@ Close independent MCP security review gaps for issue 414
   suite passes 1,953 unit and 312 integration tests. Both exact `237e548` rereviews rejected that
   candidate with three Medium findings. Both exact `971c89a` rereviews then rejected its incomplete
   descriptor bound across distinct Node bases and configured coverage roots. Its hash-bound
-  private-sandbox replay is historical; fresh post-fix rereviews,
-  hosted-Windows runtime, and final
-  repository/trust/provenance/CI evidence remain pending.
+  private-sandbox replay is historical. The hash-bound exact `bead6d2` private-sandbox replay
+  passes, and one independent rereview passed with zero High/Medium findings; the adversarial
+  rereview rejected that candidate because a direct or nested mixed-case `.git` read root could
+  become operation authority. The amended implementation rejects such selectors before opening
+  the operation root. The amended tree passes 1,954 unit and 313 integration tests, release and
+  Windows GNU cross-target compilation, strict 100% file/LOC coverage, all 62 scores at 100/A,
+  documentation tests/lint/build, and editor-extension compile/package. Fresh exact-tree review,
+  sandbox, hosted-Windows runtime, and final trust/provenance/CI evidence remain pending.
 
 ## No-spec Rationale
 

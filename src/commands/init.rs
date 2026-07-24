@@ -5,7 +5,7 @@ use std::io::IsTerminal;
 use std::path::Path;
 use std::process;
 
-use crate::config::{config_to_toml, detect_source_dirs};
+use crate::config::{config_to_toml, detect_source_dirs_with_confidence};
 use crate::types::SpecSyncConfig;
 
 /// Version stamp written to `.specsync/version` for fresh projects.
@@ -19,18 +19,47 @@ const V4_DIRS: &[&str] = &[
     ".specsync/archive/changes",
 ];
 
-pub fn cmd_init(root: &Path) {
+pub fn cmd_init(root: &Path, repair: bool, format: crate::types::OutputFormat) {
+    let json = matches!(format, crate::types::OutputFormat::Json);
     // Refuse to clobber any existing config — current or legacy.
     let v4_toml = root.join(".specsync/config.toml");
     let v4_json = root.join(".specsync/config.json");
     let legacy_json = root.join("specsync.json");
     let legacy_toml = root.join(".specsync.toml");
-    if v4_toml.exists() {
-        println!(".specsync/config.toml already exists");
-        return;
-    }
-    if v4_json.exists() {
-        println!(".specsync/config.json already exists");
+    if v4_toml.exists() || v4_json.exists() {
+        let existing = if v4_toml.exists() {
+            ".specsync/config.toml"
+        } else {
+            ".specsync/config.json"
+        };
+        if repair {
+            repair_layout(root, existing, json);
+            return;
+        }
+        let missing = missing_support_files(root);
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({
+                    "created": false,
+                    "config": existing,
+                    "missing": missing,
+                    "repair_hint": "specsync init --repair",
+                })
+            );
+        } else {
+            println!("{existing} already exists");
+            if !missing.is_empty() {
+                println!(
+                    "  {} missing support file(s): {}",
+                    "!".yellow(),
+                    missing.join(", ")
+                );
+                println!(
+                    "  Run `specsync init --repair` to restore them (your config is left untouched)."
+                );
+            }
+        }
         return;
     }
     if legacy_json.exists() {
@@ -42,7 +71,22 @@ pub fn cmd_init(root: &Path) {
         return;
     }
 
-    let detected_dirs = detect_source_dirs(root);
+    // Subdir footgun: running `init` inside a subdirectory of an initialized
+    // project must not create a nested .specsync — point at the parent instead.
+    if let Some(parent) = find_initialized_ancestor(root) {
+        eprintln!(
+            "{} A spec-sync project is already initialized at {} — no nested .specsync was created.",
+            "error:".red().bold(),
+            parent.display()
+        );
+        eprintln!(
+            "  Run from that root or pass `--root {}`.",
+            parent.display()
+        );
+        process::exit(1);
+    }
+
+    let (detected_dirs, actually_detected) = detect_source_dirs_with_confidence(root);
     let dirs_display = detected_dirs.join(", ");
 
     if let Err(e) = write_current_layout(root, &detected_dirs) {
@@ -57,19 +101,184 @@ pub fn cmd_init(root: &Path) {
         process::exit(1);
     }
 
-    println!("{} Created .specsync/config.toml (5.0 layout)", "✓".green());
-    println!("  Detected source directories: {dirs_display}");
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "created": true,
+                "config": ".specsync/config.toml",
+                "source_dirs": detected_dirs,
+                "detected": actually_detected,
+            })
+        );
+    } else {
+        println!("{} Created .specsync/config.toml (5.0 layout)", "✓".green());
+        if actually_detected {
+            println!("  Detected source directories: {dirs_display}");
+        } else {
+            println!(
+                "  {} No source directories detected — defaulted to source_dirs = [\"src\"].",
+                "!".yellow()
+            );
+            println!("  Edit .specsync/config.toml if your sources live elsewhere.");
+        }
+    }
 
     // Ensure .specsync/hashes.json is gitignored (hash cache is local-only)
     match ensure_hashes_gitignored(root) {
-        Ok(true) => println!("{} Added .specsync/hashes.json to .gitignore", "✓".green()),
-        Ok(false) => {}
+        Ok(true) if !json => println!("{} Added .specsync/hashes.json to .gitignore", "✓".green()),
+        Ok(_) => {}
         Err(e) => eprintln!("{} {e}", "warning:".yellow().bold()),
     }
 
     guided_sdd_bootstrap(root);
 }
 
+/// Support files a healthy `.specsync/` layout must have; missing ones are
+/// reported by re-init and restored by `init --repair`.
+fn missing_support_files(root: &Path) -> Vec<String> {
+    let mut missing = Vec::new();
+    for file in [
+        ".specsync/version",
+        ".specsync/.gitignore",
+        ".specsync/sdd.json",
+    ] {
+        if !root.join(file).is_file() {
+            missing.push(file.to_string());
+        }
+    }
+    for dir in V4_DIRS {
+        if !root.join(dir).is_dir() {
+            missing.push(format!("{dir}/"));
+        }
+    }
+    missing
+}
+
+/// Restore missing `.specsync/` support files without touching the existing
+/// config. Also sanity-checks that the config is at least plausible.
+fn repair_layout(root: &Path, existing_config: &str, json: bool) {
+    let mut restored: Vec<String> = Vec::new();
+    let mut warnings: Vec<String> = Vec::new();
+
+    // Sanity-check the existing config so a corrupt one is diagnosed, not ignored.
+    if let Ok(content) = fs::read_to_string(root.join(existing_config))
+        && !content.contains("specs_dir")
+    {
+        warnings.push(format!(
+            "{existing_config} has no `specs_dir` key — it may be corrupt; fix or regenerate it manually"
+        ));
+    }
+
+    for dir in V4_DIRS {
+        let path = root.join(dir);
+        if !path.is_dir() {
+            match fs::create_dir_all(&path) {
+                Ok(_) => restored.push(format!("{dir}/")),
+                Err(e) => {
+                    eprintln!("{} Failed to create {dir}: {e}", "error:".red().bold());
+                    process::exit(1);
+                }
+            }
+        }
+    }
+
+    let version_path = root.join(".specsync/version");
+    if !version_path.is_file() {
+        match fs::write(&version_path, format!("{PROJECT_VERSION}\n")) {
+            Ok(_) => restored.push(".specsync/version".to_string()),
+            Err(e) => {
+                eprintln!("{} Failed to write .specsync/version: {e}", "error:".red().bold());
+                process::exit(1);
+            }
+        }
+    }
+
+    let gitignore_path = root.join(".specsync/.gitignore");
+    if !gitignore_path.is_file() {
+        match fs::write(&gitignore_path, specsync_gitignore_content()) {
+            Ok(_) => restored.push(".specsync/.gitignore".to_string()),
+            Err(e) => {
+                eprintln!(
+                    "{} Failed to write .specsync/.gitignore: {e}",
+                    "error:".red().bold()
+                );
+                process::exit(1);
+            }
+        }
+    }
+
+    // sdd.json — write_default_policy is a no-op when the file exists.
+    let had_policy = root.join(".specsync/sdd.json").is_file();
+    if let Err(error) =
+        crate::change::write_default_policy(root, crate::change::detect_verification_commands(root))
+    {
+        eprintln!("{} {error}", "error:".red().bold());
+        process::exit(1);
+    }
+    if !had_policy && root.join(".specsync/sdd.json").is_file() {
+        restored.push(".specsync/sdd.json".to_string());
+    }
+
+    match ensure_hashes_gitignored(root) {
+        Ok(true) => restored.push(".gitignore entry (.specsync/hashes.json)".to_string()),
+        Ok(false) => {}
+        Err(e) => warnings.push(e),
+    }
+
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "repaired": restored,
+                "warnings": warnings,
+            })
+        );
+    } else {
+        if restored.is_empty() {
+            println!("{} Nothing to repair — .specsync layout is complete", "✓".green());
+        } else {
+            println!("{} Repaired: {}", "✓".green(), restored.join(", "));
+        }
+        for warning in &warnings {
+            eprintln!("{} {warning}", "warning:".yellow().bold());
+        }
+    }
+}
+
+/// Walk up from `root` to find an ancestor directory that already contains a
+/// spec-sync project (any layout). Returns None when `root` is the topmost
+/// initialized directory.
+fn find_initialized_ancestor(root: &Path) -> Option<std::path::PathBuf> {
+    let abs = root.canonicalize().ok()?;
+    for ancestor in abs.ancestors().skip(1) {
+        if ancestor.join(".specsync/config.toml").is_file()
+            || ancestor.join(".specsync/config.json").is_file()
+            || ancestor.join("specsync.json").is_file()
+            || ancestor.join(".specsync.toml").is_file()
+        {
+            return Some(ancestor.to_path_buf());
+        }
+    }
+    None
+}
+
+/// Contents of the generated `.specsync/.gitignore`.
+fn specsync_gitignore_content() -> String {
+    [
+        "# spec-sync 5.0 — generated by `specsync init`",
+        "# Committed: config.toml, registry.toml, lifecycle/, changes/, archive/",
+        "# Ignored: backups, local config, hash cache (regenerated on each run)",
+        "",
+        "backup-3x/",
+        "config.local.toml",
+        "hashes.json",
+        "change.lock",
+        "change-transaction.json",
+        "",
+    ]
+    .join("\n")
+}
 fn guided_sdd_bootstrap(root: &Path) {
     if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
         return;
@@ -143,20 +352,7 @@ fn write_current_layout(root: &Path, source_dirs: &[String]) -> Result<(), Strin
 
     let gitignore_path = root.join(".specsync/.gitignore");
     if !gitignore_path.exists() {
-        let content = [
-            "# spec-sync 5.0 — generated by `specsync init`",
-            "# Committed: config.toml, registry.toml, lifecycle/, changes/, archive/",
-            "# Ignored: backups, local config, hash cache (regenerated on each run)",
-            "",
-            "backup-3x/",
-            "config.local.toml",
-            "hashes.json",
-            "change.lock",
-            "change-transaction.json",
-            "",
-        ]
-        .join("\n");
-        fs::write(&gitignore_path, content)
+        fs::write(&gitignore_path, specsync_gitignore_content())
             .map_err(|e| format!("Failed to write .specsync/.gitignore: {e}"))?;
     }
 
@@ -256,7 +452,7 @@ mod tests {
     fn fresh_init_is_not_legacy_layout() {
         let tmp = TempDir::new().unwrap();
         fs::create_dir_all(tmp.path().join("src")).unwrap();
-        cmd_init(tmp.path());
+        cmd_init(tmp.path(), false, crate::types::OutputFormat::Text);
         assert!(
             !crate::config::is_legacy_layout(tmp.path()),
             "fresh init must produce a 5.0 layout that does not trigger the migration nag"
@@ -277,5 +473,46 @@ mod tests {
                 "missing source policy scope {expected}"
             );
         }
+    }
+
+    #[test]
+    fn empty_dir_init_reports_fallback_not_detection() {
+        // #440: init must not claim it "detected" src in an empty directory.
+        let tmp = TempDir::new().unwrap();
+        let (dirs, detected) = crate::config::detect_source_dirs_with_confidence(tmp.path());
+        assert_eq!(dirs, vec!["src".to_string()]);
+        assert!(!detected, "empty dir must report fallback, not detection");
+    }
+
+    #[test]
+    fn repair_restores_deleted_support_files() {
+        // #440: re-init short-circuits; --repair restores version/.gitignore/sdd.json.
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        cmd_init(root, false, crate::types::OutputFormat::Text);
+        fs::remove_file(root.join(".specsync/version")).unwrap();
+        fs::remove_file(root.join(".specsync/.gitignore")).unwrap();
+        fs::remove_file(root.join(".specsync/sdd.json")).unwrap();
+        assert_eq!(missing_support_files(root).len(), 3);
+
+        cmd_init(root, true, crate::types::OutputFormat::Text);
+
+        assert!(root.join(".specsync/version").is_file());
+        assert!(root.join(".specsync/.gitignore").is_file());
+        assert!(root.join(".specsync/sdd.json").is_file());
+        assert!(missing_support_files(root).is_empty());
+    }
+
+    #[test]
+    fn find_initialized_ancestor_detects_parent_project() {
+        // #440: init in a subdir must find the parent project, not nest.
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        cmd_init(root, false, crate::types::OutputFormat::Text);
+        let sub = root.join("src/deep");
+        fs::create_dir_all(&sub).unwrap();
+        let found = find_initialized_ancestor(&sub).expect("parent project detected");
+        assert_eq!(found, root.canonicalize().unwrap());
+        assert!(find_initialized_ancestor(root).is_none());
     }
 }

@@ -219,7 +219,12 @@ pub fn validate_spec(
         return result;
     }
 
-    validate_companion_scaffold_markers(spec_path, root, &mut result);
+    // Freshly scaffolded companions are drafts by definition — only flag
+    // unfilled scaffold markers once the spec leaves draft status, so the
+    // output of `new --full` / `add-spec` passes the tool's own check.
+    if fm.parsed_status() != Some(crate::types::SpecStatus::Draft) {
+        validate_companion_scaffold_markers(spec_path, root, &mut result);
+    }
 
     let config_hint = config
         .config_path
@@ -466,8 +471,11 @@ pub fn validate_spec(
     }
 
     // ─── Level 1.7: Empty-Draft Section Detection ───────────────────
+    // Drafts are scaffolds by definition ("structure only" above) — flagging
+    // their unfinished sections would make every freshly generated spec fail
+    // its own --strict check, so this warning starts at review/active.
     let stub_sections = find_stub_sections(body, &config.required_sections);
-    if !stub_sections.is_empty() {
+    if !is_draft && !stub_sections.is_empty() {
         for section in &stub_sections {
             result.warnings.push(format!(
                 "Section ## {section} contains only unfinished draft text"
@@ -1596,6 +1604,87 @@ Test
             result.errors
         );
     }
+
+    #[test]
+    fn draft_specs_skip_companion_scaffold_markers() {
+        // #442: freshly scaffolded companions are drafts by definition — the
+        // unfilled-marker warnings only apply once the spec leaves draft.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(root.join("src/widget.rs"), "pub fn w() {}
+").unwrap();
+        let spec_dir = root.join("specs").join("widget");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        let spec_path = spec_dir.join("widget.spec.md");
+        std::fs::write(
+            &spec_path,
+            "---
+module: widget
+version: 1
+status: draft
+files:
+  - src/widget.rs
+db_tables: []
+depends_on: []
+---
+
+# Widget
+",
+        )
+        .unwrap();
+        std::fs::write(
+            spec_dir.join("tasks.md"),
+            "---
+spec: widget.spec.md
+---
+
+## Tasks
+
+- [ ] Add implementation, validation, or release tasks that belong to this spec.
+",
+        )
+        .unwrap();
+
+        let config = crate::types::SpecSyncConfig::default();
+        let tables = std::collections::HashSet::new();
+        let cols = std::collections::HashMap::new();
+        let result = validate_spec(&spec_path, root, &tables, &cols, &config);
+        assert!(
+            !result
+                .warnings
+                .iter()
+                .any(|w| w.contains("Unfilled companion scaffold marker")),
+            "draft spec must not emit scaffold-marker warnings: {:?}",
+            result.warnings
+        );
+
+        // Promoted to active, the same marker is flagged.
+        std::fs::write(
+            &spec_path,
+            "---
+module: widget
+version: 1
+status: active
+files:
+  - src/widget.rs
+db_tables: []
+depends_on: []
+---
+
+# Widget
+",
+        )
+        .unwrap();
+        let result = validate_spec(&spec_path, root, &tables, &cols, &config);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.contains("Unfilled companion scaffold marker")),
+            "active spec must still emit scaffold-marker warnings"
+        );
+    }
 }
 
 // ─── Coverage ────────────────────────────────────────────────────────────
@@ -1855,4 +1944,5 @@ pub fn compute_coverage(
         loc_coverage_percent,
         unspecced_file_loc,
     }
+
 }

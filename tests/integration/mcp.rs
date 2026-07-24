@@ -81,19 +81,7 @@ fn mcp_request_with_low_fd_limit(
     use std::process::{Command, Stdio};
 
     let binary = specsync().get_program().to_os_string();
-    let mut command = Command::new("sh");
-    command.env_remove("GITHUB_EVENT_NAME");
-    command.env_remove("GITHUB_BASE_REF");
-    for (key, _) in std::env::vars_os() {
-        if key
-            .to_string_lossy()
-            .get(.."SPECSYNC_".len())
-            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("SPECSYNC_"))
-        {
-            command.env_remove(key);
-        }
-    }
-    let mut child = command
+    let mut child = Command::new("sh")
         .arg("-c")
         .arg(r#"ulimit -n 128; exec "$1" mcp --root "$2""#)
         .arg("specsync-low-fd")

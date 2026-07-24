@@ -63,34 +63,46 @@ pub struct RemoteSpec {
     pub body: String,
 }
 
-/// Fetch a spec file's raw content from a GitHub repo.
-///
-/// `repo` is `owner/repo`, `spec_path` is the relative path from the registry.
-pub fn fetch_remote_spec(repo: &str, spec_path: &str) -> Result<String, String> {
-    let url = format!("https://raw.githubusercontent.com/{repo}/HEAD/{spec_path}");
-
+/// GET a raw file from GitHub, attaching `GITHUB_TOKEN` (or `GH_TOKEN`) as an
+/// Authorization header when set — documented private-repo support, previously
+/// never actually sent (#422).
+fn github_raw_get(url: &str) -> Result<String, String> {
     let agent = ureq::Agent::new_with_config(
         ureq::config::Config::builder()
             .timeout_global(Some(Duration::from_secs(10)))
             .build(),
     );
 
-    let mut response = agent
-        .get(&url)
+    let mut request = agent.get(url);
+    if let Ok(token) = std::env::var("GITHUB_TOKEN")
+        .or_else(|_| std::env::var("GH_TOKEN"))
+        .map(|t| t.trim().to_string())
+        && !token.is_empty()
+    {
+        request = request.header("Authorization", &format!("Bearer {token}"));
+    }
+
+    let mut response = request
         .call()
         .map_err(|e| format!("HTTP request failed: {e}"))?;
 
     if response.status() != 200 {
-        return Err(format!(
-            "HTTP {} — could not fetch {spec_path} from {repo}",
-            response.status()
-        ));
+        return Err(format!("HTTP {}", response.status()));
     }
 
     response
         .body_mut()
         .read_to_string()
         .map_err(|e| format!("Failed to read response body: {e}"))
+}
+
+/// Fetch a spec file's raw content from a GitHub repo.
+///
+/// `repo` is `owner/repo`, `spec_path` is the relative path from the registry.
+pub fn fetch_remote_spec(repo: &str, spec_path: &str) -> Result<String, String> {
+    let url = format!("https://raw.githubusercontent.com/{repo}/HEAD/{spec_path}");
+    github_raw_get(&url)
+        .map_err(|e| format!("{e} — could not fetch {spec_path} from {repo}"))
 }
 
 /// Parse a fetched spec into its relevant metadata for verification.
@@ -112,35 +124,26 @@ pub fn parse_remote_spec(module: &str, content: &str) -> Option<RemoteSpec> {
     })
 }
 
-/// Fetch `specsync-registry.toml` from a GitHub repo's default branch.
+/// Fetch the registry from a GitHub repo's default branch.
 ///
 /// `repo` is in `owner/repo` format (e.g. `corvid-labs/algochat`).
-/// Tries the GitHub raw content URL for the file at repo root.
+/// Fetches the canonical v4 location `.specsync/registry.toml` first (what
+/// `init-registry` publishes and the docs promise), falling back to the legacy
+/// root `specsync-registry.toml` for un-migrated repos (#422 — previously only
+/// the legacy path was fetched, so every tool-published registry 404'd).
 pub fn fetch_remote_registry(repo: &str) -> Result<RemoteRegistry, String> {
-    let url = format!("https://raw.githubusercontent.com/{repo}/HEAD/{REGISTRY_FILENAME}");
+    let v4_url = format!("https://raw.githubusercontent.com/{repo}/HEAD/{V4_REGISTRY_RELATIVE}");
+    let legacy_url = format!("https://raw.githubusercontent.com/{repo}/HEAD/{REGISTRY_FILENAME}");
 
-    let agent = ureq::Agent::new_with_config(
-        ureq::config::Config::builder()
-            .timeout_global(Some(Duration::from_secs(10)))
-            .build(),
-    );
-
-    let mut response = agent
-        .get(&url)
-        .call()
-        .map_err(|e| format!("HTTP request failed: {e}"))?;
-
-    if response.status() != 200 {
-        return Err(format!(
-            "HTTP {} — {repo} may not have a {REGISTRY_FILENAME}",
-            response.status()
-        ));
-    }
-
-    let body = response
-        .body_mut()
-        .read_to_string()
-        .map_err(|e| format!("Failed to read response body: {e}"))?;
+    let body = match github_raw_get(&v4_url) {
+        Ok(body) => body,
+        Err(v4_err) => github_raw_get(&legacy_url).map_err(|legacy_err| {
+            format!(
+                "{v4_err} — {repo} may not have a {V4_REGISTRY_RELATIVE} \
+                 (legacy {REGISTRY_FILENAME} also failed: {legacy_err})"
+            )
+        })?,
+    };
 
     let entry =
         parse_registry(&body).ok_or_else(|| format!("Failed to parse registry from {repo}"))?;

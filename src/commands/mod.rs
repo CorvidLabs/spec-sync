@@ -88,12 +88,13 @@ pub fn validate_module_name(module_name: &str) -> Result<(), String> {
     let clean = !module_name.contains('/')
         && !module_name.contains('\\')
         && !module_name.chars().any(char::is_control);
-    if single_normal_segment && clean {
+    let trimmed = module_name.trim() == module_name;
+    if single_normal_segment && clean && trimmed {
         return Ok(());
     }
     Err(format!(
         "invalid module name `{}`: use a single plain name — no path separators (`/`, `\\`), \
-         `.`/`..`, drive prefixes, absolute paths, or control characters",
+         `.`/`..`, drive prefixes, absolute paths, control characters, or leading/trailing whitespace",
         module_name.escape_default()
     ))
 }
@@ -888,6 +889,9 @@ mod tests {
             "evil\nversion: 99", // newline → frontmatter injection
             "tab\tname",
             "null\0byte",
+            "  spaced  ", // padded names would create literal whitespace directories
+            " spaced",
+            "spaced ",
         ] {
             assert!(
                 validate_module_name(name).is_err(),

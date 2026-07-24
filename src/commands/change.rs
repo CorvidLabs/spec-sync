@@ -52,11 +52,20 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
             path,
             module,
             digest,
-        } => change::add_supersedes_obligation(root, &id, &predecessor, &path, &module, &digest)
-            .and_then(|record| print_record(root, &record, format, false)),
+        } => {
+            let digest = match digest {
+                Some(digest) => Ok(digest),
+                None => change::resolve_predecessor_entry_digest(root, &predecessor, &path),
+            };
+            digest.and_then(|digest| {
+                change::add_supersedes_obligation(root, &id, &predecessor, &path, &module, &digest)
+                    .and_then(|record| print_record(root, &record, format, false))
+            })
+        }
         ChangeAction::List => {
-            print_records(root, &change::list_changes(root), format);
-            Ok(())
+            let listing = change::list_changes_with_errors(root);
+            print_records(root, &listing.records, format);
+            report_listing_errors(&listing)
         }
         ChangeAction::Show { id } => change::load_change(root, &id)
             .and_then(|record| print_record(root, &record, format, true)),
@@ -65,8 +74,9 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                 change::load_change(root, &id)
                     .and_then(|record| print_record(root, &record, format, false))
             } else {
-                print_records(root, &change::list_changes(root), format);
-                Ok(())
+                let listing = change::list_changes_with_errors(root);
+                print_records(root, &listing.records, format);
+                report_listing_errors(&listing)
             }
         }
         ChangeAction::Approve {
@@ -316,6 +326,9 @@ fn print_record(
             println!("{} {}", record.id.bold(), record.title);
             println!("  State: {}", record.state.as_str());
             println!("  Next: {}", summary.next_action);
+            if !record.dependencies.is_empty() {
+                println!("  Dependencies: {}", record.dependencies.join(", "));
+            }
             if !corrections.is_empty() {
                 println!("  Corrections:");
                 for correction in &corrections {
@@ -374,7 +387,35 @@ fn print_record(
             }
         }
     }
+    if summary
+        .terminal_evidence
+        .as_ref()
+        .is_some_and(|evidence| {
+            evidence.validity == change::TerminalEvidenceValidity::CorruptHistory
+        })
+    {
+        return Err(format!(
+            "{} has corrupt archived evidence; inspect the evidence reason above and restore the committed evidence or reopen the change",
+            record.id
+        ));
+    }
     Ok(())
+}
+
+/// Surface one error row per malformed workspace and fail the command so a
+/// corrupt change is never indistinguishable from an empty project.
+fn report_listing_errors(listing: &change::ChangeListing) -> Result<(), String> {
+    for error in &listing.errors {
+        eprintln!("error: {error}");
+    }
+    if listing.errors.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} change workspace(s) are unreadable; repair or remove them and retry",
+            listing.errors.len()
+        ))
+    }
 }
 
 fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat) {

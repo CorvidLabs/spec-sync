@@ -18,6 +18,8 @@ pub enum WarningCategory {
     SpecSize,
     MinInvariants,
     RequireDependsOn,
+    /// The `N/M exports documented` partial-coverage summary warning.
+    ExportsDocumented,
 }
 
 impl WarningCategory {
@@ -37,6 +39,7 @@ impl WarningCategory {
             "spec-size" => Some(Self::SpecSize),
             "min-invariants" | "invariants" => Some(Self::MinInvariants),
             "require-depends-on" | "depends-on" => Some(Self::RequireDependsOn),
+            "exports-documented" => Some(Self::ExportsDocumented),
             _ => None,
         }
     }
@@ -84,6 +87,15 @@ impl WarningCategory {
         if warning.contains("rule: require_depends_on") {
             return Some(Self::RequireDependsOn);
         }
+        // The partial-coverage summary `N/M exports documented` — suppressible
+        // so acknowledging undocumented exports can yield a clean --strict run.
+        if warning.ends_with("exports documented")
+            && warning
+                .split_once('/')
+                .is_some_and(|(n, _)| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+        {
+            return Some(Self::ExportsDocumented);
+        }
         None
     }
 }
@@ -95,6 +107,10 @@ pub struct IgnoreRules {
     pub global: HashSet<WarningCategory>,
     /// Categories suppressed for specific spec paths.
     pub per_spec: std::collections::HashMap<String, HashSet<WarningCategory>>,
+    /// Problems found while loading (invalid UTF-8 lines, unmatchable
+    /// patterns). Surfaced by the caller so dead/typo'd rules are visible
+    /// instead of silently doing nothing.
+    pub warnings: Vec<String>,
 }
 
 impl IgnoreRules {
@@ -106,17 +122,37 @@ impl IgnoreRules {
     /// requirements-companion           # suppress globally
     /// stub-section:specs/auth/         # suppress for specs under this path
     /// undocumented-export:specs/api.spec.md  # suppress for specific spec
+    /// specs/api.spec.md:undocumented-export  # path:first order also accepted
     /// ```
+    ///
+    /// A leading UTF-8 BOM is tolerated. One invalid-UTF-8 line is skipped
+    /// with a warning rather than poisoning the whole file. Lines that match
+    /// no known category produce a warning — a suppression that can never
+    /// fire must be visible.
     pub fn load(root: &Path) -> Self {
         let mut rules = Self::default();
         let ignore_path = root.join(".specsyncignore");
-        let content = match fs::read_to_string(&ignore_path) {
-            Ok(c) => c,
+        let bytes = match fs::read(&ignore_path) {
+            Ok(b) => b,
             Err(_) => return rules,
         };
+        // A UTF-8 BOM is a non-semantic encoding marker; left in place it
+        // silently disables the first pattern.
+        let bytes: &[u8] = bytes
+            .strip_prefix(b"\xef\xbb\xbf")
+            .unwrap_or(bytes.as_slice());
 
-        for line in content.lines() {
-            let line = line.trim();
+        for (index, raw_line) in bytes.split(|b| *b == b'\n').enumerate() {
+            let line_no = index + 1;
+            let line = match std::str::from_utf8(raw_line) {
+                Ok(l) => l.trim(),
+                Err(_) => {
+                    rules.warnings.push(format!(
+                        ".specsyncignore line {line_no} is not valid UTF-8 — skipped"
+                    ));
+                    continue;
+                }
+            };
             // Skip empty lines and comments
             if line.is_empty() || line.starts_with('#') {
                 continue;
@@ -124,16 +160,42 @@ impl IgnoreRules {
 
             // Strip inline comments
             let line = line.split('#').next().unwrap_or(line).trim();
+            if line.is_empty() {
+                continue;
+            }
 
-            if let Some((category_str, spec_pattern)) = line.split_once(':') {
-                // Per-spec rule: category:path
-                if let Some(category) = WarningCategory::from_str(category_str) {
-                    let pattern = spec_pattern.trim().to_string();
-                    rules.per_spec.entry(pattern).or_default().insert(category);
+            if let Some((left, right)) = line.split_once(':') {
+                // Per-spec rule. Accept both `category:path` and the documented
+                // `path:category` order — whichever side names a known
+                // category is the category; the other side is the path.
+                let (category, pattern) = match (
+                    WarningCategory::from_str(left),
+                    WarningCategory::from_str(right),
+                ) {
+                    (Some(category), _) => (category, right),
+                    (None, Some(category)) => (category, left),
+                    (None, None) => {
+                        rules.warnings.push(format!(
+                            ".specsyncignore line {line_no} has no known warning category: `{line}`"
+                        ));
+                        continue;
+                    }
+                };
+                let pattern = pattern.trim().to_string();
+                if pattern.is_empty() {
+                    rules.warnings.push(format!(
+                        ".specsyncignore line {line_no} has an empty spec path: `{line}`"
+                    ));
+                    continue;
                 }
+                rules.per_spec.entry(pattern).or_default().insert(category);
             } else if let Some(category) = WarningCategory::from_str(line) {
                 // Global rule
                 rules.global.insert(category);
+            } else {
+                rules.warnings.push(format!(
+                    ".specsyncignore line {line_no} matches no warning category: `{line}`"
+                ));
             }
         }
 
@@ -348,6 +410,114 @@ mod tests {
         assert!(!rules.global.contains(&WarningCategory::StubSection));
         assert!(rules.per_spec.contains_key("specs/legacy/"));
         assert!(rules.per_spec["specs/legacy/"].contains(&WarningCategory::StubSection));
+    }
+
+    #[test]
+    fn test_classify_exports_documented_summary() {
+        assert_eq!(
+            WarningCategory::classify("2/5 exports documented"),
+            Some(WarningCategory::ExportsDocumented)
+        );
+        assert_eq!(
+            WarningCategory::from_str("exports-documented"),
+            Some(WarningCategory::ExportsDocumented)
+        );
+        // Not a summary — unrelated prose must not match.
+        assert_ne!(
+            WarningCategory::classify("Undocumented export 'foo' from src/a.ts"),
+            Some(WarningCategory::ExportsDocumented)
+        );
+    }
+
+    #[test]
+    fn test_exports_documented_summary_suppressible() {
+        let mut rules = IgnoreRules::default();
+        rules.global.insert(WarningCategory::ExportsDocumented);
+        let inline = HashSet::new();
+        assert!(rules.is_suppressed(
+            "2/5 exports documented",
+            "specs/a/a.spec.md",
+            &inline,
+        ));
+    }
+
+    #[test]
+    fn test_load_tolerates_utf8_bom() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join(".specsyncignore"),
+            "\u{feff}undocumented-export\n",
+        )
+        .unwrap();
+        let rules = IgnoreRules::load(tmp.path());
+        assert!(
+            rules.global.contains(&WarningCategory::UndocumentedExport),
+            "a BOM must not disable the first pattern: {rules:?}"
+        );
+        assert!(rules.warnings.is_empty(), "{:?}", rules.warnings);
+    }
+
+    #[test]
+    fn test_load_invalid_utf8_line_skipped_not_poisoning() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut bytes = b"undocumented-export\n".to_vec();
+        bytes.extend_from_slice(b"bad-\xff\xfe-line\n");
+        bytes.extend_from_slice(b"changelog\n");
+        std::fs::write(tmp.path().join(".specsyncignore"), bytes).unwrap();
+
+        let rules = IgnoreRules::load(tmp.path());
+        // The valid lines still apply...
+        assert!(rules.global.contains(&WarningCategory::UndocumentedExport));
+        assert!(rules.global.contains(&WarningCategory::ChangelogEntries));
+        // ...and the corrupt line is reported, not silent.
+        assert_eq!(rules.warnings.len(), 1, "{:?}", rules.warnings);
+        assert!(rules.warnings[0].contains("not valid UTF-8"));
+        assert!(rules.warnings[0].contains("line 2"));
+    }
+
+    #[test]
+    fn test_load_per_spec_path_first_order() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join(".specsyncignore"),
+            "specs/legacy/:undocumented-export\n",
+        )
+        .unwrap();
+        let rules = IgnoreRules::load(tmp.path());
+        assert!(
+            rules.per_spec
+                .get("specs/legacy/")
+                .is_some_and(|cats| cats.contains(&WarningCategory::UndocumentedExport)),
+            "path:category order must work: {rules:?}"
+        );
+    }
+
+    #[test]
+    fn test_load_warns_on_unmatchable_pattern() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join(".specsyncignore"),
+            "undocumanted-export\nmain:undocumented\n",
+        )
+        .unwrap();
+        let rules = IgnoreRules::load(tmp.path());
+        // Typo'd category warns with the offending line.
+        assert!(
+            rules
+                .warnings
+                .iter()
+                .any(|w| w.contains("undocumanted-export") && w.contains("line 1")),
+            "{:?}",
+            rules.warnings
+        );
+        // `main:undocumented` — "undocumented" is a known category alias and
+        // "main" is not, so this parses as per-spec pattern "main". Both sides
+        // unresolvable would warn instead.
+        assert!(
+            rules.per_spec.contains_key("main")
+                || rules.warnings.iter().any(|w| w.contains("line 2")),
+            "{rules:?}"
+        );
     }
 
     #[test]

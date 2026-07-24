@@ -549,9 +549,9 @@ is required.
 - Latest targeted results: 49 manifest tests, 43 validator tests, 117 MCP unit tests, and 65 MCP
   integration tests. Formatting, lint, pre-commit, and Windows GNU cross-target compilation pass.
 - The full amended local suite passes 1,948 unit and 310 integration tests in 335.3 seconds.
-- The latest independent reviews rejected commit `912d270`. Their three in-scope blockers now have
-  implementation and deterministic regression coverage, but no independent reviewer has accepted
-  the current post-fix tree. Fresh acceptance and adversarial rereviews remain pending.
+- The exact `65b2847` implementation received a clean independent security approval. Its companion
+  evidence review found only stale counts; those counts are corrected in implementation commit
+  `237e548` and the current docs-only head.
 - The command-wide immutable CLI analysis snapshot and generic structured discovery outcomes from
   that review are not implemented in CHG-0063. They are outside GitHub #414's MCP boundary and
   remain assigned to later CLI/outcome/generation work.

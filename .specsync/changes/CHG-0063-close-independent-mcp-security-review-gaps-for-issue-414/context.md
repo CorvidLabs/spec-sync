@@ -294,10 +294,12 @@ Coverage-internal early and post-discovery checkpoints remain distinct and gate 
 their errors.
 
 The latest review disposition is scoped rather than silently overclaimed. The review findings above
-have implementation and focused coverage: 41 manifest tests, 39 validator tests, MCP declaration
+have implementation and focused coverage: 49 manifest tests, 43 validator tests, MCP declaration
 budget and deduplication tests, the duplicate Cargo/Node integration drill, and both five-command
 race phases. The command-wide immutable CLI analysis snapshot and generic structured discovery
 outcomes identified by the review are not implemented here; they are outside GitHub #414's MCP
 boundary and remain assigned to later CLI/outcome/generation work. The full local suite now passes
-1,948 unit and 310 integration tests. No post-fix independent review has accepted the current tree;
-hosted-Windows runtime, sandbox, repository/CI, trust, and provenance evidence remain pending.
+1,948 unit and 310 integration tests. The exact implementation received one clean security approval;
+the companion-evidence review found only stale counts, which are corrected in the current docs-only
+head. The exact `237e548` sandbox receipt is recorded. Hosted-Windows runtime, repository/CI, trust,
+and provenance evidence remain pending.

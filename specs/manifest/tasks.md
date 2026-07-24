@@ -59,7 +59,7 @@ spec: manifest.spec.md
 - [x] Reverify nested manifest/workspace parent reachability after traversal and around retained
   reads; reject detached-parent replacement races.
 - [x] Add limit/limit-plus-one, duplicate Cargo/Node expansion, linked duplicate-member, and
-  replaced retained-parent regressions; the reported focused manifest run passes 41 tests.
+  replaced retained-parent regressions; the reported focused manifest run passes 49 tests.
 - [ ] Add remaining invalid-UTF-8 and after-open/read table-driven retained-manifest regressions
   across every supported non-Gradle ecosystem.
 - [ ] Verify hosted-Windows junction/reparse-point rejection before outside source probing or

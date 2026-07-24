@@ -67,8 +67,8 @@ Close independent MCP security review gaps for issue 414
   recursive directory replacement. Present Node manifests now fail closed on malformed or
   wrong-shaped workspace data, and Cargo operational discovery uses the same real-TOML multiline
   member semantics as preflight. The full amended suite passes 1,948 unit and 310 integration tests.
-  Fresh independent rereview, exact-head sandbox replay, hosted-Windows runtime, and final
-  repository/trust/provenance/CI evidence remain pending.
+  The exact implementation received a clean security approval and a hash-bound sandbox replay;
+  hosted-Windows runtime and final repository/trust/provenance/CI evidence remain pending.
 
 ## No-spec Rationale
 

@@ -81,7 +81,7 @@ spec: mcp.spec.md
   unavailable fixture rather than an implementation failure.
 - [x] Bound every declared Cargo member and Node workspace pattern, deduplicate completed normalized
   nodes, and cover limit/limit-plus-one plus duplicate-chain expansion; reported targeted runs pass
-  111 MCP unit tests and 62 MCP integration tests.
+  117 MCP unit tests and 65 MCP integration tests.
 - [x] Keep zero-config manifest/source detection capability-retained.
 - [ ] Add hosted-Windows junction/reparse runtime coverage for the final exact tree.
 - [ ] Pass fresh Windows reparse-point CI

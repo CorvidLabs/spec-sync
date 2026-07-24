@@ -329,3 +329,13 @@ tests/lint/build, and editor-extension compile/package. The RustSec scan passed 
 1,169-advisory database after the networked refresh was unavailable. Two fresh exact-tree reviews,
 the hash-bound sandbox replay, hosted-Windows runtime, trust/provenance, and GitHub CI remain
 pending.
+
+Exact commit `6fcf6eab85b219f27411c21091cb0fb3042274b0` (tree
+`181d6017f0bb4f1331fc7be0b5da9128b846b69d`) now has two independent PASS verdicts with zero
+High/Medium findings: one issue-contract traceability review and one compatibility/regression
+review. Its isolated offline release binary replay passes against clean private sandbox commit
+`758c144808d80169a44a740660b0d73c5b2f6ddd`, proving five read-only default tools, rejection of
+direct and nested mixed-case Git metadata roots, and 3/3 file plus 25/25 LOC coverage. The exact
+trust lane repeated formatting, lint, type checks, 1,954 unit and 313 integration tests, and the
+release build, then stopped at only the expected stale lifecycle approvals for CHG-0062,
+CHG-0063, and CHG-0064. It did not reach Augur or Attest, so no provenance is claimed.

@@ -80,8 +80,11 @@ Close independent MCP security review gaps for issue 414
   become operation authority. The amended implementation rejects such selectors before opening
   the operation root. The amended tree passes 1,954 unit and 313 integration tests, release and
   Windows GNU cross-target compilation, strict 100% file/LOC coverage, all 62 scores at 100/A,
-  documentation tests/lint/build, and editor-extension compile/package. Fresh exact-tree review,
-  sandbox, hosted-Windows runtime, and final trust/provenance/CI evidence remain pending.
+  documentation tests/lint/build, and editor-extension compile/package. Two independent exact-tree
+  reviews pass with zero High/Medium findings, and a hash-bound exact-binary replay passes against
+  the private sandbox. The trust lane repeats the full code gates and stops only at the expected
+  CHG-0062/0063/0064 lifecycle approvals. Hosted-Windows runtime, completed
+  trust/provenance, and GitHub CI evidence remain pending.
 
 ## No-spec Rationale
 

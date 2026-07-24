@@ -691,3 +691,39 @@ configured-root identities before sequential reopen/traversal.
   restricted environment.
 - The exact `bead6d2` sandbox receipt is historical. A fresh hash-bound sandbox replay, two fresh
   exact-commit reviews, trust/provenance, and hosted CI remain pending.
+
+## Exact `6fcf6ea` final-candidate evidence
+
+- Time: `2026-07-24T04:46:03Z`
+- Exact implementation commit:
+  `6fcf6eab85b219f27411c21091cb0fb3042274b0`
+- Exact implementation tree:
+  `181d6017f0bb4f1331fc7be0b5da9128b846b69d`
+- Build: disposable `--no-local` clone at the exact commit;
+  `cargo build --release --locked --offline` exited 0 and the clone remained Git-clean.
+- Executable SHA-256:
+  `81d715de89433900d19f9a757ca27d38947cfc420d42a082def7a63f669ade5d`
+- Implementation archive SHA-256:
+  `b15da500d4bb4a19c6b55cd09a4cf017af717c59406db3c0d6212cc0115423d6`
+- Private testbed: disposable `--no-local` clone of `CorvidLabs/spec-sync-sandbox` at
+  `758c144808d80169a44a740660b0d73c5b2f6ddd`; sandbox archive SHA-256:
+  `da78737fb5bbc1adecae62c359253300f2997fa1d99d43c74840c42a40bba6ab`.
+- Drill: `drills/024-mcp-git-root-boundary.sh`, mode `0755`, SHA-256:
+  `0781bd656c18dfec3a8751a36e6ac194963e6a4706eddb331f4729d074c5eece`.
+- Drill result:
+  `PASS: five read-only tools and direct/nested mixed-case Git metadata roots rejected`.
+- Exact binary against checked-in sandbox: 3/3 files and 25/25 LOC covered (100%).
+- The disposable sandbox contained only the intentionally created untracked drill afterward. The
+  isolated implementation clone and the real private sandbox checkout remained Git-clean.
+- Independent compatibility/regression review: PASS, zero High/Medium findings; exact commit/tree,
+  118 MCP unit tests, 68 real-process MCP integrations, low-descriptor regressions, Windows GNU
+  test compilation, and clean worktree confirmed.
+- Independent issue-contract traceability review: PASS, zero High/Medium gaps; every #414/CHG-0063
+  requirement mapped to implementation/tests/specs, and later CLI snapshot/outcome work correctly
+  kept outside this issue.
+- `fledge trust verify` repeated formatting, Clippy, type checks, 1,954 unit tests, 313 integration
+  tests, and release compilation. It stopped at the expected CHG-0062 audited reopen, CHG-0063
+  current-digest approval, and CHG-0064 audited reopen. Augur and Attest were not reached.
+- Remaining gates: current-digest definition approval, authorized CHG-0062/0064 reopenings,
+  lifecycle verification and closing approval, hosted-Windows runtime, Attest provenance, push,
+  and GitHub CI.

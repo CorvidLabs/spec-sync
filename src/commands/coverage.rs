@@ -42,6 +42,7 @@ pub fn cmd_coverage(
             json,
             false,
             &ignore_rules,
+            None,
         );
     let coverage = compute_coverage(root, &spec_files, &config);
 

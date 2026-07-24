@@ -16,6 +16,12 @@ pub fn cmd_rehash(root: &Path) {
 
     let mut cache = hash_cache::HashCache::default();
     hash_cache::update_cache(root, &spec_files, &mut cache);
+    // Also cache the global validation inputs (config + schema files) that
+    // `check` consults — without them the first `check` after `rehash` sees a
+    // "changed" config and re-validates everything anyway (issue #429).
+    for input in super::check::global_validation_inputs(root, &config) {
+        cache.update(root, &input);
+    }
 
     if let Err(e) = cache.save(root) {
         eprintln!("{} Failed to save hash cache: {e}", "error:".red().bold());
@@ -99,5 +105,8 @@ mod tests {
         assert!(!cache.hashes.contains_key("stale"));
         assert!(cache.hashes.contains_key("specs/auth/auth.spec.md"));
         assert!(cache.hashes.contains_key("src/auth.rs"));
+        // The config file `check` consults as a global validation input must be
+        // cached too, or the first `check` after `rehash` re-validates everything.
+        assert!(cache.hashes.contains_key(".specsync/config.toml"));
     }
 }

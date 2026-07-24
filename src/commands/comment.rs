@@ -51,6 +51,7 @@ pub fn cmd_comment(
         true, // collect mode
         false,
         &ignore_rules,
+        None,
     );
 
     let coverage = compute_coverage(root, &spec_files, &config);

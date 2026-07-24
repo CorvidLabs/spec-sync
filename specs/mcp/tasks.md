@@ -77,4 +77,6 @@ spec: mcp.spec.md
   reader and bind pathname/opened-handle identity before and after bounded reads.
 - [x] Prove both tools and resources reject FIFO, socket, symlink/reparse, and regular-file
   replacement races without blocking, consuming attacker bytes, or returning partial snapshots.
+- [x] Keep FIFO regressions mandatory while treating host-level Unix socket-creation denial as an
+  unavailable fixture rather than an implementation failure.
 - [ ] Pass fresh Windows reparse-point CI

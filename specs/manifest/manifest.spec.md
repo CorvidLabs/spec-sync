@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 10
+version: 11
 status: stable
 files:
   - src/manifest.rs
@@ -104,6 +104,12 @@ member or target paths.
 17. General module metadata extraction remains string-based; MCP Cargo workspace preflight uses the
     real TOML parser and rejects malformed workspace shapes without partial discovery.
 18. `ManifestDiscovery::default()` returns empty modules and source_dirs
+19. Caller-retained checked discovery acquires every recognized non-Gradle manifest, nested Cargo
+    workspace manifest, workspace directory, and source-directory probe through the retained
+    project capability. Retained manifest files are no-follow, non-blocking, identity-continuous,
+    valid UTF-8 reads bounded to 8 MiB each and 64 MiB cumulatively; discovery is sorted and
+    bounded to 100,000 directory entries and 256 path components. The ambient project pathname is
+    consulted only after discovery to detect root replacement.
 
 ## Behavioral Examples
 
@@ -200,6 +206,7 @@ member or target paths.
 |-----------|----------|
 | Manifest file missing | Parser returns `None`, skipped silently |
 | Manifest file unreadable | Parser returns `None` (fs::read_to_string fails gracefully) |
+| Non-Gradle manifest is unsafe, replaced, invalid UTF-8, over 8 MiB, or retained discovery exceeds 64 MiB/100,000 entries/256 components | Caller-retained checked discovery returns `Err` without ambient fallback or partial discovery; compatibility discovery returns an empty result |
 | Malformed non-Gradle manifest content | Best-effort extraction; missing fields result in defaults or skipped entries |
 | Linked, reparse-backed, non-regular, replaced, oversized, unreadable, or invalid-UTF-8 Gradle build/settings manifest, including a shadowed filename variant | Checked discovery returns `Err` without reading a link referent or returning partial discovery; compatibility discovery returns an empty result |
 | Malformed or dynamic Gradle include, invoked unsupported inclusion API, unescaped double-quoted interpolation, unsupported assignment/method project-directory form, rooted/drive/UNC/parent-escaping raw module identity or decoded effective path, or broken comments/escapes/parentheses | Checked discovery returns `Err`; compatibility discovery returns an empty result and gates stay inconclusive |
@@ -213,7 +220,7 @@ member or target paths.
 
 | Module | What is used |
 |--------|-------------|
-| cap-std | Retained project-root capability for bounded no-follow Gradle manifest reads and component inspection of derived source roots |
+| cap-std | Retained project-root capability for bounded no-follow reads and directory inspection across every recognized checked manifest ecosystem |
 | regex | Locate bounded Gradle assignment-style and method-style project-directory forms |
 
 ### Consumed By
@@ -237,3 +244,4 @@ member or target paths.
 | 2026-07-23 | v8 / CHG-0063 adversarial rereview: Acquire Gradle build/settings manifests as bounded regular non-link files, reject unescaped interpolation, and decode Unicode/octal path escapes before confinement |
 | 2026-07-23 | v9 / CHG-0063 final security rereview: Reject indirect/conditional Gradle mutations, mask multiline literals and nested comments, require the `new File` token boundary, and preserve only explicitly rooted Gradle names that resemble drive-relative paths |
 | 2026-07-23 | v10 / CHG-0063 post-review hardening: Preflight every present Gradle filename including shadowed variants, bind manifest identity across open/read, scope control-flow rejection to governed directives, and reject invoked unsupported inclusion APIs |
+| 2026-07-24 | v11 / CHG-0063 acceptance remediation: Acquire all recognized checked manifests, nested workspaces, and manifest probes through one bounded retained project capability without ambient parser fallback |

@@ -30,6 +30,7 @@ spec: validator.spec.md
 | Unconfined Gradle source root | raw drive-qualified module identity, interpolated/encoded path, unsafe Gradle manifest, unsupported/dynamic `setProjectDir`, or symlink/reparse component | a CLI/MCP gate calls `compute_coverage_checked` | the caller fails inconclusively before source traversal, partial totals, or generation |
 | Retained spec snapshot validation | valid pre-read spec bytes and a logical spec path replaced after the snapshot | `validate_spec_content` is called | validation uses the pre-read spec bytes and opens neither the replaced spec path nor adjacent companions; mapped sources retain normal path behavior |
 | Retained spec/source validation | retained spec bytes plus `SourceSnapshot` observations, with ambient paths replaced | `validate_spec_content_with_sources` is called | validation uses only supplied spec/source snapshots and ambient-free export extraction |
+| Coverage ownership after ambient root replacement | caller-selected spec path now resolves through an attacker tree while the original project capability remains retained | checked ownership collection runs | the original spec mapping is used and replacement frontmatter is never parsed |
 
 ## Regression Matrix
 
@@ -48,6 +49,7 @@ spec: validator.spec.md
 | Built-in design markers | Layout, Components, Tokens, and Assets placeholders each produce a distinct warning | Keep the generated template lines and validator marker table in parity |
 | Malformed or unreadable Gradle settings | Checked coverage returns an error; compatibility coverage remains callable with a zero-percent inconclusive report | Keep gate callers on `compute_coverage_checked` and cover text/JSON or MCP failure output when it changes |
 | Unsupported or unconfined Gradle discovery | Checked coverage returns an error before source probing/traversal; all CLI/MCP gates remain non-success and content-free | Cover raw drive identifiers, interpolation, encoded traversal, unsafe recognized manifests, dynamic/unsupported `setProjectDir`, Unix symlink, and hosted-Windows reparse fixtures with unchanged outside sentinels |
+| Caller-selected coverage spec path is replaced through the ambient root | Ownership comes only from the retained project capability and preserves the original mapping | Keep `retained_coverage_spec_mapping_ignores_an_ambient_root_replacement` |
 
 ## Reviewer Checklist
 

@@ -50,10 +50,11 @@ Acceptance Criteria
   preserve native identity before open, after open, and after the bounded retained read. Invoked
   unsupported inclusion APIs fail closed; unrelated control flow remains valid unless it governs
   an unsupported include/project-directory mutation.
-- CLI coverage retains one project capability across manifest discovery, spec-module enumeration,
-  source traversal, and final root verification. Iterative traversal is bounded to 8 MiB per source
-  file, 64 MiB cumulative bytes, 100,000 entries, and 256 path components; invalid UTF-8, special
-  entries, links/reparse points, and identity replacement are inconclusive.
+- CLI coverage retains one project capability across caller-selected spec ownership reads, every
+  recognized manifest ecosystem, spec-module enumeration, source traversal, and final root
+  verification. Iterative traversal is bounded to 8 MiB per input file, 64 MiB cumulative bytes,
+  100,000 entries, and 256 path components; invalid UTF-8, special entries, links/reparse points,
+  and identity replacement are inconclusive.
 - Cargo path discovery follows only semantic target, dependency, workspace-dependency,
   target-specific dependency, patch, and replacement tables. Unrelated metadata `path` keys are
   ignored. Confined Windows-native backslashes normalize from the declaring manifest, while
@@ -382,6 +383,10 @@ Acceptance Criteria
 
 - `compute_coverage_checked` propagates discovery errors without a partial report.
 - CLI and MCP enforcement callers use checked coverage.
+- Caller-selected spec mapping reads, every recognized manifest parser, spec-module enumeration,
+  source traversal, and final root verification share one retained project capability. Spec/source
+  inputs are no-follow, non-blocking, identity-continuous, valid UTF-8, and bounded to 8 MiB/file,
+  64 MiB cumulatively, 100,000 entries, and 256 path components.
 - `compute_coverage` remains a compatibility wrapper carrying an inconclusive diagnostic.
 
 ### REQ-validator-001
@@ -445,6 +450,10 @@ Acceptance Criteria
   reject without exposing referent content.
 - Present Gradle build/settings manifests must be regular non-link entries read through the
   retained capability, are bounded to 4 MiB, and reject invalid UTF-8 without partial discovery.
+- Cargo, Swift, Node, Dart, Go, and Python manifests, recursive workspace members, workspace
+  directories, and manifest-derived source probes are acquired only through the retained project
+  capability. Inputs are no-follow, non-blocking, identity-continuous, valid UTF-8, and bounded to
+  8 MiB/file, 64 MiB cumulatively, 100,000 entries, and 256 path components.
 - Every present filename variant is preflighted before selection, remains identity-stable through
   read, and invoked unsupported inclusion APIs fail closed without rejecting unrelated control
   flow.

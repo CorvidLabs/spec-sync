@@ -170,6 +170,7 @@ struct CoverageTraversalBudget {
     limits: CoverageTraversalLimits,
     entries: usize,
     bytes: u64,
+    charged_files: HashSet<PathBuf>,
     source_files: HashSet<PathBuf>,
 }
 
@@ -179,6 +180,7 @@ impl CoverageTraversalBudget {
             limits,
             entries: 0,
             bytes: 0,
+            charged_files: HashSet::new(),
             source_files: HashSet::new(),
         }
     }
@@ -202,9 +204,9 @@ impl CoverageTraversalBudget {
         self.limits.max_input_bytes.saturating_sub(self.bytes)
     }
 
-    fn charge_file(&mut self, relative: &Path, bytes: u64) -> Result<bool, String> {
-        if !self.source_files.insert(relative.to_path_buf()) {
-            return Ok(false);
+    fn charge_input_file(&mut self, relative: &Path, bytes: u64) -> Result<(), String> {
+        if !self.charged_files.insert(relative.to_path_buf()) {
+            return Ok(());
         }
         self.bytes = self.bytes.saturating_add(bytes);
         if self.bytes > self.limits.max_input_bytes {
@@ -213,6 +215,14 @@ impl CoverageTraversalBudget {
                 display_coverage_byte_limit(self.limits.max_input_bytes)
             ));
         }
+        Ok(())
+    }
+
+    fn charge_source_file(&mut self, relative: &Path, bytes: u64) -> Result<bool, String> {
+        if !self.source_files.insert(relative.to_path_buf()) {
+            return Ok(false);
+        }
+        self.charge_input_file(relative, bytes)?;
         Ok(true)
     }
 }
@@ -442,7 +452,10 @@ fn snapshot_coverage_directory(
                     child.display()
                 )
             })?;
-            if accumulator.budget.charge_file(&child, bytes.len() as u64)? {
+            if accumulator
+                .budget
+                .charge_source_file(&child, bytes.len() as u64)?
+            {
                 accumulator.files.push(CoverageSourceFile {
                     relative_path: child,
                     loc: content.lines().count(),
@@ -2050,6 +2063,62 @@ mod tests {
         assert_eq!(fs::read(outside_source).unwrap(), sentinel);
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn retained_coverage_spec_mapping_ignores_an_ambient_root_replacement() {
+        use std::os::unix::fs::symlink;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("project");
+        let original = tmp.path().join("original-project");
+        let replacement = tmp.path().join("replacement-project");
+        let relative_spec = Path::new("specs/auth/auth.spec.md");
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::create_dir_all(replacement.join("specs/auth")).unwrap();
+        fs::write(
+            root.join(relative_spec),
+            "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/retained.rs\n---\n",
+        )
+        .unwrap();
+        fs::write(
+            replacement.join(relative_spec),
+            "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/replacement.rs\n---\n",
+        )
+        .unwrap();
+        let project = open_coverage_project_root(&root).unwrap();
+        fs::rename(&root, &original).unwrap();
+        symlink(&replacement, &root).unwrap();
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+
+        let mappings =
+            collect_specced_files(&project, &root, &[root.join(relative_spec)], &mut budget)
+                .unwrap();
+
+        assert!(mappings.contains("src/retained.rs"));
+        assert!(!mappings.contains("src/replacement.rs"));
+    }
+
+    #[test]
+    fn retained_coverage_spec_mapping_rejects_a_path_outside_the_project() {
+        let project = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let retained = open_coverage_project_root(project.path()).unwrap();
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+
+        let error = collect_specced_files(
+            &retained,
+            project.path(),
+            &[outside.path().join("outside.spec.md")],
+            &mut budget,
+        )
+        .unwrap_err();
+
+        assert!(
+            error.contains("must remain beneath the project root"),
+            "{error}"
+        );
+    }
+
     fn snapshot_with_limits(
         root: &Path,
         config: &SpecSyncConfig,
@@ -2990,26 +3059,95 @@ Test
 
 // ─── Coverage ────────────────────────────────────────────────────────────
 
-fn collect_specced_files(spec_files: &[PathBuf]) -> HashSet<String> {
+fn collect_specced_files(
+    project: &Dir,
+    root: &Path,
+    spec_files: &[PathBuf],
+    budget: &mut CoverageTraversalBudget,
+) -> Result<HashSet<String>, String> {
     let mut specced = HashSet::new();
+    let mut observed_specs = HashSet::new();
     for spec_file in spec_files {
-        if let Ok(content) = fs::read_to_string(spec_file) {
-            let content = content.replace("\r\n", "\n");
-            if let Some(parsed) = parse_frontmatter(&content) {
-                if parsed.frontmatter.parsed_status() == Some(crate::types::SpecStatus::Archived) {
-                    continue;
-                }
-                for f in &parsed.frontmatter.files {
-                    if planned_source_path_is_safe(f)
-                        && let Some(normalized) = normalize_source_mapping(f)
-                    {
-                        specced.insert(normalized);
-                    }
+        let relative = coverage_relative_spec_path(root, spec_file)?;
+        if !observed_specs.insert(relative.clone()) {
+            continue;
+        }
+        ensure_coverage_depth(&relative, budget.limits.max_depth)?;
+        let parent = relative.parent().unwrap_or_else(|| Path::new(""));
+        let name = relative.file_name().ok_or_else(|| {
+            format!(
+                "Coverage spec path {} has no terminal filename",
+                relative.display()
+            )
+        })?;
+        let Some(directory) = open_coverage_directory(project, parent)? else {
+            return Err(format!(
+                "Coverage spec file {} is missing from the retained project",
+                relative.display()
+            ));
+        };
+        let bytes = read_coverage_file(
+            &directory,
+            name,
+            &relative,
+            budget.limits.max_file_bytes,
+            budget.remaining_bytes(),
+            budget.limits.max_input_bytes,
+        )?;
+        budget.charge_input_file(&relative, bytes.len() as u64)?;
+        let content = std::str::from_utf8(&bytes).map_err(|_| {
+            format!(
+                "Coverage spec file {} is not valid UTF-8",
+                relative.display()
+            )
+        })?;
+        let normalized = content.replace("\r\n", "\n");
+        if let Some(parsed) = parse_frontmatter(&normalized) {
+            if parsed.frontmatter.parsed_status() == Some(crate::types::SpecStatus::Archived) {
+                continue;
+            }
+            for file in &parsed.frontmatter.files {
+                if planned_source_path_is_safe(file)
+                    && let Some(normalized) = normalize_source_mapping(file)
+                {
+                    specced.insert(normalized);
                 }
             }
         }
     }
-    specced
+    Ok(specced)
+}
+
+fn coverage_relative_spec_path(root: &Path, spec_file: &Path) -> Result<PathBuf, String> {
+    let candidate = match spec_file.strip_prefix(root) {
+        Ok(relative) => relative,
+        Err(_) if spec_file.is_relative() => spec_file,
+        Err(_) => {
+            return Err(format!(
+                "Coverage spec path {} must remain beneath the project root",
+                spec_file.display()
+            ));
+        }
+    };
+    let mut relative = PathBuf::new();
+    for component in candidate.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::Normal(name) => relative.push(name),
+            std::path::Component::ParentDir
+            | std::path::Component::RootDir
+            | std::path::Component::Prefix(_) => {
+                return Err(format!(
+                    "Coverage spec path {} must remain beneath the project root",
+                    spec_file.display()
+                ));
+            }
+        }
+    }
+    if relative.as_os_str().is_empty() {
+        return Err("Coverage spec path cannot be the project root".to_string());
+    }
+    Ok(relative)
 }
 
 /// Get spec module directories that actually contain a .spec.md file.
@@ -3156,11 +3294,11 @@ pub fn compute_coverage_checked(
     config: &SpecSyncConfig,
 ) -> Result<CoverageReport, String> {
     let project = open_coverage_project_root(root)?;
-    let specced_files = collect_specced_files(spec_files);
-    let exclude_dirs: HashSet<String> = config.exclude_dirs.iter().cloned().collect();
-    let manifest = crate::manifest::discover_from_manifests_checked_with_root(root, &project)?;
     coverage_snapshot_test_barrier()?;
     let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+    let specced_files = collect_specced_files(&project, root, spec_files, &mut budget)?;
+    let exclude_dirs: HashSet<String> = config.exclude_dirs.iter().cloned().collect();
+    let manifest = crate::manifest::discover_from_manifests_checked_with_root(root, &project)?;
     let source_snapshot =
         snapshot_coverage_sources(&project, root, config, &exclude_dirs, &mut budget)?;
     let spec_modules: HashSet<String> =

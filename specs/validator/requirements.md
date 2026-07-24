@@ -62,8 +62,9 @@ Acceptance Criteria
 - Checked coverage snapshots source roots and file bytes through retained no-follow handles;
   symlink, reparse, or identity replacement fails inconclusive before partial totals or outside
   reads.
-- Manifest discovery, spec-module enumeration, source traversal, and final root verification use
-  one retained project capability rather than independently reopening the ambient root.
+- Caller-selected spec ownership reads, manifest discovery, spec-module enumeration, source
+  traversal, and final root verification use one retained project capability rather than
+  independently reopening ambient project/spec paths.
 - Checked coverage traverses iteratively and deterministically with limits of 8 MiB per source
   file, 64 MiB cumulative source bytes, 100,000 entries, and 256 path components; special entries,
   invalid UTF-8 names/content, and exhausted bounds fail inconclusive.

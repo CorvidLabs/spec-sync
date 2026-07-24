@@ -29,6 +29,7 @@ spec: manifest.spec.md
 | Linked Gradle manifest | `build.gradle[.kts]` or `settings.gradle[.kts]` links outside the project | each checked CLI coverage gate runs | each gate fails inconclusively with valid structured output, no referent disclosure, no project mutation, and unchanged outside bytes |
 | Settings-only Gradle workspace | `settings.gradle[.kts]` exists without a root build script | checked discovery is called | included modules are discovered; malformed settings return `Err` instead of empty coverage |
 | Cargo workspace security discovery | multiline TOML workspace members with comments or a commented fake `[workspace]` header | MCP snapshot/preflight discovery is called | real TOML members are included and malformed TOML is inconclusive without partial paths |
+| Ambient project pathname replaced after capability retention | original Cargo manifest remains reachable only through the retained directory while the ambient name points at attacker bytes | retained checked discovery runs | only the retained manifest identity and bytes are parsed; replacement module bytes are absent |
 
 ## Regression Matrix
 
@@ -49,6 +50,7 @@ spec: manifest.spec.md
 | Malformed MCP Cargo TOML or workspace shape | Snapshot/confinement discovery is inconclusive | Exercise syntax errors, non-table workspace, and non-string members |
 | Workspace member directory doesn't exist | Skipped (Cargo.toml existence check) | Keep or add a focused assertion before changing this behavior |
 | No parsers produce results | Returns default empty `ManifestDiscovery` | Keep or add a focused assertion before changing this behavior |
+| Retained non-Gradle manifest or workspace input is replaced, linked, special, oversized, invalid UTF-8, or over budget | Checked discovery fails or consumes only the identity-continuous retained bytes; no ambient fallback | Keep `retained_non_gradle_manifest_access_ignores_an_ambient_root_replacement` plus focused bounds/identity tests |
 
 ## Reviewer Checklist
 

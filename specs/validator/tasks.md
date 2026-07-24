@@ -49,6 +49,8 @@ spec: validator.spec.md
   including deterministic post-discovery Unix symlink and hosted-Windows junction race fixtures.
 - [x] Share one retained project capability across manifest discovery, spec-module enumeration,
   configured source traversal, and final root verification.
+- [x] Read caller-selected spec ownership frontmatter through that retained capability with the
+  same no-follow, non-blocking, identity, UTF-8, depth, and cumulative-input enforcement.
 - [x] Replace recursive ambient enumeration with deterministic iterative traversal bounded to
   8 MiB per file, 64 MiB cumulative bytes, 100,000 entries, and 256 components.
 - [x] Reject invalid-UTF-8 source names/content, special entries, and directory/file/root identity

@@ -67,6 +67,10 @@ spec: mcp.spec.md
 | Missing/unresolvable server root | Exit 2 with an actionable stderr diagnostic |
 | EOF | Graceful exit |
 
+Unix FIFO assertions always run. Socket assertions run when the host permits `UnixListener`
+fixture creation; a host-level `PermissionDenied` skips only that unavailable socket fixture, while
+all other acquisition and replacement checks remain mandatory.
+
 The adversarial integration matrix lives in `tests/integration/mcp.rs`; its local write-enabled
 process helper leaves the shared `mcp_request` helper and all existing read-only callers unchanged.
 Focused MCP source and integration coverage includes exact envelope and resource validation,

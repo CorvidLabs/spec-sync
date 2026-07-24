@@ -73,11 +73,12 @@ including a lower-precedence shadowed variant, and remains identity-bound across
 read. Invoked unsupported inclusion APIs and indirect/conditional include or project-directory
 mutations fail closed, while unrelated Gradle control flow remains compatible.
 
-CLI coverage uses one retained project capability for manifest discovery, spec-module enumeration,
-source traversal, and final root verification. The deterministic iterative source snapshot is
-limited to 8 MiB per file, 64 MiB cumulatively, 100,000 entries, and 256 path components. Invalid
-UTF-8 source names/content, special entries, links/reparse points, identity replacement, and
-exhausted limits make coverage inconclusive rather than yielding a partial percentage.
+CLI coverage uses one retained project capability for caller-selected spec mappings, every
+recognized manifest and nested workspace probe, spec-module enumeration, source traversal, and
+final root verification. The deterministic iterative spec/source snapshot is limited to 8 MiB per
+file, 64 MiB cumulatively, 100,000 entries, and 256 path components. Invalid UTF-8 names/content,
+special entries, links/reparse points, identity replacement, and exhausted limits make coverage
+inconclusive rather than yielding a partial percentage.
 
 Cargo path authority comes only from semantic target, dependency, workspace-dependency,
 target-specific dependency, patch, and replacement tables. An arbitrary metadata key named `path`

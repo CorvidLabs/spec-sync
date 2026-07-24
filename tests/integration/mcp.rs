@@ -1059,7 +1059,11 @@ fn mcp_tools_and_resources_reject_generic_fifo_and_socket_sources_without_blocki
                 );
                 None
             }
-            "socket" => Some(UnixListener::bind(&path).unwrap()),
+            "socket" => match UnixListener::bind(&path) {
+                Ok(listener) => Some(listener),
+                Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => continue,
+                Err(error) => panic!("cannot create generic MCP socket fixture: {error}"),
+            },
             _ => unreachable!(),
         };
         let responses = mcp_request_with_timeout(

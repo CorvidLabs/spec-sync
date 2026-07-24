@@ -51,6 +51,10 @@ spec: manifest.spec.md
 - General metadata extraction remains string/regex based; MCP Cargo workspace security discovery parses bounded manifests as real TOML
 - `ManifestDiscovery::default()` returns empty collections (safe fallback)
 - Checked discovery surfaces malformed Gradle comments, escapes, strings, parentheses, and overrides so coverage gates remain inconclusive
+- Caller-retained checked discovery reads every recognized manifest ecosystem and nested workspace
+  through one no-follow, non-blocking project capability, with identity continuity, strict UTF-8,
+  8 MiB per-file, 64 MiB cumulative, 100,000-entry, and 256-component limits; ambient paths are
+  not parser authority.
 
 ## Constraints
 
@@ -107,3 +111,7 @@ Acceptance Criteria
 - General metadata extraction remains string/regex based; MCP Cargo workspace security discovery parses bounded manifests as real TOML
 - `ManifestDiscovery::default()` returns empty collections (safe fallback)
 - Checked discovery surfaces malformed Gradle comments, escapes, strings, parentheses, and overrides so coverage gates remain inconclusive
+- Caller-retained checked discovery reads every recognized manifest ecosystem and nested workspace
+  through one no-follow, non-blocking project capability, with identity continuity, strict UTF-8,
+  8 MiB per-file, 64 MiB cumulative, 100,000-entry, and 256-component limits; ambient paths are
+  not parser authority.

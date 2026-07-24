@@ -49,6 +49,11 @@ Acceptance Criteria
 - MCP Cargo workspace snapshot and confinement discovery parse bounded manifests as real TOML.
 - Malformed MCP Cargo TOML/workspace shapes make MCP operations inconclusive; malformed Gradle
   declarations make checked coverage gates inconclusive without partial module results.
+- Caller-retained checked discovery acquires Cargo, Swift, Node, Dart, Go, and Python manifests,
+  nested Cargo workspace manifests, workspace entries, and source-directory probes through the
+  retained project capability. Reads are no-follow, non-blocking, identity-continuous, strict
+  UTF-8, and bounded to 8 MiB each/64 MiB cumulatively; directory discovery is sorted and bounded
+  to 100,000 entries/256 components. Ambient parser reads are forbidden.
 
 ### SPEC SECTION Public API
 
@@ -105,3 +110,6 @@ Acceptance Criteria
     through open/read; unsafe shadowed variants cannot evade checked discovery.
 14. Unsupported invoked inclusion APIs and governed indirect/conditional mutations fail closed,
     while unrelated Gradle control flow and identifier/documentation uses remain compatible.
+15. Every recognized checked manifest ecosystem and nested workspace probe uses the caller's
+    retained project capability with deterministic byte, entry, depth, UTF-8, link, special-file,
+    and identity enforcement; ambient paths are only a final replacement diagnostic.

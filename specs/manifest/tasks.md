@@ -52,6 +52,8 @@ spec: manifest.spec.md
   valid Gradle logic remains compatible.
 - [x] Reject invoked unsupported inclusion APIs such as `includeFlat` and `includeBuild` while
   leaving ordinary identifiers and documentation inert.
+- [x] Route Cargo, Swift, Node, Dart, Go, and Python checked discovery plus nested workspace probes
+  through one bounded retained project capability without ambient parser reads.
 - [ ] Verify hosted-Windows junction/reparse-point rejection before outside source probing or
   traversal.
 - [ ] Obtain fresh exact-tree independent reviews, full repository/CI, trust, and Attest evidence.

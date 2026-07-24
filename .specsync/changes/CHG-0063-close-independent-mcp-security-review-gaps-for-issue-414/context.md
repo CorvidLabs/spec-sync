@@ -270,3 +270,14 @@ project files now use no-follow, non-blocking, identity-continuous retained read
 resources. The approval ledger retains the user's earlier `2f9537c...` approval as immutable
 history, but these material amendments make it stale; a new exact-tree digest and two fresh
 independent rereviews are required.
+
+The independent read-only acceptance review of exact commit `5070c954` rejected the tree because
+checked coverage still read non-Gradle manifests and caller-selected spec ownership frontmatter
+through ambient paths. Before/after root identity checks could not prevent a swap-read-restore
+interval, and the root-swap barrier ran only after those reads. The remediation routes every
+recognized manifest ecosystem, nested workspace probe, and selected coverage spec through the
+retained project capability, moves the barrier immediately after root retention, and keeps the
+ambient pathname only as a final replacement diagnostic. The same review found that Unix socket
+fixtures unconditionally failed in restricted sandboxes; FIFO checks remain mandatory, while only
+a host-denied socket fixture is skipped. Fresh exact-tree approval, two clean reviews, sandbox,
+Windows runtime, repository/CI, trust, and provenance evidence remain required.

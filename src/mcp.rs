@@ -6010,14 +6010,19 @@ Test
         assert!(started.elapsed() < Duration::from_secs(2));
 
         let socket = setup_project();
-        let _listener = UnixListener::bind(socket.path().join("src/special.rs")).unwrap();
-        let socket_error = ProjectSnapshot::create(socket.path())
-            .err()
-            .expect("a configured socket source must fail the generic snapshot");
-        assert!(
-            socket_error.contains("regular file or directory"),
-            "{socket_error}"
-        );
+        match UnixListener::bind(socket.path().join("src/special.rs")) {
+            Ok(_listener) => {
+                let socket_error = ProjectSnapshot::create(socket.path())
+                    .err()
+                    .expect("a configured socket source must fail the generic snapshot");
+                assert!(
+                    socket_error.contains("regular file or directory"),
+                    "{socket_error}"
+                );
+            }
+            Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {}
+            Err(error) => panic!("cannot create generic snapshot socket fixture: {error}"),
+        }
     }
 
     #[cfg(unix)]

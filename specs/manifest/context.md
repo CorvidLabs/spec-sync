@@ -34,6 +34,10 @@ spec: manifest.spec.md
 - **Locally governed Gradle directives**: Unsupported inclusion APIs and indirect or conditional
   include/project-directory mutations fail closed, while unrelated top-level control flow and
   identifier/documentation uses remain compatible.
+- **One retained checked authority**: Caller-retained checked discovery uses the retained project
+  capability for Cargo, Swift, Node, Dart, Go, Python, and Gradle manifests plus nested workspace
+  directories. Non-Gradle retained reads are no-follow, non-blocking, identity-continuous, UTF-8
+  checked, and deterministically bounded; only compatibility wrappers retain ambient best effort.
 - **Swift test target exclusion**: `.testTarget()` entries are explicitly skipped to avoid polluting the module list with test infrastructure.
 - **Python priority**: `[project]` section is checked before `[tool.poetry]` in pyproject.toml, reflecting the ecosystem's migration toward PEP 621.
 
@@ -53,6 +57,8 @@ The final parser amendment also rejects indirect executable mutations and drive-
 identities while preserving rooted nested Gradle names. The post-review amendment preflights
 shadowed Gradle filename variants, binds native file identity across open/read, rejects invoked
 unsupported inclusion APIs, and narrows control-flow rejection to governed directives.
+The acceptance-remediation pass extends retained authority to every recognized manifest parser and
+nested workspace probe, eliminating the ambient swap-read-restore interval.
 Fresh implementation verification, independent rereviews, Windows runtime, repository/CI, trust,
 and provenance evidence remain pending. MCP Cargo workspace paths come from validated TOML values.
 

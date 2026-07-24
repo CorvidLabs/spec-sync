@@ -86,7 +86,8 @@ artifact: docs
   through read; unsupported invoked inclusion APIs fail closed while unrelated control flow stays
   compatible.
 - Publish the retained CLI coverage limits (8 MiB/file, 64 MiB total, 100,000 entries, 256
-  components) and explain that manifest/spec/source enumeration shares one project authority.
+  components) and explain that caller-selected spec mappings, every recognized manifest/workspace
+  probe, spec-module enumeration, and source traversal share one project authority.
 - Document that generic MCP project files use no-follow, non-blocking, identity-continuous reads
   for both tools and resources and reject special/link/replacement races without attacker bytes.
 - Keep fresh Windows runtime and final repository/trust/provenance evidence described as pending

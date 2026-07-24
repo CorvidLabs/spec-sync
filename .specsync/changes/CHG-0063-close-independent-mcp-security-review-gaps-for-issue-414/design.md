@@ -118,3 +118,8 @@ artifact: design
 - Route generic MCP project inputs through the same no-follow, non-blocking, identity-continuous
   retained reader used for selected config and manifests. Apply it to both tools and resources so
   FIFO/socket, link/reparse, and regular replacement races fail without partial output.
+- Route every supported manifest parser, recursive Cargo member, workspace enumeration, and
+  manifest-derived source probe through one retained `Dir`; retain 8 MiB/file, 64 MiB cumulative,
+  100,000-entry, and 256-component fail-closed limits for non-Gradle acquisition.
+- Resolve caller-selected coverage spec paths relative to the retained project capability and
+  charge their exact bytes to the same deduplicated cumulative budget as source bytes.

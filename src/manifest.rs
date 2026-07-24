@@ -7,12 +7,18 @@
 use cap_primitives::fs::FollowSymlinks;
 use cap_std::ambient_authority;
 use cap_std::fs::{Dir, Metadata, OpenOptions};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::ffi::OsString;
+#[cfg(test)]
 use std::fs;
 use std::io::{self, Read};
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 pub(crate) const MAX_GRADLE_MANIFEST_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_RETAINED_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_RETAINED_MANIFEST_INPUT_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_RETAINED_MANIFEST_ENTRIES: usize = 100_000;
+const MAX_RETAINED_MANIFEST_DEPTH: usize = 256;
 
 fn gradle_read_only_nofollow_options() -> OpenOptions {
     let mut options = OpenOptions::new();
@@ -29,6 +35,7 @@ pub struct ManifestModule {
     /// Module/target name.
     pub name: String,
     /// Source paths relative to project root.
+    #[allow(dead_code)]
     pub source_paths: Vec<String>,
     /// Dependencies (other module names).
     pub dependencies: Vec<String>,
@@ -69,35 +76,36 @@ pub fn discover_from_manifests_checked(root: &Path) -> Result<ManifestDiscovery,
 
 /// Discover modules using a caller-retained project-root capability.
 ///
-/// Legacy non-Gradle parsers still require the ambient path, whose identity is checked against
-/// `project_root` before and after discovery. Gradle acquisition and probing use only the retained
-/// capability.
+/// Every recognized manifest, workspace directory, and source-path probe is acquired through
+/// `project_root`. The ambient path is consulted only after discovery to reject a replaced
+/// project-root name.
 pub(crate) fn discover_from_manifests_checked_with_root(
     root: &Path,
     project_root: &Dir,
 ) -> Result<ManifestDiscovery, String> {
-    verify_retained_project_root(root, project_root, "before manifest discovery")?;
+    let mut access = RetainedManifestAccess::new(project_root);
     let mut discovery = ManifestDiscovery::default();
 
-    if let Some(d) = parse_cargo_toml(root) {
+    if let Some(d) = parse_cargo_toml_with_access(&mut access, Path::new(""), &mut HashSet::new())?
+    {
         merge_discovery(&mut discovery, d);
     }
-    if let Some(d) = parse_package_swift(root) {
+    if let Some(d) = parse_package_swift_with_access(&mut access)? {
         merge_discovery(&mut discovery, d);
     }
     if let Some(d) = parse_gradle_checked_with_root(project_root)? {
         merge_discovery(&mut discovery, d);
     }
-    if let Some(d) = parse_package_json(root) {
+    if let Some(d) = parse_package_json_with_access(&mut access)? {
         merge_discovery(&mut discovery, d);
     }
-    if let Some(d) = parse_pubspec_yaml(root) {
+    if let Some(d) = parse_pubspec_yaml_with_access(&mut access)? {
         merge_discovery(&mut discovery, d);
     }
-    if let Some(d) = parse_go_mod(root) {
+    if let Some(d) = parse_go_mod_with_access(&mut access)? {
         merge_discovery(&mut discovery, d);
     }
-    if let Some(d) = parse_pyproject_toml(root) {
+    if let Some(d) = parse_pyproject_toml_with_access(&mut access)? {
         merge_discovery(&mut discovery, d);
     }
 
@@ -116,26 +124,519 @@ fn merge_discovery(target: &mut ManifestDiscovery, source: ManifestDiscovery) {
     }
 }
 
+trait ManifestAccess {
+    fn read_text(&mut self, relative: &Path, label: &str) -> Result<Option<String>, String>;
+    fn directory_exists(&mut self, relative: &Path, label: &str) -> Result<bool, String>;
+    fn child_directories(&mut self, relative: &Path, label: &str) -> Result<Vec<String>, String>;
+}
+
+#[cfg(test)]
+struct AmbientManifestAccess<'a> {
+    root: &'a Path,
+}
+
+#[cfg(test)]
+impl ManifestAccess for AmbientManifestAccess<'_> {
+    fn read_text(&mut self, relative: &Path, _label: &str) -> Result<Option<String>, String> {
+        Ok(fs::read_to_string(self.root.join(relative)).ok())
+    }
+
+    fn directory_exists(&mut self, relative: &Path, _label: &str) -> Result<bool, String> {
+        Ok(self.root.join(relative).is_dir())
+    }
+
+    fn child_directories(&mut self, relative: &Path, _label: &str) -> Result<Vec<String>, String> {
+        let mut names = Vec::new();
+        let Ok(entries) = fs::read_dir(self.root.join(relative)) else {
+            return Ok(names);
+        };
+        for entry in entries.flatten() {
+            if entry.path().is_dir() {
+                names.push(entry.file_name().to_string_lossy().into_owned());
+            }
+        }
+        names.sort();
+        Ok(names)
+    }
+}
+
+struct RetainedManifestAccess<'a> {
+    root: &'a Dir,
+    bytes: u64,
+    entries: usize,
+    texts: HashMap<PathBuf, Option<String>>,
+    directories: HashMap<PathBuf, bool>,
+    children: HashMap<PathBuf, Vec<String>>,
+}
+
+impl<'a> RetainedManifestAccess<'a> {
+    fn new(root: &'a Dir) -> Self {
+        Self {
+            root,
+            bytes: 0,
+            entries: 0,
+            texts: HashMap::new(),
+            directories: HashMap::new(),
+            children: HashMap::new(),
+        }
+    }
+}
+
+impl ManifestAccess for RetainedManifestAccess<'_> {
+    fn read_text(&mut self, relative: &Path, label: &str) -> Result<Option<String>, String> {
+        let relative = normalize_retained_manifest_path(relative, label)?;
+        if let Some(cached) = self.texts.get(&relative) {
+            return Ok(cached.clone());
+        }
+        let remaining = MAX_RETAINED_MANIFEST_INPUT_BYTES.saturating_sub(self.bytes);
+        let text = read_retained_manifest_text(
+            self.root,
+            &relative,
+            label,
+            MAX_RETAINED_MANIFEST_BYTES,
+            remaining,
+        )?;
+        if let Some(content) = &text {
+            self.bytes = self.bytes.saturating_add(content.len() as u64);
+            if self.bytes > MAX_RETAINED_MANIFEST_INPUT_BYTES {
+                return Err(format!(
+                    "Retained manifest inputs exceed the {MAX_RETAINED_MANIFEST_INPUT_BYTES} byte cumulative limit"
+                ));
+            }
+        }
+        self.texts.insert(relative, text.clone());
+        Ok(text)
+    }
+
+    fn directory_exists(&mut self, relative: &Path, label: &str) -> Result<bool, String> {
+        let relative = normalize_retained_manifest_path(relative, label)?;
+        if relative.as_os_str().is_empty() {
+            return Ok(true);
+        }
+        if let Some(cached) = self.directories.get(&relative) {
+            return Ok(*cached);
+        }
+        let exists = open_retained_manifest_directory(self.root, &relative, label)?.is_some();
+        self.directories.insert(relative, exists);
+        Ok(exists)
+    }
+
+    fn child_directories(&mut self, relative: &Path, label: &str) -> Result<Vec<String>, String> {
+        let relative = normalize_retained_manifest_path(relative, label)?;
+        if let Some(cached) = self.children.get(&relative) {
+            return Ok(cached.clone());
+        }
+        let Some(directory) = open_retained_manifest_directory(self.root, &relative, label)? else {
+            self.children.insert(relative, Vec::new());
+            return Ok(Vec::new());
+        };
+        let mut names: Vec<OsString> = Vec::new();
+        let entries = directory.read_dir(".").map_err(|error| {
+            format!(
+                "Cannot read retained {label} directory {}: {error}",
+                display_manifest_path(&relative)
+            )
+        })?;
+        for entry in entries {
+            let entry = entry.map_err(|error| {
+                format!(
+                    "Cannot inspect retained {label} directory {}: {error}",
+                    display_manifest_path(&relative)
+                )
+            })?;
+            names.push(entry.file_name());
+            if self.entries.saturating_add(names.len()) > MAX_RETAINED_MANIFEST_ENTRIES {
+                return Err(format!(
+                    "Retained manifest discovery exceeds the {MAX_RETAINED_MANIFEST_ENTRIES}-entry limit"
+                ));
+            }
+        }
+        names.sort();
+        self.entries = self.entries.saturating_add(names.len());
+        let mut children = Vec::new();
+        for name in names {
+            let name_text = name.to_str().ok_or_else(|| {
+                format!(
+                    "Retained {label} path beneath {} is not valid UTF-8",
+                    display_manifest_path(&relative)
+                )
+            })?;
+            let child = relative.join(&name);
+            let metadata = directory.symlink_metadata(&name).map_err(|error| {
+                format!(
+                    "Cannot inspect retained {label} path {}: {error}",
+                    child.display()
+                )
+            })?;
+            if gradle_metadata_is_link(&metadata) {
+                return Err(format!(
+                    "Retained {label} path {} must not be a symlink or reparse point",
+                    child.display()
+                ));
+            }
+            if metadata.is_dir() {
+                children.push(name_text.to_string());
+            }
+        }
+        self.children.insert(relative, children.clone());
+        Ok(children)
+    }
+}
+
+fn normalize_retained_manifest_path(relative: &Path, label: &str) -> Result<PathBuf, String> {
+    let mut normalized = PathBuf::new();
+    for component in relative.components() {
+        match component {
+            Component::CurDir => {}
+            Component::Normal(name) => normalized.push(name),
+            Component::ParentDir => {
+                if !normalized.pop() {
+                    return Err(format!(
+                        "Retained {label} path {} escapes the project root",
+                        relative.display()
+                    ));
+                }
+            }
+            Component::RootDir | Component::Prefix(_) => {
+                return Err(format!(
+                    "Retained {label} path {} must remain project-relative",
+                    relative.display()
+                ));
+            }
+        }
+    }
+    if normalized
+        .components()
+        .filter(|component| matches!(component, Component::Normal(_)))
+        .count()
+        > MAX_RETAINED_MANIFEST_DEPTH
+    {
+        return Err(format!(
+            "Retained {label} path {} exceeds the {MAX_RETAINED_MANIFEST_DEPTH}-component depth limit",
+            relative.display()
+        ));
+    }
+    Ok(normalized)
+}
+
+fn display_manifest_path(path: &Path) -> String {
+    if path.as_os_str().is_empty() {
+        ".".to_string()
+    } else {
+        path.display().to_string()
+    }
+}
+
+fn manifest_path_text(path: &Path, label: &str) -> Result<String, String> {
+    let normalized = normalize_retained_manifest_path(path, label)?;
+    let mut components = Vec::new();
+    for component in normalized.components() {
+        let Component::Normal(name) = component else {
+            continue;
+        };
+        components.push(name.to_str().ok_or_else(|| {
+            format!(
+                "Retained {label} path {} is not valid UTF-8",
+                normalized.display()
+            )
+        })?);
+    }
+    Ok(components.join("/"))
+}
+
+fn open_retained_manifest_directory(
+    root: &Dir,
+    relative: &Path,
+    label: &str,
+) -> Result<Option<Dir>, String> {
+    let relative = normalize_retained_manifest_path(relative, label)?;
+    let mut directory = root
+        .try_clone()
+        .map_err(|error| format!("Cannot retain the manifest project root: {error}"))?;
+    let mut inspected = PathBuf::new();
+    for component in relative.components() {
+        let Component::Normal(name) = component else {
+            continue;
+        };
+        inspected.push(name);
+        let before = match directory.symlink_metadata(name) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => {
+                return Err(format!(
+                    "Cannot inspect retained {label} directory {}: {error}",
+                    inspected.display()
+                ));
+            }
+        };
+        if gradle_metadata_is_link(&before) {
+            return Err(format!(
+                "Retained {label} directory {} must not traverse a symlink or reparse point",
+                inspected.display()
+            ));
+        }
+        if !before.is_dir() {
+            return Ok(None);
+        }
+        let before_identity = gradle_filesystem_identity(&before).map_err(|error| {
+            format!(
+                "Cannot identify retained {label} directory {} before open: {error}",
+                inspected.display()
+            )
+        })?;
+        let next = directory.open_dir(name).map_err(|error| {
+            format!(
+                "Cannot open retained {label} directory {}: {error}",
+                inspected.display()
+            )
+        })?;
+        let opened = next.dir_metadata().map_err(|error| {
+            format!(
+                "Cannot inspect opened retained {label} directory {}: {error}",
+                inspected.display()
+            )
+        })?;
+        let after = directory.symlink_metadata(name).map_err(|error| {
+            format!(
+                "Cannot re-inspect retained {label} directory {}: {error}",
+                inspected.display()
+            )
+        })?;
+        if gradle_metadata_is_link(&after)
+            || !after.is_dir()
+            || before_identity != gradle_filesystem_identity(&opened)?
+            || before_identity != gradle_filesystem_identity(&after)?
+        {
+            return Err(format!(
+                "Retained {label} directory {} changed during confined open",
+                inspected.display()
+            ));
+        }
+        directory = next;
+    }
+    Ok(Some(directory))
+}
+
+fn read_retained_manifest_text(
+    root: &Dir,
+    relative: &Path,
+    label: &str,
+    max_file_bytes: u64,
+    remaining_input_bytes: u64,
+) -> Result<Option<String>, String> {
+    read_retained_manifest_text_with_hook(
+        root,
+        relative,
+        label,
+        max_file_bytes,
+        remaining_input_bytes,
+        || {},
+    )
+}
+
+fn read_retained_manifest_text_with_hook<AfterOpen>(
+    root: &Dir,
+    relative: &Path,
+    label: &str,
+    max_file_bytes: u64,
+    remaining_input_bytes: u64,
+    after_open: AfterOpen,
+) -> Result<Option<String>, String>
+where
+    AfterOpen: FnOnce(),
+{
+    let parent = relative.parent().unwrap_or_else(|| Path::new(""));
+    let name = relative.file_name().ok_or_else(|| {
+        format!(
+            "Retained {label} path {} has no filename",
+            relative.display()
+        )
+    })?;
+    let Some(directory) = open_retained_manifest_directory(root, parent, label)? else {
+        return Ok(None);
+    };
+    let before = match directory.symlink_metadata(name) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(format!(
+                "Cannot inspect retained {label} file {}: {error}",
+                relative.display()
+            ));
+        }
+    };
+    if gradle_metadata_is_link(&before) {
+        return Err(format!(
+            "Retained {label} file {} must not be a symlink or reparse point",
+            relative.display()
+        ));
+    }
+    if !before.is_file() {
+        return Err(format!(
+            "Retained {label} file {} must be a regular file",
+            relative.display()
+        ));
+    }
+    if before.len() > max_file_bytes {
+        return Err(format!(
+            "Retained {label} file {} exceeds the {max_file_bytes} byte limit",
+            relative.display()
+        ));
+    }
+    if before.len() > remaining_input_bytes {
+        return Err(format!(
+            "Retained manifest inputs exceed the {MAX_RETAINED_MANIFEST_INPUT_BYTES} byte cumulative limit"
+        ));
+    }
+    let before_identity = gradle_filesystem_identity(&before).map_err(|error| {
+        format!(
+            "Cannot identify retained {label} file {} before open: {error}",
+            relative.display()
+        )
+    })?;
+    let mut file = directory
+        .open_with(name, &gradle_read_only_nofollow_options())
+        .map_err(|error| {
+            format!(
+                "Cannot open retained {label} file {} as a non-blocking regular file: {error}",
+                relative.display()
+            )
+        })?;
+    let opened = file.metadata().map_err(|error| {
+        format!(
+            "Cannot inspect opened retained {label} file {}: {error}",
+            relative.display()
+        )
+    })?;
+    let opened_identity = gradle_filesystem_identity(&opened).map_err(|error| {
+        format!(
+            "Cannot identify opened retained {label} file {}: {error}",
+            relative.display()
+        )
+    })?;
+    after_open();
+    let after_open = directory.symlink_metadata(name).map_err(|error| {
+        format!(
+            "Cannot re-inspect retained {label} file {} after open: {error}",
+            relative.display()
+        )
+    })?;
+    if !opened.is_file()
+        || gradle_metadata_is_link(&opened)
+        || gradle_metadata_is_link(&after_open)
+        || !after_open.is_file()
+        || before_identity != opened_identity
+        || before_identity != gradle_filesystem_identity(&after_open)?
+    {
+        return Err(format!(
+            "Retained {label} file {} changed during confined open",
+            relative.display()
+        ));
+    }
+    let mut bytes = Vec::new();
+    file.by_ref()
+        .take(max_file_bytes.min(remaining_input_bytes).saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            format!(
+                "Cannot read retained {label} file {}: {error}",
+                relative.display()
+            )
+        })?;
+    if bytes.len() as u64 > max_file_bytes {
+        return Err(format!(
+            "Retained {label} file {} exceeds the {max_file_bytes} byte limit",
+            relative.display()
+        ));
+    }
+    if bytes.len() as u64 > remaining_input_bytes {
+        return Err(format!(
+            "Retained manifest inputs exceed the {MAX_RETAINED_MANIFEST_INPUT_BYTES} byte cumulative limit"
+        ));
+    }
+    let after_read = directory.symlink_metadata(name).map_err(|error| {
+        format!(
+            "Cannot re-inspect retained {label} file {} after read: {error}",
+            relative.display()
+        )
+    })?;
+    let opened_after_read = file.metadata().map_err(|error| {
+        format!(
+            "Cannot re-inspect opened retained {label} file {} after read: {error}",
+            relative.display()
+        )
+    })?;
+    if gradle_metadata_is_link(&after_read)
+        || !after_read.is_file()
+        || before_identity != gradle_filesystem_identity(&after_read)?
+        || !opened_after_read.is_file()
+        || gradle_metadata_is_link(&opened_after_read)
+        || opened_identity != gradle_filesystem_identity(&opened_after_read)?
+    {
+        return Err(format!(
+            "Retained {label} file {} changed during confined read",
+            relative.display()
+        ));
+    }
+    String::from_utf8(bytes).map(Some).map_err(|_| {
+        format!(
+            "Retained {label} file {} is not valid UTF-8",
+            relative.display()
+        )
+    })
+}
+
 // ─── Cargo.toml (Rust) ──────────────────────────────────────────────────
 
+#[cfg(test)]
 fn parse_cargo_toml(root: &Path) -> Option<ManifestDiscovery> {
-    let path = root.join("Cargo.toml");
-    let content = fs::read_to_string(&path).ok()?;
+    let mut access = AmbientManifestAccess { root };
+    parse_cargo_toml_with_access(&mut access, Path::new(""), &mut HashSet::new())
+        .ok()
+        .flatten()
+}
+
+fn parse_cargo_toml_with_access(
+    access: &mut dyn ManifestAccess,
+    relative_root: &Path,
+    active: &mut HashSet<PathBuf>,
+) -> Result<Option<ManifestDiscovery>, String> {
+    let relative_root = normalize_retained_manifest_path(relative_root, "Cargo workspace")?;
+    if !active.insert(relative_root.clone()) {
+        return Err(format!(
+            "Retained Cargo workspace cycle revisits {}",
+            display_manifest_path(&relative_root)
+        ));
+    }
+    let result = parse_cargo_toml_with_access_inner(access, &relative_root, active);
+    active.remove(&relative_root);
+    result
+}
+
+fn parse_cargo_toml_with_access_inner(
+    access: &mut dyn ManifestAccess,
+    relative_root: &Path,
+    active: &mut HashSet<PathBuf>,
+) -> Result<Option<ManifestDiscovery>, String> {
+    let manifest_path = relative_root.join("Cargo.toml");
+    let Some(content) = access.read_text(&manifest_path, "Cargo manifest")? else {
+        return Ok(None);
+    };
     let mut discovery = ManifestDiscovery::default();
 
     // Extract package name
     if let Some(name) = extract_toml_value(&content, "name", Some("[package]")) {
-        let src_path = "src";
+        let src_path = manifest_path_text(&relative_root.join("src"), "Cargo source")?;
         discovery.modules.insert(
             name.clone(),
             ManifestModule {
                 name,
-                source_paths: vec![src_path.to_string()],
+                source_paths: vec![src_path.clone()],
                 dependencies: Vec::new(),
             },
         );
-        if !discovery.source_dirs.contains(&src_path.to_string()) {
-            discovery.source_dirs.push(src_path.to_string());
+        if !discovery.source_dirs.contains(&src_path) {
+            discovery.source_dirs.push(src_path);
         }
     }
 
@@ -144,10 +645,10 @@ fn parse_cargo_toml(root: &Path) -> Option<ManifestDiscovery> {
         if let Some(name) = extract_toml_value(&section, "name", None) {
             let path = extract_toml_value(&section, "path", None)
                 .unwrap_or_else(|| format!("src/bin/{name}.rs"));
-            let dir = Path::new(&path)
+            let local_dir = Path::new(&path)
                 .parent()
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|| "src".to_string());
+                .unwrap_or_else(|| Path::new("src"));
+            let dir = manifest_path_text(&relative_root.join(local_dir), "Cargo binary source")?;
             discovery.modules.insert(
                 name.clone(),
                 ManifestModule {
@@ -166,21 +667,17 @@ fn parse_cargo_toml(root: &Path) -> Option<ManifestDiscovery> {
     if let Some(members_str) = extract_toml_array(&content, "members", Some("[workspace]")) {
         for member in members_str {
             // Workspace members are subdirectories with their own Cargo.toml
-            let member_root = root.join(&member);
-            if member_root.join("Cargo.toml").exists() {
-                if let Some(sub) = parse_cargo_toml(&member_root) {
-                    for (_, mut module) in sub.modules {
-                        // Prefix paths with workspace member dir
-                        module.source_paths = module
-                            .source_paths
-                            .iter()
-                            .map(|p| format!("{member}/{p}"))
-                            .collect();
-                        discovery
-                            .modules
-                            .insert(module.name.clone(), module.clone());
-                    }
+            let member_root = normalize_retained_manifest_path(
+                &relative_root.join(&member),
+                "Cargo workspace member",
+            )?;
+            if let Some(sub) = parse_cargo_toml_with_access(access, &member_root, active)? {
+                for (_, module) in sub.modules {
+                    discovery
+                        .modules
+                        .insert(module.name.clone(), module.clone());
                 }
+                let member = manifest_path_text(&member_root, "Cargo workspace member")?;
                 if !discovery.source_dirs.contains(&member) {
                     discovery.source_dirs.push(member);
                 }
@@ -211,17 +708,27 @@ fn parse_cargo_toml(root: &Path) -> Option<ManifestDiscovery> {
     }
 
     if discovery.modules.is_empty() {
-        None
+        Ok(None)
     } else {
-        Some(discovery)
+        Ok(Some(discovery))
     }
 }
 
 // ─── Package.swift (Swift) ───────────────────────────────────────────────
 
+#[cfg(test)]
 fn parse_package_swift(root: &Path) -> Option<ManifestDiscovery> {
-    let path = root.join("Package.swift");
-    let content = fs::read_to_string(&path).ok()?;
+    let mut access = AmbientManifestAccess { root };
+    parse_package_swift_with_access(&mut access).ok().flatten()
+}
+
+fn parse_package_swift_with_access(
+    access: &mut dyn ManifestAccess,
+) -> Result<Option<ManifestDiscovery>, String> {
+    let Some(content) = access.read_text(Path::new("Package.swift"), "Swift package manifest")?
+    else {
+        return Ok(None);
+    };
     let mut discovery = ManifestDiscovery::default();
 
     // Parse .target and .executableTarget declarations
@@ -271,14 +778,16 @@ fn parse_package_swift(root: &Path) -> Option<ManifestDiscovery> {
     }
 
     // Default: if no targets found, check for Sources/ directory
-    if discovery.modules.is_empty() && root.join("Sources").exists() {
+    if discovery.modules.is_empty()
+        && access.directory_exists(Path::new("Sources"), "Swift source")?
+    {
         discovery.source_dirs.push("Sources".to_string());
     }
 
     if discovery.modules.is_empty() && discovery.source_dirs.is_empty() {
-        None
+        Ok(None)
     } else {
-        Some(discovery)
+        Ok(Some(discovery))
     }
 }
 
@@ -809,7 +1318,7 @@ fn verify_retained_project_root(root: &Path, retained: &Dir, phase: &str) -> Res
         .map_err(|error| format!("Cannot identify ambient project root {phase}: {error}"))?;
     if retained_identity != ambient_identity {
         return Err(format!(
-            "Ambient project root {} does not match the retained project root {phase}",
+            "Ambient project root {} does not match the retained project root {phase}; project root changed during retained traversal",
             root.display()
         ));
     }
@@ -1797,10 +2306,22 @@ fn gradle_string_literal(value: &str) -> Result<(String, &str), String> {
 
 // ─── package.json (TypeScript/JavaScript) ────────────────────────────────
 
+#[cfg(test)]
 fn parse_package_json(root: &Path) -> Option<ManifestDiscovery> {
-    let path = root.join("package.json");
-    let content = fs::read_to_string(&path).ok()?;
-    let json: serde_json::Value = serde_json::from_str(&content).ok()?;
+    let mut access = AmbientManifestAccess { root };
+    parse_package_json_with_access(&mut access).ok().flatten()
+}
+
+fn parse_package_json_with_access(
+    access: &mut dyn ManifestAccess,
+) -> Result<Option<ManifestDiscovery>, String> {
+    let Some(content) = access.read_text(Path::new("package.json"), "Node package manifest")?
+    else {
+        return Ok(None);
+    };
+    let Some(json) = serde_json::from_str::<serde_json::Value>(&content).ok() else {
+        return Ok(None);
+    };
     let mut discovery = ManifestDiscovery::default();
 
     let name = json.get("name").and_then(|v| v.as_str()).unwrap_or("app");
@@ -1822,33 +2343,34 @@ fn parse_package_json(root: &Path) -> Option<ManifestDiscovery> {
         for pattern in workspace_patterns {
             // Simple glob: "packages/*" → look for subdirs
             let base = pattern.trim_end_matches("/*").trim_end_matches("/**");
-            let base_dir = root.join(base);
-            if base_dir.exists()
-                && base_dir.is_dir()
-                && let Ok(entries) = fs::read_dir(&base_dir)
-            {
-                for entry in entries.flatten() {
-                    if entry.path().is_dir() {
-                        let pkg_json = entry.path().join("package.json");
-                        if pkg_json.exists() {
-                            let ws_name = entry.file_name().to_string_lossy().to_string();
-                            let src_dir = if entry.path().join("src").exists() {
-                                format!("{base}/{ws_name}/src")
-                            } else {
-                                format!("{base}/{ws_name}")
-                            };
-                            discovery.modules.insert(
-                                ws_name.clone(),
-                                ManifestModule {
-                                    name: ws_name,
-                                    source_paths: vec![src_dir.clone()],
-                                    dependencies: Vec::new(),
-                                },
-                            );
-                            if !discovery.source_dirs.contains(&src_dir) {
-                                discovery.source_dirs.push(src_dir);
-                            }
-                        }
+            let base_dir =
+                normalize_retained_manifest_path(Path::new(base), "Node workspace base")?;
+            for ws_name in access.child_directories(&base_dir, "Node workspace")? {
+                let workspace = base_dir.join(&ws_name);
+                if access
+                    .read_text(
+                        &workspace.join("package.json"),
+                        "Node workspace package manifest",
+                    )?
+                    .is_some()
+                {
+                    let src_dir = if access
+                        .directory_exists(&workspace.join("src"), "Node workspace source")?
+                    {
+                        manifest_path_text(&workspace.join("src"), "Node workspace source")?
+                    } else {
+                        manifest_path_text(&workspace, "Node workspace source")?
+                    };
+                    discovery.modules.insert(
+                        ws_name.clone(),
+                        ManifestModule {
+                            name: ws_name,
+                            source_paths: vec![src_dir.clone()],
+                            dependencies: Vec::new(),
+                        },
+                    );
+                    if !discovery.source_dirs.contains(&src_dir) {
+                        discovery.source_dirs.push(src_dir);
                     }
                 }
             }
@@ -1857,9 +2379,9 @@ fn parse_package_json(root: &Path) -> Option<ManifestDiscovery> {
 
     // Detect main source directory
     let main_field = json.get("main").and_then(|v| v.as_str()).unwrap_or("");
-    let src_dir = if root.join("src").exists() {
+    let src_dir = if access.directory_exists(Path::new("src"), "Node source")? {
         "src"
-    } else if root.join("lib").exists() {
+    } else if access.directory_exists(Path::new("lib"), "Node source")? {
         "lib"
     } else if main_field.starts_with("./") {
         Path::new(main_field)
@@ -1885,14 +2407,25 @@ fn parse_package_json(root: &Path) -> Option<ManifestDiscovery> {
         discovery.source_dirs.push(src_dir.to_string());
     }
 
-    Some(discovery)
+    Ok(Some(discovery))
 }
 
 // ─── pubspec.yaml (Dart/Flutter) ─────────────────────────────────────────
 
+#[cfg(test)]
+#[allow(dead_code)]
 fn parse_pubspec_yaml(root: &Path) -> Option<ManifestDiscovery> {
-    let path = root.join("pubspec.yaml");
-    let content = fs::read_to_string(&path).ok()?;
+    let mut access = AmbientManifestAccess { root };
+    parse_pubspec_yaml_with_access(&mut access).ok().flatten()
+}
+
+fn parse_pubspec_yaml_with_access(
+    access: &mut dyn ManifestAccess,
+) -> Result<Option<ManifestDiscovery>, String> {
+    let Some(content) = access.read_text(Path::new("pubspec.yaml"), "Dart package manifest")?
+    else {
+        return Ok(None);
+    };
     let mut discovery = ManifestDiscovery::default();
 
     // Extract name from `name: my_package`
@@ -1915,14 +2448,23 @@ fn parse_pubspec_yaml(root: &Path) -> Option<ManifestDiscovery> {
     );
     discovery.source_dirs.push(src_dir.to_string());
 
-    Some(discovery)
+    Ok(Some(discovery))
 }
 
 // ─── go.mod (Go) ─────────────────────────────────────────────────────────
 
+#[cfg(test)]
 fn parse_go_mod(root: &Path) -> Option<ManifestDiscovery> {
-    let path = root.join("go.mod");
-    let content = fs::read_to_string(&path).ok()?;
+    let mut access = AmbientManifestAccess { root };
+    parse_go_mod_with_access(&mut access).ok().flatten()
+}
+
+fn parse_go_mod_with_access(
+    access: &mut dyn ManifestAccess,
+) -> Result<Option<ManifestDiscovery>, String> {
+    let Some(content) = access.read_text(Path::new("go.mod"), "Go module manifest")? else {
+        return Ok(None);
+    };
     let mut discovery = ManifestDiscovery::default();
 
     // Extract module name: `module github.com/user/repo`
@@ -1940,7 +2482,7 @@ fn parse_go_mod(root: &Path) -> Option<ManifestDiscovery> {
     // Common patterns: cmd/, internal/, pkg/
     let mut source_dirs = Vec::new();
     for dir_name in &["cmd", "internal", "pkg", "api"] {
-        if root.join(dir_name).exists() {
+        if access.directory_exists(Path::new(dir_name), "Go source")? {
             source_dirs.push(dir_name.to_string());
         }
     }
@@ -1960,14 +2502,25 @@ fn parse_go_mod(root: &Path) -> Option<ManifestDiscovery> {
     );
     discovery.source_dirs = source_dirs;
 
-    Some(discovery)
+    Ok(Some(discovery))
 }
 
 // ─── pyproject.toml (Python) ─────────────────────────────────────────────
 
+#[cfg(test)]
+#[allow(dead_code)]
 fn parse_pyproject_toml(root: &Path) -> Option<ManifestDiscovery> {
-    let path = root.join("pyproject.toml");
-    let content = fs::read_to_string(&path).ok()?;
+    let mut access = AmbientManifestAccess { root };
+    parse_pyproject_toml_with_access(&mut access).ok().flatten()
+}
+
+fn parse_pyproject_toml_with_access(
+    access: &mut dyn ManifestAccess,
+) -> Result<Option<ManifestDiscovery>, String> {
+    let Some(content) = access.read_text(Path::new("pyproject.toml"), "Python project manifest")?
+    else {
+        return Ok(None);
+    };
     let mut discovery = ManifestDiscovery::default();
 
     // Try [project] name first, then [tool.poetry] name
@@ -1976,9 +2529,9 @@ fn parse_pyproject_toml(root: &Path) -> Option<ManifestDiscovery> {
         .unwrap_or_else(|| "app".to_string());
 
     // Check for packages in [tool.setuptools.packages.find]
-    let src_dir = if root.join("src").exists() {
+    let src_dir = if access.directory_exists(Path::new("src"), "Python source")? {
         "src".to_string()
-    } else if root.join(&name).exists() {
+    } else if access.directory_exists(Path::new(&name), "Python source")? {
         name.clone()
     } else {
         ".".to_string()
@@ -1994,7 +2547,7 @@ fn parse_pyproject_toml(root: &Path) -> Option<ManifestDiscovery> {
     );
     discovery.source_dirs.push(src_dir.to_string());
 
-    Some(discovery)
+    Ok(Some(discovery))
 }
 
 // ─── TOML Helpers ────────────────────────────────────────────────────────
@@ -2454,6 +3007,89 @@ include(":member")
         let other = tempdir().unwrap();
         let error = discover_from_manifests_checked_with_root(other.path(), &retained).unwrap_err();
         assert!(error.contains("does not match the retained project root"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retained_non_gradle_manifest_access_ignores_an_ambient_root_replacement() {
+        use std::os::unix::fs::symlink;
+
+        let tmp = tempdir().unwrap();
+        let root = tmp.path().join("project");
+        let original = tmp.path().join("original-project");
+        let replacement = tmp.path().join("replacement-project");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(replacement.join("src")).unwrap();
+        fs::write(
+            root.join("Cargo.toml"),
+            "[package]\nname = \"retained-project\"\n",
+        )
+        .unwrap();
+        fs::write(
+            replacement.join("Cargo.toml"),
+            "[package]\nname = \"replacement-project\"\n",
+        )
+        .unwrap();
+        let retained = Dir::open_ambient_dir(&root, ambient_authority()).unwrap();
+        fs::rename(&root, &original).unwrap();
+        symlink(&replacement, &root).unwrap();
+
+        let mut access = RetainedManifestAccess::new(&retained);
+        let discovery =
+            parse_cargo_toml_with_access(&mut access, Path::new(""), &mut HashSet::new())
+                .unwrap()
+                .unwrap();
+
+        assert!(discovery.modules.contains_key("retained-project"));
+        assert!(!discovery.modules.contains_key("replacement-project"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retained_non_gradle_manifest_access_rejects_a_symlink_without_disclosing_referent() {
+        use std::os::unix::fs::symlink;
+
+        let project = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        let sentinel = "RETAINED_MANIFEST_SENTINEL";
+        fs::write(
+            outside.path().join("Cargo.toml"),
+            format!("[package]\nname = \"{sentinel}\"\n"),
+        )
+        .unwrap();
+        symlink(
+            outside.path().join("Cargo.toml"),
+            project.path().join("Cargo.toml"),
+        )
+        .unwrap();
+        let retained = Dir::open_ambient_dir(project.path(), ambient_authority()).unwrap();
+
+        let error =
+            discover_from_manifests_checked_with_root(project.path(), &retained).unwrap_err();
+
+        assert!(error.contains("symlink or reparse point"), "{error}");
+        assert!(!error.contains(sentinel), "{error}");
+    }
+
+    #[test]
+    fn retained_non_gradle_manifest_access_rejects_non_regular_and_oversized_inputs() {
+        let non_regular = tempdir().unwrap();
+        fs::create_dir(non_regular.path().join("Cargo.toml")).unwrap();
+        let retained = Dir::open_ambient_dir(non_regular.path(), ambient_authority()).unwrap();
+        let error =
+            discover_from_manifests_checked_with_root(non_regular.path(), &retained).unwrap_err();
+        assert!(error.contains("must be a regular file"), "{error}");
+
+        let oversized = tempdir().unwrap();
+        let manifest = fs::File::create(oversized.path().join("Cargo.toml")).unwrap();
+        manifest
+            .set_len(MAX_RETAINED_MANIFEST_BYTES.saturating_add(1))
+            .unwrap();
+        let retained = Dir::open_ambient_dir(oversized.path(), ambient_authority()).unwrap();
+        let error =
+            discover_from_manifests_checked_with_root(oversized.path(), &retained).unwrap_err();
+        assert!(error.contains("exceeds the"), "{error}");
+        assert!(error.contains("byte limit"), "{error}");
     }
 
     #[test]

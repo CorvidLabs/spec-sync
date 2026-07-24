@@ -162,3 +162,6 @@ Acceptance Criteria
 29. Generic MCP project files use no-follow, non-blocking, identity-continuous retained reads for
     both tools and resources; special/link/replacement races fail without attacker-byte
     consumption or partial output.
+30. Unix verification always exercises FIFO rejection and exercises socket rejection when the
+    host permits socket fixture creation; host-level `PermissionDenied` marks only that fixture
+    unavailable rather than failing before the security assertion.

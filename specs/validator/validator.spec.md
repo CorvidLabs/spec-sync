@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 17
+version: 18
 status: stable
 files:
   - src/validator.rs
@@ -74,16 +74,17 @@ Core validation engine for spec-sync. Validates individual specs and selected co
     point. Its supplied `SourceSnapshot` map is authoritative for mapped-source existence,
     readability, containment rejection, UTF-8 validation, and export extraction; it does not fall
     back to ambient source-path reads.
-17. Checked coverage opens configured source roots and files through retained no-follow
-    capabilities beneath the same retained project root used for manifest and spec-module
-    discovery, binds directory and file identities before and after reads, and derives file, LOC,
-    immediate-directory, and flat-file module results from one immutable observation. Symlink,
-    reparse, special-file, root/path identity replacement, invalid UTF-8, or traversal failure is
-    inconclusive before outside reads or partial totals.
+17. Checked coverage opens caller-selected spec frontmatter, recognized manifests, configured
+    source roots/files, and spec-module entries through retained no-follow capabilities beneath one
+    project root. It binds directory and file identities before and after reads and derives
+    ownership, file, LOC, immediate-directory, and flat-file module results from that retained
+    observation. Symlink, reparse, special-file, root/path identity replacement, invalid UTF-8, or
+    traversal failure is inconclusive before outside reads or partial totals.
 18. Checked coverage uses iterative deterministic traversal and one shared budget: 8 MiB per
-    source file, 64 MiB cumulative source bytes, 100,000 directory entries, and 256 path
-    components. Duplicate configured roots do not double-charge source bytes; excluded names are
-    filtered before metadata inspection unless directly configured.
+    selected spec or source file, 64 MiB cumulative spec/source bytes, 100,000 directory entries,
+    and 256 path components. Duplicate inputs do not double-charge bytes; excluded names are
+    filtered before metadata inspection unless directly configured. Manifest discovery reuses the
+    retained project capability and enforces its own bounded no-follow input budget.
 
 ## Behavioral Examples
 
@@ -176,7 +177,8 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 | Missing required section | Error: "Missing required section: ## SectionName" |
 | Dependency spec not found | Error: "Dependency spec not found" |
 | Malformed, unreadable, unsupported, or unconfined Gradle discovery during checked coverage, including unsafe Gradle manifest entries | Returns `Err`; CLI/MCP gate callers report an inconclusive failure rather than coverage success, referent reads, or outside traversal |
-| Coverage source is linked/reparse-backed, special, replaced, invalid UTF-8, over 8 MiB, or traversal exceeds 64 MiB/100,000 entries/256 components | Returns `Err` from the retained project snapshot; no partial totals or ambient fallback |
+| Coverage spec/source input is linked/reparse-backed, special, replaced, invalid UTF-8, over 8 MiB, or traversal exceeds 64 MiB/100,000 entries/256 components | Returns `Err` from the retained project snapshot; no partial totals or ambient fallback |
+| Caller-selected coverage spec is outside the retained project, missing, linked/reparse-backed, special, replaced, invalid UTF-8, or over the shared coverage input bounds | Returns `Err`; ownership mappings are never obtained through the ambient spec pathname |
 
 ## Dependencies
 
@@ -213,6 +215,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-23 | v15 / CHG-0063 adversarial rereview: keep linked/reparse-backed Gradle manifests plus interpolated or encoded Gradle paths inconclusive across checked gates |
 | 2026-07-23 | v16 / CHG-0063 final security rereview: snapshot coverage roots and bytes through retained no-follow handles so post-discovery symlink/junction replacement is inconclusive before outside reads |
 | 2026-07-23 | v17 / CHG-0063 post-review hardening: share one retained project authority across manifest/spec/source coverage and enforce deterministic iterative byte, entry, depth, UTF-8, and identity bounds |
+| 2026-07-24 | v18 / CHG-0063 acceptance remediation: read caller-selected spec ownership frontmatter and every recognized manifest through the same retained project authority before source coverage |
 | 2026-07-10 | v5: keep coverage regression fixtures warning-free under current stable Clippy and document the intentionally in-file test-module layout |
 | 2026-07-10 | v5: make canonical requirements companions adaptive rather than empty mandatory ceremony |
 | 2026-07-02 | v4: add `source_within_root` — shared guard rejecting `files:` paths that escape the project root (absolute/`..`/symlink); applied in `validate_spec` and every export-extraction site (score, check --fix, diff, new) to close an out-of-root identifier-disclosure vector |

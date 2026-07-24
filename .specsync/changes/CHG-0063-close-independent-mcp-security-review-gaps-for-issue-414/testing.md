@@ -91,7 +91,11 @@ artifact: testing
 | Unrelated Gradle control flow plus supported include | Unrelated logic remains valid; only governed indirect/conditional directives and invoked unsupported inclusion APIs fail closed |
 | Coverage exceeds 8 MiB/file, 64 MiB total, 100,000 entries, or 256 components | Iterative retained traversal returns inconclusive before a partial percentage |
 | Coverage source has invalid UTF-8 name/content or special/replaced entry | One retained project authority rejects it before partial file, LOC, or module totals |
+| Ambient project name is replaced before non-Gradle manifest parsing | Cargo, Swift, Node, Dart, Go, and Python inputs remain bound to the retained project capability; replacement bytes are ignored and final root verification is inconclusive |
+| Caller-selected coverage spec path resolves through a replacement ambient tree | Ownership frontmatter is read only through the retained project capability and charged to the shared spec/source input budget |
 | Generic MCP project file becomes FIFO/socket/link/regular replacement | Both tool and resource requests fail promptly without replacement bytes or partial results |
+| Ambient project pathname is replaced after the coverage capability is retained | Caller-selected spec ownership and every recognized manifest are read through the retained project; replacement bytes never become coverage authority and the final root check is inconclusive |
+| Restricted Unix host denies local socket creation | FIFO assertions still run; only the unavailable socket fixture is skipped, while capable Unix CI exercises socket rejection |
 | Ignored/configured-exclusion name is a symlink | Skipped before target metadata is followed unless explicitly configured |
 | Public rendered drift errors include overlapping paths and `": "` in a legal spec path | Longest exact discovered path receives the errors; public `Vec<String>` signatures remain unchanged |
 | Valid notification | No output and no dispatch |
@@ -468,6 +472,11 @@ superseded by the hash-bound exact-commit replay below.
   tool/resource FIFO/socket/replacement integrations. Formatting and the repository Clippy lane
   pass; the broader non-gating all-target Clippy invocation reports pre-existing test-only warnings
   in lifecycle/init/scaffold/types code outside this change.
+- The acceptance-remediation working tree passes all 32 manifest tests, 16 coverage-filtered unit
+  tests, direct retained non-Gradle-manifest and coverage-spec root-replacement regressions, the
+  previously flaky five-command root-swap integration, and both generic MCP socket/FIFO unit and
+  integration filters. These focused results precede formatting, full-lane, fresh exact-commit
+  sandbox/Windows/CI/trust, and independent rereview evidence.
 - The same post-review tree passes the locked release build, 23 docs tests, Astro diagnostics with
   zero errors/warnings/hints, a 43-page site build, and score 100/100 for all 62 specs.
 - `cargo check --target x86_64-pc-windows-gnu --tests` passed; it emitted the existing cfg-specific
@@ -478,6 +487,10 @@ superseded by the hash-bound exact-commit replay below.
 - Pending: two independent clean reviews, fresh exact-digest definition approval, GitHub CI,
   strict lifecycle-enabled coverage/repository lanes, `fledge trust verify`,
   Attest provenance, lifecycle verification, and closing approval.
+- The subsequent retained-authority amendment covers 34 manifest parser tests and three
+  retained-coverage confinement tests. Production Clippy passes; broad all-target Clippy
+  still reports the documented unrelated test-only warnings. These focused results are not
+  final-tree full-lane, review, sandbox, trust, or CI evidence.
   Pending characterization and post-fix evidence must cover top-level compatibility; inert quoted
   and nested-comment content; aliased/qualified/compound directives; same-line and multiline
   conditional blocks; unsupported triple-quoted include/project-directory arguments; all CLI/MCP

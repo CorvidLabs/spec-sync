@@ -87,6 +87,9 @@ spec: mcp.spec.md
   Path metadata and opened-handle identity must remain equal before and after bounded reads on Unix
   and Windows, so FIFO/socket/device, link/reparse, and regular replacement races fail identically
   for tools and resources without consuming attacker bytes.
+- Unix verification keeps FIFO behavior mandatory and executes socket behavior when the host
+  permits creating a local socket fixture; restricted sandboxes that return `PermissionDenied`
+  skip only that unavailable fixture instead of failing before the reader is exercised.
 - Windows confinement fixtures construct every path with native joins. The absolute-child read
   fixture is a valid one-file, fully covered project so its success proves root selection and
   downstream coverage execution; the junction fixture first proves that the reparse point targets

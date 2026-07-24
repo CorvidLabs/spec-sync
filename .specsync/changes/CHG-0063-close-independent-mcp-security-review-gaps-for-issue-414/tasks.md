@@ -158,9 +158,15 @@ artifact: tasks
   iterative 8 MiB/file, 64 MiB total, 100,000-entry, 256-component, UTF-8, and identity bounds.
 - [x] Route generic MCP tool/resource project inputs through no-follow, non-blocking,
   identity-continuous retained reads and characterize FIFO/socket/link/regular replacement races.
+- [x] Resolve the exact-commit acceptance rejection: remove ambient non-Gradle manifest and
+  coverage-spec ownership reads, move the root-swap barrier ahead of all retained phases, and add
+  direct retained manifest/spec replacement regressions.
+- [x] Make Unix socket fixtures portable in restricted sandboxes without weakening mandatory FIFO
+  or capable-host socket security assertions.
 - [x] Replay exact implementation commit `5070c954d1ee8ebdb96cbf90cfa0c1c9a1986f96`
   against a disposable clone of the private sandbox with a hash-bound MCP security drill.
-- [ ] Obtain a clean post-fix acceptance rereview and adversarial security/compatibility rereview.
+- [ ] Obtain two clean exact-tree post-fix acceptance and adversarial
+  security/compatibility rereviews after the retained-authority amendment.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.
 - [ ] Obtain fresh definition reapproval after the final independent-review artifact amendment.

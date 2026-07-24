@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 17
+version: 18
 status: stable
 files:
   - src/mcp.rs
@@ -237,3 +237,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-22 | CHG-0063 retained-handle follow-up: Acquire selected configs and manifests with no-follow, non-blocking handles on every platform; validate opened metadata and reject path replacement before and after bounded reads |
 | 2026-07-23 | v16 / CHG-0063 final security rereview: Preflight every Gradle build/settings variant once through the retained no-follow reader, enforce 4 MiB before parsing/probing, and reject special, linked, replaced, or oversized inputs for tools and resources |
 | 2026-07-23 | v17 / CHG-0063 post-review hardening: Apply no-follow, non-blocking, before/opened/after identity continuity to every generic project file used by MCP tools and resources |
+| 2026-07-24 | v18 / CHG-0063 verification portability: Preserve FIFO coverage and execute socket assertions where the Unix host permits socket fixtures without making restricted sandboxes fail before the security assertion |

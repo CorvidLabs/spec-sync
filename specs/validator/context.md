@@ -4,10 +4,11 @@ spec: validator.spec.md
 
 ## Key Decisions
 
-- **Retained coverage snapshot**: Checked coverage opens configured source roots and files through
-  one retained project capability shared with manifest and spec-module discovery, binds
-  directory/file/root identities across reads, and derives file/LOC/module results from exact
-  bytes. Post-discovery path replacement is inconclusive before outside access.
+- **Retained coverage snapshot**: Checked coverage opens caller-selected spec ownership
+  frontmatter, every recognized manifest, configured source roots/files, and spec-module entries
+  through one retained project capability, binds directory/file/root identities across reads, and
+  derives ownership/file/LOC/module results from exact bytes. Post-retention ambient path
+  replacement is inconclusive before outside access.
 - **Bounded iterative coverage**: Traversal is sorted and iterative, filters excluded names before
   metadata inspection, and enforces 8 MiB per file, 64 MiB cumulative bytes, 100,000 entries, and
   256 path components. Special entries and invalid UTF-8 names/content fail closed.
@@ -46,9 +47,9 @@ CHG-0063 implementation is present. The validator powers `specsync check`, cover
 checked discovery prevents malformed or unconfined Gradle settings from producing partial
 coverage. Post-discovery source enumeration and reads stay bound to one retained root capability
 with no-follow, non-blocking, identity-checked access, so path replacement and special entries
-make all coverage gates inconclusive before totals or mutation. Manifest discovery, spec-module
-enumeration, source traversal, and final root verification now share that exact capability and
-bounded observation, while
+make all coverage gates inconclusive before totals or mutation. Spec ownership reads, manifest
+discovery, spec-module enumeration, source traversal, and final root verification now share that
+exact capability and bounded observation, while
 `validate_spec_content_with_sources` lets confined callers validate exact spec-and-source
 snapshots without reopening paths.
 Fresh CHG definition reapproval, focused final-tree reruns, independent reviews, hosted-Windows

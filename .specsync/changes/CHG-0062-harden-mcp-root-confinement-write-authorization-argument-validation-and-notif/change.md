@@ -1,6 +1,6 @@
 ---
 id: CHG-0062-harden-mcp-root-confinement-write-authorization-argument-validation-and-notif
-state: verifying
+state: accepted
 type: feature
 base_commit: ce669736042b46a04b14cf8f86312ba75cb52c33
 ---

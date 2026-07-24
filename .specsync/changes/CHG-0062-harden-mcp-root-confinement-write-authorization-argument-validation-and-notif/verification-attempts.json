@@ -583,6 +583,41 @@
         "REQ-mcp-002",
         "REQ-mcp-003"
       ]
+    },
+    {
+      "timestamp": 1784870197,
+      "commit": "ee6786d82734a64ceaba52c9fd6fa39d83c29a8e",
+      "contract_digest": "5636f550814aca9289301732a17f17aa9d53f3cd3b910fa2f6808dbfa639a642",
+      "workspace_digest": "0bc6852d9464c1a1287074c0f20ed19792c1103e39e36ff1e93cf65b95bd4641",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cli-005",
+        "REQ-cli-args-008",
+        "REQ-mcp-002",
+        "REQ-mcp-003"
+      ]
     }
   ]
 }

@@ -82,7 +82,7 @@ impl SpecCache {
 pub fn cmd_resolve(root: &Path, remote: bool, verify: bool, cache_ttl: u64) {
     let (_config, spec_files) = load_and_discover(root, false);
     let mut cross_refs: Vec<(String, String, String)> = Vec::new();
-    let mut local_refs: Vec<(String, String, bool)> = Vec::new();
+    let mut local_refs: Vec<(String, String, Result<std::path::PathBuf, String>)> = Vec::new();
 
     // Track local spec exports for bidirectional checking
     let mut local_exports: HashMap<String, Vec<String>> = HashMap::new();
@@ -118,8 +118,11 @@ pub fn cmd_resolve(root: &Path, remote: bool, verify: bool, cache_ttl: u64) {
                     cross_refs.push((spec_path.clone(), repo.to_string(), module.to_string()));
                 }
             } else {
-                let exists = root.join(dep).exists();
-                local_refs.push((spec_path.clone(), dep.clone(), exists));
+                // Same verdict as check/deps: bare module names resolve against
+                // the specs directory; absolute/`..` paths are rejected, not
+                // probed against the host filesystem.
+                let verdict = validator::validate_local_dependency(dep, root, &_config.specs_dir);
+                local_refs.push((spec_path.clone(), dep.clone(), verdict));
             }
         }
     }
@@ -136,11 +139,10 @@ pub fn cmd_resolve(root: &Path, remote: bool, verify: bool, cache_ttl: u64) {
 
     if !local_refs.is_empty() {
         println!("\n  {} Local dependencies:", "Local".bold());
-        for (spec, dep, exists) in &local_refs {
-            if *exists {
-                println!("    {} {spec} -> {dep}", "✓".green());
-            } else {
-                println!("    {} {spec} -> {dep} (not found)", "✗".red());
+        for (spec, dep, verdict) in &local_refs {
+            match verdict {
+                Ok(_) => println!("    {} {spec} -> {dep}", "✓".green()),
+                Err(message) => println!("    {} {spec} -> {message}", "✗".red()),
             }
         }
     }

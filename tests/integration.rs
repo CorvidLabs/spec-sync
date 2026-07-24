@@ -25,3 +25,6 @@ mod change;
 
 #[path = "integration/comment.rs"]
 mod comment;
+
+#[path = "integration/regression_w1.rs"]
+mod regression_w1;

@@ -142,6 +142,16 @@ pub fn mcp_request(
     root: &std::path::Path,
     requests: &[serde_json::Value],
 ) -> Vec<serde_json::Value> {
+    mcp_request_with_server_args(root, &[], requests)
+}
+
+/// Like [`mcp_request`], but passes extra arguments to the `mcp` subcommand
+/// (e.g. `--allow-writes`).
+pub fn mcp_request_with_server_args(
+    root: &std::path::Path,
+    server_args: &[&str],
+    requests: &[serde_json::Value],
+) -> Vec<serde_json::Value> {
     let input: String = requests
         .iter()
         .map(|r| serde_json::to_string(r).unwrap())
@@ -151,6 +161,7 @@ pub fn mcp_request(
 
     let output = specsync()
         .arg("mcp")
+        .args(server_args)
         .arg("--root")
         .arg(root)
         .write_stdin(input)

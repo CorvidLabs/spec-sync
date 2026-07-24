@@ -130,8 +130,10 @@ fn mcp_tool_init_creates_config() {
     fs::create_dir_all(root.join("src")).unwrap();
     fs::write(root.join("src/main.rs"), "fn main() {}").unwrap();
 
-    let responses = mcp_request(
+    // specsync_init is write-capable: it requires the server opt-in flag.
+    let responses = mcp_request_with_server_args(
         root,
+        &["--allow-writes"],
         &[serde_json::json!({
             "jsonrpc": "2.0",
             "id": 1,
@@ -259,4 +261,126 @@ fn mcp_score_tool_returns_grades() {
         serde_json::from_str(score_result.as_str().unwrap()).unwrap();
     assert!(score_json["average_score"].is_number());
     assert!(score_json["grade"].is_string());
+}
+
+// ─── #414: path confinement, arg validation, write gating, notifications ───
+
+#[test]
+fn mcp_tools_call_rejects_root_outside_server_root() {
+    let server = TempDir::new().unwrap();
+    let victim = TempDir::new().unwrap();
+    fs::create_dir_all(victim.path().join("src")).unwrap();
+    fs::write(victim.path().join("src/evil.rs"), "pub fn evil() {}").unwrap();
+
+    let responses = mcp_request_with_server_args(
+        server.path(),
+        &["--allow-writes"],
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "specsync_generate",
+                "arguments": { "root": victim.path().to_string_lossy() }
+            }
+        })],
+    );
+
+    assert_eq!(responses.len(), 1);
+    assert_eq!(responses[0]["error"]["code"], -32602);
+    assert!(
+        responses[0]["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("outside the server root")
+    );
+    // Nothing may have been written outside the server root.
+    assert!(!victim.path().join("specs").exists());
+}
+
+#[test]
+fn mcp_write_tools_require_allow_writes_flag() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.rs"), "pub fn login() {}").unwrap();
+
+    let responses = mcp_request(
+        root,
+        &[
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": { "name": "specsync_generate", "arguments": {} }
+            }),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": { "name": "specsync_init", "arguments": {} }
+            }),
+        ],
+    );
+
+    assert_eq!(responses.len(), 2);
+    for resp in &responses {
+        assert_eq!(resp["result"]["isError"].as_bool(), Some(true));
+        assert!(
+            resp["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("--allow-writes")
+        );
+    }
+    assert!(!root.join("specs").exists());
+    assert!(!root.join("specsync.json").exists());
+}
+
+#[test]
+fn mcp_tools_call_rejects_wrongly_typed_arguments() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+
+    let responses = mcp_request(
+        &root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "specsync_check",
+                "arguments": { "strict": "yes please" }
+            }
+        })],
+    );
+
+    assert_eq!(responses.len(), 1);
+    assert_eq!(responses[0]["error"]["code"], -32602);
+    assert!(
+        responses[0]["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("`strict` must be a boolean")
+    );
+}
+
+#[test]
+fn mcp_known_method_notification_gets_no_response() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    // A notification (no "id") for a known method must NOT be answered —
+    // JSON-RPC forbids even an "id": null response. A following request with
+    // an id must still get exactly one response.
+    let responses = mcp_request(
+        root,
+        &[
+            serde_json::json!({ "jsonrpc": "2.0", "method": "tools/list" }),
+            serde_json::json!({ "jsonrpc": "2.0", "id": 7, "method": "ping" }),
+        ],
+    );
+
+    assert_eq!(responses.len(), 1);
+    assert_eq!(responses[0]["id"], 7);
 }

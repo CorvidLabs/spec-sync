@@ -407,6 +407,7 @@ pub enum ChangeAction {
         /// Change ID
         id: String,
         /// Human actor authorizing the audited reopen transition
+        #[arg(long)]
         actor: String,
         /// Non-empty reason the accepted delivery evidence became stale
         #[arg(long)]

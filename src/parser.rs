@@ -376,6 +376,20 @@ const STUB_PHRASES: &[&str] = &[
     "write here",
     "...",
     "\u{2026}", // ellipsis character
+    // Generator scaffold placeholder text (emitted by `new`/`generate`/`scaffold`/
+    // `add-spec`/`import`). A section containing only these lines is unfinished
+    // draft content, not real documentation — treat it as a stub so scoring and
+    // validation don't grade the tool's own placeholders as complete.
+    "document this module's responsibility, inputs, outputs, and ownership boundaries.",
+    "document this package's responsibility, inputs, outputs, and ownership boundaries.",
+    "define an invariant that must remain true for supported inputs.",
+    "1. define an invariant that must remain true for supported inputs.",
+    "### scenario: core behavior",
+    "### scenario: imported behavior",
+    "**given** precondition",
+    "**when** action",
+    "**then** result",
+    "list runtime dependencies and the specific symbols, services, or data they provide.",
 ];
 
 /// Check if a line is a stub/placeholder (case-insensitive).
@@ -991,5 +1005,21 @@ This prose contains `proseSymbol` but is not a table row.
         let required = vec!["Purpose".to_string(), "Public API".to_string()];
         let stubs = find_stub_sections(body, &required);
         assert!(stubs.is_empty());
+    }
+
+    #[test]
+    fn generator_placeholder_text_counts_as_stub() {
+        // #421: the generators' own scaffold sentences are draft markers, not
+        // real content — a section filled only with them is a stub.
+        let body = "## Purpose\n\nDocument this module's responsibility, inputs, outputs, and ownership boundaries.\n\n## Invariants\n\n1. Define an invariant that must remain true for supported inputs.\n";
+        assert!(!section_has_content(body, "Purpose"));
+        assert!(!section_has_content(body, "Invariants"));
+
+        let behavioral = "## Behavioral Examples\n\n### Scenario: Core behavior\n\n- **Given** precondition\n- **When** action\n- **Then** result\n";
+        assert!(!section_has_content(behavioral, "Behavioral Examples"));
+
+        // ...but real content is still real content.
+        let real = "## Purpose\n\nAuthenticates users via OAuth2 and session tokens.\n";
+        assert!(section_has_content(real, "Purpose"));
     }
 }

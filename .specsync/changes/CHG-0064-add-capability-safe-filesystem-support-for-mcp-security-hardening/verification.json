@@ -1,9 +1,45 @@
 {
-  "timestamp": 1784869540,
-  "commit": "065e4c6b465f1e985464ed938de7c42e748e3304",
+  "timestamp": 1784869918,
+  "commit": "4da1d5b8f4b9c9b546451bac9598c1b4b9c1d707",
   "contract_digest": "5592890d2ac472a734434eb3459da25281a98d5e20fe02e2c78e3e99ee08879a",
-  "workspace_digest": "8fbe2797bde26f2b7bebc61b97258e37c914f8fc864ad13d8ffced927c231028",
-  "passed": false,
+  "workspace_digest": "0bc6852d9464c1a1287074c0f20ed19792c1103e39e36ff1e93cf65b95bd4641",
+  "acceptance_input_digest": "7ca1e4ac4376c6c20976888acd05cd658c849fe9d3da0fe6cb87b119a642deed",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d59281ec1ee11a4eea427a9ff56b75c435de455e1db212aabf1d37fa16f90471",
+        "entry_digest": "152cf47d6d29dffaa0493691f34b788f37a06c7945918ab3a252dce2e3a3f422",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "Cargo.lock",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "e399a0516bc74e2deacc93a804b840b887bb1ab153c75cde4cc99227ad95b80e",
+        "entry_digest": "7e3038d0633133cef009ff834b5c79d4827753c65d7c3e3f57e230b690192e96",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "Cargo.toml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0d2ce3eeaaf7762cb14c2de49a20c33bdf955cd504be4bd6f316647b7eaf52cf",
+        "entry_digest": "0ee08adebd096dda703a0adb18cb19978814fb7faccd5827a03f719ae84486e5",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
   "commands": [
     {
       "command": "ruby --version",
@@ -12,8 +48,18 @@
     },
     {
       "command": "cargo test",
-      "success": false,
-      "exit_code": 101
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
     }
   ],
   "requirement_ids": []

@@ -34,6 +34,13 @@
       "timestamp": 1784792208,
       "digest": "60c5fc25bc5ecb52a8a1106f83326e8ba365369258e63f01329178e07184d886",
       "note": "User approved closing CHG-0064 after fresh verification."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1784869932,
+      "digest": "4e0f1a04d2d9fae1440d36e872ff1090c0c243cfe6015d3695f3805dfd3a4b3e",
+      "note": "User explicitly approved closing CHG-0064 after fresh verification; fresh verification passed at commit 4da1d5b8f4b9c9b546451bac9598c1b4b9c1d707."
     }
   ],
   "reopenings": [

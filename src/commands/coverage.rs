@@ -6,7 +6,8 @@ use crate::types;
 use crate::validator::{compute_coverage, get_schema_table_names};
 
 use super::{
-    build_schema_columns, compute_exit_code, exit_with_status, load_and_discover, run_validation,
+    build_schema_columns, compute_exit_code, default_enforcement, exit_with_status,
+    load_and_discover, run_validation,
 };
 
 pub fn cmd_coverage(
@@ -26,7 +27,7 @@ pub fn cmd_coverage(
     let enforcement = enforcement.unwrap_or(if strict {
         types::EnforcementMode::Strict
     } else {
-        config.enforcement
+        default_enforcement(&config)
     });
     let schema_tables = get_schema_table_names(root, &config);
     let schema_columns = build_schema_columns(root, &config);
@@ -79,6 +80,7 @@ pub fn cmd_coverage(
             "loc_total": coverage.total_loc,
             "modules": modules,
             "uncovered_files": uncovered_files,
+            "missing_files": coverage.missing_files,
         });
         println!("{}", serde_json::to_string_pretty(&output).unwrap());
         // Gate the exit code for machine consumers too (was an unconditional

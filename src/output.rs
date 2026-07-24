@@ -70,9 +70,21 @@ pub fn print_coverage_report(coverage: &types::CoverageReport) {
         }
     }
 
-    if coverage.unspecced_files.is_empty() {
+    // Files a spec references but that do not exist on disk must never sit
+    // under a green "all referenced" line — name them as failures instead.
+    if !coverage.missing_files.is_empty() {
+        println!(
+            "\n  Referenced by specs but missing on disk ({}):",
+            coverage.missing_files.len()
+        );
+        for file in &coverage.missing_files {
+            println!("    {} {file}", "✗".red());
+        }
+    }
+
+    if coverage.unspecced_files.is_empty() && coverage.missing_files.is_empty() {
         println!("  {} All source files referenced by specs", "✓".green());
-    } else {
+    } else if !coverage.unspecced_files.is_empty() {
         let uncovered_loc: usize = coverage.unspecced_file_loc.iter().map(|(_, l)| l).sum();
         println!(
             "\n  Files not in any spec ({}, {} LOC uncovered):",
@@ -244,6 +256,7 @@ mod tests {
             specced_loc: 1,
             loc_coverage_percent: loc_pct,
             unspecced_file_loc: Vec::new(),
+            missing_files: Vec::new(),
         }
     }
 

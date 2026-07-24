@@ -186,6 +186,31 @@ superseded by the hash-bound exact-commit replay below.
 - Disposable testbed status after replay contained only the intentionally created untracked audit
   inputs: `?? drills/024-mcp-confined-sibling.sh` and `?? drills/fixtures/`.
 
+## Post-review private sandbox receipt
+
+- Time: `2026-07-24T00:45:22Z`
+- Exact implementation commit:
+  `5070c954d1ee8ebdb96cbf90cfa0c1c9a1986f96`
+- Build: disposable `--no-local` clone checked out detached at the exact commit;
+  `cargo build --release --locked --offline` exited 0.
+- Exact executable SHA-256:
+  `13f2e02f74b918efa9bac56eefbe97b0be43417591c86ba2b0afe994b77680cd`
+- Private testbed: disposable `--no-local` clone of `CorvidLabs/spec-sync-sandbox` at
+  `758c144808d80169a44a740660b0d73c5b2f6ddd`; the real private checkout remained clean.
+- Drill: `drills/024-mcp-security-boundary.sh`, SHA-256
+  `2e38549806e61cd1a0ac3e2f0c5ded1a637fc35d78337e92aeef5e2f2b86b5ac`.
+- Covered behavior: default tool listing omits mutators; direct default-mode generation fails;
+  write-enabled generation rejects a per-call outside root without touching the victim; generic
+  coverage rejects a configured FIFO within three seconds rather than blocking or returning a
+  partial snapshot.
+- Command:
+  `SS=<isolated exact-commit executable> bash drills/024-mcp-security-boundary.sh`
+- Exit: 0
+- Stdout:
+  `PASS: read-only default, confined writes, and non-blocking special-file snapshots`
+- Disposable sandbox status after replay contained only the intentionally created untracked drill;
+  the isolated implementation clone remained Git-clean.
+
 - `REQ-mcp-002`: `mcp::tests::test_repeated_tree_scans_share_one_confinement_budget`,
   `mcp::tests::snapshot_copies_the_exact_manifest_bytes_charged_during_discovery`,
   `mcp::tests::snapshot_includes_all_standard_gradle_module_forms_under_ignored_directories`,
@@ -450,8 +475,8 @@ superseded by the hash-bound exact-commit replay below.
   not a substitute for hosted-Windows junction runtime.
 - The hosted-Windows post-discovery junction and build-manifest reparse fixtures compile under the
   Windows GNU test target but remain pending hosted-Windows runtime CI.
-- Pending: release build, docs, strict coverage and score gates, two independent clean reviews,
-  private-sandbox refresh, fresh exact-digest definition approval, GitHub CI, `fledge trust verify`,
+- Pending: two independent clean reviews, fresh exact-digest definition approval, GitHub CI,
+  strict lifecycle-enabled coverage/repository lanes, `fledge trust verify`,
   Attest provenance, lifecycle verification, and closing approval.
   Pending characterization and post-fix evidence must cover top-level compatibility; inert quoted
   and nested-comment content; aliased/qualified/compound directives; same-line and multiline

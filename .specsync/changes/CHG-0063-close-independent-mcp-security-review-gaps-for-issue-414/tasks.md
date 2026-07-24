@@ -158,6 +158,8 @@ artifact: tasks
   iterative 8 MiB/file, 64 MiB total, 100,000-entry, 256-component, UTF-8, and identity bounds.
 - [x] Route generic MCP tool/resource project inputs through no-follow, non-blocking,
   identity-continuous retained reads and characterize FIFO/socket/link/regular replacement races.
+- [x] Replay exact implementation commit `5070c954d1ee8ebdb96cbf90cfa0c1c9a1986f96`
+  against a disposable clone of the private sandbox with a hash-bound MCP security drill.
 - [ ] Obtain a clean post-fix acceptance rereview and adversarial security/compatibility rereview.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient.

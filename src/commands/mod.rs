@@ -34,6 +34,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 use crate::config::load_config;
+use crate::hash_cache;
 use crate::ignore::IgnoreRules;
 use crate::parser;
 use crate::schema;
@@ -267,6 +268,7 @@ pub fn run_validation(
     collect: bool,
     explain: bool,
     ignore_rules: &IgnoreRules,
+    mut outcomes: Option<&mut HashMap<String, hash_cache::CachedSpecOutcome>>,
 ) -> (
     usize,
     usize,
@@ -358,6 +360,19 @@ pub fn run_validation(
             .iter()
             .filter(|w| !ignore_rules.is_suppressed(w, &result.spec_path, &inline_ignores))
             .collect();
+
+        // Record the per-spec outcome so a later warm-cache run can replay
+        // the same findings for specs it skips (issue #429).
+        if let Some(out) = outcomes.as_deref_mut() {
+            out.insert(
+                owner.clone(),
+                hash_cache::CachedSpecOutcome {
+                    errors: result.errors.clone(),
+                    warnings: filtered_warnings.iter().map(|w| (*w).clone()).collect(),
+                    notices: result.notices.clone(),
+                },
+            );
+        }
 
         if collect {
             let prefix = &result.spec_path;

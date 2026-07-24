@@ -148,11 +148,11 @@ pub enum Command {
     },
     /// Show export changes since last commit (useful for CI/PR comments)
     Diff {
-        /// Git ref to compare against (default: HEAD).
-        /// In GitHub Actions PR context, auto-detects the base branch
-        /// from GITHUB_BASE_REF when set to HEAD.
-        #[arg(long, default_value = "HEAD")]
-        base: String,
+        /// Git ref to compare against (default: auto-detect the PR base from
+        /// GITHUB_BASE_REF in GitHub Actions pull_request* events, else HEAD).
+        /// An explicit value always wins over environment auto-detection.
+        #[arg(long)]
+        base: Option<String>,
     },
     /// Manage agent instruction files and git hooks for spec awareness
     Hooks {

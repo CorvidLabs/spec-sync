@@ -71,7 +71,7 @@ fn cmd_import_single(root: &Path, source: &str, id: &str, repo_override: Option<
                 .or_else(|| github::detect_repo(root))
                 .unwrap_or_else(|| {
                     eprintln!(
-                        "{} Cannot determine GitHub repo. Use --repo or set github.repo in specsync.json.",
+                        "{} Cannot determine GitHub repo. Use --repo, or set `repo` under `[github]` in .specsync/config.toml.",
                         "Error:".red()
                     );
                     process::exit(1);
@@ -175,7 +175,7 @@ fn cmd_import_all_issues(root: &Path, repo_override: Option<&str>, label: Option
         .or_else(|| github::detect_repo(root))
         .unwrap_or_else(|| {
             eprintln!(
-                "{} Cannot determine GitHub repo. Use --repo or set github.repo in specsync.json.",
+                "{} Cannot determine GitHub repo. Use --repo, or set `repo` under `[github]` in .specsync/config.toml.",
                 "Error:".red()
             );
             process::exit(1);
@@ -319,11 +319,18 @@ fn cmd_import_from_dir(root: &Path, dir: &Path) {
 
     for (idx, file_path) in md_files.iter().enumerate() {
         let progress = format!("[{}/{}]", idx + 1, total);
-        let filename = file_path
+        let raw_stem = file_path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("unknown");
-        print!("  {} {} ", progress.dimmed(), filename);
+        // `foo.spec.md` imports as module `foo`, not `foo-spec`.
+        let stem = raw_stem.strip_suffix(".spec").unwrap_or(raw_stem);
+        let file_display = file_path
+            .strip_prefix(root)
+            .unwrap_or(file_path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        print!("  {} {} ", progress.dimmed(), stem);
 
         let content = match fs::read_to_string(file_path) {
             Ok(c) => c,
@@ -334,10 +341,19 @@ fn cmd_import_from_dir(root: &Path, dir: &Path) {
             }
         };
 
-        let item = parse_markdown_as_import_item(filename, &content);
+        let import = match build_imported_spec(root, &config, stem, &file_display, &content) {
+            Ok(import) => import,
+            Err(reason) => {
+                // Unparseable source files fail loudly — never a silent ✓ over
+                // discarded content.
+                println!("{} not imported: {reason}", "✗".red());
+                stats.errors += 1;
+                continue;
+            }
+        };
 
-        let spec_dir = specs_dir.join(&item.module_name);
-        let spec_file = spec_dir.join(format!("{}.spec.md", item.module_name));
+        let spec_dir = specs_dir.join(&import.module_name);
+        let spec_file = spec_dir.join(format!("{}.spec.md", import.module_name));
 
         if spec_file.exists() {
             println!("{} skipped — spec already exists", "~".yellow());
@@ -345,21 +361,22 @@ fn cmd_import_from_dir(root: &Path, dir: &Path) {
             continue;
         }
 
-        let spec_content = importer::render_spec(&item);
-
         if let Err(e) = fs::create_dir_all(&spec_dir) {
             println!("{} Failed to create dir: {e}", "✗".red());
             stats.errors += 1;
             continue;
         }
 
-        match fs::write(&spec_file, &spec_content) {
+        match fs::write(&spec_file, &import.spec_content) {
             Ok(_) => {
                 let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
                 println!("{} → {}", "✓".green(), rel);
+                for warning in &import.warnings {
+                    println!("    {} {warning}", "⚠".yellow());
+                }
                 generator::generate_companion_files_for_spec(
                     &spec_dir,
-                    &item.module_name,
+                    &import.module_name,
                     config.companions.design,
                 );
                 stats.imported += 1;
@@ -372,8 +389,217 @@ fn cmd_import_from_dir(root: &Path, dir: &Path) {
     }
 
     print_batch_summary("import", &stats);
+    if stats.errors > 0 {
+        process::exit(1);
+    }
 }
 
+/// The result of converting one markdown file into spec content.
+struct FromDirImport {
+    module_name: String,
+    spec_content: String,
+    warnings: Vec<String>,
+}
+
+/// Convert a markdown file into spec content, preserving everything parseable:
+/// existing frontmatter fields, body sections, API tables, and changelogs are
+/// kept verbatim; only missing pieces are scaffolded.
+///
+/// Returns `Err` for content that cannot be parsed at all (empty file, or a
+/// frontmatter block that doesn't parse) — the caller must fail loudly rather
+/// than overwrite the source with a skeleton.
+fn build_imported_spec(
+    root: &Path,
+    config: &crate::types::SpecSyncConfig,
+    stem: &str,
+    file_display: &str,
+    content: &str,
+) -> Result<FromDirImport, String> {
+    let module_name = importer::slugify(stem);
+    if module_name.is_empty() {
+        return Err(format!("could not derive a module name from '{stem}'"));
+    }
+    if content.trim().is_empty() {
+        return Err("file is empty — nothing to import".to_string());
+    }
+
+    let normalized = content.trim_start_matches('\u{feff}').replace("\r\n", "\n");
+
+    // Auto-detect source files so imported specs don't fail the tool's own
+    // non-empty `files:` gate when the module's sources are discoverable.
+    let mut detected: Vec<String> = generator::find_files_for_module(root, &module_name, config)
+        .into_iter()
+        .map(|f| {
+            Path::new(&f)
+                .strip_prefix(root)
+                .map(|p| p.to_string_lossy().replace('\\', "/"))
+                .unwrap_or(f)
+        })
+        .collect();
+    if detected.is_empty()
+        && let Some(single) = generator::find_single_source_fallback(root, config)
+    {
+        detected.push(single);
+    }
+    detected.sort();
+
+    let mut warnings = Vec::new();
+    let files_yaml = if detected.is_empty() {
+        warnings.push(format!(
+            "no source files detected for '{module_name}' — `files:` is empty; \
+             fill it in before `specsync check` will pass"
+        ));
+        "files: []".to_string()
+    } else {
+        let items: String = detected.iter().map(|f| format!("  - {f}\n")).collect();
+        format!("files:\n{items}")
+    };
+
+    let import_note = format!("Imported from {file_display}");
+
+    let (mut spec_text, body) = if normalized.starts_with("---\n") {
+        // Existing spec-style file: preserve it, patch only what's missing.
+        let Some(parsed) = crate::parser::parse_frontmatter(&normalized) else {
+            return Err(
+                "frontmatter block is present but could not be parsed — fix the YAML \
+                 frontmatter (module/version/status/files) or remove it"
+                    .to_string(),
+            );
+        };
+        let patched = patch_frontmatter(
+            &normalized,
+            &module_name,
+            &parsed.frontmatter,
+            &files_yaml,
+        );
+        (patched, parsed.body)
+    } else {
+        // Plain markdown document: wrap the content in spec frontmatter and
+        // keep the body verbatim below it.
+        let body = ensure_h1_title(&normalized, stem);
+        let fm = format!(
+            "---\nmodule: {module_name}\nversion: 1\nstatus: draft\n{files_yaml}\ndb_tables: []\ndepends_on: []\n---\n"
+        );
+        (format!("{fm}\n{body}"), body)
+    };
+
+    // Scaffold only the required sections the source doesn't already have.
+    let missing = crate::parser::get_missing_sections(&body, &config.required_sections);
+    for section in &missing {
+        spec_text.push_str(&stub_for_section(section, &import_note));
+    }
+
+    Ok(FromDirImport {
+        module_name,
+        spec_content: spec_text,
+        warnings,
+    })
+}
+
+/// Patch a spec's raw frontmatter text in place: fill in a missing `module`,
+/// `version`, `status`, and a missing/empty `files:` list. Everything else —
+/// including unknown/custom fields — is preserved verbatim.
+fn patch_frontmatter(
+    content: &str,
+    module_name: &str,
+    fm: &crate::types::Frontmatter,
+    files_yaml: &str,
+) -> String {
+    let Some(fm_end) = content.find("\n---\n") else {
+        return content.to_string();
+    };
+    let (fm_block, rest) = content.split_at(fm_end);
+    let mut fm_block = fm_block.to_string();
+
+    let mut insertions: Vec<String> = Vec::new();
+    if fm.module.is_none() {
+        insertions.push(format!("module: {module_name}"));
+    }
+    if fm.version.is_none() {
+        insertions.push("version: 1".to_string());
+    }
+    if fm.status.is_none() {
+        insertions.push("status: draft".to_string());
+    }
+
+    // Replace an empty files list (or add one when absent) with detected files.
+    let files_block_re = regex::Regex::new(
+        r"(?m)^files:\s*\[\]\s*$|^files:[ \t]*\n(?:[ \t]+-[ \t]+.+[ \t]*\n?)*",
+    )
+    .unwrap();
+    if fm.files.is_empty() {
+        if files_block_re.is_match(&fm_block) {
+            if !files_yaml.starts_with("files: []") {
+                fm_block = files_block_re
+                    .replace(&fm_block, files_yaml.trim_end())
+                    .to_string();
+            }
+        } else {
+            // No `files:` key at all — add one explicitly (empty or detected).
+            insertions.push(files_yaml.to_string());
+        }
+    }
+
+    if !insertions.is_empty() {
+        if !fm_block.ends_with('\n') {
+            fm_block.push('\n');
+        }
+        fm_block.push_str(&insertions.join("\n"));
+        fm_block.push('\n');
+        // trim_end keeps the block newline-normalized before the closing `---`
+        fm_block = format!("{}\n", fm_block.trim_end());
+    }
+
+    format!("{fm_block}{rest}")
+}
+
+/// Ensure the document body has an H1 title; derive one from the file stem if not.
+fn ensure_h1_title(body: &str, stem: &str) -> String {
+    if body.lines().any(|l| l.starts_with("# ")) {
+        return body.to_string();
+    }
+    let title = stem
+        .split(['-', '_'])
+        .filter(|w| !w.is_empty())
+        .map(|w| {
+            let mut chars = w.chars();
+            match chars.next() {
+                Some(c) => c.to_uppercase().to_string() + chars.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!("# {title}\n\n{body}")
+}
+
+/// Scaffold content for one missing required section.
+fn stub_for_section(section: &str, import_note: &str) -> String {
+    match section {
+        "Purpose" => "\n## Purpose\n\nDocument this module's responsibility, inputs, outputs, and ownership boundaries.\n".to_string(),
+        "Public API" => "\n## Public API\n\n| Export | Description |\n|--------|-------------|\n".to_string(),
+        "Invariants" => "\n## Invariants\n\n1. Define an invariant that must remain true for supported inputs.\n".to_string(),
+        "Behavioral Examples" => "\n## Behavioral Examples\n\n### Scenario: Core behavior\n\n- **Given** precondition\n- **When** action\n- **Then** result\n".to_string(),
+        "Error Cases" => "\n## Error Cases\n\n| Condition | Behavior |\n|-----------|----------|\n".to_string(),
+        "Dependencies" => "\n## Dependencies\n\nList runtime dependencies and the specific symbols, services, or data they provide.\n".to_string(),
+        "Change Log" => format!(
+            "\n## Change Log\n\n| Date | Change |\n|------|--------|\n| {} | {import_note} |\n",
+            import_today()
+        ),
+        other => format!("\n## {other}\n\nTODO: document {other}.\n"),
+    }
+}
+
+/// Today's date as YYYY-MM-DD (no chrono dependency).
+fn import_today() -> String {
+    let output = std::process::Command::new("date")
+        .args(["+%Y-%m-%d"])
+        .output();
+    match output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
+        _ => "YYYY-MM-DD".to_string(),
+    }
+}
 /// Collect all .md files in a directory (one level deep).
 fn collect_markdown_files(dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
@@ -397,38 +623,6 @@ fn collect_markdown_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// Parse a markdown file into an ImportedItem for spec generation.
-fn parse_markdown_as_import_item(filename: &str, content: &str) -> importer::ImportedItem {
-    // Extract title from first H1 heading, fall back to filename
-    let title = content
-        .lines()
-        .find(|l| l.starts_with("# "))
-        .map(|l| l.trim_start_matches("# ").trim().to_string())
-        .unwrap_or_else(|| filename.to_string());
-
-    // Purpose: first non-empty paragraph after the title (or the title itself)
-    let purpose = content
-        .lines()
-        .skip_while(|l| l.starts_with("# ") || l.trim().is_empty())
-        .find(|l| !l.trim().is_empty())
-        .unwrap_or(&title)
-        .trim()
-        .to_string();
-
-    let requirements = importer::extract_requirements_pub(content);
-    let module_name = importer::slugify(filename);
-
-    importer::ImportedItem {
-        module_name,
-        purpose,
-        requirements,
-        labels: Vec::new(),
-        source_url: String::new(),
-        issue_number: None,
-        source_type: importer::ImportSource::Confluence, // closest semantic match for "doc"
-    }
-}
-
 fn print_batch_summary(operation: &str, stats: &BatchStats) {
     let total = stats.imported + stats.skipped + stats.errors;
     println!(
@@ -449,5 +643,88 @@ fn print_batch_summary(operation: &str, stats: &BatchStats) {
             "Tip:".cyan().bold(),
             "specsync check".bold()
         );
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_config() -> crate::types::SpecSyncConfig {
+        crate::types::SpecSyncConfig::default()
+    }
+
+    #[test]
+    fn from_dir_preserves_existing_spec_content() {
+        // #416: import must not discard frontmatter/sections/API tables.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(root.join("src/auth.rs"), "pub fn login() {}\n").unwrap();
+
+        let source = "---\nmodule: auth\nversion: 3\nstatus: active\nfiles:\n  - src/auth.rs\ndb_tables: []\ndepends_on: []\ncustom_field: keepme\n---\n\n# Auth\n\n## Purpose\n\nHandles login sessions and token refresh.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2024-01-01 | Real history |\n";
+        let import = build_imported_spec(root, &test_config(), "auth", "docs/auth.md", source)
+            .expect("parseable spec imports");
+
+        // Original content preserved verbatim.
+        assert!(import.spec_content.contains("version: 3"));
+        assert!(import.spec_content.contains("status: active"));
+        assert!(import.spec_content.contains("custom_field: keepme"));
+        assert!(import.spec_content.contains("Handles login sessions and token refresh."));
+        assert!(import.spec_content.contains("2024-01-01 | Real history"));
+        // No wrong attribution.
+        assert!(!import.spec_content.contains("Confluence"));
+        // Missing required sections scaffolded.
+        assert!(import.spec_content.contains("## Invariants"));
+        assert!(import.spec_content.contains("## Error Cases"));
+    }
+
+    #[test]
+    fn from_dir_wraps_plain_markdown_without_losing_content() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let doc = "# Billing\n\nBilling handles invoices and payments.\n";
+        let import = build_imported_spec(root, &test_config(), "billing", "docs/billing.md", doc)
+            .expect("plain markdown imports");
+        assert!(import.spec_content.contains("module: billing"));
+        assert!(import.spec_content.contains("Billing handles invoices and payments."));
+        assert!(import.spec_content.contains("## Purpose"));
+        assert!(import.spec_content.contains("Imported from docs/billing.md"));
+        assert!(!import.spec_content.contains("Confluence"));
+    }
+
+    #[test]
+    fn from_dir_detects_source_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("src/billing")).unwrap();
+        std::fs::write(root.join("src/billing/mod.rs"), "pub fn invoice() {}\n").unwrap();
+        let import = build_imported_spec(root, &test_config(), "billing", "docs/billing.md", "# Billing\n")
+            .unwrap();
+        assert!(import.spec_content.contains("- src/billing/mod.rs"), "{}", import.spec_content);
+        assert!(import.warnings.is_empty());
+    }
+
+    #[test]
+    fn from_dir_fails_loudly_on_unparseable_input() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        // Empty file
+        assert!(build_imported_spec(root, &test_config(), "x", "x.md", "  \n").is_err());
+        // Broken frontmatter (opening --- with no closing)
+        assert!(
+            build_imported_spec(root, &test_config(), "x", "x.md", "---\nmodule: x\nno closing\n")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn from_dir_strips_spec_suffix_from_stem() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let import = build_imported_spec(root, &test_config(), "auth", "docs/auth.spec.md", "# Auth\n")
+            .unwrap();
+        assert_eq!(import.module_name, "auth");
     }
 }

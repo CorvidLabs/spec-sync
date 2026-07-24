@@ -1200,4 +1200,31 @@ None.
         assert!(dimensions.contains(&"Depth"), "missing Depth");
         assert!(dimensions.contains(&"Freshness"), "missing Freshness");
     }
+
+    #[test]
+    fn all_generator_placeholder_spec_does_not_score_a() {
+        // #421: a spec made of 100% the tool's own placeholder text must not
+        // score 100/A — placeholder sentences are draft markers.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(root.join("src/thing.ts"), "export function thing() {}\n").unwrap();
+        let spec_dir = root.join("specs").join("thing");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        let spec_path = spec_dir.join("thing.spec.md");
+        std::fs::write(
+            &spec_path,
+            "---\nmodule: thing\nversion: 1\nstatus: draft\nfiles:\n  - src/thing.ts\ndb_tables: []\ndepends_on: []\n---\n\n# Thing\n\n## Purpose\n\nDocument this module's responsibility, inputs, outputs, and ownership boundaries.\n\n## Public API\n\n| Export | Description |\n|--------|-------------|\n| `thing` | Document the export's responsibility and caller-visible behavior. |\n\n## Invariants\n\n1. Define an invariant that must remain true for supported inputs.\n\n## Behavioral Examples\n\n### Scenario: Core behavior\n\n- **Given** precondition\n- **When** action\n- **Then** result\n\n## Error Cases\n\n| Condition | Behavior |\n|-----------|----------|\n\n## Dependencies\n\nList runtime dependencies and the specific symbols, services, or data they provide.\n\n## Change Log\n\n| Change | Date | Version |\n|--------|------|---------|\n",
+        )
+        .unwrap();
+        let config = crate::types::SpecSyncConfig::default();
+        let score = score_spec(&spec_path, root, &config);
+        assert!(
+            score.total < 90,
+            "all-placeholder spec must not reach an A, got {} ({})",
+            score.total,
+            score.grade
+        );
+        assert_ne!(score.grade, "A");
+    }
 }

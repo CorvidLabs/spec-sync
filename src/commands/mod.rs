@@ -669,6 +669,24 @@ fn colorize_subscore(score: u32) -> String {
     }
 }
 
+/// Resolve the enforcement mode when the user did NOT pass `--enforcement`.
+///
+/// Consistent convention across all gate commands (`check`, `coverage`,
+/// `report`, `score`, `generate`, `comment`):
+/// - an explicit `enforcement` key in the config file is honored as-is
+///   (including `warn`, which always exits 0);
+/// - when enforcement is not configured anywhere, the default GATES ON
+///   ERRORS (`Strict`-like): validation errors exit 1. Warnings remain
+///   non-blocking unless `--strict` is also passed. This is the only safe
+///   default for CI — a command that prints "1 failed" must not exit 0.
+pub fn default_enforcement(config: &types::SpecSyncConfig) -> types::EnforcementMode {
+    if config.enforcement_set {
+        config.enforcement
+    } else {
+        types::EnforcementMode::Strict
+    }
+}
+
 /// Compute exit code without printing or exiting.
 pub fn compute_exit_code(
     total_errors: usize,

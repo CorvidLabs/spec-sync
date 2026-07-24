@@ -1835,17 +1835,30 @@ pub fn compute_coverage(
         }
     }
 
+    // Files a spec references in `files:` that do not exist on disk. They are
+    // "covered" only on paper: counting them toward the denominator (but never
+    // the numerator) stops `--require-coverage 100` from passing vacuously over
+    // broken references, and lets the report name them instead of printing a
+    // false "All source files referenced by specs" green line.
+    let mut missing_files: Vec<String> = specced_files
+        .iter()
+        .filter(|f| !root.join(f).exists())
+        .cloned()
+        .collect();
+    missing_files.sort();
+
     let specced_count = all_source_files.len() - unspecced_files.len();
-    let coverage_percent = if all_source_files.is_empty() {
+    let total_files = all_source_files.len() + missing_files.len();
+    let coverage_percent = if total_files == 0 {
         100
     } else {
-        (specced_count * 100) / all_source_files.len()
+        (specced_count * 100) / total_files
     };
 
     let loc_coverage_percent = (specced_loc * 100).checked_div(total_loc).unwrap_or(100);
 
     CoverageReport {
-        total_source_files: all_source_files.len(),
+        total_source_files: total_files,
         specced_file_count: specced_count,
         unspecced_files,
         unspecced_modules,
@@ -1854,5 +1867,6 @@ pub fn compute_coverage(
         specced_loc,
         loc_coverage_percent,
         unspecced_file_loc,
+        missing_files,
     }
 }

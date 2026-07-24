@@ -9,7 +9,9 @@ use crate::ignore::IgnoreRules;
 use crate::types;
 use crate::validator::{compute_coverage, get_schema_table_names};
 
-use super::{build_schema_columns, compute_exit_code, load_and_discover, run_validation};
+use super::{
+    build_schema_columns, compute_exit_code, default_enforcement, load_and_discover, run_validation,
+};
 
 pub fn cmd_comment(
     root: &Path,
@@ -29,7 +31,7 @@ pub fn cmd_comment(
     let enforcement = enforcement.unwrap_or(if strict {
         types::EnforcementMode::Strict
     } else {
-        config.enforcement
+        default_enforcement(&config)
     });
 
     // Use the same validation pipeline as `check` for consistent results

@@ -210,6 +210,7 @@ fn run() {
             threshold,
             &cli.exclude_status,
             &cli.only_status,
+            cli.enforcement,
         ),
         Command::Report { stale_threshold } => commands::report::cmd_report(
             &root,

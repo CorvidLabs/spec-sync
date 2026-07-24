@@ -81,7 +81,7 @@ pub fn cmd_report(
                         continue;
                     }
                     let behind = git_commits_since(root, &spec_commit, source_file);
-                    if behind >= stale_threshold {
+                    if behind > 0 && behind >= stale_threshold {
                         stale = true;
                         max_behind = max_behind.max(behind);
                     }

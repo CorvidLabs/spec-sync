@@ -16,7 +16,8 @@ use crate::validator::{compute_coverage, get_schema_table_names};
 use crate::config::is_legacy_layout;
 
 use super::{
-    build_schema_columns, compute_exit_code, create_drift_issues, exit_with_status,
+    build_schema_columns, compute_exit_code, create_drift_issues, default_enforcement,
+    exit_with_status,
     filter_by_status, filter_specs, load_and_discover, run_validation,
 };
 
@@ -136,7 +137,7 @@ pub fn cmd_check(
     let enforcement = enforcement.unwrap_or(if strict {
         types::EnforcementMode::Strict
     } else {
-        config.enforcement
+        default_enforcement(&config)
     });
 
     // Spec name filters that matched nothing are an error — don't fall through

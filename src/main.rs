@@ -160,7 +160,7 @@ fn run() {
             &cli.only_status,
         ),
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
-        Command::Mcp => mcp::run_mcp_server(&root),
+        Command::Mcp { allow_writes } => mcp::run_mcp_server(&root, allow_writes),
         Command::AddSpec { name } => commands::scaffold::cmd_add_spec(&root, &name),
         Command::Scaffold {
             name,

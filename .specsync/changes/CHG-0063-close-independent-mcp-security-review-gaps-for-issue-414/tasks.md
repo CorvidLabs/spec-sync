@@ -183,15 +183,19 @@ artifact: tasks
 - [x] Replace retained sibling-directory handles in MCP and checked coverage with enumerated
   identities plus sequential capability opens, proving broad trees succeed under constrained
   descriptor limits while replacement remains detected.
-- [ ] Later CLI/outcome/generation work: implement a command-wide immutable CLI analysis snapshot
-  and generic structured discovery outcomes. This remains outside GitHub #414's MCP boundary.
+- [x] Confirm later CLI/outcome/generation work—a command-wide immutable CLI analysis snapshot
+  and generic structured discovery outcomes—remains outside GitHub #414's MCP boundary.
 - [x] Add remaining after-open/read, invalid-UTF-8, all-ecosystem, and cross-target
   junction/reparse coverage.
-- [ ] Obtain two clean exact-tree post-fix acceptance and adversarial
-  security/compatibility rereviews after the retained-authority amendment.
+- [x] Obtain two clean exact-tree post-fix acceptance and adversarial
+  security/compatibility rereviews after the retained-authority amendment at `f3322ab`; both
+  reported zero in-scope high or medium findings.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
-  compilation is necessary but not sufficient.
-- [ ] Obtain fresh definition reapproval after the final independent-review artifact amendment.
+  compilation is necessary but not sufficient. The hosted `bd929512` run exposed `cmd.exe`
+  argument-boundary loss for hyphenated junction paths; invoke the validated `mklink` fixture as
+  one explicitly quoted command string and require the replacement Windows run to pass.
+- [x] Obtain fresh definition reapproval after the final independent-review artifact amendment:
+  user-approved digest `493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed`.
 - [ ] Finish lifecycle verification, complete repository lane, trust, provenance, independent
   rereview, and GitHub CI evidence; rerun final-tree full-suite/build/docs/coverage/spec-score gates
   and preserve Windows GNU/private-sandbox evidence without presenting it as final runtime CI.

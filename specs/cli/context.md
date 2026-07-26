@@ -14,6 +14,7 @@ spec: cli.spec.md
 - **Panic guard**: `main()` wraps `run()` in `std::panic::catch_unwind` and prints a "please report it" message with the issue tracker URL instead of a raw backtrace.
 - **Deterministic generation**: `generate` accepts module selection only; coding-agent enrichment is reached through Agents or MCP, not embedded inference flags.
 - **Recursive lifecycle boundary**: Before dispatching `change` or `lifecycle`, `main.rs` consults the inherited verification context and exits once with a contextual diagnostic; the default/check path uses the same domain guard through unified checking.
+- **Score gate dispatch**: `main.rs` forwards the optional bounded minimum; strict mode establishes an effective floor of 80 in the score handler.
 
 ## Files to Read First
 

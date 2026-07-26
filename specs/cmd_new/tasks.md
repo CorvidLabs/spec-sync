@@ -17,12 +17,14 @@ spec: cmd_new.spec.md
 - [x] `--full` companion generation via `generator::generate_companion_files_for_spec`, with conditional `design.md`
 - [x] Refuse to overwrite an existing spec (exit 1)
 - [x] Replace unfinished-marker Public API rows with review prompts
+- [x] #421: replace the command-local partial template with the shared complete renderer
+- [x] #421: cover every required section and valid empty-draft frontmatter
 - [x] In-module `chrono_lite_today()` date helper (no chrono dependency)
 
 ## Gaps
 
-- `src/commands/new.rs` has no inline `#[cfg(test)]` module. Integration tests cover basic creation, source detection,
-  no-match guidance, and module-name safety; `--full` and refuse-overwrite remain explicit test debt above.
+- Integration tests cover basic creation, shared required-section rendering, source detection, no-match guidance,
+  and module-name safety; `--full` and refuse-overwrite remain explicit test debt above.
 
 ## Review Status
 

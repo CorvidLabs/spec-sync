@@ -60,9 +60,11 @@ Quality-score your spec files on a 0–100 scale with per-spec improvement sugge
 ```bash
 specsync score                          # score all specs
 specsync score --json                   # machine-readable scores
+specsync score --min-score 80           # fail if any selected spec is below 80
+specsync score --strict                 # strict scoring implies min-score 80
 ```
 
-Scores are based on a weighted rubric: completeness, detail level, API table coverage, behavioral examples, and more.
+Scores are based on a weighted rubric: completeness, detail level, API table coverage, behavioral examples, and freshness. Scoring is advisory by default. `--min-score N` enforces a per-spec threshold from 0–100; `--strict` enforces at least 80. JSON adds `minimum_score` and `gate_passed` and remains parseable when the gate fails.
 
 ### `mcp`
 
@@ -453,6 +455,7 @@ specsync watch
 | `--dot` | Output dependency graph as Graphviz DOT (on `deps`). |
 | `--full` | Include companion files when creating a spec (on `new`). |
 | `--all` | Process all items, not just the first match (on `merge`, `score`). |
+| `--min-score N` | Fail when any selected spec scores below N (0–100, on `score`); `--strict` implies 80. |
 
 ---
 
@@ -461,7 +464,8 @@ specsync watch
 | Code | Meaning |
 |:-----|:--------|
 | `0` | All checks passed |
-| `1` | Errors found, warnings with `--strict`, or coverage below threshold |
+| `1` | Errors found, warnings with `--strict`, coverage below threshold, or a score gate failed |
+| `2` | Invalid CLI usage, including an out-of-range score threshold |
 
 ---
 

@@ -31,6 +31,7 @@ spec: cli.spec.md
 - `generate` accepts no provider/model options and delegates only to the deterministic generator
 - A panic in any subcommand is caught and reported as a "please report it" bug message rather than a raw backtrace
 - `change` dispatches every lifecycle operation through the shared domain engine and preserves structured JSON output
+- `score --min-score N` reaches the score handler unchanged, while strict scoring implies an effective minimum of at least 80
 
 ## Constraints
 
@@ -81,4 +82,3 @@ Acceptance Criteria
 - Explicit and default `check`, `change`, and `lifecycle` commands fail before handler-specific discovery, warnings, validation, or mutation.
 - The process emits one contextual diagnostic and exits non-zero.
 - Commands outside the lifecycle boundary preserve current dispatch behavior.
-

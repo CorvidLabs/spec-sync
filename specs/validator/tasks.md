@@ -27,6 +27,8 @@ spec: validator.spec.md
 - [x] Measure default HTML, HTM, and CSS sources in coverage
 - [x] Reject known unfilled companion scaffold markers in strict mode
 - [x] Reject every marker emitted by the built-in design companion template
+- [x] #421: distinguish explicit empty draft file lists from YAML null
+- [x] #421: keep freshly generated draft markers advisory-free until promotion
 
 ## Gaps
 

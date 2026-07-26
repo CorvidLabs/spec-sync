@@ -162,6 +162,29 @@ fn has_coverage_extension(path: &Path, config: &SpecSyncConfig) -> bool {
 
 // ─── Single Spec Validation ──────────────────────────────────────────────
 
+/// Return true when the YAML frontmatter explicitly declares an empty files
+/// sequence (`files: []`). A bare `files:` is YAML null and must remain invalid.
+fn frontmatter_has_explicit_empty_files(content: &str) -> bool {
+    let mut lines = content.lines();
+    if lines.next().map(str::trim) != Some("---") {
+        return false;
+    }
+    for line in lines {
+        let trimmed = line.trim();
+        if trimmed == "---" {
+            break;
+        }
+        if let Some(value) = trimmed.strip_prefix("files:") {
+            let value = value.split(" #").next().unwrap_or(value);
+            return value
+                .chars()
+                .filter(|c| !c.is_whitespace())
+                .eq("[]".chars());
+        }
+    }
+    false
+}
+
 /// Validate a single spec file against source code.
 pub fn validate_spec(
     spec_path: &Path,
@@ -219,7 +242,9 @@ pub fn validate_spec(
         return result;
     }
 
-    validate_companion_scaffold_markers(spec_path, root, &mut result);
+    if fm.parsed_status() != Some(crate::types::SpecStatus::Draft) {
+        validate_companion_scaffold_markers(spec_path, root, &mut result);
+    }
 
     let config_hint = config
         .config_path
@@ -282,7 +307,10 @@ pub fn validate_spec(
             }
         }
     }
-    if fm.files.is_empty() {
+    let planned_empty_draft = !config.require_draft_files
+        && fm.parsed_status() == Some(crate::types::SpecStatus::Draft)
+        && frontmatter_has_explicit_empty_files(&content);
+    if fm.files.is_empty() && !planned_empty_draft {
         result.errors.push(
             "Frontmatter missing required field: files (must be a non-empty list)".to_string(),
         );
@@ -467,7 +495,7 @@ pub fn validate_spec(
 
     // ─── Level 1.7: Empty-Draft Section Detection ───────────────────
     let stub_sections = find_stub_sections(body, &config.required_sections);
-    if !stub_sections.is_empty() {
+    if !is_draft && !stub_sections.is_empty() {
         for section in &stub_sections {
             result.warnings.push(format!(
                 "Section ## {section} contains only unfinished draft text"
@@ -1048,6 +1076,46 @@ pub(crate) fn normalize_source_mapping(file: &str) -> Option<String> {
 #[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_empty_files_is_distinct_from_yaml_null() {
+        let explicit = "---\nmodule: ghost\nversion: 1\nstatus: draft\nfiles: []\n---\n\n# Ghost\n";
+        let null = "---\nmodule: ghost\nversion: 1\nstatus: draft\nfiles:\n  # add a source\n---\n";
+
+        assert!(frontmatter_has_explicit_empty_files(explicit));
+        assert!(!frontmatter_has_explicit_empty_files(null));
+    }
+
+    #[test]
+    fn explicit_empty_draft_respects_require_draft_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let spec_path = tmp.path().join("ghost.spec.md");
+        fs::write(
+            &spec_path,
+            "---\nmodule: ghost\nversion: 1\nstatus: draft\nfiles: []\ndb_tables: []\ndepends_on: []\n---\n\n# Ghost\n",
+        )
+        .unwrap();
+        let config = SpecSyncConfig {
+            require_draft_files: true,
+            ..SpecSyncConfig::default()
+        };
+        let result = validate_spec(
+            &spec_path,
+            tmp.path(),
+            &HashSet::new(),
+            &HashMap::new(),
+            &config,
+        );
+
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("files (must be a non-empty list)")),
+            "{:?}",
+            result.errors
+        );
+    }
 
     #[test]
     fn test_compute_coverage_double_star_exclude_no_panic() {

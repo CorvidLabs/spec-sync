@@ -16,6 +16,7 @@ spec: cli.spec.md
 | `tests/integration.rs` | cargo test --test integration require_coverage_on_coverage_subcommand | End-to-end fixture: `require_coverage_on_coverage_subcommand` |
 | `tests/integration.rs` | cargo test --test integration strict_on_coverage_subcommand | End-to-end fixture: `strict_on_coverage_subcommand` |
 | `tests/integration.rs` | cargo test --test integration toml_config_is_loaded | End-to-end fixture: `toml_config_is_loaded` |
+| Score gate dispatch | `cargo test --test integration score_minimum_gate_and_strict_reject_untouched_scaffolds` | Explicit minimum and strict-implied 80 both reach the handler |
 
 ## Behavioral Verification
 

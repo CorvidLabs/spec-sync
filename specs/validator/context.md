@@ -5,13 +5,13 @@ spec: validator.spec.md
 ## Key Decisions
 
 - **Bidirectional validation**: Spec documents non-existent export = ERROR (spec is wrong). Code exports undocumented symbol = WARNING (spec is incomplete). This asymmetry reflects that incorrect docs are worse than incomplete docs.
-- **Missing frontmatter fields are errors**: `module`, `version`, `status`, and `files` are all required. Missing any of these is an error, not a warning, because downstream modules depend on them.
+- **Missing frontmatter fields are errors**: `module`, `version`, and `status` are required. `files` must be a list; an explicit empty list is allowed only for draft scaffolds, while a bare/null value is invalid.
 - **Cross-project refs skipped locally**: References in `owner/repo@module` format are silently skipped during `specsync check`. They're only validated with `specsync resolve --remote`.
 - **Levenshtein suggestions**: When a referenced file doesn't exist, the validator suggests similar filenames (edit distance ≤ 3) to help catch typos.
 - **Coverage excludes tests**: Test files (detected by `is_test_file()`) are excluded from coverage metrics, since test code doesn't need specs.
 - **Module detection cascade**: User-defined modules (config) → manifest-discovered modules → subdirectory scanning → flat file detection. Each level is a fallback.
 - **Static coverage is non-vacuous**: HTML, HTM, and CSS files participate in default source discovery even though they expose no API symbols.
-- **Generated companion markers fail strict**: Every known artifact-specific scaffold prompt emitted by the built-in templates, including all Layout, Components, Tokens, and Assets design bullets, emits a path-and-line warning outside fenced examples; strict mode promotes those warnings to errors.
+- **Generated companion markers fail after promotion**: Draft scaffolds skip marker diagnostics; review/active/stable artifacts emit path-and-line warnings outside fenced examples, and strict mode promotes them to errors.
 
 ## Files to Read First
 

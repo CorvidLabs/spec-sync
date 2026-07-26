@@ -14,6 +14,7 @@ spec: cmd_score.spec.md
 - [x] Requirements and acceptance criteria documented (now covering table/CSV formats, `--all`, batch summary, status filters)
 - [x] Text, JSON, table, and CSV output paths covered by `tests/integration.rs`
 - [x] MCP score tool path covered (`mcp_score_tool_returns_grades`)
+- [x] #421: add `--min-score`, strict ≥80 behavior, structured gate fields, and usage validation
 - [x] CSV SUMMARY row and table-without-`--all` behavior covered
 
 ## Gaps

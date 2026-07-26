@@ -9,7 +9,6 @@ spec: scoring.spec.md
 - [ ] Add configurable scoring weights (allow projects to prioritize certain dimensions)
 - [ ] Add historical score tracking (compare current scores against previous runs)
 - [ ] Add per-section content quality heuristics (beyond just "has content")
-- [ ] Support a minimum score threshold in CI (`--min-score 70`)
 
 ## Done
 
@@ -20,6 +19,9 @@ spec: scoring.spec.md
 - [x] Actionable improvement suggestions
 - [x] Project-level score aggregation with grade distribution
 - [x] No-export modules handled gracefully
+- [x] Support a minimum score threshold in CI (`--min-score 70`) through the score command
+- [x] #421: generator placeholders and all-TODO scaffolds remain below 80
+- [x] #421: add a non-Git source-modification freshness fallback
 
 ## Gaps
 

@@ -145,6 +145,7 @@ fn run() {
         ),
         Command::Score {
             explain,
+            min_score,
             all,
             specs,
         } => commands::score::cmd_score(
@@ -152,6 +153,7 @@ fn run() {
             cli.strict,
             cli.enforcement,
             cli.require_coverage,
+            min_score,
             format,
             explain,
             all,

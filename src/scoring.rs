@@ -410,7 +410,11 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     // ─── Content Depth (0-20) ────────────────────────────────────────
     let mut depth_points = 0u32;
     let todo_count = count_placeholder_todos(body);
-    let placeholder_count = count_placeholder_comments(body);
+    let boilerplate_count = body
+        .lines()
+        .filter(|line| crate::parser::is_stub_line(line))
+        .count();
+    let placeholder_count = count_placeholder_comments(body) + boilerplate_count;
 
     // Check each required section has meaningful content (stubs don't count)
     let sections_with_content = count_sections_with_content(body, &config.required_sections);
@@ -565,9 +569,13 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         0
     };
 
-    // Git-based staleness: penalize if source files have commits since spec was last updated
+    // Git-based staleness: penalize if source files have commits since spec was last updated.
+    // For an untracked/new spec, fall back to modification times so freshness does
+    // not vacuously score 20/20 when a source changed after its spec.
     let mut git_penalty = 0u32;
     let mut git_behind: usize = 0;
+    let mut git_baseline_available = false;
+    let mut source_newer_than_spec = false;
     if !fm.files.is_empty() && git_utils::is_git_repo(root) {
         let rel_path = spec_path
             .strip_prefix(root)
@@ -575,6 +583,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             .to_string_lossy()
             .to_string();
         if let Some(spec_commit) = git_utils::git_last_commit_hash(root, &rel_path) {
+            git_baseline_available = true;
             let mut max_behind: usize = 0;
             for file in &fm.files {
                 if root.join(file).exists() {
@@ -596,6 +605,24 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
                     "Freshness (-{git_penalty}pts): spec is {max_behind} commits behind source files"
                 ));
             }
+        }
+    }
+    if !fm.files.is_empty()
+        && !git_baseline_available
+        && let Ok(spec_modified) = fs::metadata(spec_path).and_then(|meta| meta.modified())
+    {
+        source_newer_than_spec = fm.files.iter().any(|file| {
+            crate::validator::source_within_root(root, file)
+                && fs::metadata(root.join(file))
+                    .and_then(|meta| meta.modified())
+                    .is_ok_and(|modified| modified > spec_modified)
+        });
+        if source_newer_than_spec {
+            git_penalty = FRESH_GIT_MAX;
+            fresh_points = fresh_points.saturating_sub(git_penalty);
+            score.suggestions.push(format!(
+                "Freshness (-{git_penalty}pts): source files were modified after the spec"
+            ));
         }
     }
 
@@ -639,7 +666,9 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
                 passed: git_penalty == 0,
                 points: FRESH_GIT_MAX.saturating_sub(git_penalty),
                 max_points: FRESH_GIT_MAX,
-                detail: if git_behind >= 5 {
+                detail: if source_newer_than_spec {
+                    Some("source files were modified after the spec".to_string())
+                } else if git_behind >= 5 {
                     Some(format!("{git_behind} commits behind source files"))
                 } else {
                     None
@@ -657,14 +686,19 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
 
     score.grade = letter_grade(score.total);
 
-    // A-grade requires real content — specs with ≥50% stub sections are capped at B.
-    // This prevents fully-stubbed specs with clean metadata from reaching an A.
+    // A generated/all-TODO scaffold must not clear the documented 80-point bar.
+    // If at least half of required sections are stubs and unfinished markers are
+    // still present, cap below B until the draft content is replaced.
     let total_req = config.required_sections.len();
-    if score.grade == "A" && total_req > 0 && stub_sections.len() * 2 >= total_req {
-        score.grade = "B";
-        score.total = score.total.min(GRADE_A_MIN - 1);
+    if total_req > 0
+        && stub_sections.len() * 2 >= total_req
+        && todo_count + placeholder_count > 0
+        && score.total >= GRADE_B_MIN
+    {
+        score.total = GRADE_B_MIN - 1;
+        score.grade = letter_grade(score.total);
         score.suggestions.push(format!(
-            "Grade capped at B: {}/{} required sections contain only unfinished draft content — replace it with real documentation",
+            "Score capped below 80: {}/{} required sections contain only unfinished draft content — replace it with real documentation",
             stub_sections.len(),
             total_req
         ));
@@ -1203,8 +1237,8 @@ None.
 
     #[test]
     fn all_generator_placeholder_spec_does_not_score_a() {
-        // #421: a spec made of 100% the tool's own placeholder text must not
-        // score 100/A — placeholder sentences are draft markers.
+        // #421: an untouched generated scaffold must stay below the documented
+        // CI quality bar, not merely below an A.
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
         std::fs::create_dir_all(root.join("src")).unwrap();
@@ -1220,11 +1254,75 @@ None.
         let config = crate::types::SpecSyncConfig::default();
         let score = score_spec(&spec_path, root, &config);
         assert!(
-            score.total < 90,
-            "all-placeholder spec must not reach an A, got {} ({})",
+            score.total < 80,
+            "all-placeholder spec must stay below 80, got {} ({})",
             score.total,
             score.grade
         );
         assert_ne!(score.grade, "A");
+        assert_ne!(score.grade, "B");
+    }
+
+    #[test]
+    fn all_todo_spec_stays_below_passing_bar() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(root.join("src/empty.ts"), "const internal = true;\n").unwrap();
+        let spec_dir = root.join("specs").join("empty");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        let spec_path = spec_dir.join("empty.spec.md");
+        std::fs::write(
+            &spec_path,
+            "---\nmodule: empty\nversion: 1\nstatus: draft\nfiles:\n  - src/empty.ts\ndb_tables: []\ndepends_on: []\n---\n\n# Empty\n\n## Purpose\nTODO\n\n## Public API\nTODO\n\n## Invariants\nTODO\n\n## Behavioral Examples\nTODO\n\n## Error Cases\nTODO\n\n## Dependencies\nTODO\n\n## Change Log\nTODO\n",
+        )
+        .unwrap();
+
+        let score = score_spec(&spec_path, root, &SpecSyncConfig::default());
+        assert!(score.total < 80, "all-TODO score was {}", score.total);
+    }
+
+    #[test]
+    fn freshness_detects_source_newer_than_untracked_spec() {
+        use std::fs::{FileTimes, OpenOptions};
+        use std::time::{Duration, UNIX_EPOCH};
+
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        let source_path = root.join("src/auth.ts");
+        std::fs::write(&source_path, "export function login() {}\n").unwrap();
+        let spec_dir = root.join("specs").join("auth");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        let spec_path = spec_dir.join("auth.spec.md");
+        std::fs::write(
+            &spec_path,
+            "---\nmodule: auth\nversion: 1\nstatus: active\nfiles:\n  - src/auth.ts\ndb_tables: []\ndepends_on: []\n---\n\n# Auth\n\n## Purpose\nAuthenticates users.\n\n## Public API\n\n| Export | Description |\n|--------|-------------|\n| `login` | Authenticates a user. |\n\n## Invariants\nCredentials are validated.\n\n## Behavioral Examples\nA valid login returns a session.\n\n## Error Cases\nInvalid credentials are rejected.\n\n## Dependencies\nNo runtime dependencies.\n\n## Change Log\n2020-01-01: initial.\n",
+        )
+        .unwrap();
+
+        let spec_time = UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+        let source_time = spec_time + Duration::from_secs(60);
+        OpenOptions::new()
+            .write(true)
+            .open(&spec_path)
+            .unwrap()
+            .set_times(FileTimes::new().set_modified(spec_time))
+            .unwrap();
+        OpenOptions::new()
+            .write(true)
+            .open(&source_path)
+            .unwrap()
+            .set_times(FileTimes::new().set_modified(source_time))
+            .unwrap();
+
+        let score = score_spec(&spec_path, root, &SpecSyncConfig::default());
+        assert_eq!(score.freshness_score, 15, "{:?}", score.suggestions);
+        assert!(
+            score
+                .suggestions
+                .iter()
+                .any(|suggestion| suggestion.contains("modified after the spec"))
+        );
     }
 }

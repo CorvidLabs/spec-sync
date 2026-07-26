@@ -10,6 +10,8 @@ spec: scoring.spec.md
 - **No-exports = full API score**: Modules with no extractable exports (e.g., config-only, types-only) receive full API coverage points rather than being penalized for having nothing to document.
 - **Stale reference penalties**: Missing source files cost 5 points each (max 15), missing dependency specs cost 3 points each. This encourages keeping specs in sync with code changes.
 - **Actionable suggestions**: Each score includes specific improvement suggestions (e.g., "Add version field to frontmatter") so users know exactly what to fix.
+- **No scaffold false pass**: Unfinished markers in at least half of required sections cap the score below 80.
+- **Freshness fallback**: Untracked specs compare source/spec modification times when no committed Git baseline exists.
 
 ## Files to Read First
 
@@ -17,7 +19,7 @@ spec: scoring.spec.md
 
 ## Current Status
 
-Fully implemented. Individual spec scoring and project-level aggregation both work. The MCP server exposes scoring through the `specsync_score` tool.
+Fully implemented. Individual spec scoring and project-level aggregation both work. The MCP server exposes scoring through the `specsync_score` tool; issue #421 placeholder and freshness false-greens are covered.
 
 ## Notes
 

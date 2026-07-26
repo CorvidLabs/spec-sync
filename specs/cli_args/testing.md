@@ -21,3 +21,5 @@ spec: cli_args.spec.md
 | `change correct-owner` with repeated `--path`, `--manifest`, or `--all-missing` | Parses batch selection grammar (`REQ-cli-args-006`) |
 | `migrate 5.0 [--dry-run]` | Parses the ledger backfill mode (`REQ-cli-args-007`) |
 | `migrate 9.9` | Clap rejects the unknown source family before domain mutation |
+| `score --min-score 80` | Parses the bounded quality threshold (`score_minimum_is_bounded_to_zero_through_one_hundred`) |
+| `score --min-score 101` | Clap rejects it with usage exit 2 |

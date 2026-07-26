@@ -20,4 +20,6 @@ The generator SHALL produce deterministic local scaffolds that a human or connec
 Acceptance Criteria
 - Generation has no provider parameter or AI error channel.
 - Custom and language-aware templates, source detection, companions, and no-overwrite guarantees remain unchanged.
-
+- Empty source discovery emits `files: []`, never YAML null.
+- Every renderer populates detected exports in Public API tables and preserves their exact symbol text.
+- Configured source directories expand deterministically without duplicate paths.

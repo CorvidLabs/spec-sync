@@ -7,6 +7,7 @@ spec: parser.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/parser.rs` | cargo test parser:: | `test_parse_frontmatter_basic`, `test_strip_yaml_comment`, `test_parse_frontmatter_inline_comments`, `test_parse_frontmatter_tabs_and_whitespace`, `test_parse_frontmatter_trailing_spaces`, `test_parse_frontmatter_missing` |
+| Generator placeholder vocabulary | `cargo test parser::tests::generator_placeholder_text_counts_as_stub` | Stock scaffold text is unfinished; real module prose remains content |
 | `src/parser.rs` | cargo test parser::tests::test_get_spec_symbols_preserves_complete_punctuated_symbols | Dots, hyphens, selectors, operators, apostrophes, spaces, Unicode, and ordinary identifiers are preserved exactly |
 | `src/parser.rs` | cargo test parser::tests::test_api_table_symbol_parser_rejects_empty_or_malformed_rows | Empty, whitespace-only, unterminated, later-column, trailing-text, and prose spans remain excluded |
 | `tests/integration.rs` | cargo test --test integration check_github_actions_yaml_with_dotted_exports_passes_strict | Active GitHub Actions workflow contract reports `10/10 exports documented` with zero warnings under strict forced validation |

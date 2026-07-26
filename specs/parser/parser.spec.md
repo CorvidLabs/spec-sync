@@ -1,11 +1,11 @@
 ---
 module: parser
-version: 5
+version: 6
 status: stable
 files:
   - src/parser.rs
 db_tables: []
-tracks: [117]
+tracks: [117, 421]
 depends_on:
   - specs/types/types.spec.md
   - specs/util/util.spec.md
@@ -50,6 +50,7 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 8. `get_near_miss_sections` only reports sections that are already in `get_missing_sections` — it does not flag sections that are present but close to another required name
 6. Frontmatter parsing handles both scalar fields (module, version, status) and list fields (files, db_tables, depends_on)
 7. Empty list syntax `[]` is handled correctly, producing an empty Vec
+9. Stock generator guidance and Given/When/Then placeholders are classified as stub content, while substantive prose remains meaningful
 
 ## Behavioral Examples
 
@@ -113,6 +114,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v6 / #421: classify SpecSync's own generated guidance as unfinished draft content for validation and scoring |
 | 2026-03-25 | Initial spec |
 | 2026-06-11 | Add `get_all_api_table_symbols` so `check --fix` treats symbols documented under any Public API table (e.g. a bare `### Functions` heading) as already documented |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

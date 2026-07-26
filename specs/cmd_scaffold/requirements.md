@@ -15,6 +15,7 @@ spec: cmd_scaffold.spec.md
 - `cmd_scaffold` resolves the target specs directory from the `--dir` argument when provided, otherwise from `config.specs_dir`
 - When a `--template` directory is provided, both the spec body and companions are produced from that template; otherwise the built-in generator is used
 - Both commands auto-detect source files for the module: `cmd_add_spec` walks `<source_dir>/<module>/` matching `source_extensions`; `cmd_scaffold` delegates to `generator::find_files_for_module`
+- Both commands delegate rendering to the generator: no source emits explicit `files: []`, and detected exports populate Public API rows
 - If the spec file already exists, neither command overwrites it; both still backfill any missing companion files and return early
 - Companion files always include tasks.md, context.md, requirements.md, testing.md; design.md is generated only when `config.companions.design` is true
 - `cmd_scaffold` registers the new module in `specsync-registry.toml` only when that file already exists at the repo root
@@ -43,6 +44,7 @@ Acceptance Criteria
 - `cmd_scaffold` resolves the target specs directory from the `--dir` argument when provided, otherwise from `config.specs_dir`
 - When a `--template` directory is provided, both the spec body and companions are produced from that template; otherwise the built-in generator is used
 - Both commands auto-detect source files for the module: `cmd_add_spec` walks `<source_dir>/<module>/` matching `source_extensions`; `cmd_scaffold` delegates to `generator::find_files_for_module`
+- Both commands delegate rendering to the generator: no source emits explicit `files: []`, and detected exports populate Public API rows
 - If the spec file already exists, neither command overwrites it; both still backfill any missing companion files and return early
 - Companion files always include tasks.md, context.md, requirements.md, testing.md; design.md is generated only when `config.companions.design` is true
 - `cmd_scaffold` registers the new module in `specsync-registry.toml` only when that file already exists at the repo root
@@ -56,4 +58,3 @@ Acceptance Criteria
 
 - JavaScript-family `.test.*` and `.spec.*` files are omitted.
 - Production files with configured or default source extensions remain included.
-

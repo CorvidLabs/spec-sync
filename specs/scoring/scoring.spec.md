@@ -1,11 +1,11 @@
 ---
 module: scoring
-version: 3
+version: 4
 status: stable
 files:
   - src/scoring.rs
 db_tables: []
-tracks: [31]
+tracks: [31, 421]
 depends_on:
   - specs/types/types.spec.md
   - specs/parser/parser.spec.md
@@ -39,7 +39,7 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 
 ## Invariants
 
-1. Total score is always 0-100, composed of 5 components each worth 0-20 points
+1. Total score is always 0-100 and begins as five 0-20 components; the unfinished-scaffold quality cap may lower the reported total below their raw sum
 2. Grade scale: A (90-100), B (80-89), C (70-79), D (60-69), F (<60)
 3. Frontmatter scoring: module (5pts), version (5pts), status (4pts), files non-empty (6pts)
 4. Unfinished-work marker counting ignores occurrences inside fenced code blocks
@@ -49,6 +49,8 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 8. Suggestions are always actionable — each corresponds to a specific improvement the user can make
 9. No exports to document = full API score (20/20) — specs for config-only modules are not penalized
 10. `SpecScore.explain` is always populated during `score_spec` — one `ExplainDetail` per dimension, each containing one or more `CriterionResult` entries
+11. A spec with unfinished markers in at least half of its required sections cannot score 80 or higher
+12. When no committed Git comparison baseline exists, source modification times provide a bounded freshness fallback
 
 ## Behavioral Examples
 
@@ -63,6 +65,7 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 - **Given** a spec with all sections but only unfinished-work markers in content
 - **When** `score_spec` is called
 - **Then** depth_score is low and suggestions identify the sections that need substantive content
+- **And** the total remains below 80 while at least half of required sections are unfinished
 
 ### Scenario: Project score aggregation
 
@@ -105,6 +108,7 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v4 / #421: keep untouched/all-TODO scaffolds below 80 and detect source-newer-than-spec freshness without Git history |
 | 2026-06-07 | Replace template-marker suggestion wording with unfinished draft marker wording |
 | 2026-04-18 | Add `CriterionResult` and `ExplainDetail` structs; add `explain` field to `SpecScore` for `--explain` breakdown |
 | 2026-03-25 | Initial spec |

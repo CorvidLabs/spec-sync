@@ -1,11 +1,11 @@
 ---
 module: generator
-version: 6
+version: 7
 status: stable
 files:
   - src/generator.rs
 db_tables: []
-tracks: [73]
+tracks: [73, 421]
 depends_on:
   - specs/types/types.spec.md
   - specs/exports/exports.spec.md
@@ -29,7 +29,9 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | `find_files_for_module` | `root, module_name, config` | `Vec<String>` | Find source files for a module by checking config definitions, subdirectories, then flat files |
 | `find_single_source_fallback` | `root, config` | `Option<String>` | Root-relative path of the project's only non-test source file (e.g. `src/lib.rs`), or `None` when there are zero or multiple candidates — fallback for `new`/`scaffold` when no name match exists |
 | `generate_spec` | `module_name, source_files, root, specs_dir` | `String` | Generate a spec from a template (custom or language-aware default) |
-| `generate_spec_from_custom_template` | `template_dir, module_name, source_files, root` | `String` | Generate a spec using files from a custom template directory |
+| `collect_exports_for_files` | `root, source_files` | `Vec<String>` | Collect ordered, deduplicated exports from safe project-local source paths |
+| `populate_public_api_table` | `spec, exports` | `String` | Populate the Public API section without interpreting export names as regex replacement syntax |
+| `generate_spec_from_custom_template` | `template_dir, module_name, source_files, root` | `String` | Generate a custom-template spec with the same files and Public API population as built-in templates |
 | `generate_companion_files_from_template` | `spec_dir, module_name, template_dir, design_enabled` | `()` | Generate companion files from a custom template directory with fallback to defaults; creates design.md only when `design_enabled` is true |
 
 ### Exported Types
@@ -49,6 +51,8 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 7. Generation performs no network inference, credential lookup, source transmission, or shell execution
 8. Source file paths in frontmatter are relative to the project root
 9. Module source files are discovered by checking subdirectory-based modules first, then flat files
+10. Empty source discovery renders explicit `files: []`; built-in, project, and custom templates pre-populate detected exports consistently
+11. Configured module directories expand to their source files, and discovered paths are sorted and deduplicated
 
 ## Behavioral Examples
 
@@ -104,6 +108,7 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v7 / #421: emit explicit empty file lists, populate detected exports for built-in and custom templates, preserve `$`-prefixed symbols, and normalize configured-directory discovery |
 | 2026-07-10 | v5: keep module-discovery test fixtures warning-free under current stable Clippy |
 | 2026-03-25 | Initial spec |
 | 2026-04-07 | Document find_files_for_module, generate_spec, generate_spec_from_custom_template, generate_companion_files_from_template |

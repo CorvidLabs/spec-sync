@@ -90,3 +90,11 @@ Acceptance Criteria
   mutation.
 - `--dry-run` and `--no-backup` remain accepted in both modes.
 
+### REQ-cli-args-008
+
+The score grammar SHALL expose an enforceable quality threshold.
+
+Acceptance Criteria
+- `score --min-score N` accepts integers from 0 through 100.
+- Values outside that range fail through Clap with usage exit 2.
+- Score filters and existing output flags remain compatible with the threshold.

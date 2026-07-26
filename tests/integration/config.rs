@@ -957,6 +957,65 @@ fn new_warns_when_no_source_files_match() {
         .stderr(predicate::str::contains("No source files matched"));
 }
 
+#[test]
+fn new_emits_every_required_section() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/widget.rs"), "pub fn render() {}\n").unwrap();
+
+    specsync()
+        .args(["new", "widget", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let spec = fs::read_to_string(root.join("specs/widget/widget.spec.md")).unwrap();
+    for section in [
+        "Purpose",
+        "Public API",
+        "Invariants",
+        "Behavioral Examples",
+        "Error Cases",
+        "Dependencies",
+        "Change Log",
+    ] {
+        assert!(
+            spec.contains(&format!("## {section}")),
+            "missing ## {section} in:\n{spec}"
+        );
+    }
+}
+
+#[test]
+fn add_spec_without_sources_emits_valid_empty_draft() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+
+    specsync()
+        .args(["add-spec", "ghost", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let spec = fs::read_to_string(root.join("specs/ghost/ghost.spec.md")).unwrap();
+    assert!(spec.contains("files: []"), "{spec}");
+    assert!(!spec.contains("files:\n  #"), "{spec}");
+
+    specsync()
+        .args([
+            "check",
+            "--strict",
+            "--force",
+            "--root",
+            root.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+}
+
 /// `scaffold` gets the same single-source-file fallback as `new`.
 #[test]
 fn scaffold_auto_detects_single_source_file() {
@@ -976,6 +1035,10 @@ fn scaffold_auto_detects_single_source_file() {
     assert!(
         spec.contains("src/lib.rs"),
         "expected src/lib.rs in scaffolded spec, got:\n{spec}"
+    );
+    assert!(
+        spec.contains("| `greet` |"),
+        "expected pre-populated `greet` export, got:\n{spec}"
     );
 }
 

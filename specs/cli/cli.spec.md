@@ -1,11 +1,11 @@
 ---
 module: cli
-version: 10
+version: 11
 status: stable
 files:
   - src/main.rs
 db_tables: []
-tracks: [120]
+tracks: [120, 421]
 depends_on:
   - specs/agents/agents.spec.md
   - specs/archive/archive.spec.md
@@ -64,7 +64,7 @@ Clap derive types define the root `Cli`, the `Command` namespace, and focused ac
 | generate | Deterministically scaffold spec files for unspecced modules | --uncovered, --batch MODULE... |
 | init | Create the 5.0 `.specsync/` layout, TOML config, SDD policy, and version stamp | — |
 | change | Manage the verified SDD lifecycle, interviews, approvals, verification, acceptance, adoption, and archive | new, answer, approve, start, verify, accept, archive, adopt |
-| score | Score spec quality (0–100) with letter grades and suggestions | --json, --explain, [SPEC...] |
+| score | Score spec quality (0–100) with letter grades, suggestions, and a CI gate | --json, --explain, --min-score N, --strict, [SPEC...] |
 | watch | Watch spec and source files, re-running check on changes | --strict, --require-coverage N |
 | mcp | Run as an MCP (Model Context Protocol) server over stdio | — |
 | add-spec | Scaffold a new spec with companion files (tasks.md, context.md) | name positional arg |
@@ -362,6 +362,7 @@ update is an explicit implementation edit because semantic section deltas do not
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v11 / #421: dispatch the bounded score minimum and strict-implied 80 quality gate |
 | 2026-07-10 | v5: dispatch the verified `specsync change` SDD lifecycle |
 | 2026-06-11 | v4: `--root` now errors (exit 2) for nonexistent paths; init scenario covers the v4 config layout |
 | 2026-04-10 | Add Performance Requirements section with response time targets, cache requirements, resource limits, and scalability targets |

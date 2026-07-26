@@ -9,6 +9,7 @@ spec: cmd_score.spec.md
 - Scoring is informational: unlike `check`, it never sets a non-zero exit code.
 - "Batch mode" (no filters or `--all`) prints a progress header in text mode only, so CSV/JSON stay clean for piping.
 - `--explain` deepens output: in text it lists every criterion with ✓/✗ and points; in JSON it adds an `explain` array; in table it adds the five sub-score columns.
+- Quality scoring is advisory by default. `--min-score` gates each selected spec; `--strict` implies a floor of 80.
 
 ## Files to Read First
 
@@ -19,9 +20,9 @@ spec: cmd_score.spec.md
 
 ## Current Status
 
-Fully implemented and stable. Covered end-to-end by `tests/integration.rs` (text, JSON, table, CSV, MCP, and with/without `--all`). No inline `#[cfg(test)]` module in `score.rs` itself.
+Fully implemented and stable. Covered end-to-end by `tests/integration.rs` (text, JSON, table, CSV, MCP, minimum-score gates, and with/without `--all`). No inline `#[cfg(test)]` module in `score.rs` itself.
 
 ## Notes
 
-- The live `cmd_score` signature also takes `all: bool`, `exclude_status`, and `only_status` beyond what the spec's API table lists.
+- Machine formats gate only through exit status and structured fields; they never append human failure prose.
 - Orchestrates the scoring module; the grading rubric is defined there, not here.

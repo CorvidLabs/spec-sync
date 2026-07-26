@@ -1,11 +1,11 @@
 ---
 module: cmd_scaffold
-version: 5
+version: 6
 status: stable
 files:
   - src/commands/scaffold.rs
 db_tables: []
-tracks: []
+tracks: [421]
 depends_on:
   - specs/config/config.spec.md
   - specs/exports/exports.spec.md
@@ -35,6 +35,7 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 3. Neither overwrites existing specs
 4. Companion files (tasks.md, context.md, requirements.md, testing.md) are always generated with guided starter content; design.md is generated only when `companions.design` is enabled in config
 5. Both validate `module_name` as a single path segment before any filesystem write — a name containing a path separator (`/`, `\`), `.`/`..`, or an absolute path is refused with exit 1, so scaffolding can never create files outside the project (no path traversal)
+6. `add-spec` and `scaffold` use the shared generator, emit `files: []` for empty drafts, and pre-populate Public API rows from detected exports
 
 ## Behavioral Examples
 
@@ -53,6 +54,7 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 | Custom template dir missing | Falls back to built-in |
 | Module name with path separator / `..` / absolute path | Refused before any write; prints `invalid module name …` and exits 1 |
 | Empty module name | Refused; exits 1 |
+| No source file detected | Emits a valid draft with explicit `files: []` and creation guidance |
 
 ## Dependencies
 
@@ -61,8 +63,7 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 | Module | What is used |
 |--------|-------------|
 | config | `load_config` |
-| exports | `get_exported_symbols` |
-| generator | `generate_companion_files` |
+| generator | source discovery, built-in/custom spec rendering, export population, companion generation |
 | registry | `append_to_registry` |
 
 ### Consumed By
@@ -75,6 +76,7 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v6 / #421: remove the divergent add-spec template and share valid empty-file/API-populating generation across add-spec, scaffold, and custom templates |
 | 2026-06-11 | `cmd_scaffold` falls back to the project's single source file when no module name match exists |
 | 2026-06-07 | Document guided starter content in generated companions |
 | 2026-04-09 | Initial spec |

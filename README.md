@@ -167,7 +167,7 @@ specsync check --strict
 
 # Measure coverage and spec quality
 specsync coverage
-specsync score --all
+specsync score --all --min-score 80
 
 # Install native coding-agent workflows and Git hooks
 specsync agents install

@@ -393,7 +393,7 @@ const STUB_PHRASES: &[&str] = &[
 ];
 
 /// Check if a line is a stub/placeholder (case-insensitive).
-fn is_stub_line(line: &str) -> bool {
+pub(crate) fn is_stub_line(line: &str) -> bool {
     let t = line
         .trim()
         .trim_start_matches("- ")

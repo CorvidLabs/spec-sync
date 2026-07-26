@@ -4,8 +4,8 @@ spec: cmd_scaffold.spec.md
 
 ## Key Decisions
 
-- Two entry points share one file: `cmd_add_spec` (fixed built-in template, no flags) and `cmd_scaffold` (optional `--dir` and `--template`, plus registry auto-registration).
-- Neither command uses AI — spec bodies come from inline string templates or the generator. AI generation is the separate `generate` command.
+- Two entry points share one file: `cmd_add_spec` (no flags) and `cmd_scaffold` (optional `--dir` and `--template`, plus registry auto-registration).
+- Neither command uses AI — all spec bodies come from the shared deterministic generator.
 - An existing `*.spec.md` is never overwritten; both commands instead backfill missing companions and return early, so re-running is safe and idempotent for companions.
 - Companion emission is delegated to `generator` (`generate_companion_files_for_spec` / `generate_companion_files_from_template`), keeping template content in one place.
 - Registry auto-registration is opt-in by file presence: it only fires when `specsync-registry.toml` already exists at the repo root.
@@ -19,7 +19,7 @@ spec: cmd_scaffold.spec.md
 
 ## Current Status
 
-Fully implemented and stable. No inline unit tests; companion-generation behavior is covered indirectly by integration tests (`generate_creates_companion_files`, `companion_files_not_overwritten_on_regenerate`).
+Fully implemented and stable. Issue #421 empty-file and API-population regressions are covered directly; companion generation remains covered by the existing regeneration fixtures.
 
 ## Notes
 

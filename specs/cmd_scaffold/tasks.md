@@ -10,10 +10,12 @@ spec: cmd_scaffold.spec.md
 
 - [x] Initial spec creation with all required sections
 - [x] Requirements and acceptance criteria documented
+- [x] #421: replace add-spec's YAML-null template with the shared renderer
+- [x] #421: verify detected exports populate add-spec and scaffold Public API tables
 
 ## Gaps
 
-- No dedicated test file for this command module
+- Inline and integration regressions cover add-spec source filtering/API rows, empty-draft validity, and scaffold export population.
 
 ## Review Status
 

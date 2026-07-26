@@ -21,4 +21,5 @@ Acceptance Criteria
 - Provider and model flags are absent.
 - Default, batch, uncovered, and JSON modes retain their non-AI behavior.
 - Generated paths and exit status remain machine-readable for coding agents.
-
+- Empty discovery renders `files: []`, never YAML null.
+- Detected exports are emitted as Public API rows before post-generation validation.

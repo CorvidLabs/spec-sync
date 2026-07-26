@@ -39,138 +39,14 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
         process::exit(1);
     }
 
-    // Use the same deterministic template generator as `generate`.
-    let template_path = specs_dir.join("_template.spec.md");
-    let template = if template_path.exists() {
-        fs::read_to_string(&template_path).unwrap_or_default()
-    } else {
-        String::new()
-    };
-
-    // Find any matching source files
-    let module_files: Vec<String> = config
-        .source_dirs
-        .iter()
-        .flat_map(|src_dir| {
-            let module_dir = root.join(src_dir).join(module_name);
-            if module_dir.exists() {
-                walkdir::WalkDir::new(&module_dir)
-                    .into_iter()
-                    .filter_map(|e| e.ok())
-                    .filter(|e| {
-                        e.path().is_file()
-                            && crate::exports::has_configured_extension(
-                                e.path(),
-                                &config.source_extensions,
-                                config.include_extensionless,
-                            )
-                            && !crate::exports::is_test_file(e.path(), root)
-                    })
-                    .map(|e| {
-                        e.path()
-                            .strip_prefix(root)
-                            .unwrap_or(e.path())
-                            .to_string_lossy()
-                            .replace('\\', "/")
-                    })
-                    .collect::<Vec<_>>()
-            } else {
-                vec![]
-            }
-        })
-        .collect();
-
-    let _ = template; // Template handling is done by generate_spec internal
-
-    // Generate spec content using the internal generate function
-    let spec_content = {
-        let title = module_name
-            .split('-')
-            .map(|w| {
-                let mut chars = w.chars();
-                match chars.next() {
-                    Some(c) => c.to_uppercase().to_string() + chars.as_str(),
-                    None => String::new(),
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        let files_yaml = if module_files.is_empty() {
-            "  # - path/to/source/file".to_string()
-        } else {
-            module_files
-                .iter()
-                .map(|f| format!("  - {f}"))
-                .collect::<Vec<_>>()
-                .join("\n")
-        };
-
-        format!(
-            r#"---
-module: {module_name}
-version: 1
-status: draft
-files:
-{files_yaml}
-db_tables: []
-depends_on: []
----
-
-# {title}
-
-## Purpose
-
-Document this module's responsibility, inputs, outputs, and ownership boundaries.
-
-## Public API
-
-### Exported Functions
-
-| Function | Parameters | Returns | Description |
-|----------|-----------|---------|-------------|
-
-### Exported Types
-
-| Type | Description |
-|------|-------------|
-
-## Invariants
-
-1. Define an invariant that must remain true for supported inputs.
-
-## Behavioral Examples
-
-### Scenario: Core behavior
-
-- **Given** precondition
-- **When** action
-- **Then** result
-
-## Error Cases
-
-| Condition | Behavior |
-|-----------|----------|
-
-## Dependencies
-
-### Consumes
-
-| Module | What is used |
-|--------|-------------|
-
-### Consumed By
-
-| Module | What is used |
-|--------|-------------|
-
-## Change Log
-
-| Date | Author | Change |
-|------|--------|--------|
-"#
-        )
-    };
+    let module_files = generator::find_files_for_module(root, module_name, &config);
+    if module_files.is_empty() {
+        eprintln!(
+            "{} No source files matched module '{module_name}' — the draft uses an explicit empty `files: []` list.",
+            "⚠".yellow()
+        );
+    }
+    let spec_content = generator::generate_spec(module_name, &module_files, root, &specs_dir);
 
     match fs::write(&spec_file, &spec_content) {
         Ok(_) => {
@@ -211,6 +87,7 @@ mod tests {
 
         let spec = fs::read_to_string(root.join("specs/widget/widget.spec.md")).unwrap();
         assert!(spec.contains("src/widget/index.mjs"), "{spec}");
+        assert!(spec.contains("| `value` |"), "{spec}");
         assert!(!spec.contains("index.test.cjs"), "{spec}");
         assert!(!spec.contains("index.spec.mjs"), "{spec}");
     }

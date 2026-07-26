@@ -563,13 +563,15 @@ pub fn find_files_for_module(
     if let Some(module_def) = config.modules.get(module_name) {
         for file in &module_def.files {
             let full_path = root.join(file);
-            if full_path.exists() {
+            if full_path.is_file() {
                 module_files.push(full_path.to_string_lossy().replace('\\', "/"));
             } else if full_path.is_dir() {
                 module_files.extend(find_module_source_files(&full_path, config, root));
             }
         }
         if !module_files.is_empty() {
+            module_files.sort();
+            module_files.dedup();
             return module_files;
         }
     }
@@ -608,6 +610,8 @@ pub fn find_files_for_module(
         }
     }
 
+    module_files.sort();
+    module_files.dedup();
     module_files
 }
 
@@ -776,8 +780,9 @@ pub fn populate_public_api_table(spec: &str, exports: &[String]) -> String {
         .collect::<Vec<_>>()
         .join("\n");
     let heading_re = regex::Regex::new(r"(?m)^## Public API[ \t]*$").unwrap();
+    let replacement = format!("## Public API\n\n{header}\n{rows}\n");
     heading_re
-        .replace(spec, format!("## Public API\n\n{header}\n{rows}\n"))
+        .replace(spec, regex::NoExpand(&replacement))
         .to_string()
 }
 
@@ -917,7 +922,8 @@ pub fn generate_spec_from_custom_template(
     let db_re = regex::Regex::new(r"(?m)^db_tables:\n(?:\s+-\s+.+\n?)*").unwrap();
     spec = db_re.replace(&spec, "db_tables: []\n").to_string();
 
-    spec
+    let exports = collect_exports_for_files(root, source_files);
+    populate_public_api_table(&spec, &exports)
 }
 
 /// Generate companion files from a custom template directory.
@@ -1608,6 +1614,32 @@ mod tests {
         assert_eq!(files.len(), 2);
     }
 
+    #[test]
+    fn find_files_user_defined_module_expands_directories() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let module_dir = root.join("src/widget");
+        fs::create_dir_all(&module_dir).unwrap();
+        fs::write(module_dir.join("one.ts"), "export const one = 1;\n").unwrap();
+        fs::write(module_dir.join("two.ts"), "export const two = 2;\n").unwrap();
+
+        let mut config = SpecSyncConfig {
+            source_extensions: vec!["ts".to_string()],
+            ..SpecSyncConfig::default()
+        };
+        config.modules.insert(
+            "widget".to_string(),
+            crate::types::ModuleDefinition {
+                files: vec!["src/widget".to_string()],
+                depends_on: vec![],
+            },
+        );
+
+        let files = find_files_for_module(root, "widget", &config);
+        assert_eq!(files.len(), 2, "{files:?}");
+        assert!(files.iter().all(|file| file.ends_with(".ts")));
+    }
+
     // ── #421 regression: generators must emit self-valid specs ─────────
 
     #[test]
@@ -1651,8 +1683,31 @@ mod tests {
     }
 
     #[test]
+    fn custom_template_prepopulates_public_api_from_exports() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let template_dir = root.join("templates");
+        fs::create_dir_all(&template_dir).unwrap();
+        fs::write(template_dir.join("spec.md"), DEFAULT_TEMPLATE).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/auth.ts"), "export function login() {}\n").unwrap();
+
+        let files = vec!["src/auth.ts".to_string()];
+        let spec = generate_spec_from_custom_template(&template_dir, "auth", &files, root);
+
+        assert!(spec.contains("| `login` |"), "{spec}");
+    }
+
+    #[test]
     fn populate_public_api_table_no_exports_is_noop() {
         let spec = "## Public API\n\nempty\n";
         assert_eq!(populate_public_api_table(spec, &[]), spec);
+    }
+
+    #[test]
+    fn populate_public_api_table_preserves_dollar_prefixed_exports() {
+        let spec = "## Public API\n\n";
+        let rendered = populate_public_api_table(spec, &["$value".to_string()]);
+        assert!(rendered.contains("| `$value` |"), "{rendered}");
     }
 }

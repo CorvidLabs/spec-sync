@@ -16,6 +16,8 @@ spec: parser.spec.md
 
 ## Current Status
 
+Generator-owned placeholder sentences are part of the canonical stub vocabulary used by validation and scoring.
+
 Fully implemented. The parser is the most heavily depended-on module after types — validator, scoring, and MCP all use it for reading specs. Public API symbol parsing preserves exact extractor spelling across all supported languages.
 
 ## Notes

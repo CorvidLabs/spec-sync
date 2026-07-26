@@ -20,6 +20,7 @@ spec: parser.spec.md
 - `get_missing_sections` uses case-sensitive regex matching for `## SectionName`
 - Unrecognized YAML keys are silently skipped (no errors)
 - Zero external YAML parsing dependencies — custom line-by-line parser
+- Generated Purpose, Invariants, Behavioral Examples, Error Cases, Dependencies, and export-description prompts are recognized as stub content until replaced.
 
 ## Constraints
 
@@ -50,4 +51,3 @@ Acceptance Criteria
 - `get_missing_sections` uses case-sensitive regex matching for `## SectionName`
 - Unrecognized YAML keys are silently skipped (no errors)
 - Zero external YAML parsing dependencies — custom line-by-line parser
-

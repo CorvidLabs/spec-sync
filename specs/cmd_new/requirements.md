@@ -12,7 +12,7 @@ spec: cmd_new.spec.md
 
 ## Acceptance Criteria
 
-- `specsync new <module>` creates `<specs_dir>/<module>/<module>.spec.md` with frontmatter (`module`, `version: 1`, `status: draft`, `files:`, `db_tables: []`, `depends_on: []`) and the standard section skeleton (Purpose, Public API, Dependencies, Change Log).
+- `specsync new <module>` creates `<specs_dir>/<module>/<module>.spec.md` with frontmatter (`module`, `version: 1`, `status: draft`, `files:`, `db_tables: []`, `depends_on: []`) and every standard required section (Purpose, Public API, Invariants, Behavioral Examples, Error Cases, Dependencies, Change Log).
 - Source files are detected by scanning each configured `source_dirs` entry for a directory named `<module>` (recursively) and for a top-level file whose stem equals `<module>`, filtered by `source_extensions`; detected paths are relative, forward-slash, sorted, and de-duplicated.
 - When no source files are found, the spec is still created with `files: []`.
 - Exported symbols from the detected source files are collected via `exports::get_exported_symbols`, de-duplicated, and rendered as Public API rows; each row carries a review prompt to document the export rather than a placeholder marker.
@@ -22,7 +22,7 @@ spec: cmd_new.spec.md
 ## Constraints
 
 - Must not panic on expected error conditions — print an error and exit non-zero.
-- Dates are produced by an in-module `chrono_lite_today()` helper (no `chrono` dependency) and must be cross-platform.
+- Rendering is delegated to the deterministic generator and must remain cross-platform.
 - Path output is normalized to forward slashes so generated specs are stable across Windows and Unix.
 - Honors the project's `specs_dir`, `source_dirs`, `source_extensions`, and `companions.design` config values.
 
@@ -38,7 +38,7 @@ spec: cmd_new.spec.md
 The new command SHALL create a non-overwriting spec scaffold from validated module input and detected source exports.
 
 Acceptance Criteria
-- `specsync new <module>` creates `<specs_dir>/<module>/<module>.spec.md` with frontmatter (`module`, `version: 1`, `status: draft`, `files:`, `db_tables: []`, `depends_on: []`) and the standard section skeleton (Purpose, Public API, Dependencies, Change Log).
+- `specsync new <module>` creates `<specs_dir>/<module>/<module>.spec.md` with frontmatter (`module`, `version: 1`, `status: draft`, `files:`, `db_tables: []`, `depends_on: []`) and every standard required section.
 - Source files are detected by scanning each configured `source_dirs` entry for a directory named `<module>` (recursively) and for a top-level file whose stem equals `<module>`, filtered by `source_extensions`; detected paths are relative, forward-slash, sorted, and de-duplicated.
 - When no source files are found, the spec is still created with `files: []`.
 - Exported symbols from the detected source files are collected via `exports::get_exported_symbols`, de-duplicated, and rendered as Public API rows; each row carries a review prompt to document the export rather than a placeholder marker.
@@ -53,4 +53,3 @@ Acceptance Criteria
 
 - JavaScript-family `.test.*` and `.spec.*` files are omitted.
 - Production files with configured or default source extensions remain included.
-

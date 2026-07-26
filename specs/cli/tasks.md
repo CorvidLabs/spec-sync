@@ -20,6 +20,7 @@ spec: cli.spec.md
 - [x] Remove embedded provider/model generation flags and preserve deterministic agent integrations
 - [x] Wrap `run()` in `catch_unwind` so panics surface a friendly bug-report message
 - [x] Block inherited verification recursion before dispatching `change` or `lifecycle` subcommands
+- [x] #421: dispatch the score minimum and strict-implied 80 gate
 
 ## Gaps
 

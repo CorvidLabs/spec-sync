@@ -12,3 +12,4 @@ spec: cmd_generate.spec.md
 - [x] Stable text and JSON reporting
 - [x] Remove provider/model resolution and AI error fields
 - [x] Add retired-flag and command-nonexecution regressions
+- [x] #421: inherit valid empty-file and Public API population guarantees from generator

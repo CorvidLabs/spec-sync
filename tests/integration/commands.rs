@@ -490,6 +490,57 @@ fn score_json_output_has_grades() {
     assert!(specs[0]["total"].as_u64().unwrap() > 0);
 }
 
+#[test]
+fn score_minimum_gate_and_strict_reject_untouched_scaffolds() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/widget.ts"), "export function render() {}\n").unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["new", "widget"])
+        .assert()
+        .success();
+
+    // Scoring remains advisory unless a gate is requested.
+    specsync().current_dir(root).arg("score").assert().success();
+    specsync()
+        .current_dir(root)
+        .args(["score", "--min-score", "80"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("score gate failed"));
+    // Strict mode implies the documented 80-point minimum.
+    specsync()
+        .current_dir(root)
+        .args(["score", "--strict"])
+        .assert()
+        .failure();
+
+    let output = specsync()
+        .current_dir(root)
+        .args(["score", "--min-score", "80", "--format", "json"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["minimum_score"], 80);
+    assert_eq!(json["gate_passed"], false);
+}
+
+#[test]
+fn score_rejects_minimum_above_one_hundred_as_usage_error() {
+    let tmp = TempDir::new().unwrap();
+    specsync()
+        .current_dir(tmp.path())
+        .args(["score", "--min-score", "101"])
+        .assert()
+        .failure()
+        .code(2);
+}
+
 // ─── Diff Command Tests ─────────────────────────────────────────────────
 
 #[test]

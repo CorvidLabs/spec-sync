@@ -1,11 +1,11 @@
 ---
 module: cmd_generate
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/generate.rs
 db_tables: []
-tracks: []
+tracks: [421]
 depends_on:
   - specs/commands/commands.spec.md
   - specs/generator/generator.spec.md
@@ -35,6 +35,7 @@ Implements deterministic `specsync generate` scaffolding for unspecced modules u
 2. Re-runs validation after generation to verify new specs
 3. Batch selection reports generated, already-specced, and unknown modules deterministically
 4. JSON output has no provider-specific fields
+5. Generated specs use explicit empty file lists and pre-populate Public API rows for every detected export
 
 ## Behavioral Examples
 
@@ -43,6 +44,7 @@ Implements deterministic `specsync generate` scaffolding for unspecced modules u
 - **Given** 3 unspecced modules
 - **When** `cmd_generate` runs
 - **Then** generates 3 local template specs with companions
+- **And** each generated spec's files frontmatter and API table are complete for the detected source set
 
 ## Error Cases
 
@@ -74,6 +76,7 @@ Implements deterministic `specsync generate` scaffolding for unspecced modules u
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v4 / #421: require self-valid files frontmatter and populated Public API rows from the shared generator |
 | 2026-04-09 | Initial spec |
 | 2026-06-11 | v2: Exit non-zero when AI generation fails, with the errors re-printed last on stderr and `ai_errors` in JSON output |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

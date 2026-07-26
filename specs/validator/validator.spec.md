@@ -1,11 +1,11 @@
 ---
 module: validator
-version: 11
+version: 12
 status: stable
 files:
   - src/validator.rs
 db_tables: []
-tracks: [119]
+tracks: [119, 421]
 depends_on:
   - specs/config/config.spec.md
   - specs/exports/exports.spec.md
@@ -39,7 +39,7 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 ## Invariants
 
 1. Validation is bidirectional: spec documenting non-existent exports = ERROR; code exports not in spec = WARNING
-2. Missing frontmatter fields (module, version, status, files) are errors, not warnings
+2. Missing/null frontmatter fields are errors; an explicit `files: []` is permitted only while the spec is draft and `require_draft_files` is disabled
 3. Cross-project refs (`owner/repo@module`) are skipped during local validation — only checked by `specsync resolve`
 4. Coverage computation excludes test files and configured exclude patterns. Exclude globs support `**/dir/**` (path contains `dir`), `**/*.ext` (suffix), and `**/name` (filename); a degenerate `**/**` matches every path (empty middle) and is handled without panicking
 5. Source file discovery respects `source_extensions` config — empty means all supported languages
@@ -50,6 +50,7 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 10. Sections with no substantive content are reported as unfinished draft text rather than as template markers
 11. `validate_spec` records the spec's parsed lifecycle status on `ValidationResult.status` (None when frontmatter is unreadable) so reporters can surface status-based skips, e.g. drafts skipping section and export checks
 12. Requirements companions are validated when present but optional for technical/internal modules under the adaptive 5.0 artifact model
+13. Draft scaffolds skip unfinished section and companion-marker diagnostics; promotion restores those checks
 
 ## Behavioral Examples
 
@@ -87,6 +88,8 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 | DB table not in schema | Error: "DB table not found in schema" |
 | Missing required section | Error: "Missing required section: ## SectionName" |
 | Dependency spec not found | Error: "Dependency spec not found" |
+| Bare `files:` / YAML null | Error; it is not equivalent to an explicit empty sequence |
+| Draft with `files: []` | Accepted as a planned empty mapping unless `require_draft_files` is enabled; non-draft promotion requires a non-empty list |
 
 ## Dependencies
 
@@ -117,6 +120,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v12 / #421: distinguish explicit draft `files: []` from YAML null and defer scaffold-marker diagnostics until promotion |
 | 2026-07-10 | v5: keep coverage regression fixtures warning-free under current stable Clippy and document the intentionally in-file test-module layout |
 | 2026-07-10 | v5: make canonical requirements companions adaptive rather than empty mandatory ceremony |
 | 2026-07-02 | v4: add `source_within_root` — shared guard rejecting `files:` paths that escape the project root (absolute/`..`/symlink); applied in `validate_spec` and every export-extraction site (score, check --fix, diff, new) to close an out-of-root identifier-disclosure vector |

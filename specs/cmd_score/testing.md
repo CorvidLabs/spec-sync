@@ -14,6 +14,8 @@ spec: cmd_score.spec.md
 | `tests/integration.rs` | cargo test --test integration score_all_format_csv_outputs_header_row | End-to-end fixture: `score_all_format_csv_outputs_header_row` |
 | `tests/integration.rs` | cargo test --test integration score_all_format_csv_includes_summary_row | End-to-end fixture: `score_all_format_csv_includes_summary_row` |
 | `tests/integration.rs` | cargo test --test integration score_format_table_without_all_flag_still_works | End-to-end fixture: `score_format_table_without_all_flag_still_works` |
+| Minimum gate | `cargo test --test integration score_minimum_gate_and_strict_reject_untouched_scaffolds` | Advisory default, explicit 80 gate, strict-implied 80, and parseable JSON failure |
+| Threshold validation | `cargo test --test integration score_rejects_minimum_above_one_hundred_as_usage_error` | Values above 100 exit 2 |
 
 ## Behavioral Verification
 
@@ -30,7 +32,8 @@ spec: cmd_score.spec.md
 |------|-------------------|-----------------|
 | No specs match filters | Warning printed (via `filter_specs`) | Keep or add a focused assertion before changing this behavior |
 | `--format table` without `--all` | Still renders a valid table (single/filtered spec) | Covered by `score_format_table_without_all_flag_still_works` |
-| Any output format | `score` never sets a non-zero exit code (informational only) | Keep or add a focused assertion before changing this behavior |
+| No quality gate | `score` remains advisory and exits 0 | Protected alongside the minimum-gate fixture |
+| `--min-score` / `--strict` | Any selected score below the effective minimum exits 1 | Keep text and JSON regressions |
 
 ## Reviewer Checklist
 

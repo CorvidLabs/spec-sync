@@ -16,6 +16,8 @@ spec: validator.spec.md
 
 - Bidirectional validation: spec documents non-existent export = ERROR; code exports undocumented symbol = WARNING
 - Missing frontmatter fields (module, version, status) produce errors, not warnings
+- Bare/null `files:` is invalid; explicit `files: []` is accepted only for draft scaffolds when `require_draft_files` is disabled
+- Draft scaffolds do not emit unfinished section/companion marker findings until promotion
 - Cross-project refs (`owner/repo@module` format) are detected and skipped during local validation
 - Coverage computation excludes test files and configured exclude patterns
 - `find_spec_files` returns results sorted by path
@@ -45,6 +47,8 @@ The validator SHALL enforce bidirectional code-contract, metadata, dependency, s
 Acceptance Criteria
 - Bidirectional validation: spec documents non-existent export = ERROR; code exports undocumented symbol = WARNING
 - Missing frontmatter fields (module, version, status) produce errors, not warnings
+- Bare/null `files:` is invalid; explicit `files: []` is accepted only for draft scaffolds when `require_draft_files` is disabled
+- Draft scaffolds do not emit unfinished section/companion marker findings until promotion
 - Cross-project refs (`owner/repo@module` format) are detected and skipped during local validation
 - Coverage computation excludes test files and configured exclude patterns
 - `find_spec_files` returns results sorted by path

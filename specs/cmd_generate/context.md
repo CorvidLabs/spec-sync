@@ -6,6 +6,7 @@ spec: cmd_generate.spec.md
 
 - `generate` is deterministic and local; no provider/model/config/env branch exists.
 - All and batch modes delegate to `generator`, then recompute validation and coverage.
+- Shared generator output includes explicit empty file sequences and detected Public API exports.
 - JSON returns stable generated/requested/skipped fields.
 
 ## Files to Read First

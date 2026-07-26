@@ -4,6 +4,8 @@ spec: parser.spec.md
 
 ## Tasks
 
+- [x] #421: recognize every built-in generator placeholder without classifying substantive prose as a stub
+
 ## Post-5.0 Roadmap
 
 - [ ] Support nested YAML in frontmatter (e.g., `roles: { agent: [...], developer: [...] }`)

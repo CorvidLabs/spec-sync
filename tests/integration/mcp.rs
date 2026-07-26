@@ -709,6 +709,9 @@ fn mcp_write_tools_reject_windows_junction_destinations_without_touching_outside
             .contains("Cannot inspect MCP project input specs/evil through its root capability")
             || normalized_error.contains(
                 "Cannot read MCP project directory specs/evil through its root capability",
+            )
+            || normalized_error.contains(
+                "MCP project input must be a regular file or directory and must not be a symlink or reparse point",
             ));
     let rejected_at_destination =
         error.contains("generation destination escapes the configured server root");
@@ -3769,27 +3772,4 @@ fn assert_generation_failed_without_zero_count(response: &serde_json::Value) {
     assert_eq!(response["result"]["isError"], true);
     let text = response["result"]["content"][0]["text"].as_str().unwrap();
     assert!(!text.contains("\"count\": 0"));
-}
-
-#[cfg(windows)]
-fn create_windows_junction(
-    junction: &std::path::Path,
-    target: &std::path::Path,
-) -> Result<(), String> {
-    let output = std::process::Command::new("cmd")
-        .args(["/D", "/C", "mklink", "/J"])
-        .arg(junction)
-        .arg(target)
-        .output()
-        .map_err(|error| format!("failed to launch cmd /C mklink /J: {error}"))?;
-    if output.status.success() {
-        return Ok(());
-    }
-
-    Err(format!(
-        "cmd /C mklink /J exited with {:?}; stdout: {}; stderr: {}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stdout).trim(),
-        String::from_utf8_lossy(&output.stderr).trim()
-    ))
 }

@@ -1113,38 +1113,6 @@ fn issues_create_runs_normal_drift_creation_for_stable_snapshots() {
         ));
 }
 
-#[cfg(windows)]
-fn create_windows_junction(
-    junction: &std::path::Path,
-    target: &std::path::Path,
-) -> Result<(), String> {
-    let junction = junction
-        .to_str()
-        .ok_or_else(|| "junction fixture path must be valid Unicode for cmd.exe".to_string())?;
-    let target = target
-        .to_str()
-        .ok_or_else(|| "junction target path must be valid Unicode for cmd.exe".to_string())?;
-    if junction.contains('"') || target.contains('"') {
-        return Err("junction fixture paths must not contain a double quote".to_string());
-    }
-    let command = format!("mklink /J \"{junction}\" \"{target}\"");
-    let output = std::process::Command::new("cmd")
-        .args(["/D", "/S", "/C"])
-        .arg(command)
-        .output()
-        .map_err(|error| format!("failed to launch cmd /C mklink /J: {error}"))?;
-    if output.status.success() {
-        return Ok(());
-    }
-
-    Err(format!(
-        "cmd /C mklink /J exited with {:?}; stdout: {}; stderr: {}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stdout).trim(),
-        String::from_utf8_lossy(&output.stderr).trim()
-    ))
-}
-
 // ─── 2. specsync coverage ───────────────────────────────────────────────
 
 #[test]
@@ -1734,18 +1702,30 @@ fn gradle_post_discovery_junction_swap_is_inconclusive_for_every_coverage_gate()
             let original_root = tmp.path().join("original-project");
             let outside = tmp.path().join("outside");
             let barrier = tmp.path().join("barrier");
-            fs::create_dir_all(root.join("member/src/main/kotlin")).unwrap();
+            fs::create_dir_all(original_root.join("member/src/main/kotlin")).unwrap();
             fs::create_dir_all(outside.join("src/main/kotlin")).unwrap();
             fs::create_dir_all(&barrier).unwrap();
             fs::write(
-                root.join("member/src/main/kotlin/Local.kt"),
+                original_root.join("member/src/main/kotlin/Local.kt"),
                 "const val LOCAL = 1\n",
             )
             .unwrap();
-            fs::write(root.join("settings.gradle.kts"), "include(\":member\")\n").unwrap();
+            fs::write(
+                original_root.join("settings.gradle.kts"),
+                "include(\":member\")\n",
+            )
+            .unwrap();
             let outside_source = outside.join("src/main/kotlin/Secret.kt");
             let outside_bytes = b"const val SECRET = \"POST_DISCOVERY_JUNCTION_SWAP\"\n";
             fs::write(&outside_source, outside_bytes).unwrap();
+            create_windows_junction(&root, &original_root).unwrap_or_else(|error| {
+                panic!("failed to create initial project-root junction fixture: {error}")
+            });
+            assert_eq!(
+                fs::canonicalize(&root).unwrap(),
+                fs::canonicalize(&original_root).unwrap(),
+                "initial project-root junction does not target the local project"
+            );
 
             let mut process = specsync_process();
             process
@@ -1780,10 +1760,14 @@ fn gradle_post_discovery_junction_swap_is_inconclusive_for_every_coverage_gate()
                 thread::sleep(Duration::from_millis(10));
             }
 
-            fs::rename(&root, &original_root).unwrap();
-            create_windows_junction(&root, &outside).unwrap_or_else(|error| {
-                panic!("failed to create post-discovery project-root junction fixture: {error}")
+            retarget_windows_junction(&root, &outside).unwrap_or_else(|error| {
+                panic!("failed to retarget post-discovery project-root junction fixture: {error}")
             });
+            assert_eq!(
+                fs::canonicalize(&root).unwrap(),
+                fs::canonicalize(&outside).unwrap(),
+                "replacement project-root junction does not target the outside directory"
+            );
             fs::write(barrier.join("resume"), b"resume\n").unwrap();
             let output = child.wait_with_output().unwrap();
 

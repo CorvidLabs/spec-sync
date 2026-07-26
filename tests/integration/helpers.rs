@@ -137,6 +137,89 @@ pub fn setup_minimal_project(tmp: &TempDir) -> std::path::PathBuf {
     root
 }
 
+#[cfg(windows)]
+pub fn create_windows_junction(
+    junction: &std::path::Path,
+    target: &std::path::Path,
+) -> Result<(), String> {
+    run_windows_junction_script(
+        "$ErrorActionPreference = 'Stop'; New-Item -ItemType Junction \
+         -Path $env:SPECSYNC_TEST_JUNCTION \
+         -Target $env:SPECSYNC_TEST_TARGET | Out-Null",
+        junction,
+        target,
+    )
+}
+
+#[cfg(windows)]
+pub fn retarget_windows_junction(
+    junction: &std::path::Path,
+    target: &std::path::Path,
+) -> Result<(), String> {
+    run_windows_junction_script(
+        "$ErrorActionPreference = 'Stop'; \
+         Remove-Item -LiteralPath $env:SPECSYNC_TEST_JUNCTION -Force; \
+         New-Item -ItemType Junction \
+         -Path $env:SPECSYNC_TEST_JUNCTION \
+         -Target $env:SPECSYNC_TEST_TARGET | Out-Null",
+        junction,
+        target,
+    )
+}
+
+#[cfg(windows)]
+fn run_windows_junction_script(
+    script: &str,
+    junction: &std::path::Path,
+    target: &std::path::Path,
+) -> Result<(), String> {
+    let junction = junction
+        .to_str()
+        .ok_or_else(|| "junction fixture path must be valid Unicode".to_string())?;
+    let target = target
+        .to_str()
+        .ok_or_else(|| "junction target path must be valid Unicode".to_string())?;
+    let mut unavailable = Vec::new();
+    for executable in ["powershell.exe", "pwsh.exe"] {
+        let output = match std::process::Command::new(executable)
+            .args([
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                script,
+            ])
+            .env("SPECSYNC_TEST_JUNCTION", junction)
+            .env("SPECSYNC_TEST_TARGET", target)
+            .output()
+        {
+            Ok(output) => output,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                unavailable.push(executable);
+                continue;
+            }
+            Err(error) => {
+                return Err(format!(
+                    "failed to launch {executable} junction fixture: {error}"
+                ));
+            }
+        };
+        if output.status.success() {
+            return Ok(());
+        }
+        return Err(format!(
+            "{executable} junction fixture exited with {:?}; stdout: {}; stderr: {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout).trim(),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Err(format!(
+        "failed to launch a PowerShell junction fixture; unavailable executables: {}",
+        unavailable.join(", ")
+    ))
+}
+
 /// Send JSON-RPC requests to the MCP server via stdin and capture stdout.
 pub fn mcp_request(
     root: &std::path::Path,

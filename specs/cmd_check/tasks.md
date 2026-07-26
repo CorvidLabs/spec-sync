@@ -5,6 +5,10 @@ spec: cmd_check.spec.md
 ## Tasks
 
 - [x] Add an integration test asserting the hash cache skips unchanged specs on a second run — Evidence: `check_skips_unchanged_specs`.
+- [x] Replay complete cached errors, warnings, and notices without mutating diagnostic strings
+- [x] Report full checked, freshly validated, and cached spec counts in JSON
+- [x] Force re-validation for malformed, incompatible, stale, tampered, or incomplete snapshots
+- [x] Add warm/cold parity, strict bypass, ignore/inventory invalidation, and rehash regressions for issue #429
 
 ## Post-5.0 Test Debt
 

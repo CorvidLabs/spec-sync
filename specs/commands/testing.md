@@ -16,6 +16,8 @@ spec: commands.spec.md
 | `tests/integration.rs` | cargo test --test integration require_coverage_on_coverage_subcommand | End-to-end fixture: `require_coverage_on_coverage_subcommand` |
 | `tests/integration.rs` | cargo test --test integration strict_on_coverage_subcommand | End-to-end fixture: `strict_on_coverage_subcommand` |
 | `tests/integration.rs` | cargo test --test integration action_validates_require_coverage_input | End-to-end fixture: `action_validates_require_coverage_input` |
+| Shared cache path | cargo test --test integration warm_cache_json_replays_cached_warnings | The private recorder preserves the public loop's deterministic diagnostics |
+| Shared global inputs | cargo test --test integration ignore_rules_and_spec_inventory_invalidate_snapshots | Ignore and inventory changes invalidate all dependent snapshots |
 
 ## Behavioral Verification
 
@@ -24,6 +26,7 @@ spec: commands.spec.md
 | Filter by module name | specs exist at `specs/auth/auth.spec.md` and `specs/api/api.spec.md` | `filter_specs(root, specs, &["auth"])` is called | returns only `specs/auth/auth.spec.md` |
 | Strict mode with warnings | enforcement is `Strict`, `--strict` is set, validation has 0 errors but 3 warnings | `compute_exit_code()` is called | returns 1 (warnings treated as errors) |
 | EnforceNew with unspecced files | enforcement is `EnforceNew`, coverage shows 2 unspecced files | `exit_with_status()` is called | prints count and exits with code 1 |
+| Shared snapshot recording | one warning-only spec is checked cold then warm | compare structured diagnostics | both paths preserve identical errors, warnings, and notices |
 
 ## Regression Matrix
 
@@ -34,6 +37,7 @@ spec: commands.spec.md
 | `schema_dir` not configured | `build_schema_columns` returns empty map (no error) | Keep or add a focused assertion before changing this behavior |
 | GitHub repo unresolvable for drift issues | Prints error and returns without creating issues | Keep or add a focused assertion before changing this behavior |
 | `gh` CLI fails to create issue | Prints per-spec error but continues with remaining specs | Keep or add a focused assertion before changing this behavior |
+| Snapshot-aware path diverges from public validation | Warm/cold diagnostic arrays must remain equal | `warm_cache_json_replays_cached_warnings` |
 
 ## Reviewer Checklist
 

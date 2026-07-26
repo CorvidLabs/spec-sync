@@ -7,6 +7,8 @@ spec: rehash.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/commands/rehash.rs` | `cargo test commands::rehash` | `discover_spec_files_honors_config_and_excludes_templates`, `cmd_rehash_rebuilds_a_fresh_cache` |
+| `tests/integration.rs` | `cargo test --test integration rehash_writes_complete_warm_validation_snapshots` | Config hash, format version, complete snapshot, warm counters, and preserved warning |
+| `tests/integration.rs` | `cargo test --test integration rehash_does_not_publish_snapshots_when_validation_has_errors` | Error-bearing rebuild clears snapshots and forces the next check to validate |
 
 ## Coverage Gaps
 
@@ -17,6 +19,7 @@ spec: rehash.spec.md
 | Flow | Fixture / Setup | Action | Expected Result |
 |------|-----------------|--------|-----------------|
 | Normal rehash | a valid specsync project with specs | `cmd_rehash(root)` runs | writes fresh hashes.json and prints spec count |
+| Warm follow-up | warning-only project was rehashed and no input changed | run JSON check | reports the warning with full checked count and cached count, without fresh spec validation |
 | Save failure | .specsync directory is not writable | `cmd_rehash(root)` runs | prints error and exits with code 1 |
 
 ## Regression Matrix
@@ -24,6 +27,8 @@ spec: rehash.spec.md
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
 | Cache save fails | Prints error, exits 1 | Keep or add a focused assertion before changing this behavior |
+| Rehash output contains only hashes | Must also contain a current compatible snapshot for every discovered spec | `rehash_writes_complete_warm_validation_snapshots` |
+| Rehash validation has errors | Clears replayable snapshots; next check validates and reports errors | `rehash_does_not_publish_snapshots_when_validation_has_errors` |
 
 ## Reviewer Checklist
 

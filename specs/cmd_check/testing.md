@@ -17,6 +17,9 @@ spec: cmd_check.spec.md
 | `tests/integration.rs` | cargo test --test integration require_coverage_on_coverage_subcommand | End-to-end fixture: `require_coverage_on_coverage_subcommand` |
 | `tests/integration.rs` (--fix) | cargo test --test integration fix_ | `fix_adds_undocumented_exports_to_spec`, `fix_does_not_duplicate_already_documented_exports`, `fix_creates_public_api_section_when_missing`, `fix_with_json_output`, `fix_does_not_duplicate_when_non_export_subsections_present`, `fix_near_miss_handles_levenshtein_typos`, `fix_dry_run_does_not_write_files`, `fix_backup_creates_backup_dir`, `fix_backup_preserves_original_on_success` |
 | `tests/integration.rs` (suggestions/dry-run) | cargo test --test integration check_shows_fix_suggestions dry_run_without_fix_warns | `check_shows_fix_suggestions`, `dry_run_without_fix_warns`, `wildcard_reexport_with_fix_adds_all_symbols` |
+| `tests/integration.rs` (validation cache) | cargo test --test integration warm_cache | `warm_cache_json_replays_cached_warnings`, `warm_cache_text_replays_cached_warnings`, `strict_check_revalidates_instead_of_trusting_warm_snapshot` |
+| `tests/integration.rs` (cache invalidation) | cargo test --test integration cache_format_and_snapshot_version_mismatches_force_revalidation | malformed cache, format/snapshot mismatch, tampering, source drift, ignore drift, and inventory drift |
+| `tests/integration.rs` (rehash) | cargo test --test integration rehash_writes_complete_warm_validation_snapshots | first check after rehash is warm and preserves findings |
 
 ## Behavioral Verification
 
@@ -25,6 +28,7 @@ spec: cmd_check.spec.md
 | Incremental check with cache | 25 specs, 3 have changed since last check | `cmd_check` runs without `--force` | only 3 specs are validated; 22 are skipped via hash cache |
 | Auto-fix undocumented exports | spec is missing export `pub fn new_function()` | `cmd_check` runs with `--fix` | the export is appended to the spec's Public API table with a generated description prompt and the file is rewritten |
 | JSON output format | `--format json` is set | validation completes with errors and warnings | output is a single JSON object with `passed`, `errors`, `warnings`, `stale`, and `specs_checked` fields (verified by `fix_with_json_output`) |
+| Warm JSON parity | warning-only project is checked twice unchanged | compare cold and warm JSON | errors/warnings/notices match exactly, checked remains full, and validated/cached counters invert |
 | Backup before fix | a spec will be rewritten by `--fix` | `specsync check --fix --backup` is run | originals are copied to `.specsync/backup-fix/` before any write (`fix_backup_creates_backup_dir`) |
 | Git staleness | a spec's source is N+ commits ahead of the spec's last commit, inside a git repo | `specsync check --stale N` is run | the spec is flagged "N commits behind source files" with per-file detail (uses `git_commits_since`) |
 
@@ -38,6 +42,8 @@ spec: cmd_check.spec.md
 | `--create-issues` with no GitHub repo | Prints error, skips issue creation | Keep or add a focused assertion before changing this behavior |
 | `--stale` outside a git repo | No staleness output, no crash (the `is_git_repo` guard skips it) | Keep or add a focused assertion before changing this behavior |
 | Validation has errors | Hash cache is NOT updated/saved (only saved when `total_errors == 0`) | Keep or add a focused assertion before changing this behavior |
+| Cache is malformed, incompatible, incomplete, stale, or tampered | Re-validates instead of replaying an empty/forged result | Keep the issue #429 invalidation matrix |
+| `.specsyncignore` or spec inventory changes | Re-validates affected snapshots and updates diagnostics | `ignore_rules_and_spec_inventory_invalidate_snapshots` |
 | `--dry-run` without `--fix` | Prints a warning that dry-run has no effect, makes no changes | Keep or add a focused assertion before changing this behavior |
 
 ## Reviewer Checklist

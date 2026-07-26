@@ -17,42 +17,9 @@ use crate::config::is_legacy_layout;
 
 use super::{
     build_schema_columns, compute_exit_code, create_drift_issues, exit_with_status,
-    filter_by_status, filter_specs, load_and_discover, run_validation,
+    filter_by_status, filter_specs, global_validation_inputs, load_and_discover,
+    run_validation_with_cache, spec_inventory,
 };
-
-/// Files whose contents affect validation globally rather than through a single
-/// spec's frontmatter: the resolved config file and every file in the schema
-/// directory. A change to any of these must invalidate the unchanged-skip —
-/// otherwise a migration that drops a documented column, or a newly-added
-/// custom rule, is silently skipped on the default incremental `check` path
-/// (a false-PASS) and only surfaces under `--force`.
-pub(crate) fn global_validation_inputs(
-    root: &Path,
-    config: &types::SpecSyncConfig,
-) -> Vec<String> {
-    let normalize = |p: &Path| -> String {
-        p.strip_prefix(root)
-            .unwrap_or(p)
-            .to_string_lossy()
-            .replace('\\', "/")
-    };
-    let mut inputs: Vec<String> = Vec::new();
-    if let Some(cfg) = &config.config_path {
-        inputs.push(normalize(cfg));
-    }
-    if let Some(dir) = &config.schema_dir
-        && let Ok(entries) = fs::read_dir(root.join(dir))
-    {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_file() {
-                inputs.push(normalize(&path));
-            }
-        }
-    }
-    inputs.sort();
-    inputs
-}
 
 #[allow(clippy::too_many_arguments)]
 pub fn cmd_check(
@@ -114,6 +81,9 @@ pub fn cmd_check(
                         "notices": [],
                         "stale": [],
                         "specs_checked": 0,
+                        "specs_validated": 0,
+                        "specs_cached": 0,
+                        "specs_skipped": 0,
                         "sdd": sdd_report,
                     }))
                     .unwrap_or_else(|_| "{\"passed\":false}".to_string())
@@ -154,6 +124,9 @@ pub fn cmd_check(
                     "notices": [],
                     "stale": [],
                     "specs_checked": 0,
+                    "specs_validated": 0,
+                    "specs_cached": 0,
+                    "specs_skipped": 0,
                 });
                 println!("{}", serde_json::to_string_pretty(&output).unwrap());
             }
@@ -187,6 +160,9 @@ pub fn cmd_check(
                     "notices": [],
                     "stale": [],
                     "specs_checked": 0,
+                    "specs_validated": 0,
+                    "specs_cached": 0,
+                    "specs_skipped": 0,
                 });
                 println!("{}", serde_json::to_string_pretty(&output).unwrap());
             }
@@ -215,30 +191,33 @@ pub fn cmd_check(
     // Config + schema files affect validation globally (not via one spec's
     // frontmatter), so track them separately from per-spec hashes.
     let global_inputs = global_validation_inputs(root, &config);
-    let (specs_to_validate, change_classifications) = if force || strict || !spec_filters.is_empty()
-    {
-        (spec_files.clone(), Vec::new())
-    } else if fix {
-        // --fix bypasses the unchanged-skip: an explicit fix request must
-        // never be a silent no-op because a previous (failing or warning) run
-        // recorded the hashes.
+    let inventory = spec_inventory(root, &all_spec_files);
+    let bypass_cache = force
+        || strict
+        || fix
+        || explain
+        || stale.is_some()
+        || create_issues
+        || !spec_filters.is_empty();
+    let (specs_to_validate, change_classifications) = if bypass_cache {
         let classifications = hash_cache::classify_all_changes(root, &spec_files, &cache);
         (spec_files.clone(), classifications)
     } else {
         let classifications = hash_cache::classify_all_changes(root, &spec_files, &cache);
-        let global_changed = global_inputs.iter().any(|p| cache.is_changed(root, p));
-        let changed: Vec<PathBuf> = if global_changed {
-            // A schema or config file changed since the cache was written — a
-            // spec whose own files are unchanged may still now be stale (e.g. a
-            // migration dropped a documented column, or a new custom rule was
-            // added). Re-validate everything rather than trust the stale skip.
-            spec_files.clone()
-        } else {
-            classifications
-                .iter()
-                .map(|c| c.spec_path.clone())
-                .collect()
-        };
+        let changed_paths = classifications
+            .iter()
+            .map(|classification| classification.spec_path.as_path())
+            .collect::<std::collections::HashSet<_>>();
+        let changed = spec_files
+            .iter()
+            .filter(|spec| {
+                changed_paths.contains(spec.as_path())
+                    || cache
+                        .replayable_validation_snapshot(root, spec, &global_inputs, &inventory)
+                        .is_none()
+            })
+            .cloned()
+            .collect();
         (changed, classifications)
     };
 
@@ -249,39 +228,46 @@ pub fn cmd_check(
         .cloned()
         .collect();
 
-    // Replay the validation outcomes cached for unchanged specs so warnings
-    // and errors do not silently vanish on warm-cache reruns (issue #429).
-    // Specs without a recorded outcome (cache written by an older version or
-    // by `rehash`) replay no findings but still count as checked/passed.
+    // Replay only complete snapshots that are still bound to the current
+    // validation inputs. Missing, malformed, tampered, stale, and
+    // version-incompatible snapshots were selected for revalidation above.
     let mut replay_errors: Vec<String> = Vec::new();
     let mut replay_warnings: Vec<String> = Vec::new();
     let mut replay_notices: Vec<String> = Vec::new();
     let mut replay_passed: usize = 0;
     for spec in &skipped_specs {
-        let rel = spec
-            .strip_prefix(root)
-            .unwrap_or(spec)
-            .to_string_lossy()
-            .replace('\\', "/");
-        match cache.outcomes.get(&rel) {
-            Some(outcome) => {
-                replay_errors.extend(outcome.errors.iter().map(|e| format!("{rel}: {e} (cached)")));
-                replay_warnings
-                    .extend(outcome.warnings.iter().map(|w| format!("{rel}: {w} (cached)")));
-                replay_notices
-                    .extend(outcome.notices.iter().map(|n| format!("{rel}: {n} (cached)")));
-                if outcome.errors.is_empty() {
-                    replay_passed += 1;
-                }
+        if let Some(snapshot) =
+            cache.replayable_validation_snapshot(root, spec, &global_inputs, &inventory)
+        {
+            let display_path = &snapshot.spec_path;
+            replay_errors.extend(
+                snapshot
+                    .errors
+                    .iter()
+                    .map(|error| format!("{display_path}: {error}")),
+            );
+            replay_warnings.extend(
+                snapshot
+                    .warnings
+                    .iter()
+                    .map(|warning| format!("{display_path}: {warning}")),
+            );
+            replay_notices.extend(
+                snapshot
+                    .notices
+                    .iter()
+                    .map(|notice| format!("{display_path}: {notice}")),
+            );
+            if snapshot.errors.is_empty() {
+                replay_passed += 1;
             }
-            None => replay_passed += 1,
         }
     }
 
     if skipped > 0 && matches!(format, Text) {
         let cache_path = root.join(".specsync").join("hashes.json");
         println!(
-            "{} Skipped {skipped} unchanged spec(s) (use --force/--no-cache to re-validate all)",
+            "{} Replayed {skipped} cached validation snapshot(s) (use --force/--no-cache to re-validate all)",
             "⊘".cyan()
         );
         println!("  {} Cache: {}", "ℹ".dimmed(), cache_path.display());
@@ -298,8 +284,17 @@ pub fn cmd_check(
     }
 
     if specs_to_validate.is_empty() && matches!(format, Text) {
-        println!("{}", "All specs unchanged — nothing to validate.".green());
+        println!(
+            "{}",
+            "All specs unchanged — validation outcomes replayed from cache.".green()
+        );
         let coverage = compute_coverage(root, &spec_files, &config);
+        print_summary(
+            spec_files.len(),
+            replay_passed,
+            replay_warnings.len(),
+            replay_errors.len(),
+        );
         print_coverage_line(&coverage);
         // A warm cache skips spec RE-validation, but a requested coverage/
         // enforcement gate must still be evaluated against freshly computed
@@ -445,8 +440,6 @@ pub fn cmd_check(
     }
 
     let collect = !matches!(format, Text);
-    let mut new_outcomes: std::collections::HashMap<String, hash_cache::CachedSpecOutcome> =
-        std::collections::HashMap::new();
     let (
         mut total_errors,
         mut total_warnings,
@@ -455,7 +448,7 @@ pub fn cmd_check(
         mut all_errors,
         mut all_warnings,
         mut all_notices,
-    ) = run_validation(
+    ) = run_validation_with_cache(
         root,
         &specs_to_validate,
         &all_spec_files,
@@ -465,7 +458,9 @@ pub fn cmd_check(
         collect,
         explain,
         &ignore_rules,
-        Some(&mut new_outcomes),
+        Some(&mut cache),
+        &global_inputs,
+        &inventory,
     );
     // Fold the replayed cached outcomes for unchanged specs into the totals
     // so JSON/Markdown reports and exit codes reflect the full spec set.
@@ -572,9 +567,6 @@ pub fn cmd_check(
         for input in &global_inputs {
             cache.update(root, input);
         }
-        // Persist the per-spec outcomes from this run so warm-cache reruns can
-        // replay their findings (issue #429).
-        cache.outcomes.extend(new_outcomes);
         let _ = cache.save(root);
     }
 
@@ -600,6 +592,8 @@ pub fn cmd_check(
                 "notices": all_notices,
                 "stale": stale_entries,
                 "specs_checked": total,
+                "specs_validated": specs_to_validate.len(),
+                "specs_cached": skipped,
                 "specs_skipped": skipped,
             });
             println!("{}", serde_json::to_string_pretty(&output).unwrap());

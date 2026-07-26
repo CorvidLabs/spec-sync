@@ -21,6 +21,11 @@ spec: hash_cache.spec.md
 - [x] Empty-cache fallback on missing/corrupt JSON
 - [x] Integration coverage: `check_creates_hash_cache`
 - [x] Populate requirements.md with user stories and acceptance criteria (2026-04-10)
+- [x] Persist complete versioned per-spec validation snapshots for issue #429
+- [x] Bind replay to deterministic spec, companion, source, global, tool-version, and spec-inventory inputs
+- [x] Reject malformed, legacy, incompatible, stale, and integrity-mismatched cache state
+- [x] Refuse snapshot publication when validation inputs change during the validation window
+- [x] Add unit and CLI regressions for warm/cold parity, invalidation, tampering, and version mismatch
 
 ## Review Status
 

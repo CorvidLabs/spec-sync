@@ -1,11 +1,11 @@
 ---
 module: commands
-version: 8
+version: 9
 status: stable
 files:
   - src/commands/mod.rs
 db_tables: []
-tracks: []
+tracks: [429]
 depends_on:
   - specs/agents/agents.spec.md
   - specs/change/change.spec.md
@@ -15,6 +15,7 @@ depends_on:
   - specs/config/config.spec.md
   - specs/deps/deps.spec.md
   - specs/github/github.spec.md
+  - specs/hash_cache/hash_cache.spec.md
   - specs/hooks/hooks.spec.md
   - specs/ignore/ignore.spec.md
   - specs/merge/merge.spec.md
@@ -93,6 +94,7 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 4. Exit code logic by enforcement mode: Warn → always 0; EnforceNew → 1 if unspecced files; Strict → 1 on errors, also 1 on warnings when `--strict`
 5. `--require-coverage N` triggers exit 1 if file coverage percent < N regardless of enforcement mode. When `N > 0` but 0 source files were discovered (empty/misconfigured `source_dirs` or an over-broad `exclude_patterns`), the gate fails loud (exit 1) rather than passing on the vacuous 100% reported for an empty source tree
 6. `create_drift_issues` groups errors by spec path and creates one GitHub issue per spec, not per error
+7. The private cached-validation path uses the same validation loop as `run_validation`, records only filtered user-visible diagnostics, and binds snapshots to deterministic recursive global-input and complete spec-inventory lists
 
 ## Behavioral Examples
 
@@ -137,6 +139,7 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 | types | `SpecSyncConfig`, `CoverageReport`, `EnforcementMode`, `OutputFormat` |
 | validator | `find_spec_files`, `validate_spec` |
 | github | `resolve_repo`, `create_drift_issue` |
+| hash_cache | `HashCache` snapshot recording for the private cached-validation path |
 
 **Consumed By**
 
@@ -155,7 +158,7 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 
 **Frontmatter Synchronization**
 
-Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/agents/agents.spec.md`, `specs/change/change.spec.md`, `specs/changelog/changelog.spec.md`, `specs/comment/comment.spec.md`, `specs/compact/compact.spec.md`, `specs/deps/deps.spec.md`, `specs/hooks/hooks.spec.md`, `specs/merge/merge.spec.md`, `specs/parser/parser.spec.md`, `specs/rehash/rehash.spec.md`, `specs/view/view.spec.md`. This YAML frontmatter update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
+Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/agents/agents.spec.md`, `specs/change/change.spec.md`, `specs/changelog/changelog.spec.md`, `specs/comment/comment.spec.md`, `specs/compact/compact.spec.md`, `specs/deps/deps.spec.md`, `specs/hash_cache/hash_cache.spec.md`, `specs/hooks/hooks.spec.md`, `specs/merge/merge.spec.md`, `specs/parser/parser.spec.md`, `specs/rehash/rehash.spec.md`, `specs/view/view.spec.md`. This YAML frontmatter update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
 
 ## Change Log
 
@@ -170,3 +173,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-14 | CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str: Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts |
+| 2026-07-26 | v9: centralize deterministic global-input inventory and snapshot-aware validation recording for issue #429 |

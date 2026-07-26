@@ -1,7 +1,13 @@
 use colored::Colorize;
 use std::path::{Path, PathBuf};
 
+use crate::ignore::IgnoreRules;
+use crate::validator::get_schema_table_names;
 use crate::{config, hash_cache, validator};
+
+use super::{
+    build_schema_columns, global_validation_inputs, run_validation_with_cache, spec_inventory,
+};
 
 pub fn cmd_rehash(root: &Path) {
     let (config, spec_files) = discover_spec_files(root);
@@ -15,12 +21,34 @@ pub fn cmd_rehash(root: &Path) {
     }
 
     let mut cache = hash_cache::HashCache::default();
+    let global_inputs = global_validation_inputs(root, &config);
+    let inventory = spec_inventory(root, &spec_files);
+    let schema_tables = get_schema_table_names(root, &config);
+    let schema_columns = build_schema_columns(root, &config);
+    let ignore_rules = IgnoreRules::load(root);
+    let (total_errors, _, _, _, _, _, _) = run_validation_with_cache(
+        root,
+        &spec_files,
+        &spec_files,
+        &schema_tables,
+        &schema_columns,
+        &config,
+        true,
+        false,
+        &ignore_rules,
+        Some(&mut cache),
+        &global_inputs,
+        &inventory,
+    );
+    if total_errors > 0 {
+        // Rehash is not a validation gate, but it must never bless incomplete
+        // or project-invalid results as replayable. The next check performs a
+        // full validation and reports the errors through its normal channels.
+        cache.snapshots.clear();
+    }
     hash_cache::update_cache(root, &spec_files, &mut cache);
-    // Also cache the global validation inputs (config + schema files) that
-    // `check` consults — without them the first `check` after `rehash` sees a
-    // "changed" config and re-validates everything anyway (issue #429).
-    for input in super::check::global_validation_inputs(root, &config) {
-        cache.update(root, &input);
+    for input in &global_inputs {
+        cache.update(root, input);
     }
 
     if let Err(e) = cache.save(root) {

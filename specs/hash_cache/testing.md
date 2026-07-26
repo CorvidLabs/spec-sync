@@ -6,8 +6,10 @@ spec: hash_cache.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/hash_cache.rs` | cargo test hash_cache:: | `cache_round_trip`, `is_changed_detects_new_file`, `is_changed_detects_modification`, `extract_files_from_frontmatter`, `prune_removes_missing`, `classify_detects_spec_change`, `classify_detects_requirements_change`, `classify_detects_companion_change`, `classify_detects_testing_companion_change`, `classify_detects_source_change`, `companion_files_found_with_plain_names`, `update_cache_tracks_plain_companion_files` |
-| `tests/integration.rs` | cargo test --test integration check_creates_hash_cache | End-to-end fixture: `check_creates_hash_cache` |
+| `src/hash_cache.rs` | cargo test hash_cache:: | Existing hash/classification tests plus versioned round-trip, integrity/input rejection, and stale pre-validation digest publication refusal |
+| `tests/integration.rs` | cargo test --test integration warm_cache | Warm text/JSON diagnostic replay and explicit cache counters |
+| `tests/integration.rs` | cargo test --test integration cache_format_and_snapshot_version_mismatches_force_revalidation | Format/snapshot version invalidation |
+| `tests/integration.rs` | cargo test --test integration tampered_snapshot_and_stale_inputs_cannot_produce_a_false_green | Snapshot integrity and independent current-input binding |
 
 ## Behavioral Verification
 
@@ -18,6 +20,8 @@ spec: hash_cache.spec.md
 | First run (no cache) | `.specsync/hashes.json` does not exist | `HashCache::load` is called | returns empty cache; all files will be classified as changed |
 | Requirements change triggers staleness | `requirements.md` companion has been updated | `classify_changes` is called for the parent spec | returns `ChangeClassification` with `ChangeKind::Requirements` |
 | Design or testing companion change detected | `testing.md` or `design.md` has been modified | `classify_changes` is called for the parent spec | returns `ChangeClassification` with `ChangeKind::Companion` |
+| Warm snapshot replay | no bound input changed after a warning-only cold check | run the same non-strict JSON check | identical diagnostics and full checked count; validated count 0 and cached count 1 |
+| Snapshot invalidation | mutate a source, `.specsyncignore`, spec inventory, snapshot field, or version | run non-strict JSON check | affected specs revalidate and current diagnostics replace stale state |
 
 ## Regression Matrix
 
@@ -25,6 +29,9 @@ spec: hash_cache.spec.md
 |------|-------------------|-----------------|
 | Cache file missing | Returns empty cache (all files treated as changed) | Keep or add a focused assertion before changing this behavior |
 | Cache file has invalid JSON | Returns empty cache silently | Keep or add a focused assertion before changing this behavior |
+| Cache/snapshot version mismatch | Forces validation and rewrites current compatible state after success | `cache_format_and_snapshot_version_mismatches_force_revalidation` |
+| Cached diagnostics are modified | Integrity check rejects replay | `tampered_snapshot_and_stale_inputs_cannot_produce_a_false_green` |
+| Global ignore rule or spec inventory changes | Input digest invalidates every affected snapshot deterministically | `ignore_rules_and_spec_inventory_invalidate_snapshots` |
 | File unreadable during hashing | `hash_file` returns `None`; file treated as changed | Keep or add a focused assertion before changing this behavior |
 | Cannot create `.specsync/` directory | `save` returns `io::Error` | Keep or add a focused assertion before changing this behavior |
 

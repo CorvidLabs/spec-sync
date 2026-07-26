@@ -74,7 +74,6 @@ fn cmd_generate_all(
             json,
             false,
             &ignore_rules,
-            None,
         );
         (te, tw, p, t)
     };
@@ -106,7 +105,6 @@ fn cmd_generate_all(
                 true,
                 false,
                 &ignore_rules,
-                None,
             );
             (te, tw)
         };
@@ -169,7 +167,6 @@ fn cmd_generate_all(
                 json,
                 false,
                 &ignore_rules,
-                None,
             );
             total_errors = te;
             total_warnings = tw;
@@ -274,7 +271,6 @@ fn cmd_generate_batch(
                 true,
                 false,
                 &ignore_rules,
-                None,
             );
             (te, tw)
         };
@@ -362,7 +358,6 @@ fn cmd_generate_batch(
         true, // collect
         false,
         &ignore_rules,
-        None,
     );
     print_summary(total, passed, total_warnings, total_errors);
 

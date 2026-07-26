@@ -9,6 +9,7 @@ spec: commands.spec.md
 - As a CI operator, I want exit codes that reflect enforcement mode and coverage thresholds so that pipeline pass/fail is predictable and actionable
 - As a maintainer, I want exit-code logic separated from process exit so that the decision is unit-testable without spawning a process
 - As a team using GitHub, I want validation errors turned into one issue per drifted spec so that drift gets tracked without flooding the tracker
+- As a cache consumer, I want the same shared validation loop to create and render cached outcomes so warm and cold behavior cannot diverge
 
 ## Acceptance Criteria
 
@@ -20,6 +21,8 @@ spec: commands.spec.md
 - `compute_exit_code` returns: Warn → always 0; EnforceNew → 1 if any unspecced files; Strict → 1 on any error and (with `--strict`) 1 on any warning; and 1 whenever `--require-coverage N` exceeds actual file coverage, regardless of mode
 - `exit_with_status` mirrors `compute_exit_code` but prints the reason and calls `process::exit`
 - `create_drift_issues` groups `"spec/path: message"` errors by spec and creates exactly one GitHub issue per spec using configured drift labels (default `spec-drift`)
+- The private snapshot-aware validation path uses the same filtering, duplicate-ownership checks, diagnostics, and ordering as public `run_validation`
+- Global validation inputs are discovered deterministically: resolved config, `.specsyncignore`, and recursively sorted schema files; complete spec inventory is sorted and deduplicated
 
 ## Constraints
 
@@ -28,6 +31,7 @@ spec: commands.spec.md
 - `\r\n` is normalized to `\n` before frontmatter parsing in status filtering
 - GitHub issue creation must continue past individual `gh` failures, reporting each per-spec error
 - Output rendering must respect the requested `OutputFormat` (text vs collected JSON/markdown/GitHub)
+- Cache recording must consume already-filtered user-visible diagnostics from the shared validation loop rather than reimplementing validation
 
 ## Out of Scope
 
@@ -55,3 +59,13 @@ Acceptance Criteria
 - Structured JSON includes a deterministic notices array on normal, SDD-error, unmatched-filter, and no-spec exit paths.
 - Markdown and GitHub reports include a planned mappings section.
 - Notice-only results remain passing under strict enforcement.
+
+### REQ-commands-003
+
+Shared validation orchestration SHALL produce deterministic cache inputs and snapshots without changing public `run_validation` callers.
+
+Acceptance Criteria
+- Public `run_validation` retains its existing signature and behavior.
+- Check and rehash use the same private validation loop to record complete filtered diagnostic snapshots.
+- Global paths and complete spec inventory are normalized, sorted, and deduplicated before snapshot binding.
+- Recursive schema and ignore-rule changes invalidate cached outcomes.

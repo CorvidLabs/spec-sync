@@ -10,6 +10,9 @@ spec: cmd_check.spec.md
 - `--backup` aborts the whole `--fix` run on any copy failure rather than risk a partial, unrecoverable rewrite.
 - Git staleness uses `git_commits_since(root, spec_commit, source_file)` — one `rev-list` per source file — replacing the old `git_commits_between` pairwise walk (the N+1 fix).
 - The cache is only persisted when there are zero errors, so a failing run never "blesses" a broken spec as up-to-date.
+- Cached replay is authorized by a complete versioned `CachedValidationSnapshot`, not file hashes alone. The replay preserves diagnostic strings exactly and uses explicit counters to disclose cached work.
+- Correctness-sensitive modes (`--strict`, `--force`, `--fix`, `--explain`, `--stale`, `--create-issues`, and explicit filters) re-validate rather than replay.
+- Global validation inputs include the resolved config, recursive schema files, and `.specsyncignore`; full spec inventory is also bound so additions/deletions re-check cross-spec ownership and dependency behavior.
 - The 5.0 SDD gate runs before canonical validation so stale approvals, uncovered meaningful paths, or an invalid effective contract can never be hidden by the hash cache.
 
 ## Files to Read First
@@ -21,7 +24,7 @@ spec: cmd_check.spec.md
 
 ## Current Status
 
-Fully implemented and stable. Exercised end-to-end by many `tests/integration.rs` fixtures (validation outcomes, `--fix` variants, `--backup`, `--dry-run`, JSON). No inline `#[cfg(test)]` module in `check.rs` itself.
+Fully implemented and stable. Warm/cold parity and fail-closed cache invalidation are covered end-to-end alongside existing validation, fix, backup, dry-run, and JSON fixtures. No inline `#[cfg(test)]` module in `check.rs` itself.
 
 ## Notes
 

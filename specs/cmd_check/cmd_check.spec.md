@@ -1,11 +1,11 @@
 ---
 module: cmd_check
-version: 8
+version: 9
 status: stable
 files:
   - src/commands/check.rs
 db_tables: []
-tracks: []
+tracks: [429]
 depends_on:
   - specs/commands/commands.spec.md
   - specs/comment/comment.spec.md
@@ -39,13 +39,14 @@ Implements the primary deterministic validation entry point, including caching, 
 
 1. `--fix` performs deterministic local markdown repairs only: near-miss headers and undocumented export rows; it never calls a model or shell command
 2. Near-miss header correction runs as part of auto-fix — Levenshtein-close typos are renamed to canonical export headers, and bare API-kind headings under `## Public API` (e.g. `### Functions`, `### Methods`, `### Types`) are promoted to `### Exported <Kind>` so hand-written tables become the export table instead of being duplicated
-3. Hash cache is consulted before validation unless `--force`, `--strict`, `--fix`, or a spec filter is set — an explicit `--fix` is never silently skipped because a previous failing/warning run recorded the hashes
+3. Hash cache is consulted before validation unless `--force`, `--strict`, `--fix`, `--explain`, `--stale`, `--create-issues`, or a spec filter is set; a spec is skipped only when a complete versioned snapshot still matches every validation input
 3a. `--fix` never adds a symbol that already appears in any table within `## Public API` (including informational subsections)
 4. After auto-fix, validation is re-run to verify fixes resolved the issues
 5. JSON output mode collects all errors/warnings into a structured object instead of printing inline
 6. `--create-issues` groups errors by spec path and creates one GitHub issue per affected spec
 7. `--explain` appends per-category score breakdown (FM/Sec/API/Depth/Fresh each out of 20) to each spec's output
 8. Exit code is determined by enforcement mode and `--strict` flag via `compute_exit_code`
+9. Warm-cache errors, warnings, and notices preserve cold-run text and ordering; JSON reports the full `specs_checked` count plus explicit `specs_validated`, `specs_cached`, and compatibility `specs_skipped` counts
 
 ## Behavioral Examples
 
@@ -67,6 +68,12 @@ Implements the primary deterministic validation entry point, including caching, 
 - **When** validation completes with errors and warnings
 - **Then** output is a single JSON object with `specs_checked`, `passed`, `errors`, `warnings`, `coverage`, and `exit_code` fields
 
+### Scenario: Warm cache preserves validation semantics
+
+- **Given** a non-strict cold check recorded warnings for one spec
+- **When** the unchanged project is checked again
+- **Then** the same errors, warnings, notices, pass/fail gate, and full spec count are reported, while explicit counters identify the cached replay
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -74,6 +81,7 @@ Implements the primary deterministic validation entry point, including caching, 
 | Auto-fix changes a spec but validation still fails | Reports remaining errors, does not loop |
 | Spec name filter matches nothing while specs exist | Prints "No specs matched" error (no contradictory "No spec files found" message) and exits 1 |
 | Hash cache file is corrupted | Falls back to full validation (cache miss) |
+| Cache/snapshot version, integrity, input digest, or required snapshot is invalid | Re-validates the affected spec and rewrites safe current cache state after an error-free run |
 | `--create-issues` with no GitHub repo | Prints error, skips issue creation |
 
 ## Dependencies
@@ -113,3 +121,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-11 | CHG-0004-close-final-pr-review-gaps-in-5-0-lifecycle-enforcement: Close final PR review gaps in 5.0 lifecycle enforcement |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-26 | v9: make warm and cold validation semantically identical with input-bound versioned snapshots and explicit cache counters for issue #429 |

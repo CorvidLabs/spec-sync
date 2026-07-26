@@ -11,11 +11,12 @@ spec: cmd_check.spec.md
 - As a cautious developer, I want `--dry-run` to preview `--fix` and `--backup` to snapshot specs before they are rewritten so that I never lose work
 - As a maintainer, I want `--stale [N]` to flag specs that are N+ commits behind their source files so that I can spot quietly-rotting docs
 - As a tool integrator, I want `--format json/markdown/github` so that results render in dashboards, PR bodies, or Actions logs
+- As a CI operator, I want repeated unchanged checks to preserve the same diagnostics, counts, and gates so cache warmth cannot change a result
 
 ## Acceptance Criteria
 
 - Validates discovered specs, applying `--exclude-status`/`--only-status` and positional `[SPEC...]` filters
-- A hash cache (`.specsync/hashes.json`) skips unchanged specs unless `--force`/`--no-cache`, `--strict`, or explicit spec filters are given; the skipped count is reported in text mode
+- A hash cache (`.specsync/hashes.json`) skips unchanged specs only when a complete compatible snapshot matches its exact current inputs; `--force`/`--no-cache`, `--strict`, `--fix`, `--explain`, `--stale`, `--create-issues`, and explicit spec filters bypass replay
 - Requirements drift remains visible as validation guidance for humans and coding agents
 - `--fix` renames near-miss headers and appends undocumented exports with language-aware skeleton rows; it performs no inference or command execution
 - `--backup` copies specs to `.specsync/backup-fix/` before any `--fix` write, aborting on any copy/dir failure to avoid data loss
@@ -23,7 +24,9 @@ spec: cmd_check.spec.md
 - `--stale [N]` (default N=5) runs only inside a git repo, using `git_last_commit_hash` + `git_commits_since` to count how many commits each source file has advanced past the spec's last commit, flagging specs ≥ N behind
 - `--create-issues` creates one GitHub issue per spec with errors (only when `total_errors > 0`)
 - The hash cache is updated and saved only when `total_errors == 0`
-- JSON output is a single object with `passed`, `errors`, `warnings`, `stale`, and `specs_checked`
+- JSON output is a single object with `passed`, `errors`, `warnings`, `notices`, `stale`, `specs_checked`, `specs_validated`, `specs_cached`, and `specs_skipped`
+- Warm JSON preserves cold errors, filtered warnings, and notices exactly; `specs_checked` remains the full selected set while cache counters identify execution source
+- Missing, malformed, unknown-version, integrity-mismatched, input-stale, or inventory-stale snapshots force deterministic re-validation
 - Exit code comes from `compute_exit_code`/`exit_with_status` (Warn/EnforceNew/Strict + require-coverage)
 - When `.specsync/sdd.json` enables SDD, unified check first validates change coverage, approvals, semantic conflicts, and code against the effective canonical-plus-approved-delta contract.
 
@@ -59,3 +62,12 @@ Acceptance Criteria
 - Requirements drift remains visible as validation guidance for a coding agent to resolve.
 - Existing cache, enforcement, lifecycle, output-format, backup, and dry-run behavior remains intact.
 
+### REQ-cmd-check-003
+
+Incremental checking SHALL be semantically independent of prior run history.
+
+Acceptance Criteria
+- A warm non-strict check reports the same errors, filtered warnings, notices, and exit gate as the cold check that created its snapshots.
+- `specs_checked` reports the full selected spec set; `specs_validated` and `specs_cached` disclose fresh versus replayed work, with `specs_skipped` retained as a compatibility alias.
+- Strict, force, fix, explain, stale, create-issues, and explicit-filter paths do not trust cached validation outcomes.
+- Invalid or incomplete cache state causes validation rather than an empty successful result.

@@ -15,6 +15,9 @@ spec: commands.spec.md
 - [x] `compute_exit_code` exit-code matrix covered by unit tests in `src/main.rs` (warn/enforce-new/strict + require-coverage)
 - [x] End-to-end enforcement and coverage flows covered in `tests/integration.rs`
 - [x] Register verified SDD command dispatch under the shared command surface
+- [x] Preserve the public `run_validation` signature while adding a private snapshot-aware path
+- [x] Centralize deterministic recursive global-input and complete spec-inventory discovery
+- [x] Share snapshot recording between check and rehash for issue #429
 
 ## Gaps
 

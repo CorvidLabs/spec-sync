@@ -6,6 +6,10 @@ spec: rehash.spec.md
 
 - [x] Implement full hash-cache regeneration command
 - [x] Ensure cache save failures return a non-zero exit
+- [x] Populate complete per-spec validation snapshots during a full rebuild
+- [x] Include config, recursive schema, and ignore-rule inputs
+- [x] Prove the first unchanged check after rehash is warm without losing warnings
+- [x] Clear all replayable snapshots when rehash encounters validation errors
 
 ## Gaps
 

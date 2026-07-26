@@ -2141,27 +2141,24 @@ fn warm_cache_json_replays_cached_warnings() {
 
     let cold = check_json();
     assert_eq!(cold["specs_checked"], 1);
+    assert_eq!(cold["specs_validated"], 1);
+    assert_eq!(cold["specs_cached"], 0);
     assert!(
         !cold["warnings"].as_array().unwrap().is_empty(),
         "cold run must report warnings"
     );
 
-    // Warm rerun: the spec is unchanged, but the report must not collapse to
-    // specs_checked: 0 / warnings: [] — findings are replayed from the cache.
+    // Warm rerun: diagnostic text and ordering remain byte-for-byte equivalent
+    // while explicit counters reveal that the outcome came from the cache.
     let warm = check_json();
     assert_eq!(warm["passed"], true);
     assert_eq!(warm["specs_checked"], 1);
     assert_eq!(warm["specs_skipped"], 1);
-    let warnings: Vec<&str> = warm["warnings"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|w| w.as_str().unwrap())
-        .collect();
-    assert!(
-        warnings.iter().any(|w| w.contains("(cached)")),
-        "warm run must replay cached warnings, got {warnings:?}"
-    );
+    assert_eq!(warm["specs_validated"], 0);
+    assert_eq!(warm["specs_cached"], 1);
+    assert_eq!(warm["errors"], cold["errors"]);
+    assert_eq!(warm["warnings"], cold["warnings"]);
+    assert_eq!(warm["notices"], cold["notices"]);
 }
 
 #[test]
@@ -2182,31 +2179,221 @@ fn warm_cache_text_replays_cached_warnings() {
         .arg("check")
         .assert()
         .success()
-        .stdout(predicate::str::contains("(cached)"));
+        .stdout(predicate::str::contains("cached validation snapshot"))
+        .stdout(predicate::str::contains("Undocumented export 'extra'"));
 }
 
 #[test]
-fn rehash_writes_config_cache_entry() {
+fn strict_check_revalidates_instead_of_trusting_warm_snapshot() {
     let tmp = TempDir::new().unwrap();
     let root = warning_only_project(&tmp);
 
-    specsync().current_dir(&root).arg("rehash").assert().success();
-
-    let cache: serde_json::Value = serde_json::from_str(
-        &fs::read_to_string(root.join(".specsync/hashes.json")).unwrap(),
-    )
-    .unwrap();
-    assert!(
-        cache["hashes"].get("specsync.json").is_some(),
-        "rehash must cache the config entry `check` requires: {cache}"
-    );
-
-    // And the first `check` after `rehash` is a warm run, not a full
-    // re-validation.
     specsync()
         .current_dir(&root)
         .arg("check")
         .assert()
+        .success();
+    specsync()
+        .current_dir(&root)
+        .args(["check", "--strict", "--format", "json"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("\"specs_validated\": 1"))
+        .stdout(predicate::str::contains("\"specs_cached\": 0"))
+        .stdout(predicate::str::contains("Undocumented export 'extra'"));
+}
+
+fn check_json(root: &std::path::Path) -> serde_json::Value {
+    let output = specsync()
+        .current_dir(root)
+        .args(["check", "--format", "json"])
+        .assert()
         .success()
-        .stdout(predicate::str::contains("nothing to validate"));
+        .get_output()
+        .stdout
+        .clone();
+    serde_json::from_slice(&output).expect("single valid JSON result")
+}
+
+#[test]
+fn malformed_cache_forces_complete_revalidation() {
+    let tmp = TempDir::new().unwrap();
+    let root = warning_only_project(&tmp);
+    let cold = check_json(&root);
+    fs::write(root.join(".specsync/hashes.json"), "{ definitely not json").unwrap();
+
+    let recovered = check_json(&root);
+    assert_eq!(recovered["specs_validated"], 1);
+    assert_eq!(recovered["specs_cached"], 0);
+    assert_eq!(recovered["warnings"], cold["warnings"]);
+}
+
+#[test]
+fn cache_format_and_snapshot_version_mismatches_force_revalidation() {
+    let tmp = TempDir::new().unwrap();
+    let root = warning_only_project(&tmp);
+    let cold = check_json(&root);
+    let cache_path = root.join(".specsync/hashes.json");
+
+    let mut cache: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&cache_path).unwrap()).unwrap();
+    cache["format_version"] = serde_json::json!(u64::MAX);
+    fs::write(&cache_path, serde_json::to_vec_pretty(&cache).unwrap()).unwrap();
+    let incompatible_cache = check_json(&root);
+    assert_eq!(incompatible_cache["specs_validated"], 1);
+    assert_eq!(incompatible_cache["specs_cached"], 0);
+    assert_eq!(incompatible_cache["warnings"], cold["warnings"]);
+
+    let mut cache: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&cache_path).unwrap()).unwrap();
+    cache["snapshots"]["specs/svc/svc.spec.md"]["snapshot_version"] = serde_json::json!(u64::MAX);
+    fs::write(&cache_path, serde_json::to_vec_pretty(&cache).unwrap()).unwrap();
+    let incompatible_snapshot = check_json(&root);
+    assert_eq!(incompatible_snapshot["specs_validated"], 1);
+    assert_eq!(incompatible_snapshot["specs_cached"], 0);
+    assert_eq!(incompatible_snapshot["warnings"], cold["warnings"]);
+}
+
+#[test]
+fn tampered_snapshot_and_stale_inputs_cannot_produce_a_false_green() {
+    let tmp = TempDir::new().unwrap();
+    let root = warning_only_project(&tmp);
+    let cold = check_json(&root);
+    let cache_path = root.join(".specsync/hashes.json");
+
+    let mut cache: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&cache_path).unwrap()).unwrap();
+    cache["snapshots"]["specs/svc/svc.spec.md"]["warnings"] = serde_json::json!([]);
+    fs::write(&cache_path, serde_json::to_vec_pretty(&cache).unwrap()).unwrap();
+    let tampered = check_json(&root);
+    assert_eq!(tampered["specs_validated"], 1);
+    assert_eq!(tampered["warnings"], cold["warnings"]);
+
+    fs::write(
+        root.join("src/svc/api.ts"),
+        "export function documented() {}\nexport function extra() {}\nexport function newest() {}\n",
+    )
+    .unwrap();
+    let stale = check_json(&root);
+    assert_eq!(stale["specs_validated"], 1);
+    assert_eq!(stale["specs_cached"], 0);
+    assert!(
+        stale["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|warning| warning.as_str().unwrap().contains("newest")),
+        "changed source must not replay the old cached snapshot: {stale}"
+    );
+}
+
+#[test]
+fn ignore_rules_and_spec_inventory_invalidate_snapshots() {
+    let tmp = TempDir::new().unwrap();
+    let root = warning_only_project(&tmp);
+    let cold = check_json(&root);
+    assert!(!cold["warnings"].as_array().unwrap().is_empty());
+
+    fs::write(root.join(".specsyncignore"), "undocumented-export\n").unwrap();
+    let ignored = check_json(&root);
+    assert_eq!(ignored["specs_validated"], 1);
+    assert_eq!(ignored["specs_cached"], 0);
+    assert!(
+        ignored["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|warning| !warning.as_str().unwrap().contains("Undocumented export")),
+        "changed ignore rules must suppress the cached category: {ignored}"
+    );
+
+    fs::create_dir_all(root.join("src/other")).unwrap();
+    fs::write(
+        root.join("src/other/api.ts"),
+        "export function documented() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        valid_spec("other", &["src/other/api.ts"]),
+    )
+    .unwrap();
+    let inventory_changed = check_json(&root);
+    assert_eq!(inventory_changed["specs_checked"], 2);
+    assert_eq!(inventory_changed["specs_validated"], 2);
+    assert_eq!(inventory_changed["specs_cached"], 0);
+}
+
+#[test]
+fn rehash_writes_complete_warm_validation_snapshots() {
+    let tmp = TempDir::new().unwrap();
+    let root = warning_only_project(&tmp);
+
+    specsync()
+        .current_dir(&root)
+        .arg("rehash")
+        .assert()
+        .success();
+
+    let cache: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(root.join(".specsync/hashes.json")).unwrap())
+            .unwrap();
+    assert!(
+        cache["hashes"].get("specsync.json").is_some(),
+        "rehash must cache the config entry `check` requires: {cache}"
+    );
+    assert_eq!(cache["format_version"], 1);
+    assert!(
+        cache["snapshots"].get("specs/svc/svc.spec.md").is_some(),
+        "rehash must persist the complete validation snapshot: {cache}"
+    );
+
+    let warm = check_json(&root);
+    assert_eq!(warm["specs_checked"], 1);
+    assert_eq!(warm["specs_validated"], 0);
+    assert_eq!(warm["specs_cached"], 1);
+    assert!(
+        warm["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|warning| warning.as_str().unwrap().contains("extra")),
+        "rehash must not erase validation findings: {warm}"
+    );
+}
+
+#[test]
+fn rehash_does_not_publish_snapshots_when_validation_has_errors() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("specs/broken")).unwrap();
+    fs::write(
+        root.join("specs/broken/broken.spec.md"),
+        valid_spec("broken", &["src/missing.ts"]),
+    )
+    .unwrap();
+
+    specsync()
+        .current_dir(root)
+        .arg("rehash")
+        .assert()
+        .success();
+    let cache: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(root.join(".specsync/hashes.json")).unwrap())
+            .unwrap();
+    assert_eq!(cache["snapshots"], serde_json::json!({}));
+
+    let checked = check_json(root);
+    assert_eq!(checked["specs_validated"], 1);
+    assert_eq!(checked["specs_cached"], 0);
+    assert!(
+        checked["errors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|error| error.as_str().unwrap().contains("Source file not found")),
+        "the first check after an invalid rehash must validate and report errors: {checked}"
+    );
 }

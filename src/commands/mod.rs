@@ -68,6 +68,60 @@ pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConf
     (config, spec_files)
 }
 
+fn normalize_project_path(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+fn collect_validation_files(root: &Path, directory: &Path, inputs: &mut Vec<String>) {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return;
+    };
+    let mut paths = entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .collect::<Vec<_>>();
+    paths.sort();
+    for path in paths {
+        let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+            continue;
+        };
+        if metadata.is_dir() && !metadata.file_type().is_symlink() {
+            collect_validation_files(root, &path, inputs);
+        } else if metadata.is_file() {
+            inputs.push(normalize_project_path(root, &path));
+        }
+    }
+}
+
+/// Inputs that can alter any spec's validation result independently of that
+/// spec's own files. The ignore path is retained even when absent so creating
+/// it invalidates prior snapshots.
+fn global_validation_inputs(root: &Path, config: &types::SpecSyncConfig) -> Vec<String> {
+    let mut inputs = vec![".specsyncignore".to_string()];
+    if let Some(config_path) = &config.config_path {
+        inputs.push(normalize_project_path(root, config_path));
+    }
+    if let Some(schema_dir) = &config.schema_dir {
+        collect_validation_files(root, &root.join(schema_dir), &mut inputs);
+    }
+    inputs.sort();
+    inputs.dedup();
+    inputs
+}
+
+fn spec_inventory(root: &Path, spec_files: &[PathBuf]) -> Vec<String> {
+    let mut inventory = spec_files
+        .iter()
+        .map(|path| normalize_project_path(root, path))
+        .collect::<Vec<_>>();
+    inventory.sort();
+    inventory.dedup();
+    inventory
+}
+
 /// Validate a user-supplied module name used by the scaffolding commands
 /// (`new`, `add-spec`, `scaffold`, `wizard`). The name is written verbatim into paths
 /// like `<specs_dir>/<name>/<name>.spec.md` and joined onto source dirs, so an
@@ -268,7 +322,45 @@ pub fn run_validation(
     collect: bool,
     explain: bool,
     ignore_rules: &IgnoreRules,
-    mut outcomes: Option<&mut HashMap<String, hash_cache::CachedSpecOutcome>>,
+) -> (
+    usize,
+    usize,
+    usize,
+    usize,
+    Vec<String>,
+    Vec<String>,
+    Vec<String>,
+) {
+    run_validation_with_cache(
+        root,
+        spec_files,
+        ownership_spec_files,
+        schema_tables,
+        schema_columns,
+        config,
+        collect,
+        explain,
+        ignore_rules,
+        None,
+        &[],
+        &[],
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_validation_with_cache(
+    root: &Path,
+    spec_files: &[PathBuf],
+    ownership_spec_files: &[PathBuf],
+    schema_tables: &std::collections::HashSet<String>,
+    schema_columns: &std::collections::HashMap<String, schema::SchemaTable>,
+    config: &types::SpecSyncConfig,
+    collect: bool,
+    explain: bool,
+    ignore_rules: &IgnoreRules,
+    mut cache: Option<&mut hash_cache::HashCache>,
+    global_inputs: &[String],
+    spec_inventory: &[String],
 ) -> (
     usize,
     usize,
@@ -325,6 +417,14 @@ pub fn run_validation(
     }
 
     for spec_file in spec_files {
+        let input_digest_before = cache.as_deref().map(|_| {
+            hash_cache::HashCache::current_validation_input_digest(
+                root,
+                spec_file,
+                global_inputs,
+                spec_inventory,
+            )
+        });
         let mut result = validate_spec(spec_file, root, schema_tables, schema_columns, config);
         let owner = spec_file
             .strip_prefix(root)
@@ -361,12 +461,18 @@ pub fn run_validation(
             .filter(|w| !ignore_rules.is_suppressed(w, &result.spec_path, &inline_ignores))
             .collect();
 
-        // Record the per-spec outcome so a later warm-cache run can replay
-        // the same findings for specs it skips (issue #429).
-        if let Some(out) = outcomes.as_deref_mut() {
-            out.insert(
-                owner.clone(),
-                hash_cache::CachedSpecOutcome {
+        // Record the complete, input-bound outcome so a warm-cache run can
+        // replay findings without becoming run-history dependent.
+        if let (Some(cache), Some(input_digest_before)) =
+            (cache.as_deref_mut(), input_digest_before.as_deref())
+        {
+            cache.record_validation_snapshot(
+                root,
+                spec_file,
+                global_inputs,
+                spec_inventory,
+                input_digest_before,
+                hash_cache::ValidationDiagnostics {
                     errors: result.errors.clone(),
                     warnings: filtered_warnings.iter().map(|w| (*w).clone()).collect(),
                     notices: result.notices.clone(),

@@ -3494,7 +3494,7 @@ mod tests {
 
     #[cfg(windows)]
     fn create_coverage_test_junction(junction: &Path, target: &Path) -> Result<(), String> {
-        for path in [junction, target] {
+        let quote_path = |path: &Path| -> Result<String, String> {
             let path = path
                 .to_str()
                 .ok_or_else(|| "junction fixture paths must be valid Unicode".to_string())?;
@@ -3508,11 +3508,12 @@ mod tests {
                     "junction fixture paths must not contain cmd.exe metacharacters".to_string(),
                 );
             }
-        }
+            Ok(format!("\"{path}\""))
+        };
+        let command = format!("mklink /J {} {}", quote_path(junction)?, quote_path(target)?);
         let output = std::process::Command::new("cmd")
-            .args(["/D", "/V:OFF", "/C", "mklink", "/J"])
-            .arg(junction)
-            .arg(target)
+            .args(["/D", "/V:OFF", "/S", "/C"])
+            .arg(command)
             .output()
             .map_err(|error| format!("failed to launch cmd /C mklink /J: {error}"))?;
         if output.status.success() {

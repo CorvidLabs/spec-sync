@@ -104,6 +104,13 @@
       "timestamp": 1784904749,
       "digest": "10f35eb383942319db03652e7f2e1c3afb04139ff5843d59da06e276d8b27252",
       "note": "User explicitly approved closing CHG-0062 after fresh verification; final Windows CI recovery verification passed at exact hosted commit f3322ab25650ab1f363e7212acbafe44c848f5fe."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785093007,
+      "digest": "b8148a4191b3c8001a4464fc032b1f7fd35ff87cab5155656f7065eb37258d04",
+      "note": "User explicitly approved closing CHG-0062 after fresh verification."
     }
   ],
   "reopenings": [

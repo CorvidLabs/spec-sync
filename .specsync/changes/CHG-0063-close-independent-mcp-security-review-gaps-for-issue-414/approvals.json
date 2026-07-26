@@ -97,6 +97,13 @@
       "timestamp": 1784868810,
       "digest": "d44299774abbc65a51b496f81f1ee1ab0ddebb60524f744f0306da5a328d5c99",
       "note": "User explicitly approved current CHG-0063 digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed on 2026-07-23."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785085727,
+      "digest": "c531e50845acbb46d7af726ca02cee622e3cdc1382a3514dd925839b9a8ceed6",
+      "note": "Recorded from the user's explicit approval of effective definition digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed; the effective digest remains exact after the Windows CI fixture-only remediation."
     }
   ],
   "reopenings": []

@@ -11,16 +11,21 @@ spec: schema.spec.md
 
 ## Acceptance Criteria
 
-- `build_schema` replays CREATE TABLE, ALTER TABLE (ADD/DROP/RENAME COLUMN, RENAME TO), and DROP TABLE in filename-sorted order
-- Returns empty map if the schema directory doesn't exist (no error)
+- `build_schema_snapshot` sorts migration files by filename and replays CREATE TABLE, ALTER TABLE (ADD/DROP/RENAME COLUMN, RENAME TO), and DROP TABLE in exact byte order within each file
+- A configured missing/unreadable schema directory, unreadable migration, malformed supported DDL, missing referenced object, or canonical name collision returns a path-aware error rather than a successful empty snapshot
+- SQL replay diagnostics include a one-based line and column plus a concise statement preview
 - Column types are normalized to uppercase for consistent comparison
 - ALTER TABLE ADD COLUMN is idempotent — duplicate columns are skipped
 - DROP TABLE removes the table entirely from the schema map
 - ALTER TABLE RENAME TO moves all columns to the new table name
 - ALTER TABLE RENAME COLUMN preserves all attributes except the name
-- CREATE TABLE replaces any prior definition of the same table
-- SQL line comments (`--`) are skipped during parsing
-- String literals with escaped quotes are handled correctly (no false column detection)
+- Plain CREATE TABLE fails without mutation on a canonical duplicate; IF NOT EXISTS preserves the existing table and OR REPLACE explicitly replaces it
+- RENAME fails without mutation when the source is missing or the canonical target already exists
+- DROP fails when the table is missing unless IF EXISTS is present
+- A later CREATE may recreate a retired identity and removes it from the retired set
+- ANSI double-quoted, backtick-quoted, bracket-quoted, mixed-case, and qualified table references use one canonical identity parser
+- Dots inside quoted identifier segments remain distinct from qualification separators, including for unqualified matching
+- SQL line/block comments and quoted/string content do not introduce false DDL operations or statement boundaries
 - Supports schema files with extensions: sql, ts, js, mjs, cjs, swift, kt, kts, java, py, rb, go, rs, cs, dart, php
 - `parse_spec_schema` supports both inline (`### Schema: table_name`) and multi-table (`### Schema` with `#### table_name`) formats
 - Markdown table header rows are skipped during spec schema parsing
@@ -43,17 +48,21 @@ spec: schema.spec.md
 Schema parsing SHALL replay supported migration DDL deterministically and compare canonical schema tables without interpreting unsupported DML.
 
 Acceptance Criteria
-- `build_schema` replays CREATE TABLE, ALTER TABLE (ADD/DROP/RENAME COLUMN, RENAME TO), and DROP TABLE in filename-sorted order
-- Returns empty map if the schema directory doesn't exist (no error)
+- `build_schema_snapshot` sorts migration files by filename and replays CREATE TABLE, ALTER TABLE (ADD/DROP/RENAME COLUMN, RENAME TO), and DROP TABLE in exact byte order within each file
+- A configured missing/unreadable schema directory, unreadable migration, malformed supported DDL, missing referenced object, or canonical name collision returns a path-aware error rather than a successful empty snapshot
+- SQL replay diagnostics include a one-based line and column plus a concise statement preview
 - Column types are normalized to uppercase for consistent comparison
 - ALTER TABLE ADD COLUMN is idempotent — duplicate columns are skipped
 - DROP TABLE removes the table entirely from the schema map
 - ALTER TABLE RENAME TO moves all columns to the new table name
 - ALTER TABLE RENAME COLUMN preserves all attributes except the name
-- CREATE TABLE replaces any prior definition of the same table
-- SQL line comments (`--`) are skipped during parsing
-- String literals with escaped quotes are handled correctly (no false column detection)
+- Plain CREATE TABLE fails without mutation on a canonical duplicate; IF NOT EXISTS preserves the existing table and OR REPLACE explicitly replaces it
+- RENAME fails without mutation when the source is missing or the canonical target already exists
+- DROP fails when the table is missing unless IF EXISTS is present
+- A later CREATE may recreate a retired identity and removes it from the retired set
+- ANSI double-quoted, backtick-quoted, bracket-quoted, mixed-case, and qualified table references use one canonical identity parser
+- Dots inside quoted identifier segments remain distinct from qualification separators, including for unqualified matching
+- SQL line/block comments and quoted/string content do not introduce false DDL operations or statement boundaries
 - Supports schema files with extensions: sql, ts, js, mjs, cjs, swift, kt, kts, java, py, rb, go, rs, cs, dart, php
 - `parse_spec_schema` supports both inline (`### Schema: table_name`) and multi-table (`### Schema` with `#### table_name`) formats
 - Markdown table header rows are skipped during spec schema parsing
-

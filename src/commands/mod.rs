@@ -283,7 +283,6 @@ pub fn run_validation(
     let mut all_errors: Vec<String> = Vec::new();
     let mut all_warnings: Vec<String> = Vec::new();
     let mut all_notices: Vec<String> = Vec::new();
-    let mut suppressed_warnings = 0usize;
     let mut file_owners: HashMap<String, Vec<String>> = HashMap::new();
     let mut spec_files_by_path: HashMap<PathBuf, HashSet<String>> = HashMap::new();
     for spec_file in ownership_spec_files {
@@ -359,7 +358,6 @@ pub fn run_validation(
             .iter()
             .filter(|w| !ignore_rules.is_suppressed(w, &result.spec_path, &inline_ignores))
             .collect();
-        suppressed_warnings += result.warnings.len() - filtered_warnings.len();
 
         if collect {
             let prefix = &result.spec_path;
@@ -632,18 +630,6 @@ pub fn run_validation(
     // disable db_tables/column validation (an all-unreadable schema makes the
     // checks a no-op). Surface them once, project-level (not per spec), as hard
     // errors so the gate fails loud instead of under-validating.
-    // A configured schema_dir that doesn't exist, or a schema_pattern that
-    // doesn't compile, silently disabled db_tables validation (empty table set
-    // ⇒ every declared table vacuously passed). Fail loud, once, project-level.
-    for problem in crate::validator::schema_config_problems(root, config) {
-        total_errors += 1;
-        if collect {
-            all_errors.push(problem);
-        } else {
-            println!("\n{} {problem}", "✗".red());
-        }
-    }
-
     if let Some(dir) = &config.schema_dir {
         for err in schema::schema_read_errors(&root.join(dir)) {
             total_errors += 1;
@@ -652,28 +638,6 @@ pub fn run_validation(
             } else {
                 println!("\n{} {err}", "✗".red());
             }
-        }
-    }
-
-    // .specsyncignore problems (unmatchable patterns, invalid UTF-8 lines):
-    // dead rules must be visible, not silently inert.
-    for w in &ignore_rules.warnings {
-        total_warnings += 1;
-        if collect {
-            all_warnings.push(w.clone());
-        } else {
-            println!("\n{} {w}", "⚠".yellow());
-        }
-    }
-
-    // Suppression must be visible in every output format — otherwise a typo'd
-    // rule is indistinguishable from a working one.
-    if suppressed_warnings > 0 {
-        let note = format!("{suppressed_warnings} warning(s) suppressed by .specsyncignore");
-        if collect {
-            all_notices.push(note);
-        } else {
-            println!("\n{} {note}", "ℹ".cyan());
         }
     }
 

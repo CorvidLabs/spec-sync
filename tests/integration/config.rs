@@ -1380,7 +1380,7 @@ fn check_gates_on_unreadable_schema_file() {
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            "could not be read as UTF-8; DB schema",
+            "schema/migration file could not be read as UTF-8",
         ));
 }
 
@@ -1413,7 +1413,7 @@ fn check_no_schema_error_for_readable_migration() {
         .current_dir(root)
         .arg("check")
         .assert()
-        .stdout(predicate::str::contains("could not be read as UTF-8; DB schema").not());
+        .stdout(predicate::str::contains("schema/migration file could not be read as UTF-8").not());
 }
 
 // ─── config: multi-line TOML arrays are not corrupted ────────────────────

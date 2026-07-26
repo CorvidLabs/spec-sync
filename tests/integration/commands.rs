@@ -1134,7 +1134,7 @@ fn retarget_windows_junction(
 ) -> Result<(), String> {
     run_windows_junction_script(
         "$ErrorActionPreference = 'Stop'; \
-         Remove-Item -LiteralPath $env:SPECSYNC_TEST_JUNCTION -Force; \
+         Remove-Item -LiteralPath $env:SPECSYNC_TEST_JUNCTION -Force -Confirm:$false; \
          New-Item -ItemType Junction \
          -Path $env:SPECSYNC_TEST_JUNCTION \
          -Target $env:SPECSYNC_TEST_TARGET | Out-Null",

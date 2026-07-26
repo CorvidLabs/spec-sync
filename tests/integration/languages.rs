@@ -387,6 +387,91 @@ fn import_from_dir_imports_markdown_files() {
         .success()
         .stdout(predicate::str::contains("Batch Import"))
         .stdout(predicate::str::contains("1 imported").or(predicate::str::contains("imported")));
+
+    let imported = fs::read_to_string(root.join("specs/my-feature/my-feature.spec.md")).unwrap();
+    assert!(imported.contains("  - docs/my-feature.md"), "{imported}");
+    assert!(
+        imported.contains("Imported from docs/my-feature.md"),
+        "{imported}"
+    );
+    assert!(!imported.contains("Confluence"), "{imported}");
+
+    specsync()
+        .args(["check", "--root"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("All source files exist"))
+        .stdout(predicate::str::contains("Frontmatter missing required field: files").not());
+}
+
+#[test]
+fn import_from_dir_preserves_complete_spec_bytes_and_declared_module() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    write_config(&root, "specs", &["src"]);
+    fs::create_dir_all(root.join("docs")).unwrap();
+
+    let source = valid_spec("auth", &["docs/renamed.spec.md"]).replace('\n', "\r\n");
+    fs::write(root.join("docs/renamed.spec.md"), source.as_bytes()).unwrap();
+
+    specsync()
+        .args(["import", "--from-dir", "docs", "--root"])
+        .arg(&root)
+        .assert()
+        .success();
+
+    let output = fs::read(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert_eq!(output, source.as_bytes());
+    assert!(!root.join("specs/renamed/renamed.spec.md").exists());
+}
+
+#[test]
+fn import_from_dir_rejects_malformed_frontmatter_without_output() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    write_config(&root, "specs", &["src"]);
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::write(
+        root.join("docs/duplicate.md"),
+        "---\nmodule: duplicate\nmodule: second\nversion: 1\nstatus: draft\nfiles: []\n---\n# Duplicate\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("docs/wrong-shape.md"),
+        "---\nmodule: wrong-shape\nversion: 1\nstatus: draft\nfiles: src/lib.rs\n---\n# Wrong shape\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args(["import", "--from-dir", "docs", "--root"])
+        .arg(&root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("duplicate key `module`"))
+        .stdout(predicate::str::contains(
+            "field `files` must be a block list or `[]`",
+        ));
+
+    assert!(!root.join("specs/duplicate").exists());
+    assert!(!root.join("specs/wrong-shape").exists());
+}
+
+#[test]
+fn import_github_repo_error_points_to_current_config() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    write_config(&root, "specs", &["src"]);
+
+    specsync()
+        .args(["import", "github", "416", "--root"])
+        .arg(&root)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "`repo` under `[github]` in .specsync/config.toml",
+        ))
+        .stderr(predicate::str::contains("github.repo in specsync.json").not());
 }
 
 #[test]

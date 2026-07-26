@@ -1,6 +1,6 @@
 ---
 module: cmd_import
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/import.rs
@@ -17,7 +17,7 @@ depends_on:
 
 ## Purpose
 
-Implements the `specsync import` command. Imports specs from external systems (GitHub Issues, Jira, Confluence) by fetching remote data and converting it into spec files with companions.
+Implements the `specsync import` command. Imports specs from external systems (GitHub Issues, Jira, Confluence) and local Markdown directories. Directory imports preserve complete valid specs byte-for-byte, augment incomplete documents without discarding their content, and reject malformed frontmatter before writing output.
 
 ## Public API
 
@@ -34,6 +34,9 @@ Implements the `specsync import` command. Imports specs from external systems (G
 3. Creates spec and companion files (tasks.md, context.md, requirements.md, testing.md); design.md is generated only when `companions.design` is enabled in config
 4. Will not overwrite existing spec
 5. Success guidance tells users to validate and complete imported details, not to fill template markers
+6. Directory imports never report success for output with an empty `files` list: source code is auto-detected, with the canonically confined project-relative input document used as the ownership fallback
+7. A complete valid spec keeps its original bytes and declared `module`; incomplete content is only supplemented with missing frontmatter fields and required sections
+8. Duplicate or wrongly shaped known frontmatter fields fail the affected import without creating its spec
 
 ## Behavioral Examples
 
@@ -43,6 +46,12 @@ Implements the `specsync import` command. Imports specs from external systems (G
 - **When** `cmd_import` runs
 - **Then** fetches issue #42, creates spec from its title and body
 
+### Scenario: Import an existing spec
+
+- **Given** `docs/renamed.spec.md` is a complete valid spec declaring `module: auth`
+- **When** `specsync import --from-dir docs` runs
+- **Then** creates `specs/auth/auth.spec.md` with bytes identical to the source document
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -50,6 +59,8 @@ Implements the `specsync import` command. Imports specs from external systems (G
 | Invalid source type | Exits 1 with supported list |
 | Spec already exists | Exits 1 |
 | Fetch fails | Exits 1 with error |
+| Empty file, unterminated frontmatter, duplicate key, or known-field shape mismatch | Counts an error, creates no spec for that file, and exits 1 after the batch |
+| No source code match and the input document is outside the project root | Counts an error rather than writing `files: []` |
 
 ## Dependencies
 
@@ -72,6 +83,7 @@ Implements the `specsync import` command. Imports specs from external systems (G
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | Preserve valid directory-imported specs byte-for-byte, retain declared module identity, provide non-empty source ownership, and reject malformed frontmatter before output (#416) |
 | 2026-06-07 | Update import success guidance for guided imported specs |
 | 2026-04-09 | Initial spec |
 | 2026-04-13 | Document testing.md and conditional design.md in companion generation |

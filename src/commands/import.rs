@@ -1,4 +1,5 @@
 use colored::Colorize;
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
@@ -371,9 +372,6 @@ fn cmd_import_from_dir(root: &Path, dir: &Path) {
             Ok(_) => {
                 let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
                 println!("{} → {}", "✓".green(), rel);
-                for warning in &import.warnings {
-                    println!("    {} {warning}", "⚠".yellow());
-                }
                 generator::generate_companion_files_for_spec(
                     &spec_dir,
                     &import.module_name,
@@ -398,7 +396,6 @@ fn cmd_import_from_dir(root: &Path, dir: &Path) {
 struct FromDirImport {
     module_name: String,
     spec_content: String,
-    warnings: Vec<String>,
 }
 
 /// Convert a markdown file into spec content, preserving everything parseable:
@@ -415,15 +412,35 @@ fn build_imported_spec(
     file_display: &str,
     content: &str,
 ) -> Result<FromDirImport, String> {
-    let module_name = importer::slugify(stem);
-    if module_name.is_empty() {
-        return Err(format!("could not derive a module name from '{stem}'"));
-    }
     if content.trim().is_empty() {
         return Err("file is empty — nothing to import".to_string());
     }
 
+    // Parse through a normalized copy, but retain the original bytes so a
+    // complete valid spec can be imported byte-for-byte.
     let normalized = content.trim_start_matches('\u{feff}').replace("\r\n", "\n");
+    let existing = if normalized.starts_with("---\n") {
+        let parsed = crate::parser::parse_frontmatter(&normalized).ok_or_else(|| {
+            "frontmatter block is present but could not be parsed — fix the YAML \
+             frontmatter (module/version/status/files) or remove it"
+                .to_string()
+        })?;
+        validate_import_frontmatter(&normalized, &parsed.frontmatter)?;
+        Some(parsed)
+    } else {
+        None
+    };
+
+    let module_name = existing
+        .as_ref()
+        .and_then(|parsed| parsed.frontmatter.module.as_deref())
+        .filter(|module| !module.trim().is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| importer::slugify(stem));
+    if module_name.is_empty() {
+        return Err(format!("could not derive a module name from '{stem}'"));
+    }
+    super::validate_module_name(&module_name)?;
 
     // Auto-detect source files so imported specs don't fail the tool's own
     // non-empty `files:` gate when the module's sources are discoverable.
@@ -441,37 +458,70 @@ fn build_imported_spec(
     {
         detected.push(single);
     }
+    if detected.is_empty() {
+        let source_path = Path::new(file_display);
+        let source_path = if source_path.is_absolute() {
+            source_path.to_path_buf()
+        } else {
+            root.join(source_path)
+        };
+        let confined_source = fs::canonicalize(&source_path)
+            .ok()
+            .zip(fs::canonicalize(root).ok())
+            .and_then(|(source, canonical_root)| {
+                source
+                    .strip_prefix(canonical_root)
+                    .ok()
+                    .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+            });
+        if let Some(relative) = confined_source {
+            // A plain design/spec document is itself a stable source artifact.
+            // This is preferable to knowingly emitting `files: []`, which
+            // fails the next strict check.
+            detected.push(relative);
+        }
+    }
     detected.sort();
 
-    let mut warnings = Vec::new();
     let files_yaml = if detected.is_empty() {
-        warnings.push(format!(
-            "no source files detected for '{module_name}' — `files:` is empty; \
-             fill it in before `specsync check` will pass"
+        return Err(format!(
+            "no project-relative source file could be associated with '{module_name}'"
         ));
-        "files: []".to_string()
     } else {
         let items: String = detected.iter().map(|f| format!("  - {f}\n")).collect();
         format!("files:\n{items}")
     };
 
-    let import_note = format!("Imported from {file_display}");
+    let import_note = format!("Imported from {}", file_display.replace('|', "\\|"));
 
-    let (mut spec_text, body) = if normalized.starts_with("---\n") {
+    let (mut spec_text, body) = if let Some(parsed) = existing {
+        let missing = crate::parser::get_missing_sections(&parsed.body, &config.required_sections);
+        let complete_frontmatter =
+            parsed
+                .frontmatter
+                .module
+                .as_deref()
+                .is_some_and(|module| !module.trim().is_empty())
+                && parsed
+                    .frontmatter
+                    .version
+                    .as_deref()
+                    .is_some_and(|version| !version.trim().is_empty())
+                && parsed.frontmatter.status.as_deref().is_some_and(|status| {
+                    crate::types::SpecStatus::from_str_loose(status).is_some()
+                })
+                && !parsed.frontmatter.files.is_empty();
+
+        if complete_frontmatter && missing.is_empty() {
+            return Ok(FromDirImport {
+                module_name,
+                spec_content: content.to_string(),
+            });
+        }
+
         // Existing spec-style file: preserve it, patch only what's missing.
-        let Some(parsed) = crate::parser::parse_frontmatter(&normalized) else {
-            return Err(
-                "frontmatter block is present but could not be parsed — fix the YAML \
-                 frontmatter (module/version/status/files) or remove it"
-                    .to_string(),
-            );
-        };
-        let patched = patch_frontmatter(
-            &normalized,
-            &module_name,
-            &parsed.frontmatter,
-            &files_yaml,
-        );
+        let patched =
+            patch_frontmatter(&normalized, &module_name, &parsed.frontmatter, &files_yaml);
         (patched, parsed.body)
     } else {
         // Plain markdown document: wrap the content in spec frontmatter and
@@ -492,8 +542,95 @@ fn build_imported_spec(
     Ok(FromDirImport {
         module_name,
         spec_content: spec_text,
-        warnings,
     })
+}
+
+/// Reject malformed known frontmatter fields before any output is created.
+///
+/// The repository parser intentionally supports a small YAML subset. This
+/// import-specific check closes the dangerous gaps in that subset: duplicate
+/// keys and scalar/list shape mismatches must not be silently converted into a
+/// second key or a default value. Unknown extension keys remain allowed.
+fn validate_import_frontmatter(
+    content: &str,
+    fm: &crate::types::Frontmatter,
+) -> Result<(), String> {
+    let Some(end) = content.find("\n---\n") else {
+        return Err("frontmatter block is missing its closing `---` delimiter".to_string());
+    };
+    let yaml = &content["---\n".len()..end];
+    let scalar_fields = ["module", "version", "status", "agent_policy"];
+    let list_fields = [
+        "files",
+        "db_tables",
+        "depends_on",
+        "implements",
+        "tracks",
+        "lifecycle_log",
+    ];
+    let mut seen = HashSet::new();
+    let mut current_known_list: Option<&str> = None;
+
+    for (index, line) in yaml.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if line.chars().next().is_some_and(char::is_whitespace) {
+            if current_known_list.is_some() && !trimmed.starts_with("- ") {
+                return Err(format!(
+                    "frontmatter line {} must be a list item",
+                    index + 2
+                ));
+            }
+            continue;
+        }
+
+        current_known_list = None;
+        let Some((key, raw_value)) = line.split_once(':') else {
+            return Err(format!(
+                "frontmatter line {} is not a `key: value` entry",
+                index + 2
+            ));
+        };
+        let key = key.trim();
+        let value = raw_value.trim();
+        if key.is_empty() || key.chars().any(char::is_whitespace) {
+            return Err(format!("frontmatter line {} has an invalid key", index + 2));
+        }
+        if !seen.insert(key.to_string()) {
+            return Err(format!("frontmatter contains duplicate key `{key}`"));
+        }
+
+        if scalar_fields.contains(&key) {
+            if value.starts_with('[') || value.starts_with('{') {
+                return Err(format!("frontmatter field `{key}` must be a scalar"));
+            }
+        } else if list_fields.contains(&key) {
+            if value.is_empty() {
+                current_known_list = Some(key);
+            } else if value != "[]" {
+                return Err(format!(
+                    "frontmatter field `{key}` must be a block list or `[]`"
+                ));
+            }
+        }
+    }
+
+    if let Some(status) = fm.status.as_deref()
+        && !status.is_empty()
+        && crate::types::SpecStatus::from_str_loose(status).is_none()
+    {
+        return Err(format!(
+            "frontmatter field `status` has invalid value `{status}`"
+        ));
+    }
+    if let Some(module) = fm.module.as_deref()
+        && !module.is_empty()
+    {
+        super::validate_module_name(module)?;
+    }
+    Ok(())
 }
 
 /// Patch a spec's raw frontmatter text in place: fill in a missing `module`,
@@ -513,20 +650,19 @@ fn patch_frontmatter(
 
     let mut insertions: Vec<String> = Vec::new();
     if fm.module.is_none() {
-        insertions.push(format!("module: {module_name}"));
+        replace_empty_scalar_or_insert(&mut fm_block, "module", module_name, &mut insertions);
     }
     if fm.version.is_none() {
-        insertions.push("version: 1".to_string());
+        replace_empty_scalar_or_insert(&mut fm_block, "version", "1", &mut insertions);
     }
     if fm.status.is_none() {
-        insertions.push("status: draft".to_string());
+        replace_empty_scalar_or_insert(&mut fm_block, "status", "draft", &mut insertions);
     }
 
     // Replace an empty files list (or add one when absent) with detected files.
-    let files_block_re = regex::Regex::new(
-        r"(?m)^files:\s*\[\]\s*$|^files:[ \t]*\n(?:[ \t]+-[ \t]+.+[ \t]*\n?)*",
-    )
-    .unwrap();
+    let files_block_re =
+        regex::Regex::new(r"(?m)^files:\s*\[\]\s*$|^files:[ \t]*\n(?:[ \t]+-[ \t]+.+[ \t]*\n?)*")
+            .unwrap();
     if fm.files.is_empty() {
         if files_block_re.is_match(&fm_block) {
             if !files_yaml.starts_with("files: []") {
@@ -551,6 +687,23 @@ fn patch_frontmatter(
     }
 
     format!("{fm_block}{rest}")
+}
+
+fn replace_empty_scalar_or_insert(
+    frontmatter: &mut String,
+    key: &str,
+    value: &str,
+    insertions: &mut Vec<String>,
+) {
+    let pattern = format!(r"(?m)^{}:[ \t]*$", regex::escape(key));
+    let empty_field = regex::Regex::new(&pattern).expect("static frontmatter field regex");
+    if empty_field.is_match(frontmatter) {
+        *frontmatter = empty_field
+            .replace(frontmatter, format!("{key}: {value}"))
+            .to_string();
+    } else {
+        insertions.push(format!("{key}: {value}"));
+    }
 }
 
 /// Ensure the document body has an H1 title; derive one from the file stem if not.
@@ -592,13 +745,27 @@ fn stub_for_section(section: &str, import_note: &str) -> String {
 
 /// Today's date as YYYY-MM-DD (no chrono dependency).
 fn import_today() -> String {
-    let output = std::process::Command::new("date")
-        .args(["+%Y-%m-%d"])
-        .output();
-    match output {
-        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
-        _ => "YYYY-MM-DD".to_string(),
-    }
+    let seconds = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let days = (seconds / 86_400) as i64;
+    let z = days + 719_468;
+    let era = (if z >= 0 { z } else { z - 146_096 }) / 146_097;
+    let day_of_era = (z - era * 146_097) as u64;
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let year = year_of_era as i64 + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_prime = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_prime + 2) / 5 + 1;
+    let month = if month_prime < 10 {
+        month_prime + 3
+    } else {
+        month_prime - 9
+    };
+    let year = if month <= 2 { year + 1 } else { year };
+    format!("{year:04}-{month:02}-{day:02}")
 }
 /// Collect all .md files in a directory (one level deep).
 fn collect_markdown_files(dir: &Path) -> Vec<PathBuf> {
@@ -646,7 +813,6 @@ fn print_batch_summary(operation: &str, stats: &BatchStats) {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -657,27 +823,46 @@ mod tests {
 
     #[test]
     fn from_dir_preserves_existing_spec_content() {
-        // #416: import must not discard frontmatter/sections/API tables.
+        // #416: a complete valid spec is copied byte-for-byte and its declared
+        // module, not its filename, owns the destination path.
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
         std::fs::create_dir_all(root.join("src")).unwrap();
         std::fs::write(root.join("src/auth.rs"), "pub fn login() {}\n").unwrap();
 
-        let source = "---\nmodule: auth\nversion: 3\nstatus: active\nfiles:\n  - src/auth.rs\ndb_tables: []\ndepends_on: []\ncustom_field: keepme\n---\n\n# Auth\n\n## Purpose\n\nHandles login sessions and token refresh.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2024-01-01 | Real history |\n";
-        let import = build_imported_spec(root, &test_config(), "auth", "docs/auth.md", source)
-            .expect("parseable spec imports");
+        let source = "---\r\nmodule: auth\r\nversion: 3\r\nstatus: active\r\nfiles:\r\n  - src/auth.rs\r\ndb_tables: []\r\ndepends_on: []\r\ncustom_field: keepme\r\n---\r\n\r\n# Auth\r\n\r\n## Purpose\r\n\r\nHandles login sessions and token refresh.\r\n\r\n## Public API\r\n\r\n| Export | Description |\r\n|--------|-------------|\r\n| `login` | Login |\r\n\r\n## Invariants\r\n\r\n1. Tokens are checked.\r\n\r\n## Behavioral Examples\r\n\r\nExample.\r\n\r\n## Error Cases\r\n\r\nErrors.\r\n\r\n## Dependencies\r\n\r\nNone.\r\n\r\n## Change Log\r\n\r\n| Date | Change |\r\n|------|--------|\r\n| 2024-01-01 | Real history |\r\n";
+        let import =
+            build_imported_spec(root, &test_config(), "renamed", "docs/renamed.md", source)
+                .expect("parseable spec imports");
 
-        // Original content preserved verbatim.
-        assert!(import.spec_content.contains("version: 3"));
-        assert!(import.spec_content.contains("status: active"));
+        assert_eq!(import.module_name, "auth");
+        assert_eq!(import.spec_content.as_bytes(), source.as_bytes());
+    }
+
+    #[test]
+    fn from_dir_scaffolds_only_missing_sections() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(root.join("src/auth.rs"), "pub fn login() {}\n").unwrap();
+        let source = "---\nmodule: auth\nversion: 3\nstatus: active\nfiles:\n  - src/auth.rs\ndb_tables: []\ndepends_on: []\ncustom_field: keepme\n---\n\n# Auth\n\n## Purpose\n\nHandles login sessions and token refresh.\n\n## Public API\n\n| Function | Description |\n|----------|-------------|\n| `login` | Starts a session |\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2024-01-01 | Real history |\n";
+
+        let import = build_imported_spec(root, &test_config(), "auth", "docs/auth.md", source)
+            .expect("incomplete parseable spec imports");
+
         assert!(import.spec_content.contains("custom_field: keepme"));
-        assert!(import.spec_content.contains("Handles login sessions and token refresh."));
+        assert!(
+            import
+                .spec_content
+                .contains("| `login` | Starts a session |")
+        );
         assert!(import.spec_content.contains("2024-01-01 | Real history"));
-        // No wrong attribution.
-        assert!(!import.spec_content.contains("Confluence"));
-        // Missing required sections scaffolded.
         assert!(import.spec_content.contains("## Invariants"));
         assert!(import.spec_content.contains("## Error Cases"));
+        assert_eq!(import.spec_content.matches("## Purpose").count(), 1);
+        assert_eq!(import.spec_content.matches("## Public API").count(), 1);
+        assert_eq!(import.spec_content.matches("## Change Log").count(), 1);
+        assert!(!import.spec_content.contains("Confluence"));
     }
 
     #[test]
@@ -685,12 +870,23 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
         let doc = "# Billing\n\nBilling handles invoices and payments.\n";
+        std::fs::create_dir_all(root.join("docs")).unwrap();
+        std::fs::write(root.join("docs/billing.md"), doc).unwrap();
         let import = build_imported_spec(root, &test_config(), "billing", "docs/billing.md", doc)
             .expect("plain markdown imports");
         assert!(import.spec_content.contains("module: billing"));
-        assert!(import.spec_content.contains("Billing handles invoices and payments."));
+        assert!(import.spec_content.contains("  - docs/billing.md"));
+        assert!(
+            import
+                .spec_content
+                .contains("Billing handles invoices and payments.")
+        );
         assert!(import.spec_content.contains("## Purpose"));
-        assert!(import.spec_content.contains("Imported from docs/billing.md"));
+        assert!(
+            import
+                .spec_content
+                .contains("Imported from docs/billing.md")
+        );
         assert!(!import.spec_content.contains("Confluence"));
     }
 
@@ -700,10 +896,19 @@ mod tests {
         let root = tmp.path();
         std::fs::create_dir_all(root.join("src/billing")).unwrap();
         std::fs::write(root.join("src/billing/mod.rs"), "pub fn invoice() {}\n").unwrap();
-        let import = build_imported_spec(root, &test_config(), "billing", "docs/billing.md", "# Billing\n")
-            .unwrap();
-        assert!(import.spec_content.contains("- src/billing/mod.rs"), "{}", import.spec_content);
-        assert!(import.warnings.is_empty());
+        let import = build_imported_spec(
+            root,
+            &test_config(),
+            "billing",
+            "docs/billing.md",
+            "# Billing\n",
+        )
+        .unwrap();
+        assert!(
+            import.spec_content.contains("- src/billing/mod.rs"),
+            "{}",
+            import.spec_content
+        );
     }
 
     #[test]
@@ -714,17 +919,100 @@ mod tests {
         assert!(build_imported_spec(root, &test_config(), "x", "x.md", "  \n").is_err());
         // Broken frontmatter (opening --- with no closing)
         assert!(
-            build_imported_spec(root, &test_config(), "x", "x.md", "---\nmodule: x\nno closing\n")
-                .is_err()
+            build_imported_spec(
+                root,
+                &test_config(),
+                "x",
+                "x.md",
+                "---\nmodule: x\nno closing\n"
+            )
+            .is_err()
         );
+        // Duplicate and wrongly shaped known fields must not be defaulted or
+        // patched into apparently successful output.
+        assert!(
+            build_imported_spec(
+                root,
+                &test_config(),
+                "x",
+                "x.md",
+                "---\nmodule: x\nmodule: y\nversion: 1\nstatus: draft\nfiles: []\n---\n# X\n"
+            )
+            .is_err()
+        );
+        assert!(
+            build_imported_spec(
+                root,
+                &test_config(),
+                "x",
+                "x.md",
+                "---\nmodule: [x]\nversion: 1\nstatus: draft\nfiles: nope\n---\n# X\n"
+            )
+            .is_err()
+        );
+
+        let outside = tempfile::tempdir().unwrap();
+        let outside_file = outside.path().join("outside.md");
+        std::fs::write(&outside_file, "# Outside\n").unwrap();
+        assert!(
+            build_imported_spec(
+                root,
+                &test_config(),
+                "outside",
+                &outside_file.to_string_lossy(),
+                "# Outside\n"
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn from_dir_patches_empty_frontmatter_fields_without_duplicates() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("docs")).unwrap();
+        std::fs::write(root.join("docs/auth.md"), "# Auth\n").unwrap();
+        let source =
+            "---\nmodule:\nversion:\nstatus:\nfiles: []\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n";
+
+        let import = build_imported_spec(root, &test_config(), "auth", "docs/auth.md", source)
+            .expect("empty known fields are repairable");
+        assert_eq!(import.spec_content.matches("module:").count(), 1);
+        assert_eq!(import.spec_content.matches("version:").count(), 1);
+        assert_eq!(import.spec_content.matches("status:").count(), 1);
+        assert_eq!(import.spec_content.matches("files:").count(), 1);
+        assert!(import.spec_content.contains("module: auth"));
+        assert!(import.spec_content.contains("version: 1"));
+        assert!(import.spec_content.contains("status: draft"));
+        assert!(import.spec_content.contains("  - docs/auth.md"));
     }
 
     #[test]
     fn from_dir_strips_spec_suffix_from_stem() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
-        let import = build_imported_spec(root, &test_config(), "auth", "docs/auth.spec.md", "# Auth\n")
-            .unwrap();
+        std::fs::create_dir_all(root.join("docs")).unwrap();
+        std::fs::write(root.join("docs/auth.spec.md"), "# Auth\n").unwrap();
+        let import = build_imported_spec(
+            root,
+            &test_config(),
+            "auth",
+            "docs/auth.spec.md",
+            "# Auth\n",
+        )
+        .unwrap();
         assert_eq!(import.module_name, "auth");
+    }
+
+    #[test]
+    fn import_date_is_portable_iso_date() {
+        let date = import_today();
+        assert_eq!(date.len(), 10);
+        assert_eq!(&date[4..5], "-");
+        assert_eq!(&date[7..8], "-");
+        assert!(date.chars().enumerate().all(|(index, character)| {
+            matches!(index, 4 | 7) && character == '-'
+                || !matches!(index, 4 | 7) && character.is_ascii_digit()
+        }));
     }
 }

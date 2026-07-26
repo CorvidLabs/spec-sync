@@ -7,7 +7,9 @@ spec: cmd_import.spec.md
 - `cmd_import` is a router. It inspects its flags first: `--all-issues` and `--from-dir` short-circuit to batch handlers (`cmd_import_all_issues`, `cmd_import_from_dir`) before the single-import path requires `source` + `id`.
 - Single import fails hard (`process::exit(1)`) on any problem; batch modes are resilient — each item that errors increments a counter and the loop continues, ending with a `BatchStats` summary.
 - Repo resolution order is identical for single and batch GitHub imports: `--repo` flag → `config.github.repo` → `github::detect_repo(root)`.
-- Markdown directory items are mapped to `ImportSource::Confluence` as the closest semantic match for a generic "doc", and the module name is derived from the filename via `importer::slugify`.
+- Directory imports use a dedicated preservation path rather than mapping local documents to `ImportSource::Confluence`. A complete valid spec keeps its exact bytes and declared module identity; incomplete/plain Markdown keeps its body while missing contract sections are appended.
+- Directory source ownership prefers detected source code and falls back to the imported project-relative Markdown path. An external document with no detected project source fails instead of creating a known-invalid `files: []` spec.
+- Import-specific frontmatter validation rejects duplicate keys and wrong scalar/list shapes before any output path is created. It deliberately leaves broader parser unification to the checked-frontmatter work tracked separately.
 - Companion generation always runs after a successful spec write; `design.md` is gated on `config.companions.design`.
 
 ## Files to Read First
@@ -20,7 +22,7 @@ spec: cmd_import.spec.md
 
 ## Current Status
 
-Implemented and stable. Directory-import and the no-args error path are covered by integration tests; remote GitHub/Jira/Confluence fetches are not exercised in CI (network/mocking required).
+Implemented and stable. Directory preservation, strict-check compatibility, malformed-input atomicity, repo guidance, and the no-args error path are covered by integration tests; remote GitHub/Jira/Confluence fetches are not exercised in CI (network/mocking required).
 
 ## Notes
 

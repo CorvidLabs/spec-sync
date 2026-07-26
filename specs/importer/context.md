@@ -8,6 +8,7 @@ spec: importer.spec.md
 - Uses simple regex-free HTML stripping for Confluence — no external HTML parser dependency
 - Base64 encoding is hand-rolled to avoid adding a dependency (only used for Jira/Confluence basic auth)
 - Requirements extraction is heuristic-based: looks for checkboxes, "Acceptance Criteria"/"Requirements", and "Definition of Done" sections
+- Requirement extraction is internal to remote-source normalization; local directory imports preserve source Markdown directly instead of reducing it to an `ImportedItem`.
 - Generated specs always start as `draft` status — user fills in details after import
 - `redact_secret` strips any verbatim auth token from REST error strings before surfacing them (added 4.3.5), mirroring the GitHub module's `redact_token` and the AI provider client's sanitization
 

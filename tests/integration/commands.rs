@@ -1132,15 +1132,9 @@ fn retarget_windows_junction(
     junction: &std::path::Path,
     target: &std::path::Path,
 ) -> Result<(), String> {
-    run_windows_junction_script(
-        "$ErrorActionPreference = 'Stop'; \
-         Remove-Item -LiteralPath $env:SPECSYNC_TEST_JUNCTION -Force -Confirm:$false; \
-         New-Item -ItemType Junction \
-         -Path $env:SPECSYNC_TEST_JUNCTION \
-         -Target $env:SPECSYNC_TEST_TARGET | Out-Null",
-        junction,
-        target,
-    )
+    fs::remove_dir(junction)
+        .map_err(|error| format!("failed to remove Windows junction fixture: {error}"))?;
+    create_windows_junction(junction, target)
 }
 
 #[cfg(windows)]

@@ -21,9 +21,11 @@ Close independent MCP security review gaps for issue 414
 - `cmd_issues`
 - `cmd_report`
 - `cmd_score`
+- `cli`
 - `commands`
 - `config`
 - `exports`
+- `generator`
 - `github`
 - `importer`
 - `manifest`

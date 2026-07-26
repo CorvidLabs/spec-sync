@@ -77,6 +77,8 @@ Acceptance Criteria
 - Read roots are lexical descendants opened only through the retained configured-root capability.
 - Read roots containing a `.git` component in any ASCII case are rejected before the operation
   root is opened, so project-controlled Git metadata cannot become read authority.
+- Every read-root component is opened as an identity-checked regular directory without
+  symlink/reparse traversal, so an innocently named alias cannot redirect authority into `.git`.
 - On Windows, absolute read roots may be spelled beneath either the original startup path or its
   canonical equivalent when both were identity-bound at startup; the derived suffix is still
   opened only through the retained canonical capability, and sibling-prefix lookalikes fail.
@@ -137,6 +139,11 @@ semantics.
 Acceptance Criteria
 
 - Unknown keys and wrong argument types return `-32602` without tool execution.
+- Request IDs are non-null strings or integers; null, fractional, object, and array IDs return
+  `-32600` before dispatch.
+- Initialize requests require non-empty `protocolVersion`, object `capabilities`, and non-empty
+  string `clientInfo.name`/`clientInfo.version`; missing or wrong-typed negotiation fields return
+  `-32602`.
 - Tool-domain failures remain `isError: true` results.
 - Every notification, including unknown methods, emits no response and cannot mutate files.
 - JSON-RPC lines larger than 1 MiB are drained and rejected with `-32700` before parsing; the next
@@ -145,6 +152,17 @@ Acceptance Criteria
   capabilities, and rolls back only matching filesystem and exact-byte transaction identities,
   including when a filesystem immediately reuses an inode. Exact-byte identity hashing is capped
   at the generated-output limit and fails closed above it.
+- Before and after publication, every public parent component is reopened without link/reparse
+  traversal and must identify the parent captured during staging; replacement fails the batch.
+- If the post-link parent check fails, the exact quarantined staged identity is cleaned before the
+  error returns; a replacement is never removed and cleanup failure remains visible.
+- Destination-open, destination-identity, destination-mismatch, and public-parent errors after the
+  hard link all pass through that same exact quarantine cleanup path.
+- A generated batch shares one retained root capability across outputs rather than retaining one
+  additional root handle per staged spec.
+- A selected read-root route retains component identities and is reopened/revalidated before a
+  successful tool/resource response; detached or replaced public components make the request
+  inconclusive.
 - Quarantine cleanup validates its retained directory identity and consumes the final directory
   capability before removal, avoiding Windows sharing violations without reopening an ambient path.
 - GitHub issue verification requires explicit `GITHUB_TOKEN`, performs reads in-process without a

@@ -94,3 +94,17 @@ Acceptance Criteria
 - MCP startup errors are printed to stderr and exit with usage status 2.
 - No MCP request is read when server-root initialization fails.
 
+### REQ-cli-006
+
+The root dispatcher SHALL preserve the user-requested root spelling for commands whose retained
+capability engines must detect public path replacement.
+
+Acceptance Criteria
+
+- MCP, check, coverage, generate, score, report, and comment receive the validated requested path
+  without eager canonicalization.
+- Generate retains the bound project authority through every publication side effect; a root
+  redirect after checked coverage returns fails without writing into the replacement.
+- Other commands retain their established canonical-root dispatch behavior.
+- Symlink/junction replacement after capability retention is observable to the command rather than
+  hidden by dispatcher canonicalization.

@@ -1679,6 +1679,217 @@ fn gradle_post_discovery_symlink_swap_is_inconclusive_for_every_coverage_gate() 
     }
 }
 
+#[cfg(any(unix, windows))]
+fn assert_generate_post_coverage_root_retarget_is_inconclusive<CreateAlias, RetargetAlias>(
+    create_alias: CreateAlias,
+    retarget_alias: RetargetAlias,
+) where
+    CreateAlias: Fn(&std::path::Path, &std::path::Path) -> Result<(), String>,
+    RetargetAlias: Fn(&std::path::Path, &std::path::Path) -> Result<(), String>,
+{
+    use std::process::Stdio;
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    const BARRIER_ENV: &str = "SPECSYNC_TEST_GENERATE_ROOT_IDENTITY_BARRIER";
+    const TEST_CONTEXT_ENV: &str = "SPECSYNC_TEST_CONTEXT";
+    const TEST_CONTEXT: &str = "generate-root-identity";
+    const MARKER: &str = "coverage-complete";
+
+    const MODULES: [(&str, &[u8], &[u8]); 2] = [
+        (
+            "member",
+            b"pub fn retained_member() {}\n",
+            b"pub fn replacement_member() {}\n",
+        ),
+        (
+            "peer",
+            b"pub fn retained_peer() {}\n",
+            b"pub fn replacement_peer() {}\n",
+        ),
+    ];
+
+    for (format, batch) in [
+        ("text", false),
+        ("json", false),
+        ("text", true),
+        ("json", true),
+    ] {
+        let case = format!("{format}/{}", if batch { "batch" } else { "default" });
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().join("requested-project");
+        let original = tmp.path().join("original-project");
+        let replacement = tmp.path().join("replacement-project");
+        let barrier = tmp.path().join("barrier");
+        fs::create_dir_all(&original).unwrap();
+        fs::create_dir_all(&replacement).unwrap();
+        fs::create_dir_all(&barrier).unwrap();
+        write_config(&original, "specs", &["src"]);
+        write_config(&replacement, "specs", &["src"]);
+        let original_config = original.join("specsync.json");
+        let original_config_bytes = fs::read(&original_config).unwrap();
+        let replacement_config = replacement.join("specsync.json");
+        let replacement_config_bytes = fs::read(&replacement_config).unwrap();
+        for &(module, original_source_bytes, replacement_source_bytes) in &MODULES {
+            let original_source = original.join("src").join(module).join("local.rs");
+            let replacement_source = replacement.join("src").join(module).join("replacement.rs");
+            fs::create_dir_all(original_source.parent().unwrap()).unwrap();
+            fs::create_dir_all(replacement_source.parent().unwrap()).unwrap();
+            fs::write(original_source, original_source_bytes).unwrap();
+            fs::write(replacement_source, replacement_source_bytes).unwrap();
+        }
+        let original_sentinel = original.join("original-sentinel.bin");
+        let original_sentinel_bytes = b"retained project must remain byte exact\0";
+        fs::write(&original_sentinel, original_sentinel_bytes).unwrap();
+        let replacement_sentinel = replacement.join("replacement-sentinel.bin");
+        let replacement_sentinel_bytes = b"replacement project must remain byte exact\0";
+        fs::write(&replacement_sentinel, replacement_sentinel_bytes).unwrap();
+        create_alias(&root, &original)
+            .unwrap_or_else(|error| panic!("failed to create requested-root alias: {error}"));
+
+        let mut process = specsync_process();
+        process
+            .arg("generate")
+            .arg("--root")
+            .arg(&root)
+            .args(["--format", format]);
+        if batch {
+            process.args(["--batch", "member,peer"]);
+        }
+        let mut child = process
+            .env(BARRIER_ENV, &barrier)
+            .env(TEST_CONTEXT_ENV, TEST_CONTEXT)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let ready = barrier.join(MARKER);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ready.is_file() {
+            assert!(
+                child.try_wait().unwrap().is_none(),
+                "generate exited before the post-coverage barrier; case={case}"
+            );
+            assert!(
+                Instant::now() < deadline,
+                "generate did not reach the post-coverage barrier; case={case}"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        retarget_alias(&root, &replacement)
+            .unwrap_or_else(|error| panic!("failed to retarget requested-root alias: {error}"));
+        fs::write(barrier.join("resume"), b"resume\n").unwrap();
+        let output = child.wait_with_output().unwrap();
+
+        assert!(
+            !output.status.success(),
+            "generate false green after a post-coverage root retarget; case={case}"
+        );
+        if format == "json" {
+            let json: serde_json::Value =
+                serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
+                    panic!(
+                        "generate must emit inconclusive JSON after root retarget: {error}; case={case}; stdout={}",
+                        String::from_utf8_lossy(&output.stdout)
+                    )
+                });
+            assert_eq!(json["inconclusive"], true, "case={case}: {json}");
+            assert_eq!(
+                json["generated"],
+                serde_json::json!([]),
+                "case={case}: {json}"
+            );
+            assert!(
+                json["error"]
+                    .as_str()
+                    .is_some_and(|error| error.contains("Generate project root")
+                        && error.contains("changed after coverage")),
+                "case={case}: {json}"
+            );
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(
+                stderr.contains("Generation inconclusive:")
+                    && stderr.contains("Generate project root")
+                    && stderr.contains("changed after coverage"),
+                "text generation must report an inconclusive root retarget; case={case}; stderr={stderr}"
+            );
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            assert!(
+                !stdout.contains("Batch generate complete:") && !stdout.contains("\n  Generated "),
+                "text generation falsely reported successful output; case={case}; stdout={stdout}"
+            );
+        }
+
+        assert_eq!(
+            fs::read(&original_config).unwrap(),
+            original_config_bytes,
+            "generation changed retained config bytes; case={case}"
+        );
+        assert_eq!(
+            fs::read(&replacement_config).unwrap(),
+            replacement_config_bytes,
+            "generation changed replacement config bytes; case={case}"
+        );
+        assert_eq!(
+            fs::read(&original_sentinel).unwrap(),
+            original_sentinel_bytes,
+            "generation changed retained sentinel bytes; case={case}"
+        );
+        assert_eq!(
+            fs::read(&replacement_sentinel).unwrap(),
+            replacement_sentinel_bytes,
+            "generation changed replacement sentinel bytes; case={case}"
+        );
+        for &(module, original_source_bytes, replacement_source_bytes) in &MODULES {
+            assert!(
+                !original.join("specs").join(module).exists(),
+                "failed generation changed the retained output tree; case={case}; module={module}"
+            );
+            assert!(
+                !replacement.join("specs").join(module).exists(),
+                "generation wrote through the replacement root; case={case}; module={module}"
+            );
+            assert_eq!(
+                fs::read(original.join("src").join(module).join("local.rs")).unwrap(),
+                original_source_bytes,
+                "generation changed retained source bytes; case={case}; module={module}"
+            );
+            assert_eq!(
+                fs::read(replacement.join("src").join(module).join("replacement.rs")).unwrap(),
+                replacement_source_bytes,
+                "generation changed replacement source bytes; case={case}; module={module}"
+            );
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn generate_post_coverage_symlink_root_retarget_is_inconclusive_before_writes() {
+    use std::os::unix::fs::symlink;
+
+    assert_generate_post_coverage_root_retarget_is_inconclusive(
+        |alias, target| symlink(target, alias).map_err(|error| error.to_string()),
+        |alias, target| {
+            fs::remove_file(alias).map_err(|error| error.to_string())?;
+            symlink(target, alias).map_err(|error| error.to_string())
+        },
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn generate_post_coverage_junction_root_retarget_is_inconclusive_before_writes() {
+    assert_generate_post_coverage_root_retarget_is_inconclusive(
+        create_windows_junction,
+        retarget_windows_junction,
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn gradle_symlinked_manifests_are_inconclusive_without_reading_outside_bytes() {
@@ -2029,6 +2240,30 @@ fn generate_creates_spec_for_unspecced_module() {
     assert!(spec_path.exists(), "Generated spec file should exist");
     let content = fs::read_to_string(&spec_path).unwrap();
     assert!(content.contains("module: payments"));
+}
+
+#[test]
+fn generate_batch_creates_only_the_selected_unspecced_module() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    for module in ["payments", "shipping"] {
+        fs::create_dir_all(root.join("src").join(module)).unwrap();
+        fs::write(
+            root.join("src").join(module).join("service.ts"),
+            format!("export function {module}() {{}}\n"),
+        )
+        .unwrap();
+    }
+
+    specsync()
+        .args(["generate", "--batch", "payments", "--root"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Batch generate complete: 1/1"));
+
+    assert!(root.join("specs/payments/payments.spec.md").is_file());
+    assert!(!root.join("specs/shipping").exists());
 }
 
 #[test]

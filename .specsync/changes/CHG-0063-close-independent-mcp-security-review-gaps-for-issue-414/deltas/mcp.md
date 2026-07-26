@@ -17,6 +17,8 @@ Acceptance Criteria
   require explicit `github.repo` configuration.
 - Every case variant of `.git` is rejected as a configured input, read-root component, and
   snapshot entry before Git metadata can become operation authority.
+- Every read-root component is opened as an identity-checked regular directory without
+  symlink/reparse traversal, so an alias cannot redirect authority into `.git`.
 - Project inputs are bounded to 8 MiB per file and 64 MiB of actual file/config bytes cumulatively;
   explicitly configured normally ignored roots remain eligible.
 - Ignored and configured-exclusion symlink names are skipped before their targets are followed,
@@ -71,12 +73,25 @@ when protocol output or deterministic generation cannot complete safely.
 Acceptance Criteria
 
 - Invalid request envelopes return `-32600` before dispatch, including in write-enabled mode.
+- Request IDs accept only non-null strings or integers; null and fractional IDs return `-32600`.
+- Initialize requires typed protocol version, capabilities, and client name/version fields;
+  malformed negotiation returns `-32602`.
 - Resource arguments are exact-schema validated with `-32602` failures.
 - Responses are bounded to 1 MiB; bounded request IDs are preserved while oversized IDs safely fall
   back to `null`, and transport failures are surfaced.
 - Generation destination collisions and incomplete writes return tool errors instead of success;
   partial multi-file output is rolled back through retained parent capabilities after filesystem
   identity checks.
+- Staged publication reopens the public parent without links/reparse points and rejects an identity
+  change before and after linking.
+- A failed post-link parent check cleans the exact quarantined identity before returning and
+  reports cleanup failure without removing a replacement.
+- Destination-open, destination-identity, destination-mismatch, and public-parent failures after
+  the hard link all use the same exact cleanup path.
+- One transaction-wide retained root capability is shared across staged outputs rather than
+  retaining one additional root handle per generated spec.
+- Selected read-root component identities are retained and the complete route is reopened and
+  revalidated before a successful tool/resource response.
 - GitHub issue verification requires explicit `GITHUB_TOKEN`, runs read/list/verify requests
   in-process without a provider subprocess, globally deduplicates/caps IDs, includes
   authentication/preflight in elapsed-time bounds, revalidates access after apparent absence, and
@@ -116,9 +131,10 @@ Acceptance Criteria
 12. JSON-RPC input and output are bounded to 1 MiB; oversized input is drained and oversized output
     becomes a compact `-32603` response with a bounded ID or `null` fallback.
 13. Generation collisions and incomplete writes are failures; public transaction paths are
-    identity-bound and replacements are preserved. Empty parents created by failed batches may
-    remain, and same-user mutation of private transaction names is outside the MCP caller/path
-    confinement threat boundary.
+    identity-bound and replacements are preserved. Post-link parent failure cleans the exact
+    quarantined staged identity, and the batch shares one retained root capability across outputs.
+    Empty parents created by failed batches may remain, and same-user mutation of private
+    transaction names is outside the MCP caller/path confinement threat boundary.
 14. Snapshot scoring reports Git freshness unavailable and withholds freshness credit.
 15. Manifest-derived inputs remain visible across fixed ignores, including TOML Cargo workspaces and
     comment/escape-aware Gradle settings, and snapshots copy exact bytes charged to the operation

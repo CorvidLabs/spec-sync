@@ -339,3 +339,29 @@ direct and nested mixed-case Git metadata roots, and 3/3 file plus 25/25 LOC cov
 trust lane repeated formatting, lint, type checks, 1,954 unit and 313 integration tests, and the
 release build, then stopped at only the expected stale lifecycle approvals for CHG-0062,
 CHG-0063, and CHG-0064. It did not reach Augur or Attest, so no provenance is claimed.
+
+The latest exact-tree reviews then exposed three remaining implementation/CI blockers. The root
+dispatcher canonicalized coverage-gating roots before `compute_coverage_checked` could retain the
+caller-visible junction identity; staged generation retained a detached parent without proving it
+still occupied the public path; and Tarpaulin's parallel ptrace run reproducibly segfaulted after
+otherwise passing tests. The dispatcher now preserves requested roots for all checked-coverage
+gates, staged publication verifies the no-link public-parent identity before and after linking,
+and coverage serializes only the Rust harness while retaining the full suite and 50% threshold.
+Adjacent low findings are also closed: no-link read-root aliases, non-null integer/string IDs,
+typed initialize negotiation, and MCP helper process-status assertions. Fresh exact-tree agent,
+Windows, coverage, lifecycle, trust, provenance, and GitHub CI evidence remains required.
+
+The next exact-tree rereview found a post-coverage generation write gap and a post-link quarantine
+cleanup gap. CLI generation now retains one project-root capability from command entry through all
+template reads, directory creation, and file publication, so a later public-root redirect cannot
+authorize output. MCP publication explicitly consumes the exact quarantined staged identity before
+returning a post-link parent-change error, and staged outputs borrow one transaction-wide root
+capability rather than cloning it per output. Focused local evidence passes 120 MCP unit tests, 70
+MCP integrations, the Unix post-coverage root-retarget characterization, batch compatibility,
+formatting, and linting.
+
+The subsequent independent review found two final cleanup/reachability gaps. The amended MCP route
+retains and revalidates every selected read-root component before success, and all post-hard-link
+destination/parent failures now use one exact quarantine-cleanup funnel. Focused evidence passes
+122 MCP unit tests, 72 MCP integrations, the 1,000-output/1,200-descriptor fixture, and the Unix
+read-root replacement race. CLI generation now covers text/JSON and default/batch with two modules.

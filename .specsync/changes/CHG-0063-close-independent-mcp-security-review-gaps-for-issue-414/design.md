@@ -52,6 +52,8 @@ artifact: design
 
 - Validate request object, protocol version, method, ID, and params before notification suppression
   or method dispatch. Valid notifications remain silent and non-mutating.
+- Accept request IDs only as non-null strings or integers. Require typed protocol version,
+  capabilities, and client identity fields for initialize negotiation.
 - Validate `resources/read` against an exact `{uri: string}` schema.
 - Bound generation to 1,000 specs and 64 MiB, preflight the serialized result, stage and sync each
   file beside its destination, retain its identity, publish only the verified staged identity, and
@@ -60,6 +62,10 @@ artifact: design
   directories across the non-atomic create/open interval; failed batches may retain empty parents.
   Private stage/quarantine names are isolated transaction internals, and a same-user process with
   independent write access to the root must not race them.
+- Reopen every staged public-parent component without links/reparse points and compare its identity
+  to the retained staged parent immediately before and after publication.
+- Preserve the requested root spelling in the root dispatcher for coverage-gating commands so
+  checked coverage can identity-bind and later revalidate the public path itself.
 - Report Git freshness as unavailable in snapshots and withhold the freshness score instead of
   accidentally inspecting an enclosing checkout.
 - Require explicit `GITHUB_TOKEN`, preflight configured GitHub repository access once, fetch at
@@ -138,7 +144,18 @@ artifact: design
   comparisons, and must run in Windows CI; cross-target compilation is not runtime evidence.
 - Do not describe the returned config/path tuple as a command-wide immutable snapshot. Retaining
   authority across complete CLI pipelines and rendering generic structured discovery failures are
-  deferred to later CLI/outcome/generation work outside issue #414.
+  deferred to later CLI/outcome work outside issue #414. Generation is the exception required by
+  the exact-tree security review: it retains its project capability from entry through every write.
+
+## Final publication closure
+
+- CLI generation reads templates, creates directories, and publishes new files only relative to
+  the retained project capability; public-path identity checks detect drift but never authorize a
+  write.
+- MCP staged files borrow one transaction-wide root capability for public-parent reachability
+  checks, avoiding one extra root descriptor per output.
+- If the public parent changes after the destination hard link, consume and verify the exact
+  quarantined staged identity before returning; rollback then removes only the published identity.
 
 ## Exact-head rereview closure
 

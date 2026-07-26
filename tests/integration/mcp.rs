@@ -79,21 +79,37 @@ fn mcp_request_with_low_fd_limit(
     root: &std::path::Path,
     requests: &[serde_json::Value],
 ) -> Vec<serde_json::Value> {
+    mcp_request_with_fd_limit(root, requests, 128, false)
+}
+
+#[cfg(unix)]
+fn mcp_request_with_fd_limit(
+    root: &std::path::Path,
+    requests: &[serde_json::Value],
+    descriptor_limit: u64,
+    allow_write: bool,
+) -> Vec<serde_json::Value> {
     use std::io::Write;
     use std::process::{Command, Stdio};
 
     let binary = specsync().get_program().to_os_string();
+    let script = if allow_write {
+        r#"ulimit -n "$3"; exec "$1" mcp --root "$2" --allow-write"#
+    } else {
+        r#"ulimit -n "$3"; exec "$1" mcp --root "$2""#
+    };
     let mut child = Command::new("sh")
         .arg("-c")
-        .arg(r#"ulimit -n 128; exec "$1" mcp --root "$2""#)
-        .arg("specsync-low-fd")
+        .arg(script)
+        .arg("specsync-fd-limit")
         .arg(binary)
         .arg(root)
+        .arg(descriptor_limit.to_string())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("low-descriptor MCP server must start");
+        .expect("descriptor-constrained MCP server must start");
     {
         let mut stdin = child.stdin.take().expect("MCP stdin must be piped");
         for request in requests {
@@ -104,10 +120,10 @@ fn mcp_request_with_low_fd_limit(
 
     let output = child
         .wait_with_output()
-        .expect("low-descriptor MCP server must terminate");
+        .expect("descriptor-constrained MCP server must terminate");
     assert!(
         output.status.success(),
-        "low-descriptor MCP server failed: {}",
+        "descriptor-constrained MCP server failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     output
@@ -131,7 +147,11 @@ fn mcp_initialize_returns_capabilities() {
             "jsonrpc": "2.0",
             "id": 1,
             "method": "initialize",
-            "params": {}
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": { "name": "specsync-test", "version": "1.0.0" }
+            }
         })],
     );
 
@@ -139,6 +159,39 @@ fn mcp_initialize_returns_capabilities() {
     let result = &responses[0]["result"];
     assert_eq!(result["serverInfo"]["name"], "specsync");
     assert!(result["capabilities"]["tools"].is_object());
+}
+
+#[test]
+fn mcp_initialize_rejects_missing_or_wrong_typed_negotiation_params() {
+    let tmp = TempDir::new().unwrap();
+    let requests = [
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize"
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": 2, "method": "initialize", "params": []
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": 3, "method": "initialize",
+            "params": { "protocolVersion": 42, "capabilities": {}, "clientInfo": { "name": "test", "version": "1" } }
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": 4, "method": "initialize",
+            "params": { "protocolVersion": "2024-11-05", "capabilities": [], "clientInfo": { "name": "test", "version": "1" } }
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": 5, "method": "initialize",
+            "params": { "protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": { "name": "", "version": 1 } }
+        }),
+    ];
+
+    let responses = mcp_request(tmp.path(), &requests);
+
+    assert_eq!(responses.len(), requests.len());
+    for response in responses {
+        assert_eq!(response["error"]["code"], -32602);
+        assert!(response.get("result").is_none());
+    }
 }
 
 #[test]
@@ -305,6 +358,54 @@ fn mcp_snapshot_bounds_open_directory_handles_for_broad_trees() {
         "a valid broad tree must fit beneath a 128-descriptor process limit: {}",
         responses[0]
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn mcp_generate_maximum_batch_fits_a_constrained_descriptor_limit() {
+    const GENERATED_SPECS: usize = 1_000;
+    const DESCRIPTOR_LIMIT: u64 = 1_200;
+
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    write_config(root, "specs", &["src"]);
+    for index in 0..GENERATED_SPECS {
+        let module = format!("module{index:04}");
+        let source = root.join("src").join(&module);
+        fs::create_dir(&source).unwrap();
+        fs::write(
+            source.join("lib.rs"),
+            format!("pub fn value_{index:04}() -> usize {{ {index} }}\n"),
+        )
+        .unwrap();
+    }
+
+    let responses = mcp_request_with_fd_limit(
+        root,
+        &[serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": { "name": "specsync_generate", "arguments": {} }
+        })],
+        DESCRIPTOR_LIMIT,
+        true,
+    );
+
+    assert_eq!(responses.len(), 1);
+    assert_ne!(
+        responses[0]["result"]["isError"], true,
+        "the maximum generated batch must fit beneath a {DESCRIPTOR_LIMIT}-descriptor limit: {}",
+        responses[0]
+    );
+    let content = responses[0]["result"]["content"][0]["text"]
+        .as_str()
+        .expect("successful generation must return text content");
+    let result: serde_json::Value = serde_json::from_str(content).unwrap();
+    assert_eq!(result["count"].as_u64(), Some(GENERATED_SPECS as u64));
+    assert!(root.join("specs/module0000/module0000.spec.md").is_file());
+    assert!(root.join("specs/module0999/module0999.spec.md").is_file());
 }
 
 #[test]
@@ -537,6 +638,117 @@ fn mcp_read_roots_allow_existing_children_and_reject_escapes() {
     assert_eq!(fs::read(victim).unwrap(), victim_bytes);
 }
 
+#[cfg(any(unix, windows))]
+#[test]
+fn mcp_read_root_route_rejects_link_replacement_before_success() {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    const BARRIER_ENV: &str = "SPECSYNC_TEST_MCP_READ_ROOT_REVALIDATION_BARRIER";
+
+    let tmp = TempDir::new().unwrap();
+    let control = TempDir::new().unwrap();
+    let root = tmp.path().join("server");
+    let selected = root.join("selected");
+    let retained = root.join("retained-selected");
+    let outside = tmp.path().join("outside");
+    let barrier = control.path().join("read-root-route");
+    setup_minimal_mcp_project_at(&selected.join("leaf"));
+    fs::create_dir_all(outside.join("leaf")).unwrap();
+    let victim = outside.join("victim.bin");
+    let victim_bytes = b"read-root route replacement victim";
+    fs::write(&victim, victim_bytes).unwrap();
+    fs::create_dir_all(&barrier).unwrap();
+
+    let binary = specsync().get_program().to_os_string();
+    let mut child = Command::new(binary)
+        .arg("mcp")
+        .arg("--root")
+        .arg(&root)
+        .env(BARRIER_ENV, &barrier)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("read-root route MCP server must start");
+    {
+        let mut stdin = child.stdin.take().expect("MCP stdin must be piped");
+        serde_json::to_writer(
+            &mut stdin,
+            &coverage_request(1, serde_json::json!("selected/leaf")),
+        )
+        .unwrap();
+        stdin.write_all(b"\n").unwrap();
+    }
+
+    let ready = barrier.join("operation-complete");
+    let ready_deadline = Instant::now() + Duration::from_secs(10);
+    while !ready.is_file() {
+        assert!(
+            child.try_wait().unwrap().is_none(),
+            "MCP server exited before read-root route revalidation"
+        );
+        assert!(
+            Instant::now() < ready_deadline,
+            "MCP server did not reach read-root route revalidation"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+
+    fs::rename(&selected, &retained).expect("selected route parent must be replaceable");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::symlink;
+
+        symlink(&outside, &selected).unwrap();
+    }
+    #[cfg(windows)]
+    create_windows_junction(&selected, &outside)
+        .unwrap_or_else(|error| panic!("failed to create replacement junction: {error}"));
+    fs::write(barrier.join("resume"), b"resume\n").unwrap();
+
+    let exit_deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if child.try_wait().unwrap().is_some() {
+            break;
+        }
+        if Instant::now() >= exit_deadline {
+            child.kill().unwrap();
+            let output = child.wait_with_output().unwrap();
+            panic!(
+                "read-root route replacement blocked; stdout: {}; stderr: {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "read-root route MCP server failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let response: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["result"]["isError"], true, "{response}");
+    assert!(
+        response["result"]["content"][0]["text"]
+            .as_str()
+            .is_some_and(|message| {
+                message.contains("read-root route changed before operation success")
+            }),
+        "{response}"
+    );
+    assert_eq!(fs::read(&victim).unwrap(), victim_bytes);
+
+    #[cfg(unix)]
+    fs::remove_file(&selected).unwrap();
+    #[cfg(windows)]
+    fs::remove_dir(&selected).unwrap();
+}
+
 #[test]
 fn mcp_read_roots_reject_git_metadata_as_operation_authority() {
     for (id, requested_root) in [".git", ".GIT", ".GiT", "child/.gIt"]
@@ -572,6 +784,61 @@ fn mcp_read_roots_reject_git_metadata_as_operation_authority() {
             "Read root override must not select Git metadata"
         );
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn mcp_read_roots_reject_a_symlink_alias_to_git_metadata() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().join("server");
+    fs::create_dir_all(root.join(".git/src")).unwrap();
+    fs::write(
+        root.join(".git/specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+    )
+    .unwrap();
+    symlink(root.join(".git"), root.join("innocent-alias")).unwrap();
+
+    let responses = mcp_request(
+        &root,
+        &[coverage_request(1, serde_json::json!("innocent-alias"))],
+    );
+
+    assert_eq!(responses[0]["result"]["isError"], true);
+    assert!(
+        responses[0]["result"]["content"][0]["text"]
+            .as_str()
+            .is_some_and(|message| message.contains("regular confined directories"))
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn mcp_read_roots_reject_a_junction_alias_to_git_metadata() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().join("server");
+    fs::create_dir_all(root.join(".git/src")).unwrap();
+    fs::write(
+        root.join(".git/specsync.json"),
+        r#"{"specsDir":"specs","sourceDirs":["src"]}"#,
+    )
+    .unwrap();
+    create_windows_junction(&root.join("innocent-alias"), &root.join(".git"))
+        .unwrap_or_else(|error| panic!("failed to create Git metadata junction alias: {error}"));
+
+    let responses = mcp_request(
+        &root,
+        &[coverage_request(1, serde_json::json!("innocent-alias"))],
+    );
+
+    assert_eq!(responses[0]["result"]["isError"], true);
+    assert!(
+        responses[0]["result"]["content"][0]["text"]
+            .as_str()
+            .is_some_and(|message| message.contains("regular confined directories"))
+    );
 }
 
 #[test]
@@ -3012,6 +3279,14 @@ fn mcp_invalid_json_rpc_envelopes_return_invalid_request_without_mutating() {
             "params": { "name": "specsync_init", "arguments": {} }
         }),
         serde_json::json!({
+            "jsonrpc": "2.0", "id": null, "method": "tools/call",
+            "params": { "name": "specsync_init", "arguments": {} }
+        }),
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": 6.5, "method": "tools/call",
+            "params": { "name": "specsync_init", "arguments": {} }
+        }),
+        serde_json::json!({
             "jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": "invalid"
         }),
         serde_json::json!([mutator]),
@@ -3669,7 +3944,11 @@ fn mcp_score_tool_returns_grades() {
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": "initialize",
-                "params": { "capabilities": {} }
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": { "name": "specsync-test", "version": "1.0.0" }
+                }
             }),
             serde_json::json!({
                 "jsonrpc": "2.0",
@@ -3762,6 +4041,12 @@ fn mcp_request_with_write(
         .write_stdin(input)
         .output()
         .expect("failed to run write-enabled mcp");
+    assert!(
+        output.status.success(),
+        "write-enabled MCP process failed with status {}; stderr={}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     String::from_utf8_lossy(&output.stdout)
         .lines()

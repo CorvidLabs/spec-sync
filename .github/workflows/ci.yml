@@ -164,7 +164,10 @@ jobs:
       - name: Install tarpaulin
         run: cargo install cargo-tarpaulin --version 0.35.2 --locked --no-default-features
       - name: Run coverage
-        run: cargo tarpaulin --skip-clean --fail-under 50
+        # The ptrace engine can receive overlapping trap events from this large,
+        # process-spawning suite. Serialize the Rust harness while retaining the
+        # same tests, tracing engine, and 50% gate.
+        run: cargo tarpaulin --skip-clean --fail-under 50 -- --test-threads 1
 
   site:
     needs: classify

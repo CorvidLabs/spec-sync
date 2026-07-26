@@ -91,9 +91,19 @@ fn run() {
         specs: vec![],
     });
 
-    // MCP must bind the user-requested directory identity before canonicalizing its path.
-    // Preserve the established canonical-root behavior for every other command.
-    let root = if matches!(&command, Command::Mcp { .. }) {
+    // Security-sensitive retained-capability commands must bind the user-requested directory
+    // identity before canonicalizing any path. Canonicalizing a junction or symlink here would
+    // erase the public pathname whose replacement the retained traversal must detect.
+    let root = if matches!(
+        &command,
+        Command::Mcp { .. }
+            | Command::Check { .. }
+            | Command::Coverage
+            | Command::Generate { .. }
+            | Command::Score { .. }
+            | Command::Report { .. }
+            | Command::Comment { .. }
+    ) {
         root
     } else {
         root.canonicalize().unwrap_or(root)

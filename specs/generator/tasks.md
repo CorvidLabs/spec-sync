@@ -11,3 +11,4 @@ spec: generator.spec.md
 - [x] Deterministic built-in and custom template generation
 - [x] Companion files and safe no-overwrite behavior
 - [x] Remove provider parameters and AI error outcomes
+- [x] Bind CLI generation reads and writes to one retained project-root capability

@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 11
+version: 12
 status: stable
 files:
   - src/main.rs
@@ -104,7 +104,8 @@ Clap derive types define the root `Cli`, the `Command` namespace, and focused ac
 
 All functions in main.rs are private (no pub keyword). Key internal functions:
 
-- **main** — Parse CLI args, canonicalize root, dispatch to subcommand handler
+- **main** — Parse CLI args, retain the requested path spelling for capability-sensitive MCP and
+  coverage-gating commands, canonicalize other roots, and dispatch to the subcommand handler
 - **cmd_init** — Create the current `.specsync/` layout with auto-detected source dirs; no-op if config exists
 - **cmd_change** — Dispatch the verified SDD lifecycle and render equivalent text/JSON results
 - **cmd_check** — Load config, discover specs, validate, print results, exit with status
@@ -140,8 +141,10 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 ## Invariants
 
 1. When no subcommand is given, `check` runs by default.
-2. `--root` defaults to the current working directory; the path is validated as an existing
-   directory and canonicalized, otherwise the process exits 2.
+2. `--root` defaults to the current working directory and is validated as an existing directory,
+   otherwise the process exits 2. MCP plus check/coverage/generate/score/report/comment preserve
+   the requested spelling so their retained-capability engines can detect public root replacement;
+   other commands receive the canonicalized path.
 3. `--strict` causes warnings to produce a non-zero exit code.
 4. `--require-coverage N` causes exit 1 if file coverage percent is below N.
 5. `--json` switches all output to machine-readable JSON without ANSI colors.
@@ -364,3 +367,4 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |
 | 2026-07-14 | CHG-0029-address-all-remaining-review-feedback-from-pr-366: Address all remaining review feedback from PR 366 |
 | 2026-07-22 | CHG-0062-harden-mcp-root-confinement-write-authorization-argument-validation-and-notif: Harden MCP root confinement, write authorization, argument validation, and notification semantics for issue 414 |
+| 2026-07-26 | v12 / CHG-0063 Windows root-retention remediation: Preserve the requested root spelling for MCP and coverage-gating commands so junction/symlink replacement remains observable after capability retention, including through generation publication |

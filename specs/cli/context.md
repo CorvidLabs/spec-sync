@@ -16,6 +16,11 @@ spec: cli.spec.md
 - **Recursive lifecycle boundary**: Before dispatching `change` or `lifecycle`, `main.rs` consults the inherited verification context and exits once with a contextual diagnostic; the default/check path uses the same domain guard through unified checking.
 - **MCP capability boundary**: The dispatcher forwards the parsed `allow_write` bit unchanged to the
   MCP server and reports server-root initialization failures on stderr with exit status 2.
+- **Retained-root boundary**: MCP and the check/coverage/generate/score/report/comment gates receive
+  the validated requested root spelling. Their capability engines bind it before canonicalization,
+  so replacing a public symlink/junction alias cannot disappear behind an eagerly canonicalized
+  dispatcher path. Generate carries that retained identity through publication so a redirect after
+  checked coverage cannot redirect output into a replacement tree.
 
 ## Files to Read First
 
@@ -26,7 +31,8 @@ spec: cli.spec.md
 
 Fully implemented. The CLI exposes deterministic validation/generation, complete lifecycle/change
 commands, and native Agents/MCP integration without embedded inference configuration. MCP mutation
-remains opt-in at dispatch and startup fails closed before request processing when the root is invalid.
+remains opt-in at dispatch, startup fails closed before request processing when the root is invalid,
+and capability-sensitive gates retain the requested root spelling for replacement detection.
 
 ## Notes
 

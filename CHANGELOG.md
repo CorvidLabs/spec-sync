@@ -26,7 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exact staged bytes so immediate Unix inode reuse cannot authorize a replacement, with fail-closed
   hashing bounded at the generated-output limit. Generic MCP project files now use no-follow,
   non-blocking, identity-continuous retained reads for both tools and resources, rejecting special,
-  linked/reparse-backed, and replacement entries without consuming attacker bytes.
+  linked/reparse-backed, and replacement entries without consuming attacker bytes. Read-root
+  components and staged public parents are now reopened as regular no-link directories with
+  identity checks; null/fractional request IDs and malformed initialize negotiation are rejected;
+  and test helpers require successful MCP process exits before accepting protocol output.
+  Selected read-root component routes are revalidated again before successful responses. Every
+  post-link destination/public-parent failure cleans the exact quarantined staged identity before
+  returning, while generated batches share one transaction-wide root capability instead of
+  retaining one additional root handle per output.
 - **MCP manifest and issue checks fail closed under adversarial input** — bounded Cargo workspace
   discovery uses real TOML, while shared checked Gradle discovery handles Groovy/Kotlin comments,
   escapes, includes, and supported project directories; malformed discovery is inconclusive for
@@ -59,7 +66,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   workspaces require `packages`, and every recognized nested package manifest is strictly parsed.
   Separate
   early and post-discovery checkpoints protect the checked-coverage operation and propagate failures
-  to gate callers.
+  to gate callers. The root dispatcher preserves the caller-requested spelling for those gates so
+  eager canonicalization cannot hide a symlink/junction replacement; generation retains that
+  authority through publication so a redirect after checked coverage cannot redirect output.
+  Hosted Tarpaulin executes the
+  unchanged suite with one harness thread to avoid reproducible overlapping ptrace trap crashes
+  while retaining the 50% threshold.
   Command-wide immutable CLI snapshots and generic structured discovery outcomes remain deferred
   to later CLI/outcome/generation work outside issue #414; hosted-Windows junction/reparse runtime
   remains required for final acceptance.

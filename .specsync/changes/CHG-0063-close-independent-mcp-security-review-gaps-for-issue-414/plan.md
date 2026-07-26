@@ -95,3 +95,12 @@ artifact: plan
     manifests, and replacing retained sibling handles with sequential capability reopen in MCP and
     checked coverage. Prove the handle bound under constrained child processes, rerun the full
     suite, then obtain fresh exact-commit reviews and all platform/lifecycle/trust/CI evidence.
+26. Close the final exact-tree findings by retaining caller-requested coverage roots through
+    dispatch, rejecting public-parent and read-root alias replacement, tightening JSON-RPC
+    ID/initialize validation and MCP helper exit checks, and serializing the unchanged ptrace
+    coverage suite after reproducible overlap crashes. Rerun Windows, coverage, both independent
+    reviews, repository/trust/provenance, and lifecycle gates on the resulting exact tree.
+27. Close the follow-up publication findings by binding every CLI generation write to one retained
+    project capability, consuming exact quarantine bytes on post-link parent failure, and sharing
+    one transaction root capability across staged MCP outputs. Characterize the post-coverage and
+    post-link races before the final independent rereviews and hosted gates.

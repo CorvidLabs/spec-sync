@@ -522,3 +522,27 @@ Acceptance Criteria
   pull-request markers.
 - The private sandbox receipt records the exact implementation commit, testbed revision, binary
   digest, and immutable digests for every untracked drill/fixture input.
+
+### REQ-final-exact-tree-001
+
+Final exact-tree remediation SHALL preserve retained public-path authority and trustworthy
+verification without weakening protocol, coverage, or process-result gates.
+
+Acceptance Criteria
+
+- Coverage-gating CLI commands receive the requested root spelling so Windows junction and Unix
+  symlink replacement remain observable at both checked-coverage checkpoints.
+- Generation carries the retained root authority through publication; redirecting the public root
+  after checked coverage returns cannot redirect a later create or write into a replacement tree.
+- MCP read-root components and staged public parents are reopened as identity-checked regular
+  directories without symlink/reparse traversal; replacement fails before trustworthy success.
+- The complete selected read-root route is revalidated after tool/resource execution so replacing
+  a component after acquisition cannot return a trustworthy success from a detached directory.
+- Every failure after staged bytes are hard-linked cleans the exact quarantined identity before
+  returning, preserves replacements, and reports any cleanup failure.
+- One transaction-wide retained root capability is shared across staged outputs so the final
+  publication checks do not consume one additional root descriptor per generated spec.
+- JSON-RPC request IDs are non-null strings or integers, initialize negotiation fields are typed,
+  and test helpers require successful MCP process exit before parsing responses.
+- Hosted Tarpaulin runs the unchanged test suite with one harness thread while retaining ptrace
+  instrumentation and the 50% threshold.

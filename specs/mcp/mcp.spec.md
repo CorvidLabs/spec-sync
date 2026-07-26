@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 22
+version: 23
 status: stable
 files:
   - src/mcp.rs
@@ -39,8 +39,10 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
    root capability, so replacement of the ambient root path cannot redirect selection. On Windows,
    an absolute child may use either the original startup spelling or the canonical spelling of that
    same identity-bound root; only its lexical suffix is consumed through the retained canonical
-   capability, and sibling-prefix lookalikes remain rejected. Every case variant of a `.git`
-   component is rejected before opening the selected operation root.
+   capability, and sibling-prefix lookalikes remain rejected. Every selected component is opened
+   as an identity-checked regular directory without symlink/reparse traversal, so aliases cannot
+   redirect authority into `.git`; every case variant of a literal `.git` component is rejected
+   before opening the selected operation root.
 6. Mutating tools require write mode, reject root overrides, and use the configured root.
 7. Tool argument schemas and runtime validation reject unknown properties and wrong types.
 8. Tool-domain errors use `isError`; JSON-RPC shape errors use protocol error objects.
@@ -54,14 +56,21 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 10. Every notification, including unknown methods, receives no response and cannot mutate state.
 11. Config/metadata/cache files and paths, manifest/autodetection paths, dependency references,
     module names/files, spec mappings, nested symlinks, and write destinations are validated against
-    the canonical root before use.
+    the canonical root before use. Selected read-root component identities are retained and the
+    complete public route is reopened/revalidated before a successful response.
 12. Recursive checks canonicalize only symlinks, honor ignored/configured exclusions, and share
     deterministic cumulative bounds across configured paths and spec mappings.
-13. JSON-RPC input lines and responses are bounded to 1 MiB, and request IDs are bounded to 4 KiB.
+13. JSON-RPC input lines and responses are bounded to 1 MiB; request IDs are non-null strings or
+    integers bounded to 4 KiB.
 14. Generated output is limited to 1,000 specs and 64 MiB, preflighted before mutation, staged and
     synced beside each destination, and atomically published without overwriting existing files;
-    retained parent capabilities and filesystem-plus-content identities preserve replacements at public transaction
-    paths. Empty parent directories created during a failed batch may remain because no portable
+    retained parent capabilities and filesystem-plus-content identities preserve replacements at
+    public transaction paths. Publication reopens the public parent without link/reparse traversal
+    and rejects any identity change before and after linking staged bytes. A post-link identity
+    failure and every destination-verification failure after the hard link clean the exact
+    quarantined staged entry before returning, and staged outputs share one transaction-wide root
+    capability rather than one root handle per output. Empty parent
+    directories created during a failed batch may remain because no portable
     create-and-open directory primitive can prove ownership across a concurrent replacement.
     Private quarantine cleanup consumes its final directory capability before removal so Windows
     does not retain a sharing-blocking handle.
@@ -121,7 +130,8 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 
 ### Scenario: Initialize MCP session
 
-- **Given** a client sends `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
+- **Given** a client sends `initialize` with a non-empty `protocolVersion`, object
+  `capabilities`, and `clientInfo.name`/`clientInfo.version`
 - **When** the server processes the request
 - **Then** responds with protocol version, capabilities, and server info
 
@@ -189,8 +199,10 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | Mutating tool in read-only mode | Tool error requiring `--allow-write`; no tool execution |
 | Mutating tool with a per-call `root` | JSON-RPC error -32602; the server root remains authoritative |
 | Non-object params/arguments, wrong argument type, or unknown key | JSON-RPC error -32602 before tool execution |
+| Missing or wrong-typed initialize negotiation parameters | JSON-RPC error -32602; no successful handshake |
 | Read root outside the server root, nonexistent, traversing, symlink-escaped, or selected after ambient root replacement | Tool error with `isError: true`; retained authority never follows the replacement path |
 | Read root contains a `.git` component in any ASCII case | Tool error before opening the operation root or reading project-controlled Git metadata |
+| Selected read-root route is replaced after acquisition | Tool/resource error at final route revalidation; no detached-directory success |
 | Configured, manifest-derived, dependency/cache/schema, module, spec-mapping, or nested-symlink path escapes the root | Tool/resource error before downstream filesystem access; outside bytes remain unchanged |
 | Semantic Cargo sibling path such as `../b` or `..\b` normalizes inside the root | Accepted and included in the bounded snapshot; drive, UNC, rooted, traversal, symlink, and junction escapes still fail |
 | Unrelated Cargo metadata contains a `path` key | Ignored for snapshot input discovery; only semantic Cargo target/workspace/dependency path tables authorize an input |
@@ -201,7 +213,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | Object-form Node workspaces omit `packages`, or a nested `package.json` is malformed/non-object/wrong-shaped | Tool/resource error before validation can report success |
 | A valid snapshot has more sibling directories than the process descriptor limit | Siblings are opened sequentially; retained directory handles remain bounded by traversal depth |
 | Generation exceeds 1,000 specs, 64 MiB, or its response budget | Tool error before publishing project files |
-| Generated destination exists, a public parent path is replaced, or a staged batch cannot publish completely | Tool error; identity-bound cleanup preserves public replacements; an empty parent created by the failed batch may remain |
+| Generated destination exists, post-link destination verification fails, a public parent path is replaced before/after linking, or a staged batch cannot publish completely | Tool error; identity-bound cleanup removes exact staged/quarantined bytes and preserves public replacements; an empty parent created by the failed batch may remain |
 | Private quarantine cleanup on Windows | Final retained directory handle is consumed before removal; successful init/generate does not fail with a sharing violation |
 | GitHub issue provider tree, authentication, repository recheck, timeout, malformed output, transport failure, traversal error, unreadable spec, malformed frontmatter, or invalid `implements`/`tracks` shape | Inconclusive tool error; no trustworthy zero-count or not-found result; read diagnostics remain relative and content-free |
 | Checked issue frontmatter has duplicate/global malformed YAML or blank/null/wrong-shaped known fields | Inconclusive tool error; comments/trailing commas remain valid and nested extension/block-scalar lookalikes do not become references |
@@ -263,3 +275,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-24 | v20 / CHG-0063 independent rereview remediation: Bind selected-config parent directories to pre-open identities, revalidate their complete retained edge chain after reads, and reject authority-bearing recursive snapshot directory replacement |
 | 2026-07-24 | v21 / CHG-0063 exact-head rereview remediation: Bound recursive snapshot handles by depth, require object-form Node workspace packages, and strictly parse nested package manifests |
 | 2026-07-24 | v22 / CHG-0063 Git-metadata-root remediation: Reject every case variant of a `.git` read-root component before opening operation authority |
+| 2026-07-26 | v23 / CHG-0063 exact-tree review remediation: Reject non-integer/null request IDs and malformed initialize negotiation, traverse and finally revalidate read-root routes without links/reparse points, reject staged publication after a public-parent identity change, clean every post-link failure's quarantine bytes, and share the transaction root capability |

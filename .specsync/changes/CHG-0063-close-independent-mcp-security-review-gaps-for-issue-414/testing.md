@@ -13,8 +13,11 @@ artifact: testing
 | Redirected `.git` file or symlink | Explicit-repository/confinement error; outside metadata absent |
 | Mixed-case `.GIT` configuration | Rejected on every platform; metadata is never snapshotted |
 | Direct, nested, absolute, or mixed-case `.git` read root containing a valid project | Rejected before operation-root acquisition; metadata config and source bytes are never authoritative |
+| Innocently named symlink/junction read-root alias targets `.git` | Rejected during regular-directory traversal before snapshot authority |
+| Selected read-root component is replaced after acquisition | Final route revalidation makes the tool/resource inconclusive instead of returning success from the detached directory |
 | Unix symlink or Windows junction escape | Rejected; referent bytes remain exact |
 | Missing/wrong JSON-RPC envelope members | `-32600`; mutator never executes |
+| Null/fractional request ID or malformed initialize negotiation | `-32600` for the ID shape, `-32602` for initialize params; no dispatch/handshake success |
 | Invalid/extended `resources/read` params | `-32602`; no resource access |
 | Project file >8 MiB or actual inputs/config >64 MiB | Tool/resource error before parsing |
 | Explicit normally ignored root | Included when configured and still bounded/confined |
@@ -28,6 +31,9 @@ artifact: testing
 | Response >1 MiB or request ID >4 KiB | Compact bounded error; oversized ID is rejected before dispatch |
 | Public staged/destination entry swapped before quarantine during publication or rollback | `isError`; current entry is atomically quarantined and verified; replacements are preserved |
 | Existing destination, replaced nested parent, or later multi-file write failure | `isError`; publication/rollback stay on retained parent capabilities and preserve public replacements; empty created parents may remain |
+| Public parent is detached after staging and replaced in the project tree | Publication rejects the identity change before linking; rollback removes only staged identity and preserves the replacement |
+| Destination is missing/replaced/unidentifiable or public parent is detached after the destination hard link | Publication removes the exact quarantined staged identity before returning the post-link error, then rollback removes only its published identity |
+| Large valid generated batch | The transaction shares one retained root capability instead of adding a root descriptor for every staged output |
 | Same-user process mutates private transaction names | Outside the MCP caller/path boundary; deployment must isolate server-root mutation |
 | Generation over 1,000 specs, 64 MiB, or response budget | Rejected before destination publication |
 | Windows generate/init junction destination | Native-join fixture proves the outside reparse target, then accepts rejection at either capability snapshot traversal or generation-destination confinement; outside bytes remain exact and no stage file escapes |
@@ -100,10 +106,13 @@ artifact: testing
 | Explicit source directories plus unrelated unsafe autodetection input | Retained configuration parsing uses the explicit roots without manifest/source autodetection |
 | Nested configuration or manifest parent is detached/replaced | Reachability verification rejects the mixed generation before configuration or manifest bytes become authority |
 | Early and post-discovery coverage races | `compute_coverage_checked` pauses at both checkpoints and rejects corresponding replacement without outside reads or partial totals; gate callers propagate the failure |
+| Generate root changes after checked coverage returns | Publication remains bound to the retained original root, fails inconclusively, and creates no file in the replacement tree |
 | Selected-spec/source shared inventory bound | Injected limit succeeds and limit-plus-one fails before unbounded spec or source accumulation |
 | Duplicate Cargo/Node workspace graph | Every declaration consumes expansion work, completed normalized nodes are reused, and duplicate chains do not replay subtrees exponentially |
 | Retained non-Gradle manifest after-open/read replacement and invalid UTF-8 | Table-driven ecosystem fixtures fail inconclusive without parsing replacement bytes |
 | Hosted-Windows junction/reparse acceptance | Native junction target is proved, path comparison is portable, and both race checkpoints run on Windows CI |
+| MCP subprocess helper exits nonzero with parseable stdout | Test fails on process status before accepting stdout as protocol evidence |
+| Tarpaulin ptrace suite receives overlapping traps | The same full suite runs with one Rust harness thread and retains the 50% gate |
 | Restricted Unix host denies local socket creation | FIFO assertions still run; only the unavailable socket fixture is skipped, while capable Unix CI exercises socket rejection |
 | Ignored/configured-exclusion name is a symlink | Skipped before target metadata is followed unless explicitly configured |
 | Public rendered drift errors include overlapping paths and `": "` in a legal spec path | Longest exact discovered path receives the errors; public `Vec<String>` signatures remain unchanged |
@@ -119,6 +128,19 @@ fresh exact-revision repository lane. The prior private `CorvidLabs/spec-sync-sa
 coverage accounting, score results, independent PASS verdicts, trust verification, Attest
 provenance, and hosted CI all predate the final patch and must be refreshed. Native Windows runtime
 evidence remains pending.
+`REQ-cli-006` is characterized by
+`gradle_post_discovery_symlink_swap_is_inconclusive_for_every_coverage_gate` and its hosted-Windows
+junction counterpart: all five coverage-gating commands exercise both retained checkpoints,
+require structured inconclusive failure, preserve outside bytes, and reject partial generation.
+The follow-up `generate_post_coverage_symlink_root_retarget_is_inconclusive_before_writes`
+characterization proves default and batch generation cannot write through a redirected public
+root after coverage returns; its junction counterpart is reserved for hosted Windows. MCP
+post-link parent replacement and quarantine-replacement unit regressions require exact cleanup and
+replacement preservation. The combined focused tree passes 120 MCP unit tests, 70 MCP
+integrations, the Unix generation race, batch compatibility, formatting, and linting.
+`REQ-generator-002` is directly evidenced by that post-coverage retarget characterization,
+`generate_batch_creates_only_the_selected_unspecced_module`, the existing custom-template and
+companion no-overwrite generator tests, and the full 1,956-unit/317-integration pass.
 The newest real-YAML, exact-snapshot validation, same-handle discovery, configured-repository,
 bidi/Zl/Zp, raw GitHub item, checked-discovery/non-UTF-8, confined-`specs_dir`,
 relative-diagnostic, and null-marker regressions are present in the active source tree. Fresh

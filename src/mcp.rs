@@ -48,6 +48,9 @@ const MCP_SNAPSHOT_DIRECTORY_TEST_BARRIER_ENV: &str =
     "SPECSYNC_TEST_MCP_SNAPSHOT_DIRECTORY_IDENTITY_BARRIER";
 #[cfg(debug_assertions)]
 const MCP_SNAPSHOT_DIRECTORY_TEST_PATH_ENV: &str = "SPECSYNC_TEST_MCP_SNAPSHOT_DIRECTORY_PATH";
+#[cfg(debug_assertions)]
+const MCP_READ_ROOT_REVALIDATION_TEST_BARRIER_ENV: &str =
+    "SPECSYNC_TEST_MCP_READ_ROOT_REVALIDATION_BARRIER";
 static STAGED_FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 const SNAPSHOT_IGNORED_DIRS: &[&str] = &[
     ".git",
@@ -187,7 +190,7 @@ pub fn run_mcp_server(root: &Path, allow_write: bool) -> Result<(), String> {
             .ok_or_else(|| "Validated MCP request lost its method".to_string())?;
 
         let response = match method {
-            "initialize" => Some(handle_initialize(id)),
+            "initialize" => Some(handle_initialize_request(id, request.get("params"))),
             "tools/list" => Some(handle_tools_list(id, allow_write)),
             "tools/call" => {
                 let params = request.get("params").cloned().unwrap_or(json!({}));
@@ -425,6 +428,47 @@ fn wait_for_mcp_snapshot_directory_test_barrier(relative: &Path) -> Result<(), S
     }
 }
 
+#[cfg(debug_assertions)]
+fn wait_for_mcp_read_root_revalidation_test_barrier() -> Result<(), String> {
+    let Some(barrier_directory) = std::env::var_os(MCP_READ_ROOT_REVALIDATION_TEST_BARRIER_ENV)
+    else {
+        return Ok(());
+    };
+    let barrier_directory = PathBuf::from(barrier_directory);
+    let ready_path = barrier_directory.join("operation-complete");
+    let resume_path = barrier_directory.join("resume");
+    let mut ready_file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&ready_path)
+        .map_err(|error| format!("Cannot create MCP read-root test barrier: {error}"))?;
+    ready_file
+        .write_all(b"operation-complete\n")
+        .and_then(|_| ready_file.sync_all())
+        .map_err(|error| format!("Cannot publish MCP read-root test barrier: {error}"))?;
+    drop(ready_file);
+
+    let started = std::time::Instant::now();
+    loop {
+        match fs::metadata(&resume_path) {
+            Ok(metadata) if metadata.is_file() => return Ok(()),
+            Ok(_) => {
+                return Err("MCP read-root test barrier resume marker is not a file".to_string());
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "Cannot inspect MCP read-root test barrier resume marker: {error}"
+                ));
+            }
+        }
+        if started.elapsed() >= MCP_STARTUP_TEST_BARRIER_TIMEOUT {
+            return Err("Timed out waiting for MCP read-root test barrier".to_string());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
 #[cfg(unix)]
 type DirectoryIdentity = (u64, u64);
 
@@ -578,11 +622,9 @@ fn validate_request_envelope(request: &Value) -> Result<Option<Value>, Value> {
         return Err(invalid_request("JSON-RPC method must be a string"));
     }
     if let Some(id) = object.get("id")
-        && !(id.is_string() || id.is_number() || id.is_null())
+        && !(id.is_string() || id.as_i64().is_some() || id.as_u64().is_some())
     {
-        return Err(invalid_request(
-            "JSON-RPC id must be a string, number, or null",
-        ));
+        return Err(invalid_request("JSON-RPC id must be a string or integer"));
     }
     if let Some(id) = object.get("id")
         && serde_json::to_vec(id).is_ok_and(|encoded| encoded.len() > MAX_JSON_RPC_ID_BYTES)
@@ -2302,6 +2344,41 @@ fn handle_initialize(id: Option<Value>) -> Value {
     })
 }
 
+fn handle_initialize_request(id: Option<Value>, params: Option<&Value>) -> Value {
+    let Some(Value::Object(params)) = params else {
+        return invalid_params(id, "initialize params must be an object");
+    };
+    if params
+        .get("protocolVersion")
+        .and_then(Value::as_str)
+        .is_none_or(str::is_empty)
+    {
+        return invalid_params(
+            id,
+            "initialize parameter `protocolVersion` must be a non-empty string",
+        );
+    }
+    if !params.get("capabilities").is_some_and(Value::is_object) {
+        return invalid_params(id, "initialize parameter `capabilities` must be an object");
+    }
+    let Some(client_info) = params.get("clientInfo").and_then(Value::as_object) else {
+        return invalid_params(id, "initialize parameter `clientInfo` must be an object");
+    };
+    for field in ["name", "version"] {
+        if client_info
+            .get(field)
+            .and_then(Value::as_str)
+            .is_none_or(str::is_empty)
+        {
+            return invalid_params(
+                id,
+                format!("initialize parameter `clientInfo.{field}` must be a non-empty string"),
+            );
+        }
+    }
+    handle_initialize(id)
+}
+
 fn handle_tools_list(id: Option<Value>, allow_write: bool) -> Value {
     let root_property = json!({
         "type": "string",
@@ -2469,39 +2546,24 @@ fn handle_tools_call_with_directory(
         );
     }
 
-    let operation_directory = if is_mutating {
-        match server_directory.try_clone() {
-            Ok(directory) => directory,
-            Err(error) => {
-                return tool_error(
-                    id,
-                    format!("Cannot clone MCP server root capability: {error}"),
-                );
-            }
-        }
+    let operation_relative = if is_mutating {
+        PathBuf::from(".")
     } else {
         match resolve_read_root(
             server_root,
             requested_server_root,
             arguments.get("root").and_then(Value::as_str),
         ) {
-            Ok(relative) => match server_directory.open_dir(&relative) {
-                Ok(directory) => directory,
-                Err(error) => {
-                    return tool_error(
-                        id,
-                        format!(
-                            "Read root override does not resolve to a confined existing directory {}: {error}",
-                            relative.display()
-                        ),
-                    );
-                }
-            },
+            Ok(relative) => relative,
             Err(message) => return tool_error(id, message),
         }
     };
+    let operation_route = match open_confined_read_root(server_directory, &operation_relative) {
+        Ok(route) => route,
+        Err(error) => return tool_error(id, error),
+    };
     let arguments = Value::Object(arguments.clone());
-    let snapshot = match ProjectSnapshot::create_from_directory(&operation_directory) {
+    let snapshot = match ProjectSnapshot::create_from_directory(operation_route.directory()) {
         Ok(snapshot) => snapshot,
         Err(message) => return tool_error(id, message),
     };
@@ -2519,16 +2581,21 @@ fn handle_tools_call_with_directory(
     };
 
     match result {
-        Ok(content) => json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": {
-                "content": [{
-                    "type": "text",
-                    "text": serde_json::to_string_pretty(&content).unwrap_or_default()
-                }]
+        Ok(content) => {
+            if let Err(message) = operation_route.revalidate_before_success() {
+                return tool_error(id, message);
             }
-        }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {
+                    "content": [{
+                        "type": "text",
+                        "text": serde_json::to_string_pretty(&content).unwrap_or_default()
+                    }]
+                }
+            })
+        }
         Err(msg) => tool_error(id, msg),
     }
 }
@@ -2938,7 +3005,17 @@ fn handle_resources_read_with_directory(
         return invalid_params(id, "resources/read parameter `uri` must be a string");
     };
 
-    let snapshot = match ProjectSnapshot::create_from_directory(directory) {
+    let operation_route = match open_confined_read_root(directory, Path::new(".")) {
+        Ok(route) => route,
+        Err(message) => {
+            return json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "error": { "code": -32602, "message": message }
+            });
+        }
+    };
+    let snapshot = match ProjectSnapshot::create_from_directory(operation_route.directory()) {
         Ok(snapshot) => snapshot,
         Err(message) => {
             return json!({
@@ -2964,17 +3041,26 @@ fn handle_resources_read_with_directory(
     };
 
     match result {
-        Ok((content, mime_type)) => json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": {
-                "contents": [{
-                    "uri": uri,
-                    "mimeType": mime_type,
-                    "text": content
-                }]
+        Ok((content, mime_type)) => {
+            if let Err(message) = operation_route.revalidate_before_success() {
+                return json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": { "code": -32602, "message": message }
+                });
             }
-        }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {
+                    "contents": [{
+                        "uri": uri,
+                        "mimeType": mime_type,
+                        "text": content
+                    }]
+                }
+            })
+        }
         Err(msg) => json!({
             "jsonrpc": "2.0",
             "id": id,
@@ -4622,8 +4708,11 @@ fn write_generated_specs_transactionally(
     Ok(())
 }
 
-struct StagedFile {
+struct StagedFile<'root> {
+    root: &'root Dir,
     parent: Dir,
+    parent_path: PathBuf,
+    parent_identity: DirectoryIdentity,
     destination_name: PathBuf,
     destination_display: PathBuf,
     temporary_name: PathBuf,
@@ -4633,22 +4722,22 @@ struct StagedFile {
     published: bool,
 }
 
-fn stage_new_confined(
-    directory: &Dir,
+fn stage_new_confined<'root>(
+    directory: &'root Dir,
     destination: &Path,
     content: &[u8],
     label: &str,
-) -> Result<StagedFile, String> {
+) -> Result<StagedFile<'root>, String> {
     stage_new_confined_with_hook(directory, destination, content, label, |_, _| {})
 }
 
-fn stage_new_confined_with_hook<Hook>(
-    directory: &Dir,
+fn stage_new_confined_with_hook<'root, Hook>(
+    directory: &'root Dir,
     destination: &Path,
     content: &[u8],
     label: &str,
     after_identity: Hook,
-) -> Result<StagedFile, String>
+) -> Result<StagedFile<'root>, String>
 where
     Hook: FnOnce(&Dir, &Path),
 {
@@ -4659,6 +4748,12 @@ where
         .map(PathBuf::from)
         .ok_or_else(|| format!("MCP {label} must name a destination file"))?;
     let parent = create_confined_directories(directory, parent_path, label)?;
+    let parent_identity = directory_identity(&parent).map_err(|error| {
+        format!(
+            "Cannot identify confined MCP {label} parent {}: {error}",
+            parent_path.display()
+        )
+    })?;
 
     for _ in 0..128 {
         let sequence = STAGED_FILE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
@@ -4691,7 +4786,10 @@ where
         drop(file);
         after_identity(&parent, &temporary_name);
         let staged = StagedFile {
+            root: directory,
             parent,
+            parent_path: parent_path.to_path_buf(),
+            parent_identity,
             destination_name,
             destination_display: destination.to_path_buf(),
             temporary_name,
@@ -4785,17 +4883,56 @@ fn create_confined_directories(directory: &Dir, parent: &Path, label: &str) -> R
     Ok(current_directory)
 }
 
-fn publish_staged_file(staged: &mut StagedFile, label: &str) -> Result<(), String> {
-    publish_staged_file_with_hook(staged, label, |_, _| {})
+fn publish_staged_file(staged: &mut StagedFile<'_>, label: &str) -> Result<(), String> {
+    publish_staged_file_with_hooks(staged, label, |_, _| {}, |_, _| {})
 }
 
+#[cfg(test)]
 fn publish_staged_file_with_hook<Hook>(
-    staged: &mut StagedFile,
+    staged: &mut StagedFile<'_>,
     label: &str,
     before_quarantine: Hook,
 ) -> Result<(), String>
 where
     Hook: FnOnce(&Dir, &Path),
+{
+    publish_staged_file_with_hooks(staged, label, before_quarantine, |_, _| {})
+}
+
+fn publish_staged_file_with_hooks<BeforeQuarantine, AfterHardLink>(
+    staged: &mut StagedFile<'_>,
+    label: &str,
+    before_quarantine: BeforeQuarantine,
+    after_hard_link: AfterHardLink,
+) -> Result<(), String>
+where
+    BeforeQuarantine: FnOnce(&Dir, &Path),
+    AfterHardLink: FnOnce(&Dir, &Path),
+{
+    publish_staged_file_with_verification_hooks(
+        staged,
+        label,
+        before_quarantine,
+        after_hard_link,
+        file_identity,
+    )
+}
+
+fn publish_staged_file_with_verification_hooks<
+    BeforeQuarantine,
+    AfterHardLink,
+    DestinationIdentity,
+>(
+    staged: &mut StagedFile<'_>,
+    label: &str,
+    before_quarantine: BeforeQuarantine,
+    after_hard_link: AfterHardLink,
+    identify_destination: DestinationIdentity,
+) -> Result<(), String>
+where
+    BeforeQuarantine: FnOnce(&Dir, &Path),
+    AfterHardLink: FnOnce(&Dir, &Path),
+    DestinationIdentity: FnOnce(&cap_std::fs::File) -> io::Result<FileIdentity>,
 {
     let temporary = staged
         .parent
@@ -4820,6 +4957,7 @@ where
     }
     drop(temporary);
     before_quarantine(&staged.parent, &staged.temporary_name);
+    verify_staged_public_parent(staged, label)?;
 
     let quarantined = quarantine_entry(
         &staged.parent,
@@ -4858,39 +4996,260 @@ where
             "Cannot atomically publish confined MCP {label} {}: {error}",
             staged.destination_display.display()
         );
-        return match cleanup_quarantined_file(
+        return fail_after_hard_link(
             quarantined,
             staged.identity,
             &staged.temporary_display,
-        ) {
-            Ok(()) => Err(failure),
-            Err(cleanup) => Err(format!("{failure}; {cleanup}")),
-        };
+            failure,
+        );
     }
     staged.published = true;
-    let destination = staged
-        .parent
-        .open(&staged.destination_name)
-        .map_err(|error| {
-            format!(
+    after_hard_link(&quarantined.directory, Path::new("entry"));
+    let destination = match staged.parent.open(&staged.destination_name) {
+        Ok(destination) => destination,
+        Err(error) => {
+            let failure = format!(
                 "Cannot verify published MCP {label} {}: {error}",
                 staged.destination_display.display()
-            )
-        })?;
-    let destination_identity = file_identity(&destination).map_err(|error| {
-        format!(
-            "Cannot identify published MCP {label} {}: {error}",
-            staged.destination_display.display()
-        )
-    })?;
+            );
+            return fail_after_hard_link(
+                quarantined,
+                staged.identity,
+                &staged.temporary_display,
+                failure,
+            );
+        }
+    };
+    let destination_identity = match identify_destination(&destination) {
+        Ok(identity) => identity,
+        Err(error) => {
+            drop(destination);
+            let failure = format!(
+                "Cannot identify published MCP {label} {}: {error}",
+                staged.destination_display.display()
+            );
+            return fail_after_hard_link(
+                quarantined,
+                staged.identity,
+                &staged.temporary_display,
+                failure,
+            );
+        }
+    };
     if destination_identity != staged.identity {
-        return Err(format!(
+        drop(destination);
+        let failure = format!(
             "Published MCP {label} {} was replaced before identity verification",
             staged.destination_display.display()
-        ));
+        );
+        return fail_after_hard_link(
+            quarantined,
+            staged.identity,
+            &staged.temporary_display,
+            failure,
+        );
     }
     drop(destination);
+    if let Err(error) = verify_staged_public_parent(staged, label) {
+        return fail_after_hard_link(
+            quarantined,
+            staged.identity,
+            &staged.temporary_display,
+            error,
+        );
+    }
     cleanup_quarantined_file(quarantined, staged.identity, &staged.temporary_display)
+}
+
+fn fail_after_hard_link(
+    quarantined: QuarantinedEntry,
+    expected: FileIdentity,
+    display: &Path,
+    failure: String,
+) -> Result<(), String> {
+    match cleanup_quarantined_file(quarantined, expected, display) {
+        Ok(()) => Err(failure),
+        Err(cleanup) => Err(format!("{failure}; {cleanup}")),
+    }
+}
+
+struct ConfinedReadRoot<'root> {
+    root: &'root Dir,
+    root_identity: DirectoryIdentity,
+    directory: Dir,
+    components: Vec<(PathBuf, SnapshotEntryIdentity)>,
+}
+
+impl ConfinedReadRoot<'_> {
+    fn directory(&self) -> &Dir {
+        &self.directory
+    }
+
+    fn revalidate_before_success(&self) -> Result<(), String> {
+        #[cfg(debug_assertions)]
+        wait_for_mcp_read_root_revalidation_test_barrier()?;
+
+        let observed_root = directory_identity(self.root)
+            .map_err(|error| format!("Cannot reidentify MCP read-root authority: {error}"))?;
+        if observed_root != self.root_identity {
+            return Err("MCP read-root authority changed before operation success".to_string());
+        }
+
+        let retained_identity = directory_identity(&self.directory)
+            .map_err(|error| format!("Cannot reidentify retained MCP read root: {error}"))?;
+        let expected_final = self
+            .components
+            .last()
+            .map(|(_, identity)| *identity)
+            .unwrap_or(self.root_identity);
+        if retained_identity != expected_final {
+            return Err("Retained MCP read root changed before operation success".to_string());
+        }
+
+        let mut directory = self
+            .root
+            .try_clone()
+            .map_err(|error| format!("Cannot clone MCP read-root authority: {error}"))?;
+        for (relative, expected) in &self.components {
+            let Some(name) = relative.file_name() else {
+                return Err(format!(
+                    "MCP read-root route is invalid before operation success: {}",
+                    relative.display()
+                ));
+            };
+            let Some((next, observed)) = open_snapshot_configuration_directory(
+                &directory, name, relative,
+            )
+            .map_err(|error| {
+                format!(
+                    "MCP read-root route changed before operation success at {}: {error}",
+                    relative.display()
+                )
+            })?
+            else {
+                return Err(format!(
+                    "MCP read-root route changed before operation success at {}",
+                    relative.display()
+                ));
+            };
+            if observed != *expected {
+                return Err(format!(
+                    "MCP read-root route changed before operation success at {}",
+                    relative.display()
+                ));
+            }
+            directory = next;
+        }
+        Ok(())
+    }
+}
+
+fn open_confined_read_root<'root>(
+    server_directory: &'root Dir,
+    relative: &Path,
+) -> Result<ConfinedReadRoot<'root>, String> {
+    let root_identity = directory_identity(server_directory)
+        .map_err(|error| format!("Cannot identify MCP read-root authority: {error}"))?;
+    let mut directory = server_directory
+        .try_clone()
+        .map_err(|error| format!("Cannot clone MCP server root capability: {error}"))?;
+    let mut display = PathBuf::new();
+    let mut components = Vec::new();
+    for component in relative.components() {
+        match component {
+            Component::CurDir => continue,
+            Component::Normal(name) => {
+                display.push(name);
+                let Some((next, identity)) =
+                    open_snapshot_configuration_directory(&directory, name, &display)
+                        .map_err(|error| {
+                            format!(
+                                "Read root override does not resolve through regular confined directories {}: {error}",
+                                display.display()
+                            )
+                        })?
+                else {
+                    return Err(format!(
+                        "Read root override does not resolve to a confined existing directory {}",
+                        display.display()
+                    ));
+                };
+                directory = next;
+                components.push((display.clone(), identity));
+            }
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(format!(
+                    "Read root override must remain beneath the MCP server root: {}",
+                    relative.display()
+                ));
+            }
+        }
+    }
+    Ok(ConfinedReadRoot {
+        root: server_directory,
+        root_identity,
+        directory,
+        components,
+    })
+}
+
+fn verify_staged_public_parent(staged: &StagedFile<'_>, label: &str) -> Result<(), String> {
+    let mut public_parent = staged
+        .root
+        .try_clone()
+        .map_err(|error| format!("Cannot clone MCP server root capability: {error}"))?;
+    let mut display = PathBuf::new();
+    for component in staged.parent_path.components() {
+        match component {
+            Component::CurDir => continue,
+            Component::Normal(name) => {
+                display.push(name);
+                let Some((next, _)) = open_snapshot_configuration_directory(
+                    &public_parent,
+                    name,
+                    &display,
+                )
+                .map_err(|error| {
+                    format!(
+                        "Refusing to publish MCP {label}; public parent {} changed: {error}",
+                        display.display()
+                    )
+                })?
+                else {
+                    return Err(format!(
+                        "Refusing to publish MCP {label}; public parent {} no longer exists",
+                        display.display()
+                    ));
+                };
+                public_parent = next;
+            }
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(format!(
+                    "Refusing to publish MCP {label}; public parent path is not confined: {}",
+                    staged.parent_path.display()
+                ));
+            }
+        }
+    }
+    let public_identity = directory_identity(&public_parent).map_err(|error| {
+        format!(
+            "Cannot identify public MCP {label} parent {}: {error}",
+            staged.parent_path.display()
+        )
+    })?;
+    let retained_identity = directory_identity(&staged.parent).map_err(|error| {
+        format!(
+            "Cannot identify retained MCP {label} parent {}: {error}",
+            staged.parent_path.display()
+        )
+    })?;
+    if public_identity != staged.parent_identity || retained_identity != staged.parent_identity {
+        return Err(format!(
+            "Refusing to publish MCP {label}; public parent {} changed after staging",
+            staged.parent_path.display()
+        ));
+    }
+    Ok(())
 }
 
 fn validate_confined_relative(relative: &Path, label: &str) -> Result<(), String> {
@@ -5099,7 +5458,7 @@ fn cleanup_quarantine_directory(
     })
 }
 
-fn rollback_staged_batch(staged: &[StagedFile], error: String) -> String {
+fn rollback_staged_batch(staged: &[StagedFile<'_>], error: String) -> String {
     let mut cleanup_failures = Vec::new();
     for file in staged.iter().rev() {
         if file.published
@@ -7553,7 +7912,7 @@ project(':override').projectDir = file('vendor/custom')
 
     #[cfg(unix)]
     #[test]
-    fn generation_publication_and_rollback_remain_bound_to_a_replaced_parent() {
+    fn generation_rejects_a_replaced_public_parent_before_publication() {
         let tmp = setup_project();
         fs::create_dir_all(tmp.path().join("specs")).unwrap();
         let directory = open_test_directory(tmp.path());
@@ -7577,14 +7936,14 @@ project(':override').projectDir = file('vendor/custom')
         )
         .unwrap();
 
-        publish_staged_file(&mut staged, "generated spec").unwrap();
-        assert_eq!(
-            fs::read_to_string(tmp.path().join("specs/moved-target/generated.spec.md")).unwrap(),
-            "generated\n"
+        let error = publish_staged_file(&mut staged, "generated spec").unwrap_err();
+        assert!(
+            error.contains("public parent specs/target changed after staging"),
+            "unexpected publication error: {error}"
         );
-        let rollback = rollback_staged_batch(&[staged], "forced rollback".to_string());
+        let rollback = rollback_staged_batch(&[staged], error.clone());
 
-        assert_eq!(rollback, "forced rollback");
+        assert_eq!(rollback, error);
         assert_eq!(
             fs::read_to_string(tmp.path().join("specs/target/generated.spec.md")).unwrap(),
             "replacement\n"
@@ -7600,6 +7959,300 @@ project(':override').projectDir = file('vendor/custom')
                 .next()
                 .is_none()
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn generation_cleans_staged_quarantine_after_post_link_parent_replacement() {
+        let tmp = setup_project();
+        let directory = open_test_directory(tmp.path());
+        let mut staged = stage_new_confined(
+            &directory,
+            Path::new("specs/target/generated.spec.md"),
+            b"generated\n",
+            "generated spec",
+        )
+        .unwrap();
+
+        let error = publish_staged_file_with_hooks(
+            &mut staged,
+            "generated spec",
+            |_, _| {},
+            |_, _| {
+                fs::rename(
+                    tmp.path().join("specs/target"),
+                    tmp.path().join("specs/moved-target"),
+                )
+                .unwrap();
+                fs::create_dir_all(tmp.path().join("specs/target")).unwrap();
+                fs::write(
+                    tmp.path().join("specs/target/generated.spec.md"),
+                    "replacement\n",
+                )
+                .unwrap();
+            },
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("public parent specs/target changed after staging"),
+            "unexpected publication error: {error}"
+        );
+
+        let rollback = rollback_staged_batch(&[staged], error.clone());
+
+        assert_eq!(rollback, error);
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("specs/target/generated.spec.md")).unwrap(),
+            "replacement\n"
+        );
+        assert!(
+            fs::read_dir(tmp.path().join("specs/moved-target"))
+                .unwrap()
+                .next()
+                .is_none()
+        );
+        assert_no_mcp_transaction_debris(tmp.path());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn generation_appends_post_link_quarantine_cleanup_failure_and_preserves_replacement() {
+        let tmp = setup_project();
+        let directory = open_test_directory(tmp.path());
+        let mut staged = stage_new_confined(
+            &directory,
+            Path::new("specs/target/generated.spec.md"),
+            b"generated\n",
+            "generated spec",
+        )
+        .unwrap();
+
+        let error = publish_staged_file_with_hooks(
+            &mut staged,
+            "generated spec",
+            |_, _| {},
+            |quarantine, entry| {
+                fs::rename(
+                    tmp.path().join("specs/target"),
+                    tmp.path().join("specs/moved-target"),
+                )
+                .unwrap();
+                fs::create_dir_all(tmp.path().join("specs/target")).unwrap();
+                fs::write(
+                    tmp.path().join("specs/target/generated.spec.md"),
+                    "public replacement\n",
+                )
+                .unwrap();
+                quarantine.remove_file(entry).unwrap();
+                quarantine
+                    .write(entry, b"quarantine replacement\n")
+                    .unwrap();
+            },
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("public parent specs/target changed after staging"),
+            "public-parent failure was lost: {error}"
+        );
+        assert!(
+            error.contains("Refusing to delete a replacement in the private quarantine"),
+            "quarantine cleanup failure was not appended: {error}"
+        );
+        assert!(quarantine_contains(
+            &staged.parent,
+            b"quarantine replacement\n"
+        ));
+
+        let rollback = rollback_staged_batch(&[staged], error.clone());
+
+        assert_eq!(rollback, error);
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("specs/target/generated.spec.md")).unwrap(),
+            "public replacement\n"
+        );
+        assert!(
+            !tmp.path()
+                .join("specs/moved-target/generated.spec.md")
+                .exists()
+        );
+        let moved_parent = open_test_directory(&tmp.path().join("specs/moved-target"));
+        assert!(quarantine_contains(
+            &moved_parent,
+            b"quarantine replacement\n"
+        ));
+    }
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    enum PostLinkDestinationFailure {
+        Open,
+        IdentityRead,
+        IdentityMismatch,
+    }
+
+    #[test]
+    fn generation_cleans_exact_quarantine_for_every_post_link_destination_failure() {
+        for failure in [
+            PostLinkDestinationFailure::Open,
+            PostLinkDestinationFailure::IdentityRead,
+            PostLinkDestinationFailure::IdentityMismatch,
+        ] {
+            let tmp = setup_project();
+            let destination = tmp.path().join("specs/target/generated.spec.md");
+            let directory = open_test_directory(tmp.path());
+            let mut staged = stage_new_confined(
+                &directory,
+                Path::new("specs/target/generated.spec.md"),
+                b"generated\n",
+                "generated spec",
+            )
+            .unwrap();
+
+            let error = publish_staged_file_with_verification_hooks(
+                &mut staged,
+                "generated spec",
+                |_, _| {},
+                |_, _| match failure {
+                    PostLinkDestinationFailure::Open => {
+                        fs::remove_file(&destination).unwrap();
+                    }
+                    PostLinkDestinationFailure::IdentityMismatch => {
+                        fs::remove_file(&destination).unwrap();
+                        fs::write(&destination, b"public replacement\n").unwrap();
+                    }
+                    PostLinkDestinationFailure::IdentityRead => {}
+                },
+                |file| {
+                    if failure == PostLinkDestinationFailure::IdentityRead {
+                        Err(io::Error::other(
+                            "injected destination identity-read failure",
+                        ))
+                    } else {
+                        file_identity(file)
+                    }
+                },
+            )
+            .unwrap_err();
+
+            let expected = match failure {
+                PostLinkDestinationFailure::Open => "Cannot verify published MCP",
+                PostLinkDestinationFailure::IdentityRead => "Cannot identify published MCP",
+                PostLinkDestinationFailure::IdentityMismatch => {
+                    "was replaced before identity verification"
+                }
+            };
+            assert!(error.contains(expected), "{failure:?}: {error}");
+            assert_no_mcp_transaction_debris(tmp.path());
+
+            let rollback = rollback_staged_batch(&[staged], error);
+            if failure == PostLinkDestinationFailure::IdentityMismatch {
+                assert!(
+                    rollback.contains("Refusing to remove replacement file"),
+                    "{failure:?}: {rollback}"
+                );
+                assert_eq!(
+                    fs::read(&destination).unwrap(),
+                    b"public replacement\n",
+                    "{failure:?}: public replacement was removed"
+                );
+            } else {
+                assert!(
+                    !destination.exists(),
+                    "{failure:?}: exact published identity survived rollback"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn generation_appends_cleanup_failure_for_every_post_link_destination_failure() {
+        for failure in [
+            PostLinkDestinationFailure::Open,
+            PostLinkDestinationFailure::IdentityRead,
+            PostLinkDestinationFailure::IdentityMismatch,
+        ] {
+            let tmp = setup_project();
+            let destination = tmp.path().join("specs/target/generated.spec.md");
+            let directory = open_test_directory(tmp.path());
+            let mut staged = stage_new_confined(
+                &directory,
+                Path::new("specs/target/generated.spec.md"),
+                b"generated\n",
+                "generated spec",
+            )
+            .unwrap();
+
+            let error = publish_staged_file_with_verification_hooks(
+                &mut staged,
+                "generated spec",
+                |_, _| {},
+                |quarantine, entry| {
+                    match failure {
+                        PostLinkDestinationFailure::Open => {
+                            fs::remove_file(&destination).unwrap();
+                        }
+                        PostLinkDestinationFailure::IdentityMismatch => {
+                            fs::remove_file(&destination).unwrap();
+                            fs::write(&destination, b"public replacement\n").unwrap();
+                        }
+                        PostLinkDestinationFailure::IdentityRead => {}
+                    }
+                    quarantine.remove_file(entry).unwrap();
+                    quarantine
+                        .write(entry, b"quarantine replacement\n")
+                        .unwrap();
+                },
+                |file| {
+                    if failure == PostLinkDestinationFailure::IdentityRead {
+                        Err(io::Error::other(
+                            "injected destination identity-read failure",
+                        ))
+                    } else {
+                        file_identity(file)
+                    }
+                },
+            )
+            .unwrap_err();
+
+            let expected = match failure {
+                PostLinkDestinationFailure::Open => "Cannot verify published MCP",
+                PostLinkDestinationFailure::IdentityRead => "Cannot identify published MCP",
+                PostLinkDestinationFailure::IdentityMismatch => {
+                    "was replaced before identity verification"
+                }
+            };
+            assert!(error.contains(expected), "{failure:?}: {error}");
+            assert!(
+                error.contains("Refusing to delete a replacement in the private quarantine"),
+                "{failure:?}: {error}"
+            );
+            assert!(
+                quarantine_contains(&staged.parent, b"quarantine replacement\n"),
+                "{failure:?}: quarantine replacement was removed"
+            );
+
+            let rollback = rollback_staged_batch(&[staged], error);
+            if failure == PostLinkDestinationFailure::IdentityMismatch {
+                assert!(
+                    rollback.contains("Refusing to remove replacement file"),
+                    "{failure:?}: {rollback}"
+                );
+                assert_eq!(
+                    fs::read(&destination).unwrap(),
+                    b"public replacement\n",
+                    "{failure:?}: public replacement was removed"
+                );
+            } else {
+                assert!(
+                    !destination.exists(),
+                    "{failure:?}: exact published identity survived rollback"
+                );
+            }
+            let parent = open_test_directory(&tmp.path().join("specs/target"));
+            assert!(
+                quarantine_contains(&parent, b"quarantine replacement\n"),
+                "{failure:?}: cleanup failure lost the quarantine replacement"
+            );
+        }
     }
 
     #[test]

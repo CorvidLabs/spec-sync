@@ -31,6 +31,7 @@ spec: cli.spec.md
 | Retired provider/model flags | user supplies `--provider` or `--model` | Clap parses arguments | unknown arguments are rejected |
 | Recursive lifecycle dispatch | inherited verification context invokes `check`, `change`, or `lifecycle` | the binary dispatches | exits non-zero once and names the configured parent command |
 | MCP startup root failure | `--root` names a nonexistent directory and the `mcp` command is selected | the dispatcher starts MCP | exits 2 on stderr before reading a request |
+| Coverage root replacement | a gate pauses after retaining a requested symlink/junction root, or after checked coverage returns but before generation publication, then the public root is redirected | run check, coverage, generate, report, or score | exits nonzero with structured inconclusive output and never reads or writes the replacement target |
 | Panic is caught | a subcommand panics internally | the binary runs | a "specsync panicked … please report it" message is printed and the process exits 1 (no raw backtrace) |
 | Resolve without network | specs have cross-project `depends_on` refs | `specsync resolve` is run (without `--remote`) | lists the refs but does not verify them against remote registries |
 | Fix auto-adds undocumented exports | a spec's source files have exports not documented in the Public API section | `specsync check --fix` is run | skeleton rows for the missing exports are appended to the Public API section and the spec file is written to disk |

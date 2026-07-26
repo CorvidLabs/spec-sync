@@ -19,6 +19,9 @@ artifact: docs
   inconclusive on provider/authentication/transport failures rather than false-green not_found.
 - Publish the exact 4 KiB request-ID, 1,000-spec/64 MiB generation, 100-issue, 10-second operation,
   and 30-second complete-batch limits in `site/src/content/docs/mcp-security.md`.
+- Document that request IDs are non-null strings or integers, initialize negotiation fields are
+  required and typed, read-root components cannot traverse links/reparse points, and public-parent
+  replacement aborts staged publication.
 - Publish `site/src/content/docs/github-import-security.md` without further changing the protected
   CLI page. Document explicit-token single/batch imports, no authenticated-`gh` fallback, the
   10-second per-operation bound, strict 100 pages by 100 raw provider entries, and fail-closed

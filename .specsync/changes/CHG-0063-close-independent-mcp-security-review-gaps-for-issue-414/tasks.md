@@ -190,12 +190,21 @@ artifact: tasks
 - [x] Obtain two clean exact-tree post-fix acceptance and adversarial
   security/compatibility rereviews after the retained-authority amendment at `f3322ab`; both
   reported zero in-scope high or medium findings.
+- [x] Close the latest exact-tree review findings for public-parent publication, read-root aliases,
+  null/fractional request IDs, initialize negotiation parameters, and MCP helper exit checks.
+- [x] Preserve the caller-requested root spelling for every coverage-gating CLI command so both
+  deterministic replacement checkpoints remain observable before eager canonicalization.
+- [x] Serialize the unchanged Tarpaulin test harness while preserving ptrace coverage and the 50%
+  gate after two reproducible overlapping-trap segfaults.
+- [x] Close the final independent-review findings: keep retained root authority through generation
+  publication, clean exact quarantine bytes on a post-link parent failure, and share the
+  transaction root capability across staged outputs; revalidate selected read-root routes and
+  route every post-link failure through quarantine cleanup.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
-  compilation is necessary but not sufficient. The hosted `bd929512` run exposed `cmd.exe`
-  argument-boundary loss for hyphenated junction paths, and the exact-tree `50adb5c5` run proved
-  that even a validated single-string `mklink` command remains subject to `cmd.exe`'s nonstandard
-  quote rewriting. Create the real junction through a static noninteractive PowerShell command
-  with both paths passed as environment values, and require the replacement Windows run to pass.
+  compilation is necessary but not sufficient. The `a7e08cc` run proved native junction retargeting
+  works, then exposed eager CLI root canonicalization as a false green. Require the replacement
+  Windows run to make all five commands fail inconclusively at both checkpoints without outside
+  access or mutation.
 - [x] Obtain fresh definition reapproval after the final independent-review artifact amendment:
   user-approved digest `493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed`.
 - [ ] Finish lifecycle verification, complete repository lane, trust, provenance, independent

@@ -23,9 +23,12 @@ spec: mcp.spec.md
 | Excluded subtree contains an outside symlink | Exclusion is honored; unrelated subtree does not reject the request |
 | Wrong argument type, unknown key, or malformed `tools/call` params | JSON-RPC -32602 before execution |
 | Invalid JSON-RPC version, method, ID, params, or top-level container | JSON-RPC -32600 before dispatch; mutator does not run |
+| Null or fractional JSON-RPC request ID | JSON-RPC -32600 with null response ID; no dispatch |
+| Missing or wrong-typed initialize negotiation fields | JSON-RPC -32602; no successful initialization result |
 | Malformed or extended `resources/read` params | JSON-RPC -32602 before resource access |
 | Generate | Deterministic local scaffold |
 | Generate destination collision, public-parent replacement, or incomplete write | Tool error; retained capabilities preserve public replacements; empty parents created by the failed batch may remain |
+| Staged parent is detached and a replacement occupies its public path | Publication fails before linking staged bytes; replacement remains exact and staged debris rolls back |
 | Successful init/generate and collision rollback on Windows | Quarantine cleanup consumes its final handle; success remains success and collision errors retain their intended publication diagnostic |
 | Generate count over 1,000, cumulative content over 64 MiB, or oversized result | Rejected before any destination is published |
 | Legacy inference argument | JSON-RPC -32602 migration error, value not echoed |
@@ -47,6 +50,7 @@ spec: mcp.spec.md
 | Root path replaced after the initial handle but before canonicalization/reopen | Startup fails; no outside capability is retained |
 | Duplicate/overlapping configured tree scans | One cumulative 100,000-entry confinement budget is enforced |
 | Redirected `.git` metadata without explicit `github.repo` | Rejected without Git auto-detection or outside metadata disclosure |
+| Innocently named symlink/junction read-root alias targets `.git` | Rejected during regular-directory component traversal before project snapshotting |
 | FIFO/device replaces a recognized manifest or selected config after discovery | Explicit no-follow, non-blocking retained-handle acquisition rejects it without waiting |
 | Selected config or manifest path changes after the retained handle is opened | Path-to-handle identity comparison rejects replacement bytes on Windows and Unix |
 | MCP score in a Git-backed project snapshot | Reports Git freshness unavailable and withholds five freshness points |
@@ -74,7 +78,8 @@ fixture creation; a host-level `PermissionDenied` skips only that unavailable so
 all other acquisition and replacement checks remain mandatory.
 
 The adversarial integration matrix lives in `tests/integration/mcp.rs`; its local write-enabled
-process helper leaves the shared `mcp_request` helper and all existing read-only callers unchanged.
+process helper and the shared `mcp_request` helper both require a successful server exit before
+parsing stdout.
 Focused MCP source and integration coverage includes exact envelope and resource validation,
 explicit Git repository configuration, generation-failure reporting,
 Windows read/write junctions, identity-bound capability acquisition, cycle/bound and actual-byte budgets, bounded
@@ -109,6 +114,13 @@ on Windows CI.
 8.3 expansion, original-spelling absolute children, and sibling-prefix rejection.
 The `mcp_allow_empty_tool_and_resource_*selected_config*` integration group covers malformed,
 invalid-UTF-8, wrong-typed, and valid BOM-prefixed selected config behavior across tools/resources.
+`mcp_read_root_route_rejects_link_replacement_before_success` covers Unix symlink and hosted
+Windows junction replacement after operation completion but before response success. The
+post-link unit matrices cover destination-open, identity-read, identity-mismatch, and parent-route
+failure with both successful exact cleanup and replacement-preserving cleanup failure.
+`mcp_generate_maximum_batch_fits_a_constrained_descriptor_limit` proves 1,000 outputs beneath a
+1,200-descriptor process limit. The focused amended tree passes 122 MCP unit and 72 MCP integration
+tests.
 
 The v21 rereview regressions exercise a 200-sibling project beneath a 128-descriptor Unix process
 limit, missing object-form `workspaces.packages`, and malformed, non-object, or wrong-shaped nested

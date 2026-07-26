@@ -88,5 +88,13 @@ spec: mcp.spec.md
   identity checks across replacement races.
 - [x] Require `workspaces.packages` for object-form Node workspaces and fail closed on malformed,
   non-object, or wrong-shaped nested package manifests.
+- [x] Reject null/fractional request IDs and validate required initialize negotiation fields
+- [x] Traverse read-root overrides through regular no-link directory identities so aliases cannot
+  redirect authority into Git metadata
+- [x] Revalidate the complete selected read-root route before a trustworthy success
+- [x] Revalidate a staged file's public parent identity before and after publication
+- [x] Clean exact quarantined bytes for every post-link destination/parent verification failure
+- [x] Share one retained root capability across every staged output in a generated batch
+- [x] Make MCP integration helpers fail when the server process exits unsuccessfully
 - [ ] Add hosted-Windows junction/reparse runtime coverage for the final exact tree.
 - [ ] Pass fresh Windows reparse-point CI

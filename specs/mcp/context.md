@@ -126,6 +126,19 @@ The latest `.git` operation-root characterization passes in both unit and real M
 paths. The amended full tree passes 1,954 unit and 313 integration tests, release and Windows GNU
 cross-target compilation, strict 100% coverage, and score 100/A for every spec. Fresh exact-tree
 independent rereview and hosted-Windows junction/reparse runtime evidence remain pending.
+The latest exact-tree review found a public-parent publication gap plus three protocol/test-harness
+defense-in-depth gaps. Publication now reopens every public parent component without link/reparse
+traversal and requires the staged parent identity before and after linking. Read-root aliases use
+the same regular-directory traversal, request IDs are non-null strings or integers, initialize
+requires typed negotiation fields, and integration helpers reject unsuccessful MCP subprocesses.
+The follow-up publication regressions replace the public parent after destination linking and
+require exact quarantine cleanup before error return. Batch staging shares one retained root
+capability so the final reachability check does not add one root descriptor per generated output.
+The final route amendment retains each selected read-root component identity and reopens the
+complete route before a successful tool/resource response. Every destination-open,
+destination-identity, destination-mismatch, and parent-verification failure after hard-linking
+passes through one exact quarantine-cleanup funnel.
+These amendments require fresh exact-tree review and hosted CI evidence before lifecycle closure.
 Earlier independent reviews additionally closed selected-config substitution, wrong-shaped
 legacy GitHub fields, and blocking/special-file snapshot manifests. Configuration and manifest
 acquisition now makes the no-follow opened regular-file handle authoritative, uses bounded

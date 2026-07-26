@@ -283,6 +283,7 @@ pub fn run_validation(
     let mut all_errors: Vec<String> = Vec::new();
     let mut all_warnings: Vec<String> = Vec::new();
     let mut all_notices: Vec<String> = Vec::new();
+    let mut suppressed_warnings = 0usize;
     let mut file_owners: HashMap<String, Vec<String>> = HashMap::new();
     let mut spec_files_by_path: HashMap<PathBuf, HashSet<String>> = HashMap::new();
     for spec_file in ownership_spec_files {
@@ -352,12 +353,18 @@ pub fn run_validation(
             .map(|content| IgnoreRules::parse_inline(&content))
             .unwrap_or_default();
 
-        // Filter out suppressed warnings
-        let filtered_warnings: Vec<&String> = result
-            .warnings
-            .iter()
-            .filter(|w| !ignore_rules.is_suppressed(w, &result.spec_path, &inline_ignores))
-            .collect();
+        // Filter all configured suppressions, but attribute the visibility
+        // count only to project-file rules. Inline directives remain local to
+        // the spec and must not be reported as `.specsyncignore` activity.
+        let no_inline_ignores = HashSet::new();
+        let mut filtered_warnings: Vec<&String> = Vec::new();
+        for warning in &result.warnings {
+            if ignore_rules.is_suppressed(warning, &result.spec_path, &no_inline_ignores) {
+                suppressed_warnings += 1;
+            } else if !ignore_rules.is_suppressed(warning, &result.spec_path, &inline_ignores) {
+                filtered_warnings.push(warning);
+            }
+        }
 
         if collect {
             let prefix = &result.spec_path;
@@ -478,6 +485,10 @@ pub fn run_validation(
                     .map(|c| c.is_ascii_digit())
                     .unwrap_or(false)
         });
+        let suppressed_api_summary = result.export_summary.as_ref().is_some_and(|summary| {
+            result.warnings.iter().any(|warning| warning == summary)
+                && ignore_rules.is_suppressed(summary, &result.spec_path, &inline_ignores)
+        });
         if is_draft {
             println!(
                 "  {} Export validation skipped (status: draft)",
@@ -488,7 +499,7 @@ pub fn run_validation(
             // warning — print it as one so the summary's warning count matches
             // the number of ⚠ lines shown.
             println!("  {} {line}", "⚠".yellow());
-        } else if let Some(ref summary) = result.export_summary {
+        } else if !suppressed_api_summary && let Some(ref summary) = result.export_summary {
             println!("  {} {summary}", "✓".green());
         }
 
@@ -638,6 +649,28 @@ pub fn run_validation(
             } else {
                 println!("\n{} {err}", "✗".red());
             }
+        }
+    }
+
+    // .specsyncignore problems (unknown categories, invalid UTF-8 lines):
+    // dead rules must be visible, not silently inert.
+    for warning in &ignore_rules.warnings {
+        total_warnings += 1;
+        if collect {
+            all_warnings.push(warning.clone());
+        } else {
+            println!("\n{} {warning}", "⚠".yellow());
+        }
+    }
+
+    // Suppression must be visible in every output format — otherwise a typo'd
+    // rule is indistinguishable from a working one.
+    if suppressed_warnings > 0 {
+        let notice = format!("{suppressed_warnings} warning(s) suppressed by .specsyncignore");
+        if collect {
+            all_notices.push(notice);
+        } else {
+            println!("\n{} {notice}", "ℹ".cyan());
         }
     }
 

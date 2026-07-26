@@ -89,10 +89,15 @@ impl WarningCategory {
         }
         // The partial-coverage summary `N/M exports documented` — suppressible
         // so acknowledging undocumented exports can yield a clean --strict run.
-        if warning.ends_with("exports documented")
-            && warning
-                .split_once('/')
-                .is_some_and(|(n, _)| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+        if warning
+            .strip_suffix(" exports documented")
+            .and_then(|counts| counts.split_once('/'))
+            .is_some_and(|(documented, total)| {
+                !documented.is_empty()
+                    && documented.chars().all(|c| c.is_ascii_digit())
+                    && !total.is_empty()
+                    && total.chars().all(|c| c.is_ascii_digit())
+            })
         {
             return Some(Self::ExportsDocumented);
         }
@@ -427,6 +432,19 @@ mod tests {
             WarningCategory::classify("Undocumented export 'foo' from src/a.ts"),
             Some(WarningCategory::ExportsDocumented)
         );
+        for malformed in [
+            "2/x exports documented",
+            "/5 exports documented",
+            "2/ exports documented",
+            "prefix 2/5 exports documented",
+            "2/5 exports documented later",
+        ] {
+            assert_eq!(
+                WarningCategory::classify(malformed),
+                None,
+                "malformed summary must not be suppressible: {malformed}"
+            );
+        }
     }
 
     #[test]
@@ -434,11 +452,7 @@ mod tests {
         let mut rules = IgnoreRules::default();
         rules.global.insert(WarningCategory::ExportsDocumented);
         let inline = HashSet::new();
-        assert!(rules.is_suppressed(
-            "2/5 exports documented",
-            "specs/a/a.spec.md",
-            &inline,
-        ));
+        assert!(rules.is_suppressed("2/5 exports documented", "specs/a/a.spec.md", &inline,));
     }
 
     #[test]
@@ -485,7 +499,8 @@ mod tests {
         .unwrap();
         let rules = IgnoreRules::load(tmp.path());
         assert!(
-            rules.per_spec
+            rules
+                .per_spec
                 .get("specs/legacy/")
                 .is_some_and(|cats| cats.contains(&WarningCategory::UndocumentedExport)),
             "path:category order must work: {rules:?}"

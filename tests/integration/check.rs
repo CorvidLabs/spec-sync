@@ -33,6 +33,129 @@ fn check_valid_project_passes() {
 }
 
 #[test]
+fn specsyncignore_suppression_is_strict_clean_and_visible() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        complete_coverage_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsyncignore"),
+        "\u{feff}exports-documented\nspecs/auth/auth.spec.md:undocumented-export\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "3 warning(s) suppressed by .specsyncignore",
+        ))
+        .stdout(predicate::str::contains("Undocumented export").not())
+        .stdout(predicate::str::contains("0/2 exports documented").not());
+}
+
+#[test]
+fn specsyncignore_diagnostics_and_suppression_are_visible_in_all_formats() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        complete_coverage_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+    let mut ignore = b"\xef\xbb\xbfexports-documented\n\
+        specs/auth/auth.spec.md:undocumented-export\n\
+        undocumanted-export\n"
+        .to_vec();
+    ignore.extend_from_slice(b"invalid-\xff-line\n");
+    fs::write(root.join(".specsyncignore"), ignore).unwrap();
+
+    let text = specsync()
+        .args(["check", "--force"])
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8(text).unwrap();
+    assert!(text.contains("matches no warning category: `undocumanted-export`"));
+    assert!(text.contains("line 4 is not valid UTF-8"));
+    assert!(text.contains("3 warning(s) suppressed by .specsyncignore"));
+    assert!(!text.contains("Undocumented export"));
+    assert!(!text.contains("0/2 exports documented"));
+
+    let json = specsync()
+        .args(["check", "--force", "--format", "json"])
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value =
+        serde_json::from_slice(&json).expect("ignore diagnostics must preserve valid JSON");
+    assert!(json["warnings"].as_array().unwrap().iter().any(|warning| {
+        warning
+            .as_str()
+            .is_some_and(|warning| warning.contains("undocumanted-export"))
+    }));
+    assert!(json["warnings"].as_array().unwrap().iter().any(|warning| {
+        warning
+            .as_str()
+            .is_some_and(|warning| warning.contains("not valid UTF-8"))
+    }));
+    assert!(json["notices"].as_array().unwrap().iter().any(|notice| {
+        notice
+            .as_str()
+            .is_some_and(|notice| notice.contains("3 warning(s) suppressed"))
+    }));
+
+    for format in ["markdown", "github"] {
+        specsync()
+            .args(["check", "--force", "--format", format])
+            .arg("--root")
+            .arg(&root)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("undocumanted-export"))
+            .stdout(predicate::str::contains("not valid UTF-8"))
+            .stdout(predicate::str::contains(
+                "3 warning(s) suppressed by .specsyncignore",
+            ));
+    }
+}
+
+#[test]
+fn inline_suppression_is_not_attributed_to_specsyncignore() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    let spec = complete_coverage_spec("auth", &["src/auth/service.ts"]).replace(
+        "## Invariants",
+        "<!-- specsync-ignore: exports-documented, undocumented-export -->\n\n## Invariants",
+    );
+    fs::write(root.join("specs/auth/auth.spec.md"), spec).unwrap();
+
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Undocumented export").not())
+        .stdout(predicate::str::contains("0/2 exports documented").not())
+        .stdout(predicate::str::contains("suppressed by .specsyncignore").not());
+}
+
+#[test]
 fn sdd_failure_json_preserves_check_schema() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);

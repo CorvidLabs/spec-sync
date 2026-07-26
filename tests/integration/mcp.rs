@@ -1,3 +1,5 @@
+#[cfg(windows)]
+use crate::commands::create_windows_junction;
 use crate::helpers::*;
 use std::fs;
 use tempfile::TempDir;

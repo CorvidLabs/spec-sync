@@ -15,7 +15,7 @@ spec: registry.spec.md
 
 - [x] Local registry generation from specs directory
 - [x] Remote registry fetching from GitHub raw URLs
-- [x] Zero-dependency TOML parsing
+- [x] Checked TOML parsing for `[specs]` and `[[modules]]`
 - [x] Template file exclusion
 - [x] Module name extraction from frontmatter
 - [x] Alphabetically sorted output
@@ -23,12 +23,13 @@ spec: registry.spec.md
 - [x] `register_module` — idempotent append of a module entry to an existing registry
 - [x] Cross-repo content verification: `fetch_remote_spec`, `parse_remote_spec`, `RemoteSpec`
 - [x] Tolerate inert 5.0.1 registry.toml stubs via `load_local_registry`
+- [x] Fail closed on malformed TOML, invalid supported shapes, and duplicate mappings
 
 ## Gaps
 
 - No caching — every `resolve --remote` re-fetches all remote registries
 - Private repos are inaccessible (no auth token support)
-- No validation of registry TOML structure (malformed files fail silently)
+- No version negotiation between registry producers and consumers
 
 ## Review Status
 

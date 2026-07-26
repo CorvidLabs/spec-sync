@@ -17,7 +17,9 @@ spec: registry.spec.md
 - Registry entries are sorted alphabetically by module name
 - `fetch_remote_registry` uses HTTPS with a 10-second timeout
 - `RemoteRegistry::has_spec` performs exact module name matching
-- TOML parsing is zero-dependency (line-by-line string parsing)
+- Registry parsing uses a real TOML parser and validates supported field types and shapes
+- Both emitted `[specs]` mappings and documented `[[modules]]` entries are accepted
+- Invalid or ambiguous non-inert registries fail closed with a diagnostic
 - HTTP errors and timeouts produce clear error messages
 
 ## Constraints
@@ -44,7 +46,9 @@ Acceptance Criteria
 - Registry entries are sorted alphabetically by module name
 - `fetch_remote_registry` uses HTTPS with a 10-second timeout
 - `RemoteRegistry::has_spec` performs exact module name matching
-- TOML parsing is zero-dependency (line-by-line string parsing)
+- Registry parsing uses a real TOML parser and validates supported field types and shapes
+- Both emitted `[specs]` mappings and documented `[[modules]]` entries are accepted
+- Invalid or ambiguous non-inert registries fail closed with a diagnostic
 - HTTP errors and timeouts produce clear error messages
 
 ### REQ-registry-002
@@ -59,3 +63,15 @@ Acceptance Criteria
 - A file that is not inert but cannot parse as a named registry fails closed through the Result-based local loader.
 - Best-effort `load_registry` continues to return `None` for missing, inert, and unparsable content.
 
+### REQ-registry-003
+
+The registry module SHALL preserve every valid mapping in either supported TOML shape and reject invalid or ambiguous non-inert registry content.
+
+Acceptance Criteria
+
+- A named `[specs]` table maps each string-valued module key to its declared spec path.
+- A named `[[modules]]` array maps each non-empty `name` to its non-empty `spec` path.
+- Malformed TOML fails closed instead of being classified as an inert registry.
+- Wrong known-field types or shapes fail closed with a field-specific diagnostic.
+- Duplicate module names across supported shapes fail closed instead of selecting one mapping silently.
+- The nameless, mapping-free 5.0.1 `[modules]` table placeholder remains inert for compatibility.

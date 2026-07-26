@@ -47,10 +47,22 @@ git push
 
 The registry lists all modules from your specs directory:
 
+`specsync init-registry` emits the compact `[specs]` table:
+
 ```toml
 [registry]
 name = "spec-sync"
-generated = "2026-03-28T00:00:00Z"
+
+[specs]
+cli = "specs/cli/cli.spec.md"
+parser = "specs/parser/parser.spec.md"
+```
+
+The documented array-of-tables shape is also accepted when authoring a registry by hand:
+
+```toml
+[registry]
+name = "spec-sync"
 
 [[modules]]
 name = "cli"
@@ -60,6 +72,8 @@ spec = "specs/cli/cli.spec.md"
 name = "parser"
 spec = "specs/parser/parser.spec.md"
 ```
+
+Known registry fields are checked. Malformed TOML, wrong field types or shapes, empty mapping names or paths, and duplicate module names fail closed instead of silently dropping a mapping.
 
 > **Inert stubs are tolerated.** A 5.0.1-era `registry.toml` with no registry `name` and no
 > `[specs]`/`[[modules]]` mappings loads as absent: canonical module resolution falls back to the

@@ -3494,40 +3494,54 @@ mod tests {
 
     #[cfg(windows)]
     fn create_coverage_test_junction(junction: &Path, target: &Path) -> Result<(), String> {
-        let quote_path = |path: &Path| -> Result<String, String> {
-            let path = path
-                .to_str()
-                .ok_or_else(|| "junction fixture paths must be valid Unicode".to_string())?;
-            if path.chars().any(|character| {
-                matches!(
-                    character,
-                    '"' | '&' | '|' | '<' | '>' | '^' | '%' | '!' | '(' | ')' | '\r' | '\n'
-                )
-            }) {
-                return Err(
-                    "junction fixture paths must not contain cmd.exe metacharacters".to_string(),
-                );
-            }
-            Ok(format!("\"{path}\""))
+        let unicode_path = |path: &Path| -> Result<String, String> {
+            path.to_str()
+                .map(str::to_string)
+                .ok_or_else(|| "junction fixture paths must be valid Unicode".to_string())
         };
-        let command = format!(
-            "mklink /J {} {}",
-            quote_path(junction)?,
-            quote_path(target)?
-        );
-        let output = std::process::Command::new("cmd")
-            .args(["/D", "/V:OFF", "/S", "/C"])
-            .arg(command)
-            .output()
-            .map_err(|error| format!("failed to launch cmd /C mklink /J: {error}"))?;
-        if output.status.success() {
-            return Ok(());
+        let junction = unicode_path(junction)?;
+        let target = unicode_path(target)?;
+        let script = "$ErrorActionPreference = 'Stop'; New-Item -ItemType Junction \
+                      -Path $env:SPECSYNC_TEST_JUNCTION \
+                      -Target $env:SPECSYNC_TEST_TARGET | Out-Null";
+        let mut unavailable = Vec::new();
+        for executable in ["powershell.exe", "pwsh.exe"] {
+            let output = match std::process::Command::new(executable)
+                .args([
+                    "-NoLogo",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    script,
+                ])
+                .env("SPECSYNC_TEST_JUNCTION", &junction)
+                .env("SPECSYNC_TEST_TARGET", &target)
+                .output()
+            {
+                Ok(output) => output,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    unavailable.push(executable);
+                    continue;
+                }
+                Err(error) => {
+                    return Err(format!(
+                        "failed to launch {executable} junction fixture: {error}"
+                    ));
+                }
+            };
+            if output.status.success() {
+                return Ok(());
+            }
+            return Err(format!(
+                "{executable} junction fixture exited with {:?}; stdout: {}; stderr: {}",
+                output.status.code(),
+                String::from_utf8_lossy(&output.stdout).trim(),
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
         }
         Err(format!(
-            "cmd /C mklink /J exited with {:?}; stdout: {}; stderr: {}",
-            output.status.code(),
-            String::from_utf8_lossy(&output.stdout).trim(),
-            String::from_utf8_lossy(&output.stderr).trim()
+            "failed to launch a PowerShell junction fixture; unavailable executables: {}",
+            unavailable.join(", ")
         ))
     }
 
@@ -3540,10 +3554,22 @@ mod tests {
         fs::create_dir_all(root.join("src")).unwrap();
         fs::create_dir_all(&outside).unwrap();
         fs::write(root.join("src/kept.rs"), "pub fn kept() {}\n").unwrap();
-        create_coverage_test_junction(&root.join("src/excluded-junction"), &outside)
+        let target_proof = b"outside junction target\n";
+        fs::write(outside.join("junction-target-proof.txt"), target_proof).unwrap();
+        let excluded_junction = root.join("src/excluded-junction");
+        let configured_junction = root.join("configured-junction");
+        create_coverage_test_junction(&excluded_junction, &outside)
             .unwrap_or_else(|error| panic!("failed to create excluded junction: {error}"));
-        create_coverage_test_junction(&root.join("configured-junction"), &outside)
+        create_coverage_test_junction(&configured_junction, &outside)
             .unwrap_or_else(|error| panic!("failed to create configured junction: {error}"));
+        for junction in [&excluded_junction, &configured_junction] {
+            assert_eq!(
+                fs::read(junction.join("junction-target-proof.txt")).unwrap(),
+                target_proof,
+                "{} does not resolve to the intended outside target",
+                junction.display()
+            );
+        }
 
         let excluded = SpecSyncConfig {
             source_dirs: vec!["src".to_string()],

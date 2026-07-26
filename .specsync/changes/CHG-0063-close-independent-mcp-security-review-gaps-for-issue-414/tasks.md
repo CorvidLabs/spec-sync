@@ -192,8 +192,10 @@ artifact: tasks
   reported zero in-scope high or medium findings.
 - [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
   compilation is necessary but not sufficient. The hosted `bd929512` run exposed `cmd.exe`
-  argument-boundary loss for hyphenated junction paths; invoke the validated `mklink` fixture as
-  one explicitly quoted command string and require the replacement Windows run to pass.
+  argument-boundary loss for hyphenated junction paths, and the exact-tree `50adb5c5` run proved
+  that even a validated single-string `mklink` command remains subject to `cmd.exe`'s nonstandard
+  quote rewriting. Create the real junction through a static noninteractive PowerShell command
+  with both paths passed as environment values, and require the replacement Windows run to pass.
 - [x] Obtain fresh definition reapproval after the final independent-review artifact amendment:
   user-approved digest `493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed`.
 - [ ] Finish lifecycle verification, complete repository lane, trust, provenance, independent

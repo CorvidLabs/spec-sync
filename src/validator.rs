@@ -3510,7 +3510,11 @@ mod tests {
             }
             Ok(format!("\"{path}\""))
         };
-        let command = format!("mklink /J {} {}", quote_path(junction)?, quote_path(target)?);
+        let command = format!(
+            "mklink /J {} {}",
+            quote_path(junction)?,
+            quote_path(target)?
+        );
         let output = std::process::Command::new("cmd")
             .args(["/D", "/V:OFF", "/S", "/C"])
             .arg(command)

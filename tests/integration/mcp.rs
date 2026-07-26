@@ -640,7 +640,7 @@ fn mcp_read_roots_allow_existing_children_and_reject_escapes() {
 
 #[cfg(any(unix, windows))]
 #[test]
-fn mcp_read_root_route_rejects_link_replacement_before_success() {
+fn mcp_read_root_route_rejects_or_os_blocks_link_replacement_before_success() {
     use std::io::Write;
     use std::process::{Command, Stdio};
     use std::thread;
@@ -697,16 +697,37 @@ fn mcp_read_root_route_rejects_link_replacement_before_success() {
         thread::sleep(Duration::from_millis(10));
     }
 
-    fs::rename(&selected, &retained).expect("selected route parent must be replaceable");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::symlink;
+    let route_replaced = match fs::rename(&selected, &retained) {
+        Ok(()) => {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::symlink;
 
-        symlink(&outside, &selected).unwrap();
-    }
-    #[cfg(windows)]
-    create_windows_junction(&selected, &outside)
-        .unwrap_or_else(|error| panic!("failed to create replacement junction: {error}"));
+                symlink(&outside, &selected).unwrap();
+            }
+            #[cfg(windows)]
+            create_windows_junction(&selected, &outside)
+                .unwrap_or_else(|error| panic!("failed to create replacement junction: {error}"));
+            true
+        }
+        Err(error) => {
+            #[cfg(unix)]
+            panic!("selected route parent must be replaceable: {error}");
+            #[cfg(windows)]
+            {
+                assert_eq!(
+                    error.kind(),
+                    std::io::ErrorKind::PermissionDenied,
+                    "Windows may block the route replacement while its descendant capability is retained, but no other rename failure is expected: {error}"
+                );
+                assert!(
+                    selected.is_dir() && !retained.exists(),
+                    "a denied Windows rename must leave the original selected route intact"
+                );
+                false
+            }
+        }
+    };
     fs::write(barrier.join("resume"), b"resume\n").unwrap();
 
     let exit_deadline = Instant::now() + Duration::from_secs(10);
@@ -732,21 +753,31 @@ fn mcp_read_root_route_rejects_link_replacement_before_success() {
         String::from_utf8_lossy(&output.stderr)
     );
     let response: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(response["result"]["isError"], true, "{response}");
-    assert!(
-        response["result"]["content"][0]["text"]
-            .as_str()
-            .is_some_and(|message| {
-                message.contains("read-root route changed before operation success")
-            }),
-        "{response}"
-    );
+    if route_replaced {
+        assert_eq!(response["result"]["isError"], true, "{response}");
+        assert!(
+            response["result"]["content"][0]["text"]
+                .as_str()
+                .is_some_and(|message| {
+                    message.contains("read-root route changed before operation success")
+                }),
+            "{response}"
+        );
+    } else {
+        assert_eq!(
+            response["result"]["isError"],
+            serde_json::Value::Null,
+            "an OS-denied replacement must leave the retained original route usable: {response}"
+        );
+    }
     assert_eq!(fs::read(&victim).unwrap(), victim_bytes);
 
     #[cfg(unix)]
     fs::remove_file(&selected).unwrap();
     #[cfg(windows)]
-    fs::remove_dir(&selected).unwrap();
+    if route_replaced {
+        fs::remove_dir(&selected).unwrap();
+    }
 }
 
 #[test]

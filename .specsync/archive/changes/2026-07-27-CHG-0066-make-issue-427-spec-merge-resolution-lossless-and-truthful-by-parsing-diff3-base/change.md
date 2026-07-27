@@ -1,6 +1,6 @@
 ---
 id: CHG-0066-make-issue-427-spec-merge-resolution-lossless-and-truthful-by-parsing-diff3-base
-state: accepted
+state: archived
 type: bug_fix
 base_commit: a55a744a97b46f5c01068d6fe4433990d4fef942
 ---

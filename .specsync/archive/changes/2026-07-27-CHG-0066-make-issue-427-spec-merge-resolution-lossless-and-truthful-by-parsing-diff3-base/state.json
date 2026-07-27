@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0066-make-issue-427-spec-merge-resolution-lossless-and-truthful-by-parsing-diff3-base",
+  "slug": "make-issue-427-spec-merge-resolution-lossless-and-truthful-by-parsing-diff3-base",
+  "title": "Make issue 427 spec merge resolution lossless and truthful by parsing diff3 bases, preserving both side labels, selecting the maximum numeric version, unioning list fields, leaving conflicting table rows and scalar fields unresolved, and preserving all-or-nothing writes",
+  "description": "Make issue 427 spec merge resolution lossless and truthful by parsing diff3 bases, preserving both side labels, selecting the maximum numeric version, unioning list fields, leaving conflicting table rows and scalar fields unresolved, and preserving all-or-nothing writes",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "a55a744a97b46f5c01068d6fe4433990d4fef942",
+  "created_at": 1785164618,
+  "updated_at": 1785175107,
+  "affected_specs": [
+    "merge"
+  ],
+  "affected_paths": [
+    "src/merge.rs",
+    "tests/integration/commands.rs",
+    "specs/merge/merge.spec.md",
+    "specs/merge/requirements.md",
+    "specs/merge/context.md",
+    "specs/merge/tasks.md",
+    "specs/merge/testing.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Diff3 base regions are excluded from resolved output and diagnostics report both ours and incoming labels.",
+    "Frontmatter list values are unioned and sorted while version uses the maximum numeric value.",
+    "Conflicting same-key table rows and divergent or non-numeric scalar fields remain unresolved.",
+    "One-sided scalar fields, YAML null-versus-list disagreements, table headers or separators inside or immediately after a hunk, and nested frontmatter mappings remain unresolved.",
+    "Only exact standard conflict markers are accepted; malformed, orphan, duplicate, nested, incomplete, and lookalike markers remain manual.",
+    "Reconstructed output must contain valid YAML frontmatter without duplicate keys and must retain every required field, a valid status, and non-empty files.",
+    "Unreadable all-files candidates remain explicit Manual findings and failed Git discovery is a safe no-op.",
+    "CRLF line endings and final-newline form are preserved.",
+    "Any unresolved region prevents every write to the file; diagnostics never claim HEAD won when incoming content was selected and distinguish dry-run candidates from persisted resolutions."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

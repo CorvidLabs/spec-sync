@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0064-add-capability-safe-filesystem-support-for-mcp-security-hardening",
+  "slug": "add-capability-safe-filesystem-support-for-mcp-security-hardening",
+  "title": "Add capability-safe filesystem support for MCP security hardening",
+  "description": "Add capability-safe filesystem support for MCP security hardening",
+  "kind": "refactor",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "a0d993b7d10d177f9a4770f54fbe14045750221c",
+  "created_at": 1784697116,
+  "updated_at": 1785126536,
+  "affected_specs": [],
+  "affected_paths": [
+    "Cargo.toml",
+    "Cargo.lock",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Dependency wiring only; the MCP behavior and canonical contract are governed by approved CHG-0063.",
+  "acceptance_criteria": [
+    "cap-std is a direct runtime dependency; tempfile is available at runtime without duplication; the Rust lockfile is reproducible; native and Windows cross-target checks pass; MCP capability-snapshot and confined-write regression tests pass; no public CLI or spec contract changes are introduced by the dependency wiring."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "research",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

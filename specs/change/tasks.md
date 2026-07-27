@@ -37,3 +37,4 @@ spec: change.spec.md
 - [x] Add transactional batch mode for exact acceptance-owner corrections
 - [x] Add native 5.0→5.1 change-ledger migration with idempotent reopening digest backfill
 - [x] Tolerate inert 5.0.1 registry stubs during canonical module path resolution
+- [x] Restore fail-closed lifecycle integrity, transition validation, scoped freshness, and corrupt-workspace visibility for issues #411/#412/#423/#424/#426/#428/#432/#433/#434/#443/#445

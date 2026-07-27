@@ -13,6 +13,7 @@ spec: cmd_stale.spec.md
 - [x] Sort results most-stale-first and exit non-zero when stale specs are found
 - [x] Migrate to `git_commits_since` (one spec commit hash per spec) as part of the N+1 fix
 - [x] Add integration coverage for non-git and fresh-repo behavior (`stale_outside_git_repo_fails_with_message`, `stale_outside_git_repo_json_reports_error`, `stale_in_fresh_repo_reports_all_up_to_date`)
+- [x] Add content-aware add/revert freshness, threshold-zero, and configured warn-mode behavior
 
 ## Review Status
 

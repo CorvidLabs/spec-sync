@@ -1,6 +1,6 @@
 ---
 module: git_utils
-version: 2
+version: 3
 status: stable
 files:
   - src/git_utils.rs
@@ -35,8 +35,9 @@ Shared git utility functions for querying repository history. Provides commit ha
 
 1. All git commands execute with `current_dir(root)` to ensure correct repository context
 2. Functions return safe defaults (None, 0, false) when git is unavailable or commands fail
-3. `git_commits_since` uses `git rev-list --count {spec_commit}..HEAD -- {source_file}` to count divergence, taking the spec commit hash as a parameter so it is resolved once per spec rather than once per source file
+3. `git_commits_since` first compares source content with `spec_commit`, then uses `git rev-list --count {spec_commit}..HEAD -- {source_file}` only when bytes differ; the precomputed spec commit is resolved once per spec
 4. `StaleInfo.source_details` only includes files with commits_behind > 0
+5. Add/revert history that restores the source bytes at `spec_commit` reports zero drift
 
 ## Behavioral Examples
 
@@ -52,6 +53,12 @@ Shared git utility functions for querying repository history. Provides commit ha
 - **When** `git_commits_since` is called with commit A's hash
 - **Then** returns `3`
 
+### Scenario: Source change is reverted
+
+- **Given** a source changed after the spec and a later commit restores the exact prior bytes
+- **When** `git_commits_since` compares it with the spec commit
+- **Then** returns `0`
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -59,6 +66,7 @@ Shared git utility functions for querying repository history. Provides commit ha
 | Not a git repository | `is_git_repo` returns false; other functions return safe defaults |
 | Git not installed | All functions return None/0/false |
 | File doesn't exist in git history | Returns None or 0 |
+| Intervening source commits net to byte-identical content | Returns 0 |
 
 ## Dependencies
 
@@ -68,6 +76,7 @@ None (only uses `std::process::Command` for git CLI calls).
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v3: make commit-distance freshness content-aware so add/revert history is not a false positive |
 | 2026-04-10 | Initial — extracted from cmd_report for shared use by stale, report, and scoring |
 | 2026-06-07 | Replaced `git_commits_between` with `git_commits_since`, which takes a precomputed spec commit hash so callers resolve it once per spec instead of once per source file (eliminates N+1 `git log` calls) |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

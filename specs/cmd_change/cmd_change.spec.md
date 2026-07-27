@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 8
+version: 9
 status: active
 files:
   - src/commands/change.rs
@@ -27,6 +27,8 @@ Exposes the verified SDD lifecycle through equivalent human-readable and structu
 5. Reopen renders the exact persisted versioned supersession event in deterministic JSON.
 6. Correct-owner renders one persisted exact canonical-owner correction and directs the user to definition reapproval.
 7. Batch correct-owner resolves repeated paths, a manifest, or `--all-missing` into domain entries, renders the persisted record, and directs the user to definition reapproval without partial mutation on failure.
+8. Listing preserves healthy changes when another workspace is corrupt; JSON marks degraded output invalid and every corrupt status exits non-zero.
+9. New-change affected specs and optional-digest supersede inputs are validated before lifecycle mutation.
 
 ## Public API
 
@@ -39,6 +41,7 @@ Exposes the verified SDD lifecycle through equivalent human-readable and structu
 1. JSON output contains no terminal coloring.
 2. Domain errors always produce exit code 1.
 3. `change check` fails on any lifecycle error.
+4. Healthy list JSON remains the stable array; degraded JSON is an object with `valid: false`, healthy `changes`, and path-aware `errors`.
 
 ## Behavioral Examples
 
@@ -54,6 +57,12 @@ Exposes the verified SDD lifecycle through equivalent human-readable and structu
 - **When** `specsync --json change reopen <id> --actor <human> --reason <text>` succeeds
 - **Then** JSON contains the verifying change and versioned audit record with the superseded approval and prior verification
 
+### Scenario: Agent lists a partially corrupt project
+
+- **Given** one healthy active change and one corrupt workspace
+- **When** `specsync --json change list` runs
+- **Then** it emits the healthy change with `valid: false` and corruption diagnostics, then exits 1
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -65,6 +74,10 @@ Exposes the verified SDD lifecycle through equivalent human-readable and structu
 | Missing or mismatched supersede obligation | Command reports the exact predecessor/path/module/digest mismatch and exits 1 without definition mutation |
 | Invalid exact owner correction | Command reports the domain rejection and exits 1 without lifecycle mutation |
 | Invalid batch owner correction or empty discovery | Command reports the domain rejection and exits 1 without lifecycle mutation |
+| `change new --spec` names a missing canonical spec | Command exits 1 before allocating a sequence or writing state |
+| `change supersede` omits `--digest` | Command resolves the signed predecessor digest or reports a contextual evidence error |
+| Reapproval occurs during ordinary verification | Command emits a warning before returning the change to implementation |
+| Any listed or selected workspace is corrupt | Healthy records remain visible, corruption is explicit, and the command exits 1 |
 
 ## Dependencies
 
@@ -82,6 +95,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v9: add degraded corruption reporting, optional supersede digest resolution, pre-mutation spec validation, and explicit verification-state reapproval warnings |
 | 2026-07-10 | Initial 5.0 change command |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-13 | Add text and deterministic JSON dispatch for audited stale-accepted reopen |

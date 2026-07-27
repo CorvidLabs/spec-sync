@@ -23,7 +23,10 @@ spec: git_utils.spec.md
 
 ## Current Status
 
-Stable. Used by staleness detection, reports, check, and scoring freshness. Covered by inline unit tests using `tempfile` + real `git` invocations.
+Stable. Used by staleness detection, reports, check, and scoring freshness. It first checks whether
+the current source bytes match the spec commit, avoiding add/revert false positives, then counts
+commits only for content that still differs. Covered by inline unit tests using `tempfile` + real
+`git` invocations.
 
 ## Notes
 

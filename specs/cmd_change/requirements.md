@@ -55,3 +55,20 @@ Acceptance Criteria
   and the next definition-approval gate.
 - Domain rejection exits non-zero without success output or partial lifecycle mutation.
 
+### REQ-cmd-change-005
+
+The change command adapter SHALL expose partial lifecycle health without masking corruption and
+SHALL validate creation and supersession inputs before mutation.
+
+Acceptance Criteria
+
+- Healthy text and JSON listings retain their established shapes.
+- A degraded JSON listing contains `valid: false`, every healthy record, and path-aware errors, and
+  exits non-zero.
+- Status on corrupt state exits non-zero; dependency and next-action output comes only from
+  validated records.
+- `change new --spec` validates every canonical spec before sequence allocation or state writes.
+- `change supersede` accepts an omitted digest by resolving signed predecessor evidence and verifies
+  any supplied digest through the same domain transition checks.
+- Definition reapproval during ordinary verification emits an explicit warning before returning to
+  implementation.

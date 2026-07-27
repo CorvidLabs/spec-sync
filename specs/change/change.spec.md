@@ -1,6 +1,6 @@
 ---
 module: change
-version: 43
+version: 44
 status: active
 files:
   - src/change.rs
@@ -35,6 +35,9 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 15. Supported accepted interview metadata changes only through a portable append-only correction ledger whose effective definition requires fresh gates and never replays canonical deltas.
 16. Audited exact acceptance-owner corrections can repair omitted canonical ownership on an already-scoped input without changing semantic scope or replaying canonical deltas.
 17. A transactional batch of audited exact acceptance-owner corrections validates every entry independently and persists all or none as sequenced ledger entries.
+18. Lifecycle JSON is path-aware, schema-checked, extension-preserving, and fail-closed; corrupt workspaces never hide healthy records.
+19. Verification freshness is scoped to the signed per-change input manifest, excludes sequence bookkeeping, and binds ordered reopening history into new closing evidence.
+20. Archival authenticates exact accepted evidence from reachable committed history and never trusts mutable working-tree substitutes.
 
 ## Public API
 
@@ -56,6 +59,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `SupersedesEdge` | Durable predecessor ID and its sorted semantic succession obligations |
 | `AcceptanceOwnerCorrection` | Sequenced human-authored exact path/module ownership correction for acceptance evidence |
 | `ChangeRecord` | Durable machine state for one change workspace, including omitted-when-empty supersedes edges and acceptance-owner corrections |
+| `ChangeListing` | Stable healthy-record listing plus path-aware corrupt-workspace diagnostics |
 | `LegacyArchiveBaselineV1` | Definition- and closing-bound authority, cutoff, and sorted legacy archive subtree entries |
 | `LegacyArchiveBaselineEntryV1` | Archive ID, canonical dated path, unique introduction commit, and exact subtree digest |
 | `CreateChangeRequest` | Validated creation inputs grouped for CLI, imports, and agent clients |
@@ -76,7 +80,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `AcceptanceManifestV1` | Versioned sorted per-input acceptance manifest |
 | `SemanticSuccessionTupleV1` | Exact predecessor, path, module, old-entry digest, and new-entry digest transition |
 | `SemanticSuccessionEvidenceV1` | Versioned sorted one-to-one closing evidence for approved supersedes obligations |
-| `VerificationRecord` | Commit-bound verification result, contract digest, commands, requirement coverage, and optional acceptance manifest/succession evidence |
+| `VerificationRecord` | Commit-bound verification result, contract digest, commands, requirement coverage, scoped verification manifest, reopening-history binding, and optional acceptance manifest/succession evidence |
 | `InterviewQuestion` | Stable deterministic question with choices and recommendation |
 | `TerminalEvidenceValidity` | State-aware exact, successor-covered, stale, authenticated-history, or corrupt-history evidence conclusion |
 | `TerminalEvidenceSummary` | Shared terminal validity plus optional fail-closed reason |
@@ -93,10 +97,13 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 | `create_change` | `root: &Path, request: CreateChangeRequest` | `Result<ChangeRecord, String>` | Create a sequential draft workspace and adaptive artifacts |
 | `load_change` | `root: &Path, id: &str` | `Result<ChangeRecord, String>` | Load active or archived change state |
 | `list_changes` | `root: &Path` | `Vec<ChangeRecord>` | List active changes in stable ID order |
+| `list_changes_with_errors` | `root: &Path` | `ChangeListing` | List every healthy active change while retaining stable path-aware diagnostics for corrupt workspaces |
+| `validate_affected_spec` | `root: &Path, module: &str` | `Result<(), String>` | Validate one normalized canonical module identity and require its spec to exist before lifecycle mutation |
 | `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Return deterministic unanswered interview questions |
 | `answer_question` | `root, id, question, answer` | `Result<ChangeRecord, String>` | Persist an interview answer and update adaptive artifacts |
 | `add_dependency` | `root, id, dependency` | `Result<ChangeRecord, String>` | Declare ordering between active changes and invalidate stale approval digests |
 | `add_supersedes_obligation` | `root, id, predecessor, path, module, predecessor_entry_digest` | `Result<ChangeRecord, String>` | Add one validated definition-bound semantic succession obligation to a draft |
+| `resolve_predecessor_entry_digest` | `root, predecessor, path` | `Result<String, String>` | Resolve the exact signed predecessor entry digest for optional-digest supersede commands |
 | `add_acceptance_owner_correction` | `root, id, path, module, actor, reason` | `Result<ChangeRecord, String>` | Append one audited exact canonical owner correction to a reopened already-applied change |
 | `add_acceptance_owner_corrections` | `root, id, entries, actor, reason` | `Result<ChangeRecord, String>` | Validate every exact path/module owner correction, then append all as sequenced audit entries in one transactional write |
 | `add_missing_acceptance_owner_corrections` | `root, id, module, actor, reason` | `Result<ChangeRecord, String>` | Discover production-source affected paths lacking canonical ownership for a module and append them as one transactional batch |
@@ -165,6 +172,11 @@ Acceptance Criteria
 28. Batch exact-owner correction validates every proposed path/module pair independently and fails closed with zero persisted mutations when any entry is invalid.
 29. The 5.0 ledger migration backfills reopening digest fields idempotently from recorded evidence only, verifies each repair before writing, and never mutates ledgers it cannot repair deterministically.
 30. Canonical module path resolution treats missing and inert local registries as absent fallbacks while non-inert unparsable registries still fail closed with the established parse diagnostic.
+31. New lifecycle records reject unknown schema versions and invalid known-field types with the exact file path, while syntactically valid unknown fields round-trip unchanged.
+32. Verification records sign a deterministic per-change input manifest; unrelated project files and sequence-ledger claims cannot stale that evidence, while changed, missing, or newly owned delivery inputs do.
+33. Newly signed closing evidence binds the ordered reopening ledger, while legacy records without the additive binding remain valid only through their exact committed compatibility path.
+34. Comparison-base selection validates CI, remote-default, adopted-local, and recorded commits as typed commit objects; when none resolves, coverage fails with actionable remediation.
+35. Empty non-evidence archive debris is warned and skipped, but any lifecycle-shaped or non-empty state-less archive directory is corruption.
 
 ## Behavioral Examples
 
@@ -204,6 +216,18 @@ Acceptance Criteria
 - **When** semantic preparation resolves module `auth`
 - **Then** resolution succeeds via the conventional path without requiring a registry name
 
+**Scenario: Scoped verification remains fresh**
+
+- **Given** a verified change with a signed manifest for its delivery inputs
+- **When** an unrelated project file changes while every signed input remains byte-identical
+- **Then** the verification remains current, while changing, removing, or adding an owned input reports the exact stale path
+
+**Scenario: Degraded lifecycle listing**
+
+- **Given** one healthy active change and one corrupt workspace
+- **When** changes are listed or checked
+- **Then** the healthy record remains visible, the corrupt path is reported, and structured output marks the result invalid
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -215,6 +239,15 @@ Acceptance Criteria
 | Any intervening commit changes a disallowed path, even if later reverted | Status and strict checking require re-verification in every environment |
 | Accepted delivery evidence is still current | Reopen is rejected without changing lifecycle or audit state |
 | Reopen actor or reason is empty | Reopen is rejected before any mutation |
+| Actor, reason, module, or single-line interview identity contains padding or controls | Validation rejects the input before any lifecycle mutation |
+| Unknown interview question or nonexistent affected spec | Validation rejects the input before sequence allocation or state mutation |
+| Definition reapproval is requested while ordinary implementation verification is active | A warning is emitted and the change returns to implementing; an already-canonical correction reapproval remains verifying |
+| Supersede predecessor is absent, uncommitted, stale, or digest-mismatched | The exact failed predicate is reported and no successor definition is mutated |
+| No CI, remote-default, adopted-local, or recorded comparison commit resolves | Coverage fails closed and names how to establish a valid base |
+| Lifecycle JSON has an unsupported schema or invalid known-field type | Loading fails closed with the exact file path; valid unknown fields are preserved |
+| Transaction journal is corrupt | Loading fails closed with the journal path and safe recovery guidance |
+| Archived accepted evidence is absent from reachable committed history | Archival fails without trusting working-tree state, approval, or verification bytes |
+| State-less archive directory contains evidence or matches a dated change layout | Project checking reports corruption; only truly empty non-evidence debris is skipped with a warning |
 | Concurrent changes edit the same semantic key | Progress requires dependency ordering or rebase |
 | Ownership correction is not exact, additive, in-scope, and canonically provable | Correction is rejected transactionally |
 | Covered delivery input of an accepted change changes with no covering accepted successor | Unified check names the input path, its owner, and the `change reopen` remediation |
@@ -242,6 +275,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v44: restore fail-closed lifecycle integrity, validated transitions, scoped freshness, immutable archival evidence, and degraded corruption reporting for issues #411, #412, #423, #424, #426, #428, #432, #433, #434, #443, and #445 |
 | 2026-07-10 | v4: normalize imported, evidence, and digest paths across Windows and Unix |
 | 2026-07-10 | v3: make approval digests and detected verification commands portable across CI checkouts |
 | 2026-07-10 | v2: compare meaningful path coverage with the current remote base after rebases |

@@ -1,6 +1,6 @@
 ---
 module: cmd_stale
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/stale.rs
@@ -26,7 +26,7 @@ Implements the `specsync stale` command — a focused staleness detection tool t
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `cmd_stale` | `root: &Path, format: types::OutputFormat, threshold: usize, exclude_status: &[String], only_status: &[String]` | `()` | Detect and report stale specs based on git commit distance |
+| `cmd_stale` | `root: &Path, format: types::OutputFormat, threshold: usize, exclude_status: &[String], only_status: &[String], enforcement: Option<types::EnforcementMode>` | `()` | Detect and report content-aware stale specs with configured enforcement |
 
 ## Invariants
 
@@ -34,8 +34,9 @@ Implements the `specsync stale` command — a focused staleness detection tool t
 2. Specs with no `files` in frontmatter are counted as fresh (no source files to compare against)
 3. Specs not yet tracked by git (no commit history) are skipped and counted as fresh
 4. Results are sorted by most-stale-first (highest `max_commits_behind`)
-5. Exit code is 1 when any stale specs are found, 0 when all are fresh
+5. Exit code is 1 when stale specs are found under blocking enforcement, while explicit or configured warn mode remains advisory
 6. Requires a git repository — exits with error if `is_git_repo` returns false
+7. Threshold zero is valid and does not classify byte-identical files as stale
 
 ## Behavioral Examples
 
@@ -65,6 +66,8 @@ Implements the `specsync stale` command — a focused staleness detection tool t
 | Spec file unreadable | Skipped silently |
 | No frontmatter | Skipped silently |
 | Source file doesn't exist on disk | Skipped in commit distance check |
+| Source changed and then returned to the spec-commit bytes | Reports zero drift rather than a false positive |
+| Stale finding under configured warn mode | Finding is rendered and exit remains 0 |
 
 ## Dependencies
 
@@ -76,5 +79,6 @@ Implements the `specsync stale` command — a focused staleness detection tool t
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v3: make staleness content-aware and honor configured warn enforcement, including threshold zero |
 | 2026-04-10 | Initial — dedicated staleness detection command (closes #188) |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

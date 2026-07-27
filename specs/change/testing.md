@@ -41,3 +41,9 @@ Unit tests cover IDs, requirement grammar, semantic application, unsafe command 
 - `REQ-change-039`: unit coverage proves a multi-entry exact-owner batch appends contiguous sequences in one write, an invalid later entry leaves prior state bytes unchanged, and `--all-missing` discovery selects only production-source affected paths that lack canonical owners.
 - `REQ-change-040`: unit coverage proves a 5.0.1-shaped ledger repairs with stale bound to the embedded prior-verification digest and current to the superseding verification digest, that dry-run and the second run change no bytes, that an unrepairable reopening leaves its ledger untouched, and that the parse failure carries the `specsync migrate 5.0` hint.
 - `REQ-change-041`: unit coverage proves `canonical_module_paths` succeeds against an inert stub via conventional `specs/<module>/` paths and still emits the exact parse diagnostic for non-inert unparsable registries.
+- `REQ-change-042`: focused unit and CLI integration coverage proves path-aware schema failures,
+  unknown-field round trips, degraded listings, corrupt-journal recovery diagnostics, empty archive
+  debris classification, optional supersede digest resolution and base mismatch rejection,
+  pre-mutation identity/spec validation, verification-state reapproval warnings, scoped
+  manifest freshness, reopening-history binding, committed-byte archival authentication, typed
+  comparison-base failure, dry-run source validation, and warn-mode nonblocking behavior.

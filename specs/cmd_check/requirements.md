@@ -59,3 +59,14 @@ Acceptance Criteria
 - Requirements drift remains visible as validation guidance for a coding agent to resolve.
 - Existing cache, enforcement, lifecycle, output-format, backup, and dry-run behavior remains intact.
 
+### REQ-cmd-check-003
+
+The unified SDD gate SHALL honor the effective configured enforcement mode before canonical
+validation.
+
+Acceptance Criteria
+
+- Explicit `--strict` lifecycle findings exit 1.
+- Explicit or configured `warn` lifecycle findings remain visible and do not alone make the command
+  fail.
+- Usage errors and unrelated canonical validation failures keep their existing non-zero behavior.

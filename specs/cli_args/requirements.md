@@ -90,3 +90,13 @@ Acceptance Criteria
   mutation.
 - `--dry-run` and `--no-backup` remain accepted in both modes.
 
+### REQ-cli-args-008
+
+The shared CLI grammar SHALL allow semantic supersession to omit a manually copied predecessor
+entry digest.
+
+Acceptance Criteria
+
+- `change supersede` accepts predecessor, path, and canonical spec without `--digest`.
+- Omission delegates exact digest resolution to signed predecessor evidence.
+- A supplied `--digest` remains accepted and is verified by the same domain checks.

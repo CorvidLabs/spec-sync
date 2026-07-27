@@ -12,3 +12,4 @@ spec: cmd_change.spec.md
 - [x] Dispatch accepted metadata correction with equivalent text and JSON projections
 - [x] Dispatch exact acceptance-owner correction with equivalent text and JSON projections
 - [x] Dispatch transactional batch correct-owner selection (paths/manifest/all-missing)
+- [x] Expose degraded lifecycle listings and pre-mutation creation/supersession validation

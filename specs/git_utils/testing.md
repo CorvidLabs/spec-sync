@@ -35,6 +35,7 @@ spec: git_utils.spec.md
 | Not a git repository | `is_git_repo` returns false; other functions return safe defaults | Covered by `is_git_repo_detects_repo_and_non_repo` |
 | Invalid / unresolvable commit ref | `git_commits_since` returns 0 | Covered by `commits_since_returns_zero_for_invalid_commit` |
 | File not in git history | `git_last_commit_hash` returns None | Covered by `last_commit_hash_returns_none_for_untracked_file` |
+| Add/revert source history restores the spec-commit bytes | `git_commits_since` returns 0 | Covered by the add/revert freshness regression |
 
 ## Reviewer Checklist
 

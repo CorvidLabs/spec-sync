@@ -11,6 +11,8 @@ spec: cmd_check.spec.md
 - Git staleness uses `git_commits_since(root, spec_commit, source_file)` — one `rev-list` per source file — replacing the old `git_commits_between` pairwise walk (the N+1 fix).
 - The cache is only persisted when there are zero errors, so a failing run never "blesses" a broken spec as up-to-date.
 - The 5.0 SDD gate runs before canonical validation so stale approvals, uncovered meaningful paths, or an invalid effective contract can never be hidden by the hash cache.
+- The SDD gate resolves configured enforcement before evaluating its exit status: warn-mode
+  findings remain visible and advisory, while explicit strict mode remains blocking.
 
 ## Files to Read First
 

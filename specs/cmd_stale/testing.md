@@ -32,6 +32,9 @@ spec: cmd_stale.spec.md
 | Spec file unreadable | Skipped silently | Keep or add a focused assertion before changing this behavior |
 | No frontmatter | Skipped silently | Keep or add a focused assertion before changing this behavior |
 | Source file doesn't exist on disk | Skipped in commit distance check | Keep or add a focused assertion before changing this behavior |
+| Source changes and is restored byte-for-byte | Reports zero commits behind | Covered by the add/revert integration regression |
+| Threshold zero with identical content | Remains fresh | Covered by the threshold-zero integration regression |
+| Configured warn mode with stale findings | Renders findings and exits 0 | Covered by the warn-enforcement integration regression |
 
 ## Reviewer Checklist
 

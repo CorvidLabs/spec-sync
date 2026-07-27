@@ -44,3 +44,14 @@ Acceptance Criteria
 - Exit code is 1 when any stale specs are detected, 0 when all are fresh (for CI usage)
 - Requires a git repository: errors and exits 1 when `is_git_repo` returns false (JSON mode emits an error object instead of stderr text)
 
+### REQ-cmd-stale-002
+
+The stale command SHALL distinguish content drift from commit churn and SHALL honor the effective
+enforcement mode.
+
+Acceptance Criteria
+
+- A source changed and then restored to its spec-commit bytes reports zero drift.
+- Threshold zero remains valid and byte-identical inputs stay fresh.
+- Explicit or configured warn mode renders stale findings without exiting non-zero.
+- Blocking enforcement keeps stale findings at exit 1.

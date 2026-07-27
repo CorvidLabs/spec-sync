@@ -41,3 +41,13 @@ Acceptance Criteria
 - All commands run with `current_dir(root)`
 - Any git command that fails to spawn or returns unparseable output yields the safe default (`None` / `0` / `false`)
 
+### REQ-git-utils-002
+
+Git commit-distance freshness SHALL report drift only when the current source bytes differ from the
+source at the spec commit.
+
+Acceptance Criteria
+
+- Add/revert commit sequences that restore exact source bytes return zero.
+- Content that remains changed uses the existing bounded `rev-list --count` distance.
+- Invalid commit references continue degrading to zero without panic.

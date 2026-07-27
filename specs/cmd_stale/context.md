@@ -8,7 +8,10 @@ spec: cmd_stale.spec.md
 - **One spec commit, many source files**: the spec's last commit hash is resolved once via `git_last_commit_hash`, then each source file's divergence is counted with `git_commits_since(root, spec_commit, source_file)` — this is the post-N+1-fix shape (`git_commits_between` was removed).
 - **Most stale first**: Results sort by maximum commits behind so the highest-risk specs appear first.
 - **Skip untracked history**: Specs not yet committed (no commit hash) and specs with empty `files` are counted as fresh to avoid false failures during bootstrap.
-- **Non-zero on drift**: the command exits 1 when any stale spec is found so CI can gate on it.
+- **Content before distance**: a byte-identical source at the spec commit is fresh even when
+  intervening commits changed and restored it.
+- **Enforcement-aware exit**: stale findings block under strict/enforcing modes but remain visible
+  and nonblocking under explicit or configured warn mode.
 
 ## Files to Read First
 
@@ -17,7 +20,8 @@ spec: cmd_stale.spec.md
 
 ## Current Status
 
-Stable. Implemented across all output formats with integration coverage for non-git and fresh-repo cases.
+Stable. Implemented across all output formats with integration coverage for non-git, fresh-repo,
+threshold-zero, add/revert, and warn-mode cases.
 
 ## Notes
 

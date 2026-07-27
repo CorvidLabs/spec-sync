@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 12
+version: 13
 status: stable
 files:
   - src/cli.rs
@@ -48,6 +48,7 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 10. `ChangeAction::CorrectOwner` requires actor and reason, plus a non-empty batch selection from repeated `--path`/`--spec` pairs, `--manifest`, or `--all-missing` with one `--spec`
 11. Conflicting or empty `correct-owner` selection modes fail in Clap before domain mutation
 12. `Migrate` accepts an optional source-family positional; unknown families fail through deterministic validation before any mutation.
+13. `ChangeAction::Supersede --digest` is optional; omission selects signed predecessor-entry resolution and a supplied digest is still verified by the domain.
 
 ## Behavioral Examples
 
@@ -86,6 +87,7 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | `change reopen` without `--actor` or `--reason` | Clap names the missing required argument and exits non-zero |
 | `change correct-owner` without actor, reason, or any batch selection | Clap names the missing required argument and exits non-zero |
 | `change correct-owner` with conflicting `--all-missing`, `--manifest`, and `--path` modes | Clap rejects the conflicting selection before domain mutation |
+| `change supersede` without `--digest` | Parses successfully and delegates signed digest resolution to the change domain |
 
 ## Dependencies
 
@@ -107,6 +109,7 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v13: make `change supersede --digest` optional for signed predecessor-entry auto-resolution |
 | 2026-04-09 | Initial spec |
 | 2026-04-11 | Add LifecycleAction enum and Lifecycle command variant |
 | 2026-07-01 | Add AgentsAction enum and Agents command variant |

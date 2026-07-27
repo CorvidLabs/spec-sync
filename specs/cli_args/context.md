@@ -11,6 +11,8 @@ spec: cli_args.spec.md
 - Accepted-change reopen is explicit and auditable: the grammar requires both `--actor` and `--reason`.
 - Accepted metadata correction is explicit and auditable: `change correct` restricts fields to `public_contract` or `architecture_risk`, values to `yes` or `no`, and requires both `--actor` and `--reason`.
 - Acceptance-owner correction is explicit and auditable: `change correct-owner` requires actor and reason plus a batch selection from repeated `--path`/`--spec`, `--manifest`, or `--all-missing`.
+- Semantic supersede accepts an optional `--digest`; omission resolves the exact signed predecessor
+  entry, while supplied values still pass the same domain verification.
 
 ## Files to Read First
 

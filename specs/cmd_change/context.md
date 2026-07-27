@@ -11,3 +11,8 @@ The command layer intentionally contains no lifecycle policy, keeping agent and 
 `change correct` follows the same thin-dispatch rule. JSON emits the persisted correction, complete ordered history, effective definition, and summary; human correct/show/status output distinguishes original and effective values and names the next gate. All correction policy remains in `src/change.rs`.
 
 `change correct-owner` also remains a thin adapter. It resolves repeated paths, a manifest, or `--all-missing` into domain entries, JSON emits the corrected persisted record, human output names the exact owner repair (or batch count) and next gate, and all path, ownership, state, and transactionality policy remains in `src/change.rs`.
+
+Listing uses the domain's healthy-plus-errors projection. Healthy JSON retains the legacy array,
+while degraded JSON is explicitly invalid and includes every healthy change plus path-aware
+corruption diagnostics before exiting non-zero. New-change specs are validated before the domain
+allocates an ID, and supersede delegates omitted-digest resolution to signed predecessor evidence.

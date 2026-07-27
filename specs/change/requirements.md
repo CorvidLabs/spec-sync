@@ -518,3 +518,31 @@ Acceptance Criteria
 - A non-inert unparsable local registry still fails closed with the exact pre-fix diagnostic `failed to parse local registry {path} while resolving `{module}``.
 - Named registries with safe mappings continue to win over the conventional fallback.
 
+### REQ-change-042
+
+The verified lifecycle SHALL validate transition inputs before mutation, preserve compatible
+immutable evidence, authenticate archival from reachable committed bytes, and scope freshness to
+the exact signed delivery inputs while exposing corruption without hiding healthy workspaces.
+
+Acceptance Criteria
+
+- Comparison-base resolution validates CI, remote-default, adopted-local, and recorded candidates
+  as commit objects; missing bases fail closed with actionable remediation.
+- State-less archive debris is skipped only when truly empty and not lifecycle-shaped; evidence
+  directories and corrupt transaction journals fail with exact paths and recovery guidance.
+- Supersede can resolve an omitted predecessor digest from signed evidence, validates the successor
+  base before mutation, and reports the exact failed semantic-transition predicate.
+- Unknown questions, blank answers, padded or control-bearing identities, and nonexistent affected
+  specs fail before sequence allocation or state mutation.
+- Reapproval during ordinary verification emits a warning and moves back to implementation rather
+  than silently regressing; already-applied correction flows remain in verification.
+- New lifecycle JSON rejects unsupported schemas and malformed known fields with file paths while
+  preserving syntactically valid unknown extension fields across rewrites.
+- New verification records sign a per-change input manifest, exclude sequence bookkeeping from
+  delivery freshness, report changed/missing/added paths, and ignore unrelated project files.
+- New closing evidence binds the ordered reopening ledger; legacy evidence remains compatible only
+  through exact committed-anchor validation and is never silently re-signed.
+- Archival accepts only byte-identical accepted state, approval, and verification evidence found in
+  reachable committed history; mutable working-tree substitutes never authenticate it.
+- Listing returns all healthy records plus stable corruption diagnostics, and corrupt status exits
+  non-zero with dependency and next-action projections derived only from validated state.

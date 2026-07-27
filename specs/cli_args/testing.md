@@ -21,3 +21,4 @@ spec: cli_args.spec.md
 | `change correct-owner` with repeated `--path`, `--manifest`, or `--all-missing` | Parses batch selection grammar (`REQ-cli-args-006`) |
 | `migrate 5.0 [--dry-run]` | Parses the ledger backfill mode (`REQ-cli-args-007`) |
 | `migrate 9.9` | Clap rejects the unknown source family before domain mutation |
+| `change supersede` with or without `--digest` | Both parse; omission selects signed domain resolution |

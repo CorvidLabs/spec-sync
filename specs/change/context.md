@@ -45,3 +45,16 @@ Legacy acceptance-manifest reconstruction no longer aborts on adoption-era recor
 `backfill_reopen_digests` provides the native 5.0→5.1 ledger path: deterministic, idempotent repair of 5.0.1-era reopenings (stale from the embedded prior verification, current from the superseding verification or a live manifest-aware recomputation), verified against the 5.1 schema before any write and skipped per-change when undeterminable. `load_approvals` maps the missing-field parse failure to the `specsync migrate 5.0` remediation.
 
 Canonical module path resolution treats inert 5.0.1-era local registry stubs as absent via `load_local_registry`, so conventional `specs/<module>/` fallbacks remain available while non-inert unparsable registries keep the established fail-closed parse diagnostic.
+
+The lifecycle hardening repair centralizes path-aware schema loading while retaining unknown JSON
+extension fields, returns healthy and corrupt workspaces together, and treats transaction journals
+and lifecycle-shaped archive directories as fail-closed evidence. Definition inputs are normalized
+and validated before mutation. Supersede resolves its digest from signed predecessor evidence when
+omitted and proves the successor base transition before recording an obligation.
+
+Verification now signs a deterministic per-change input manifest instead of using the mutable
+whole-project inventory as its primary freshness boundary. Sequence bookkeeping and unrelated files
+do not stale delivery evidence; changed, missing, or newly owned paths are named. Newly issued
+closing evidence also binds the ordered reopening ledger. Legacy evidence is not rewritten and
+remains accepted only through byte-identical reachable committed anchors. Archival has no
+working-tree authentication fallback.

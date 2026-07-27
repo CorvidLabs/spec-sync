@@ -1,6 +1,6 @@
 ---
 id: CHG-0064-add-capability-safe-filesystem-support-for-mcp-security-hardening
-state: accepted
+state: archived
 type: refactor
 base_commit: a0d993b7d10d177f9a4770f54fbe14045750221c
 ---

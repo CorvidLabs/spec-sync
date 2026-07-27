@@ -1,4 +1,12 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user",
+      "timestamp": 1785130063,
+      "digest": "8255a67b2270e520d023b6c8e3d7b962670157e090bf1ecc4b554e1fd12848e7",
+      "note": "I approve CHG-0065 digest 4cb1f669e6892906b7ed9d78d872de1eb133de0725ceac4ef262ff7451d99984."
+    }
+  ],
   "reopenings": []
 }

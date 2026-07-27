@@ -5,10 +5,10 @@
   "title": "Make issue 417 changelog compaction idempotent and provide truthful portable structured maintenance output",
   "description": "Make issue 417 changelog compaction idempotent and provide truthful portable structured maintenance output",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "f74d52fdb6792dac2df89f545331b796dd7838ca",
   "created_at": 1785129975,
-  "updated_at": 1785130000,
+  "updated_at": 1785130063,
   "affected_specs": [
     "cli",
     "archive",

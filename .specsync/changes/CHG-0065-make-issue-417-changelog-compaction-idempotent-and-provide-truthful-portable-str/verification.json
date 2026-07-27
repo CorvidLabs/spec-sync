@@ -1,0 +1,36 @@
+{
+  "timestamp": 1785136831,
+  "commit": "c5c5bf3455b21e233934e804c44237da9c9fc6b8",
+  "contract_digest": "b2811e155f678c3d20e299abf0a3c04cd16203ff9d3fbb5956a93122aa8dd327",
+  "workspace_digest": "fc4fc96bd073a13c5ba532bbccf4830e2512ea9c27588738ddeb528af451f963",
+  "passed": true,
+  "commands": [
+    {
+      "command": "ruby --version",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-archive-001",
+    "REQ-cli-007",
+    "REQ-cmd-archive-tasks-001",
+    "REQ-cmd-compact-001",
+    "REQ-compact-001"
+  ]
+}

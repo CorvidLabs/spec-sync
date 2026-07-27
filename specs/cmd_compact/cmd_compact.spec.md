@@ -31,14 +31,6 @@ Implements the `specsync compact` command. Trims old entries from spec changelog
 1. Delegates to `compact::compact_changelogs()`
 2. `--keep N` controls how many entries to retain (default 10)
 3. Dry-run shows what would change without writing
-4. Per-spec and aggregate output use correct singular/plural labels and exclude the generated summary from the kept count
-5. JSON is one parseable, ANSI-free document; `--json` and `--format json` are equivalent
-6. Markdown and GitHub formats render a heading, dry-run notice, result table, and truthful summary
-7. Structured dry-run output distinguishes `would_change: true` from `applied: false`
-8. JSON and Markdown project paths use `/` separators on Windows while preserving literal Unix backslashes
-9. Markdown/GitHub paths use one sanitized code element: variable-length Markdown spans normally and entity-safe HTML code when a literal pipe is present, so no table row can be injected and every legal Unix backslash is preserved
-10. JSON exposes `complete`, `partial`, planned/succeeded/failed operations, structured errors, and never sets `applied: true` for incomplete work
-11. Any compact failure is rendered before the command exits 1
 
 ## Behavioral Examples
 

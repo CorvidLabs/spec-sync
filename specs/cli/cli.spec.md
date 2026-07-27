@@ -156,8 +156,6 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 9. MCP dispatch forwards the parsed write capability unchanged; read-only remains the default.
 10. MCP server-root initialization failures are printed to stderr and exit 2 before request input is
     processed.
-11. `compact` and `archive-tasks` receive the resolved global output format instead of silently
-    falling back to text.
 
 ## Behavioral Examples
 

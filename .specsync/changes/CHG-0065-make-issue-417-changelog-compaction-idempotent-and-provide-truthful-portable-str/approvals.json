@@ -13,6 +13,13 @@
       "timestamp": 1785136485,
       "digest": "b2811e155f678c3d20e299abf0a3c04cd16203ff9d3fbb5956a93122aa8dd327",
       "note": "User approved CHG-0065 digest 4cb1f669e6892906b7ed9d78d872de1eb133de0725ceac4ef262ff7451d99984."
+    },
+    {
+      "gate": "definition",
+      "actor": "human:leif",
+      "timestamp": 1785159032,
+      "digest": "7d765c925d71023d2730b1cd80b35adcd9298679f0e9ca6a3a7bb9a5acaaf8d8",
+      "note": "User approved CHG-0065 digest 7d765c925d71023d2730b1cd80b35adcd9298679f0e9ca6a3a7bb9a5acaaf8d8."
     }
   ],
   "reopenings": []

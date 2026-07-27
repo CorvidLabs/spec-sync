@@ -28,18 +28,9 @@ Implements the `specsync archive-tasks` command. Moves completed tasks (checked 
 
 ## Invariants
 
-1. Delegates entirely to `archive::archive_tasks()` for planning and transactional archival
+1. Delegates entirely to `archive::archive_tasks()` for the actual archiving logic
 2. Dry-run mode prints affected files but makes no writes
 3. Gracefully handles empty results (no completed tasks to archive)
-4. JSON is one parseable, ANSI-free document; `--json` and `--format json` are equivalent
-5. Markdown and GitHub formats render a heading, dry-run notice, result table, and truthful summary
-6. Structured dry-run output distinguishes `would_change: true` from `applied: false`
-7. Structured paths retain `PathBuf` identity until rendering: Windows separators become `/`, while literal Unix backslashes remain literal
-8. JSON exposes `complete`, `partial`, and explicit planned/succeeded/rolled-back/failed operation arrays
-9. Any incomplete report is fully rendered before the command exits 1; `applied` is never true for an incomplete invocation
-10. Markdown/GitHub paths use one code element: dynamic-backtick spans normally and entity-safe HTML code for literal-pipe paths, plus visible escapes for control and bidirectional-control characters; every legal Unix backslash parity remains unchanged
-11. Text output uses correct task/tasks and file/files labels
-12. Text paths and filesystem errors visibly escape control and bidirectional-control characters
 
 ## Behavioral Examples
 

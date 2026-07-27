@@ -45,13 +45,9 @@ Moves completed markdown task items (`- [x]`) from active sections of companion 
 1. Only items matching `- [x]` or `- [X]` (case-insensitive) are archived
 2. If no `## Archive` section exists, one is created at the bottom of the file
 3. Existing archive content is preserved — new items are appended
-4. `dry_run: true` returns the exact plan without staging or modifying files
+4. `dry_run: true` returns results without modifying files
 5. Files with no completed tasks are skipped (not included in results)
 6. Uses `find_spec_files` from validator to discover specs and their companion files
-7. Every candidate is read and preflighted before staging; any planning failure prevents all destination writes
-8. Every replacement is staged in its destination directory before the first destination is published
-9. Staged files preserve original permissions and are atomically renamed over their destination
-10. A late publish failure is reported; prior successful publishes are rolled back when safe, and any remaining changed files are exposed as partial success
 
 ## Behavioral Examples
 

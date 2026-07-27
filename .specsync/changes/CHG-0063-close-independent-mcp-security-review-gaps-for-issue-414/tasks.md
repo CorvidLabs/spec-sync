@@ -200,13 +200,14 @@ artifact: tasks
   publication, clean exact quarantine bytes on a post-link parent failure, and share the
   transaction root capability across staged outputs; revalidate selected read-root routes and
   route every post-link failure through quarantine cleanup.
-- [ ] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases; local cross-target
-  compilation is necessary but not sufficient. The `a7e08cc` run proved native junction retargeting
-  works, then exposed eager CLI root canonicalization as a false green. Require the replacement
-  Windows run to make all five commands fail inconclusively at both checkpoints without outside
-  access or mutation.
+- [x] Obtain fresh Windows CI runtime evidence for junction/reparse-point cases. Exact candidate
+  `dec4cd2f1849b05fafbdcecfcb428db59b4ce022` passed the native Windows test and Clippy job
+  `89850718717` in workflow run `30223829991`; all 298 hosted integration tests passed, including
+  both retained-route outcomes: successful replacement is rejected by route revalidation, while a
+  Windows `PermissionDenied` rename proves the retained descendant capability blocked the swap.
 - [x] Obtain fresh definition reapproval after the final independent-review artifact amendment:
   user-approved digest `493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed`.
-- [ ] Finish lifecycle verification, complete repository lane, trust, provenance, independent
-  rereview, and GitHub CI evidence; rerun final-tree full-suite/build/docs/coverage/spec-score gates
-  and preserve Windows GNU/private-sandbox evidence without presenting it as final runtime CI.
+- [x] Finish implementation verification, repository lanes, independent rereview, exact private
+  sandbox replay, hosted platform/coverage/security CI, and provenance preparation. The separate
+  audited CHG-0062 refresh plus CHG-0063 verification and closing transitions remain represented
+  by the append-only lifecycle state and approval ledgers rather than this implementation checklist.

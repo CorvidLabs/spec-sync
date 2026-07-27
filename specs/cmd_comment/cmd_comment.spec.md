@@ -1,6 +1,6 @@
 ---
 module: cmd_comment
-version: 6
+version: 7
 status: stable
 files:
   - src/commands/comment.rs
@@ -34,13 +34,8 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 
 ## Invariants
 
-1. Runs full validation to generate the comment body
-2. When `--pr` is omitted, prints markdown to stdout for piping
-3. When `--pr N` is set, resolves repo and uses `gh pr comment` to post
-4. Exits 1 if `gh` CLI fails or repo cannot be determined
-5. The marketplace action and CI workflow both use `specsync comment` (stdout mode) as the single source of comment content — no alternative comment generation paths exist
-6. Configured SDD verification commands execute and fail closed, but their child stdout and stderr are suppressed so stdout remains a markdown-only protocol
-7. Coverage uses checked manifest discovery; malformed Gradle settings produce an inconclusive stderr diagnostic and exit 1 before a misleading PR summary can be emitted
+7. Coverage uses checked manifest discovery; malformed Gradle settings produce an inconclusive
+   stderr diagnostic and exit 1 before a misleading PR summary can be emitted.
 
 ## Behavioral Examples
 
@@ -108,3 +103,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-11 | CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re: Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

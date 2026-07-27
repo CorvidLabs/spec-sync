@@ -39,16 +39,14 @@ spec: cmd_score.spec.md
 
 ### REQ-cmd-score-001
 
-The score command SHALL produce deterministic per-spec and project quality scores while honoring filters, formats, and release gates.
+The score command SHALL produce deterministic quality scores while honoring filters, formats, and
+release gates.
 
 Acceptance Criteria
-- `cmd_score` scores discovered specs (after `filter_specs` and `filter_by_status`) using `score_spec`, then aggregates via `compute_project_score`
-- Five dimensions, 20 points each: Frontmatter, Sections, API, Depth, Freshness
-- JSON output includes per-spec objects (`total`, `grade`, the five sub-scores, `suggestions`) and a project object (`average_score` rounded to 1 dp, `grade`, `total_specs`, A–F `distribution`); `--explain` adds an `explain` array per spec
-- `--format table` renders an aligned ASCII table; with `--explain` it adds FM/Sec/API/Depth/Fresh columns
-- `--format csv` prints a header row, one row per spec, and a final `SUMMARY` row with the average, grade, and distribution
-- Default/text output prints each spec's grade and either the 5-subscore line or, with `--explain`, a per-criterion breakdown with ✓/✗ marks and point details, followed by suggestions
-- Batch mode (no filters, or `--all`) prints a "Scoring N spec(s)…" progress header in text mode (suppressed for JSON/CSV)
-- Grades are colorized by band (A/B green, C/D yellow, F red); subscores colorized (20 green, 10–19 yellow, <20 red)
-- Checked coverage discovery must succeed before scoring gates are evaluated; malformed discovery exits nonzero with the documented structured JSON failure.
+
+- Checked coverage discovery succeeds before scoring gates are evaluated.
+- Trustworthy warn-mode scoring remains advisory.
+- Malformed Gradle/manifest discovery exits nonzero with parseable JSON containing `valid: false`,
+  `inconclusive: true`, null score/grade, zero counts/distribution, an empty `specs` collection, and
+  an explicit error.
 

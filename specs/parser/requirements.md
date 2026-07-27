@@ -55,15 +55,7 @@ SHALL identify required and stub sections, and SHALL provide fail-closed real-YA
 security-sensitive GitHub issue references.
 
 Acceptance Criteria
-- `parse_frontmatter` returns None if the file has no `---` delimited frontmatter block
-- Handles scalar fields (module, version, status) and list fields (files, db_tables, depends_on)
-- Empty list syntax `[]` is handled correctly (produces empty vec, not a vec containing "[]")
-- `get_spec_symbols` extracts the complete first nonempty backtick-delimited symbol from each recognized table row in `### Exported ...` subsections
-- Punctuation emitted by language extractors is preserved without a second parser-specific character allowlist
-- Empty or malformed backtick cells do not produce symbols
-- Only extracts from allowlisted subsection names (Exported Functions, Exported Types, etc.)
-- Symbols are deduplicated while preserving order
-- `get_missing_sections` uses case-sensitive regex matching for `## SectionName`
+
 - `parse_frontmatter` retains its established supported-subset compatibility behavior.
 - `parse_checked_issue_references` parses the complete frontmatter document with maintained
   `serde-saphyr` real-YAML semantics and duplicate-key rejection.
@@ -76,3 +68,4 @@ Acceptance Criteria
 - Nested extension mappings/sequences and block-scalar text containing issue-like keys do not
   contribute issue references.
 - Checked parse errors are stable and content-free.
+

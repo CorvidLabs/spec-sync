@@ -1,6 +1,6 @@
 ---
 module: cmd_report
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/report.rs
@@ -30,13 +30,8 @@ Implements the `specsync report` command — a comprehensive per-module coverage
 
 ## Invariants
 
-1. Staleness is measured by counting `git rev-list` commits between the spec's last-modified commit and each source file's latest commit
-2. A spec is "stale" when any source file has `>= stale_threshold` commits ahead of the spec (default: 5)
-3. Completeness checks: missing frontmatter fields (version, status, files) and empty required sections
-4. Per-module coverage is the ratio of specced files to total source files in that module's directory
-5. Text output uses a fixed-width table format with Module, Coverage, Stale, Incomplete columns
-6. JSON output includes per-module detail arrays with stale commit counts and missing field lists
-7. Checked manifest discovery must succeed before project coverage is reported; malformed Gradle settings are inconclusive and exit 1
+7. Checked manifest discovery must succeed before project coverage is reported; malformed Gradle
+   settings are inconclusive and exit 1.
 
 ## Behavioral Examples
 
@@ -85,3 +80,4 @@ Implements the `specsync report` command — a comprehensive per-module coverage
 | 2026-07-22 | v3: fail closed when malformed Gradle/manifest discovery makes report coverage inconclusive |
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

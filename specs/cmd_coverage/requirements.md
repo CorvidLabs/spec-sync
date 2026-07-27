@@ -30,13 +30,13 @@ spec: cmd_coverage.spec.md
 
 ### REQ-cmd-coverage-001
 
-The coverage command SHALL report file and LOC coverage in human and machine formats and SHALL honor configured release gates.
+The coverage command SHALL report trustworthy file and LOC coverage and SHALL fail closed when
+manifest discovery is inconclusive.
 
 Acceptance Criteria
-- `cmd_coverage(root, strict, enforcement, require_coverage, format)` runs validation (`run_validation`) before computing coverage so results are consistent with `check`
-- Coverage is computed via `compute_coverage_checked`; file-coverage and loc-coverage percentages are derived and rounded to two decimals when discovery succeeds
-- JSON output emits normal coverage metrics on success and remains valid on malformed discovery with `valid: false`, `inconclusive: true`, null percentages, zero counts, empty collections, and an explicit error
-- Non-JSON output prints the coverage report, the validation summary, and a coverage line, then delegates the exit code to `exit_with_status`
-- `--enforcement` overrides config enforcement; `--strict` implies strict enforcement; `--require-coverage N` fails (exit 1) when coverage is below N
-- Malformed Gradle/manifest discovery exits nonzero in every format rather than producing partial or vacuous coverage.
+
+- Coverage is computed through `compute_coverage_checked`.
+- Trustworthy zero-denominator coverage retains the documented 100% behavior.
+- Malformed Gradle/manifest discovery exits 1 with valid JSON containing `valid: false`,
+  `inconclusive: true`, null percentages, zero counts, empty collections, and an explicit error.
 

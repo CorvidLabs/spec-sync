@@ -749,3 +749,60 @@ configured-root identities before sequential reopen/traversal.
 - Remaining gates: current-digest definition approval, authorized CHG-0062/0064 reopenings,
   lifecycle verification and closing approval, hosted-Windows runtime, Attest provenance, push,
   and GitHub CI.
+
+## Exact `dec4cd2` final implementation evidence
+
+- Time: `2026-07-26T23:03:28Z`.
+- Exact implementation commit:
+  `dec4cd2f1849b05fafbdcecfcb428db59b4ce022`.
+- Exact implementation tree:
+  `0906922f482a85b6a0486cd0718f88c065093aa5`.
+- Implementation archive SHA-256:
+  `d67806d4b172962bc5ecc5255b5e290b54bd48fdc0215be8db2d6b7b38d2de74`.
+- A pinned Rust `1.89.0` offline locked release build passed. Executable SHA-256:
+  `2f464e184f579aa6c38549d9c1831d3aff034ef2af9031f04fef21259433233e`.
+- The complete exact-head local suite passed: 1,959 unit tests and 319 integration tests, with
+  formatting, production Clippy, and the focused retained-route regression green. Windows GNU
+  cross-target test compilation passed; its one existing cfg-specific unused-variable warning in
+  `src/change.rs` is outside this change.
+- Exact release-binary coverage remains 105/105 files and 107,701/107,701 LOC (100%). All 62 specs
+  score 100/A.
+- Hosted workflow run `30223829991` passed coverage, audit, formatting, Ubuntu, macOS, native
+  Windows, CodeQL, action-consumer, site, editor-extension, and workflow-validation gates. Native
+  Windows job `89850718717` passed all 298 hosted integration tests and Clippy. Spec-check and the
+  exact-head trust workflow stopped only because accepted CHG-0062 exact evidence owns the changed
+  `tests/integration/mcp.rs` bytes and correctly requires an audited reopen; they reported no
+  implementation, spec, coverage, or platform defect.
+- The disposable private `CorvidLabs/spec-sync-sandbox` checkout remained at exact commit
+  `758c144808d80169a44a740660b0d73c5b2f6ddd` (tree
+  `99cff2310ec2f9a449dca01f608818d2ff7c1062`; archive SHA-256
+  `da78737fb5bbc1adecae62c359253300f2997fa1d99d43c74840c42a40bba6ab`).
+  Stable drills 001, 008, 009, 011, and 013 passed against the exact release binary.
+- Security drill `drills/024-mcp-git-root-boundary.sh` (mode `0755`, SHA-256
+  `0781bd656c18dfec3a8751a36e6ac194963e6a4706eddb331f4729d074c5eece`) passed: the default MCP
+  surface listed exactly five read-only tools and rejected direct and nested mixed-case Git
+  metadata roots. The exact binary reported 3/3 files and 25/25 LOC covered in the checked-in
+  sandbox fixture.
+- Dynamic fixture SHA-256 values remained:
+  `45ed528c278987a79f7920d8f5145fef103e8bed9d711cba32e907168faf1d6d`
+  (config),
+  `aa890317e8b468f8f6b3cd4fa38554e6c419b69a86f69cd82abb4732696fdfd4`
+  (package),
+  `e1ea93c7ee814612d85b55d490f3ca3c71c007fe8fa4db77caa6e6f0881361bf`
+  (source),
+  `abce212f2c740d6ae1c2544e209587ac77a9c15c8143190e1ee33561d112a9ba`
+  (workspace manifest),
+  `ba8b72f3742c2ff7dbe1a6d7fd124a3e52561ce953664a96db58f19165fd7ece`
+  (member manifest),
+  `da4506c6803ec9031846fd3163259c216c97c9b7e536f2e1f0e34d291f2ff55e`
+  (member source), and
+  `6fb646a053618ade8ccfd69c8d8aeed13bd925dc119c7063474933500859f5e3`
+  (workspace spec).
+- Two independent implementation reviews found zero in-scope High or Medium defects before the
+  final test-only Windows fixture correction. That correction changes no product byte: it accepts
+  only Windows `PermissionDenied` as proof that the retained capability prevented replacement,
+  while preserving the mandatory route-change error whenever replacement succeeds. The complete
+  local and hosted native-Windows suites validate both paths.
+- Remaining lifecycle gates are the user-authorized audited CHG-0062 refresh, fresh approval of
+  this amended exact definition, CHG-0063 verification and closing approval, final Attest
+  provenance on the lifecycle-only child commit, and the resulting clean GitHub rerun.

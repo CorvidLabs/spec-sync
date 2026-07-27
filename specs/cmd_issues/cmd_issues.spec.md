@@ -1,6 +1,6 @@
 ---
 module: cmd_issues
-version: 10
+version: 11
 status: stable
 files:
   - src/commands/issues.rs
@@ -34,61 +34,38 @@ path replacement cannot redirect issue inspection or `--create` validation.
 
 ## Invariants
 
-1. Checks both `implements` and `tracks` frontmatter fields as explicit lists of numeric issue IDs;
-   wrong field shapes or invalid entries make inspection inconclusive instead of becoming empty.
-2. References from all specs are sent through one globally deduplicated, capped, and time-bounded
-   GitHub verification batch.
-3. Counts are tallied: valid (open), closed, not found (404), error (API failure)
-4. Human-readable output prints no-reference guidance only when no spec references were gathered;
-   all-error batches print a summary with the error count.
-5. With `--create`, validates retained spec and mapped-source snapshots through the crate-private
-   `validate_spec_content_with_sources` entry point and calls `create_drift_issues` for resulting
-   validation errors
-6. Exits 1 if any issue references are not found (404) or unverifiable
-7. Specs are scanned before repository/provider resolution. An empty reference set performs no Git
-   auto-detection or provider access; if `github.repo` is configured, its `owner/repository` syntax
-   is still validated before no-reference or no-spec success, including when the configured specs
-   directory is missing or empty.
-8. Unreadable specs and malformed or missing frontmatter are retained as path-attributed,
-   content-free inspection findings across every output format; they suppress no-reference
-   guidance and make the command inconclusive with exit 1.
-9. Recursive spec discovery is checked; traversal errors are findings rather than silently dropped
-   entries. Display paths stay project-relative and content-free, sanitize terminal controls, and
-   use valid escaped Markdown/GitHub table cells and code spans even for hostile filenames.
-10. The project root, configured specs directory, recursive child directories, and spec files are
-    opened and identity-checked through retained capabilities. Each discovered spec identity is
-    compared before open, after open, throughout read completion, and against the verified handle;
-    symlink, regular-file, and hardlink replacement cannot authorize replacement bytes.
-11. Checked issue parsing rejects duplicate keys or malformed YAML anywhere and rejects
-    blank/null/wrong-shaped top-level issue fields, while accepting comments/trailing commas and
-    ignoring nested extension or block-scalar lookalikes.
-12. Every renderer escapes control characters, bidirectional formatting controls, and Unicode line
-    and paragraph separators (Zl/Zp); Markdown/GitHub additionally preserve one valid escaped table
-    row and code span, padding the span content when a path begins or ends with a backtick. Safe
-    relative paths use forward slashes on Windows while Unix preserves literal backslashes in
-    filenames as data.
-13. `--create` runs validation from immutable capability-rooted spec and mapped-source snapshots
-    through `validate_spec_content_with_sources`; neither discovered spec paths nor mapped source
-    paths are reopened for validation, and supplied-content TypeScript export extraction does not
-    resolve wildcard imports through ambient paths.
-14. Spec discovery retains no more than 10,000 snapshots, reads at most 4 MiB per spec, and retains
-    at most 64 MiB of spec bytes cumulatively. Mapped-source snapshotting likewise limits each
-    source observation to 4 MiB and retained source bytes to 64 MiB cumulatively.
-15. A present selected project config and recognized source-detection manifest is acquired through
-    an explicit no-follow, non-blocking regular-file open under the retained project capability.
-    Opened-handle metadata and identity remain authoritative across the at-most-4-MiB read, and
-    path replacement, symlink/reparse, or special-file substitution is rejected on Windows and
-    Unix. Parsing and all later configuration use those exact retained bytes; malformed UTF-8,
-    JSON/TOML syntax, or known TOML field shapes are structured, content-free findings and cannot
-    fall back to ambient/default paths. If the config omits source directories, a bounded sparse
-    detection snapshot is built through the retained project capability and supplied to config
-    parsing, so ambient root replacement cannot change source selection.
-16. Missing/empty specs and repository-resolution failures are rendered through the selected output
-    format. JSON remains parseable, and Markdown/GitHub retain their structured headings and
-    diagnostics instead of leaking an early text-only exit.
-17. Retained omitted-source discovery applies the same ignored-directory names as normal source
-    detection before inspecting entry types. A recognized manifest that is not a regular file is
-    an inconclusive configuration finding rather than a silently omitted input.
+1. The command gathers all `implements` and `tracks` references before repository/provider access.
+2. Project-wide verification is globally deduplicated, capped, and time-bounded by the GitHub
+   module.
+3. Inconclusive provider outcomes remain errors and cannot become successful not_found results.
+4. No-reference guidance is emitted only when no spec references were gathered.
+5. An empty reference set performs no Git auto-detection or provider access; configured repository
+   syntax is still validated even when no specs were discovered.
+6. A scan is empty only when every discovered spec was read and parsed successfully; unreadable or
+   malformed specs are retained as safe findings and make verification inconclusive.
+7. Recursive discovery and reads remain capability-rooted, and parsing consumes immutable bytes
+   whose discovered identity remains binding through read, including regular/hardlink replacement.
+8. Every output renderer escapes control, bidi, and Unicode line/paragraph separator characters.
+9. Markdown/GitHub code spans pad content when a path begins or ends with a backtick.
+10. Discovery retains at most 10,000 specs, at most 4 MiB per spec, and at most 64 MiB
+    cumulatively; mapped-source retention applies a 4 MiB per-file and 64 MiB cumulative ceiling.
+11. `--create` validates retained spec/source snapshots through
+    `validate_spec_content_with_sources` and never reopens discovered paths or ambient wildcard
+    targets.
+12. Spec and mapped-source reads derive from one retained project capability, and recursive
+    discovery examines no more than 100,000 total entries including non-spec entries.
+13. Selected config is retained, same-handle identity-checked, bounded to 4 MiB, and parsed from
+    exact bytes; malformed, wrong-shaped, linked, non-regular, replaced, or oversized input cannot
+    produce fallback no-spec/no-reference success.
+14. Finding paths normalize separators only on Windows; Unix literal backslashes remain data.
+15. Missing/empty specs and repository-resolution failures use the selected structured renderer.
+16. Omitted source directories are detected through a bounded sparse snapshot rooted in the
+    retained project capability, never through a replaceable ambient root pathname.
+17. Retained discovery skips shared ignored names before metadata inspection and never silently
+    omits a recognized non-regular manifest.
+18. Selected config and recognized manifests use no-follow, non-blocking retained handles;
+    regular-file replacement and FIFO substitution between discovery and read are structured
+    inconclusive findings on Windows and Unix.
 
 ## Behavioral Examples
 
@@ -171,3 +148,4 @@ path replacement cannot redirect issue inspection or `--create` validation.
 | 2026-07-22 | CHG-0063 capability-source follow-up: Detect omitted source directories through a bounded retained-capability snapshot rather than a replaceable ambient root |
 | 2026-07-22 | CHG-0063 final agent-review follow-up: align retained ignored-directory behavior and reject special-file manifests as inconclusive |
 | 2026-07-23 | CHG-0063 retained-handle follow-up: use no-follow, non-blocking config/manifest acquisition and reject regular-file replacement or FIFO substitution between discovery and read |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

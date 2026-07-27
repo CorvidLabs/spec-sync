@@ -34,3 +34,4 @@ Acceptance Criteria
   traversal components before use.
 - Redirecting the caller-visible root after checked coverage cannot redirect an output write.
 - Existing files remain no-overwrite destinations.
+

@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 23
+version: 24
 status: stable
 files:
   - src/mcp.rs
@@ -33,98 +33,87 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 2. Server reports tools and resources capabilities.
 3. Read-only mode exposes five non-mutating tools; write mode additionally exposes
    `specsync_generate` and `specsync_init`.
-4. The requested root is opened and identity-bound before canonicalization; the canonical path is
-   reopened and must identify the same directory, so startup replacement cannot redirect authority.
-5. Read tools lexically validate a relative descendant and open it only through the retained server
-   root capability, so replacement of the ambient root path cannot redirect selection. On Windows,
-   an absolute child may use either the original startup spelling or the canonical spelling of that
-   same identity-bound root; only its lexical suffix is consumed through the retained canonical
-   capability, and sibling-prefix lookalikes remain rejected. Every selected component is opened
-   as an identity-checked regular directory without symlink/reparse traversal, so aliases cannot
-   redirect authority into `.git`; every case variant of a literal `.git` component is rejected
-   before opening the selected operation root.
+4. All filesystem operations remain within the retained canonical server-root capability,
+   including read-root selection and generated-file rollback after ambient path replacement.
+5. Absolute outside read roots are rejected before filesystem probing; in-root candidates must be
+   existing canonical descendants and must not contain a `.git` component in any ASCII case.
 6. Mutating tools require write mode, reject root overrides, and use the configured root.
-7. Tool argument schemas and runtime validation reject unknown properties and wrong types.
+7. Complete JSON-RPC envelopes, tool arguments, and resource arguments are exactly validated before
+   dispatch.
 8. Tool-domain errors use `isError`; JSON-RPC shape errors use protocol error objects.
-9. Selected configuration and recognized manifest inputs are first acquired as retained regular
-   file handles through explicit no-follow, non-blocking opens. Opened-handle metadata and identity
-   remain authoritative across bounded reads; path observations must resolve to that identity, so
-   links/reparse points, special files, and replacement identities fail before bytes are parsed.
-   All four Gradle build/settings names are preflighted this way with the shared 4 MiB limit before
-   settings parsing or manifest-derived source probing; exact retained bytes are charged and copied
-   once, so generic snapshot traversal never reopens them.
-10. Every notification, including unknown methods, receives no response and cannot mutate state.
-11. Config/metadata/cache files and paths, manifest/autodetection paths, dependency references,
-    module names/files, spec mappings, nested symlinks, and write destinations are validated against
-    the canonical root before use. Selected read-root component identities are retained and the
-    complete public route is reopened/revalidated before a successful response.
-12. Recursive checks canonicalize only symlinks, honor ignored/configured exclusions, and share
-    deterministic cumulative bounds across configured paths and spec mappings.
-13. JSON-RPC input lines and responses are bounded to 1 MiB; request IDs are non-null strings or
-    integers bounded to 4 KiB.
-14. Generated output is limited to 1,000 specs and 64 MiB, preflighted before mutation, staged and
-    synced beside each destination, and atomically published without overwriting existing files;
-    retained parent capabilities and filesystem-plus-content identities preserve replacements at
-    public transaction paths. Publication reopens the public parent without link/reparse traversal
-    and rejects any identity change before and after linking staged bytes. A post-link identity
-    failure and every destination-verification failure after the hard link clean the exact
-    quarantined staged entry before returning, and staged outputs share one transaction-wide root
-    capability rather than one root handle per output. Empty parent
-    directories created during a failed batch may remain because no portable
-    create-and-open directory primitive can prove ownership across a concurrent replacement.
-    Private quarantine cleanup consumes its final directory capability before removal so Windows
-    does not retain a sharing-blocking handle.
-    Processes already authorized to mutate the server root must not race private
-    `.specsync-mcp-stage-*` or `.specsync-mcp-quarantine-*` names.
-15. Explicit root-wide and manifest-derived inputs remain present in bounded snapshots even when
-    they cross normally ignored directory names; ignored or configured-exclusion symlink names
-    are skipped before following targets unless an explicit configured input names them or a descendant;
-    manifest discovery parses Cargo workspace
-    membership as TOML plus comment/escape-aware shared Gradle settings; snapshots copy the exact
-    manifest bytes charged to the shared cumulative byte budget. Every declared Cargo member and
-    Node workspace pattern is charged against a deterministic expansion-work bound; normalized
-    workspace nodes are deduplicated and completed results are reused.
-    Cargo path discovery follows only semantic target, dependency, workspace-dependency,
-    target-specific dependency, patch, and replacement tables; unrelated metadata named `path`
-    is ignored. Manifest-relative parent components and confined Windows-native backslashes are
-    normalized from the declaring manifest and accepted when their resolved target remains beneath
-    the server root; drive, UNC, rooted, traversal, symlink, and junction escapes fail.
-16. GitHub issue verification requires explicit `GITHUB_TOKEN`, performs read/list/verify requests
-    in-process without a provider subprocess, prepares once, globally deduplicates at most 100 IDs,
+9. Every valid notification, including unknown methods, receives no response and cannot mutate.
+10. Project-controlled Git metadata is not used for MCP issue-repository discovery and every case
+    variant of `.git` is excluded from read-root authority, configuration inputs, and snapshots.
+11. Project files are bounded to 8 MiB each and actual configured operation inputs, including config
+    files, to 64 MiB cumulatively; explicit normally ignored roots remain eligible.
+12. JSON-RPC input and output are bounded to 1 MiB; oversized input is drained and oversized output
+    becomes a compact `-32603` response with a bounded ID or `null` fallback.
+13. Generation collisions and incomplete writes are failures; public transaction paths are
+    identity-bound and replacements are preserved. Post-link parent failure cleans the exact
+    quarantined staged identity, and the batch shares one retained root capability across outputs.
+    Empty parents created by failed batches may remain, and same-user mutation of private
+    transaction names is outside the MCP caller/path confinement threat boundary.
+14. Snapshot scoring reports Git freshness unavailable and withholds freshness credit.
+15. Manifest-derived inputs remain visible across fixed ignores, including TOML Cargo workspaces and
+    comment/escape-aware Gradle settings, and snapshots copy exact bytes charged to the operation
+    budget.
+16. Issue verification requires explicit `GITHUB_TOKEN`, runs in-process without provider
+    subprocesses, prepares once, globally deduplicates at most 100 IDs, revalidates post-404 access,
     includes authentication/preflight in the 30-second batch bound, and revalidates repository
     access before accepting not-found; provider failures remain inconclusive tool errors rather
-    than successful empty/not-found results. Spec discovery, reads, and frontmatter parsing must
-    also complete through checked traversal and the shared maintained real-YAML issue parser.
-    Duplicate keys or malformed YAML anywhere, plus blank/null/wrong-shaped top-level
-    `implements`/`tracks`, make verification inconclusive. Comments and valid trailing commas are
-    accepted; nested extension and block-scalar lookalikes are ignored. Read diagnostics use only a
-    sanitized relative spec path and a content-free reason, never host-absolute paths, raw OS
-    errors, or spec bytes. Windows diagnostic separators render as `/`; Unix literal backslashes
-    remain filename data and are not conflated with nested paths.
-17. A selected MCP configuration is acquired through verified regular-directory and regular-file
-    capabilities with no symlink/reparse traversal, non-blocking open, identity checks, and the
-    normal per-file bound. Its exact retained bytes pass the complete checked config parser before
-    any compatibility loader runs. Non-object JSON, invalid UTF-8, malformed JSON/TOML, and
-    wrong-typed known fields make tools and resources inconclusive instead of silently falling
-    back to an empty/default project.
-18. Generic MCP project files use the same no-follow, non-blocking retained-handle reader as
-    selected config and recognized manifests. Their path identity must match the opened handle
-    before and after the bounded read on Unix and Windows; FIFO/socket/device entries, symlinks or
-    reparse points, and regular-file replacements fail without blocking or consuming attacker
-    bytes. Tool and resource snapshots share this behavior.
-19. Zero-config manifest/source selection begins only after the server/project root capability is
-    retained. Autodetection consumes retained manifest observations and cannot accept source roots
-    injected through an ambient manifest replacement.
-20. MCP snapshot collection and preflight charge every Cargo member and Node workspace declaration
-    before deduplication. Normalized patterns, bases, workspace paths, and completed Cargo manifests
-    are reused so duplicates cannot replay traversal; limit-plus-one fails closed.
-21. Recursive snapshots bind each enumerated directory identity before the enumeration checkpoint,
-    then open and process siblings sequentially through retained capabilities. Directory-handle use
-    is bounded by traversal depth rather than sibling count, while replacement before, during, or
-    after recursion remains detectable.
-22. Object-form Node workspaces require a `packages` array. Every recognized nested
-    `package.json` is bounded and parsed as a JSON object with checked workspace field shapes before
-    a tool or resource can report success.
+    than successful empty/not-found results.
+17. Snapshot traversal skips ignored or configured-exclusion symlink names before following target
+    metadata unless an explicit configured input names them or a descendant; broad ancestor inputs
+    do not override configured exclusions.
+18. Windows absolute-root suffix derivation uses native path components and ordinal Unicode
+    ignore-case comparison, accepts original/canonical spellings only after startup identity
+    binding, and rejects sibling-prefix lookalikes.
+19. Cargo filesystem inputs come only from semantic target, dependency, workspace-dependency,
+    target-specific dependency, patch, and replacement tables; unrelated metadata `path` keys are
+    ignored. Manifest-relative Cargo paths and confined Windows-native backslashes normalize only
+    while the result remains beneath the retained root; drive, UNC, rooted, traversal, canonical,
+    symlink, and junction escapes are rejected.
+20. Windows transaction cleanup consumes the final quarantine directory capability before
+    name-based removal, preserving init, generation, and collision rollback behavior without
+    weakening identity checks.
+21. MCP issue verification fails inconclusive when spec discovery, bounded reads, or frontmatter
+    parsing cannot complete; unreadable or malformed specs are never silently omitted.
+22. MCP issue fields are parsed by the shared maintained real-YAML checked parser; duplicate/global
+    malformed YAML and invalid known shapes fail closed while valid comments/trailing commas and
+    non-authoritative nested/block-scalar data remain supported.
+23. The real MCP CLI preserves the user-requested root until startup opens and identity-binds it;
+    canonicalization and capability reopening happen afterward, and any identity change fails
+    before JSON-RPC dispatch.
+24. MCP issue diagnostic paths normalize separators only on Windows; Unix literal backslashes
+    remain filename data rather than hierarchy.
+25. Selected config is acquired through no-follow, non-blocking, identity-verified regular-file
+    snapshots and validated from exact bounded bytes with the complete checked parser before
+    compatibility loading; non-object/malformed/invalid-UTF-8/wrong-typed configurations fail
+    tools and resources closed.
+26. Selected config and recognized manifests are acquired through explicit no-follow, non-blocking
+    retained regular-file handles. Opened-handle metadata and native identity remain authoritative
+    through bounded reads; later path observations must match on Windows and Unix.
+27. All four recognized Gradle build/settings candidates are preflighted through retained handles
+    with a 4 MiB per-file ceiling before manifest-derived traversal; no unsafe unselected candidate
+    is silently ignored.
+28. Every present Gradle build/settings variant is preflighted at 4 MiB before settings parsing or
+    manifest-derived source probing, charged/copied from exact retained bytes once, and excluded
+    from generic snapshot reopening.
+29. Generic MCP project files use no-follow, non-blocking, identity-continuous retained reads for
+    both tools and resources; special/link/replacement races fail without attacker-byte
+    consumption or partial output.
+30. Unix verification always exercises FIFO rejection and exercises socket rejection when the
+    host permits socket fixture creation; host-level `PermissionDenied` marks only that fixture
+    unavailable rather than failing before the security assertion.
+31. Cargo/Node workspace expansion is bounded independently of retained-byte uniqueness and reuses
+    completed normalized nodes; snapshot collection and preflight both charge declarations before
+    deduplication.
+32. Zero-config source selection consumes retained configuration/manifest observations after root
+    retention.
+33. Recursive snapshot traversal records sibling identities before sequential capability opens,
+    bounding live directory handles by depth while preserving replacement detection.
+34. Object-form Node workspaces require `packages`, and recognized nested package manifests are
+    bounded and strictly parsed before tools/resources can report success.
 
 ## Behavioral Examples
 
@@ -276,3 +265,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-24 | v21 / CHG-0063 exact-head rereview remediation: Bound recursive snapshot handles by depth, require object-form Node workspace packages, and strictly parse nested package manifests |
 | 2026-07-24 | v22 / CHG-0063 Git-metadata-root remediation: Reject every case variant of a `.git` read-root component before opening operation authority |
 | 2026-07-26 | v23 / CHG-0063 exact-tree review remediation: Reject non-integer/null request IDs and malformed initialize negotiation, traverse and finally revalidate read-root routes without links/reparse points, reject staged publication after a public-parent identity change, clean every post-link failure's quarantine bytes, and share the transaction root capability |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

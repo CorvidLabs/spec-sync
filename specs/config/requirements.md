@@ -77,9 +77,8 @@ Acceptance Criteria
 
 - Number, boolean, object, and list values remain explicitly invalid instead of discarding the surrounding
   valid configuration or becoming repository auto-detection.
-- Missing, null, and string repository values preserve their established compatibility behavior.
-- Issue inspection validates the explicit invalid repository before missing-spec or no-reference
-  success and does not consult Git metadata.
+- Missing, null, and string repository values preserve compatibility.
+- Issue inspection rejects the explicit invalid repository before no-spec/no-reference success.
 
 ### REQ-config-007
 
@@ -88,15 +87,11 @@ security-sensitive callers.
 
 Acceptance Criteria
 
-- Parsing consumes the caller-supplied bytes and does not reopen the configuration pathname.
-- Capability callers can supply source-directory discovery; omitted source fields use those
-  supplied values without consulting an ambient root pathname.
-- Leading UTF-8 BOM compatibility, precedence-selected format, and omitted-source autodetection are
-  preserved.
-- Malformed JSON/TOML and wrong-shaped known TOML fields return an error instead of silently
-  accepting parser defaults.
-- Checked JSON rejects a non-object root or `github` section and rejects non-string/non-null
-  `github.repo` rather than exposing compatibility sentinel/default success.
+- Parsing consumes supplied bytes without reopening the pathname.
+- Leading BOM compatibility and omitted-source autodetection remain supported.
+- Malformed syntax and wrong-shaped known TOML fields return an error instead of defaults.
+- Checked JSON rejects a non-object `github` value and non-string/non-null `github.repo` before the
+  compatibility parser can substitute a sentinel or defaults.
 
 ### REQ-config-008
 
@@ -106,7 +101,10 @@ selected bytes and omitted-source detection beneath one retained project capabil
 Acceptance Criteria
 
 - Canonical-to-legacy precedence and source-file classification are shared rather than duplicated.
-- An explicitly configured source root is not traversed during config loading; normal validation
-  remains responsible for reporting unsafe mappings.
-- Invalid-UTF-8 legacy CLI config emits the established fail-loud warning and uses safe defaults.
+- Explicit source roots are parsed before autodetection and left to normal validation instead of
+  triggering unrelated manifest/source traversal.
+- A nested configuration parent must remain reachable from the retained project root before and
+  after its bounded read.
+- Invalid-UTF-8 legacy CLI config keeps its fail-loud warning and safe-default fallback.
 - Strict MCP selected-config parsing remains unchanged.
+

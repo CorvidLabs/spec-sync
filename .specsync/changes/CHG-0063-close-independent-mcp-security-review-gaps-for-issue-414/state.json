@@ -5,10 +5,11 @@
   "title": "Close independent MCP security review gaps for issue 414",
   "description": "Close independent MCP security review gaps for issue 414",
   "kind": "feature",
-  "state": "implementing",
+  "state": "accepted",
+  "canonical_applied": true,
   "base_commit": "a0d993b7d10d177f9a4770f54fbe14045750221c",
   "created_at": 1784691566,
-  "updated_at": 1785101226,
+  "updated_at": 1785120220,
   "affected_specs": [
     "cmd_check",
     "cmd_comment",

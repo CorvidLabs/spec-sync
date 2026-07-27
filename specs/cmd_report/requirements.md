@@ -35,14 +35,13 @@ spec: cmd_report.spec.md
 
 ### REQ-cmd-report-001
 
-The report command SHALL render complete per-module coverage, maturity, incompleteness, and staleness information with status filtering.
+The report command SHALL provide a trustworthy project/module health view and SHALL fail closed when
+manifest discovery is inconclusive.
 
 Acceptance Criteria
-- `cmd_report(root, format, stale_threshold, exclude_status, only_status)` discovers specs, applies the status filters, computes coverage, and renders a report sorted by module name.
-- Per-module coverage is the share of that spec's declared `files:` that exist on disk (`existing / max(total, 1) * 100`).
-- A module is **stale** when any existing source file has `>= stale_threshold` commits since the spec's last commit; the largest such count is reported as "commits behind". Default `stale_threshold` is 5.
-- Staleness resolves the spec's last commit once via `git_last_commit_hash`, then calls `git_commits_since(root, spec_commit, source_file)` per source file (no per-file spec `git log`).
-- A module is **incomplete** when it is missing any of `status`/`module`/`version`, or when `## Public API` or `## Invariants` is absent, empty, or only `TODO`/`TBD`/`N/A`/an HTML comment.
-- Text mode prints an overall coverage line, a Module/Coverage/Stale/Incomplete table, and stale/incomplete detail sections; JSON mode emits overall stats plus a `modules` array with `coverage_pct`, `stale`, `commits_behind`, `incomplete`, `missing_fields`, and `empty_sections`.
-- Malformed Gradle/manifest discovery exits nonzero rather than reporting partial coverage; JSON preserves an explicit `valid: false`, `inconclusive: true` failure shape.
+
+- Overall coverage uses `compute_coverage_checked`.
+- Malformed Gradle/manifest discovery exits nonzero before partial report rendering.
+- JSON remains parseable with `valid: false`, `inconclusive: true`, null overall coverage, zero
+  counts, an empty `modules` collection, and an explicit error.
 

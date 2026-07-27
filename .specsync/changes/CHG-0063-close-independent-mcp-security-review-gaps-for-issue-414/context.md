@@ -365,3 +365,11 @@ retains and revalidates every selected read-root component before success, and a
 destination/parent failures now use one exact quarantine-cleanup funnel. Focused evidence passes
 122 MCP unit tests, 72 MCP integrations, the 1,000-output/1,200-descriptor fixture, and the Unix
 read-root replacement race. CLI generation now covers text/JSON and default/batch with two modules.
+
+Exact candidate `dec4cd2f1849b05fafbdcecfcb428db59b4ce022` is the final implementation tree. Its
+complete local suite, pinned offline release build, 100% project coverage, 100/A spec scores, and
+hash-bound private-sandbox replay pass. Hosted Linux, macOS, native Windows, coverage, audit,
+CodeQL, packaging, docs, and editor gates pass; Windows job `89850718717` validates the retained
+route fixture and all 298 hosted integrations. The only remaining red hosted signal is deliberate:
+the test-only fixture byte changed an exact CHG-0062 delivery input, so lifecycle integrity requires
+an audited CHG-0062 reopen before CHG-0063 can record final verification and closing approval.

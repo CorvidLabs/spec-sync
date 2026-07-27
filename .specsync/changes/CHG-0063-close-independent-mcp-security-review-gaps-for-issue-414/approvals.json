@@ -118,6 +118,20 @@
       "timestamp": 1785101226,
       "digest": "4fb9e6a009af4dadeb9aee3f17fff1c8123e90e67d76956bc676b36369985d76",
       "note": "User explicitly reapproved digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed in the Codex task."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785116364,
+      "digest": "0fb7b55f2f95bd3105887a8a0221d5315e15581ad2534433f2e30999ea8ea114",
+      "note": "User explicitly approved definition digest 0fb7b55f2f95bd3105887a8a0221d5315e15581ad2534433f2e30999ea8ea114."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785120220,
+      "digest": "7b67e1b439eb2de6248e57aca6e78e36e3934a02528f02691cbc9afecc624cf7",
+      "note": "Human closing approval: I approve closing CHG-0062 and CHG-0063 after fresh verification."
     }
   ],
   "reopenings": []

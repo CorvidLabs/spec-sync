@@ -1,6 +1,6 @@
 ---
 id: CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414
-state: implementing
+state: accepted
 type: feature
 base_commit: a0d993b7d10d177f9a4770f54fbe14045750221c
 ---

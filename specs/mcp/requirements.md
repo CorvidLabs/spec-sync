@@ -64,123 +64,109 @@ Acceptance Criteria
 ### REQ-mcp-002
 
 The MCP server SHALL confine every filesystem operation to its configured project root and SHALL
-expose mutating tools only when the operator explicitly enables writes.
+bound project-controlled inputs before downstream parsing.
 
 Acceptance Criteria
 
-- Default MCP mode omits mutating tools.
-- Direct mutator calls in default mode fail before execution.
-- Write mode is explicit and mutating tools cannot override the configured root.
-- MCP startup opens and identity-binds the user-requested root before ambient canonicalization,
-  then canonicalizes and reopens that path and requires the reopened identity to match; replacement
-  during acquisition fails before JSON-RPC request dispatch.
-- Read roots are lexical descendants opened only through the retained configured-root capability.
-- Read roots containing a `.git` component in any ASCII case are rejected before the operation
-  root is opened, so project-controlled Git metadata cannot become read authority.
+- Absolute outside roots are rejected lexically before metadata or symlink resolution.
+- The real MCP CLI passes the user-requested root unchanged into startup, which opens and
+  identity-binds it before ambient canonicalization, then canonicalizes/reopens it and requires
+  the same identity before JSON-RPC dispatch.
+- The canonical server root is retained as a directory capability; reads execute from bounded
+  snapshots and writes resolve only through the capability.
+- Project-controlled Git metadata is never used for MCP repository auto-detection; issue checks
+  require explicit `github.repo` configuration.
+- Every case variant of `.git` is rejected as a configured input, read-root component, and
+  snapshot entry before Git metadata can become operation authority.
 - Every read-root component is opened as an identity-checked regular directory without
-  symlink/reparse traversal, so an innocently named alias cannot redirect authority into `.git`.
-- On Windows, absolute read roots may be spelled beneath either the original startup path or its
-  canonical equivalent when both were identity-bound at startup; the derived suffix is still
-  opened only through the retained canonical capability, and sibling-prefix lookalikes fail.
-- Configuration/metadata/cache files, manifest/autodetection paths, dependency references, module
-  names/files, spec mappings, and nested symlink targets are confined before downstream filesystem
-  access.
-- All four Gradle build/settings variants are acquired as retained regular non-link files, capped
-  at 4 MiB before parsing or source probing, copied from exact retained bytes once, and rejected
-  for tools and resources when special, linked/reparse-backed, replaced, oversized, or invalid
-  UTF-8.
-- Recursive confinement uses cumulative deterministic budgets across configured paths and spec
-  mappings and honors ignored/configured exclusions.
-- Every declared Cargo member and Node workspace pattern consumes a deterministic expansion-work
-  entry before traversal; completed normalized nodes are memoized, and limit-plus-one fails without
-  partial discovery or subtree replay.
-- Traversal, configured-path, and symlink escapes fail before filesystem access.
-- Project files are bounded to 8 MiB and actual project/config input to 64 MiB per operation;
-  manifests are copied from the exact bytes charged during discovery.
-- Selected config is acquired through verified regular-directory and regular-file capabilities
-  with an explicit no-follow, non-blocking open before any replaceable path observation is trusted.
-  The retained handle's regular-file metadata and identity are authoritative through the bounded
-  read. Its exact bytes pass complete checked parsing before compatibility loading; non-object
-  JSON, invalid UTF-8, malformed JSON/TOML, and wrong-typed known fields fail closed for both tools
-  and resources.
-- Recognized manifest inputs use the same retained-handle acquisition contract; FIFOs, devices,
-  links/reparse points, and replacement identities fail before parsing or blocking reads on every
-  platform.
-- Generic project inputs used by tools and resources use that retained no-follow, non-blocking
-  reader too. Path metadata and opened-handle identity must agree before and after the bounded
-  read; FIFO/socket/device entries, links/reparse points, and regular replacements fail without
-  consuming replacement bytes or producing partial snapshots.
-- Cargo TOML path discovery follows only semantic target, dependency, workspace-dependency,
-  target-specific dependency, patch, and replacement tables; unrelated metadata `path` keys do
-  not authorize filesystem inputs. Comment/escape-aware shared Gradle workspace parsing preserves
-  explicitly declared inputs beneath normally ignored names, including multiline includes and
-  supported `projectDir` overrides.
-- Zero-config source selection consumes retained configuration and manifest observations acquired
-  after root retention; ambient swap-read-restore cannot inject source roots.
-- MCP snapshot collection and Cargo/Node preflight charge each workspace declaration before
-  deduplication, reuse normalized patterns/bases/workspace paths and completed Cargo manifests, and
-  fail closed when the shared traversal-entry bound is exceeded.
-- Recursive snapshot traversal records each enumerated directory identity before any test or
-  attacker checkpoint, then opens siblings sequentially so live directory handles are bounded by
-  depth while replacement still fails closed.
-- Object-form Node workspaces require a `packages` array, and every recognized nested
-  `package.json` is bounded and strictly parsed as an object with checked known workspace fields
-  before tools or resources may report success.
-- Manifest-relative `..` components are resolved from the declaring manifest and accepted only
-  when the normalized target remains beneath the retained server root. Confined Windows-native
-  backslashes are normalized equivalently; drive, UNC, rooted, traversal, symlink, and junction
-  escapes still fail before downstream access.
+  symlink/reparse traversal, so an alias cannot redirect authority into `.git`.
+- Project inputs are bounded to 8 MiB per file and 64 MiB of actual file/config bytes cumulatively;
+  explicitly configured normally ignored roots remain eligible.
+- Ignored and configured-exclusion symlink names are skipped before their targets are followed,
+  unless an explicit configured input names the path or a descendant; broad ancestor inputs do
+  not override configured exclusions.
+- Manifest discovery parses Cargo workspace membership as TOML and comment/escape-aware Gradle
+  settings, charges deduplicated manifest bytes to the shared cumulative input budget, and copies
+  the exact preflight buffers.
+- Every declared Cargo member and Node workspace pattern consumes bounded expansion work;
+  snapshot collection and preflight charge declarations before deduplication, normalize patterns,
+  bases, workspace paths, and manifest nodes, and reuse completed results.
+- Zero-config manifest/source detection begins after root capability retention and accepts only
+  retained manifest observations as source-directory authority.
+- Before any manifest-derived traversal, every present `build.gradle`, `build.gradle.kts`,
+  `settings.gradle`, and `settings.gradle.kts` candidate is opened no-follow and non-blocking
+  through the retained root capability, required to remain a regular non-link file with stable
+  identity, and bounded to 4 MiB. An unsafe or oversized candidate fails the operation even when
+  another candidate would otherwise be selected.
+- All four Gradle build/settings names are acquired once through retained no-follow, non-blocking
+  regular-file handles with the shared 4 MiB limit before parsing or source probing. Special,
+  linked/reparse-backed, replaced, oversized, or invalid-UTF-8 inputs reject tools and resources;
+  generic snapshot traversal never reopens the preloaded paths.
+- Cargo path discovery follows only semantic target, dependency, workspace-dependency,
+  target-specific dependency, patch, and replacement tables; unrelated metadata `path` keys are
+  ignored.
+- Unix symlink and Windows junction/reparse-point escapes fail before outside access.
+- Windows absolute-root components are compared with native ordinal Unicode ignore-case semantics
+  without lossy UTF-8 conversion.
+- Absolute Windows children may use either original or canonical startup spelling after startup
+  identity-binds both spellings; only the relative suffix is opened through the retained canonical
+  capability, and sibling-prefix lookalikes are rejected.
+- Selected config is opened non-blocking through verified regular-directory and regular-file
+  capabilities, rejects symlink/reparse and special-file paths, requires the opened identity to
+  match the pre-open inspected identity before reading, rechecks after the bounded read, and passes
+  the exact retained bytes through complete checked parsing before compatibility loading.
+  Recognized snapshot manifests follow the same non-blocking regular-file and pre-open identity
+  rule. Non-object JSON, invalid UTF-8, malformed JSON/TOML, and wrong-typed known fields make every
+  tool/resource inconclusive rather than selecting defaults.
+- Generic project files used by tools and resources follow the same no-follow, non-blocking,
+  retained-handle acquisition. Path and opened-handle identity must agree before and after the
+  bounded read; FIFO/socket/device, link/reparse, and regular replacement races fail without
+  consuming replacement bytes or returning partial snapshots.
+- Manifest-relative Cargo paths may normalize `..` across sibling crates when the normalized result
+  remains beneath the retained root. Confined Windows-native backslashes normalize equivalently;
+  drive, UNC, rooted, traversal, canonical, symlink, and junction escapes remain rejected.
 
 ### REQ-mcp-003
 
-The MCP server SHALL validate JSON-RPC tool arguments exactly and SHALL obey notification response
-semantics.
+The MCP server SHALL validate JSON-RPC envelopes and arguments before dispatch and SHALL fail closed
+when protocol output or deterministic generation cannot complete safely.
 
 Acceptance Criteria
 
-- Unknown keys and wrong argument types return `-32602` without tool execution.
-- Request IDs are non-null strings or integers; null, fractional, object, and array IDs return
-  `-32600` before dispatch.
-- Initialize requests require non-empty `protocolVersion`, object `capabilities`, and non-empty
-  string `clientInfo.name`/`clientInfo.version`; missing or wrong-typed negotiation fields return
-  `-32602`.
-- Tool-domain failures remain `isError: true` results.
-- Every notification, including unknown methods, emits no response and cannot mutate files.
-- JSON-RPC lines larger than 1 MiB are drained and rejected with `-32700` before parsing; the next
-  line remains independently processable.
-- Generation is limited to 1,000 specs and 64 MiB, atomically publishes through retained parent
-  capabilities, and rolls back only matching filesystem and exact-byte transaction identities,
-  including when a filesystem immediately reuses an inode. Exact-byte identity hashing is capped
-  at the generated-output limit and fails closed above it.
-- Before and after publication, every public parent component is reopened without link/reparse
-  traversal and must identify the parent captured during staging; replacement fails the batch.
-- If the post-link parent check fails, the exact quarantined staged identity is cleaned before the
-  error returns; a replacement is never removed and cleanup failure remains visible.
-- Destination-open, destination-identity, destination-mismatch, and public-parent errors after the
-  hard link all pass through that same exact quarantine cleanup path.
-- A generated batch shares one retained root capability across outputs rather than retaining one
-  additional root handle per staged spec.
-- A selected read-root route retains component identities and is reopened/revalidated before a
-  successful tool/resource response; detached or replaced public components make the request
-  inconclusive.
-- Quarantine cleanup validates its retained directory identity and consumes the final directory
-  capability before removal, avoiding Windows sharing violations without reopening an ambient path.
-- GitHub issue verification requires explicit `GITHUB_TOKEN`, performs reads in-process without a
-  provider subprocess, prepares once, globally caps/deduplicates 100 IDs, includes authentication
-  and repository preflight in its 30-second deadline, and revalidates access after an apparent
-  missing issue.
-- GitHub issue verification treats unreadable specs, malformed or missing frontmatter, and failed
-  spec discovery as inconclusive tool errors instead of silently producing a zero-reference
-  success.
-- Recursive discovery and `implements`/`tracks` list shapes are checked rather than lossy; walker
-  failures, wrong shapes, and invalid issue IDs are inconclusive.
-- Checked issue parsing uses the shared maintained real-YAML parser: duplicate keys and malformed
-  YAML anywhere reject the operation; blank/null/scalar/mapping/mixed/non-positive/overflowing
-  top-level known fields are invalid; comments and valid trailing commas are accepted; nested
-  extension and block-scalar lookalikes are ignored; LF and CRLF delimiters are equivalent.
-- MCP read diagnostics expose only a sanitized project-relative spec path and a content-free
-  reason; they do not expose the server's absolute root, raw OS error text, or spec bytes.
-- MCP issue diagnostic paths normalize separators only on Windows; literal Unix filename
-  backslashes remain data and cannot collide with a nested path identity.
-- MCP tools/resources reject invalid UTF-8, malformed JSON/TOML, and wrong-typed selected
-  specs/source path selectors before compatibility loading can substitute defaults.
+- Invalid request envelopes return `-32600` before dispatch, including in write-enabled mode.
+- Request IDs accept only non-null strings or integers; null and fractional IDs return `-32600`.
+- Initialize requires typed protocol version, capabilities, and client name/version fields;
+  malformed negotiation returns `-32602`.
+- Resource arguments are exact-schema validated with `-32602` failures.
+- Responses are bounded to 1 MiB; bounded request IDs are preserved while oversized IDs safely fall
+  back to `null`, and transport failures are surfaced.
+- Generation destination collisions and incomplete writes return tool errors instead of success;
+  partial multi-file output is rolled back through retained parent capabilities after filesystem
+  identity checks.
+- Staged publication reopens the public parent without links/reparse points and rejects an identity
+  change before and after linking.
+- A failed post-link parent check cleans the exact quarantined identity before returning and
+  reports cleanup failure without removing a replacement.
+- Destination-open, destination-identity, destination-mismatch, and public-parent failures after
+  the hard link all use the same exact cleanup path.
+- One transaction-wide retained root capability is shared across staged outputs rather than
+  retaining one additional root handle per generated spec.
+- Selected read-root component identities are retained and the complete route is reopened and
+  revalidated before a successful tool/resource response.
+- GitHub issue verification requires explicit `GITHUB_TOKEN`, runs read/list/verify requests
+  in-process without a provider subprocess, globally deduplicates/caps IDs, includes
+  authentication/preflight in elapsed-time bounds, revalidates access after apparent absence, and
+  treats provider failures as inconclusive.
+- Failed spec discovery, unreadable specs, and malformed or missing frontmatter make MCP issue
+  verification inconclusive instead of producing a successful zero-reference result.
+- Checked issue parsing uses maintained real-YAML semantics: duplicate/global malformed YAML and
+  blank/null/wrong-shaped known fields fail closed; comments/trailing commas remain valid; nested
+  extension and block-scalar lookalikes are ignored; LF and CRLF frontmatter delimiters are
+  accepted equivalently.
+- Issue diagnostic paths normalize separators only on Windows; literal Unix backslashes remain
+  filename data and cannot collide with a nested-path identity.
+- Selected config validation runs before allow-empty tools/resources can report an empty/default
+  project.
+- Windows transaction cleanup consumes the final quarantine directory capability before name-based
+  removal so init, generation, and collision rollback do not fail with sharing violations.
+

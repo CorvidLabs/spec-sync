@@ -1,6 +1,6 @@
 ---
 module: cmd_score
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/score.rs
@@ -29,11 +29,8 @@ Implements the `specsync score` command. Scores spec quality 0-100 (graded A-F) 
 
 ## Invariants
 
-1. Five categories, 20 points each
-2. Grades: A (90+), B (80-89), C (70-79), D (60-69), F (<60)
-3. `--explain` shows per-category breakdown
-4. JSON includes per-spec objects and project aggregate
-5. Checked manifest discovery must succeed before coverage gates are evaluated; malformed Gradle settings are inconclusive and exit 1 even though ordinary scoring is advisory
+5. Checked manifest discovery must succeed before coverage gates are evaluated; malformed Gradle
+   settings are inconclusive and exit 1 even though ordinary scoring is advisory.
 
 ## Behavioral Examples
 
@@ -78,3 +75,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-22 | v3: fail closed when malformed Gradle/manifest discovery makes score coverage gates inconclusive |
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

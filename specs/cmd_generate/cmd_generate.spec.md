@@ -1,6 +1,6 @@
 ---
 module: cmd_generate
-version: 4
+version: 5
 status: stable
 files:
   - src/commands/generate.rs
@@ -31,11 +31,8 @@ Implements deterministic `specsync generate` scaffolding for unspecced modules u
 
 ## Invariants
 
-1. Generation always uses local deterministic templates and performs no inference or shell execution
-2. Re-runs validation after generation to verify new specs
-3. Batch selection reports generated, already-specced, and unknown modules deterministically
-4. JSON output has no provider-specific fields
-5. Checked manifest discovery must succeed before selecting uncovered modules; malformed Gradle settings are inconclusive and exit 1
+5. Checked manifest discovery must succeed before generation; malformed Gradle settings are
+   inconclusive, produce no files, and exit 1.
 
 ## Behavioral Examples
 
@@ -80,3 +77,4 @@ Implements deterministic `specsync generate` scaffolding for unspecced modules u
 | 2026-04-09 | Initial spec |
 | 2026-06-11 | v2: Exit non-zero when AI generation fails, with the errors re-printed last on stderr and `ai_errors` in JSON output |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

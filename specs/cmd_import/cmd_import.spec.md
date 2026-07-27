@@ -1,6 +1,6 @@
 ---
 module: cmd_import
-version: 5
+version: 6
 status: stable
 files:
   - src/commands/import.rs
@@ -29,18 +29,13 @@ Implements the `specsync import` command. Imports specs from external systems (G
 
 ## Invariants
 
-1. Supported sources: `github`, `jira`, `confluence`
-2. GitHub import resolves repo from config, CLI flag, or git remote
-3. Single and batch GitHub imports require explicit `GITHUB_TOKEN` and use only typed in-process REST reads; authenticated `gh` state is not a fallback
-4. Batch GitHub import follows every valid page, bounded to 100 pages of 100 issues, and fails on malformed pagination, duplicate issue IDs, or a continuing page at the cap instead of returning partial success
-5. Each GitHub REST operation is bounded to 10 seconds
-6. Creates spec and companion files (tasks.md, context.md, requirements.md, testing.md); design.md is generated only when `companions.design` is enabled in config
-7. Will not overwrite existing spec
-8. Success guidance tells users to validate and complete imported details, not to fill template markers
-9. Every single and batch item passes shared portable module-name validation before any output
-   directory or filename is joined or created.
-10. Batch modes continue past per-item failures and print the complete summary, but exit 1 when
-    any item errored; partial successful imports are reported truthfully.
+1. GitHub import reads never launch a provider subprocess.
+2. Single imports use the shared typed issue-detail contract.
+3. Batch imports use strict, bounded, complete pagination.
+4. Missing tokens, malformed responses, inaccessible repositories, transport failures, timeouts,
+   pagination ambiguity, and cap truncation fail closed.
+5. Unsafe/reserved/overlong output names create no directory or file.
+6. Partial batch success never produces a false-green exit status.
 
 ## Behavioral Examples
 
@@ -89,3 +84,4 @@ Implements the `specsync import` command. Imports specs from external systems (G
 | 2026-07-23 | CHG-0063 portable batch follow-up: validate every output name before writes, continue batch processing, and exit nonzero when any item fails |
 | 2026-04-13 | Document testing.md and conditional design.md in companion generation |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

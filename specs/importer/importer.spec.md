@@ -1,6 +1,6 @@
 ---
 module: importer
-version: 6
+version: 7
 status: active
 files:
   - src/importer.rs
@@ -38,20 +38,14 @@ Generates spec files from external project management systems. Supports importin
 
 ## Invariants
 
-1. `import_github_issue` delegates to `github::fetch_issue_details`, requires explicit
-   `GITHUB_TOKEN`, revalidates repository access after ambiguous 404, and never launches `gh`.
-2. Jira importer handles both ADF (Atlassian Document Format) and plain text descriptions
-3. Confluence importer strips HTML tags to extract plain text from storage format
-4. `slugify` produces a lowercase hyphenated candidate and may return empty for titles containing
-   no alphanumeric characters; GitHub, Jira, and Confluence imports validate the candidate through
-   the shared portable module-name contract before producing an item.
-5. `render_spec` always produces valid spec frontmatter with all required fields
-6. Requirements are extracted from markdown checkboxes, "Acceptance Criteria" sections, and "Definition of Done" sections
-7. Jira auth supports both Cloud (email:token basic auth) and Server/DC (bearer token)
-8. Confluence auth supports both Cloud (email:token basic auth) and Server/DC (bearer token)
-9. HTTP timeouts are 10s for GitHub, 15s for Jira and Confluence
-10. Generated specs always have `status: draft` and `version: 1`
-11. Imported specs without extracted requirements include a concrete follow-up prompt instead of an HTML unfinished-work marker
+1. `import_github_issue` delegates to `github::fetch_issue_details`.
+2. Missing tokens, malformed payloads, transport failures, timeouts, and inaccessible repositories
+   are errors rather than partial imported items.
+3. The issue identity, title, body, labels, state, and URL are parsed through the shared typed GitHub
+   response contract.
+4. `gh` remains outside the importer read path.
+5. Every provider-derived module name is portable after safe-name normalization, including
+   reserved-device and generated-filename byte limits.
 
 ## Behavioral Examples
 
@@ -125,3 +119,4 @@ Generates spec files from external project management systems. Supports importin
 | 2026-07-23 | CHG-0063 portable-import follow-up: validate GitHub, Jira, and Confluence slugs against shared reserved-name and generated-filename limits |
 | 2026-04-07 | Initial implementation — GitHub, Jira, Confluence importers (#97) |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

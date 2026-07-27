@@ -1,6 +1,6 @@
 ---
 module: parser
-version: 6
+version: 7
 status: stable
 files:
   - src/parser.rs
@@ -23,27 +23,27 @@ parser that validates top-level issue-reference fields and rejects ambiguous or 
 
 ## Public API
 
-**Exported Structs**
+#### Exported Structs
 
 | Type | Description |
 |------|-------------|
 | `ParsedSpec` | Parsed spec file containing `frontmatter: Frontmatter` and `body: String` |
 
-**Exported Functions**
+#### Exported Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `parse_frontmatter` | `content: &str` | `Option<ParsedSpec>` | Parse YAML frontmatter delimited by `---` from a spec file |
+| `parse_frontmatter` | `content: &str` | `Option<ParsedSpec>` | Parse supported-subset frontmatter delimited by `---` from a spec file |
 | `parse_checked_issue_references` | `content: &str` | `Result<(Vec<u64>, Vec<u64>), String>` | Parse and strictly validate top-level `implements` and `tracks` issue-reference lists from real YAML frontmatter |
 | `get_spec_symbols` | `body: &str` | `Vec<String>` | Extract backtick-quoted symbol names from the `## Public API` section tables |
 | `get_missing_sections` | `body: &str, required_sections: &[String]` | `Vec<String>` | Check which required `##` sections are missing from the spec body |
-| `is_export_header` | `header: &str` | `bool` | Returns true if a `###` header denotes an exported-symbols subsection (e.g. `### Exported Functions`) |
-| `section_has_content` | `body: &str, section: &str` | `bool` | Returns true if the `## Section` block contains non-whitespace content beyond the header line |
-| `find_stub_sections` | `body: &str, required_sections: &[String]` | `Vec<String>` | Returns required section names whose `## Section` blocks are present but contain no substantive content |
-| `find_section_offset` | `body: &str, section: &str` | `Option<usize>` | Returns byte offset of the `## Section` heading line, using anchored regex with trailing-whitespace tolerance |
-| `body_has_section` | `body: &str, section: &str` | `bool` | Returns true if the spec body contains an exact `## Section` heading (delegates to `find_section_offset`) |
-| `get_near_miss_sections` | `body: &str, required_sections: &[String]` | `Vec<(String, String)>` | For each missing required section, returns `(canonical_name, found_heading)` pairs where a `## Heading` exists within Levenshtein distance ≤ 2 — used to detect typos and suggest `--fix` |
-| `get_all_api_table_symbols` | `body: &str` | `Vec<String>` | Extract the first backtick-quoted symbol from every table row in `## Public API`, including informational subsections that `get_spec_symbols` skips — used by `check --fix` to avoid appending duplicate rows |
+| `is_export_header` | `header: &str` | `bool` | Return whether a `###` header denotes an exported-symbols subsection |
+| `section_has_content` | `body: &str, section: &str` | `bool` | Return whether the `## Section` block contains substantive content |
+| `find_stub_sections` | `body: &str, required_sections: &[String]` | `Vec<String>` | Return required sections that are present but lack substantive content |
+| `find_section_offset` | `body: &str, section: &str` | `Option<usize>` | Return the byte offset of an exact `## Section` heading |
+| `body_has_section` | `body: &str, section: &str` | `bool` | Return whether the body contains an exact `## Section` heading |
+| `get_near_miss_sections` | `body: &str, required_sections: &[String]` | `Vec<(String, String)>` | Return missing canonical sections paired with near-miss headings |
+| `get_all_api_table_symbols` | `body: &str` | `Vec<String>` | Extract the first backtick-quoted symbol from every Public API table row |
 
 ## Invariants
 
@@ -153,3 +153,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Preserve complete punctuated symbols in Public API table rows |
 | 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Preserve punctuated Public API symbols across all export extractors |
 | 2026-07-22 | CHG-0063: Add maintained real-YAML checked issue-reference parsing with duplicate/malformed YAML rejection, strict top-level shapes, CRLF compatibility, and extension-safe semantics |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

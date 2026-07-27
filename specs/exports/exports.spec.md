@@ -1,6 +1,6 @@
 ---
 module: exports
-version: 9
+version: 10
 status: stable
 files:
   - src/exports/mod.rs
@@ -339,6 +339,7 @@ text and is intentionally excluded by code-only Rust dependency extraction.
 | 2026-07-14 | CHG-0036-support-commonjs-exports-for-newly-discovered-cjs-modules-without-changing-esm: Support CommonJS exports for newly discovered .cjs modules without changing ESM behavior |
 | 2026-07-14 | CHG-0037-resolve-extensionless-mjs-barrel-exports-for-newly-discovered-module-javascript: Resolve extensionless mjs barrel exports for newly discovered module JavaScript sources |
 | 2026-07-14 | CHG-0038-harden-commonjs-export-extraction-and-exclude-module-javascript-tests-from-gener: Harden CommonJS export extraction and exclude module JavaScript tests from generated specs |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 
 ## CommonJS Extraction
 

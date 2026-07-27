@@ -54,37 +54,12 @@ rules while accumulating actionable findings, and SHALL support exact pre-read s
 without reopening their logical paths.
 
 Acceptance Criteria
+
 - Bidirectional validation reports a documented-but-missing export as an error and an undocumented
   code export as a warning.
 - Missing required frontmatter fields (`module`, `version`, `status`, `files`) are errors.
 - Cross-project references are recognized and skipped during local validation.
 - Coverage excludes test files and configured exclude patterns.
-- Checked coverage snapshots source roots and file bytes through retained no-follow handles;
-  symlink, reparse, or identity replacement fails inconclusive before partial totals or outside
-  reads.
-- Caller-selected spec ownership reads, manifest discovery, spec-module enumeration, source
-  traversal, and final root verification use one retained project capability rather than
-  independently reopening ambient project/spec paths.
-- Checked coverage traverses iteratively and deterministically with shared limits of 8 MiB per
-  selected spec or source file, 64 MiB cumulative selected-spec/source bytes, 100,000 selected-spec
-  and source inventory entries, and 256 path components; special entries, invalid UTF-8
-  names/content, and exhausted bounds fail inconclusive.
-- Checked spec/source directory enumeration stores child identities rather than every open child
-  handle, then reopens children sequentially through retained parents so live handles are bounded
-  by depth while replacement remains inconclusive.
-- Configured source roots are identity-selected without retaining all root handles, then reopened,
-  identity-checked, traversed, and released sequentially so live handles remain bounded by depth
-  rather than configured-root count.
-- The project root is retained before configuration and zero-config manifest/source detection;
-  nested configuration/manifest parents remain reachable from it, and selected-spec identities
-  remain bound through ownership reads.
-- Explicit `source_dirs` are parsed before autodetection; only omitted source directories trigger
-  retained manifest/source discovery.
-- Deterministic early-after-retention and post-discovery checkpoints independently prove that
-  checked coverage rejects root/input replacement without partial totals or outside reads; gate
-  callers propagate these checked-coverage failures.
-- Command-wide immutable CLI authority and generic structured discovery outcomes are not provided
-  by this requirement and remain assigned to later CLI/outcome/generation work.
 - `find_spec_files` returns sorted results.
 - Schema validation uses the configured `schema_pattern`.
 - Missing source suggestions use Levenshtein distance with a maximum distance of three.
@@ -95,7 +70,7 @@ Acceptance Criteria
 - `validate_spec_content` applies normal single-spec validation to caller-provided spec bytes.
 - `spec_path` remains the logical location for diagnostics and mapped-source resolution, but is not
   reopened to obtain spec content; adjacent companion reads are deliberately skipped for the
-  pre-read spec-content API.
+  pre-read spec-content API, while mapped sources retain normal path-based behavior.
 - CRLF normalization and spec-size policy are computed from the supplied content.
 - `validate_spec` preserves path-based compatibility by reading once and delegating the exact bytes
   to `validate_spec_content`.
@@ -182,19 +157,39 @@ Acceptance Criteria
 
 Coverage gates SHALL use fallible checked manifest discovery and SHALL report malformed, unreadable,
 unsupported, or unconfined Gradle discovery as inconclusive instead of accepting partial coverage
-or traversing outside a retained project root.
+or traversing outside the retained project root.
 
 Acceptance Criteria
 
 - `compute_coverage_checked` propagates checked manifest-discovery errors without producing a
   partial `CoverageReport`.
-- CLI check, coverage, generate, report, score, and comment gates use checked coverage and exit
-  non-zero with an inconclusive diagnostic.
-- MCP coverage, check, score, and generation flows use checked coverage and return a tool or
-  resource error rather than a false-green result.
-- Raw drive-qualified Gradle module identities, unescaped double-quoted interpolation, encoded
-  traversal, unsupported or dynamic project-directory mutators, unsafe recognized Gradle manifest
-  entries, and symlink/reparse components in Gradle-derived directories propagate as
-  checked-discovery failures before source probing or traversal.
+- CLI and MCP coverage/enforcement callers use checked coverage and fail with an inconclusive
+  diagnostic.
+- Raw drive-qualified module identities, dynamic/unsupported project-directory mutators, and
+  symlink/reparse components in Gradle-derived directories propagate as checked errors before
+  source probing, traversal, partial totals, or generation.
+- Interpolated/encoded-dynamic Gradle strings and unsafe or oversized Gradle manifest endpoints
+  propagate as checked errors before partial totals, outside reads, or generation.
+- After checked manifest discovery, every configured or manifest-derived source tree is traversed
+  through one retained project-root capability with no-follow directory opens and non-blocking,
+  identity-checked regular-file reads. Post-discovery replacement, links/reparse points, and
+  special files fail every coverage gate before totals, disclosure, or generated output.
+- Checked coverage acquires configured source roots and source bytes through retained no-follow
+  handles, binds directory/file identity before and after traversal, and derives file, LOC,
+  immediate-directory, and flat-file module results from that snapshot. Post-discovery
+  symlink/junction replacement fails inconclusive for every coverage gate before outside reads.
+- Caller-selected spec ownership reads, manifest discovery, spec-module enumeration, source
+  traversal, and final root verification share one retained project capability. Traversal is
+  sorted and iterative with 8 MiB per input file, 64 MiB cumulative bytes, 100,000 entries, and
+  256 path components.
+- Root retention precedes configuration and omitted-source manifest/source detection. Explicit
+  source roots skip autodetection; nested configuration/manifest parents remain reachable from the
+  retained root. Every selected spec and source inventory entry is charged to the shared entry
+  bound, and selected-spec discovery identity remains authoritative through ownership parsing.
+- Separate deterministic checkpoints immediately after root retention and after discovery scope
+  checked coverage; gate callers propagate their inconclusive errors.
+- Invalid UTF-8 source names/content, special entries, links/reparse points, root/directory/file
+  identity replacement, and exhausted bounds fail inconclusive before partial coverage totals.
 - `compute_coverage` remains available for compatibility and returns a zero-percent report carrying
   an inconclusive module diagnostic when checked discovery fails.
+

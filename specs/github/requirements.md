@@ -66,37 +66,31 @@ spec: github.spec.md
 
 ### REQ-github-001
 
-GitHub helpers SHALL resolve repositories and issue state predictably while redacting credentials from surfaced failures.
+GitHub helpers SHALL resolve repositories and issue state predictably while redacting credentials
+from surfaced failures.
 
 Acceptance Criteria
-- `detect_repo` extracts `owner/repo` from SSH (`git@github.com:owner/repo.git`), HTTPS (`https://github.com/owner/repo.git`), and `http://github.com/...` remote URLs; the trailing `.git` is optional
-- `resolve_repo` prefers explicit config repo over auto-detected repo; returns error if neither is available
-- `gh_is_available` returns true only when `gh auth status` succeeds (CLI is installed and authenticated)
-- `fetch_issue`, `list_issues`, and issue verification use in-process GitHub REST and never launch a `gh` provider process
-- Every issue read/list/verify path requires `GITHUB_TOKEN`; authenticated `gh` state is not a fallback
-- `fetch_issue_api` uses a 10-second HTTP timeout; returns error on network failure
-- Issue state is normalized to lowercase (`"open"` / `"closed"`) regardless of API response format
-- `verify_spec_issues` classifies each issue as valid (open), closed, not_found, or error with detailed messages
-- Issue verification preflights repository access once and revalidates it after apparent absence;
-  inaccessible repositories, authentication, transport, timeout, and malformed-provider failures
-  are errors rather than not_found.
-- Batch verification globally deduplicates at most 100 issue IDs and bounds REST request duration
-  plus repository-preflight and total elapsed time.
-- `create_drift_issue` is the only issue operation that invokes `gh`; no REST write fallback is provided
-- `create_drift_issue` creates issue titled "Spec drift detected: {path}" with formatted error list in body
-- Drift issues are created with configurable labels (default `["spec-drift"]`, set via `github.drift_labels`)
-- `list_issues` lists every open issue through in-process REST, requires `GITHUB_TOKEN`, skips pull
-  requests, rejects any provider page above 100 entries before item parsing, follows strict GitHub
-  `Link` pagination for at most 100 pages, and fails on malformed links, duplicate issue numbers,
-  or a page-limit truncation. Pull-request entries count toward the provider-page bound. Before PR
-  filtering, every raw item must have a valid marker shape, positive identity, nonempty title,
-  nonempty names for any labels, exact open state, and canonical repository/resource/number URL
-  identity; the number segment must exactly equal canonical decimal `u64` spelling, so leading
-  zeros are rejected. Duplicate raw
-  identities within or across pages fail even when pull requests would otherwise be filtered. Each
-  next link must retain the requested repository issues endpoint and exact `state=open`,
-  `per_page=100`, label, and page query semantics.
-- Auth tokens (`GITHUB_TOKEN`) are redacted from REST request error messages via `redact_token` before being surfaced (defense-in-depth)
+
+- Issue reads, listing, and verification use in-process GitHub REST, require an explicit
+  `GITHUB_TOKEN`, and do not spawn a `gh` provider process.
+- Issue verification preflights repository access once and revalidates access after an apparent
+  missing issue before classifying not_found; provider failures are errors.
+- One verification batch globally deduplicates at most 100 issue IDs across specs.
+- REST issue operations use a 10-second deadline; repository preflight and all fetches share the
+  complete 30-second verification deadline.
+- Single and listed provider responses require numeric issue identity plus valid title, state,
+  labels, and URL; list labels are encoded as query parameters and malformed PR markers fail closed.
+- Direct issue-detail responses reject any `pull_request` marker before returning importer data.
+- Issue listing rejects raw provider pages above 100 entries before item parsing, including
+  pull-request entries. Every raw issue/pull-request item is fully validated before PR filtering:
+  marker shape, positive numeric identity, nonempty title, nonempty names for any labels, exact open state, and canonical
+  repository/resource/number URL identity must agree, including exact canonical decimal number
+  spelling with no leading zeros. Duplicate raw identities within or across
+  pages fail even when a duplicate would be filtered as a pull request. Listing follows strict
+  encoded `Link` pagination for at most 100 pages and fails on malformed links or a continuing next
+  page at the cap instead of returning a truncated batch import. Every next link must retain the
+  requested repository issues endpoint and exact open-state, page-size, label, and page semantics.
+- `gh` remains available only for the explicit `create_drift_issue` write path.
 
 ### REQ-github-002
 

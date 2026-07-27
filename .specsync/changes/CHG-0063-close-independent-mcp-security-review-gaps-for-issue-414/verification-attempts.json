@@ -33,6 +33,174 @@
         "REQ-mcp-002",
         "REQ-mcp-003"
       ]
+    },
+    {
+      "timestamp": 1785116690,
+      "commit": "dec4cd2f1849b05fafbdcecfcb428db59b4ce022",
+      "contract_digest": "0fb7b55f2f95bd3105887a8a0221d5315e15581ad2534433f2e30999ea8ea114",
+      "workspace_digest": "552ac00f3d3f6c2b5def96df7085aa53376d9976477b7c03156f2a36aa282bde",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cli-006",
+        "REQ-cmd-check-001",
+        "REQ-cmd-comment-003",
+        "REQ-cmd-coverage-001",
+        "REQ-cmd-generate-001",
+        "REQ-cmd-import-001",
+        "REQ-cmd-issues-001",
+        "REQ-cmd-report-001",
+        "REQ-cmd-score-001",
+        "REQ-commands-003",
+        "REQ-commands-004",
+        "REQ-config-005",
+        "REQ-config-006",
+        "REQ-config-007",
+        "REQ-config-008",
+        "REQ-exports-005",
+        "REQ-generator-002",
+        "REQ-github-001",
+        "REQ-importer-001",
+        "REQ-manifest-001",
+        "REQ-mcp-002",
+        "REQ-mcp-003",
+        "REQ-parser-001",
+        "REQ-validator-001",
+        "REQ-validator-008"
+      ]
+    },
+    {
+      "timestamp": 1785117062,
+      "commit": "dec4cd2f1849b05fafbdcecfcb428db59b4ce022",
+      "contract_digest": "0fb7b55f2f95bd3105887a8a0221d5315e15581ad2534433f2e30999ea8ea114",
+      "workspace_digest": "552ac00f3d3f6c2b5def96df7085aa53376d9976477b7c03156f2a36aa282bde",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cli-006",
+        "REQ-cmd-check-001",
+        "REQ-cmd-comment-003",
+        "REQ-cmd-coverage-001",
+        "REQ-cmd-generate-001",
+        "REQ-cmd-import-001",
+        "REQ-cmd-issues-001",
+        "REQ-cmd-report-001",
+        "REQ-cmd-score-001",
+        "REQ-commands-003",
+        "REQ-commands-004",
+        "REQ-config-005",
+        "REQ-config-006",
+        "REQ-config-007",
+        "REQ-config-008",
+        "REQ-exports-005",
+        "REQ-generator-002",
+        "REQ-github-001",
+        "REQ-importer-001",
+        "REQ-manifest-001",
+        "REQ-mcp-002",
+        "REQ-mcp-003",
+        "REQ-parser-001",
+        "REQ-validator-001",
+        "REQ-validator-008"
+      ]
+    },
+    {
+      "timestamp": 1785120202,
+      "commit": "dec4cd2f1849b05fafbdcecfcb428db59b4ce022",
+      "contract_digest": "0fb7b55f2f95bd3105887a8a0221d5315e15581ad2534433f2e30999ea8ea114",
+      "workspace_digest": "153595385a3cc23ced97c2df23d9b8e670c299417e6290af1556f1a26facbdeb",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cli-006",
+        "REQ-cmd-check-001",
+        "REQ-cmd-comment-003",
+        "REQ-cmd-coverage-001",
+        "REQ-cmd-generate-001",
+        "REQ-cmd-import-001",
+        "REQ-cmd-issues-001",
+        "REQ-cmd-report-001",
+        "REQ-cmd-score-001",
+        "REQ-commands-003",
+        "REQ-commands-004",
+        "REQ-config-005",
+        "REQ-config-006",
+        "REQ-config-007",
+        "REQ-config-008",
+        "REQ-exports-005",
+        "REQ-generator-002",
+        "REQ-github-001",
+        "REQ-importer-001",
+        "REQ-manifest-001",
+        "REQ-mcp-002",
+        "REQ-mcp-003",
+        "REQ-parser-001",
+        "REQ-validator-001",
+        "REQ-validator-008"
+      ]
     }
   ]
 }

@@ -87,5 +87,20 @@ Acceptance Criteria
   title text and Markdown body text.
 - Sanitization does not change grouping: one drift issue is still attempted per spec, and an
   individual creation failure does not stop later specs.
-- Public validation continues returning rendered `Vec<String>` diagnostics; structured
-  path/message attribution remains private command plumbing and does not expose private types.
+- Public validation retains its rendered `Vec<String>` diagnostics contract. Private structured
+  attribution and longest exact discovered-path matching preserve legal paths containing `": "`
+  without exporting new command types.
+
+### REQ-commands-004
+
+Shared module-name validation SHALL enforce one portable generated-spec component contract on every
+host.
+
+Acceptance Criteria
+
+- Reject Windows reserved device basenames case-insensitively, including before extensions.
+- Reject Windows-invalid component characters on every host.
+- Reject trailing spaces/dots and names longer than 247 UTF-8 bytes so `<name>.spec.md` remains at
+  most 255 bytes.
+- Preserve valid ASCII and multibyte names exactly at the 247-byte boundary.
+

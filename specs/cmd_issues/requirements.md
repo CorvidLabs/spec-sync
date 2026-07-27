@@ -82,51 +82,55 @@ spec: cmd_issues.spec.md
 
 ### REQ-cmd-issues-001
 
-The issues command SHALL verify tracked GitHub references and SHALL report valid, closed, missing, and unverifiable states predictably.
+The issues command SHALL verify tracked GitHub references and SHALL report valid, closed, missing,
+and unverifiable states predictably.
 
 Acceptance Criteria
-- Reads each spec's `implements:` and `tracks:` only as lists of numeric issue IDs; wrong shapes or
-  invalid entries are inspection findings, while specs with neither field are skipped.
-- Validates configured repository syntax even with zero references or missing/empty specs;
-  otherwise resolves through Git auto-detection only after at least one reference is gathered.
-- All references are verified in one globally deduplicated batch of at most 100 unique issue IDs;
-  confirmed issues are classified as valid/closed/not-found while repository, authentication,
-  transport, timeout, or malformed-provider failures are errors.
-- Per-format output: Text/Table/Csv print per-spec details, safe inspection findings, and a one-line
-  summary; Json emits totals plus `inspection_findings`, a content-free `findings` array, and the
-  `specs` array; Markdown/Github emit a metric table plus a findings table when needed.
-- Text/Table/Csv no-reference guidance appears only when no references were gathered; all-error
-  batches include their error count in the summary.
-- An empty reference set skips Git auto-detection and provider access, but any configured repository
-  identity is syntax-validated even with zero references or no discovered specs.
-- Discovery and reads use retained capability-rooted directory/file handles, and checked issue
-  parsing consumes immutable snapshots whose discovered identity remains unchanged through read,
-  including regular-file and hardlink replacement checks.
-- The retained project capability that authorizes spec discovery also authorizes every
-  mapped-source snapshot; later ambient root replacement cannot combine project generations.
-- Spec retention is capped at 10,000 files, 4 MiB per spec, and 64 MiB cumulatively; mapped-source
-  retention is capped at 4 MiB per source and 64 MiB cumulatively.
-- At most 100,000 total directory entries are examined, including non-spec entries.
-- Checked issue parsing rejects duplicate/global malformed YAML and blank/null/wrong-shaped known
-  fields, accepts comments/trailing commas, and ignores nested extension/block-scalar lookalikes.
-- With `--create`, validation consumes retained spec/source snapshots through
-  `validate_spec_content_with_sources` and never reopens discovered paths before deciding whether
-  to create drift issues.
+
+- References from all specs are verified in one globally deduplicated batch of at most 100 unique
+  issue IDs.
+- Confirmed issues are classified as valid, closed, or not_found; repository, authentication,
+  transport, timeout, and malformed-provider failures are errors.
+- Any batch/provider error contributes to the existing non-zero command outcome.
+- Human-readable output uses gathered-reference count to distinguish an empty project from an
+  all-error batch, and the latter summary includes its error count.
+- Repository/provider resolution occurs only after inspection. Empty-reference projects skip Git
+  auto-detection and provider access, but configured repository syntax is still validated even
+  when the specs directory is missing or contains no specs.
+- A present selected project config is opened through the retained project capability, must be a
+  non-link regular entry, is identity-checked through one bounded 4 MiB same-handle read, and is
+  parsed/applied from those exact bytes. Invalid UTF-8, malformed JSON/TOML, or wrong-shaped known
+  TOML fields are structured content-free findings that exit 1 without fallback.
+- Omitted source directories are detected from a bounded sparse snapshot built through the
+  retained project capability and supplied to exact config parsing; ambient root replacement
+  cannot alter source selection.
+- Retained source detection applies the shared ignored-directory policy before metadata
+  inspection. Ignored symlinks are skipped, while recognized non-regular manifests produce a
+  structured inconclusive configuration finding.
 - Unreadable specs and malformed or missing frontmatter are retained as path-attributed,
-  content-free inspection findings and suppress no-reference guidance.
-- Checked traversal failures are retained as findings, and every rendered finding path is
-  project-relative, content-free, control/bidi/Zl/Zp-safe, and valid in its output format.
-- Windows finding paths use forward slashes while Unix literal backslashes remain filename data.
-- A present selected project configuration must be readable UTF-8 and syntactically valid JSON or
-  TOML before discovery. It and recognized manifests are acquired through no-follow, non-blocking
-  opens under the retained project capability, must be regular non-link/reparse entries, and are
-  identity-checked against path observations through one bounded 4 MiB retained-handle read.
-  Invalid syntax, UTF-8, known TOML field types, or replacement identities produce a content-free
-  configuration finding that exits 1 without ambient/default-path fallback.
-- Missing/empty specs and repository-resolution failures render through the selected format:
-  JSON stays parseable and Markdown/GitHub retain their structured report.
-- Markdown/GitHub code spans pad content when a path starts or ends with a backtick.
-- Exits 1 when any reference is not found (404), any verification error occurred, or any spec
-  inspection finding exists; otherwise exits 0.
-- Omitted source-directory discovery is derived from a bounded sparse snapshot built through the
-  retained project capability, and a post-config ambient root replacement cannot alter it.
+  content-free inspection findings in every output format, suppress no-reference guidance, and
+  contribute to exit 1.
+- Spec discovery and reads are rooted in retained project/spec-directory capabilities, and each
+  immutable snapshot keeps its discovered identity through read completion; symlink, regular-file,
+  and hardlink replacement cannot authorize replacement bytes.
+- The retained project capability used for spec discovery is reused for mapped-source snapshots;
+  ambient project-root replacement cannot mix distinct project identities.
+- Spec retention is capped at 10,000 files, 4 MiB per spec, and 64 MiB cumulatively;
+  mapped-source retention is capped at 4 MiB per source and 64 MiB cumulatively.
+- Recursive discovery examines at most 100,000 total entries, including non-spec entries, before
+  returning an inconclusive bounded finding.
+- Issue fields use maintained real-YAML checked parsing: duplicate/global malformed YAML and
+  blank/null/wrong-shaped known fields fail closed; comments/trailing commas remain valid; nested
+  extension and block-scalar lookalikes are ignored; LF and CRLF frontmatter delimiters are
+  accepted equivalently.
+- Renderer boundaries escape controls, bidi formatting characters, and Unicode Zl/Zp separators;
+  Markdown/GitHub preserve valid escaped table rows and code spans, padding span content when a
+  path begins or ends with a backtick.
+- Windows finding paths use forward slashes; Unix literal backslashes remain filename data.
+- Missing/empty specs and repository-resolution errors render through the selected output format;
+  JSON remains parseable and Markdown/GitHub remain structured.
+- `--create` validates retained spec and mapped-source snapshots through
+  `validate_spec_content_with_sources` without reopening discovered paths or resolving
+  supplied-content TypeScript wildcard imports through ambient paths, then preserves normal
+  drift-issue creation for validation errors.
+

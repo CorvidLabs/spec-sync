@@ -1,6 +1,6 @@
 ---
 module: github
-version: 11
+version: 12
 status: stable
 files:
   - src/github.rs
@@ -23,7 +23,7 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 
 ## Public API
 
-### Exported Functions
+#### Exported Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
@@ -36,10 +36,10 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | `fetch_issue` | `repo: &str, number: u64` | `Result<GitHubIssue, String>` | Fetch one issue through in-process REST; requires `GITHUB_TOKEN` |
 | `verify_spec_issues` | `repo: &str, spec_path: &str, implements: &[u64], tracks: &[u64]` | `IssueVerification` | Verify all issue references from a spec's frontmatter |
 | `verify_issue_batch` | `repo: &str, references: &[(String, Vec<u64>, Vec<u64>)]` | `Vec<IssueVerification>` | Crate-visible in-process REST verification for one globally deduplicated/capped project batch |
-| `list_issues` | `repo: &str, label: Option<&str>` | `Result<Vec<GitHubIssue>, String>` | List open issues through in-process REST; requires `GITHUB_TOKEN` and skips pull requests |
+| `list_issues` | `repo: &str, label: Option<&str>` | `Result<Vec<GitHubIssue>, String>` | List open issues through strict in-process REST pagination; requires `GITHUB_TOKEN` and skips pull requests |
 | `create_drift_issue` | `repo: &str, spec_path: &str, errors: &[String], labels: &[String]` | `Result<GitHubIssue, String>` | Create a "Spec drift detected" issue with validation errors |
 
-### Exported Structs
+#### Exported Structs
 
 | Type | Description |
 |------|-------------|
@@ -49,36 +49,20 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 
 ## Invariants
 
-1. `fetch_issue`, `list_issues`, and issue verification use only in-process GitHub REST; none
-   launches a `gh` provider process.
-2. Every read/list/verify path requires an explicit `GITHUB_TOKEN`; authenticated `gh` state is
-   not used as a fallback.
-3. Every REST operation uses a 10-second deadline; repository preflight plus all batch fetches share
-   one 30-second deadline over at most 100 globally deduplicated issue IDs.
-4. Issue state is normalized to lowercase (`"open"` / `"closed"`)
-5. `create_drift_issue` requires `gh` CLI — no REST API fallback for issue creation
-6. `detect_repo` handles both SSH (`git@github.com:`) and HTTPS (`https://github.com/`) remote URLs
-7. `resolve_repo` prefers explicit config over auto-detection
-8. Issue verification preflights repository access once and revalidates access after every apparent
-   missing issue before classifying not_found; repository, authentication, transport, timeout, and
-   malformed-provider failures remain errors.
-9. `gh` is invoked only by the explicit `create_drift_issue` write path; legacy
-   `fetch_issue_gh` fails closed without spawning it.
-10. Issue listing rejects a provider page containing more than 100 entries before parsing any
-    item, including pull-request entries. Every raw item is then fully validated before pull-request
-    filtering: its marker shape, positive numeric identity, nonempty title, nonempty names for any labels, exact open state,
-    and canonical `https://github.com/{owner}/{repo}/issues/{number}` or
-    `/pull/{number}` URL identity must agree with its raw type. Duplicate raw identities are rejected
-    within and across pages even when one or both entries would later be filtered as pull requests.
-    Listing strictly follows `Link` pagination for at most 100 pages. Every next link must retain the
-    requested `/repos/{owner}/{repo}/issues` endpoint and exact open-state, 100-item, label, and
-    next-page query semantics; malformed or redirected links and a continuing page after the cap
-    fail instead of truncating.
-11. Action defaults and maintained consumer pins advance to an exact release version only through
-    an accepted release change, and floating-ref promotion waits for supported-platform
-    verification of the exact-version artifacts.
-12. Direct issue-detail reads reject any payload carrying GitHub's `pull_request` marker; a pull
-    request cannot be verified or imported as an issue through the shared detail endpoint.
+1. Read/list/verify operations require `GITHUB_TOKEN` and execute only in-process REST requests.
+2. GitHub issue verification confirms repository access before and after apparent absence.
+3. Verification globally deduplicates no more than 100 issue IDs per batch and bounds REST operation
+   and complete-batch time.
+4. Authentication, repository, transport, timeout, and malformed-provider failures are
+   inconclusive errors rather than successful empty or not_found results.
+5. Legacy `gh` issue reads fail closed without process spawning; `gh` is reserved for explicit
+   issue creation.
+6. Issue listing rejects provider pages above 100 entries before parsing any item, strictly
+   validates every raw issue/pull-request item as open with exact URL identity before filtering,
+   rejects duplicate raw identities within/across pages, paginates at most 100 pages, binds next
+   links to the requested repository issues endpoint and query semantics, and rejects malformed
+   links and cap truncation.
+7. Direct issue details are issue-only and reject pull-request markers.
 
 ## Behavioral Examples
 
@@ -159,3 +143,4 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | 2026-07-22 | CHG-0063 independent-review follow-up: Bound raw issue-list pages and reject null or non-object pull-request markers before filtering |
 | 2026-07-22 | CHG-0063 final adversarial follow-up: Validate every raw issue/pull-request item as open with exact URL identity and canonical decimal number spelling, and reject raw duplicates before PR filtering |
 | 2026-07-22 | CHG-0063 final agent review: reject pull-request payloads from direct issue-detail reads |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

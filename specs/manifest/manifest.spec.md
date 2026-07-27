@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 15
+version: 16
 status: stable
 files:
   - src/manifest.rs
@@ -17,13 +17,13 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 
 ## Public API
 
-### Exported Constants
+#### Exported Constants
 
 | Constant | Type | Description |
 |----------|------|-------------|
 | `MAX_GRADLE_MANIFEST_BYTES` | `u64` | Crate-visible 4 MiB ceiling shared by retained Gradle manifest readers |
 
-### Exported Structs
+#### Exported Structs
 
 | Struct | Fields | Description |
 |--------|--------|-------------|
@@ -31,7 +31,7 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 | `ManifestDiscovery` | `modules: HashMap<String, ManifestModule>`, `source_dirs: Vec<String>` | Aggregated result of parsing all manifest files in a project |
 | `GradleSettingsModule` | `name: String`, `path: String` | Crate-visible normalized Gradle module identity and effective project directory |
 
-### Exported Functions
+#### Exported Functions
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
@@ -40,92 +40,47 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 | `discover_from_manifests_checked_with_root` | `root: &Path, project_root: &Dir` | `Result<ManifestDiscovery, String>` | Crate-visible checked discovery that reuses a caller-retained project-root capability and rejects an ambient/retained root identity mismatch |
 | `parse_gradle_settings` | `content: &str` | `Result<Vec<GradleSettingsModule>, String>` | Crate-visible shared parser for Groovy/Kotlin includes plus assignment-style and method-style literal project-directory overrides |
 
-### Supported Manifest Types
-
-Seven language ecosystems are supported, each with a dedicated internal parser:
-
-- **Cargo.toml** (Rust) — extracts `[package]` name, `[[bin]]` targets, `[workspace]` members (recursive), `[dependencies]`
-- **Package.swift** (Swift) — parses `.target()`, `.executableTarget()` declarations; skips `.testTarget()`; extracts name, path, dependencies params
-- **build.gradle.kts / build.gradle** (Kotlin/Java) — detects Android vs standard layout; parses Groovy/Kotlin `include` declarations plus assignment-style and method-style literal project-directory overrides from settings.gradle for multi-module projects
-- **package.json** (TypeScript/JS) — handles `workspaces` (array or object form) with glob expansion; detects `src/` or `lib/` or `main` field
-- **pubspec.yaml** (Dart/Flutter) — extracts `name:` field; defaults source to `lib/`
-- **go.mod** (Go) — uses last segment of module path as name; scans for `cmd/`, `internal/`, `pkg/`, `api/` dirs
-- **pyproject.toml** (Python) — tries `[project]` then `[tool.poetry]` for name; detects `src/` or package-named dir
-
-General Cargo/Python metadata and Swift declarations use internal string helpers. Security-sensitive
-MCP Cargo workspace expansion separately parses bounded manifests as real TOML before consuming
-member or target paths.
-
 ## Invariants
 
-1. Parsers are tried in a fixed order: Cargo.toml → Package.swift → build.gradle → package.json → pubspec.yaml → go.mod → pyproject.toml
-2. Multiple manifest types can coexist — results are merged (first module name wins on conflict)
-3. Missing ordinary manifest files are skipped. Every present Gradle build/settings variant is
-   preflighted through the retained project-root capability, including a lower-precedence variant
-   shadowed by another filename. Each must be a regular non-link entry, remain identity-stable
-   before open, after open, and after its bounded read, and fit the 4 MiB limit. Parsing consumes
-   only the exact retained bytes. Linked, reparse-backed, non-regular, replaced, oversized,
-   unreadable, or invalid-UTF-8 Gradle manifests fail checked discovery.
-4. Cargo workspace members are parsed recursively, with source paths prefixed by the member
-   directory. Declared Cargo members and Node workspace patterns consume a bounded expansion-work
-   budget before traversal. Normalized workspace nodes are deduplicated and completed results are
-   memoized, so duplicate declarations cannot replay an already parsed subtree exponentially.
-5. Swift `.testTarget()` declarations are excluded from modules
-6. Swift balanced-paren extraction handles nested parentheses correctly
-7. Gradle parser distinguishes Android projects (checks `android {` block) from standard Kotlin/Java layouts
-8. Gradle multi-module projects support comment-aware Groovy/Kotlin quoting, decoded escapes,
-   parenthesized or bare multiline `include` declarations, nested colon names, assignment-style
-   `.projectDir = ...`, and method-style `.setProjectDir(...)`. Triple-quoted Groovy/Kotlin
-   documentation and nested block comments are inert. Control-flow rejection is local to a
-   governed include or project-directory directive; unrelated top-level control flow remains
-   compatible. Unsupported inclusion APIs such as `includeFlat` and `includeBuild` fail checked
-   discovery when invoked but remain inert when used only as identifiers or prose.
-9. Supported assignment and method arguments are exactly `file(<literal>)` and
-   `new File(rootDir, <literal>)`. Every include argument and project-directory argument must be a
-   complete literal expression; `new File` requires a real token boundary. Unescaped interpolation
-   in double-quoted strings, dynamic arguments, alternate bases, extra arguments, aliased,
-   qualified, conditional, block-scoped, compound, or otherwise unsupported mutations, and
-   trailing expressions fail checked discovery. Escaped literal dollars remain data, while Unicode
-   and Groovy octal escapes are decoded before confinement checks.
-10. Raw included module identities and raw `project(...)` selectors are checked for rooted,
-    drive-qualified (including drive-relative `C:member`), UNC, and parent-escaping forms before
-    Gradle colon separators are mapped to path separators. Valid rooted nested identities such as
-    `:service:api` and `:C:member` remain supported.
-11. Included module names and effective project-directory values normalize only while they remain
-    project-relative; rooted, drive-qualified, UNC, and parent traversal escapes fail checked
-    discovery without returning partial modules.
-12. Every filesystem component of a Gradle-derived effective directory is resolved through the
-    retained project-root capability with no-follow semantics before source probing or traversal.
-    A symlink or Windows reparse point at any component makes checked discovery inconclusive; its
-    referent is never used as a source root.
-13. `discover_from_manifests_checked` returns an error for malformed or unsupported Gradle forms so
-    coverage gates remain inconclusive; it merges the result parsed from that same read instead of
-    validating and rereading the path.
-14. package.json workspaces support both array form (`["packages/*"]`) and object form (`{ "packages": [...] }`)
-15. Go module name uses the last path segment of the module path (e.g. `github.com/user/repo` → `repo`)
-16. Python project name resolution tries `[project]` before `[tool.poetry]`
-17. General module metadata extraction remains string-based; MCP Cargo workspace preflight uses the
-    real TOML parser and rejects malformed workspace shapes without partial discovery.
-18. `ManifestDiscovery::default()` returns empty modules and source_dirs
-19. Caller-retained checked discovery acquires every recognized non-Gradle manifest, nested Cargo
-    workspace manifest, workspace directory, and source-directory probe through the retained
-    project capability. Retained manifest files are no-follow, non-blocking, identity-continuous,
-    valid UTF-8 reads bounded to 8 MiB each and 64 MiB cumulatively; discovery is sorted and
-    bounded to 100,000 directory entries and 256 path components. The ambient project pathname is
-    consulted only after discovery to detect root replacement.
-20. Workspace expansion is bounded independently of unique retained bytes: every declared Cargo
-    member and Node workspace pattern is charged, repeated normalized entries reuse one completed
-    discovery result, and exhausting the expansion budget makes checked discovery inconclusive
-    without partial modules.
-21. A retained nested manifest or workspace directory must remain reachable through the same
-    project-root edge after enumeration and before/after manifest reads. Detaching and replacing a
-    parent directory makes checked discovery inconclusive instead of mixing workspace generations.
-22. Node workspace enumeration records every child directory identity through the retained
-    workspace-base capability, then opens children sequentially through that capability. Child
-    manifests and source probes consume only identity-matching retained directories, so
-    swap/read/restore cannot inject bytes. Each completed workspace-base listing is released after
-    final reachability verification, so neither sibling count nor distinct base count exhausts
-    directory handles.
+1. Gradle settings parsing is comment- and escape-aware and supports literal Groovy/Kotlin multiline
+   include declarations.
+2. Raw include identities and project selectors reject drive-qualified, rooted, UNC, and
+   parent-escaping forms before colon-to-path conversion.
+3. Nested colon names and the supported literal assignment/method project-directory forms resolve
+   to one deterministic effective project-relative directory per module.
+4. Dynamic, qualified, aliased, conditional/block-scoped, or otherwise indirect includes and
+   `projectDir`/`setProjectDir` mutations, unsupported bases/arity/suffixes, compound assignments,
+   and unsupported multiline directive arguments fail without partial discovery.
+5. Double-quoted Gradle interpolation is rejected after escape decoding; explicit escaped-dollar
+   and Groovy single-quoted literal-dollar forms remain deterministic literals.
+6. Checked discovery reports malformed Gradle input; compatibility discovery may return an empty
+   result, but gate callers remain inconclusive.
+7. Checked Gradle discovery merges the exact single-read parse result.
+8. MCP Cargo workspace discovery trusts only structurally parsed TOML members and target paths.
+9. Settings-only Gradle workspaces discover included modules, while malformed settings remain an
+   inconclusive checked-discovery error.
+10. Gradle module and effective project-directory paths cannot traverse above the project root or
+   select rooted, drive-qualified, or UNC locations; rejection occurs before partial discovery or
+   filesystem probing.
+11. Every Gradle-derived directory component is inspected no-follow through the retained root
+    capability; symlink and reparse-point components reject before source probing or traversal.
+12. Present Gradle build/settings manifests are bounded regular non-link retained-capability reads;
+    malformed endpoints or bytes reject before partial discovery.
+13. Every present filename variant is preflighted before precedence and remains identity-stable
+    through open/read; unsafe shadowed variants cannot evade checked discovery.
+14. Unsupported invoked inclusion APIs and governed indirect/conditional mutations fail closed,
+    while unrelated Gradle control flow and identifier/documentation uses remain compatible.
+15. Every recognized checked manifest ecosystem and nested workspace probe uses the caller's
+    retained project capability with deterministic byte, entry, depth, UTF-8, link, special-file,
+    and identity enforcement; ambient paths are only a final replacement diagnostic.
+16. Cargo/Node workspace expansion charges declarations independently of unique retained bytes,
+    deduplicates normalized nodes, and reuses completed results.
+17. Retained nested manifest/workspace parents are reverified through the project root around
+    enumeration and reads.
+18. Node workspace enumeration records child identities, opens children sequentially through the
+    retained workspace base, and consumes child manifests/source probes only from identity-matching
+    capabilities. Each verified base listing is released before the next distinct base, so
+    swap/read/restore cannot mix generations and neither sibling nor base breadth exhausts handles.
 
 ## Behavioral Examples
 
@@ -276,3 +231,4 @@ member or target paths.
 | 2026-07-24 | v13 / CHG-0063 independent rereview remediation: Parse retained Cargo and Node workspace declarations structurally, charge malformed entries before rejection, and bind nested workspace directory listings through child consumption |
 | 2026-07-24 | v14 / CHG-0063 exact-head rereview remediation: Consume Node child manifests and probes through identity-bound enumerated capabilities while bounding live handles independently of sibling count |
 | 2026-07-24 | v15 / CHG-0063 descriptor-breadth remediation: Release each verified Node workspace-base listing so live handles remain bounded across distinct base patterns as well as sibling directories |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

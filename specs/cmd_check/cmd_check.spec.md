@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 9
+version: 10
 status: stable
 files:
   - src/commands/check.rs
@@ -37,16 +37,8 @@ Implements the primary deterministic validation entry point, including caching, 
 
 ## Invariants
 
-1. `--fix` performs deterministic local markdown repairs only: near-miss headers and undocumented export rows; it never calls a model or shell command
-2. Near-miss header correction runs as part of auto-fix — Levenshtein-close typos are renamed to canonical export headers, and bare API-kind headings under `## Public API` (e.g. `### Functions`, `### Methods`, `### Types`) are promoted to `### Exported <Kind>` so hand-written tables become the export table instead of being duplicated
-3. Hash cache is consulted before validation unless `--force`, `--strict`, `--fix`, or a spec filter is set — an explicit `--fix` is never silently skipped because a previous failing/warning run recorded the hashes
-3a. `--fix` never adds a symbol that already appears in any table within `## Public API` (including informational subsections)
-4. After auto-fix, validation is re-run to verify fixes resolved the issues
-5. JSON output mode collects all errors/warnings into a structured object instead of printing inline
-6. `--create-issues` groups errors by spec path and creates one GitHub issue per affected spec
-7. `--explain` appends per-category score breakdown (FM/Sec/API/Depth/Fresh each out of 20) to each spec's output
-8. Exit code is determined by enforcement mode and `--strict` flag via `compute_exit_code`
-9. Coverage uses checked manifest discovery; malformed Gradle settings make the result inconclusive and exit 1 instead of producing partial or vacuous coverage
+9. Coverage uses checked manifest discovery; malformed Gradle settings make the result inconclusive
+   and exit 1 instead of producing partial or vacuous coverage.
 
 ## Behavioral Examples
 
@@ -116,3 +108,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-11 | CHG-0004-close-final-pr-review-gaps-in-5-0-lifecycle-enforcement: Close final PR review gaps in 5.0 lifecycle enforcement |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

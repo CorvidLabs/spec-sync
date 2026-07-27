@@ -1,0 +1,1 @@
+{"commit":"17375126db5967ee096c387c20138e50bd31acad","confidence":0.95,"humanApproved":true,"note":"CHG-0067 archive-only move after PR #469 merged; lifecycle evidence authenticated; 2,034 unit and 331 integration tests passed; strict specs and 100% coverage passed.","reviewer":"agent:codex-godel","testsPassed":true,"timestamp":1785182701,"verdict":"proceed"}

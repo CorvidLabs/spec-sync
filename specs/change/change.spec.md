@@ -1,6 +1,6 @@
 ---
 module: change
-version: 43
+version: 44
 status: active
 files:
   - src/change.rs
@@ -35,6 +35,7 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 15. Supported accepted interview metadata changes only through a portable append-only correction ledger whose effective definition requires fresh gates and never replays canonical deltas.
 16. Audited exact acceptance-owner corrections can repair omitted canonical ownership on an already-scoped input without changing semantic scope or replaying canonical deltas.
 17. A transactional batch of audited exact acceptance-owner corrections validates every entry independently and persists all or none as sequenced ledger entries.
+18. Bounded Git candidate inspection deduplicates repeated stage-zero paths only when their normalized mode and object identity match exactly; conflicting observations fail closed.
 
 ## Public API
 
@@ -204,6 +205,12 @@ Acceptance Criteria
 - **When** semantic preparation resolves module `auth`
 - **Then** resolution succeeds via the conventional path without requiring a registry name
 
+**Scenario: Overlapping Git candidate batches repeat an index entry**
+
+- **Given** a delivery scope containing a tracked parent directory and enough exact tracked children to cross the pathspec batch boundary
+- **When** Git returns one child through both the parent pathspec and its later exact pathspec
+- **Then** identical mode/object pairs are represented once, while either a mode or object mismatch fails closed
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -221,6 +228,7 @@ Acceptance Criteria
 | Covered delivery input changes while every covering successor is itself stale | Unified check names the input, the sorted covering successor IDs, and their stale evidence state |
 | Covered delivery input disappears from the current inventory | Unified check names the missing path and the restore-or-reopen remediation |
 | Non-inert local registry cannot be parsed while resolving a module | Canonical path resolution fails closed with `failed to parse local registry {path} while resolving `{module}`` |
+| A repeated stage-zero path has a different mode or object ID | Git candidate inspection fails closed without replacing the first observation |
 
 ## Dependencies
 
@@ -287,3 +295,4 @@ Acceptance Criteria
 | 2026-07-19 | CHG-0055-batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c: Batch mode for change correct-owner so multiple omitted exact canonical owners can be audited and appended in one transactional correction before a single reapprove-verify-accept cycle |
 | 2026-07-19 | CHG-0057-add-a-native-migration-path-for-5-0-1-era-change-ledgers-that-backfills-the-5-1: Add a native migration path for 5.0.1-era change ledgers that backfills the 5.1 reopening stale and current acceptance-input digest fields idempotently with a closing-digest verification pass, and surfaces an actionable migrate hint when check encounters the 5.0.1 reopening schema |
 | 2026-07-19 | CHG-0059-tolerate-inert-5-0-1-registry-toml-stubs-so-module-resolution-falls-back-to-defa: Tolerate inert 5.0.1 registry.toml stubs so module resolution falls back to default specs layout without failing closed on empty legacy stubs |
+| 2026-07-27 | CHG-0067-fix-issue-467-by-deduplicating-identical-stage-zero-entries-from-overlapping-gi: Fix issue #467 by deduplicating identical stage-zero entries from overlapping Git pathspec batches while rejecting conflicting mode or object observations |

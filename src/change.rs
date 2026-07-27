@@ -7755,13 +7755,30 @@ fn borrowed_git_args(args: &[String]) -> Vec<&str> {
     args.iter().map(String::as_str).collect()
 }
 
+fn record_git_stage_zero_entry(
+    entries: &mut BTreeMap<String, (u32, String)>,
+    path: String,
+    mode: u32,
+    object: String,
+) -> Result<(), String> {
+    if let Some((existing_mode, existing_object)) = entries.get(&path) {
+        if *existing_mode == mode && existing_object == &object {
+            return Ok(());
+        }
+        return Err(format!(
+            "conflicting duplicate Git index stage-zero entry for `{path}`"
+        ));
+    }
+    entries.insert(path, (mode, object));
+    Ok(())
+}
+
 fn inspect_git_candidates(
     root: &Path,
     candidates: &BTreeSet<String>,
     regular_files_only: bool,
 ) -> Result<InspectedGitCandidates, String> {
-    let mut modes = BTreeMap::new();
-    let mut objects = BTreeMap::new();
+    let mut stage_entries = BTreeMap::new();
     let batches = candidate_argument_batches(candidates);
     let repo_prefix = git_repo_prefix(root)?;
     let mut stage_output_bytes = 0_usize;
@@ -7815,12 +7832,15 @@ fn inspect_git_candidates(
                     "cannot hash relevant path `{path}` with unresolved Git index stages"
                 ));
             }
-            if modes.insert(path.clone(), mode).is_some()
-                || objects.insert(path, object.to_ascii_lowercase()).is_some()
-            {
-                return Err("duplicate Git index stage-zero entry".into());
-            }
+            let object = object.to_ascii_lowercase();
+            record_git_stage_zero_entry(&mut stage_entries, path, mode, object)?;
         }
+    }
+    let mut modes = BTreeMap::new();
+    let mut objects = BTreeMap::new();
+    for (path, (mode, object)) in stage_entries {
+        modes.insert(path.clone(), mode);
+        objects.insert(path, object);
     }
 
     let fsmonitor = run_git_bounded(
@@ -14125,6 +14145,72 @@ mod tests {
                 "approvals.json".to_string(),
                 (0o100644, b"archive\n".to_vec())
             )])
+        );
+    }
+
+    #[test]
+    fn git_candidate_inspection_deduplicates_identical_overlapping_pathspec_entries() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        let parent = ".specsync/changes";
+        fs::create_dir_all(root.join(parent)).unwrap();
+        let mut candidates = BTreeSet::from([parent.to_string()]);
+        for number in 0..(GIT_ATTRIBUTE_BATCH_PATHS + 1) {
+            let path = format!("{parent}/evidence-{number:04}.json");
+            fs::write(root.join(&path), "{}\n").unwrap();
+            candidates.insert(path);
+        }
+        quiet_git(root, &["add", parent]);
+
+        let inspected = inspect_git_candidates(root, &candidates, false).unwrap();
+
+        assert_eq!(inspected.modes.len(), GIT_ATTRIBUTE_BATCH_PATHS + 1);
+        assert_eq!(inspected.objects.len(), GIT_ATTRIBUTE_BATCH_PATHS + 1);
+    }
+
+    #[test]
+    fn git_stage_zero_accumulator_rejects_conflicting_mode() {
+        let path = ".specsync/changes/evidence.json".to_string();
+        let object = "a".repeat(40);
+        let mut entries = BTreeMap::new();
+        record_git_stage_zero_entry(&mut entries, path.clone(), 0o100644, object.clone()).unwrap();
+
+        let error =
+            record_git_stage_zero_entry(&mut entries, path.clone(), 0o100755, object.clone())
+                .unwrap_err();
+
+        assert_eq!(
+            error,
+            format!("conflicting duplicate Git index stage-zero entry for `{path}`")
+        );
+        assert_eq!(entries, BTreeMap::from([(path, (0o100644, object))]));
+    }
+
+    #[test]
+    fn git_stage_zero_accumulator_rejects_conflicting_object() {
+        let path = ".specsync/changes/evidence.json".to_string();
+        let original_object = "a".repeat(40);
+        let mut entries = BTreeMap::new();
+        record_git_stage_zero_entry(
+            &mut entries,
+            path.clone(),
+            0o100644,
+            original_object.clone(),
+        )
+        .unwrap();
+
+        let error =
+            record_git_stage_zero_entry(&mut entries, path.clone(), 0o100644, "b".repeat(40))
+                .unwrap_err();
+
+        assert_eq!(
+            error,
+            format!("conflicting duplicate Git index stage-zero entry for `{path}`")
+        );
+        assert_eq!(
+            entries,
+            BTreeMap::from([(path, (0o100644, original_object))])
         );
     }
 

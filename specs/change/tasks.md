@@ -37,3 +37,4 @@ spec: change.spec.md
 - [x] Add transactional batch mode for exact acceptance-owner corrections
 - [x] Add native 5.0→5.1 change-ledger migration with idempotent reopening digest backfill
 - [x] Tolerate inert 5.0.1 registry stubs during canonical module path resolution
+- [x] Deduplicate identical stage-zero entries from overlapping Git pathspec batches while rejecting conflicting mode or object pairs

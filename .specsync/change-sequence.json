@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 66,
-  "id": "CHG-0066-make-issue-427-spec-merge-resolution-lossless-and-truthful-by-parsing-diff3-base",
+  "sequence": 67,
+  "id": "CHG-0067-fix-issue-467-by-deduplicating-identical-stage-zero-entries-from-overlapping-gi",
   "acknowledged_collisions": [
     {
       "sequence": 16,

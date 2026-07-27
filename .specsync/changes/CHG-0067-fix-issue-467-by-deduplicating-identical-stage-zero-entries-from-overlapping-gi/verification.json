@@ -1,0 +1,108 @@
+{
+  "timestamp": 1785178271,
+  "commit": "e27cba1cdcb02b36ba7e4094b5ec5369a675b47a",
+  "contract_digest": "9cfdfd911c9263c29d83d75e6ed3e2749b921313ff5d695ca249769a58bc88c2",
+  "workspace_digest": "268fc1e76337269c0fa62445bc33f8d0e84b61e570eb4e9ee5c9f13a6ec08692",
+  "acceptance_input_digest": "855fdcd51de9c792a061e2fe20df71d5c646662f664293035f4f7c4987b31bc8",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "aed40374f3f6bba42cc1eee72538d8bce88376674b056ca3799ab7772df68b41",
+        "entry_digest": "cd8f4fc8d7c780dac1e800a1192025842c315a7c53443aa6276a7daa7acf0eea",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/change/change.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "479f45068ee95be417144aef5aaad698a9cb500625f2e3979051a8920f1380e5",
+        "entry_digest": "329e646a5f9d315d4f1d6ff7fb3704e56b630bc9bfe2239699380bb1c8150445",
+        "owners": [
+          "change"
+        ]
+      },
+      {
+        "path": "specs/change/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "72fdede2c1917c09187078a8cc409e0838eca851a1034e4b32b374ca71f3fdb7",
+        "entry_digest": "b2ee37df08164da82463d792af1fe6be20cab1de910db0bf5af84e19fc58f753",
+        "owners": [
+          "change"
+        ]
+      },
+      {
+        "path": "specs/change/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0034db948489c2337157d4e2b8e9c87af7579297f7488fb26dc44a30989a1167",
+        "entry_digest": "8d580007248f68483484a19e68fb120635c3d7e3ee3fdc0d38cdabac789f6b3f",
+        "owners": [
+          "change"
+        ]
+      },
+      {
+        "path": "specs/change/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b6910d4225ba874326800ff93cc154136b6e89d355329822f3482c182609fe7d",
+        "entry_digest": "0da431717577e7bfaf9594643852ed0d9371a5eabe7e131c9431ab4f09a010bd",
+        "owners": [
+          "change"
+        ]
+      },
+      {
+        "path": "specs/change/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "558b9ef92df54c38b81bd95a627d3fd25f8bc1d18ec2dab0c62253741dd0fbc0",
+        "entry_digest": "a755f1a95393d975a8ea0b161b410b83dbb43947c468b229a456b25bd6c5da6e",
+        "owners": [
+          "change"
+        ]
+      },
+      {
+        "path": "src/change.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "1d2f0e24da1b0ad532b7f94247b149f3321ab375d5f5e2f38e274323ebd41d40",
+        "entry_digest": "f3184652f79d5120d6bfc3d09675474fd37e6977272ca7037391fb85a2b6847f",
+        "owners": [
+          "change"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "ruby --version",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-change-042"
+  ]
+}

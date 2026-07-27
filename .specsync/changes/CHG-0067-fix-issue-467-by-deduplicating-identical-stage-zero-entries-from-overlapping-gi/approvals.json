@@ -1,0 +1,26 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785175654,
+      "digest": "3916076e72f2ea34fc9609f72f5a33ef8c87fde7c08f00d28b890c4d77babc10",
+      "note": "User approved exact definition digest 3916076e72f2ea34fc9609f72f5a33ef8c87fde7c08f00d28b890c4d77babc10."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785177956,
+      "digest": "9cfdfd911c9263c29d83d75e6ed3e2749b921313ff5d695ca249769a58bc88c2",
+      "note": "User reapproved exact definition digest 9cfdfd911c9263c29d83d75e6ed3e2749b921313ff5d695ca249769a58bc88c2."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785179036,
+      "digest": "7eb7307bd64f9a5779744c543e3f33b0aa8e9353b79db2ffbf313c2c44dea1e2",
+      "note": "User approved closing CHG-0067 after fresh verification as 0xLeif."
+    }
+  ],
+  "reopenings": []
+}
